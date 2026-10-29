@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{
-    ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
+    Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
@@ -179,8 +179,10 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 
 fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
     ClearanceConfig {
-        max_cell_depth: depth,
-        max_cell_pairs: pairs,
+        budgets: Budgets {
+            max_cell_depth: depth,
+            max_cell_pairs: pairs,
+        },
         pruning: Pruning::Off,
     }
 }

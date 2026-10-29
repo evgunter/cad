@@ -103,15 +103,3 @@ pub(crate) fn count<T>(values: &SlotValues<T>, slot: SlotId) -> Option<i64> {
         _ => None,
     })
 }
-
-/// A named `[Expr; 3]` slot triple as a vector (wiring helper).
-pub(crate) fn vec3<T: geom_core::Real>(
-    values: &SlotValues<T>,
-    f: impl Fn(crate::node::Axis3) -> SlotId,
-) -> Option<geom_core::Vec3<T>> {
-    Some(geom_core::Vec3::new(
-        scalar(values, f(crate::node::Axis3::X))?,
-        scalar(values, f(crate::node::Axis3::Y))?,
-        scalar(values, f(crate::node::Axis3::Z))?,
-    ))
-}

@@ -8,9 +8,10 @@
 //! touch readings run.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Band, Circles, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+};
 
-use super::torus::{CT_DOOR, TT_DOOR};
 use super::{ClassCarrier, ComponentShape, SectionComponent};
 use crate::intersect::decide_across;
 
@@ -135,11 +136,6 @@ fn essential_pair<T: Real>(
     carrier: &ClassCarrier<T>,
 ) -> Vec<SectionComponent<T>> {
     vec![arm_loop(winds, None, carrier); 2]
-}
-
-/// The cylinder × torus arms' carrier while the door is unbuilt.
-fn cylinder_carrier<T: Real>() -> ClassCarrier<T> {
-    ClassCarrier::Unbuilt(CT_DOOR)
 }
 
 // ---------------------------------------------------------------------
@@ -316,6 +312,9 @@ pub(super) fn sphere_touch<T: Decide>(
 // Torus × parallel-axis cylinder
 // ---------------------------------------------------------------------
 
+/// The parallel wall's side of the torus axis: its circle holds the axis.
+const WALL_ROUND_AXIS: &str = "section_torus_offset_wall_round_axis";
+
 /// The parallel wall's touch row: its nearest ruling on the torus's
 /// outer equator.
 pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
@@ -370,22 +369,35 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     };
     Ok(
         match (min_over_lo, min_under_hi, max_over_lo, max_under_hi) {
-            // The whole ρ-range inside the tube's shadow: two loops, each
-            // encircling the cylinder.
-            (true, true, true, true) => essential_pair([false, true], &cylinder_carrier()),
+            // The whole ρ-range inside the tube's shadow: two loops, an
+            // upper and a lower, each a graph over the wall's circle, so
+            // each encircles the cylinder. On the torus each lies on one
+            // half of the tube, an annulus about the axis, and turns once
+            // about the axis exactly where the wall's circle holds it,
+            // `e < ρc`: then it is a longitude, essential, and otherwise
+            // null. `|ρc − e| = ρ_min` stands past `R − r` by the inner
+            // row just read, so its sign is decided.
+            (true, true, true, true) => {
+                let round_axis = match sign(WALL_ROUND_AXIS, Margin::of(rc - e), band) {
+                    Some(Sign::Positive) => true,
+                    Some(Sign::Negative) => false,
+                    _ => return Err(Pinch::named(WALL_ROUND_AXIS)),
+                };
+                essential_pair([round_axis, true], &ClassCarrier::General)
+            }
             // Wholly inside the hole, or wholly outside the torus.
             (_, _, false, _) | (_, false, _, _) => Vec::new(),
             // Across both bounds: two `(0,1)` loops on the torus.
-            (false, true, true, false) => essential_pair([true, false], &cylinder_carrier()),
+            (false, true, true, false) => essential_pair([true, false], &ClassCarrier::General),
             // Across the inner bound only: the null loop at θ = 0.
             (false, true, true, true) => lone(
                 c + toward * rho_max + a * height(rho_max),
-                &cylinder_carrier(),
+                &ClassCarrier::General,
             ),
             // Across the outer bound only: the null loop at θ = π.
             (true, true, true, false) => lone(
                 c + toward * (e - rc) + a * height(rho_min),
-                &cylinder_carrier(),
+                &ClassCarrier::General,
             ),
         },
     )
@@ -588,19 +600,19 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     let mut on_pi: Vec<Vec<(T, Point3<T>)>> = vec![Vec::new(); loops.len()];
     for (xa, far1) in [(big_r, false), (-big_r, true)] {
         for (xb, far2) in [(e + big_r2, false), (e - big_r2, true)] {
-            let (dx, dy) = (xb - xa, h);
-            let d = Vec2::new(dx, dy).norm();
+            let (ca, cb) = (Point2::new(xa, T::zero()), Point2::new(xb, h));
+            let tubes = Circles::new((cb - ca).norm(), r, r2);
             if signs_across(
                 [
                     (
                         "section_torus_parallel_tori_reach",
                         "section_torus_parallel_tori_reach_floor",
-                        r + r2 - d,
+                        tubes.reach(),
                     ),
                     (
                         "section_torus_parallel_tori_nest",
                         "section_torus_parallel_tori_nest_floor",
-                        d - (r - r2).abs(),
+                        tubes.internal(),
                     ),
                 ],
                 slack,
@@ -609,11 +621,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
             {
                 continue;
             }
-            let m = (d.powi(2) + (r - r2) * (r + r2)) / (d * T::from_f64(2.0));
-            let k = ((r - m) * (r + m)).max(T::zero()).sqrt();
-            let (ux, uy) = (dx / d, dy / d);
-            for k in [k, -k] {
-                let (x, y) = (xa + ux * m - uy * k, uy * m + ux * k);
+            for Point2 { x, y, .. } in tubes.at(ca, cb).crossings() {
                 // The sheet each tube's circle holds the point on, by
                 // the side of the circle's centre it stands, read bare
                 // of the slack: the side changes only at the tube's top
@@ -652,7 +660,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
         }
     }
     let mut parts = Vec::new();
-    let carrier = ClassCarrier::Unbuilt(TT_DOOR);
+    let carrier = ClassCarrier::General;
     let component = |w: Point3<T>| arm_loop([false, false], Some(w), &carrier);
     for (strands, mut points) in loops.iter().zip(on_pi) {
         if points.is_empty() {
@@ -670,25 +678,25 @@ pub(super) fn parallel_torus_arm<T: Decide>(
             // by `δ` moves its sheet's radius at that height by at most
             // that much.
             let slope = (y - h).abs() / ((r2 - (y - h).abs()) * (r2 + (y - h).abs())).sqrt();
+            let sheets = Circles::new(e, rho, rho2);
             if signs_across(
                 [
                     (
                         "section_torus_parallel_tori_gap",
                         "section_torus_parallel_tori_gap_floor",
-                        e - (rho - rho2).abs(),
+                        sheets.internal(),
                     ),
                     (
                         "section_torus_parallel_tori_span",
                         "section_torus_parallel_tori_span_floor",
-                        rho + rho2 - e,
+                        sheets.reach(),
                     ),
                 ],
                 slack * (T::from_f64(2.0) + slope),
                 band,
             )? == [true, true]
             {
-                let x = ((rho - rho2) * (rho + rho2) + e.powi(2)) / (e * T::from_f64(2.0));
-                let z = ((rho - x) * (rho + x)).max(T::zero()).sqrt();
+                let (x, z) = (sheets.radical(), sheets.half_chord());
                 parts.extend([z, -z].map(|z| component(at(x, y, z))));
             }
             continue;
@@ -929,23 +937,16 @@ fn square_folds<T: Decide>(
     let mut out = Vec::new();
     for plus in [true, false] {
         let sigma = if plus { T::one() } else { -T::one() };
-        let dy = e - sigma * big_r;
-        let dist = Vec2::new(dy, z0).norm();
-        let [cut] = signs(
-            [(
-                "section_torus_square_wall_tube",
-                (rc + r - dist).min(dist - (rc - r).abs()),
-            )],
-            band,
-        )?;
+        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
+        // about `(e, z0)` radius `rc`.
+        let (c1, c2) = (Point2::new(sigma * big_r, T::zero()), Point2::new(e, z0));
+        let dist = (c2 - c1).norm();
+        let tubes = Circles::new(dist, r, rc);
+        let [cut] = signs([("section_torus_square_wall_tube", tubes.secant())], band)?;
         if !cut {
             continue;
         }
-        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
-        // about `(e, z0)` radius `rc`, `dist` apart.
-        let (uy, uz) = (dy / dist, z0 / dist);
-        let along = (dist.powi(2) + (r - rc) * (r + rc)) / (dist + dist);
-        let half = ((r - along) * (r + along)).sqrt();
+        let half = tubes.half_chord();
         let drift = (slop + (e.abs() + big_r + rc) * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON))
             * r
             * rc
@@ -958,8 +959,7 @@ fn square_folds<T: Decide>(
         {
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
-        for s in [half, -half] {
-            let (y, z) = (sigma * big_r + uy * along - uz * s, uz * along + uy * s);
+        for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
             let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
                 .map_err(|_| ArmRefusal::Unordered(SQUARE_FOLD_HALF))?;
             out.push(Fold { plus, y, z, outer });
@@ -1009,7 +1009,7 @@ fn lifts<T: Real>(
     at: impl Fn(T, T, T) -> Point3<T>,
 ) -> [SectionComponent<T>; 2] {
     let t = ((rho - y) * (rho + y)).sqrt();
-    [t, -t].map(|t| arm_loop([torus, partner], Some(at(y, z, t)), &cylinder_carrier()))
+    [t, -t].map(|t| arm_loop([torus, partner], Some(at(y, z, t)), &ClassCarrier::General))
 }
 
 fn through<T: Real>(
@@ -1020,7 +1020,7 @@ fn through<T: Real>(
     arm_loop(
         [torus, false],
         Some(at(f.y, f.z, T::zero())),
-        &cylinder_carrier(),
+        &ClassCarrier::General,
     )
 }
 

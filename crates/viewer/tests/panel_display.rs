@@ -29,8 +29,8 @@
 use crate::common;
 
 use pncad::document::{
-    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, PatternKind, ProfileProgram, SlotId,
-    VarName, VectorSlot,
+    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
+    VectorSlot,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
@@ -40,66 +40,67 @@ use viewer::props::{
 };
 use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
-/// A document holding one linear pattern of a block — five slots: its
-/// count, its direction's three components and its spacing.
-fn pattern_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
+/// A document holding one revolve of a square — four slots: its axis
+/// point's x and y (the profile's plane supplies the third coordinate),
+/// its heading and its angle.
+fn revolve_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-display", tol);
     let (doc, profile) = common::square_profile(&doc, 0.01, tol);
-    let (doc, block) = common::inserted(
-        &doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: common::len(0.01),
-        },
-        tol,
-    );
     common::inserted(
         &doc,
-        Node::Pattern {
-            input: block.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.02),
-            },
+        Node::Revolve {
+            profile: profile.into(),
+            axis_through: [common::len(0.02), common::len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: common::ang(core::f64::consts::TAU),
         },
         tol,
     )
 }
 
-/// **A linear pattern is three rows, not five** — its direction one of
-/// them — and the rows it is made of are exactly the slots the node
-/// has, in the vocabulary's own order.
+/// **A vector's three components are one panel row**, and the rows a
+/// node's are made of are exactly its slots, in the vocabulary's own
+/// order.
 ///
-/// The second half is the property that matters more than the count:
-/// grouping is a LAYOUT, so it may bundle rows and may not invent,
-/// drop, reorder or duplicate one.
+/// No node emits all three components of a family today (a revolve's
+/// axis point is two), so the third is synthesised from the second:
+/// the rule is stated on the FOLD, which groups whatever rows it is
+/// handed. The second half is the property that matters more than the
+/// count: grouping is a LAYOUT, so it may bundle rows and may not
+/// invent, drop, reorder or duplicate one.
 #[test]
 fn a_vectors_three_components_are_one_panel_row() {
     let tol = Tol::witness();
-    let (doc, pattern) = pattern_doc(tol);
-    let rows = props::slot_rows(&doc, pattern);
-    let groups = props::group_rows(rows.clone());
-
+    let (doc, revolve) = revolve_doc(tol);
+    let mut rows = props::slot_rows(&doc, revolve);
     assert_eq!(
         rows.len(),
-        5,
-        "a linear pattern carries its count, direction xyz and spacing"
+        4,
+        "a revolve carries its axis point's x and y, its heading and its angle"
     );
-    assert_eq!(groups.len(), 3, "shown as a count, a vector and a spacing");
-    assert!(matches!(&groups[0], SlotGroup::Scalar(row) if row.slot == SlotId::Count));
-    match &groups[1] {
+    let y = rows
+        .iter()
+        .position(|row| row.slot == SlotId::Origin(Axis3::Y))
+        .expect("the axis point's y");
+    let mut z = rows[y].clone();
+    z.slot = SlotId::Origin(Axis3::Z);
+    rows.insert(y + 1, z);
+    let groups = props::group_rows(rows.clone());
+
+    assert_eq!(groups.len(), 3, "shown as a vector, a heading and an angle");
+    match &groups[0] {
         SlotGroup::Vector { family, rows } => {
-            assert_eq!(*family, VectorSlot::Direction);
+            assert_eq!(*family, VectorSlot::Origin);
             assert_eq!(
                 rows.each_ref().map(|row| row.slot),
-                Axis3::ALL.map(SlotId::Direction),
+                Axis3::ALL.map(SlotId::Origin),
                 "components in x/y/z order"
             );
         }
-        other => panic!("expected the direction vector, got {other:?}"),
+        other => panic!("expected the axis-point vector, got {other:?}"),
     }
-    assert!(matches!(&groups[2], SlotGroup::Scalar(row) if row.slot == SlotId::Spacing));
+    assert!(matches!(&groups[1], SlotGroup::Scalar(row) if row.slot == SlotId::AxisHeading));
+    assert!(matches!(&groups[2], SlotGroup::Scalar(row) if row.slot == SlotId::RevolveAngle));
     // The flattening is the whole set, once each, in order.
     let flattened: Vec<SlotId> = groups
         .iter()
@@ -125,29 +126,27 @@ fn scalar_slots_stay_one_row_each() {
 /// **A family missing a component degrades to scalars rather than
 /// drawing a vector with a hole in it.**
 ///
-/// Two components of a family cannot arise from a well-formed node —
-/// `Node::slots` emits all three — so the input is synthesised here
-/// directly from rows. That is the point: the rule is stated on the
-/// FOLD, so it holds whatever produced the rows, and a `Node::slots`
-/// postcondition break shows up as the components the node actually
-/// has instead of as a panic or a silently dropped row.
+/// A revolve's axis point is two components of the `Origin` family —
+/// the profile's plane supplies the third — so the node's own rows are
+/// the input: the rule is stated on the FOLD, so it holds whatever
+/// produced the rows, and a missing component shows up as the
+/// components the node actually has instead of as a panic or a
+/// silently dropped row.
 #[test]
 fn an_incomplete_vector_family_degrades_to_scalar_rows() {
     let tol = Tol::witness();
-    let (doc, pattern) = pattern_doc(tol);
-    let mut rows = props::slot_rows(&doc, pattern);
-    rows.retain(|row| row.slot != SlotId::Direction(Axis3::Z));
-    let groups = props::group_rows(rows);
-    // The count, direction x and direction y, and the spacing, each a
+    let (doc, revolve) = revolve_doc(tol);
+    let groups = props::slot_groups(&doc, revolve);
+    // The axis point's x and y, the heading and the angle, each a
     // scalar row: no vector with a hole in it.
     assert_eq!(groups.len(), 4);
     assert!(matches!(
-        groups[1],
-        SlotGroup::Scalar(ref row) if row.slot == SlotId::Direction(Axis3::X)
+        groups[0],
+        SlotGroup::Scalar(ref row) if row.slot == SlotId::Origin(Axis3::X)
     ));
     assert!(matches!(
-        groups[2],
-        SlotGroup::Scalar(ref row) if row.slot == SlotId::Direction(Axis3::Y)
+        groups[1],
+        SlotGroup::Scalar(ref row) if row.slot == SlotId::Origin(Axis3::Y)
     ));
     assert!(
         groups

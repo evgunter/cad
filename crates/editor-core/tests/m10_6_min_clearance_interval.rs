@@ -51,7 +51,7 @@ use editor_core::{
     UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
-use topo::clearance::{MinSeparationConfig, min_separation};
+use topo::clearance::{Budgets, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -230,7 +230,7 @@ impl<'v, T: geom_core::Decide> Neck<'v, T> {
         &self,
         a: usize,
         b: usize,
-        config: MinSeparationConfig,
+        config: Budgets,
     ) -> Result<topo::clearance::MinSeparation, topo::clearance::MinSeparationRefusal>
     where
         T: geom_core::CertifiedBounds,
@@ -251,7 +251,7 @@ impl<'v, T: geom_core::Decide> Neck<'v, T> {
             &a.side(),
             &b.side(),
             a.same_body(&b),
-            MinSeparationConfig::default(),
+            Budgets::MIN_SEPARATION,
         )
         .expect("the neck pair is admitted")
     }
@@ -354,7 +354,7 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
     // The same question, asked of the engine directly.
     let neck = Neck::of(&ev, &f);
     let direct = neck
-        .ask(0, 1, MinSeparationConfig::default())
+        .ask(0, 1, Budgets::MIN_SEPARATION)
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
     assert_eq!(value.hi().to_bits(), direct.window_hi().to_bits());
@@ -388,7 +388,7 @@ fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
         let ev = eval_over::<Interval>(&f.doc, Some(leaf(&f.doc)));
         let neck = Neck::of(&ev, &f);
         let direct = neck
-            .ask(0, 1, MinSeparationConfig::default())
+            .ask(0, 1, Budgets::MIN_SEPARATION)
             .expect("the neck pair is admitted")
             .enclosure();
         let lane = neck.bracket();
@@ -435,9 +435,9 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
             .ask(
                 0,
                 1,
-                MinSeparationConfig {
+                Budgets {
                     max_cell_pairs: pairs,
-                    ..MinSeparationConfig::default()
+                    ..Budgets::MIN_SEPARATION
                 },
             )
             .expect("the neck pair is admitted");
@@ -472,9 +472,9 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
             .ask(
                 0,
                 1,
-                MinSeparationConfig {
+                Budgets {
                     max_cell_pairs: pairs,
-                    ..MinSeparationConfig::default()
+                    ..Budgets::MIN_SEPARATION
                 },
             )
             .expect("the neck pair is admitted");
@@ -590,7 +590,7 @@ fn two_scopes_that_meet_read_zero_on_the_shared_cell() {
     let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
     let m = neck
-        .ask(0, 0, MinSeparationConfig::default())
+        .ask(0, 0, Budgets::MIN_SEPARATION)
         .expect("a face against itself is at 0");
     assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.serialize());
     let meets = m.meets().expect("the scopes meet");

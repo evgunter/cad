@@ -102,3 +102,41 @@ measure, with `cargo build --timings` on a hosted run, are:
 - fold the integration-test binaries into one `all` binary, as the
   kernel crates did (`autotests = false`);
 - move the bin's unit tests out of `src/`, so the bin is compiled once.
+
+## The test binaries folded, 2026-10-29 (GREEN latency lane, #5989)
+
+`demos/tour`'s ten `tests/*.rs` binaries are now one, `all`
+(`autotests = false`, `tests/all.rs` with `#[path]` mounts as the kernel crates have, helpers in `tests/common/mod.rs`).
+The test set is the same, listed from the built binaries before and after:
+97 tests before; afterwards the same 97 as `all::<suite>::<test>` plus the
+kernel crates' aggregation row `every_suite_file_is_aggregated` (test-utils is now a dev-dependency). The `ci` profile's filter and
+the nightly's probe row name the new binary.
+
+**Local, `cargo test --release --no-run --timings`, 4 cores, the tour's
+own units only (the kernel already built):**
+
+| layout | tour phase | tour unit-s | bin | bin's test harness | integration tests |
+|---|---|---|---|---|---|
+| ten binaries (main) | 743 s | 2,851 | 743 | 736 | 1,371 (10 units) |
+| one `all` | 538 s | 1,430 | 531 | 538 | 361 |
+| one `all`, no harness (measurement only) | 346 s | 585 | 346 | — | 239 |
+
+**Hosted.** Runner speed varies by about 1.5× between jobs, so each
+row gives the kernel part of the same build as its yardstick:
+
+| job | layout | kernel part | tour part | build | tests | job |
+|---|---|---|---|---|---|---|
+| 123247133788 (#5984) | ten binaries | 6.5 min | 9.9 min | 16m21s | 178 s | 20.7 min |
+| 123243230894 (another PR) | ten binaries | 9.8 min | 14.9 min | 24m45s | 315 s | 31.7 min |
+| 123259033963 (#5989) | one `all` | 9.6 min | 10.2 min | 19m45s | 284 s | 26.1 min |
+
+Against the slow-runner job with the same kernel time, the tour part
+fell from 14.9 to 10.2 min and the job from 31.7 to 26.1. The ratio of
+tour part to kernel part is 1.52 in both ten-binary jobs and 1.06 after.
+
+**Still the p90 tail, so this stays open.** The tour part is now the bin
+and its unit-test harness compiled side by side, each about 530 unit-s
+locally. Without the harness the tour part measured 346 s, another
+−190 s. That lever is `demo-tour-unit-tests-compile-the-bin-twice`.
+Splitting a lib out of the bin does not reach it on its own: the lib's
+`#[cfg(test)]` harness compiles the same 32k lines a second time.

@@ -285,7 +285,7 @@ pub(crate) use vocabulary;
 /// is the same restriction [`vocabulary`] states, and it holds this
 /// arm to the case it argues: a form's choice enum. A partial mirror
 /// whose offering is a payload-carrying enum
-/// (`session::author::PatternRuleSpec` over `PatternKind`) is not
+/// (`session::author::PatternRuleSpec`) is not
 /// served by this arm.
 macro_rules! partial_mirror {
     // The exhaustive half, which is the same match whatever the

@@ -28,19 +28,22 @@
 //!
 //! Over a transverse gap the symmetric poses list their components in
 //! closed form ([`super::torus_arms`]): coaxial parallels as circles, the
-//! rest classified with the general rung's carrier for a sphere, or no
-//! carrier yet for a cylinder or a torus ([`ClassCarrier::Unbuilt`]). A
-//! general sphere pose is the sphere arm's; a general cylinder or torus
-//! pose routes to the general rung, whose door for the pair is unbuilt
-//! ([`SectionError::RoutesToGeneralRung`]). Over a tangent gap the
-//! components are one tangent component, a point where the pose is a
-//! touch.
+//! rest classified with the general rung's carrier
+//! ([`ClassCarrier::General`]), which [`super::PairSection::carry`]
+//! marches over the pose's ball. A general sphere pose is the sphere
+//! arm's; a general cylinder or torus pose has no closed-form count of
+//! its components, and refuses
+//! ([`SectionError::RoutesToGeneralRung`]) while the classification
+//! lists none, though the general rung's door marches it
+//! ([`crate::ssi::cylinder_torus_ssi`], [`crate::ssi::torus_torus_ssi`]).
+//! Over a tangent gap the components are one tangent component, a point
+//! where the pose is a touch.
 
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec2, Vec3,
-    rounding_charge,
+    Band, Circles, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Point3, Real, Sign,
+    Vec2, Vec3, rounding_charge,
 };
 
 use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
@@ -281,7 +284,7 @@ impl<T: Real> Ring<T> {
     }
 
     /// The ball holding the torus, and so every section of it.
-    fn ball(self) -> ExtentBall<T> {
+    pub fn ball(self) -> ExtentBall<T> {
         ExtentBall::of_torus(self.center, self.big_r, self.r)
     }
 
@@ -346,14 +349,11 @@ pub(super) const TT_GAP: GapRows = GapRows {
 /// rounding.
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
 
-/// The note a cylinder × torus component carries while its door is
-/// unbuilt.
-pub(super) const CT_DOOR: &str = "the cylinder × torus section's general-rung door is unbuilt \
-     (work/sect/cylinder-torus-rung-three-arm-is-unretired.md)";
-/// The note a torus × torus component carries while its door is
-/// unbuilt.
-pub(super) const TT_DOOR: &str = "the torus × torus section's general-rung door is unbuilt \
-     (work/sect/torus-torus-rung-three-arm-is-unretired.md)";
+/// The note a general cylinder × torus or torus × torus pose refuses
+/// with.
+const GENERAL_POSE: &str = "a general pose's components have no closed-form count, so the \
+     classification lists none for its readers to take; the general rung's door marches the \
+     pose (work/sect/a-general-torus-pose-lists-no-components.md)";
 
 /// The sweep's verdict as the pose holds it.
 fn swept<T: Decide>(
@@ -458,20 +458,17 @@ fn crossing_parallels<T: Real>(
     (x2, z2, r2): (T, T, T),
     winds: [bool; 2],
 ) -> (Vec<SectionComponent<T>>, Sides<T>) {
-    let [big_r, r] = [ring.big_r, ring.r];
-    let (dx, dz) = (x2 - big_r, z2);
-    let dist = Vec2::new(dx, dz).norm();
-    let along = (dist.powi(2) + (r - r2) * (r + r2)) / (dist + dist);
-    let half = ((r - along) * (r + along)).sqrt();
-    let (ux, uz) = (dx / dist, dz / dist);
-    let (bx, bz) = (big_r + ux * along, uz * along);
-    let components = [half, T::zero() - half]
+    let (c1, c2) = (Point2::new(ring.big_r, T::zero()), Point2::new(x2, z2));
+    let toward = c2 - c1;
+    let components = Circles::new(toward.norm(), ring.r, r2)
+        .at(c1, c2)
+        .crossings()
         .into_iter()
-        .map(|k| SectionComponent {
+        .map(|p| SectionComponent {
             shape: ComponentShape::Loop,
             winds,
             witness: None,
-            carrier: ClassCarrier::Closed(ring.parallel(bx - uz * k, bz + ux * k)),
+            carrier: ClassCarrier::Closed(ring.parallel(p.x, p.y)),
         })
         .collect();
     (
@@ -479,8 +476,8 @@ fn crossing_parallels<T: Real>(
         Sides::Meridian {
             center: ring.center,
             axis: ring.axis,
-            through: (big_r, T::zero()),
-            along: (dx, dz),
+            through: (ring.big_r, T::zero()),
+            along: (toward.x, toward.y),
             row: "torus_component_side",
         },
     )
@@ -657,9 +654,9 @@ impl<T: Decide> SphereTorusPose<T> {
         self.ring
     }
 
-    /// The sphere's centre and radius.
-    pub fn ball(&self) -> (Point3<T>, T) {
-        (self.center, self.radius)
+    /// The sphere's own ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        ExtentBall::new(self.center, self.radius)
     }
 
     /// How the sphere stands.
@@ -928,9 +925,24 @@ impl<T: Decide> CylinderTorusPose<T> {
         }
     }
 
+    /// The cylinder, as given.
+    pub fn cylinder(&self) -> &Surface<T> {
+        &self.cylinder
+    }
+
+    /// The torus, as given.
+    pub fn torus(&self) -> &Surface<T> {
+        &self.torus
+    }
+
     /// The torus, guarded.
     pub fn ring(&self) -> Ring<T> {
         self.ring
+    }
+
+    /// The torus's ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        self.ring.ball()
     }
 
     /// The cylinder's radius.
@@ -1057,7 +1069,7 @@ pub(super) fn cylinder_torus<T: Decide>(
         (CtStance::General, TorusGap::Transverse) => {
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cylinder×torus",
-                why: CT_DOOR,
+                why: GENERAL_POSE,
             });
         }
     };
@@ -1105,6 +1117,7 @@ pub struct TorusTorusPose<T: Real> {
     first: Surface<T>,
     second: Surface<T>,
     rings: [Ring<T>; 2],
+    ball: ExtentBall<T>,
     stance: TtStance<T>,
     gap: TorusGap<T>,
 }
@@ -1162,12 +1175,9 @@ impl<T: Decide> TorusTorusPose<T> {
                         (Sign::Zero, _) => return Err(TorusPoseRefusal::Coincident),
                         (Sign::Positive | Sign::Negative, _) => {}
                     }
-                    let d = Vec2::new(r2.big_r - r1.big_r, z2).norm();
+                    let tubes = Circles::new(Vec2::new(r2.big_r - r1.big_r, z2).norm(), r1.r, r2.r);
                     let mut tube = None;
-                    for (row, m) in [
-                        (TUBE_REACH, r1.r + r2.r - d),
-                        (TUBE_NEST, d - (r1.r - r2.r).abs()),
-                    ] {
+                    for (row, m) in [(TUBE_REACH, tubes.reach()), (TUBE_NEST, tubes.internal())] {
                         let read = decide_across_reported([row, floor_of(row)], m, slack, band)
                             .map_err(undecided_gap)?;
                         match (read.0, tube) {
@@ -1200,6 +1210,7 @@ impl<T: Decide> TorusTorusPose<T> {
                 first: a.clone(),
                 second: b.clone(),
                 rings: [r1, r2],
+                ball,
                 stance,
                 gap,
             })
@@ -1214,6 +1225,12 @@ impl<T: Decide> TorusTorusPose<T> {
     /// Both tori, guarded, in order.
     pub fn rings(&self) -> [Ring<T>; 2] {
         self.rings
+    }
+
+    /// The smaller torus's ball, which holds the section: the one the
+    /// axis pose was read over.
+    pub fn ball(&self) -> ExtentBall<T> {
+        self.ball
     }
 
     /// How the second stands to the first.
@@ -1309,7 +1326,7 @@ pub(super) fn torus_torus<T: Decide>(
         (TtStance::General, TorusGap::Transverse) => {
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "torus×torus",
-                why: TT_DOOR,
+                why: GENERAL_POSE,
             });
         }
     };

@@ -485,57 +485,40 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
                     if vf.naming_key != vp.naming_key {
                         naming_splits.push((d.name, id.0.ordinal()));
                     }
-                    // The value's OWN contact and mate channels. Both
-                    // are filled at ONE op — instantiate — which this
-                    // registry has none of, so on today's corpus these
-                    // two agree over empty records. Compared anyway,
-                    // with the emptiness disclosed in this row's docs
-                    // rather than dressed up as coverage.
+                    // The value's contact records: a boolean's surviving
+                    // contacts, and an instance's declared ones, which
+                    // this registry has none of.
+                    let (cf, cp) = (&vf.carry.contacts, &vp.carry.contacts);
                     assert!(
-                        vf.carry.contacts == vp.carry.contacts,
-                        "{}: node {id:?}: contact records",
-                        d.name
+                        cf == cp,
+                        "{}: node {id:?}: contact records ({} vv / {} v-on-f / {} e-f / {} f-f \
+                         at f64)",
+                        d.name,
+                        cf.vertex_vertex().count(),
+                        cf.vertex_face().count(),
+                        cf.edge_face().count(),
+                        cf.face_face().count()
                     );
                     assert!(
                         vf.carry.findings == vp.carry.findings,
                         "{}: node {id:?}: carried mate declarations",
                         d.name
                     );
-                    // WHERE A BOOLEAN'S RECORDS ACTUALLY LIVE — on the
-                    // payload, not on the value — and where the shared
-                    // node feed cannot see them: it digests the result
-                    // BODY and drops this arm's other two fields.
-                    // `kiss_carry` is in the registry PRECISELY because
-                    // it is the corpus boolean whose result carries
-                    // non-empty surviving contacts, and the counter is
-                    // what says this channel was fed by something.
+                    // The shared node feed digests a boolean's result
+                    // BODY and drops its kind and records. `kiss_carry`
+                    // is in the registry PRECISELY because it is the
+                    // corpus boolean whose result carries non-empty
+                    // surviving contacts, and the counter is what says
+                    // this channel was fed by something.
                     if let (
-                        ValuePayload::Boolean(BooleanValue::Body {
-                            kind: kf,
-                            contacts: cf,
-                            ..
-                        }),
-                        ValuePayload::Boolean(BooleanValue::Body {
-                            kind: kp,
-                            contacts: cp,
-                            ..
-                        }),
+                        ValuePayload::Boolean(BooleanValue::Body { kind: kf, .. }),
+                        ValuePayload::Boolean(BooleanValue::Body { kind: kp, .. }),
                     ) = (&vf.payload, &vp.payload)
                     {
                         assert_eq!(
                             kf, kp,
                             "{}: node {id:?}: boolean result classification",
                             d.name
-                        );
-                        assert!(
-                            cf == cp,
-                            "{}: node {id:?}: surviving declared contacts ({} vv / {} v-on-f \
-                             / {} e-f / {} f-f at f64)",
-                            d.name,
-                            cf.vertex_vertex().count(),
-                            cf.vertex_face().count(),
-                            cf.edge_face().count(),
-                            cf.face_face().count()
                         );
                         if cf.vertex_vertex().next().is_some()
                             || cf.vertex_face().next().is_some()

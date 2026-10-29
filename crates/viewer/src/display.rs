@@ -36,7 +36,7 @@
 //!
 //! The scene and the pick index emit geometry per WORLD PLACEMENT's
 //! copy (A10), and a placement reads whatever body it places — an
-//! instance, or a `Pattern` or `Part` over one. A hide
+//! instance, or a family or a member read over one. A hide
 //! therefore PROPAGATES: it names the instance, and [`drawn_targets`]
 //! resolves it to every placement whose geometry derives from that
 //! instance alone (hiding a patterned instance hides all its placed
@@ -264,8 +264,7 @@ pub enum AdmissionFault {
         space: Box<SpokenSpace>,
     },
     /// The instance's geometry is FUSED into a drawn product together
-    /// with other instances' (a boolean or placed union consumes
-    /// both), so no display operation can address this instance
+    /// with other instances' (a boolean consumes both), so no display operation can address this instance
     /// separately — hiding or displacing it would have to hide or
     /// displace material that is not its. Refused typed rather than
     /// accepted-and-inert: an op that cannot take effect must say so
@@ -492,14 +491,14 @@ impl core::error::Error for DisplayFault {}
 ///
 /// **The question is per-instance DISPLAY state**, not membership: hide
 /// and free-move are keyed on the node with the identity a user hides
-/// or probes, and only an `InstantiatePart` has one. A pattern node
-/// draws several copies at once, so there is no single pose to probe
-/// and no single body to hide.
+/// or probes, and only an `InstantiatePart` has one. A family draws
+/// several copies at once, so there is no single pose to probe and no
+/// single body to hide.
 ///
 /// It is NOT the mate MEMBER vocabulary, which
 /// [`pncad::document::member_of`] owns and which additionally admits a
-/// pattern copy — an `Instance(i)`-qualified head on a `Pattern` over a
-/// live instance. The two differ because they ask different questions:
+/// family member — a `Member`-qualified head on a placement under an
+/// index. The two differ because they ask different questions:
 /// a copy is a member (the solve places it) while having no per-copy
 /// display state of its own. An authoring door that gates on this
 /// predicate refuses heads the solve already places.
@@ -537,7 +536,7 @@ pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(
 ///
 /// This is the map display state PROPAGATES through: the drawn scene
 /// is keyed by placements, and a placement reads whatever body it
-/// places — an instance, or a `Pattern` chain over one.
+/// places — an instance, or a chain of placements over one.
 /// Display state names the INSTANCE (the thing with an identity a user
 /// hides or probes); this map says which drawn copies that names.
 fn instances_by_placement(

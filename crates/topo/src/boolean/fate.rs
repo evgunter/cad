@@ -674,7 +674,7 @@ fn places<T: Decide>(
 /// sliver's outline (`slit::sliver_halves`) turns at two spurs, a
 /// zero-area ring at two tips, an outline with a slit at the tip.
 /// This reads the body as the join left it, not the operand at rest
-/// (`sectors::SlitTips`): the join cuts a slit's two edges into the
+/// ([`crate::sector_shape::SlitTips`]): the join cuts a slit's two edges into the
 /// other operand's flush face too.
 ///
 /// # Errors

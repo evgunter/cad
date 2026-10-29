@@ -35,7 +35,15 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   axis a point and a heading, and a lone `0` the constant zero
   (stage 3 A and A′); a placement as the bundle of its mates, the
   world a node and spaces as kinds, with gauges, offsets and the
-  mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
+  mates' spanning tree retired (stage 3 B); a mate relating two poses,
+  `Transform` retired into a placement, a placement naming its target
+  space with mates reading only geometry and values charted on it,
+  `assemble` as the `⊔` operator and the product a slot, an operation
+  computing in a frame of its reads, a mate on a pinned copy refusing,
+  and repetition by index with patterns retired (stage 3 C–G); the
+  coincidence door with its rungs and the `unproven-coincidence` lint,
+  with declared pairs, a mate's `ContactClass` and the undeclared
+  refusals retired (stage 4); booleans gluing on a Zero verdict
   and the boolean declare surface retired (stage 4 E and F); assertions
   relating by `=`, interference at rest as a finding, and the at-rest
   census as a check whose contacts a holding `Gap = 0` quiets, with A5's
@@ -43,11 +51,12 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   product-separation resident (`Separation`) retired (stage 5); an
   operation's unproven contact (a boolean's glue, a vertex fusion)
   quieted the same way.
-- **Not built:** the rest of placement (stage 3 — a constraint is
-  still a mate's payload); the rest of the coincidence door and its lint (stage 4);
+- **Not built:** a glued pair re-read through the declared rung, which
+  bridges an in-band displacement where D10 refuses one
+  (`work/contacthold/a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band.md`);
   an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict); tangency
-  constructions (stage 6).
+  a coaxiality, a blend's turn, a split's ON verdict); coaxiality read
+  at the door and tangency constructions (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -2324,7 +2333,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/src/names/README.md` | Ratified (#74) | Persistent naming, NAMING-DESIGN N1–N7: derivation-path names, split/merge policy, name table |
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
-| `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
+| `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
 | `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |

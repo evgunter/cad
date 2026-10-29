@@ -2048,7 +2048,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
             &doc,
             &DocEdit::SetStructuralParam {
                 node: profile,
-                slot: SlotId::Count,
+                slot: SlotId::Stations,
                 expr: Formula::count(3),
                 fresh: Vec::new(),
             },

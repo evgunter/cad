@@ -924,3 +924,12 @@ Moved note on each:
 - **SPLICESEAM** (25/30, 13 rows): the seam reader's residue after PR
   5868, and the doors that still read a spline by kind.
 The three new tracks are `ready`, with no orchestrator.
+
+## 2026-10-29 — two main reds filed on their owners (the face_normal fold census)
+
+PR 5959's lane found topo's slow-set row
+`face_normal::tests::no_source_file_folds_the_bit_by_hand` red on
+main, and the orchestrator reproduced it there. It has six hand folds
+of a face's sense bit, from two sources. Filed on their owners:
+`tess/main-red-trimmed-rs-folds-the-face-sense-by-hand` (PR 5920) and
+`clear/main-red-injective-rs-folds-the-face-sense-by-hand` (PR 5955).

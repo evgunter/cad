@@ -62,7 +62,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
 };
 use geom_core::{Bounds, Tol};
-use topo::clearance::{MinSeparationConfig, Side, min_separation};
+use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -330,9 +330,9 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             &side(b),
             // Two pins, two nodes.
             a == b,
-            MinSeparationConfig {
+            Budgets {
                 max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
+                ..Budgets::MIN_SEPARATION
             },
         )
         .expect("two disjoint pins admit a pair");
