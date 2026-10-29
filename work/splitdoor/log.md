@@ -36,3 +36,4 @@
   - `a-near-axial-plane-near-a-needle-cones-apex-refuses-with-an-invariant-name` (`splitdoor/needle-cone-join`).
 
   I chose them to stay clear of the `roots::Unsettled` lane's files. (SPLITDOOR orchestrator)
+- 2026-10-29 — **Closed** `a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector` (PR 5982, FULL single review: APPROVE). A slit tip's full turn is now read in one place, `sector_shape::corner_shape`, which the split and the Boolean share. All six moats and the keel ring's tip cuts build. Filed `a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike` (P2). (SPLITDOOR orchestrator)
