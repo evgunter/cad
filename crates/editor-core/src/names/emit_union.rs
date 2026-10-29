@@ -127,7 +127,7 @@ use crate::names::emit_topo::{
     line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
     sense_along_line, sets_per_line,
 };
-use crate::names::groups::{GroupRecord, Parent as GroupParent};
+use crate::names::groups::{GroupRecord, Parent as GroupParent, Rederived};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
@@ -269,7 +269,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     fold: &Fold<'_>,
     links: &Links<T>,
     tol: geom_core::Tol,
-) -> Result<(Arc<NameTable>, GroupRecord), NamingError> {
+) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
     let parents = Parents::of(node, body, members, fold, links)?;
@@ -285,12 +285,17 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             .flat_map(|g| g.edges.iter().map(move |&k| (k, &g.base)))
             .collect(),
     };
+    let mut groups = Rederived {
+        groups: by_parents.groups,
+        by_fold: BTreeSet::new(),
+    };
     let mut t = cite_member_edges(
         t,
         by_parents.vertices,
         body,
         (&flush, fold),
         (&lines, links),
+        &mut groups,
     )?;
     let mut tie = TieRows::default();
     let mut pieces = EdgePieces::default();
@@ -308,7 +313,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
-    Ok((Arc::new(t), by_parents.groups))
+    Ok((Arc::new(t), groups))
 }
 
 /// The edges of a union's finished body that are pieces of one parent
@@ -1782,6 +1787,15 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// sits at across members (a tied name's candidates being separate
 /// corners), and named with the other copies of that corner
 /// ([`name_corner_copies`]).
+///
+/// **The vertex groups** (N5's group-size rung) are formed here, over
+/// the finished body, into `rec`: one per member corner, its copies,
+/// under the corner's name, as the pair boolean groups an operand
+/// corner's copies. The union qualifies no other vertex, so no other
+/// vertex forms a group of its own. A row that keeps the fold's name
+/// with the fold's fragment qualifier (one no rule here re-reads, such
+/// as a row the fold tied) is a member of the group the fold formed,
+/// and its base is left to the fold's record ([`Rederived::by_fold`]).
 #[allow(clippy::too_many_arguments)]
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
@@ -1789,6 +1803,7 @@ fn cite_member_edges<T: geom_core::Decide>(
     body: &topo::Body<T>,
     (flush, fold): (&Flush<'_, T>, &Fold<'_>),
     (lines, links): (&EdgeLines<'_>, &Links<T>),
+    rec: &mut Rederived,
 ) -> Result<NameTable, NamingError> {
     let mut out = NameTable::new();
     let mut tie = TieRows::default();
@@ -1848,12 +1863,22 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     // Vertices that share a name tie (N4).
     for (name, entries) in vertices {
+        if let [_, .., RoleSeg::Fragment(_)] = name.path.as_slice() {
+            let mut base = name.clone();
+            base.path.pop();
+            rec.by_fold.insert(base);
+        }
         if let [entry] = entries.as_slice() {
             put_entry(&mut out, name, entry)?;
             continue;
         }
         let ents = entries.iter().flat_map(Entry::entities).copied().collect();
         mint_candidates(&mut out, &mut tie, false, name, ents)?;
+    }
+    for held in corners.values() {
+        let copies = held.copies.iter().map(|&(_, e)| e).collect();
+        rec.groups
+            .record(&held.name, copies, GroupParent::Elsewhere);
     }
     name_corner_copies(&mut out, &mut tie, corners, |at, keys| {
         member_corner_walls(at, keys, body, (flush, fold))
@@ -2419,7 +2444,6 @@ impl Parents {
     }
 }
 
-/// What [`name_by_parents`] returns: the table, the seam rows held
 /// What [`name_by_parents`] hands on.
 struct ByParents {
     /// Every face, and every row but a seam edge or a vertex.
@@ -3761,6 +3785,7 @@ mod tests {
                 &self.body,
                 (&flush, &Fold::new(0, &self.body)),
                 (&lines, &Links::default()),
+                &mut Rederived::default(),
             )
         }
     }
@@ -4378,6 +4403,7 @@ mod tests {
             &m.body,
             (&flush, &Fold::new(0, &m.body)),
             (&lines, &Links::default()),
+            &mut Rederived::default(),
         )
         .unwrap();
         let name = entity_name(m.union, &(m.read, tied_ref));
@@ -4472,6 +4498,7 @@ mod tests {
             &tied.body,
             (&flush, &Fold::new(0, &tied.body)),
             (&lines, &Links::default()),
+            &mut Rederived::default(),
         )
         .unwrap();
         for v in [v0, v1] {

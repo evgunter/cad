@@ -28,10 +28,11 @@
 //! What a group counts is the number of DISTINCT entities of the node's
 //! output that descend from the group's parent within that group. For
 //! a pair boolean or a split that is the group's own members, and so
-//! it is for a union's faces and seam edges, which the union groups
-//! over its finished body. For a union's other groups it is the
-//! published body's entities, followed from the fold step that formed
-//! the group through every later step ([`FragmentGroups::folded`]).
+//! it is for a union's faces, seam edges and vertices, which the union
+//! groups over its finished body. For a union's other edges, and the
+//! vertices whose fold-step names it keeps, it is the published body's
+//! entities, followed from the fold step that formed the group through
+//! every later step ([`FragmentGroups::folded`]).
 //!
 //! The record is diagnosis-time evidence about one run. It rides the
 //! node's value like the verdict log does, and like the verdict log it
@@ -111,6 +112,23 @@ impl GroupRecord {
     }
 }
 
+/// The groups a union forms over its finished body, and the vertex
+/// bases it leaves to the fold's own groups instead.
+///
+/// A union's end pass names every vertex, but a row no rule there
+/// re-reads (one the fold tied) keeps the fold's name, fragment
+/// qualifier and all: its group is the one
+/// the fold step formed, and which bases that leaves to the fold is the
+/// union's to say (`emit_union`'s `cite_member_edges`), here, in
+/// `by_fold`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Rederived {
+    /// The groups whose counts are on record.
+    pub(crate) groups: GroupRecord,
+    /// The vertex bases the fold's entity-followed groups answer for.
+    pub(crate) by_fold: BTreeSet<StableName>,
+}
+
 /// One group's count, as the rung reads it: the distinct entities of
 /// the node's output descended from its parent within it.
 type Count = usize;
@@ -127,12 +145,14 @@ enum Read {
     /// One emission's counts, by base.
     Minted(BTreeMap<StableName, Vec<Count>>),
     /// A union's counts: each fold step's, by FOLD-SPACE base, the
-    /// descent already followed to the published body; and the groups
-    /// the union re-derives over the finished body, by published base.
+    /// descent already followed to the published body; the groups the
+    /// union re-derives over the finished body, by published base; and
+    /// the vertex bases left to the fold ([`Rederived`]).
     Folded {
         node: RecipeNodeId,
         steps: Vec<BTreeMap<StableName, Vec<Count>>>,
         published: BTreeMap<StableName, Vec<Count>>,
+        by_fold: BTreeSet<StableName>,
     },
 }
 
@@ -168,15 +188,16 @@ fn line_counts(
     line.map(|set| set.len()).into_iter().chain(rest).collect()
 }
 
-/// Whether a union names every group under `base` over its finished
-/// body rather than by fold step: a face, or a seam edge
-/// (`emit_union`'s `name_by_parents`).
+/// Whether a union forms every group under `base` over its finished
+/// body rather than by fold step: a face or a seam edge
+/// (`emit_union`'s `name_by_parents`), or a vertex (its
+/// `cite_member_edges`, which names every vertex of the finished body).
 fn rederived(base: &StableName) -> bool {
     use super::role::{EntityKind, RoleSeg};
     match base.kind {
-        EntityKind::Face => true,
+        EntityKind::Face | EntityKind::Vertex => true,
         EntityKind::Edge => matches!(base.path.first(), Some(RoleSeg::Seam { .. })),
-        _ => false,
+        EntityKind::Body => false,
     }
 }
 
@@ -238,15 +259,17 @@ impl FragmentGroups {
     /// name the collapse refuses is the ladder's to decline over, never
     /// the evaluation's to fail on.
     ///
-    /// A union names its faces and seam edges over the finished body,
-    /// not by fold step, one group per parent (a seam's, per pair of
-    /// parents), tied parents' too; `published` is the record of those
-    /// groups, and it answers for every face or seam base
+    /// A union groups its faces, seam edges and vertices over the
+    /// finished body, not by fold step: a face group per parent, a seam
+    /// group per pair of parents, a vertex group per member corner, tied
+    /// parents' and corners' too. `published` is the record of those
+    /// groups, and it answers for every face, seam or vertex base
+    /// except the vertex bases it leaves to the fold
     /// ([`FragmentGroups::sizes`]).
     pub(crate) fn folded(
         node: RecipeNodeId,
         steps: &[Arc<GroupRecord>],
-        published: &GroupRecord,
+        published: &Rederived,
     ) -> Self {
         let mut counted: Vec<BTreeMap<StableName, Vec<Count>>> = vec![BTreeMap::new(); steps.len()];
         // Each entity of the step after the current one → the published
@@ -283,7 +306,8 @@ impl FragmentGroups {
         Self(Read::Folded {
             node,
             steps: counted,
-            published: counts(published),
+            published: counts(&published.groups),
+            by_fold: published.by_fold.clone(),
         })
     }
 
@@ -304,12 +328,16 @@ impl FragmentGroups {
     /// leaves an entity whole spells a group of one, and a later step
     /// that divides it spells the group of its pieces under the same
     /// collapsed base. Both count the same published entities, so the
-    /// latest step that spells the base answers. A face or seam base is
-    /// answered by the groups re-derived over the finished body.
+    /// latest step that spells the base answers. A face, seam or vertex
+    /// base is answered by the groups re-derived over the finished body,
+    /// except the vertex bases the union leaves to the fold
+    /// ([`Rederived::by_fold`]).
     pub(crate) fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
         let counts = match &self.0 {
             Read::Minted(m) => m.get(base).cloned().unwrap_or_default(),
-            Read::Folded { published, .. } if rederived(base) => {
+            Read::Folded {
+                published, by_fold, ..
+            } if rederived(base) && !by_fold.contains(base) => {
                 published.get(base).cloned().unwrap_or_default()
             }
             Read::Folded { node, steps, .. } => {
@@ -353,5 +381,61 @@ impl Emitted {
             table: Arc::new(table),
             groups: Arc::new(groups),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::names::role::{CapEnd, EntityKind, RoleSeg};
+    use crate::names::table::{EntityKey, EntityRef};
+
+    /// Member 1's vertex, as a union `node` keys it.
+    fn corner(union: RecipeNodeId) -> StableName {
+        StableName {
+            kind: EntityKind::Vertex,
+            node: union,
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(1, 1),
+                of: StableName {
+                    kind: EntityKind::Vertex,
+                    node: RecipeNodeId::new(0, 1),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }
+                .into(),
+            }],
+        }
+    }
+
+    fn vertex(k: u64) -> EntityRef {
+        EntityRef {
+            body: 0,
+            key: EntityKey::Vertex(topo::VertexKey::from(slotmap::KeyData::from_ffi(k))),
+        }
+    }
+
+    /// A union's vertex base reads the group its end pass formed, so one
+    /// member order whose fold step spelled the base and one whose step
+    /// did not read alike; a base the end pass leaves to the fold reads
+    /// the fold's group.
+    #[test]
+    fn a_unions_vertex_base_reads_the_end_pass_in_every_fold() {
+        let union = RecipeNodeId::new(0, 9);
+        let base = corner(union);
+        let mut published = Rederived::default();
+        published
+            .groups
+            .record(&base, vec![vertex(1)], Parent::Elsewhere);
+        let mut spelled = GroupRecord::new();
+        spelled.record(&base, vec![vertex(1), vertex(2)], Parent::Elsewhere);
+        let spelled = [Arc::new(spelled)];
+        let unspelled = [Arc::new(GroupRecord::new())];
+        for (what, steps) in [("spelled", &spelled), ("unspelled", &unspelled)] {
+            let read = FragmentGroups::folded(union, steps, &published);
+            assert_eq!(read.sizes(&base), Some(vec![1]), "{what}");
+        }
+        published.by_fold.insert(base.clone());
+        let read = FragmentGroups::folded(union, &spelled, &published);
+        assert_eq!(read.sizes(&base), Some(vec![2]), "left to the fold");
     }
 }
