@@ -44,6 +44,22 @@ marches each held pair it mints a germ on, and the table is built per
 operation at the glue door, so no march is shared across operations.
 Four ops in two member orders march one pair eight times.
 
+## Where the time goes (2026-10-29, `sect/march-once`)
+
+At opt-level 2 on a shared 4-core box, at 1e-12 (1e-9 in brackets):
+the spins row 1 170 s (195 s), the drum row 460 s (80 s), the two
+donuts 609 s (109 s), the radial hole 170 s (26 s). Each op marches
+its one pair once; the march is 156 s, 30 s, 30 s and 15 s of those
+(3–16 %), the seats 49 s, 15 s, 19 s and 4 s. A gdb sample of the
+drum's placement-0 ∪ at 1e-12 (43 s, 32 samples) found no sample in the
+march: the pcurve mint after the build 11, the result gate's geometric
+certificate 7, the join's chord-edge certificate 10 (inclusive:
+`pcurve_cache::twin_span_hulls` 16, `ssi::certify::certify_branch` 10).
+So most of the cost is the fitted chord edges' certificates, read at
+the edge mint, the pcurves and the gate, not the march; the numbers and
+the cross-operation question are on
+`work/sect/a-surface-pairs-march-is-repeated-per-operation-and-per-germ.md`.
+
 ## What a fix has to supply
 
 A measurement of where the march spends its time at 1e-12, and either a
