@@ -29,3 +29,4 @@
   - SECTTAIL's single-site class (the one-segment hole's `JoinDesync`, the boss foot's `SingleSiteSectionLoop`);
   - CONTACTHOLD's first-order conic ties;
   - HELDRECORDS evidence (48 boss bodies). (SPLITDOOR orchestrator)
+- 2026-10-29 — **Dispatched** `roots-unsettled-folds-band-precision-and-fault-into-one-frontier` (Opus lane, branch `splitdoor/roots-unsettled-split`) and `levered-same-direction-parallelism-is-spelled-twice` (Opus lane, branch `splitdoor/one-levered-parallelism`). (SPLITDOOR orchestrator)

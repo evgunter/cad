@@ -2,7 +2,7 @@
 id: roots-unsettled-folds-band-precision-and-fault-into-one-frontier
 kind: issue
 title: geom_brep::roots::Unsettled folds an in-band reading, a precision limit and a kernel fault into one value, and every consumer surfaces all three as the frontier CurvedPierceUnsupported
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: H
