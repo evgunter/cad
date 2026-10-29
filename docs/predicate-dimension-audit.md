@@ -728,6 +728,7 @@ which is what actually moves the number.
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_germ | a boolean germ's unit direction against the conic's unit tangent at the chord's start, `dir·Ĉ′(θ₁)` (the cosine between them), levered by the semi-major axis | m | OK (REACH) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_section | the split's `±(n_plane × n_out)` against the same unit tangent (the sine between plane and wall times that cosine), levered by the wall's `curvature_lever_arm` at the chord's start: the quantity and the lever `split_join_conic_heading` decides it on | m | OK (REACH) |
+| chord_join.rs (`arc_leaving`) | chord_arc_leave_section_aligned | where `chord_arc_leave_section` reads Zero: the split datum's unit direction against the unit tangent (the cosine between them), levered by the semi-major axis, as `chord_arc_leave_germ` is; Zero names the broken invariant, a sign the graze | m | OK (REACH) |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
