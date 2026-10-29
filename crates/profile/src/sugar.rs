@@ -29,7 +29,9 @@
 //! sugar never guesses and never panics.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, BandError, Circles, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2,
+};
 
 use crate::validate::{FilletLeg, NoCornerReason};
 
@@ -1387,15 +1389,16 @@ impl<T: Real> ArcCarrier<T> {
         let link = other.center - self.center;
         let dist_squared = link.norm_squared();
         let dist = dist_squared.sqrt();
+        let offsets = Circles::new(dist, r1, r2);
         let external = decide(
             "fillet_offset_circles_external",
-            Margin::of(r1 + r2 - dist),
+            Margin::of(offsets.reach()),
             band,
         )
         .map_err(ArcTrimRefusal::Escalated)?;
         let internal = decide(
             "fillet_offset_circles_internal",
-            Margin::of(dist - (r1 - r2).abs()),
+            Margin::of(offsets.internal()),
             band,
         )
         .map_err(ArcTrimRefusal::Escalated)?;

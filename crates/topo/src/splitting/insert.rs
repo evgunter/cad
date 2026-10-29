@@ -333,7 +333,7 @@ fn section_chords<T: Decide>(
 /// the plane's side along its rulings turns, so the sub-sector's bounds
 /// lie on opposite sides and exactly one section ruling lies inside it;
 /// which one is read as its turn from each bound into the sweep
-/// (`split_germ_apex`, [`ConeApex::turn`] levered at the sub-sector's
+/// (`split_germ_apex`, [`ConeApex::turn`](crate::sector_face::ConeApex::turn) levered at the sub-sector's
 /// arm).
 ///
 /// # Errors
@@ -542,8 +542,10 @@ pub(super) fn insert_null_edges<T: Decide>(
             // and Q). A sector holds at most one such arc: its arc is the
             // stretch between two sign changes of the plane's side inside
             // the sector, and that side changes sign at most twice in a
-            // sector (once in a tangent plane's wide sector; at a cone's
-            // apex, `c + k cos(φ − φ₀)` has at most two zeros). P and Q lie
+            // sector (once in a tangent plane's wide sector; twice in a
+            // slit tip's full turn, which a plane through the tip meets
+            // along one line; at a cone's apex, `c + k cos(φ − φ₀)` has at
+            // most two zeros). P and Q lie
             // just outside the arc, in the parent region, and another
             // corner's mint splices only at its own arc's ends, so Q's
             // corner is still at `at`.

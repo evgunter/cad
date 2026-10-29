@@ -7,8 +7,6 @@ crates/editor-core/src/eval/mod.rs	1	constant	v[0]	a computing twist's stated pa
 crates/editor-core/src/eval/mod.rs	1	constant	v[1]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[2]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
-crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's index
-crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
@@ -72,8 +70,8 @@ crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
-crates/geom-core/src/linalg/angle.rs	2	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
-crates/geom-core/src/linalg/angle.rs	2	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
+crates/geom-core/src/linalg/angle.rs	1	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
+crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32

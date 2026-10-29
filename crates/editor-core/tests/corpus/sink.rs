@@ -8,8 +8,8 @@
 //!
 //! Node kinds: Profile (plain, arc-bearing by fillet construction,
 //! hand-declared tangent), Extrude, Revolve, Split, Boolean (Union),
-//! Place (a copy against a body, and in the world), Pattern (Linear
-//! and Circular).
+//! Place (a copy against a body, and in the world, and two families:
+//! a row and a ring, D10 `[repetition]`).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
 //! is required to cover and NOT every arm `DocEdit` has (that list's
@@ -36,15 +36,15 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, BranchCertification, Coord, Dimension, Distribution, DocEdit, EntityKind,
-    ExprPath, Formula, Frame, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
-    SlotId, StableName, TargetAxis, UnitSym, VarName, WitnessDatum,
+    ExprPath, Formula, Frame, FreeValue, FreeVar, MetaValue, Node, Rgba8, RoleSeg, SlotId,
+    StableName, TargetAxis, UnitSym, VarName, WitnessDatum,
 };
 use geom_core::Tol;
 use geom_core::predicate::Band;
 
-use crate::fixture::{ang, axis_on, len, plane_on, revolve_about, scl, value_slot};
+use crate::fixture::{ang, len, plane_on, revolve_about, scalar_of, scl, value_slot};
 
-use super::{CorpusDoc, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder};
 
 /// The kitchen-sink corpus document.
 pub fn document() -> CorpusDoc {
@@ -147,9 +147,9 @@ pub fn document() -> CorpusDoc {
         tool,
     });
 
-    // A moved copy of the union in its own space, patterned linearly;
-    // a lone block patterned circularly about an axis read off its own
-    // geometry.
+    // A moved copy of the union in its own space, its row of `n`; a
+    // lone block's ring of two about the vertical line through
+    // (-2, 0, 0).
     let band = Band::linear(Tol::witness()).expect("a band");
     let turned = Frame::rotate_then_translate(
         [0.0, 0.0, 1.0],
@@ -159,26 +159,45 @@ pub fn document() -> CorpusDoc {
     )
     .expect("a turn about z");
     let moved = r.against(union, union, &turned);
-    let linear = r.insert(Node::Pattern {
-        input: moved.into(),
-        count: Formula::count(2),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(3.0),
-        },
-    });
+    let j = r.index(
+        "j",
+        Formula::named(VarName::from_static("n"), Dimension::Count),
+    );
+    let linear = r.copies(
+        moved,
+        vec![(
+            Coord::Slide(TargetAxis::X),
+            Formula::mul(scalar_of(j), len(3.0)).expect("a length"),
+        )],
+    );
     let lone = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(0.5),
     });
-    let axis = axis_on(&r.doc, lone, [-2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-    let circular = r.insert(Node::Pattern {
-        input: lone.into(),
-        count: Formula::count(2),
-        kind: PatternKind::Circular {
-            axis,
-            step: ang(std::f64::consts::PI),
-        },
+    // The ring turns about the vertical line through (-2, 0, 0): a half
+    // turn about the copy's origin, then the slide that carries that
+    // line back onto itself, `(-4, 0, 0)` per member.
+    let c = r.index("c", Formula::count(2));
+    let circular = r.copies(
+        lone,
+        vec![
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::mul(scalar_of(c), Formula::turn_over(2).expect("a half turn"))
+                    .expect("an angle"),
+            ),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::mul(scalar_of(c), len(-4.0)).expect("a length"),
+            ),
+        ],
+    );
+    // One member of the row, read by its index (a STRUCTURAL slot).
+    let first = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+            linear,
+            vec![Formula::count(1)],
+        )]),
     });
 
     // A revolve about an axis in its own sketch, its own +y, placed in
@@ -198,11 +217,14 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the non-insert edit vocabulary ----
-    // Structural: drive the linear pattern's count from `n`.
+    // Structural: the member the read takes.
     r.push(DocEdit::SetStructuralParam {
-        node: linear,
-        slot: SlotId::Count,
-        expr: Formula::named(VarName::from_static("n"), Dimension::Count),
+        node: first,
+        slot: SlotId::Index {
+            seat: editor_core::OperandSlot::Member(0),
+            k: 0,
+        },
+        expr: Formula::count(0),
         fresh: Vec::new(),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
@@ -326,9 +348,9 @@ pub fn document() -> CorpusDoc {
     // The lone block's copies hang below the world's xy, their tops on
     // it: each slid down the block's height (its `distance`, set to
     // 0.375 above), clear of the union's blocks, which stand on it.
-    super::place_instances_at(&mut r, circular, 2, &Frame::translation([0.0, 0.0, -0.375]));
+    r.in_world(circular, &Frame::translation([0.0, 0.0, -0.375]));
     super::place_halves(&mut r, split);
-    super::place_instances(&mut r, linear, 3);
+    r.place_part(linear);
     r.in_world_by(revolve, crate::fixture::upright_at([-2.0, 0.0, 0.0]));
 
     let bump = value_slot(&r.doc, moved, Coord::Slide(TargetAxis::Y));

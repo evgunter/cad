@@ -26,8 +26,8 @@ from pncad import (
     NamePat,
     Node,
     Open,
+    StationMove,
     VarName,
-    PatternKind,
     Piece,
     Role,
     Selector,
@@ -1498,34 +1498,40 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertIsNone(written.exception.node)
         self.assertEqual(self.set_of(written.exception), {"variant", "input"})
 
+    def loft(self, doc):
+        """A two-section loft, ruled at v-degree 1: the node a
+        structural slot's door is aimed at."""
+        square = [(0, 0), (1, 0), (1, 1), (0, 1)]
+        a, b = (
+            doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in square]))
+            for _ in range(2)
+        )
+        return doc.insert(
+            Node.loft(a, [(b, [StationMove.slide("z", Formula.length_in(1, m))])], Formula.count(1))
+        )
+
     def test_a_parameter_binding_names_the_node_the_slot_and_the_param(self):
-        # A slot is a NAME, never an index: `count` is the word, and it
-        # is the same word whichever door refused at it.
+        # A slot is a NAME, never an index: `v_degree` is the word, and
+        # it is the same word whichever door refused at it.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        pattern = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(2, m)))
-        )
+        loft = self.loft(doc)
         with self.assertRaises(EditError) as unknown:
-            doc.apply(DocEdit.bind_count_param(pattern, VarName("n")))
+            doc.apply(DocEdit.bind_v_degree_param(loft, VarName("n")))
         self.assertEqual(unknown.exception.variant, "slot_unknown_var_name")
-        self.assertEqual(unknown.exception.node, pattern)
-        self.assertEqual(unknown.exception.slot, "count")
+        self.assertEqual(unknown.exception.node, loft)
+        self.assertEqual(unknown.exception.slot, "v_degree")
         self.assertEqual(unknown.exception.param, "n")
         self.assertEqual(
             self.set_of(unknown.exception), {"variant", "node", "slot", "param"}
         )
 
-        # A node with no count slot at all refuses at the same door and
-        # names the slot it lacks.
+        # A node with no v-degree slot at all refuses at the same door
+        # and names the slot it lacks.
         with self.assertRaises(EditError) as absent:
-            doc.apply(DocEdit.bind_count_param(box, VarName("n")))
+            doc.apply(DocEdit.bind_v_degree_param(box, VarName("n")))
         self.assertEqual(absent.exception.variant, "unknown_slot")
-        self.assertEqual(absent.exception.slot, "count")
+        self.assertEqual(absent.exception.slot, "v_degree")
         self.assertEqual(self.set_of(absent.exception), {"variant", "node", "slot"})
 
     def test_the_dimension_pair_crosses_as_words_not_prose(self):
@@ -1533,17 +1539,10 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # and the one it was offered, in the alphabet `Formula.dimension`
         # answers in — one pair however the kernel's arm spells it.
         doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        pattern = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(2, m)))
-        )
+        loft = self.loft(doc)
         doc.apply(DocEdit.declare_var(VarName("len"), FreeVar.length(1 * m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(pattern, VarName("len")))
+            doc.apply(DocEdit.bind_v_degree_param(loft, VarName("len")))
         refusal = caught.exception
         # The slot's kind refusal is one arm at every slot: `found`
         # is the kind of the variable read, `expected` what the slot
@@ -1596,20 +1595,15 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(self.set_of(refusal), {"variant", "inner_variant"})
 
     def test_a_refusal_the_boundary_builds_has_the_same_shape(self):
-        # `Node.placed_union` refuses BEFORE the document layer sees
-        # the edit — the boundary decides it — and the exception is
-        # still one shape: every attribute present, `None` where this
-        # refusal carries nothing, and the two words the document
-        # layer's own refusal of the same rule publishes.
-        doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        # `VarName` refuses BEFORE the document layer sees any edit —
+        # the boundary decides it — and the exception is still one
+        # shape: every attribute present, `None` where this refusal
+        # carries nothing.
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(box, Formula.count(3), PatternKind.explicit([]))
-        self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
-        self.assertEqual(caught.exception.inner_variant, "listed_with_count")
-        self.assertEqual(
-            self.set_of(caught.exception), {"variant", "inner_variant"}
-        )
+            VarName("1 x")
+        self.assertEqual(caught.exception.variant, "param_name_not_an_identifier")
+        self.assertIsNone(caught.exception.inner_variant)
+        self.assertEqual(self.set_of(caught.exception), {"variant"})
 
 
 class TestNodeLabels(unittest.TestCase):

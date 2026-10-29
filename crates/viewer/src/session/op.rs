@@ -756,21 +756,22 @@ pub enum SessionOp {
         rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
-    /// committed edit. A pattern defines several bodies, which no world
-    /// placement reads, so it changes nothing in the world: each copy
-    /// reaches it through its projection (`SessionOp::AddPart`).
+    /// committed edit: an index `k = index(count)` and one placement of
+    /// the body in its own space whose values read it (D10
+    /// `[repetition]`), a family of `count` copies. The family is
+    /// placed where the body is; each copy reaches a seat whole or
+    /// through an indexed read (`SessionOp::AddPart`).
     ///
-    /// The count is an `i64` and lands as an exact Count literal: it
-    /// is the node's STRUCTURAL slot (spec D3), edited afterwards
-    /// through `SetStructuralParam` and never through the continuous
-    /// door. A count of zero or less is admitted here and refuses at
-    /// evaluation on the node's own badge — the same division of
-    /// labour a degenerate profile takes, one rule for authored and
+    /// The count is an `i64` and lands as the index's exact Count
+    /// literal, edited afterwards by redefining the index. A count of
+    /// zero or less is admitted here and refuses at evaluation on the
+    /// placement's own badge — the same division of labour a
+    /// degenerate profile takes, one rule for authored and
     /// hand-written documents.
     AddPattern {
         /// The body replicated.
         input: Operand,
-        /// Instance count.
+        /// Copy count.
         count: i64,
         /// The replication rule; a circular rule's axis is read off
         /// the input's own geometry at its numbers' nominal values, and
@@ -782,37 +783,27 @@ pub enum SessionOp {
     /// of a pattern points at.
     ///
     /// [`SessionOp::AddPattern`]'s twin, seat for seat and slot for
-    /// slot, because `Node::PlacedUnion` takes exactly what
-    /// `Node::Pattern` takes: a PROTOTYPE body, a count, a rule. What
-    /// differs is the result — ONE body, the union of the prototype at
-    /// every placement, which every downstream body seat consumes
-    /// where a pattern's several instances are refused.
+    /// slot: the same index and placement, and a `Union` reading the
+    /// family whole — ONE body, the union of the prototype at every
+    /// placement.
     ///
-    /// **The prototype, not a pattern node.** The fused node replicates
-    /// a body itself rather than consuming a `Node::Pattern`, so this
-    /// door's seat wants a BODY and refuses
-    /// [`Refusal::WrongNodeKind`] for a pattern exactly as the
-    /// unfused door does. A user who already authored the unfused
-    /// pattern re-commits over the same prototype and deletes the
-    /// pattern; there is no edit that converts one node into the
-    /// other, and inventing one here would be a second spelling of a
-    /// rule the document already has.
+    /// **The prototype, not a family.** This door's seat wants a BODY,
+    /// as the unfused door's does. A user who already authored the
+    /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
     /// Ev's residue 1): the prototype's placements are re-pointed to it
     /// in the same action.
     ///
-    /// **Disjointness is the node's question, not this door's.**
-    /// Placements that overlap refuse typed at evaluation on the
-    /// node's own badge, the same division of labour a non-positive
-    /// count takes: the door authors what the user asked for and the
-    /// node says whether it can be built.
-    AddPlacedUnion {
-        /// The prototype placed at every placement.
+    /// **Whether the copies meet is the union's question, not this
+    /// door's**: the door authors what the user asked for and the union
+    /// says what it builds.
+    AddFusedPattern {
+        /// The prototype each member copies.
         input: Operand,
-        /// Placement count.
+        /// The index's count.
         count: i64,
-        /// The placement rule, with the axis a circular rule was
+        /// How each member is placed, with the axis a circular one was
         /// picked with.
         rule: PatternRuleSpec,
     },
@@ -871,31 +862,19 @@ pub enum SessionOp {
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
-    /// Insert one PROJECTION of a multi-body value — the named half
-    /// of a split, or one instance of a pattern — as the `Body` value
-    /// every body seat takes (`Node::Part`), and its identity world
-    /// placement (A10): a creation, so the projected body is drawn.
+    /// Insert one MEMBER of a family as a body of its own: a placement
+    /// standing in the family's space whose read is the family indexed
+    /// at `select` (`BodyRead::indexed`), drawn as a creation is.
     ///
-    /// **`select` is an authoring spec, not the node's own enum**, and
-    /// the difference is one field: `PartSelect::Instance` carries an
-    /// `Expr` where [`PartSelectSpec::Instance`] carries an `i64`.
-    /// `SlotId::Instance` is a Count-typed STRUCTURAL slot (spec D3),
-    /// the same class as [`SessionOp::AddPattern`]'s count, and that
-    /// op's rule holds here for its own reason: a structural slot is
-    /// authored exact and edited afterwards through
-    /// `SetStructuralParam`, never through the continuous door. A door
-    /// taking `PartSelect` whole would be the one place an arbitrary
-    /// expression could reach one at authoring time.
-    ///
-    /// **The seat is per ARM, because the pairing is a fact about the
-    /// committed document.** A half reads a `Node::Split` and an index
-    /// reads a `Node::Pattern`; a half against a pattern is not a
-    /// well-typed node and never becomes one, so it refuses
-    /// [`Refusal::WrongNodeKind`] here rather than landing and failing
-    /// at evaluation — the same rule [`SessionOp::AddFillet`] states
-    /// for its target's kind. What is left to evaluation is the index
-    /// being IN RANGE, which is a fact about the pattern's value:
-    /// `NodeErrorKind::InstanceOutOfRange`, typed, on the node's own
+    /// **`select` is an authoring spec**: an `i64`, where the read
+    /// carries a `Count` formula. A member index is authored exact and
+    /// edited afterwards through the variable doors. The seat must read
+    /// a family, so a node that is none refuses
+    /// [`Refusal::WrongNodeKind`] here rather than landing and failing at
+    /// evaluation, the rule [`SessionOp::AddFillet`] states for its
+    /// target's kind. What is left to evaluation is the index being IN
+    /// RANGE, a fact about the family's value:
+    /// `NodeErrorKind::MemberOutOfRange`, typed, on the node's own
     /// badge.
     AddPart {
         /// The split or pattern whose value is read.
@@ -906,11 +885,9 @@ pub enum SessionOp {
     /// **Duplicate one body**: a copy stepped clear of the picked body,
     /// drawn and editable on its own.
     ///
-    /// **A duplicate is a pattern of two, its copy projected and
-    /// placed** — a `Node::Pattern` of count
-    /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
-    /// picking its second instance, and a placement of that projection
-    /// beside the original as it is drawn (A10). One action, one undo.
+    /// **A duplicate is one stepped copy**: a placement of the body in
+    /// its own space, slid clear by the measured step, placed beside the
+    /// original as it is drawn (A10). One action, one undo.
     /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
@@ -1203,7 +1180,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1322,7 +1299,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1546,7 +1523,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1674,7 +1651,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }

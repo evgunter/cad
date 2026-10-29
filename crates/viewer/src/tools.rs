@@ -205,7 +205,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
-        SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddPattern { .. } | SessionOp::AddFusedPattern { .. } => Some(ToolKind::Pattern),
         SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
         // ONE op for both selectors: the two doors mint the same op with
         // different payloads, so a landed `AddPart` is this tool's edit

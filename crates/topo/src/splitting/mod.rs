@@ -64,8 +64,12 @@
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
 //! null edges with their side attributes. [`split`] composes
-//! reduce → join → finish; [`plane_section`] stops after join and
-//! reads the polygons off the scratch clone.
+//! reduce → join → finish's carve into two sides, then on each side:
+//! tier 2, the fusion of a pinch's cones where the section's corners
+//! pair their germs (`section_cones`), the coplanar merges and edge
+//! joins (`finish::end_maximal`), tier 2 again, and the pcurves.
+//! [`plane_section`] stops after join and reads the polygons off the
+//! scratch clone.
 
 mod classify;
 pub mod containment;
@@ -86,6 +90,7 @@ pub(crate) mod pieced_arc;
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_cones;
 mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
@@ -231,9 +236,10 @@ pub enum SectorEntryKind {
     /// A real neighborhood edge, classified by its final vertex.
     Edge,
     /// A subdivision entry of one sector, classified by its direction: a
-    /// wide (≥180°) sector's interior bisector (convex subdivision), or, at
-    /// a cone's apex, each extremal ruling inside the sector, one or two at
-    /// any width (the `neighborhood` module docs). Shares its half-edge with
+    /// wide (≥180°) sector's interior bisector (convex subdivision), a slit
+    /// tip's full turn's three quarter directions, or, at a cone's apex,
+    /// each extremal ruling inside the sector, one or two at any width (the
+    /// `neighborhood` module docs). Shares its half-edge with
     /// the sector's [`SectorEntryKind::Edge`] entry before it.
     WideBisector,
 }
@@ -977,6 +983,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = reduced.begin_surgery();
 
     classify::carrier_gate(&body, plane, band)?;
+    let tips = crate::sector_shape::SlitTips::of(&body);
     let (mut sides, mut on_vertices, on_margins) =
         classify::classify_vertices_margined(&body, plane, band)?;
     let edge_pieces =
@@ -987,7 +994,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
         let (entries, rays) =
-            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, band)?;
+            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
         let runs = insert::above_runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
@@ -1296,6 +1303,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::RawPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
             finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
             // The side's tier-2 gate again, on the body as joined.

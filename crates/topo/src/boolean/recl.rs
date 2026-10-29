@@ -46,7 +46,10 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, side_code};
+use super::refusal_routes::RAY_COLLINEAR;
+use super::sectors::{
+    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same, side_code,
+};
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
 };
@@ -297,8 +300,7 @@ fn corner_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> geom_core::Point3<
 }
 
 fn cancel_uniform(r: &mut PairRecord) {
-    let uni = |c: (SideCode, SideCode)| c.0 == c.1 && c.0 != SideCode::On;
-    if uni(r.sa) || uni(r.sb) {
+    if super::sectors::one_side(r.sa) || super::sectors::one_side(r.sb) {
         r.intersect = false;
     }
 }
@@ -666,7 +668,7 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   typed ([`BooleanError::CrossingsAlongAContactLine`]), whether two
 ///   wedge pairs cross or one composed material's boundary crosses
 ///   twice, except on a solid's own slit or ring line
-///   ([`super::sectors::SlitTips`]). There the slit's two edges are two
+///   ([`crate::sector_shape::SlitTips`]). There the slit's two edges are two
 ///   wedges lying apart, so the material sectors decide each germ: one
 ///   per wedge pair that crosses, a wedge crossing two of the other's
 ///   holding each on its flanker inside the wedge it crosses
@@ -709,7 +711,7 @@ pub(super) fn recl_edges<T: Decide>(
     reversed: &Reversed,
     held: [Option<HeldFace<T>>; 2],
     touches: &mut Vec<[crate::entity::HalfEdgeKey; 2]>,
-    tips: &[super::sectors::SlitTips; 2],
+    tips: &[crate::sector_shape::SlitTips; 2],
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -782,7 +784,9 @@ pub(super) fn recl_edges<T: Decide>(
             // (`split_edge_onto`), so coincident line edges reach this
             // site between the same two points, their chords bit-equal.
             let arm = mentions[i].arm.min(mentions[j].arm);
-            if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, arm, band)? {
+            if !used[j]
+                && parallel_same(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
+            {
                 used[j] = true;
                 group.push(mentions[j]);
             }
@@ -791,7 +795,7 @@ pub(super) fn recl_edges<T: Decide>(
         // one ray only if every pair reads so.
         for (p, &m) in group.iter().enumerate().skip(1) {
             for &n in &group[p + 1..] {
-                if !parallel_same_dir(m.dir, n.dir, m.arm.min(n.arm), band)? {
+                if !parallel_same(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a ray event's directions are each on the seed's ray but not \
                                on one another's",
@@ -805,7 +809,7 @@ pub(super) fn recl_edges<T: Decide>(
         // of the start holder is the next sector's own chord.
         let bound = |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
         // Whether this ray is a solid's own slit or ring line: the
-        // solid's vertex is the slit's tip ([`super::sectors::SlitTips`])
+        // solid's vertex is the slit's tip ([`crate::sector_shape::SlitTips`])
         // and an edge of its on this ray bounds the face the slit lies
         // in, which only the slit's two edges do at its tip. Its refusal
         // is a construction gap ([`BooleanError::SlitLineCrossed`]): the
@@ -1171,7 +1175,7 @@ pub(super) fn edge_edge_bound<T: geom_core::Real>(
 }
 
 /// **A solid's own slit or ring line through a vertex pair**
-/// ([`recl_edges`]): the solid, its tip there ([`super::sectors::SlitTips`])
+/// ([`recl_edges`]): the solid, its tip there ([`crate::sector_shape::SlitTips`])
 /// and the face the slit lies in.
 #[derive(Clone, Copy, Debug)]
 struct SlitLine {
@@ -2055,7 +2059,7 @@ fn resolve_edge_sector<T: Decide>(
         // face it was read On against even where another event's germ,
         // sharing its record, has since rewritten that On (`mark_germ`
         // rewrites every On of a germ record, a second edge's on a ray
-        // `parallel_same_dir` reads apart among them).
+        // `parallel_same` reads apart among them).
         None => find_ref_sector(first_read, a_side, f_s, n_own).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",
@@ -2261,32 +2265,6 @@ fn resolve_bisector_graze<T: Decide>(
     g.map(Some).ok_or(BooleanError::ClassificationInvariant {
         what: "bisector-graze crossing without a twin record",
     })
-}
-
-pub(super) fn parallel_same_dir<T: Decide>(
-    u: Vec3<T>,
-    v: Vec3<T>,
-    arm: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let un = u.normalize();
-    let vn = v.normalize();
-    match decide(
-        "bool_ee_collinear",
-        Margin::levered(un.cross(vn).norm(), arm),
-        band,
-    ) {
-        Ok(Sign::Zero) => {}
-        Ok(_) => return Ok(false),
-        Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::EdgeOnEdge,
-                DeclarationRead::Moot,
-                diag,
-            ));
-        }
-    }
-    super::sectors::direction_sense(un, vn, arm, band)
 }
 
 #[cfg(test)]
@@ -3349,8 +3327,8 @@ mod tests {
                 .expect("a face the ray's edge does not bound");
             for (face, slit) in [(slit_face, true), (other_face, false)] {
                 let tips = [
-                    super::super::sectors::SlitTips::of_pairs([(want.0, face)]),
-                    super::super::sectors::SlitTips::default(),
+                    crate::sector_shape::SlitTips::of_pairs([(want.0, face)]),
+                    crate::sector_shape::SlitTips::default(),
                 ];
                 let mut records = vec![
                     rec(0, 0, (On, Out), (On, Out)),

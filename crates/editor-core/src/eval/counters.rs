@@ -9,6 +9,7 @@
 #[cfg(debug_assertions)]
 thread_local! {
     static RIGID_MAPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static JUDGEMENTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// One body the evaluator mapped by a rigid motion into another frame
@@ -18,12 +19,24 @@ pub(crate) fn rigid_map() {
     RIGID_MAPS.with(|n| n.set(n.get().saturating_add(1)));
 }
 
+/// `n` pairwise judgements a union or an intersect ran over its
+/// members.
+pub(crate) fn judgements(n: usize) {
+    #[cfg(debug_assertions)]
+    JUDGEMENTS.with(|c| c.set(c.get().saturating_add(u64::try_from(n).unwrap_or(u64::MAX))));
+    #[cfg(not(debug_assertions))]
+    let _ = n;
+}
+
 /// **The evaluator's builds on this thread so far.**
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EvalCounters {
     /// Bodies mapped by a rigid motion: an operand read into another's
     /// frame. A copy maps none: it shares its source's body.
     pub rigid_maps: u64,
+    /// Pairwise judgements of a union's or an intersect's members. A
+    /// pair certified apart is not judged.
+    pub judgements: u64,
 }
 
 impl EvalCounters {
@@ -33,6 +46,7 @@ impl EvalCounters {
     pub fn on_this_thread() -> Self {
         Self {
             rigid_maps: RIGID_MAPS.with(std::cell::Cell::get),
+            judgements: JUDGEMENTS.with(std::cell::Cell::get),
         }
     }
 
@@ -41,6 +55,7 @@ impl EvalCounters {
     pub fn since(self, before: Self) -> Self {
         Self {
             rigid_maps: self.rigid_maps - before.rigid_maps,
+            judgements: self.judgements - before.judgements,
         }
     }
 }

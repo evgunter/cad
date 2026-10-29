@@ -1,154 +1,118 @@
 //! A ball of radius 10 mm with poles on ±z, the cap `x > 8` cut away and
 //! its sphere split at the equator into two faces on ONE spherical
-//! surface. Each face holds a chart pole off its loop, and the region
-//! the two form across the equator has the cut circle alone as its
-//! boundary, with neither pole on an interior edge. Validity does not
-//! yet refuse a chart singularity inside a face
-//! (`work/restfront/validity-refuses-an-interior-chart-singularity.md`),
-//! so the region's boundary encodes no side tier 3 may read, and the
-//! body imports, passes tier 3 and measures exactly.
+//! surface (`side_cut_equator_split.step`), or with its lower face split
+//! again along the meridian through the south pole
+//! (`side_cut_meridian_split.step`). Each file puts a chart pole inside a
+//! face, or inside an edge, without making it a vertex. A chart
+//! singularity in a face is a vertex of it, so import makes each pole one
+//! (`chart_singularity_vertex.rs`): a face holding a pole is cut in two
+//! along the pole form's meridians, and an edge through one is split
+//! there. Every pole then lies on an edge interior to the sphere's seam
+//! region, where tier 3 reads the region's side, so a flipped sphere face
+//! is named, alone or with the rest.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
-#[test]
-fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
-    let tol = Tol::witness();
+const FILES: [&str; 2] = [
+    "side_cut_equator_split.step",
+    "side_cut_meridian_split.step",
+];
+
+fn import(name: &str) -> topo::Body<f64> {
     let path = format!(
-        "{}/tests/fixtures/seam-region/side_cut_equator_split.step",
+        "{}/tests/fixtures/seam-region/{name}",
         env!("CARGO_MANIFEST_DIR")
     );
     let text = std::fs::read_to_string(&path).unwrap();
-    let (r, h) = (0.010_f64, 0.002_f64);
-    let exact = core::f64::consts::PI * (4.0 * r * r * r - h * h * (3.0 * r - h)) / 3.0;
-    let body = match import_step(&text, &ImportOptions::default(), tol) {
-        Ok(StepImport::Solid { body, .. }) => body,
-        other => panic!("the side-cut ball does not import as a solid: {other:?}"),
-    };
-    topo::validate_geometric(body.body(), tol)
-        .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::test_support::pinned_volume(
-        "the measured body",
-        &topo::test_support::finished("the measured body", body.body().clone(), tol),
-        tol,
-    )
-    .volume;
-    assert!(
-        (volume - exact).abs() <= 1e-9 * exact,
-        "the side-cut ball measures {volume}, the closed form is {exact}"
-    );
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+        Ok(StepImport::Solid { body, .. }) => body.into_body(),
+        other => panic!("{name} does not import as a solid: {other:?}"),
+    }
 }
 
-/// The same ball with its lower face also split, along the meridian in
-/// `y = 0` from the equator through the south pole to the cut. The upper
-/// face holds the north pole off its loop, so its own loop encodes no
-/// side. The south pole lies on the meridian edge the two lower faces
-/// share, interior to the region: the region's side is read there, off
-/// a member other than the face being checked, and a flip of the upper
-/// face is named by it.
-#[test]
-fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
-    let tol = Tol::witness();
-    let path = format!(
-        "{}/tests/fixtures/seam-region/side_cut_meridian_split.step",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let text = std::fs::read_to_string(&path).unwrap();
-    let (r, h) = (0.010_f64, 0.002_f64);
-    let exact = core::f64::consts::PI * (4.0 * r * r * r - h * h * (3.0 * r - h)) / 3.0;
-    let body = match import_step(&text, &ImportOptions::default(), tol) {
-        Ok(StepImport::Solid { body, .. }) => body,
-        other => panic!("the split side-cut ball does not import as a solid: {other:?}"),
-    };
-    topo::validate_geometric(body.body(), tol)
-        .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::test_support::pinned_volume(
-        "the measured body",
-        &topo::test_support::finished("the measured body", body.body().clone(), tol),
-        tol,
-    )
-    .volume;
-    assert!(
-        (volume - exact).abs() <= 1e-9 * exact,
-        "the split side-cut ball measures {volume}, the closed form is {exact}"
-    );
-    // The upper face: the one whose loop's vertices all lie on the equator.
-    let points: Vec<_> = body.body().vertex_points().collect();
-    let on_equator = |h: topo::HalfEdgeKey| {
-        let v = body.body().get_half_edge(h).unwrap().start;
-        points.iter().find(|(k, _)| *k == v).unwrap().1.z.abs() < 1e-9
-    };
-    let upper: Vec<_> = body
-        .body()
-        .faces()
-        .filter(|(_, f)| {
-            topo::props::loop_edges(body.body(), f.outer)
-                .unwrap()
-                .1
-                .into_iter()
-                .all(on_equator)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [upper] = upper[..] else {
-        panic!("one face has its loop on the equator: {upper:?}");
-    };
-    let flipped = body.body().flipped_face_sense_for_tests(upper).unwrap();
-    let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
-    assert!(
-        errs.iter().any(
-            |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == upper)
-        ),
-        "the upper face flipped is not named CurvedSenseInverted: {errs:?}"
-    );
-}
-
-/// Both sphere faces of the side-cut ball flipped. Their region's
-/// boundary holds neither pole, and both poles lie inside faces rather
-/// than on an interior edge, so tier 3 reads no side for the region:
-/// reading a pole inside a face as inside the region would rest on the
-/// rule that a chart singularity inside a face is a vertex of it, which
-/// validity does not yet enforce
-/// (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
-/// Each flipped face claims its complement, which holds the other, so the
-/// cover census refuses the pair as claiming their region twice over,
-/// before the volume checks read the body.
-#[test]
-fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover() {
-    let tol = Tol::witness();
-    let path = format!(
-        "{}/tests/fixtures/seam-region/side_cut_equator_split.step",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let text = std::fs::read_to_string(&path).unwrap();
-    let body = match import_step(&text, &ImportOptions::default(), tol) {
-        Ok(StepImport::Solid { body, .. }) => body,
-        other => panic!("the side-cut ball does not import as a solid: {other:?}"),
-    };
-    // The two faces of one surface entity: the sphere's.
-    let faces: Vec<_> = body.body().faces().map(|(k, f)| (k, f.surface)).collect();
-    let sphere: Vec<_> = faces
+/// The faces of the sphere: the one surface more than one face carries.
+fn sphere_faces(body: &topo::Body<f64>) -> Vec<topo::FaceKey> {
+    let faces: Vec<_> = body.faces().map(|(k, f)| (k, f.surface)).collect();
+    faces
         .iter()
-        .filter(|(_, s)| faces.iter().filter(|(_, t)| t == s).count() == 2)
+        .filter(|(_, s)| faces.iter().filter(|(_, t)| t == s).count() > 1)
         .map(|(k, _)| *k)
-        .collect();
-    assert_eq!(sphere.len(), 2, "two faces of one sphere: {faces:?}");
-    let flipped = sphere.iter().fold(topo::Body::clone(body.body()), |b, &k| {
-        b.flipped_face_sense_for_tests(k).unwrap()
-    });
-    let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
-    assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::SeamRegionOvercovered { times: 2, .. }
-        )),
-        "the flipped faces overlap: {errs:?}"
-    );
-    assert!(
-        !errs
-            .iter()
-            .any(|e| matches!(e, topo::ValidationError::CurvedSenseInverted { .. })),
-        "no side is read for a region whose poles lie inside its faces: {errs:?}"
-    );
+        .collect()
+}
+
+#[test]
+fn a_side_cut_ball_holding_its_poles_inside_its_faces_imports_and_measures() {
+    let tol = Tol::witness();
+    let (r, h) = (0.010_f64, 0.002_f64);
+    let exact = core::f64::consts::PI * (4.0 * r * r * r - h * h * (3.0 * r - h)) / 3.0;
+    for name in FILES {
+        let body = import(name);
+        topo::validate_geometric(&body, tol)
+            .unwrap_or_else(|e| panic!("{name}: tier 3 refuses it: {e:?}"));
+        let volume = topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished("the measured body", body.clone(), tol),
+            tol,
+        )
+        .volume;
+        assert!(
+            (volume - exact).abs() <= 1e-9 * exact,
+            "{name}: measures {volume}, the closed form is {exact}"
+        );
+    }
+}
+
+/// Each sphere face flipped alone: the region's side is read at a pole
+/// on one of its interior edges, and the flipped face is named.
+#[test]
+fn a_flipped_sphere_face_is_named_by_its_regions_side() {
+    let tol = Tol::witness();
+    for name in FILES {
+        let body = import(name);
+        let sphere = sphere_faces(&body);
+        assert_eq!(sphere.len(), 4, "{name}: the sphere's faces: {sphere:?}");
+        for face in sphere {
+            let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+            let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
+            assert!(
+                errs.iter().any(
+                    |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face: f } if *f == face)
+                ),
+                "{name}: {face:?} flipped is not named CurvedSenseInverted: {errs:?}"
+            );
+        }
+    }
+}
+
+/// Every sphere face flipped: each claims its complement, so the cover
+/// census counts the region claimed four times over, and each face is
+/// named by the region's side.
+#[test]
+fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover_and_its_side() {
+    let tol = Tol::witness();
+    for name in FILES {
+        let body = import(name);
+        let sphere = sphere_faces(&body);
+        let flipped = sphere.iter().fold(body.clone(), |b, &k| {
+            b.flipped_face_sense_for_tests(k).unwrap()
+        });
+        let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
+        assert!(
+            errs.iter().any(|e| matches!(
+                e,
+                topo::ValidationError::SeamRegionOvercovered { times: 4, .. }
+            )),
+            "{name}: the flipped faces overlap four times over: {errs:?}"
+        );
+        for face in sphere {
+            assert!(
+                errs.iter().any(
+                    |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face: f } if *f == face)
+                ),
+                "{name}: {face:?} is not named CurvedSenseInverted: {errs:?}"
+            );
+        }
+    }
 }

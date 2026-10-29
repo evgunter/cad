@@ -76,11 +76,9 @@ a value with no exact spelling in the unit asked for falls back to
 metres or radians, so read the suffix off the text.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep. The pattern node LEFT that
-list at LIB-B-PART, with the consumer that gives its plural value a
-downstream door: `Node.pattern` says the unfused family and
-`Node.part` projects one body back out of it, where `placed_union`
-says the same family fused into one.
+`docs/guide/north-star-audit.md`: sweep. A pattern is an index
+variable (`VarDecl.index`) read by one placement's values, so its copy
+is a family: `Node.union(row)` fuses it, and `row[i]` reads one member.
 """
 
 from collections.abc import Sequence
@@ -608,6 +606,7 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `singularity_undecided`,
     `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
@@ -1104,9 +1103,12 @@ class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
     scalar is a point.
 
-    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
-    the scalar this build ran at, and `door` the one that CAN answer —
-    the recourse rides in the refusal rather than in a reader's memory.
+    `variant` is `needs_enclosure`, or `no_upper_bound` where the
+    engine's bracket has a lower end only (reached only at a certified
+    scalar, which this binding does not evaluate at); `verb` is the
+    primitive, `scalar` the scalar this build ran at, and `door` the one
+    that CAN answer — the recourse rides in the refusal rather than in a
+    reader's memory.
 
     NOT MeasureUnavailable, whose name is one word away and whose
     question is a different one: that is the analysis lane refusing to
@@ -1116,10 +1118,11 @@ class MeasureUnavailableAt(PncadError):
     A typed ABSENCE rather than a failure. The measure node evaluated
     fine and has no value, which is why an assertion over it reports
     `Unevaluated` carrying this same reason instead of being poisoned.
-    A `min_clearance` at `f64` is the whole of it today: a station pair
-    found by a point-scalar search is an upper bound on the minimum
-    rather than the minimum, and reporting one would be a degradation
-    ERROR-DESIGN E7 forbids by name."""
+    At `f64`, the only scalar this binding evaluates at, it is always
+    `needs_enclosure` on a `min_clearance`: a station pair found by a
+    point-scalar search is an upper bound on the minimum rather than
+    the minimum, and reporting one would be a degradation ERROR-DESIGN
+    E7 forbids by name."""
 
     variant: str
     verb: str
@@ -1851,9 +1854,10 @@ class NodeId:
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
-    def __getitem__(self, index: _CountArg) -> IndexedRead:
+    def __getitem__(self, index: _CountArg | tuple[_CountArg, ...]) -> IndexedRead:
         """One member of the family this node's output is (a pattern's),
-        at `index`: `xs[i]`, taken at every body seat."""
+        at `index`, one count per index of the family: `xs[i]`, or
+        `xs[i, j]` for a grid, taken at every body seat."""
 
 class PickRead:
     """One piece of a copy (`Doc.pick`): the placement's copy and the
@@ -1863,14 +1867,15 @@ class PickRead:
     def __repr__(self) -> str: ...
 
 class IndexedRead:
-    """One member of a family, read by index: `xs[i]`, written on the
-    family's operand (`NodeId` or `Var`) with a count. It reads the
+    """One member of a family, read by index: `xs[i]`, or `xs[i, j]`
+    for a family of two indices, written on the family's operand
+    (`NodeId` or `Var`) with one count per index. It reads the
     family, not a variable: an operation reading it names the member's
     entities by the family's read, so `Node.union(xs)` and
     `Node.union([xs[0], xs[1], xs[2]])` name alike. Every body seat
     takes one; reading a node that is not a family refuses
     `slot_var_kind` at `Doc.insert`, and an index outside the family
-    refuses `instance_out_of_range` at `evaluate`. The index is a
+    refuses `member_out_of_range` at `evaluate`. The index is a
     structural slot of the reading node (slot word `index`)."""
 
     def __repr__(self) -> str: ...
@@ -1913,8 +1918,8 @@ class StationMove:
 class Frame:
     """An ABSOLUTE placement: a linear part and a translation.
 
-    The value `PatternKind.explicit` lists and `Node.placed_union_at`
-    places a prototype at. It is authored through constructors rather
+    What a placement's pose reads back as. It is authored through
+    constructors rather
     than field by field — a linear part is a MATRIX, and that is how a
     mirror or a shear arrives by accident. A frame that is not a rigid
     motion is refused at the edit door, not admitted; a mirror is a
@@ -1995,57 +2000,6 @@ class Frame:
     # identity rather than being folded into `0.0`. No `__hash__`: the
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
-
-class PatternKind:
-    """A pattern's replication rule: how a prototype's placements are
-    generated.
-
-    Three rules and no fourth. The two PARAMETRIC ones step and take
-    their count from the node's structural slot; the EXPLICIT one
-    lists absolute frames, and the list IS the count — which is why
-    `Node.placed_union_at` takes no count at all.
-    """
-
-    @staticmethod
-    def linear(
-        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg], spacing: _LengthArg
-    ) -> PatternKind:
-        """Stepped along `direction`, `spacing` apart. The spacing is
-        a size: the direction says which way the copies step, so a
-        spacing below zero raises EvaluationError
-        (`negative_spacing`, naming the direction negated) and a zero
-        one too (`degenerate_spacing`), wherever a second copy reads
-        it."""
-
-    @staticmethod
-    def circular(axis: _PoseRead, step: _AngleArg) -> PatternKind:
-        """Stepped around `axis`, an axis read off geometry
-        (`PoseDef.axis`) or a frame's axis read through its role. The
-        step is signed by the right-hand rule about the axis and lies
-        within a turn: zero raises EvaluationError (`degenerate_step`),
-        and so does a full turn or more (`full_range_step`), wherever a
-        second copy reads it."""
-
-    @staticmethod
-    def explicit(frames: list[Frame]) -> PatternKind:
-        """Instances at the frames listed, in order — the index is
-        what a name's instance segment carries. An empty list raises
-        EditError (`empty_placement_list`) at insert."""
-
-class PartSelect:
-    """Which copy of a pattern a `Node.part` selects, by index. A
-    split's halves need no selector: each is an output of the split,
-    read as `doc.output(split, port)`.
-    """
-
-    @staticmethod
-    def instance(index: _CountArg) -> PartSelect:
-        """The `index`-th instance of a `Node.pattern` value, from
-        zero. A count `Formula` — `Formula.count(3)` — and the node's
-        `Instance` slot, which `DocEdit.bind_instance_param` binds to a
-        parameter. Outside `0 .. count`, including a negative, refuses
-        at `evaluate` (`instance_out_of_range`); nothing wraps or
-        clamps."""
 
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
@@ -2363,9 +2317,8 @@ class Node:
         does not hold (`unresolved_input`). Whether a member is a BODY
         is the kernel's question at `evaluate`.
 
-        Not `placed_union`, whose members are one prototype under a
-        placement rule: here the membership is data, which
-        `DocEdit.set_members` rewrites on the live node.
+        The membership is data, which `DocEdit.set_members` rewrites
+        on the live node.
 
         Members whose faces a margin decides on one surface glue there,
         and each such coincidence is recorded for the
@@ -2408,61 +2361,59 @@ class Node:
         piece; a piece the cut empties drops out."""
 
     @staticmethod
-    def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
-        """One prototype, `count` placements stepped by `kind`, N
-        BODIES OUT — the replicated family with nothing fused.
-
-        The value is PLURAL (`Value.kind == "instances"`,
-        `Value.bodies` the whole list), which is the difference from
-        `placed_union`: same rule vocabulary, same prototype, one body
-        out. A plural value is refused at every single-body operand
-        seat, so the node that reaches those doors with one copy is
-        `Node.part`.
-
-        `count` is a count `Formula` — `Formula.count(4)` — and is the
-        node's `Count` slot (`DocEdit.bind_count_param`). Below one
-        refuses at `evaluate`
-        (`count_out_of_range`); an `explicit` rule refuses at
-        `Doc.insert` (`placement_rule_mismatch`, `inner_variant`
-        `listed_on_pattern`), since it carries its own placements."""
+    def linear_pattern(
+        index: VarName,
+        source: _BodyArg,
+        target: _SpaceArg,
+        steps: Sequence[tuple[Literal["x", "y", "z"], _LengthArg]],
+    ) -> Node:
+        """A ROW: `source` copied into `target`, member `k` slid
+        `scalar(k)·pitch` along each `(axis, pitch)` of `steps` on the
+        target's axes, with no mate — a `Node.place` whose values read
+        the index `index` (`VarDecl.index(n)`), so its copy is a family
+        of `n` members. Each pitch is a length (ValueError otherwise)."""
 
     @staticmethod
-    def part(of: _Operand, select: PartSelect) -> Node:
-        """ONE body out of a pattern's copies.
-
-        A projection, not an operation: the body is the instance's own
-        and the names pass through verbatim, so a selector spelled
-        against that instance resolves here unchanged. `of` reads a
-        list of bodies, or the insert raises EditError
-        (`slot_var_kind`); an index outside `0 .. count` refuses at
-        `evaluate` (`instance_out_of_range`)."""
-
-    @staticmethod
-    def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
-        """The group boolean over a PARAMETRIC rule: one prototype,
-        `count` placements stepped by `kind`, ONE body out.
-
-        The value is an ordinary body, so every downstream door
-        consumes it with no new arms — which is exactly what a
-        pattern's plural payload cannot do. `count` is a count `Formula`
-        — `Formula.count(4)`, the `Node.loft` `v_degree` precedent: a
-        Count is an integer in the kernel's own expression language,
-        not a measurement.
-
-        Disjointness is CERTIFIED: overlapping placements raise
-        EvaluationError (`placements_uncertified`) naming the pair,
-        and the certificate is sufficient-not-necessary, so a
-        touching-but-disjoint arrangement refuses too. An `explicit`
-        rule raises EditError (`placement_rule_mismatch`,
-        `inner_variant` `listed_with_count`) here — it carries its own
-        count, and `placed_union_at` is its door."""
+    def grid(
+        outer: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
+        inner: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
+        source: _BodyArg,
+        target: _SpaceArg,
+    ) -> Node:
+        """A GRID: `linear_pattern` over two indices, each
+        `(index, axis, pitch)`, `inner`'s declared within `outer`'s
+        (`VarDecl.index(n, within=outer)`) — the family indexed
+        `[outer, inner]`."""
 
     @staticmethod
-    def placed_union_at(input: _Operand, frames: list[Frame]) -> Node:
-        """The group boolean over LISTED absolute frames. No count
-        argument, because the list IS the count. An empty list, a
-        non-finite frame, or an improper one raises EditError at
-        insert."""
+    def circular_pattern(
+        doc: Doc,
+        index: VarName,
+        source: _BodyArg,
+        target: _SpaceArg,
+        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+        *,
+        count: Optional[_CountArg] = None,
+        step: Optional[_AngleArg] = None,
+    ) -> Node:
+        """A RING: `source` copied into `target` by one `Axis` mate
+        equating `axis[0]` (read off the copy) with `axis[1]` (in the
+        target), member `k` spun `scalar(k)·step` about it and slid zero
+        along the target axis `axis[2]`. Exactly one of `count` (a full
+        ring of that many) and `step` (the angle as written), or
+        TypeError. `doc` reads the mate's kinds, as `Placed.of`'s."""
+
+    @staticmethod
+    def bolt_circle(
+        doc: Doc,
+        index: VarName,
+        count: _CountArg,
+        source: _BodyArg,
+        target: _SpaceArg,
+        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+    ) -> Node:
+        """A BOLT CIRCLE: a full ring of `count` copies of `source`
+        about `axis` (`circular_pattern(..., count=count)`)."""
 
     @staticmethod
     def instantiate_part(
@@ -2864,8 +2815,9 @@ class Var:
         where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
-    def __getitem__(self, index: _CountArg) -> IndexedRead:
-        """One member of the family this variable holds, at `index`."""
+    def __getitem__(self, index: _CountArg | tuple[_CountArg, ...]) -> IndexedRead:
+        """One member of the family this variable holds, at `index`, one
+        count per index of the family."""
 
 # --- parameter uncertainty and the analysis lane ----------------------
 # ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
@@ -3214,10 +3166,37 @@ DEFINITION_NODE_BOUND: Final[int]
 definitions it reads may hold: a definition past it refuses
 `definition_too_large`, whose `count` is the expansion's size."""
 
+class Recognised:
+    """A placement read back as the pattern it is (`Doc.recognise`): a
+    row (`kind == "linear"`, its `steps`), a grid (`kind == "grid"`,
+    `steps` along `index` and `inner_steps` along `inner_index`) or a
+    ring (`kind == "circular"`, its `step`), under `index`."""
+
+    @property
+    def kind(self) -> Literal["linear", "grid", "circular"]: ...
+    @property
+    def index(self) -> Var:
+        """The index: a grid's outer."""
+    @property
+    def inner_index(self) -> Var | None:
+        """A grid's inner index; None for a row or a ring."""
+    @property
+    def steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+        """A row's slides, or a grid's along its outer index, each axis
+        and its pitch per member; empty for a ring."""
+    @property
+    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+        """A grid's slides along its inner index; empty for a row or a
+        ring."""
+    @property
+    def step(self) -> Formula | None:
+        """A ring's turn per member; None for a row."""
+    def __repr__(self) -> str: ...
+
 class VarDecl:
-    """A variable's definition as an edit carries it: a free value, or
-    a `Formula` over other variables, which the edit door lowers (its
-    names resolved against the document's) and stores."""
+    """A variable's definition as an edit carries it: a free value, a
+    `Formula` over other variables, which the edit door lowers (its
+    names resolved against the document's) and stores, or an index."""
 
     @staticmethod
     def free(value: FreeVar) -> VarDecl:
@@ -3228,12 +3207,30 @@ class VarDecl:
         value is `expr`'s, re-evaluated whenever a variable it reads
         moves, and it takes no value, unit or distribution of its
         own."""
+    @staticmethod
+    def index(count: _CountArg, within: Optional[Var | VarName] = None) -> VarDecl:
+        """An INDEX `k = index(count)` (D10 `[repetition]`): a count
+        taking each value `0 .. count`, so a placement whose values read
+        it is a family of `count` members. `within` names the index this
+        one is declared within (a grid's outer). `declare_var` refuses a
+        count of another dimension or a `within` that is no index
+        (`index`); a reader of two indices neither within the other
+        refuses `indices_unrelated`."""
     @property
     def expr(self) -> Formula | None:
-        """The defining expression, or None for a free variable."""
+        """The defining expression, or None for a free variable or an
+        index."""
     @property
     def value(self) -> FreeVar | None:
-        """The free value, or None for a defined variable."""
+        """The free value, or None for a defined variable or an index."""
+    @property
+    def count(self) -> Formula | None:
+        """An index's count, or None for any other declaration."""
+    @property
+    def within(self) -> Formula | None:
+        """The index an index is declared within, read as a count, or
+        None."""
+    def __repr__(self) -> str: ...
 
 class FreeVar:
     """A named parameter's declared dimension and exact stored value
@@ -3386,7 +3383,7 @@ class DocEdit:
         The constructors take numbers, so a node arrives with its
         slots holding literals. This moves one afterwards, and puts an
         EXPRESSION there: `Doc.parse_formula("plate_t * 2")` drives the
-        slot from a document parameter, as `bind_count_param` drives a
+        slot from a document parameter, as `bind_v_degree_param` drives a
         structural one.
 
         The slot is named by its WORD — the same word `EditError.slot`
@@ -3658,39 +3655,15 @@ class DocEdit:
         (`unknown_var`) and on an anonymous one, whose lifecycle is its
         readers' (`delete_anonymous_var`)."""
     @staticmethod
-    def bind_count_param(node: NodeId, name: VarName) -> DocEdit:
-        """Bind `node`'s STRUCTURAL count slot to the document
-        parameter `name`, so one `set_var_value` re-counts the
-        placements and recomputes exactly what is downstream.
-
-        Deliberately narrow: the slot is named by the door and the
-        expression is a parameter reference, so no expression algebra
-        crosses and the edit cannot be aimed at a continuous slot. The
-        edit's own refusals stay live — a node with no count slot, an
-        unknown parameter, a parameter of the wrong dimension."""
-
-    @staticmethod
-    def bind_instance_param(node: NodeId, name: VarName) -> DocEdit:
-        """Bind `node`'s STRUCTURAL instance slot to the document
-        parameter `name` — a `Node.part`'s index into a pattern as a
-        named, editable number.
-
-        `bind_count_param`'s sibling, and a separate door rather than a
-        `slot=` argument because an index is not a count: the kernel
-        keeps the two slots apart, and this pair is that distinction
-        crossing. Refuses on a node with no instance slot — every node
-        but a Part selecting an instance — and on an unknown or wrongly
-        dimensioned parameter."""
-
-    @staticmethod
     def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL v-degree slot to the document
         parameter `name` — a loft's v-direction interpolation degree
         as a named, editable number.
 
-        The third sibling, and the same narrow shape: a degree is
-        neither a count of placements nor an index into them, it says
-        how the skin interpolates BETWEEN sections. Refuses on a node
+        Deliberately narrow: the slot is named by the door and the
+        expression is a parameter reference, so no expression algebra
+        crosses and the edit cannot be aimed at a continuous slot. A
+        degree says how the skin interpolates BETWEEN sections. Refuses on a node
         with no v-degree slot — from Python, every node but a
         `Node.loft` — and on an unknown or wrongly dimensioned
         parameter. The kernel's rule on the VALUE
@@ -3886,11 +3859,11 @@ class Doc:
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
         `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
-        `subtract`, `place`, `world`, `space`, `pattern`, `part`,
-        `placed_union`, `instantiate_part`, `measure`, `assertion`.
+        `subtract`, `place`, `world`, `space`, `instantiate_part`,
+        `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
-        placement and a placed union all evaluate to a value whose
+        placement and a union all evaluate to a value whose
         `kind` is `"body"`, because that is the PAYLOAD's shape.
         Telling the recipes apart is what this door is for, and it
         answers with no evaluation in hand at all.
@@ -4079,6 +4052,13 @@ class Doc:
         slot reads one: a value
         written there is its own anonymous variable, and passing the
         handle to another slot is how two slots share it."""
+    def recognise(self, placement: NodeId) -> Recognised | None:
+        """What pattern `placement` is, for display: a row where it is
+        a placement under exactly one index with no mate whose every
+        non-zero value is a slide a multiple of the index, a grid where
+        it is under two and slides along each, a ring where it has one
+        mate and its spin is that multiple. None for any other node. It
+        reads the recipe as written and decides nothing."""
     def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""
@@ -4442,7 +4422,7 @@ class SegTag:
     Inner: Final[SegTag]
     Rim: Final[SegTag]
     HoleRim: Final[SegTag]
-    Instance: Final[SegTag]
+    Member: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -4452,7 +4432,7 @@ class OpGroup:
     entities, a blend's surviving supports, a shell's outer walls. The
     tag names the shape, and which op carried it is the minting node's
     business. `Shell` groups the hollowing verb's cavity twins and rims
-    (`Inner`, `Rim`, `HoleRim`).
+    (`Inner`, `Rim`, `HoleRim`), and `Repetition` a family's `Member`.
     """
 
     Shared: Final[OpGroup]
@@ -4461,7 +4441,7 @@ class OpGroup:
     Boolean: Final[OpGroup]
     Split: Final[OpGroup]
     Fillet: Final[OpGroup]
-    Pattern: Final[OpGroup]
+    Repetition: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:
@@ -4851,9 +4831,11 @@ class StructureNormalization:
     Volume and validity are exact either way; what changed is only the
     cut, and the two censuses are that change counted.
 
-    `promoted_to` and `residual` are the one arm's payload, `None` on
-    the other four — present on every row, so a read never raises and
-    a caller never has to branch on `kind` first."""
+    `promoted_to` and `residual` are `surface_promotion`'s payload and
+    `singularity` is `chart_singularity_vertex`'s (`interior`,
+    `inside_edge` or `valence_one_vertex`), each `None` on the other
+    arms — present on every row, so a read never raises and a caller
+    never has to branch on `kind` first."""
 
     @property
     def face(self) -> int: ...
@@ -4863,6 +4845,8 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def singularity(self) -> Optional[str]: ...
     @property
     def file_census(self) -> FaceCensus: ...
     @property
@@ -5058,6 +5042,10 @@ class Value:
     def kind(self) -> str: ...
     def body(self) -> Body: ...
     def bodies(self) -> list[Body]: ...
+    def members(self) -> list[tuple[list[int], Value]]:
+        """A family's members (D10 `[repetition]`), in index order: each
+        member's index values, outermost first, and its value. Empty for
+        a node evaluated once."""
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
     def measure(self) -> Measurement: ...
     def assertion(self) -> Verdict: ...
@@ -6357,6 +6345,11 @@ class InterferenceFinding:
     @property
     def quiet_by(self) -> Optional[NodeId]:
         """The assertion that quiets it, or `None` when it is loud."""
+
+    @property
+    def quiet_at(self) -> list[tuple[Var, int]]:
+        """The member of `quiet_by`'s family that quiets it, each index
+        and its value; empty for an assertion evaluated once."""
 
     @property
     def loud(self) -> bool: ...

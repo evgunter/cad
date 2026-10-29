@@ -1525,7 +1525,11 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
 fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
-        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::ChartSingularityVertex { found } => match found {
+            SingularityFound::Interior => "chart_singularity_vertex_interior",
+            SingularityFound::InsideEdge => "chart_singularity_vertex_inside_edge",
+            SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
+        },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::SurfacePromotion { to, residual } => {
@@ -1834,7 +1838,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 12] = [
+const FACADE_SOURCES: [(&str, &str); 13] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1844,6 +1848,7 @@ const FACADE_SOURCES: [(&str, &str); 12] = [
     ("authoring.rs", include_str!("../src/authoring.rs")),
     ("export.rs", include_str!("../src/export.rs")),
     ("guide.rs", include_str!("../src/guide.rs")),
+    ("pattern.rs", include_str!("../src/pattern.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
     ("topo.rs", include_str!("../src/topo.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
@@ -7383,4 +7388,141 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         "and so does the node's STEP export: {:?}",
         step.as_ref().map(|_| ())
     );
+}
+
+/// **Each pattern preset is recognised as itself** (`pncad::pattern`):
+/// a row, a grid, a ring and a bolt circle, each written by its writer
+/// and read back by `recognise` as the pattern it is, with its index
+/// and its step. `recognise` reads the recipe as written, so the ring's
+/// axis is any axis read the door admits: the box's end cap's.
+mod pattern_presets_are_recognised_as_themselves {
+    use pncad::document::{
+        BodyRead, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
+    };
+    use pncad::pattern::{Recognised, RingStep};
+
+    /// The box, an index `k = index(4)` beside it, and the box's space.
+    fn with_index(name: &'static str) -> (ProfileDoc, RecipeNodeId, Operand) {
+        let (doc, _, body) = super::box_doc("pattern-presets");
+        let doc = super::applied(
+            &doc,
+            pncad::pattern::index_decl(VarName::from_static(name), Formula::count(4), None),
+        )
+        .doc;
+        let space = doc.node_space(body).expect("the box stands in a space");
+        (doc, body, Operand::Var(space))
+    }
+
+    fn index_of(doc: &ProfileDoc, name: &'static str) -> pncad::document::VarId {
+        doc.var_named(name).expect("the index is declared")
+    }
+
+    /// An axis read off the box's end cap.
+    fn cap_axis(body: RecipeNodeId) -> Operand {
+        Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
+            of: Operand::Select {
+                body: Box::new(Operand::Node(body)),
+                names: vec![pncad::prelude::StableName {
+                    kind: pncad::select::EntityKind::Face,
+                    node: body,
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                }],
+            },
+        }))
+    }
+
+    #[test]
+    fn a_row_is_recognised_as_a_row() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let row = pncad::pattern::linear_pattern(
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            &[(TargetAxis::X, super::len(3.0))],
+        )
+        .expect("a length pitch");
+        let (doc, row) = super::insert(doc, row);
+        let want = Recognised::Linear {
+            index: index_of(&doc, "k"),
+            steps: vec![(TargetAxis::X, super::len(3.0))],
+        };
+        assert_eq!(pncad::pattern::recognise(&doc, row), Some(want));
+        assert_eq!(pncad::pattern::recognise(&doc, body), None);
+    }
+
+    #[test]
+    fn a_grid_is_recognised_as_a_grid() {
+        let (doc, body, space) = with_index("i");
+        let (i, j) = (VarName::from_static("i"), VarName::from_static("j"));
+        let doc = super::applied(
+            &doc,
+            pncad::pattern::index_decl(j.clone(), Formula::count(3), Some(&i)),
+        )
+        .doc;
+        let grid = pncad::pattern::grid(
+            (&i, (TargetAxis::X, super::len(3.0))),
+            (&j, (TargetAxis::Y, super::len(2.5))),
+            BodyRead::plain(Operand::Node(body)),
+            space,
+        )
+        .expect("length pitches");
+        let (doc, grid) = super::insert(doc, grid);
+        let want = Recognised::Grid {
+            outer: (index_of(&doc, "i"), vec![(TargetAxis::X, super::len(3.0))]),
+            inner: (index_of(&doc, "j"), vec![(TargetAxis::Y, super::len(2.5))]),
+        };
+        assert_eq!(pncad::pattern::recognise(&doc, grid), Some(want));
+    }
+
+    #[test]
+    fn a_ring_and_a_bolt_circle_are_recognised_as_rings() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let step = Formula::div(
+            Formula::turn(),
+            Formula::count_to_scalar(Formula::count(5)).expect("a count converts"),
+        )
+        .expect("an angle");
+        let axis = (cap_axis(body), cap_axis(body), TargetAxis::Z);
+        let ring = pncad::pattern::circular_pattern(
+            &doc,
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space.clone(),
+            axis.clone(),
+            RingStep::By(step.clone()),
+        )
+        .expect("an angle step");
+        let (doc, ring) = super::insert(doc, ring);
+        assert_eq!(
+            pncad::pattern::recognise(&doc, ring),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step,
+            })
+        );
+        let bolts = pncad::pattern::bolt_circle(
+            &doc,
+            &k,
+            Formula::count(4),
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            axis,
+        )
+        .expect("a count");
+        let (doc, bolts) = super::insert(doc, bolts);
+        let quarter = Formula::div(
+            Formula::turn(),
+            Formula::count_to_scalar(Formula::count(4)).expect("a count converts"),
+        )
+        .expect("an angle");
+        assert_eq!(
+            pncad::pattern::recognise(&doc, bolts),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step: quarter,
+            })
+        );
+    }
 }

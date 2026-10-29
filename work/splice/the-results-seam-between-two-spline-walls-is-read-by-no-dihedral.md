@@ -36,7 +36,7 @@ it.
 ## Witnesses
 
 - `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
-  `a_sheath_on_its_blade_unions_past_the_shared_rim` pins this site, in
+  `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` pins this site, in
   both orders, by decision and predicate (the refusal names no edge or
   face).
 - `demos/tour/src/lily.rs` wall 8 pins the same.
@@ -79,7 +79,7 @@ carrier read as analytic, analytic parity in both orders), each at ε
 1e-6, 1e-12 and the default; `topo` `boolean::ops::spline_seam_rows`
 (two flat spline faces, a turning chart read at its witness, a null edge
 refused unplaced); the sweep row
-`a_sheath_on_its_blade_unions_past_the_shared_rim`, which re-pins lily
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`, which re-pins lily
 wall 8's next stop in both orders: the rim's `Intersection` certification
 on the NURBS pair, limb 2's `ImageMiss`
 (`work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps`,

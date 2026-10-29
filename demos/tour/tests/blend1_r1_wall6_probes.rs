@@ -21,8 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
+use crate::common::printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Tol, Vec2};
@@ -31,9 +30,7 @@ use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
-#[path = "common/rim_select.rs"]
-mod rim_select;
-use rim_select::{Seeds, rim_at};
+use crate::common::rim_select::{Seeds, rim_at};
 
 /// A copy of `body` finished for the measurement doors, which read a
 /// finished body (Ev's decision on PR 4822).

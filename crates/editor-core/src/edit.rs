@@ -19,10 +19,8 @@ use crate::formula::{Formula, FreshFault, LowerFault, NameFault, SlotRoot};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
-    AssertionBoundFault, CountMismatch, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault,
-    SlotId, StableName, StepId,
+    AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault, SlotId, StableName, StepId,
 };
-use crate::placement::{FrameFault, FrameSite};
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
 use crate::var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
@@ -126,8 +124,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Every check the insert door makes of a node's reads is made
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
-    /// [`EditError::SlotVarKind`], which a family read beside a member
-    /// meets), acyclicity ([`EditError::WouldCycle`]), and one space
+    /// [`EditError::SlotVarKind`]; a family spelled beside a body is read
+    /// whole there, its members joining the list, D10 `[repetition]`),
+    /// acyclicity ([`EditError::WouldCycle`]), and one space
     /// over every entry ([`EditError::SpaceMismatch`], D10
     /// `[placement.spaces]`). A loft's sections are spelled, so a family
     /// there refuses [`EditError::LoftSectionsSpelled`], and each keeps
@@ -929,18 +928,18 @@ impl Lowering {
         for FreshEntry { name, decl } in fresh {
             let def = match decl {
                 VarDecl::Free(free) => WrittenDef::Free(free.clone()),
-                VarDecl::Defined(formula) => {
+                VarDecl::Defined(_) | VarDecl::Index { .. } => {
                     // A definition that does not lower draws no id (the
                     // anonymous draw reads what it holds), so a refusal
                     // of it speaks the entry by its kind's draw.
                     let spoken = SpokenVar::new(new.mint.would_declare(decl.kind()), None);
-                    WrittenDef::Defined(minted.lower_definition(new, &spoken, formula)?)
+                    lower_decl(new, &minted, &spoken, decl)?
                 }
             };
             let dim = decl.dim();
-            minted
-                .defined
-                .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_)));
+            minted.defined.set(
+                minted.defined.get() | matches!(def, WrittenDef::Defined(_) | WrittenDef::Index(_)),
+            );
             if let Some(name) = name
                 && let Some(holder) = new.var_named(name.as_str())
             {
@@ -1092,8 +1091,7 @@ fn mint_anonymous<P>(new: &mut Doc<P>, def: WrittenDef) -> Result<VarId, EditErr
 /// `rows` — the value's addressed formulas, in table order — that does
 /// not ([`Lowering::fault`]), with its address; `None` for the address
 /// where no row holds a fault, a formula the walk maps and the table
-/// does not address (a count beside a listed placement rule, the one
-/// such field: [`Node::exprs`]' edge), and the walk's own fault is
+/// does not address ([`Node::exprs`]' edge), and the walk's own fault is
 /// handed back for the caller to refuse typed. A refusal of the mint's
 /// names a variable, not an address, and is the refusal as it stands.
 fn lower_value<P, K: Copy, U>(
@@ -1146,17 +1144,12 @@ impl<K> WalkFault<K> {
 /// **An authored node as the door writes it**: every slot, every payload
 /// expression and every other formula field lowered to the variable it
 /// stores in one walk ([`lower_value`]), a fault refusing at its
-/// address, slots before payload in their table order. A formula no
-/// address names is the count of a node whose placement rule takes
-/// none, and the refusal is the rule's own
-/// ([`EditError::PlacementRuleMismatch`]), the one the door gives that
-/// node whatever its count holds. `spoken` speaks the node a refusal
-/// names.
+/// address, slots before payload in their table order. `spoken` speaks
+/// the node a refusal names.
 fn lower_node<P: crate::ProfilePayload>(
     new: &mut Doc<P>,
     lowering: &Lowering,
     node: &Node<P::Authored, Formula>,
-    tol: Tol,
     spoken: impl Fn() -> SpokenNode,
 ) -> Result<Node<P>, EditError> {
     let node = &zero_at_its_slots(node);
@@ -1187,15 +1180,7 @@ fn lower_node<P: crate::ProfilePayload>(
             new,
             &spoken,
             |site| site,
-            |fault| match node.placement_rule_fault(tol) {
-                Some(PlacementRuleFault::CountSpelling { shape }) => {
-                    EditError::PlacementRuleMismatch {
-                        node: spoken(),
-                        shape,
-                    }
-                }
-                _ => fault.at(new, spoken(), ExprSite::Payload),
-            },
+            |fault| fault.at(new, spoken(), ExprSite::Payload),
         )
     })
 }
@@ -1774,7 +1759,7 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, reader) {
+    match doc.read_fault(var, held, expected, reader) {
         None => Ok(var),
         Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
@@ -1938,10 +1923,24 @@ fn definition_name_refusal<P>(
     }
 }
 
+/// **Why an index is refused as declared** ([`EditError::Index`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum IndexFault {
+    /// Its count is of another dimension.
+    CountNotCount {
+        /// The count's dimension.
+        found: Dimension,
+    },
+    /// What it is declared within is no index of the document.
+    WithinNoIndex,
+}
+
 /// **A declared definition as the door writes it**: a free one as
 /// handed, a defined one lowered in the document's names and the
 /// edit's fresh table, a name that does not lower refusing in the words
-/// [`check_definition`] gives a faulty read of `var`'s definition.
+/// [`check_definition`] gives a faulty read of `var`'s definition; an
+/// index its count lowered so, and what it is within an index of the
+/// document.
 fn lower_decl<P>(
     doc: &mut Doc<P>,
     lowering: &Lowering,
@@ -1953,6 +1952,27 @@ fn lower_decl<P>(
         VarDecl::Defined(formula) => lowering
             .lower_definition(doc, var, formula)
             .map(WrittenDef::Defined),
+        VarDecl::Index { count, within } => {
+            let refused = |fault| EditError::Index {
+                var: var.clone(),
+                fault,
+            };
+            if count.dim() != Dimension::Count {
+                return Err(refused(IndexFault::CountNotCount { found: count.dim() }));
+            }
+            let within = match within {
+                None => None,
+                Some(within) => Some(
+                    lowering
+                        .lower_definition(doc, var, within)?
+                        .as_var()
+                        .filter(|&at| doc.var(at).is_some_and(|v| v.def().index().is_some()))
+                        .ok_or_else(|| refused(IndexFault::WithinNoIndex))?,
+                ),
+            };
+            let count = lowering.lower_definition(doc, var, count)?;
+            Ok(WrittenDef::Index(crate::Index { count, within }))
+        }
     }
 }
 
@@ -2719,6 +2739,24 @@ pub enum EditError {
         /// The kind the definition holds.
         offered: VarKind,
     },
+    /// **A reader of two indices neither of which is within the other**
+    /// (D10 `[repetition]`): they meet in no reader.
+    IndicesUnrelated {
+        /// The reader.
+        node: SpokenNode,
+        /// One index.
+        a: Box<SpokenVar>,
+        /// The other.
+        b: Box<SpokenVar>,
+    },
+    /// **An index refused as declared** (D10 `[repetition]`): its count
+    /// is no `Count`, or what it is declared within is no index.
+    Index {
+        /// The index.
+        var: SpokenVar,
+        /// What is wrong with it.
+        fault: IndexFault,
+    },
     /// A carry-forward door ([`DocEdit::SetVarValue`],
     /// [`DocEdit::SetVarUnit`], [`DocEdit::SetVarDistribution`]) named
     /// a defined variable. A defined variable holds no value, notation
@@ -3125,44 +3163,6 @@ pub enum EditError {
         /// The id.
         constraint: crate::node::ConstraintId,
     },
-    /// A placement-rule node whose rule and count slot would give two
-    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
-    PlacementRuleMismatch {
-        /// The offending node.
-        node: SpokenNode,
-        /// Which answer it gives twice.
-        shape: CountMismatch,
-    },
-    /// A placement-rule node whose `Explicit` rule lists NO placements
-    /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
-    /// is the explicit rule's `count < 1` — refused for the reason a
-    /// stepped rule's zero is, rather than quietly denoting an empty
-    /// body.
-    EmptyPlacementList {
-        /// The offending node.
-        node: SpokenNode,
-    },
-    /// A placement frame carrying a non-finite coordinate.
-    NonFinitePlacement {
-        /// The node holding the frame.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-    },
-    /// A proper placement frame that is not definitely a rigid motion
-    /// at tolerance — it may scale or shear an axis. The evaluation
-    /// admits a literal frame through the same door
-    /// ([`geom_core::RigidMotion::check_rigid`]), so the document never
-    /// admits one it would refuse.
-    NonRigidPlacement {
-        /// The node holding the frame.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-        /// The rigidity check that refused; routing, never rendered by
-        /// name.
-        check: &'static str,
-    },
     /// **A placement frame's ROTATION AXIS has no definite
     /// direction** — the [`crate::AxisRefusal`]
     /// [`crate::Frame::rotate_then_translate`] raises where the axis
@@ -3170,8 +3170,8 @@ pub enum EditError {
     /// author building a frame and setting it speaks ONE error type
     /// from the constructor through the door.
     ///
-    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
-    /// that one's subject is the frame's coordinates, and a reader
+    /// Its own arm rather than a non-finite frame's: that one's
+    /// subject is the frame's coordinates, and a reader
     /// told their frame is not finite goes looking at the frame,
     /// which is exactly the mistaken subject this arm exists to stop
     /// reporting. The cause is the axis, in the evaluation layer's
@@ -3360,21 +3360,6 @@ impl Tail {
     }
 }
 
-/// **A placement frame's refusal**: the frame's subject at its site,
-/// the frame rule's own clause, and its recourse
-/// ([`FrameFault::recourse`]), which every door that raises one can
-/// honour — each refuses the edit that carried the frame.
-fn frame_refusal(
-    f: &mut core::fmt::Formatter<'_>,
-    tail: Tail,
-    node: &SpokenNode,
-    at: FrameSite,
-    fault: FrameFault,
-) -> core::fmt::Result {
-    write!(f, "{} {fault}", at.subject(node))?;
-    tail.recourse(f, format_args!("{}", fault.recourse()))
-}
-
 impl EditError {}
 
 /// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
@@ -3466,6 +3451,11 @@ impl EditError {
             Self::UnknownSlot { id, slot: _ } => {
                 *id = id.respoken(doc);
             }
+            Self::IndicesUnrelated { node, a, b } => {
+                *node = node.respoken(doc);
+                **a = a.respoken(doc);
+                **b = b.respoken(doc);
+            }
             Self::ProfileProgramRefused { node, refusal: _ }
             | Self::SelectionShape {
                 node,
@@ -3514,14 +3504,6 @@ impl EditError {
                 node,
                 constraint: _,
             }
-            | Self::PlacementRuleMismatch { node, shape: _ }
-            | Self::EmptyPlacementList { node }
-            | Self::NonFinitePlacement { node, at: _ }
-            | Self::NonRigidPlacement {
-                node,
-                at: _,
-                check: _,
-            }
             | Self::UpdateOnNonInstance { node }
             | Self::PinUnchanged { node, pin: _ } => {
                 *node = node.respoken(doc);
@@ -3564,6 +3546,7 @@ impl EditError {
                 kind: _,
                 offered: _,
             }
+            | Self::Index { var, fault: _ }
             | Self::VarCountHasNoUnit { var }
             | Self::VarCountHasNoDistribution { var }
             | Self::VarUnitMismatch {
@@ -4301,6 +4284,39 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("read the entry, or drop it from the table"))
             }
+            Self::IndicesUnrelated { node, a, b } => {
+                write!(
+                    f,
+                    "{node} reads the indices {a} and {b}, and neither is within the other, so \
+                     they meet in no reader"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("declare one within the other, or read one of them here"),
+                )
+            }
+            Self::Index { var, fault } => {
+                match fault {
+                    IndexFault::CountNotCount { found } => write!(
+                        f,
+                        "{var} is an index, and its count is {} {found}: an index ranges over \
+                         a whole number of values",
+                        found.article()
+                    )?,
+                    IndexFault::WithinNoIndex => write!(
+                        f,
+                        "{var} is declared within a variable that is no index, and an index \
+                         is within another index or nothing"
+                    )?,
+                }
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "give it a count expression, and declare it within an index, or no \
+                         index"
+                    ),
+                )
+            }
             Self::VarKindFixed { var, kind, offered } => {
                 write!(
                     f,
@@ -4619,39 +4635,6 @@ impl EditError {
                 write!(f, "{node} holds no constraint {constraint}")?;
                 tail.recourse(f, format_args!("name a constraint the placement holds"))
             }
-            // The two rule-shaped arms FORWARD the fault set's one
-            // prose vocabulary (`PlacementRuleFault`'s `Display`). A
-            // rule's shape is written only by the insert that authors
-            // its node, so the recourse is that insert's.
-            Self::EmptyPlacementList { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)?;
-                tail.recourse(f, format_args!("list at least one placement"))
-            }
-            Self::PlacementRuleMismatch { node, shape } => {
-                write!(
-                    f,
-                    "{node}: {}",
-                    PlacementRuleFault::CountSpelling { shape: *shape }
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "{}",
-                        match shape {
-                            CountMismatch::ListedWithCount =>
-                                "insert it without a count, since the list is the count",
-                            CountMismatch::SteppedWithoutCount => "insert it with a count",
-                            CountMismatch::ListedOnPattern =>
-                                "keep a pattern of separate copies by giving it a stepped rule, \
-                                 or insert a placed union to list the placements, fusing the \
-                                 copies into one body",
-                        }
-                    ),
-                )
-            }
-            Self::NonRigidPlacement { node, at, check } => {
-                frame_refusal(f, tail, node, *at, FrameFault::NotRigid { check })
-            }
             Self::PlacementAxis { error } => {
                 write!(
                     f,
@@ -4661,9 +4644,6 @@ impl EditError {
                     f,
                     format_args!("give the rotation axis a direction of nonzero length"),
                 )
-            }
-            Self::NonFinitePlacement { node, at } => {
-                frame_refusal(f, tail, node, *at, FrameFault::NonFinite)
             }
             Self::MateRefused { node, fault, held } => {
                 let said = crate::spoken::Said(
@@ -5998,12 +5978,14 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => {
-            Err(EditError::NotAFreeVar {
-                var: doc.spoken_var(id),
-                door,
-            })
-        }
+        VarDef::Defined(_)
+        | VarDef::Select(_)
+        | VarDef::Pose(_)
+        | VarDef::Pick(_)
+        | VarDef::Index(_) => Err(EditError::NotAFreeVar {
+            var: doc.spoken_var(id),
+            door,
+        }),
     }
 }
 
@@ -6112,7 +6094,7 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    let Some(fault) = node.input_fault() else {
+    let Some(fault) = node.input_fault(doc) else {
         return Ok(());
     };
     let subject = written(doc, id, node);
@@ -7123,7 +7105,7 @@ fn apply_spaced<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     held: Option<RecipeNodeId>,
 ) -> Result<Applied<P>, EditError> {
-    let (doc, record, maintenance) = door(doc, tol, held, |new, reported| {
+    let (doc, record, maintenance) = door(doc, held, |new, reported| {
         write_edit(doc, new, reported, edit, tol)
     })?;
     Ok(Applied {
@@ -7141,9 +7123,8 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     node: &Node<P::Authored, Formula>,
     tol: Tol,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, minted, maintenance) = door(doc, tol, None, |new, _| {
-        insert_into(doc, new, node, &[], tol)
-    })?;
+    let (doc, minted, maintenance) =
+        door(doc, None, |new, _| insert_into(doc, new, node, &[], tol))?;
     let id = minted.0;
     let applied = Applied {
         doc,
@@ -7158,7 +7139,6 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
 /// input is untouched (spec D2).
 fn door<P: Clone + crate::ProfilePayload, T>(
     doc: &Doc<P>,
-    tol: Tol,
     held: Option<RecipeNodeId>,
     write: impl FnOnce(&mut Doc<P>, &mut Vec<Maintenance>) -> Result<T, EditError>,
 ) -> Result<(Doc<P>, T, Vec<Maintenance>), EditError> {
@@ -7210,6 +7190,21 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             });
         }
     }
+    // D10 `[repetition]`, on EVERY arm: two indices meet in one reader
+    // only when one is within the other. An edit that leaves a reader of
+    // two unrelated indices refuses, naming the first in id order that
+    // the document before did not hold.
+    if let Some((node, a, b)) = new
+        .indices_faults()
+        .into_iter()
+        .find(|fault| !doc.indices_faults().contains(fault))
+    {
+        return Err(EditError::IndicesUnrelated {
+            node: spoken_before_else_after(doc, &new, node),
+            a: Box::new(new.spoken_var(a)),
+            b: Box::new(new.spoken_var(b)),
+        });
+    }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
     // until it is named.
@@ -7253,47 +7248,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 return Err(EditError::ProductRead {
                     read: Box::new(crate::Operand::Var(var)),
                     fault,
-                });
-            }
-        }
-    }
-    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
-    // "how many placements" has exactly ONE spelling, an explicit rule
-    // lists at least one placement, and its frames meet the SAME bar
-    // every placement's literal steps are held to
-    // (`Frame::admission_fault`).
-    // A rule's shape and its listed frames are written only by the
-    // insert that authors its node, but a listed frame is admitted at
-    // the `tol` this edit is applied at, which need not be the one its
-    // insert was; so the whole document is checked, in id order, and
-    // where one edit breaks two nodes the refusal names the one placed
-    // first.
-    for (&node, n) in &new.nodes {
-        let listed = |index| FrameSite::Listed { index };
-        match n.placement_rule_fault(tol) {
-            None => {}
-            Some(PlacementRuleFault::CountSpelling { shape }) => {
-                return Err(EditError::PlacementRuleMismatch {
-                    node: written(doc, node, n),
-                    shape,
-                });
-            }
-            Some(PlacementRuleFault::NoPlacements) => {
-                return Err(EditError::EmptyPlacementList {
-                    node: written(doc, node, n),
-                });
-            }
-            Some(PlacementRuleFault::NonFiniteFrame { index }) => {
-                return Err(EditError::NonFinitePlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                });
-            }
-            Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
-                return Err(EditError::NonRigidPlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                    check,
                 });
             }
         }
@@ -7354,7 +7308,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // The node as the door writes it, lowered before anything else is
     // asked of it. Its id is minted from the lowered node, so a node
     // authored by name and the same node authored by id mint one id.
-    let (node, lowering) = lower_authored(new, authored, fresh, tol, would)?;
+    let (node, lowering) = lower_authored(new, authored, fresh, would)?;
     let node = &node;
     // N1: the node's id is minted from the document's mint
     // chain, extended by the node as the edit states it, and
@@ -7420,11 +7374,10 @@ fn lower_authored<P: crate::ProfilePayload>(
     new: &mut Doc<P>,
     authored: &Node<P::Authored, Formula>,
     fresh: &[FreshEntry],
-    tol: Tol,
     spoken: impl Fn() -> SpokenNode,
 ) -> Result<(Node<P>, Lowering), EditError> {
     let lowering = Lowering::start(new, fresh)?;
-    let node = lower_node(new, &lowering, authored, tol, spoken)?;
+    let node = lower_node(new, &lowering, authored, spoken)?;
     if let Some(SlotDimensionFault {
         slot,
         expected,
@@ -7723,7 +7676,7 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
         constraints,
     };
     let lowering = Lowering::start(new, fresh)?;
-    let lowered = lower_node(new, &lowering, &carrier, tol, || doc.spoken(placement))?;
+    let lowered = lower_node(new, &lowering, &carrier, || doc.spoken(placement))?;
     let Node::Place {
         mut constraints, ..
     } = lowered
@@ -7946,7 +7899,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 v_degree: Formula::var(v_degree, SlotId::VDegree.expr_dimension()),
             };
             let (rewritten, lowering) =
-                lower_authored(new, &authored, fresh, tol, || doc.spoken(*node))?;
+                lower_authored(new, &authored, fresh, || doc.spoken(*node))?;
             let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
             EditRecord {
                 fresh: lowering.finish(new)?,
@@ -8224,7 +8177,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let def = lower_decl(new, &lowering, &spoken, def)?;
             let record = match def {
                 WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
-                WrittenDef::Defined(_) => {
+                WrittenDef::Defined(_) | WrittenDef::Index(_) => {
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
                     check_definition(new, id)?;
@@ -9185,7 +9138,7 @@ mod tests {
             },
             DocEdit::SetStructuralParam {
                 node: id,
-                slot: crate::node::SlotId::Count,
+                slot: crate::node::SlotId::Stations,
                 expr: crate::Formula::count(1),
                 fresh: Vec::new(),
             },

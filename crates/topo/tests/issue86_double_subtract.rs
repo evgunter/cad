@@ -124,7 +124,7 @@ fn kef_cascade_reports_killed_surface() {
     let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         pair: geom_brep::SurfacePair::new(s_plus, s_minus),
-        witness: p0.lerp(p1, 0.5),
+        selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
     };
     body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
 

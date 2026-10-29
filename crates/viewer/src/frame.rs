@@ -800,7 +800,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
@@ -912,7 +912,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }

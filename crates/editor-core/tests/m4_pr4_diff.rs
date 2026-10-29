@@ -20,7 +20,7 @@ use editor_core::{
     CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RunStatus,
     SlotId, diff_verdicts, evaluate,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -166,39 +166,28 @@ fn flip_edit_reports_flips_localized_to_the_deciding_node() {
 
 #[test]
 fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
-    // A linear pattern whose count is the knob: the pattern node's
-    // decision SEQUENCE changes length (one direction normalization
-    // per placed instance), which must surface as divergence, never
+    // A union over a row of overlapping blocks whose index's count is
+    // the knob: the union's decision SEQUENCE changes length (one
+    // member fewer to judge), which must surface as divergence, never
     // as sign flips of unrelated positions.
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, pattern) = insert(
+    let (doc, k, row) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 0.5, 3);
+    let (doc, union) = insert(
         doc,
-        Node::Pattern {
-            input: body.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
+        Node::Union {
+            members: editor_core::Bodies::Family(row.into()),
         },
     );
     let ev1 = run(&doc, None);
-    let (doc2, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: SlotId::Count,
-            expr: editor_core::Formula::count(2),
-            fresh: Vec::new(),
-        },
-    );
+    let edit = crate::fixture::recount_edit(&doc, k, editor_core::Formula::count(2));
+    let (doc2, _) = step(doc, edit);
     let ev2 = run(&doc2, Some(&ev1));
     let flips = diff_verdicts(&ev1, &ev2);
-    let delta = flips.nodes.get(&pattern).expect("pattern delta");
+    let delta = flips.nodes.get(&union).expect("union delta");
     assert!(delta.flips.is_empty(), "no fake flips: {delta:?}");
     assert!(!delta.diverged.is_empty(), "count change is divergence");
-    assert_eq!(flips.nodes.len(), 1, "localized to the pattern node");
+    assert_eq!(flips.nodes.len(), 1, "localized to the union");
 }
 
 #[test]

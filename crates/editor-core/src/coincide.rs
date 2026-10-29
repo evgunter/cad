@@ -81,7 +81,7 @@ pub use replay::with_replay_session;
 
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
-/// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).
+/// holds the record publishes it ([`crate::Carry::cited_inputs`]).
 /// A carried citation names that input's record, which cites its own
 /// backing, so a chain of them ends at a row a node decided.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -395,10 +395,10 @@ impl fmt::Display for Unwalked {
 }
 
 /// One map a cell's read passes on the way to its minting node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Map {
-    /// A pattern's (or a placed union's) instance `i`.
-    Instance(RecipeNodeId, u32),
+    /// A family's member, the operation at those index values.
+    Member(RecipeNodeId, crate::names::MemberAt),
     /// A placement's copy (a [`crate::Node::Place`]'s).
     World(RecipeNodeId),
     /// A mirror's image (a [`crate::Node::Mirror`]'s), of a cell off
@@ -904,7 +904,7 @@ fn on_its_tool<P: crate::ProfilePayload>(
     };
     let below = |on: Construction| Construction {
         origin: on.origin,
-        maps: cell.maps.iter().copied().chain(on.maps).collect(),
+        maps: cell.maps.iter().cloned().chain(on.maps).collect(),
     };
     if *face == below(plane(doc, tool, tol)) {
         return true;
@@ -1026,10 +1026,10 @@ fn side_copies<P: crate::ProfilePayload>(
         .filter(|&copy| crate::mate::reads_in(doc, placement, side, select.body, copy))
         .map(|(p, how)| match how {
             crate::mate::Copying::Own => read.clone(),
-            crate::mate::Copying::Whole | crate::mate::Copying::Pick(_) => Construction {
+            crate::mate::Copying::Whole | crate::mate::Copying::Member => Construction {
                 origin: read.origin.clone(),
                 maps: core::iter::once(Map::World(p))
-                    .chain(read.maps.iter().copied())
+                    .chain(read.maps.iter().cloned())
                     .collect(),
             },
         })
@@ -1103,7 +1103,6 @@ pub fn construction<P: crate::ProfilePayload>(
                         maps,
                     });
                 }
-                Some(VerbatimEdge::Selected { of, .. }) => of,
                 Some(VerbatimEdge::Intact { target }) => target,
                 Some(VerbatimEdge::Reflected { body, plane }) => {
                     let source = construction(doc, body, &name, tol)?;
@@ -1156,7 +1155,14 @@ pub fn construction<P: crate::ProfilePayload>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        read = carried_read(seg, node(at)?, at, &mut maps)?;
+        // A member is its operation at one value of its indices: its
+        // name is that operation's own, read on at the same node.
+        if let RoleSeg::Member { at: values, .. } = seg {
+            maps.push(Map::Member(at, values.clone()));
+            name = of;
+            continue;
+        }
+        read = carried_read(seg, node(at)?, at)?;
         at = operation(doc, at, read)?;
         name = of;
     }
@@ -1213,8 +1219,8 @@ fn operation<P>(
 }
 
 /// **The read a carried segment at `at` names its entity in**, by the
-/// segment and the node together: a `From`'s own read; a pattern's
-/// `Instance` adds its map.
+/// segment and the node together: a `From`'s own read, a split's
+/// target.
 ///
 /// # Errors
 ///
@@ -1223,19 +1229,10 @@ fn carried_read<P>(
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
-    maps: &mut Vec<Map>,
 ) -> Result<crate::VarId, Unwalked> {
     let misplaced = Unwalked::Misplaced(at);
     match (seg, node) {
         (RoleSeg::From { read, .. }, _) => Ok(*read),
-        (
-            RoleSeg::Instance { i, .. },
-            Node::Pattern { input, .. } | Node::PlacedUnion { input, .. },
-        ) => {
-            maps.push(Map::Instance(at, *i));
-            Ok(*input)
-        }
-        (RoleSeg::Instance { .. }, _) => Err(misplaced),
         // Every other carried segment is a split's, carried from its
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),

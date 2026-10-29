@@ -572,6 +572,14 @@ pub trait Real:
         self.sin_cos().1
     }
 
+    /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
+    /// the literal. A scalar that records structure keeps the sine of
+    /// the angle instead, valued `1/2`, so what reads the structure sees
+    /// the angle and not only its value.
+    fn sin_of_a_twelfth() -> Self {
+        Self::from_f64(0.5)
+    }
+
     /// The tangent (argument in radians).
     fn tan(self) -> Self;
 
@@ -1444,7 +1452,7 @@ pub mod bounds_allowlist {
     //! certificate is the base scalar's. **Whether they should carry
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
     //! not the door** — the one production caller,
-    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `editor_core::eval::wire::images_apart`, sits beneath
     //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
     //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
     //! by propagation. **Doors tighten; passes keep their lanes.** (The

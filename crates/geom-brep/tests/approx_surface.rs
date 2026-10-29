@@ -596,7 +596,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s1, s2),
-                    witness: m,
+                    selector: geom_brep::CurveSelector::Witness(m),
                 },
                 carrier: carrier.clone(),
                 param_start: t0,

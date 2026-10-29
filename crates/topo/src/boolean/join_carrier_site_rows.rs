@@ -110,9 +110,10 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
 /// quadric too: reverted, each closing answers its own way instead
 /// (`SectionInvariant` on the plane, `RingIslandUnread` on the others).
 /// The carried closing (`IslandClosing::Carried`) reads a spline run on
-/// a cylinder or sphere face from its edges' certificates
+/// a cylinder, sphere or torus face from its edges' certificates
 /// (`ring_path::SplineArc`): `cylinder_sphere_frame`'s turned-chart pose
-/// reaches it on the drum's wall and its two-loop poses on the ball, and
+/// reaches it on the drum's wall and its two-loop poses on the ball,
+/// `germ_sphere_torus_placements` on the donut, and
 /// `ring_path::spline_fuzz` searches its readings.
 #[test]
 fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
