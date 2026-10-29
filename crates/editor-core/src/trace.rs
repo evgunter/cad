@@ -35,11 +35,6 @@ use crate::program::{
     TraceSense, program_index,
 };
 
-/// The funnel row a trace's tangent at a crossing is decided on: the
-/// in-plane part of the face's outward normal there, levered by the
-/// piece's reach. Zero has no tangent: the plane tangent to the carrier
-/// there, or a node of the trace.
-pub const TRACE_TANGENT: &str = "trace_tangent";
 /// The funnel row a piece reaching a written coordinate is decided on:
 /// its heading's component across that coordinate's line, levered by
 /// the distance to it, and then the distance along the heading.
@@ -123,8 +118,10 @@ pub enum TraceStepFault {
         /// How many crossings of that passage the piece makes.
         found: u32,
     },
-    /// The trace has no tangent at the crossing: a node, a cone's apex,
-    /// or the plane tangent to the carrier there.
+    /// The piece runs onto the trace where it has no tangent: a cone's
+    /// apex. (A node of the trace, or the plane tangent to the carrier
+    /// there, is a crossing the piece grazes:
+    /// [`TraceFault::Grazing`].)
     NoTangent,
     /// The heading never reaches the written coordinate, or reaches it
     /// behind the pen.
@@ -325,7 +322,7 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                 let Some((at, point)) = ran_onto else {
                     return Err(refuse(None, TraceStepFault::OffTrace));
                 };
-                let tangent = tangent(face(at)?, point, *sense, &pen, band)
+                let tangent = tangent(face(at)?, point, *sense)
                     .map_err(|fault| refuse(Some(at), fault))?;
                 Step::Toward {
                     dx: tangent.x,
@@ -443,6 +440,15 @@ fn traced<T: Decide>(face: &TracedFace<T>, band: Band) -> Result<&geom::Surface<
     }
 }
 
+/// A carrier's refusal along a piece: a crossing at a cone's apex is a
+/// point of the trace with no tangent.
+fn carrier_fault(fault: TraceFault) -> TraceStepFault {
+    match fault {
+        TraceFault::Apex => TraceStepFault::NoTangent,
+        fault => TraceStepFault::Carrier(fault),
+    }
+}
+
 /// The written crossing among `crossings`, or how many there were.
 fn pick<T: geom_core::Real>(
     crossings: Vec<kernel::Crossing<T>>,
@@ -484,7 +490,7 @@ fn ray_to<T: Decide>(
         reach_of(face, surface, origin),
         band,
     )
-    .map_err(TraceStepFault::Carrier)?;
+    .map_err(carrier_fault)?;
     let hit = pick(crossings, crossing)?;
     let at = face.body_to_sketch.transform_point(hit.point);
     Ok((hit.along, Point2::new(at.x, at.y)))
@@ -514,36 +520,33 @@ fn arc_to<T: Decide>(
         radius,
         map.transform_vec(lift_vec(radial / radius)),
     );
-    let crossings = kernel::circle_crossings(surface, face.sense, circle, band)
-        .map_err(TraceStepFault::Carrier)?;
+    let crossings =
+        kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;
     let hit = pick(crossings, crossing)?;
     let at = face.body_to_sketch.transform_point(hit.point);
     Ok(Point2::new(at.x, at.y))
 }
 
-/// The trace's unit tangent at `point`, in `sense`: the face's outward
+/// The trace's tangent at `point`, in `sense`: the face's outward
 /// normal there, in the sketch's plane, turned a quarter turn the
-/// sketch's way (material on the left), or against it.
+/// sketch's way (material on the left), or against it. The crossing was
+/// decided transverse to a piece in the plane, so the normal's part in
+/// the plane is not zero: a point of the trace with no tangent (a node,
+/// a cone's apex, the plane tangent to the carrier) refused as the
+/// piece ran onto it.
 fn tangent<T: Decide>(
     face: &TracedFace<T>,
     point: Point2<T>,
     sense: TraceSense,
-    pen: &profile::Pen<T>,
-    band: Band,
 ) -> Result<Vec2<T>, TraceStepFault> {
     let surface = carrier(face)?;
     let at = face.sketch_to_body.transform_point(lift(point));
-    let outward = geom_brep::implicit_outward_normal(surface, face.sense, at).vec();
+    // The gradient, unnormalized: `toward` reads the components' ratio
+    // and normalizes once.
+    let gradient = geom_brep::implicit_gradient(surface, at);
+    let outward = geom_brep::OutwardNormal::from_chart(gradient, face.sense).vec();
     let normal = face.body_to_sketch.transform_vec(outward);
-    let in_plane = Vec2::new(normal.x, normal.y);
-    let norm = in_plane.norm();
-    let lever = reach_of(face, surface, at) + (pen.at - point).norm();
-    match geom_core::k_stats::decide(TRACE_TANGENT, Margin::levered(norm, lever), band) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Err(TraceStepFault::NoTangent),
-        Err(diag) => return Err(TraceStepFault::Carrier(TraceFault::Escalated(diag))),
-    }
-    let with = Vec2::new(T::zero() - in_plane.y, in_plane.x) / norm;
+    let with = Vec2::new(T::zero() - normal.y, normal.x);
     Ok(match sense {
         TraceSense::With => with,
         TraceSense::Against => Vec2::new(T::zero() - with.x, T::zero() - with.y),

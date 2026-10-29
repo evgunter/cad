@@ -946,7 +946,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Grazing, OnCarrier, Escalated, Unsettled,
+            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
         ];
     }
 
@@ -4414,6 +4414,7 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
+        ("Carrier/Apex", F::Carrier(TraceFault::Apex)),
         ("Carrier/OnCarrier", F::Carrier(TraceFault::OnCarrier)),
         ("Carrier/Escalated", F::Carrier(TraceFault::Escalated(diag()))),
         (

@@ -76,9 +76,11 @@ pub enum TraceFault {
         /// The carrier's kind.
         carrier: SurfaceKind,
     },
-    /// The piece grazes the carrier: a tangency, a crossing at the
-    /// apex of a cone, or a double root.
+    /// The piece grazes the carrier: a tangency, or a double root.
     Grazing,
+    /// The piece crosses the carrier at a cone's apex, where it has no
+    /// tangent plane.
+    Apex,
     /// The piece lies on the carrier.
     OnCarrier,
     /// A sign the band cannot call: the sliver band.
@@ -94,6 +96,7 @@ impl core::fmt::Display for TraceFault {
                 write!(f, "a {} carrier has no closed-form trace", carrier.name())
             }
             Self::Grazing => f.write_str("the piece grazes the carrier"),
+            Self::Apex => f.write_str("the piece crosses the cone at its apex"),
             Self::OnCarrier => f.write_str("the piece lies on the carrier"),
             Self::Escalated(diag) => write!(f, "a crossing in the sliver band ({diag})"),
             Self::Unsettled(why) => write!(f, "a root count the door cannot certify ({why:?})"),
@@ -112,7 +115,8 @@ fn door(error: BooleanError) -> TraceFault {
 
 fn unsettled(why: Unsettled) -> TraceFault {
     match why {
-        Unsettled::Tangency | Unsettled::AtApex => TraceFault::Grazing,
+        Unsettled::Tangency => TraceFault::Grazing,
+        Unsettled::AtApex => TraceFault::Apex,
         other => TraceFault::Unsettled(other),
     }
 }
