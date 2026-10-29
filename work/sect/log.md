@@ -252,3 +252,24 @@ off its axis-aligned arm (SECTSITE).
 - The components fork is decided and recorded on its row
   (`a-general-torus-pose-lists-no-components`, `## Decided`) and as fork
   row 212; its build is dispatched next as its own unit.
+
+## 2026-10-29 — three lanes after PR 5972
+
+- **`sect-components`** (branch `sect/components-by-foot`): the decided
+  fork `a-general-torus-pose-lists-no-components` (re-costed H: it rewrites
+  the value's list, `carry`, the germ mint and the certificate). Tier:
+  **dual concurrent** (H, architecture).
+- **`sect-oncedecided`** (branch `sect/torus-decided-once`): the two
+  decided-twice rows, banded P1 under C5's ratified rule (PR 5975: a pair
+  decides tangency and coincidence once, read by every reader):
+  `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+  and `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`,
+  one unit (both make a topo reader read the pose's decision). Tier:
+  **single FULL** (M; one reader-redirect pattern, readable in one review).
+- **`sect-circlecross`** (branch `sect/circle-crossing-once`):
+  `circle-pair-crossing-is-spelled-three-times` (E). Tier: **orchestrator's
+  read** (a mechanical extraction behind unchanged predicate names).
+- Seams: all three touch `pair_section/torus*.rs` in different places;
+  each announces its seam, and the components unit merges first where
+  they collide. The cylinder-face ring re-homing row waits for PR 5974 and
+  the components unit's germ-mint change in `join.rs`.
