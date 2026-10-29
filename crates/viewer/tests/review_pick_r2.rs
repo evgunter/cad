@@ -244,7 +244,17 @@ struct Tally {
 /// its grazes differently, so 348 fewer grazes (347 before main's
 /// slides moved `kitchen_sink`'s copy); the rays and the refusals
 /// unchanged. No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (392_112, 131_343, 26_058, 8_292);
+///
+/// It moved twice more, and is pinned at main's reading while
+/// `work/pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement.md`
+/// asks whether the refusal move is right. From
+/// `(392112, 131343, 26058, 8292)`, the sphere arm's mesh keeping a pole
+/// as a polygon side moved it to `(392112, 131373, 12996, 6342)`: 30 more
+/// grazes, half the refused candidates and 1950 fewer rays with a
+/// refusal. Then patterns becoming index variables added 32 grazes, all
+/// in `kitchen_sink`, whose ring is now eight turned corners that land
+/// exactly. The rays are unchanged, and no genuine crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_405, 12_996, 6_342);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
