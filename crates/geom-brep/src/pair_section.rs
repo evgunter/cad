@@ -46,7 +46,8 @@
 //! [`TorusTorusPose`]) is decided once, and every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
-//! [`crate::ssi::sphere_torus_ssi`]), and through this value the
+//! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
+//! [`crate::ssi::torus_torus_ssi`]), and through this value the
 //! Boolean's section table and the section certificate. A torus pair's
 //! tangency is its critical gap's ([`gap`]), the one place it is
 //! decided.
@@ -56,6 +57,7 @@ use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
 
+use crate::ExtentBall;
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
@@ -372,6 +374,11 @@ impl<T: Decide> CylinderSpherePose<T> {
         self.center
     }
 
+    /// The sphere's own ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        ExtentBall::new(self.center, self.big_r)
+    }
+
     /// The cylinder's radius `r` and the sphere's `R`, both decided
     /// positive.
     pub fn radii(&self) -> (T, T) {
@@ -512,10 +519,6 @@ pub enum ClassCarrier<T: Real> {
     /// None mints: the component is classification data, for the reason
     /// given.
     Unminted(&'static str),
-    /// The general rung's, whose door for the pair is unbuilt: the
-    /// component is classified, and carrying it waits on the door the
-    /// note names.
-    Unbuilt(&'static str),
 }
 
 /// One connected component of a section, as classified.
@@ -561,6 +564,53 @@ impl<T: Real> PairPose<T> {
         match self {
             Self::CylinderSphere(p) => Some(p),
             Self::SphereTorus(_) | Self::CylinderTorus(_) | Self::TorusTorus(_) => None,
+        }
+    }
+}
+
+impl<T: Decide> PairPose<T> {
+    /// The two surfaces in the order the pose was asked of.
+    pub fn operands(&self) -> (&Surface<T>, &Surface<T>) {
+        match self {
+            Self::CylinderSphere(p) => p.operands(),
+            Self::SphereTorus(p) => p.operands(),
+            Self::CylinderTorus(p) => p.operands(),
+            Self::TorusTorus(p) => p.operands(),
+        }
+    }
+
+    /// **A ball holding the whole section**, the march's domain
+    /// ([`SsiLane`]): every point of the section lies on both surfaces,
+    /// so inside the ball of either that is bounded. A sphere is its own
+    /// ball, and is taken where the pair has one; a ring torus lies in
+    /// `|x − c| ≤ R + r` (each of its points is `r` from a core point,
+    /// which is `R` from the centre), the smaller of two tori's as the
+    /// pose decided it ([`TorusTorusPose::ball`]). A cylinder is
+    /// unbounded along its axis, so it is never the ball.
+    pub fn ball(&self) -> ExtentBall<T> {
+        match self {
+            Self::CylinderSphere(p) => p.ball(),
+            Self::SphereTorus(p) => p.ball(),
+            Self::CylinderTorus(p) => p.ball(),
+            Self::TorusTorus(p) => p.ball(),
+        }
+    }
+}
+
+impl PairPose<f64> {
+    /// **The march's domain**: the cube about [`Self::ball`], padded by
+    /// a hundredth of its radius so the slab's faces stand off the ball,
+    /// which the bounding surface reaches (a sphere everywhere, a torus
+    /// round its outer equator); the feature extent the ball's diameter,
+    /// the standard accounting floor.
+    #[must_use]
+    pub fn domain(&self) -> SsiDomain {
+        let ball = self.ball();
+        SsiDomain {
+            center: ball.center(),
+            half_extent: ball.radius() * 1.01,
+            extent: ball.radius() * 2.0,
+            floor_scale: 1.0,
         }
     }
 }
@@ -614,8 +664,8 @@ pub enum SectionRead<T: Real> {
 /// convention ([`SectionError::DegenerateTorus`]), two tori decided one
 /// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
 /// ([`SectionError::Pinched`], [`SectionError::Unordered`]), and a
-/// general cylinder × torus or torus × torus pose, whose door is unbuilt
-/// ([`SectionError::RoutesToGeneralRung`]).
+/// general cylinder × torus or torus × torus pose, whose components the
+/// classification does not list ([`SectionError::RoutesToGeneralRung`]).
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -889,7 +939,6 @@ impl<T: Decide> PairSection<T> {
         for c in &self.components {
             match c.carrier {
                 ClassCarrier::Unminted(why) => return Err(CarryError::Unminted(why)),
-                ClassCarrier::Unbuilt(why) => return Err(CarryError::Unbuilt(why)),
                 ClassCarrier::Closed(_) | ClassCarrier::General => {}
             }
         }
@@ -904,7 +953,7 @@ impl<T: Decide> PairSection<T> {
             for branch in branches {
                 if !branch.closed {
                     return Err(CarryError::Desync(
-                        "the march left the sphere's box, which holds the whole section",
+                        "the march left the ball's box, which holds the whole section",
                     ));
                 }
                 let k = self
@@ -944,7 +993,6 @@ impl<T: Decide> PairSection<T> {
                     "the march found no branch on a component the classification names",
                 )),
                 (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(why)),
-                (ClassCarrier::Unbuilt(why), _) => Err(CarryError::Unbuilt(why)),
             })
             .collect::<Result<_, _>>()?;
         Ok(CarriedSection {
@@ -1005,7 +1053,7 @@ pub struct FittedCarrier<T: Real> {
 }
 
 /// **The general rung's door** (module docs): the ℝ³ march of a
-/// cylinder × sphere or a sphere × torus pose, written at `f64`. Holding one is the
+/// decided pose over its ball, written at `f64`. Holding one is the
 /// statement that the scalar may march; [`SsiLane::marched`], at `f64`,
 /// is its one constructor.
 #[derive(Clone, Copy, Debug)]
@@ -1029,41 +1077,25 @@ impl SsiLane<f64> {
     #[must_use]
     pub fn marched() -> Self {
         Self {
-            march: march_over_the_sphere,
+            march: march_over_the_ball,
             seat: seat_at,
         }
     }
 }
 
-/// **The ℝ³ march of `pose` over the sphere's own box**, which holds
-/// every component of a sphere's section: a cube, as an [`SsiDomain`]
-/// states one, padded by a hundredth of the radius so the slab's faces
-/// stand off the sphere's extreme points, where a component can reach
-/// the box. A cylinder's box is unbounded along its axis, and the
-/// torus's need not be smaller, so the sphere's is the one cube the pair
-/// always fits. The feature extent is the sphere's diameter; the
-/// accounting floor is the standard one (`floor_scale` 1). A pose with
-/// no sphere has no general carrier this door marches.
-fn march_over_the_sphere(
+/// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::domain`]),
+/// which holds every component of the section. No branch reaches the
+/// box's faces, so every branch the march finds closes.
+fn march_over_the_ball(
     pose: &PairPose<f64>,
     band: Band,
 ) -> Result<Vec<FittedCarrier<f64>>, SsiError> {
-    let over = |(center, radius): (Point3<f64>, f64)| SsiDomain {
-        center,
-        half_extent: radius * 1.01,
-        extent: radius * 2.0,
-        floor_scale: 1.0,
-    };
+    let domain = pose.domain();
     let out = match pose {
-        PairPose::CylinderSphere(p) => {
-            crate::ssi::march_cylinder_sphere(p, over((p.center, p.big_r)), band)?
-        }
-        PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, over(p.ball()), band)?,
-        PairPose::CylinderTorus(_) | PairPose::TorusTorus(_) => {
-            return Err(SsiError::WrongLane {
-                expected: "a section with a sphere, whose box holds it",
-            });
-        }
+        PairPose::CylinderSphere(p) => crate::ssi::march_cylinder_sphere(p, domain, band)?,
+        PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band)?,
+        PairPose::CylinderTorus(p) => crate::ssi::march_cylinder_torus(p, domain, band)?,
+        PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band)?,
     };
     Ok(out
         .branches
@@ -1114,16 +1146,9 @@ fn seat_at(
             };
         }
     };
-    // The feature extent the march read: the sphere's diameter.
-    let ((a, b), extent) = match pose {
-        PairPose::CylinderSphere(p) => (p.operands(), p.big_r * 2.0),
-        PairPose::SphereTorus(p) => (p.operands(), p.ball().1 * 2.0),
-        PairPose::CylinderTorus(_) | PairPose::TorusTorus(_) => {
-            return Err(CarryError::Desync(
-                "a fitted component on a pose with no sphere, which no door marches",
-            ));
-        }
-    };
+    // The feature extent the march read.
+    let (a, b) = pose.operands();
+    let extent = pose.domain().extent;
     let certificate = crate::ssi::certify_rung3(
         &seated,
         None,
@@ -1214,8 +1239,6 @@ fn rotated(
 pub enum CarryError {
     /// A component has no carrier: a tangency, classification only (C7).
     Unminted(&'static str),
-    /// A component's general-rung door is unbuilt, as the note says.
-    Unbuilt(&'static str),
     /// The general rung is not marched at this scalar.
     NoLane {
         /// The scalar, by name.
@@ -1324,16 +1347,16 @@ impl<T: Decide> CarriedSection<T> {
 
 #[cfg(test)]
 mod wiring {
-    use super::{SsiLane, march_over_the_sphere, seat_at};
+    use super::{SsiLane, march_over_the_ball, seat_at};
 
     /// `Ok(())` when the lane holds its march; otherwise the field that
     /// does not.
     fn holds_the_ssi_lane() -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().march,
-            march_over_the_sphere as fn(_, _) -> _,
+            march_over_the_ball as fn(_, _) -> _,
         ) {
-            return Err("march is not `march_over_the_sphere`");
+            return Err("march is not `march_over_the_ball`");
         }
         if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
             return Err("seat is not `seat_at`");

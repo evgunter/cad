@@ -65,3 +65,7 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
   (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the review_4781 r1 pin: this row's `RayExhausted`.
+
+The base six ray-wall pairs are owned by
+`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+since 2026-10-28 (PR 5966), which also pins the row at today's 62.

@@ -56,3 +56,12 @@ The second bullet stays open, and is now the unit's whole scope.
 - **Where it refuses.** A near-tangent coplanar circle and ellipse refuse `Unsettled::Tangency`, and two coplanar ellipses that touch refuse alike. At a touch, the level stays within the band over an arc much wider than the band (about `10⁻⁴` rad for the `(2, 1)` pair). So the subdivision either finds no definite sign to split at (`SignInBand`) or narrows a piece to the band (`Tangency`).
 - **The fix is not natural to this route.** It would hand the in-band piece back as a candidate for the stretch rule to read. That changes `half_angle::certified_subdivision`'s contract, which topo's ellipse × torus, circle × torus, conic × quadric and ruling doors share.
 - **Priority.** The row is back to P2: no known body row reaches it.
+
+## Evidence: a body row reaches the touch (2026-10-28, `splitdoor/two-rims-coplanar`)
+
+"No known body row reaches it" no longer holds. `crates/sweep/tests/a_ruling_lying_on_a_wall.rs` `two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`, at `k` = 30 and 80, reaches the coplanar ellipse touch through the crossing layer. Two radius-`0.01` rods on one axis are cut below planes through the origin of slopes `100` and `100(1 + kε)`.
+- **The pose.** The rims share their minor axis and differ in their major semi-axis by about `kε`. So in the planes' common plane one rim's level on the other is `F ≈ −2δ·cos²θ`, a double root at the minor-axis tips `(0, ±0.01, 0)`.
+- **The stretch.** They stay within the escalation `10ε` of each other over `|cos θ| < 10/k`: about ±0.34 rad at `k = 30`, some 66 cm of rim.
+- **The refusal.** The subdivision's first cut finds no definite sign in that sixteenth, and `pose::coplanar_ellipses` refuses `Unsettled::SignInBand`. The pass `carrier_cross::boundary_crossing` answers `Unread`, and every op refuses `CurvedPierceUnsupported` at `reduce.rs`'s curved sweep arm. Measured at ε = 1e-9 and 1e-12. At 1e-6 the basin meter refuses the seam ruling first.
+
+Building the touch alone does not settle that row. There the glue door decides the two cut planes one carrier, and the rims' meeting is in band, so the ops owe `Escalated` (Ev on PR 5973; `work/splitdoor/two-rims-read-coplanar-refuse-unsupported-or-untyped.md`, "Decided").

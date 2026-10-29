@@ -135,9 +135,9 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
-    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
-    Pruning, Selection, clearance, clearance_over, clearance_with, self_intersection,
+    Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
+    ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
+    NoTangents, Pruning, Selection, clearance, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -535,7 +535,10 @@ fn a_starved_cell_budget_refuses_typed() {
     let q = query(
         1.99,
         ClearanceConfig {
-            max_cell_pairs: 1,
+            budgets: Budgets {
+                max_cell_pairs: 1,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -561,7 +564,10 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let q = query(
         1.5,
         ClearanceConfig {
-            max_cell_depth: 0,
+            budgets: Budgets {
+                max_cell_depth: 0,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -593,7 +599,10 @@ fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
             let q = query(
                 c,
                 ClearanceConfig {
-                    max_cell_pairs: pairs,
+                    budgets: Budgets {
+                        max_cell_pairs: pairs,
+                        ..ClearanceConfig::default().budgets
+                    },
                     ..ClearanceConfig::default()
                 },
             );
@@ -857,8 +866,10 @@ fn gap_run(
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
-            max_cell_pairs: 4_096,
-            ..ClearanceConfig::default()
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
         },
         oracle,
         resolver: None,
@@ -907,8 +918,10 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
-            max_cell_pairs: 4_096,
-            ..ClearanceConfig::default()
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
         },
         oracle,
         resolver: None,

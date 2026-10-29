@@ -965,7 +965,8 @@ mod kernel {
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
             TangencyUnsupported, KnifeEdge, ScaffoldingOperand, InsideOutOperand,
             UnjoinedOperand, SliverVertex, SliverSector, SectionGermsEscalated,
-            SectionGermsUnordered, NonFiniteSectorChord, UnderflowedSectorChord,
+            SectionGermsUnordered, ApexSection, ApexUndecided, NonFiniteSectorChord,
+            UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
             UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
         ];
@@ -2419,6 +2420,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SectionGermsUnordered {
                 vertex,
                 fault: topo::SectionGermFault::Crossing,
+            },
+        ),
+        (
+            "ApexSection",
+            R::ApexSection {
+                vertex,
+                face,
+                reading: topo::ApexSectionReading::NoRulingInside,
+            },
+        ),
+        (
+            "ApexUndecided",
+            R::ApexUndecided {
+                vertex,
+                face,
+                diag: diag(),
             },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),

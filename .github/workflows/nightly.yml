@@ -485,7 +485,7 @@ jobs:
     # The suite with every workspace feature on at once: the probe-gated
     # suites, the test-only meters and payload features, which no other
     # row executes together. Default eps, the ci profile's set (the slow
-    # set is left to the rows above). Three things are held out, each
+    # set is left to the rows above). Two things are held out, each
     # with the open row that owns it:
     # - viewer, whose `app` feature needs the GPU stack the viewer job
     #   installs and runs;
@@ -493,9 +493,7 @@ jobs:
     #   an orphan surface across 21 sweep rows
     #   (work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md;
     #   the row that brings the scalpel back is
-    #   work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md);
-    # - one probe row red on main, already gated by k-lint (dev-probe)
-    #   (work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md).
+    #   work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md).
     name: suite under --all-features (default eps)
     runs-on: ubuntu-latest
     needs: gate
@@ -508,7 +506,6 @@ jobs:
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
       HELD_OUT_FEATURES: topo/per-op-postcondition
-      HELD_OUT_TESTS: test(=ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -572,7 +569,7 @@ jobs:
           r=0
           cargo nextest run --profile ci --workspace --exclude viewer \
             --features "${{ steps.features.outputs.list }}" \
-            -E "not ($HELD_OUT_TESTS)" --no-fail-fast || r=$?
+            --no-fail-fast || r=$?
           scripts/nextest-failures.py "all-features" "$r"
           exit "$r"
       - name: failing tests (name, panic, seed)

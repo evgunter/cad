@@ -95,10 +95,10 @@ use crate::program::ProfileProgram;
 use crate::var::VarId;
 
 /// The engine's vocabulary, which this module's questions and reports
-/// carry: the funnel sites, the depth dial, the bound, the receipt, the
-/// widths and the engine's refusals.
+/// carry: the funnel sites, the budgets and the depth dial, the bound,
+/// the receipt, the widths and the engine's refusals.
 pub use topo::clearance::{
-    CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
+    Budgets, CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
     DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, MinSeparationRefusal,
     SELF_INTERSECTION_GAP, SharedCell,
 };
@@ -132,10 +132,9 @@ pub enum Pruning {
 /// How one clearance query is run: the two budgets and the accelerator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClearanceConfig {
-    /// Per-pair subdivision depth ([`DEFAULT_MAX_CELL_DEPTH`]).
-    pub max_cell_depth: u32,
-    /// Whole-query cell-pair budget ([`DEFAULT_MAX_CELL_PAIRS`]).
-    pub max_cell_pairs: usize,
+    /// The sweep's budgets ([`DEFAULT_MAX_CELL_DEPTH`],
+    /// [`DEFAULT_MAX_CELL_PAIRS`]).
+    pub budgets: Budgets,
     /// Whether the monotonicity accelerator may restrict the leaf box
     /// to a facet ([`Pruning`]).
     pub pruning: Pruning,
@@ -144,8 +143,10 @@ pub struct ClearanceConfig {
 impl Default for ClearanceConfig {
     fn default() -> Self {
         Self {
-            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-            max_cell_pairs: DEFAULT_MAX_CELL_PAIRS,
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: DEFAULT_MAX_CELL_PAIRS,
+            },
             pruning: Pruning::Off,
         }
     }
@@ -1221,8 +1222,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let sweep = Sweep {
             bound: query.bound,
             band,
-            max_cell_depth: query.config.max_cell_depth,
-            max_cell_pairs: query.config.max_cell_pairs,
+            budgets: query.config.budgets,
         };
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();

@@ -139,3 +139,14 @@ Signed: (CARVE orchestrator)
   - After the fix pass, a focused single review of the presentation fix runs before merge, given that a soundness MAJOR was fixed.
 - 2026-10-28 — **SYMCLEAR merges (#5928)** with this commit last. The orchestrator read and accepted the fix pass at `0fa633d5`; the `cell_region` hoist is sound, because the station's bounds are the same at both lanes. Friction, recorded: tier-on per-leaf queries moved fifteen rows into the slow set. The cost is the symbolic tier's per-decision `decide_sign` form expansion (~0.9 s on the e2e leaf), which is SYM's ground. Unblocked: CLEARTEXT.
 - 2026-10-29 — **SELFX merges (#5955)** with this commit last. Fix pass 2 (`89edd2d473`) was read and accepted. The dual-review row records tally 1. CARVE's loft row is unparked.
+- 2026-10-29 — **LOOPS merges (#5976)** with this commit last. The single FULL review (`bb8d6a4dcc`) returned APPROVE-WITH-FIXES and re-proved there was no behaviour change by sweeping budgets on both doors. Fixed in the closing commit:
+  - the MINOR: the `CellReceipt` type doc contradicted its field doc on `abandoned`;
+  - Q5: the module header's "same split rule";
+  - Q7: `Walk::split` now takes `N` from `cut`'s array length, not a separate count.
+
+  Filed to CLEARTAIL (P4): the root phase's second walk and the second spelling of `abandoned`. Accepted unfixed, with reasons:
+  - Q3: nothing guards the shared walk once the differential is reverted. Its equivalence was proved at merge, and from here it is ordinary code.
+  - `CellBudget` as a fourth spelling of the budget pair: it is the refusal type, which belongs to CLEARTEXT.
+  - Q2: `let c = bound.c();` is shaped by the from-f64 gate's text matching.
+
+  Main's cost-curve red, which the lane added to GREEN's main-reds row, was fixed by #5979. Unblocked: the minsep tightening.
