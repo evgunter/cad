@@ -2,10 +2,13 @@
 id: clearance-refusal-names-one-face-twice-across-bodies
 kind: issue
 title: ClearanceRefusal prints one FaceKey twice for a cross-body pair, at two renderings over three raise sites, and has no Display at all
-status: open
+status: closed
 opened: 2026-09-04
 priority: P1
 cost: E
+branch: clear/cleartext
+pr: 5977
+closed: 2026-10-29
 ---
 
 
@@ -79,3 +82,13 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed
+CLEARTEXT (#5977), with this commit last. The clearance refusals now
+name each face by its side, and editor-core names each side by its
+selection. They carry their causes: `NoBodies` and `ToleranceHasNoBand`
+keep the error, and `KeyOfAnotherKind` ends in the kernel-defect line.
+A named scope asks what a name denotes before how many things answer
+to it. A single STYLE review at `25f81b1897` returned
+APPROVE-WITH-FIXES. Its fix pass (`7bc8900b`) was read and accepted
+by the orchestrator.

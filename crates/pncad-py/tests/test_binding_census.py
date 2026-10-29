@@ -3135,6 +3135,9 @@ NOT_BOUND = {
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
     "MinSeparationRefusal": SHAPE,
+    # The side an arm of it names a face by: carried for its carrier,
+    # and unreachable for its carrier's reason.
+    "Which": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in

@@ -8,7 +8,9 @@
 //! touch readings run.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Band, Circles, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+};
 
 use super::{ClassCarrier, ComponentShape, SectionComponent};
 use crate::intersect::decide_across;
@@ -598,19 +600,19 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     let mut on_pi: Vec<Vec<(T, Point3<T>)>> = vec![Vec::new(); loops.len()];
     for (xa, far1) in [(big_r, false), (-big_r, true)] {
         for (xb, far2) in [(e + big_r2, false), (e - big_r2, true)] {
-            let (dx, dy) = (xb - xa, h);
-            let d = Vec2::new(dx, dy).norm();
+            let (ca, cb) = (Point2::new(xa, T::zero()), Point2::new(xb, h));
+            let tubes = Circles::new((cb - ca).norm(), r, r2);
             if signs_across(
                 [
                     (
                         "section_torus_parallel_tori_reach",
                         "section_torus_parallel_tori_reach_floor",
-                        r + r2 - d,
+                        tubes.reach(),
                     ),
                     (
                         "section_torus_parallel_tori_nest",
                         "section_torus_parallel_tori_nest_floor",
-                        d - (r - r2).abs(),
+                        tubes.internal(),
                     ),
                 ],
                 slack,
@@ -619,11 +621,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
             {
                 continue;
             }
-            let m = (d.powi(2) + (r - r2) * (r + r2)) / (d * T::from_f64(2.0));
-            let k = ((r - m) * (r + m)).max(T::zero()).sqrt();
-            let (ux, uy) = (dx / d, dy / d);
-            for k in [k, -k] {
-                let (x, y) = (xa + ux * m - uy * k, uy * m + ux * k);
+            for Point2 { x, y, .. } in tubes.at(ca, cb).crossings() {
                 // The sheet each tube's circle holds the point on, by
                 // the side of the circle's centre it stands, read bare
                 // of the slack: the side changes only at the tube's top
@@ -680,25 +678,25 @@ pub(super) fn parallel_torus_arm<T: Decide>(
             // by `δ` moves its sheet's radius at that height by at most
             // that much.
             let slope = (y - h).abs() / ((r2 - (y - h).abs()) * (r2 + (y - h).abs())).sqrt();
+            let sheets = Circles::new(e, rho, rho2);
             if signs_across(
                 [
                     (
                         "section_torus_parallel_tori_gap",
                         "section_torus_parallel_tori_gap_floor",
-                        e - (rho - rho2).abs(),
+                        sheets.internal(),
                     ),
                     (
                         "section_torus_parallel_tori_span",
                         "section_torus_parallel_tori_span_floor",
-                        rho + rho2 - e,
+                        sheets.reach(),
                     ),
                 ],
                 slack * (T::from_f64(2.0) + slope),
                 band,
             )? == [true, true]
             {
-                let x = ((rho - rho2) * (rho + rho2) + e.powi(2)) / (e * T::from_f64(2.0));
-                let z = ((rho - x) * (rho + x)).max(T::zero()).sqrt();
+                let (x, z) = (sheets.radical(), sheets.half_chord());
                 parts.extend([z, -z].map(|z| component(at(x, y, z))));
             }
             continue;
@@ -939,23 +937,16 @@ fn square_folds<T: Decide>(
     let mut out = Vec::new();
     for plus in [true, false] {
         let sigma = if plus { T::one() } else { -T::one() };
-        let dy = e - sigma * big_r;
-        let dist = Vec2::new(dy, z0).norm();
-        let [cut] = signs(
-            [(
-                "section_torus_square_wall_tube",
-                (rc + r - dist).min(dist - (rc - r).abs()),
-            )],
-            band,
-        )?;
+        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
+        // about `(e, z0)` radius `rc`.
+        let (c1, c2) = (Point2::new(sigma * big_r, T::zero()), Point2::new(e, z0));
+        let dist = (c2 - c1).norm();
+        let tubes = Circles::new(dist, r, rc);
+        let [cut] = signs([("section_torus_square_wall_tube", tubes.secant())], band)?;
         if !cut {
             continue;
         }
-        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
-        // about `(e, z0)` radius `rc`, `dist` apart.
-        let (uy, uz) = (dy / dist, z0 / dist);
-        let along = (dist.powi(2) + (r - rc) * (r + rc)) / (dist + dist);
-        let half = ((r - along) * (r + along)).sqrt();
+        let half = tubes.half_chord();
         let drift = (slop + (e.abs() + big_r + rc) * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON))
             * r
             * rc
@@ -968,8 +959,7 @@ fn square_folds<T: Decide>(
         {
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
-        for s in [half, -half] {
-            let (y, z) = (sigma * big_r + uy * along - uz * s, uz * along + uy * s);
+        for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
             let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
                 .map_err(|_| ArmRefusal::Unordered(SQUARE_FOLD_HALF))?;
             out.push(Fold { plus, y, z, outer });

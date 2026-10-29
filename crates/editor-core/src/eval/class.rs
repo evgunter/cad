@@ -797,6 +797,7 @@ mod tests {
                 K::MeasureClearanceRefused(topo::clearance::MinSeparationRefusal::Unsupported {
                     carrier: "an approximated face",
                     face: topo::FaceKey::default(),
+                    side: topo::clearance::Which::First,
                 })
             }
             C::AssertionDimension => K::AssertionDimension {
