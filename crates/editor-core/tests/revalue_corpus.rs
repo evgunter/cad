@@ -571,6 +571,10 @@ rows! {
     // to snap it at rest, the builds would part at `pose_unit_norm`).
     revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
+    // Apart, a pinned red: a point-in-solid plane test the union of the
+    // family decides reads a margin of exactly 0 at the nominal, so the
+    // builds part after decision 6956 of 22250
+    // (`work/inlane/under-the-apart-move-heat-sink-fins-parts-at-a-point-exactly-on-a-plane.md`).
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];

@@ -16,7 +16,6 @@ body, none the typed empty body); a read listed twice glues, so
 """
 
 import json
-import math
 import unittest
 
 from pncad import (
@@ -26,7 +25,8 @@ from pncad import (
     Formula,
     Frame,
     Node,
-    PatternKind,
+    VarDecl,
+    VarName,
     evaluate,
     load,
     m,
@@ -168,28 +168,28 @@ class TestTheUnion(unittest.TestCase):
         loaded = load(f"{header}\n{json.dumps(wire)}").doc
         assert_volume(self, measured(loaded, union), AB_VOLUME)
 
-    def test_one_read_of_a_family_is_its_members(self):
-        """A single operand, not a list, reads a family whole: a
-        pattern's two copies of `A`, stepped by B's offset, union to
-        the same body as `[a, b]`. A family read beside a single read
-        in one list is the kernel's kind refusal at `insert`."""
-        doc = Doc()
-        a, _b, _c = self.members(doc)
-        family = doc.insert(
-            Node.pattern(
+    def row(self, doc, a):
+        """A row of two copies of `a` in its own space under the index
+        `k = index(2)`, member `k` slid `k` times B's offset."""
+        doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(2)))
+        return doc.insert(
+            Node.linear_pattern(
+                VarName("k"),
                 a,
-                Formula.count(2),
-                PatternKind.linear(
-                    (Formula.literal(1.0), Formula.literal(0.5), Formula.literal(0.25)),
-                    Formula.length_in(math.sqrt(1.3125), m),
-                ),
+                doc.space(a),
+                [("x", Formula.length_in(1.0, m)), ("y", Formula.length_in(0.5, m)), ("z", Formula.length_in(0.25, m))],
             )
         )
+
+    def test_one_read_of_a_family_is_its_members(self):
+        """A single operand, not a list, reads a family whole: a
+        row's two copies of `A`, stepped by B's offset, union to
+        the same body as `[a, b]`."""
+        doc = Doc()
+        a, _b, _c = self.members(doc)
+        family = self.row(doc, a)
         folded = doc.insert(Node.union(family))
         self.assertAlmostEqual(measured(doc, folded).volume, AB_VOLUME, delta=1e-9)
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.union([family, a]))
-        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_a_family_spelled_by_index_is_the_family_read_whole(self):
         """`family[i]` reads one member of the family: the union of the
@@ -197,16 +197,7 @@ class TestTheUnion(unittest.TestCase):
         whole, and a member read by index sits at any body seat."""
         doc = Doc()
         a, _b, _c = self.members(doc)
-        family = doc.insert(
-            Node.pattern(
-                a,
-                Formula.count(2),
-                PatternKind.linear(
-                    (Formula.literal(1.0), Formula.literal(0.5), Formula.literal(0.25)),
-                    Formula.length_in(math.sqrt(1.3125), m),
-                ),
-            )
-        )
+        family = self.row(doc, a)
         whole = doc.insert(Node.union(family))
         spelled = doc.insert(Node.union([family[0], family[1]]))
         self.assertAlmostEqual(measured(doc, spelled).volume, AB_VOLUME, delta=1e-9)

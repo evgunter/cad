@@ -912,19 +912,11 @@ pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 2],
 }
 
 /// **A cut of `ids` in `doc`, with the world copies of what it
-/// moves**: each `Part` selecting a copy of a cut pattern, then every
-/// world placement of a cut body ([`fixture::with_placements`]) — a
-/// part delivers only its world, so a split moves a body with its
-/// placements.
+/// moves**: every world placement of a cut body or of a member of a cut
+/// family ([`fixture::with_placements`]) — a part delivers only its
+/// world, so a split moves a body with its placements.
 pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
-    let mut out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
-    for id in doc.ids() {
-        if let Some(Node::Part { of, .. }) = doc.node(id)
-            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
-        {
-            out.insert(id);
-        }
-    }
+    let out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
     fixture::with_placements(doc, &out)
 }
 

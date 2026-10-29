@@ -598,6 +598,10 @@ fn param_name_reason(text: &str) -> VarNameReason {
 /// The keyword for one full rotation (module docs).
 const TURN: &str = "turn";
 
+/// The infix remainder of a `Count` by a positive `Count`, at a
+/// product's precedence: `(k + 1) mod n`.
+const MOD: &str = "mod";
+
 /// Parse `src` into a dimension-checked [`Formula`] (module docs: the
 /// grammar, the literal semantics, the checking discipline). `params`
 /// is the declared parameter table refs resolve against — a document's
@@ -869,6 +873,7 @@ impl Parser<'_> {
                 let make: Option<Make> = match self.peek() {
                     Some((_, Tok::Star)) => Some(Formula::mul),
                     Some((_, Tok::Slash)) => Some(Formula::div),
+                    Some((_, Tok::Ident(word))) if word == MOD => Some(Formula::modulo),
                     _ => None,
                 };
                 if let Some(make) = make {

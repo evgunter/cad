@@ -60,8 +60,8 @@ use pncad::document::{
     AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
     DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
     HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver,
-    PatternKind, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
+    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
+    VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
     run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
@@ -1800,7 +1800,7 @@ impl DocSession {
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
-            SessionOp::AddPlacedUnion { input, count, rule } => {
+            SessionOp::AddFusedPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
             }
             SessionOp::AddFillet {
@@ -2249,7 +2249,16 @@ impl DocSession {
     /// the typed refusal comes from the door rather than from here —
     /// `DocEdit::SetVarValue` carries an existing definition forward
     /// and refuses `EditError::UnknownVar` when there is none.
+    ///
+    /// A count written to an index redefines its count
+    /// ([`props::index_count_edit`]).
     fn set_variable(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        if let SlotValue::Count(count) = value
+            && let Some(edit) =
+                props::index_count_edit(self.committed_doc(), var, Formula::count(count))
+        {
+            return self.commit_written(edit);
+        }
         self.commit_written(props::variable_edit(var, value))
     }
 
@@ -2301,6 +2310,10 @@ impl DocSession {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
+        // Text typed over an index is its count.
+        if let Some(edit) = props::index_count_edit(self.committed_doc(), var, expr.clone()) {
+            return self.commit(edit);
+        }
         // Text that reads a variable defines this one by it.
         if reads_a_variable(&expr) {
             return self.commit(DocEdit::DefineVar {
@@ -3092,13 +3105,18 @@ impl DocSession {
     }
 
     /// Insert one pattern of an existing body, fused or not
-    /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]).
+    /// ([`SessionOp::AddPattern`], [`SessionOp::AddFusedPattern`]): the
+    /// index `k = index(count)` and one placement of the body in its own
+    /// space whose values read it (D10 `[repetition]`,
+    /// [`pncad::pattern`]) — a row slid `scalar(k)·spacing` along the
+    /// rule's direction, or a ring spun `scalar(k)·step` about its axis
+    /// — and, fused, a union reading the family whole, which the body's
+    /// world placements are re-pointed to.
     ///
     /// **One function for the two ops**, for `add_blend`'s reason: the
-    /// prototype seat, the axis seat a circular
-    /// rule adds and the commit are the same move for both, and the
-    /// only difference — which node is minted — is one match below
-    /// where a reader can see the pair side by side.
+    /// prototype seat, the axis seat a circular rule adds and the
+    /// commit are the same move for both, and the only difference —
+    /// whether a union fuses the family — is one match below.
     fn add_pattern(
         &mut self,
         input: Operand,
@@ -3109,47 +3127,90 @@ impl DocSession {
         if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
         }
-        let kind = match rule {
+        let doc = self.committed_doc();
+        let index = combine::fresh_index(doc);
+        let target = crate::world::read_var(doc, &input)
+            .and_then(|var| doc.operation_of(var))
+            .and_then(|node| doc.node_space(node))
+            .unwrap_or(VarId::WORLD);
+        let source = pncad::document::BodyRead::plain(input.clone());
+        let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
-                PatternKind::Linear { direction, spacing }
+                combine::row_steps(&direction, &spacing).and_then(|steps| {
+                    pncad::pattern::linear_pattern(&index, source, Operand::Var(target), &steps)
+                })
             }
             PatternRuleSpec::Circular {
                 through,
                 direction,
                 step,
             } => match self.read_off(&input, &through, &direction, "pattern axis", PoseRole::Z) {
-                Ok(axis) => PatternKind::Circular { axis, step },
+                Ok(axis) => {
+                    let axis = axis_operand(axis);
+                    let along = combine::ring_slide_axis(&direction);
+                    pncad::pattern::circular_pattern(
+                        doc,
+                        &index,
+                        source,
+                        Operand::Var(target),
+                        (axis.clone(), axis, along),
+                        pncad::pattern::RingStep::By(step),
+                    )
+                }
                 Err(refusal) => return OpOutcome::refused(refusal),
             },
         };
+        let placement = match placement {
+            Ok(placement) => placement,
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        let declare = move |run: &mut Recording<'_, ProfileProgram>| {
+            run.declare(
+                index,
+                pncad::document::VarDecl::Index {
+                    count: Formula::count(count),
+                    within: None,
+                },
+            )
+            .map(drop)
+        };
         match output {
-            // Several bodies, which no placement reads: the pattern
-            // places nothing, and its copies reach the world through a
-            // projection each (`SessionOp::AddPart`).
-            PatternOutputChoice::Instances => self.commit(DocEdit::InsertNode {
-                node: Box::new(combine::pattern_node(input, count, kind)),
-                fresh: Vec::new(),
+            // Several bodies, the family itself.
+            PatternOutputChoice::Instances => self.commit_run(|run| {
+                declare(run)?;
+                run.insert(placement).map(drop)
             }),
-            PatternOutputChoice::Fused => self.feature_over(
-                self.placements_of(&input),
-                crate::world::read_var(self.committed_doc(), &input),
-                combine::placed_union_node(input, count, kind),
-            ),
+            PatternOutputChoice::Fused => {
+                let over = self.placements_of(&input);
+                let taken = crate::world::read_var(self.committed_doc(), &input);
+                if let Err(refusal) = stranded_pick(self.committed_doc(), &over, taken) {
+                    return OpOutcome::refused(refusal);
+                }
+                self.commit_run(|run| {
+                    declare(run)?;
+                    let row = run.insert(placement)?;
+                    let fused = run.insert(Node::Union {
+                        members: pncad::document::Bodies::Family(row.into()),
+                    })?;
+                    repoint(run, over, taken, fused)
+                })
+            }
         }
     }
 
-    /// Insert one projection of a pattern's copies
-    /// ([`SessionOp::AddPart`]).
+    /// Insert one read of a family's member
+    /// ([`SessionOp::AddPart`]), placed in the world.
     fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
         if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
             return OpOutcome::refused(refusal);
         }
-        self.create_placed(combine::part_node(of, select))
+        let node = combine::part_node(self.committed_doc(), of, select);
+        self.create_placed(node)
     }
 
-    /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
-    /// stepped clear, and its second copy's projection placed beside
-    /// the original where it is drawn.
+    /// Duplicate one body ([`SessionOp::Duplicate`]): a copy of it
+    /// stepped clear in its own space, placed beside the original where
+    /// it is drawn.
     ///
     /// **One action and therefore one undo.** The original stays placed
     /// where it was; the copy is a creation, so it is placed where the
@@ -3176,16 +3237,26 @@ impl DocSession {
             Ok(landed) => landed,
             Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
         };
-        let pattern = match combine::duplicate_rule(step) {
-            Ok(kind) => combine::pattern_node(input, combine::DUPLICATE_COUNT, kind),
+        let moves = match combine::duplicate_moves(step) {
+            Ok(moves) => moves,
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
+        let doc = self.committed_doc();
+        let space = crate::world::read_var(doc, &input)
+            .and_then(|var| doc.operation_of(var))
+            .and_then(|node| doc.node_space(node))
+            .unwrap_or(VarId::WORLD);
+        let stepped = Node::place(
+            pncad::document::BodyRead::plain(input),
+            Operand::Var(space),
+            pncad::document::Placed::unmated(moves).bundle(),
+        );
         self.commit_run(|run| {
-            let pattern = run.insert(pattern)?;
-            let copy = run.insert(combine::part_node(
-                pattern,
-                PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
-            ))?;
+            let copy = run.insert(stepped)?;
+            // A copy stepped in the world stands there already.
+            if space == VarId::WORLD {
+                return Ok(());
+            }
             if seats.is_empty() {
                 return place_in_world(run, copy.into()).map(drop);
             }
@@ -4413,9 +4484,6 @@ fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
 fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
     match node {
         Node::InstantiatePart { .. } => true,
-        // Placements of a prototype drawn in THIS document: the rest
-        // between them is the placement rule's, not a crossing.
-        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
         // Copies bodies this document already holds; its constraints
         // relate copies some other node put in the document.
         Node::Place { .. } => false,
@@ -4502,6 +4570,20 @@ impl core::fmt::Debug for DocSession {
             .field("derived", derived)
             .field("notation", notation)
             .finish_non_exhaustive()
+    }
+}
+
+/// **An axis read as a mate's operand**: a plain read as it is, and a
+/// read through a role (a frame's `z`) as the axis slid zero along
+/// itself, which is that axis.
+fn axis_operand(axis: RoleRead<Operand>) -> Operand {
+    match axis.role {
+        None => axis.read,
+        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
+            pose: axis.clone(),
+            along: axis,
+            by: Formula::zero(Dimension::Length),
+        })),
     }
 }
 
