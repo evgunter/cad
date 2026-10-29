@@ -170,6 +170,7 @@ pub fn revolved(
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![editor_core::LoopProgram::Chain(steps)],
         ids: Vec::new(),
+        on: None,
     }));
     let revolve = r.insert(crate::fixture::revolve_about(
         profile,
