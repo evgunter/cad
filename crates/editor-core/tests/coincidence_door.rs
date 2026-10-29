@@ -1802,14 +1802,26 @@ fn a_ratio_evaluates_exactly_at_sym() {
 }
 
 /// **The door's proof of each row of the corpus**, one line a row
-/// (`ROW <document> <node> <index> <relation> <site> <proof>`): the
-/// instrument a change to a rung is diffed by, base against head. A
-/// census, not a gate.
+/// (`ROW <document> <node> <index> <relation> <site> <proof>`), the
+/// `⊔`s' at-rest rows among them, over the registry and INTENT stage
+/// 6's scenes beside it, whose refused nodes are a line each (`REFUSED
+/// <document> <node> <kind>`): the instrument a change to a rung is
+/// diffed by, base against head. A census, not a gate.
 #[test]
 #[ignore = "a census: cargo nextest run -p editor-core --run-ignored only --no-capture -E 'test(=coincidence_door::census_the_door_per_row_over_the_corpus)'"]
 fn census_the_door_per_row_over_the_corpus() {
-    for cd in crate::corpus::documents() {
+    for cd in crate::corpus::documents()
+        .into_iter()
+        .chain(crate::corpus::stage6_beside_the_registry())
+    {
         let ev = run(&cd.doc);
+        for (node, result) in &ev.nodes {
+            if let editor_core::NodeResult::Failed(e) = result {
+                let kind = format!("{:?}", e.kind);
+                let kind: String = kind.chars().take_while(|c| *c != ' ').collect();
+                println!("REFUSED {} {} {kind}", cd.name, node.0.ordinal());
+            }
+        }
         let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
             .order
             .iter()
@@ -1841,7 +1853,50 @@ fn census_the_door_per_row_over_the_corpus() {
                 );
             }
         }
+        // The `⊔`s' at-rest rows, each under its first copy's placement,
+        // as the `unproven-coincidence` check asks them.
+        for (i, (node, row)) in at_rest_rows(&cd.doc, &ev).iter().enumerate() {
+            let how = match proof(&cd.doc, *node, row) {
+                Proof::Structural(rung) => format!("{rung:?}"),
+                Proof::Unproven { residual, recourse } => {
+                    format!("unproven/{:?}/{recourse:?}", residual.replay)
+                }
+            };
+            println!(
+                "ROW {} {} at-rest/{i} {:?} {:?} {how}",
+                cd.name,
+                node.0.ordinal(),
+                row.relation,
+                row.site
+            );
+        }
     }
+}
+
+/// **The at-rest rows of `doc`'s `⊔`s**: the world product's, then each
+/// other `⊔`'s that gathered, each under the placement of the first of
+/// its two copies.
+fn at_rest_rows(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<(RecipeNodeId, NamedCoincidence)> {
+    let Ok(product) = editor_core::product_recorded(doc, ev, Tol::witness()) else {
+        return Vec::new();
+    };
+    product
+        .coincidences
+        .iter()
+        .chain(
+            product
+                .assembles
+                .iter()
+                .filter_map(|assemble| assemble.gather.as_ref().ok())
+                .flat_map(|gathered| gathered.coincidences.iter()),
+        )
+        .map(|r| {
+            let node = doc
+                .operation_of(r.copies.0.var)
+                .expect("a gathered copy is a placement's output");
+            (node, r.row.clone())
+        })
+        .collect()
 }
 
 /// **What the door proves on the corpus**: every document's rows, by
@@ -2561,4 +2616,302 @@ fn unproven_findings(
             _ => None,
         })
         .collect()
+}
+
+// ---- INTENT stage 6's scenes, as the door proves them today ----
+
+/// **Each row the door proves over `cd`**, one line a row in evaluation
+/// then decision order (`<relation> <site> <proof>`, the census's
+/// words), beside the rows themselves.
+fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<String>) {
+    let ev = run(&cd.doc);
+    assert_eq!(
+        crate::corpus::failures(&ev),
+        Vec::<String>::new(),
+        "{} evaluates",
+        cd.name
+    );
+    let mut all = Vec::new();
+    let mut lines = Vec::new();
+    for &node in &ev.order {
+        let Some(value) = ev.value(node) else {
+            continue;
+        };
+        if value.coincidences.is_empty() {
+            continue;
+        }
+        let rows = value.coincidences.to_vec();
+        for (row, proof) in rows.iter().zip(proofs(&cd.doc, node, &rows)) {
+            let how = match proof {
+                Proof::Structural(rung) => format!("{rung:?}"),
+                Proof::Unproven { residual, recourse } => {
+                    format!("unproven/{:?}/{recourse:?}", residual.replay)
+                }
+            };
+            lines.push(format!("{:?} {:?} {how}", row.relation, row.site));
+        }
+        all.extend(rows);
+    }
+    (all, lines)
+}
+
+/// **`cd`'s union escalates at `Interval`**, so the scene stands beside
+/// the registry.
+fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
+    let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
+    let union = cd.result.expect("the scene's head is its union");
+    match ev.nodes.get(&union) {
+        Some(editor_core::NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { .. })
+            ),
+            "{}'s union escalates at Interval: {:?}",
+            cd.name,
+            e.kind
+        ),
+        other => panic!("{}'s union escalates at Interval: {other:?}", cd.name),
+    }
+}
+
+/// A row's two entity cells, as (input, name).
+fn two_cells(row: &NamedCoincidence) -> [(VarId, &StableName); 2] {
+    match row.cells.as_slice() {
+        [
+            NamedCell::Entity { input: a, name: na },
+            NamedCell::Entity { input: b, name: nb },
+        ] => [(*a, na), (*b, nb)],
+        cells => panic!("a row over two entities: {cells:?}"),
+    }
+}
+
+/// Whether `name` is a face a revolve sweeps (either half of a curved
+/// wall).
+fn a_band(name: &StableName) -> bool {
+    name.kind == EntityKind::Face
+        && matches!(
+            name.path.as_slice(),
+            [RoleSeg::Band(_) | RoleSeg::BandPi(_)]
+        )
+}
+
+/// **A pin seated in a bore records no row, and the census says it
+/// cannot look** (INTENT stage 6, `pin_in_bore`). Each pin stands on
+/// its housing, its shoulder on the top and its shank in the bore; no
+/// node decides a coincidence, and the world's `⊔` records no at-rest
+/// row: the census meets curved faces of two parts within reach and
+/// says it cannot yet tell whether they touch, at the press fit (whose
+/// walls are one cylinder by value) and at the clearance fit alike.
+///
+/// Red if a pin stops seating, or once the census decides a curved
+/// contact (then the press fit's walls are a row to pin here).
+#[test]
+fn a_pin_in_a_bore_is_a_contact_the_census_cannot_look_at() {
+    let cd = crate::corpus::pin_in_bore::document();
+    let (rows, _) = door_lines(&cd);
+    assert_eq!(rows, Vec::new(), "no node decides a coincidence");
+    let ev = run(&cd.doc);
+    let product = editor_core::product_recorded(&cd.doc, &ev, Tol::witness()).expect("gathers");
+    let feet: Vec<f64> = product
+        .copies
+        .iter()
+        .map(|copy| {
+            let body = &*copy.body;
+            body.vertices()
+                .map(|(_, v)| body.get_point(v.point).unwrap().y)
+                .fold(f64::INFINITY, f64::min)
+        })
+        .collect();
+    assert_eq!(
+        feet,
+        [0.0, 0.25, 0.0, 0.25],
+        "each housing stands on its base and each shank's foot is 3/4 under its top"
+    );
+    assert_eq!(
+        product.coincidences.len(),
+        0,
+        "the census records no at-rest row"
+    );
+    let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+    for finding in &product.census {
+        let kind = format!("{finding:?}");
+        let kind = kind.split([' ', '{', '(']).next().unwrap_or_default();
+        *tally.entry(kind.to_owned()).or_default() += 1;
+    }
+    assert_eq!(
+        tally,
+        [
+            ("CensusUndecidable".to_owned(), 15),
+            ("UnrecordedContact".to_owned(), 11)
+        ]
+        .into_iter()
+        .collect(),
+        "the census could not look: {:?}",
+        product.census
+    );
+}
+
+/// **Two copies on one housing's axis glue their walls unproven**
+/// (INTENT stage 6, `shaft_and_bearing`). The shaft and the collar are
+/// each mated to the housing revolve's `axis` output; the union glues
+/// the shaft's wall to the bore's and to the collar's, two `SameOpposite`
+/// rows at `CarrierLadder` each (one per half of the shaft's wall), and
+/// decides the walls' rims and seams by vertex fusion. Every row is
+/// unproven: a wall pair as two constructions, and the fusions beyond
+/// the tier's budget or likewise.
+///
+/// At `Interval` the union escalates, so the scene stands beside the
+/// registry.
+///
+/// Red if the scene's rows change in kind, site or proof, or once its
+/// union passes at `Interval` (then it joins the registry); INTENT stage
+/// 6 PR B flips the wall rows.
+#[test]
+fn two_copies_on_one_axis_glue_their_walls_unproven() {
+    let cd = crate::corpus::shaft_and_bearing::document();
+    let (rows, lines) = door_lines(&cd);
+    let walls = "SameOpposite CarrierLadder unproven/Numeric/OneConstruction";
+    let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
+    let meet = "Meet VertexFusion unproven/Numeric/Budget";
+    let mut want = vec![walls, walls, on, on, meet, meet, meet, meet, walls, walls];
+    want.extend([meet; 4]);
+    want.extend([on, on]);
+    want.extend([meet; 8]);
+    assert_eq!(lines, want);
+    let wall_rows: Vec<&NamedCoincidence> = rows
+        .iter()
+        .filter(|row| row.site == DecisionSite::CarrierLadder)
+        .collect();
+    let mut inputs = std::collections::BTreeSet::new();
+    for row in &wall_rows {
+        let [(a, na), (b, nb)] = two_cells(row);
+        assert!(
+            a != b && a_band(na) && a_band(nb),
+            "a wall pair of two parts: {row:?}"
+        );
+        inputs.extend([a, b]);
+    }
+    assert_eq!(inputs.len(), 3, "the housing, the shaft and the collar");
+    escalates_at_interval(&cd);
+}
+
+/// **Two copies of one bushing, stacked, glue their walls** (INTENT
+/// stage 6, `axis_projection`). The revolve and its copy along its own
+/// axis meet face to face: the two through bores, one piece of the one
+/// revolve, are proven by the carrier verdict; the socket's wall and the
+/// copy's spigot wall, two pieces of it, and the spigot's foot and the
+/// shoulder on the socket's floor and the body's top, are unproven, as
+/// is every rim the fusion decides.
+///
+/// Red if the scene's rows change in kind, site or proof; INTENT stage
+/// 6 PR B flips the spigot-in-socket wall row.
+#[test]
+fn a_bushing_stacked_on_its_own_axis_glues_its_walls() {
+    let cd = crate::corpus::axis_projection::document();
+    let (rows, lines) = door_lines(&cd);
+    let bores = "SameOriented CarrierLadder CarrierVerdict";
+    let rest = "SameOpposite PlaneLadder unproven/Numeric/OneConstruction";
+    let walls = "SameOpposite CarrierLadder unproven/Numeric/OneConstruction";
+    let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
+    let mut want = vec![bores, rest, walls, rest, bores];
+    want.extend([on; 8]);
+    assert_eq!(lines, want);
+    let [(a, na), (b, nb)] = two_cells(&rows[2]);
+    assert!(
+        a != b && a_band(na) && a_band(nb) && na.node == nb.node && na.path != nb.path,
+        "the socket wall and the copy's spigot wall, two pieces of one revolve: {:?}",
+        rows[2]
+    );
+}
+
+/// **A boss typed tangent to a cylinder glues one unproven tangency**
+/// (INTENT stage 6, `boss_tangent_by_value`). The union records one
+/// `SurfaceTangent` row at `TangentWitness` over the cylinder's wall and
+/// the boss's wall typed onto it, unproven: the witness lane's margin is
+/// sampled, and the two walls are two constructions. The flush bases and
+/// the corners on them prove as one construction; the corners on the
+/// wall do not. At `Interval` the union escalates, so the scene stands
+/// beside the registry.
+///
+/// Red if the scene's rows change in kind, site or proof, or once its
+/// union passes at `Interval` (then it joins the registry); INTENT stage
+/// 6 PR D proves a tangency the sketch constructs, not this one.
+#[test]
+fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
+    let cd = crate::corpus::boss_tangent_by_value::document();
+    let (rows, lines) = door_lines(&cd);
+    let on = "OnCarrier VertexFusion SameConstruction";
+    let off = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
+    let meet = "Meet VertexFusion unproven/Numeric/OneConstruction";
+    assert_eq!(
+        lines,
+        [
+            "SameOriented PlaneLadder SameConstruction",
+            "SurfaceTangent TangentWitness unproven/Numeric/OneConstruction",
+            on,
+            off,
+            meet,
+            on,
+            off,
+            meet,
+        ]
+    );
+    let [(a, na), (b, nb)] = two_cells(&rows[1]);
+    assert!(
+        a != b
+            && [na, nb]
+                .iter()
+                .all(|n| matches!(n.path.as_slice(), [RoleSeg::Lateral(_)])),
+        "the cylinder's wall and the boss's: {:?}",
+        rows[1]
+    );
+    escalates_at_interval(&cd);
+}
+
+/// **Where a stage-6 scene's union refuses today** (INTENT stage 6):
+/// the scenes beside the corpus registry, each refused at its union, by
+/// kind. `cone_on_sphere` (a cone typed tangent to a sphere along a
+/// circle) meets no verdict for the cone's edge on the sphere;
+/// `shaft_and_bearing_rounded` (a shaft crossing a torus coaxial with
+/// it) and `shaft_and_bearing_ball` (a ball on a shaft, its centre on
+/// the axis) meet no boolean arm for a torus face and a cylinder face.
+/// So the section's `CylinderTorus` and `CylinderSphere` classifications
+/// record no row any document can reach.
+///
+/// Red once a union passes: that scene then joins the registry and its
+/// rows are pinned like the others.
+#[test]
+fn the_curved_stage6_scenes_refuse_at_their_unions() {
+    use editor_core::NodeErrorKind::Boolean;
+    use geom::SurfaceKind;
+    use topo::BooleanError as B;
+    let refused = |cd: crate::corpus::CorpusDoc, kind: &dyn Fn(&B) -> bool| {
+        let ev = run(&cd.doc);
+        let union = cd.result.expect("a scene's head is its union");
+        match failure(&ev, union) {
+            Some(Boolean(e)) => assert!(kind(e), "{}: {e:?}", cd.name),
+            other => panic!("{}'s union refuses as a boolean: {other:?}", cd.name),
+        }
+    };
+    refused(crate::corpus::cone_on_sphere::document(), &|e| {
+        matches!(e, B::CurvedPierceUnsupported { .. })
+    });
+    refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {
+        matches!(
+            e,
+            B::CurvedBooleanUnsupported {
+                kind: SurfaceKind::Torus,
+                ..
+            }
+        )
+    });
+    refused(crate::corpus::shaft_and_bearing::with_a_ball(), &|e| {
+        matches!(
+            e,
+            B::CurvedBooleanUnsupported {
+                kind: SurfaceKind::Cylinder,
+                ..
+            }
+        )
+    });
 }

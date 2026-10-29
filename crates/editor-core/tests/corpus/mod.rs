@@ -44,7 +44,10 @@ use geom_core::Decide;
 use geom_core::Tol;
 use topo::Body;
 
+pub mod axis_projection;
 pub mod boss;
+pub mod boss_tangent_by_value;
+pub mod cone_on_sphere;
 pub mod cup;
 pub mod cut_cylinder;
 pub mod die;
@@ -64,8 +67,10 @@ pub mod kiss_carry;
 pub mod loft_prism;
 pub mod measured_web;
 pub mod part_select;
+pub mod pin_in_bore;
 pub mod plate_param;
 pub mod reshaped_rod;
+pub mod shaft_and_bearing;
 pub mod sink;
 pub mod slots;
 pub mod symmetric_plate;
@@ -308,6 +313,26 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry battery is what makes the reshaping's rewrite a
         // persisted, replayed, name-digested fact rather than a row's.
         reshaped_rod::document(),
+        // INTENT stage 6's scenes that every lane evaluates; the rest
+        // stand beside the registry ([`stage6_beside_the_registry`]).
+        pin_in_bore::document(),
+        axis_projection::document(),
+    ]
+}
+
+/// **INTENT stage 6's scenes beside the registry**: each is short of
+/// registry membership, which requires every node green at every lane,
+/// and `coincidence_door.rs` pins where it stops. `shaft_and_bearing`
+/// and `boss_tangent_by_value` are green at `f64` and their unions
+/// escalate at `Interval`; the others' unions refuse at `f64`. The per-row door census reads them beside
+/// [`documents`], so the rows they reach are counted.
+pub fn stage6_beside_the_registry() -> Vec<CorpusDoc> {
+    vec![
+        shaft_and_bearing::document(),
+        boss_tangent_by_value::document(),
+        shaft_and_bearing::rounded_mouth(),
+        shaft_and_bearing::with_a_ball(),
+        cone_on_sphere::document(),
     ]
 }
 

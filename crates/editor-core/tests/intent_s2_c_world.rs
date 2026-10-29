@@ -93,7 +93,7 @@ const FILES: [&str; 5] = [
 /// place their pips by values, so three pip-floor points stand 4 ulps
 /// (`2.8e-17`) nearer the faces they are cut from. Every other point of
 /// both is the merge base's (`a195f777`) bit for bit.
-const PRE_C: [(&str, &str); 35] = [
+const PRE_C: [(&str, &str); 37] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
     ("heat_sink", "986dd0b900fe3d32/268"),
@@ -124,6 +124,8 @@ const PRE_C: [(&str, &str); 35] = [
     ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
+    ("pin_in_bore", "76547864dbc6f32b/76"),
+    ("axis_projection", "9856d0ed9ba36a20/40"),
     (FILES[0], "8853ddff30bcec28/154"),
     (FILES[1], "f4d9c34d5c3d1451/82"),
     (FILES[2], "b70c1bbdaed3e0e1/328"),

@@ -394,6 +394,8 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("hollow_tube_elbow", 0xdbf97cdac2df4d30, 0x88b19605f5015b9c),
     ("hollow_tube_ring", 0xf0a59d29f0a5ef21, 0x743a5c3e6051831a),
     ("reshaped_rod", 0xd37dd1691945dda0, 0x40e1518b88d07303),
+    ("pin_in_bore", 0x70c706ddcfaafe79, 0xfc906cdc112c4e68),
+    ("axis_projection", 0x9a503b2d07b5e7ba, 0x25ace293e80616db),
 ];
 
 #[test]

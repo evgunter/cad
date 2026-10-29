@@ -196,8 +196,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// total 343104 → 343208, the percentiles and scoped faces held. No
 /// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 46_335]),
-    ("full", [19, 121, 196, 332_976]),
+    ("scoped faces", [16, 43, 57, 47_232]),
+    ("full", [19, 121, 196, 337_036]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -372,7 +372,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `Borders` walls' reads under D′3's names.
 ///
 /// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-const SAID_DIGEST: u64 = 0x725d_81bf_b29f_a0a9;
+const SAID_DIGEST: u64 = 0x4ec4_ee12_a33e_dbb4;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

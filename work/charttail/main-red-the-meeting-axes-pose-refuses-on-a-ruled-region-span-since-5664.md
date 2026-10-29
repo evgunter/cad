@@ -58,3 +58,27 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 it goes red the day the row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly `carrier_endpoint_end` (`germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
+
+**Two more scenes, from INTENT stage 6 PR A** (2026-10-29). Each union
+is green at `f64` and refuses at `Interval` on this predicate, with a
+whole turn of enclosure:
+
+- `crates/editor-core/tests/corpus/shaft_and_bearing.rs` (`document`): a
+  shaft pressed through a revolved ring's bore and a revolved collar,
+  the shaft's wall one cylinder with both bores; the union refuses
+  `Escalated { decision: Containment { decision: None, escalation:
+  Margin }, … Enclosure { lo: -0.785…, hi: 2.356… }, predicate:
+  Some("bool_ruled_region_span") }` (with the shaft's seam spun a
+  quarter turn off the ring's; spun 0.3 rad or not at all, it refuses
+  `Join(BooleanJoin(Escalated { … predicate: Some("chord_arc_leave_germ")
+  }))` instead, its first escalations this predicate's).
+- `crates/editor-core/tests/corpus/boss_tangent_by_value.rs`: a box
+  whose wall is tangent to an extruded cylinder, unioned; the same
+  refusal, `Enclosure { lo: -0.785…, hi: 2.356… }`.
+
+Both stand beside the corpus registry for it
+(`corpus::stage6_beside_the_registry`), and
+`coincidence_door::two_copies_on_one_axis_glue_their_walls_unproven` and
+`…::a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency` pin
+the escalation: they go red when it lifts, and the two scenes then join
+the registry.
