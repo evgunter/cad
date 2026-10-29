@@ -48,8 +48,8 @@ admissions.
 ## Narrowed (SYMCLEAR, 2026-10-28)
 
 `NodeErrorKind::MeasureClearanceRefused` now carries
-`topo::clearance::MinSeparationRefusal`, the four arms its door can
-raise: `Unsupported`, `PoisonEnclosure`, `EmptyScope`,
-`NoAdmittedPair`. The other seven rows and the `NotADistance` and
+`topo::clearance::MinSeparationRefusal`, the arms its door can raise:
+`Unsupported`, `PoisonEnclosure`, `EmptyScope` (SELFX retired the
+fourth, `NoAdmittedPair`: scopes that meet read 0). The other seven rows and the `NotADistance` and
 `Budget` admissions are gone, and the census rows are
 `MeasureClearanceRefused/<arm>`.
