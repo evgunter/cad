@@ -1834,6 +1834,9 @@ impl NurbsCurve3<Interval> {
                 continue;
             };
             let values = self.knot_values().values();
+            // The knot ends only clip: the restriction re-admits `a` and
+            // `b` to the span's own knots (`blossom`'s `admit`) and
+            // refuses one outside it.
             let a = lo.max(values.get(index)?.lo());
             let b = hi.min(values.get(index + 1)?.hi());
             if a.total_cmp(&b).is_ge() {

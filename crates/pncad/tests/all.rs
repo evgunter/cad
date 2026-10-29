@@ -6042,7 +6042,7 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
 /// catch: a new scene module has to be picked up by the scan itself,
 /// with no edit here.
 ///
-/// `main.rs` is excluded: it DEFINES `struct Stop` and builds none.
+/// `lib.rs` is excluded: it DEFINES `struct TourStop` and builds none.
 /// Files behind a cargo feature (`probe`, `tessbudget`) are read like
 /// any other — a text scan cannot see `cfg`, and reading them is the
 /// safe direction, since a stop the tour builds only sometimes is
@@ -6062,7 +6062,7 @@ fn tour_sources() -> Vec<(String, String)> {
             .and_then(|n| n.to_str())
             .expect("a UTF-8 file name")
             .to_string();
-        if name == "main.rs" {
+        if name == "lib.rs" {
             continue;
         }
         let text = std::fs::read_to_string(&path)
@@ -6202,7 +6202,7 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
 /// The scan walks every `Stop {` struct literal (a `-> Stop {`
 /// function signature is not one) and reads its FIRST field, which is
 /// `name` in every case because that is the field's position in
-/// `main.rs`'s definition. Three forms are understood:
+/// `lib.rs`'s definition. Three forms are understood:
 ///
 /// 1. `name: "literal"` — the common case;
 /// 2. `name: match … { … "a", … "b" }` — every literal in the arms

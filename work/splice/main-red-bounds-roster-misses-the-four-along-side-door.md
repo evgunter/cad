@@ -2,10 +2,13 @@
 id: main-red-bounds-roster-misses-the-four-along-side-door
 kind: issue
 title: Main red: the sole-bracket-bound roster misses four::along_side (PR 5938), which branches on a bracket's ends
-status: open
+status: closed
 opened: 2026-10-29
 priority: P3
 cost: E
+closed: 2026-10-29
+branch: splice/census-reds
+pr: 6040
 ---
 
 
@@ -47,3 +50,17 @@ Reproduce: `cargo nextest run -p geom-core --ignore-default-filter -E
 
 Banded P3: the row is a guard that went red. Nothing reports a wrong
 answer.
+
+## Closed
+
+Closed 2026-10-29 by `splice/census-reds`. Main `0011f58a` also missed
+`edge_nurbs.rs`'s `impl<T: Bounds> FeetRefusal<T>`, from PR 5959. It is
+rostered as `Payload`: `lane` reads the reach's low end into the
+refusal's lever.
+
+`along_side` is fixed rather than rostered. Its answer does more than
+rename: it moves a refusal from `Undecided` to the sign-certain
+`AlongSide`. It now takes `T: CertifiedBounds` and reads each control
+through `certified_bracket()`, so a control that does not certify is
+not along a side (`a_refused_control_is_not_along_a_side`). That leaves
+no sole bracket bound to roster.

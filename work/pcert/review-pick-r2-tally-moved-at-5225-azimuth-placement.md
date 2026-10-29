@@ -137,3 +137,37 @@ refusals are what B1 and the single chart reading should produce is
 still unanswered.
 
 **2026-10-28, INTENT stage 3 G (PR 5954).** On main at `a195f777` the row reads `(392112, 131373, 12996, 6342)` against the pin `(392112, 131343, 26058, 8292)`. G leaves the pin as it is and moves only the second count, the rays answered at the aimed vertex: `(392112, 131405, 12996, 6342)`, 32 more grazes. Its corpus documents are families where they were patterns, and `heat_sink` stands its fins beside the union as main's does. A re-pin after G merges takes G's tally.
+
+## 2026-10-29 (GREEN, nightly 76): the refusal halving is #5920
+
+Red in `viewer app feature` and the full suite on nightly 76 (run
+40823227622, main `5648e577eb`), as `(392112, 131405, 12996, 6342)`
+against the pin `(392112, 131343, 26058, 8292)` written by #5811.
+Bisected over the first-parent merges from #5811 (`6f1c805c2`) to G's
+merge base (`a195f777`) with `cargo test -p viewer --test all --
+review_pick_r2::the_certified_determinant` at the default ε, keyed on
+the refused-candidate count:
+
+| merge | tally |
+|---|---|
+| `6f1c805c2` (#5811) | `(392112, 131343, 26058, 8292)` = the pin |
+| `890d10746` (#5920's first parent) | `(392112, 131343, 26058, 8292)` |
+| `148c1a24f` (**#5920**, `tess/sphere-tilted-circle-lane`) | `(392112, 131373, 12996, 6342)` |
+| `a195f777` (G's base) | `(392112, 131373, 12996, 6342)` |
+| `a454950e3` (main, 2026-10-29) | `(392112, 131405, 12996, 6342)` |
+
+So **#5920** ("the sphere arm keeps a pole as a polygon side") makes
+30 more rays answer at the aimed vertex, halves the refused candidates
+(26058 → 12996), and gives 1950 fewer rays a refusal. The ray count holds,
+and the row's other asserts hold: no genuine crossing is refused, and
+there are no wide winners. G (#5954) then adds the 32 `kitchen_sink`
+grazes measured in G's entry above.
+
+INTENT stage 6 A (#6023) has since re-pinned the row over a new
+corpus, so main is green on it. The question this row asks now covers a third
+refusal move: is #5920's halving what its sphere mesh should produce?
+TESS owns that answer, as the merge's program
+(`work/tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side.md`).
+This entry is the evidence: read the refused candidates per landing at `890d10746`
+against `148c1a24f`.
+

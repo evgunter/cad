@@ -20,168 +20,12 @@ use editor_core::Node;
 /// a re-minted id moves the word with no geometry moving; so does a
 /// point landing in another arena slot.
 ///
-/// Re-pinned when declaring a variable began minting its id: the rows of
-/// the four documents that declare one (`die`, `heat_sink`,
-/// `kitchen_sink`, `part_select`) moved with their re-minted node ids,
-/// and every other row held its word.
-///
-/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
-/// every node is minted from slots that hold variable ids, a typed
-/// value's variable drawn from what it holds, so every node id moved
-/// and with it every row this hashes. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held untouched across the change.
-///
-/// **Re-pinned when an id became its mint ordinal and its digest**: a
-/// row names its node by ordinal, and every word moved with the id it
-/// hashes; the ids-masked geometry fence held.
-///
-/// **Re-pinned when a selection became a variable**: the tour document
-/// mints one selection ahead of its transforms, so each of its rows'
-/// ordinals moved by one and its words with them; every other row held,
-/// and so did the ids-masked geometry fence.
-///
-/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
-/// the node): `kitchen_sink`, `die_pips`, `die_composed` and the tour
-/// document hold no in-plane axis datum, so their later ids moved —
-/// ordinals by two where the datum and its frame read went — and every
-/// row naming them; every other row held its word, and the ids-masked
-/// geometry fence held. Taken merged over FORK-DM4 unit 1 (PR 4527).
-///
-/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
-/// holding its body): `part_select`'s row alone. Its union declares the
-/// rest between the split's halves by the section face, which no longer
-/// spells the half, so the union and every node minted after it took
-/// new ids; the transform's word hashes its id. The id-masked geometry
-/// fence held.
-///
-/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
-/// placement): a rigid motion of a body that was a `Transform` is a
-/// `Place`, and a construction that stood on a moved datum frame is
-/// built in its own coordinates and placed where the frame stood, so the
-/// registry holds 118 placements where it held 51 and every document
-/// has rows. The documents were re-spelled without `Datum` or
-/// `Transform`, so every id moved and every word with it.
-///
-/// **Re-pinned merging main into D**: `declared_tangency`'s placement
-/// moved with main's chord director (its components, not `atan2`); the
-/// kitchen sink's eight with its lone block's copies hung below the
-/// world's xy as its retired `SetExtrudeSide` edit had them (placed at
-/// a pose, which mints one id fewer than standing, so the ordinals after
-/// them moved by one); `corner_table`'s
-/// one with its union's arena order under main's union fold, its points
-/// at their exact values. Every other row held.
-///
-/// **Re-pinned for the identity bundle** (FORK-REST): a copy standing
-/// where its body stands is placed by no mate and the constant `0` on
-/// every freedom, written as one `AddValues`, which mints a different number of ids
-/// from the plane mate and three values it replaces, so every node
-/// minted after a stand moved its id, and this digest feeds ids: the
-/// placements after a stand in `heat_sink`, `declared_tangency`,
-/// `kitchen_sink`, `cut_cylinder` and `part_select`, whose ordinals moved.
-/// Every standing copy is bit-identical to its source.
-///
-/// **Re-pinned for exact turns** (INTENT stage 3 D): a turn written as a
-/// fraction of a turn takes its sine and cosine from the fraction, so a
-/// revolve whose heading is `turn/4` has its axis on its profile's `y`
-/// exactly, and the placements of such a revolve, or of a pose spun by
-/// `turn/4`, carry exact turns. `die_tool`'s two rows moved by that
-/// alone. The writers that mean an axis-aligned frame state it: the
-/// pips of `die_pips` and `die_composed` (two rows each) and of the
-/// tour die (22) stand on lines stated from the cube's corner, and the
-/// kitchen sink's revolve stands upright by a bundle with no mate spun
-/// `turn/4`, its split's plane and its pattern's axis read off its faces
-/// (nine rows). Every other row held, across main's merge at
-/// `557e581a64` too.
-///
-/// **Read where each copy stands** (INTENT stage 3 E): a copy is its
-/// source's body under its frame, so the word digests the copy composed
-/// into its space through `in_space`. 118 of the 119 words held: each
-/// copy composes to the bits its rebuilt copy had. The tour die's last
-/// row (`1621`, the identity copy of the filleted die) moved. Against
-/// main (`b97c0195`, and again `cd5f9dee`), composed through `in_space`,
-/// 18 of its 108 points and 2 of its 68 carriers moved, and nothing
-/// else:
-/// - its 15 pip-floor points read `0.04999999999999993` where they read
-///   `0.04999999999999996`, four ulps further from `0.05`;
-/// - four points read `z = 0.5` where they read `0.49999999999999994`
-///   (one ulp closer), one of them a floor point;
-/// - a sphere carrier's and a torus carrier's centres read `z = 0.5`
-///   where they read `0.49999999999999994`.
-///
-/// So of its points four coordinates come closer and fifteen go
-/// further. The pips'
-/// union computes in its first pip's frame and reads every other pip
-/// through `relative` (an inverse and a composition) where each pip was
-/// rebuilt into the world, and the cut, both fillets and this copy
-/// carry that rounding: the union (`1603`) moves 35 of its 42 points
-/// (the floor, two `0.5`s, its `-0.13` and `1.13` faces exact in x and y
-/// and its `-0.13` face `-0.13000000000000012` in z where it read
-/// `-0.13000000000000003`; 16 coordinates closer, 21 further) and its
-/// sphere's centre; the cut and the first fillet (`1605`, `1609`) the
-/// floor, three `0.5`s and the sphere; the second fillet (`1613`) as
-/// this copy. Main's word here is
-/// `0xf44c58129da3f0a3`.
-///
-/// `die_tool`'s two rows moved again when its master ball came to
-/// stand on the cube's corner frame by an axis mate whose slide and
-/// spin are the constant `0`, where the retired place-against helper had turned it by
-/// `atan2`'s rounded quarter turns. Its explicit rule's frames are now
-/// built from the fraction of a turn each is
-/// (`Frame::rotate_by_turns_then_translate`). The rows are the ball's
-/// copy and the product. The product's ordinal fell from 101 to 59:
-/// the master's placement mints 42 fewer ids than the retired place-against helper's
-/// did.
-///
-/// `tube_arc`'s and `hollow_tube_elbow`'s rows moved when each tube,
-/// built about its own `z`, came to stand about the world's `+y` again
-/// as its retired spine frame had it: a bundle with no mate spun
-/// `−turn/4` about `x`, so its world copy is where it stood before D.
-///
-/// Merging main at `be82e5ad6b` into D moved `die_composed`'s row and
-/// the tour document's last: each is the world placement of the
-/// filleted die, minted after the fillet, whose stored selection names
-/// the pip rim by seam sides carried in through their reads (N3,
-/// main's); the fillet's id moved with its payload, and the
-/// placement's with it. Neither tree moved these words alone; every
-/// other row held.
-///
-/// Re-pinned, `die` alone, when its pips came to stand on frames stated
-/// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
-/// written `atan2`'s rounded turns: the die's world vertices are the
-/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
-/// placements, their ids and the names under them are new.
-///
-/// Re-pinned for D′1 (a placement names its target space): each
-/// construction defines its space beside its body and every bundle is
-/// written whole, so ids, and the names spelled with them, moved in
-/// every document; `m10_p_fence`'s ids-masked geometry fence held.
-///
-/// **Re-pinned for PR 5616** (a mirror's seam is the plane's face read
-/// twice), taken merged over D′2 (PR 5613, mates read geometry), which
-/// left this row red on main: D′2 moved every corpus document's ids,
-/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
-/// seam face plainly, so its ids moved too. Ids only:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held unmoved.
-///
-/// **Re-pinned when a plane pose came to hold its normal and offset
-/// alone**: `cut_cylinder`'s two rows alone. Its tool is a tilted plane,
-/// and a split reads the plane's point nearest the origin rather than
-/// the face's stored point, so its halves' section points moved at the
-/// rounding level; every other row held its word.
-///
-/// Re-pinned for D′3 (a placement copies one source, and the product is
-/// a slot reading a `⊔`): a placement's payload is its one `source`,
-/// so each placement's id, and the word hashing it, moved; every row's
-/// ordinal held. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin. Measured again
-/// with main's plane pose merged in, where `cut_cylinder`'s two rows
-/// carry both changes. Measured again over main's merge at
-/// `1235f4c050`, which brings stage 4 I's re-pin of every row
-/// (`f077063267`, ids only): D′3's moved ids land over main's, so every
-/// row that moved on either side moved here; the ids-masked fence held.
+/// A copy is its source's body under its frame, so each word digests
+/// the copy composed into its space through `in_space`, and moves with
+/// any bit of any coordinate a motion, a rebuilt source or a re-minted
+/// id moves; a row is added with every placement the registry gains.
+/// The PR that moves a row says which copies moved, by how many points
+/// and why.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 160, 0x0b0e_9ff2_2465_e66d),
     ("die", 196, 0x36ae_6d4e_acb1_34a2),
@@ -301,6 +145,18 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("hollow_tube_elbow", 15, 0x2dd1_86b2_9afd_0375),
     ("hollow_tube_ring", 13, 0xfb79_1da5_4bf8_80f3),
     ("reshaped_rod", 55, 0xde1c_e559_b047_222b),
+    ("pin_in_bore", 57, 0x0835_f363_3ab6_8043),
+    ("pin_in_bore", 71, 0xf4b5_32e9_193c_23a3),
+    ("pin_in_bore", 146, 0x4926_a22b_9b5b_751e),
+    ("pin_in_bore", 162, 0x6873_1af4_d165_17d0),
+    ("axis_projection", 38, 0x241b_bf9f_c0f1_3619),
+    ("axis_projection", 51, 0x8728_75e0_0186_5dee),
+    ("blocks_on_one_floor", 45, 0x9730_a6b9_70d4_a786),
+    ("blocks_on_one_floor", 90, 0x1d45_bd18_0497_6860),
+    ("blocks_on_one_floor", 118, 0xa91b_63f9_045a_db2e),
+    ("blocks_on_one_floor", 132, 0x3f92_7f0d_ae15_d0d3),
+    ("revolves_on_one_axis", 51, 0xb707_a714_e841_557b),
+    ("revolves_on_one_axis", 67, 0xa78c_57f0_20fe_03bb),
 ];
 
 #[test]
