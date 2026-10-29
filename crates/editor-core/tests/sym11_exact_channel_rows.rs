@@ -34,8 +34,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// them.
 ///
 /// The plate and the annulus refuse nowhere the bisection reaches, and
-/// replay whole at [`PAST_NO_CEILING`]. The link stops at the
-/// extrude's attachment gate (`carrier_matches_mapped_source`). The
+/// replay whole at [`PAST_NO_CEILING`]. The link replays whole too:
+/// rule H proves the extrude's attachment gate
+/// (`carrier_matches_mapped_source`) it stopped at. The
 /// bracket's and the pad's over-band span readings (`arc_span`,
 /// `line_span`) are settled by the segments' ends, which lie on the
 /// other carrier, so the bracket replays whole and the pad stops at
@@ -56,8 +57,8 @@ use crate::m10_9_pins_interval::measured_studies;
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1149, 832, 229]),
     ("r1_annulus", [654, 555, 212]),
-    ("r2_link", [303, 255, 269]),
-    ("r2_filleted_bracket", [1540, 1171, 914]),
+    ("r2_link", [962, 805, 2241]),
+    ("r2_filleted_bracket", [1542, 1169, 914]),
     ("r2_rounded_pad", [1616, 1262, 2476]),
 ];
 
