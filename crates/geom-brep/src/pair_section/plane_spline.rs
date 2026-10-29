@@ -91,16 +91,20 @@ impl<T: Real> PlaneSplinePose<T> {
 
     /// **A ball holding the whole section**: the wall lies in its net's
     /// convex hull (its weights are positive), so in the ball about the
-    /// net's control points: about their mean, reaching the farthest.
+    /// net's control points: about the middle of their box, reaching the
+    /// farthest.
     pub fn ball(&self) -> ExtentBall<T> {
         let control = self.net.control();
         let Some(&first) = control.first() else {
             return ExtentBall::new(Point3::origin(), T::zero());
         };
-        let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-        let mean = control.iter().fold(zero, |acc, &p| acc + (p - first))
-            / T::from_f64(control.len() as f64);
-        let center = first + mean;
+        let (lo, hi) = control.iter().fold((first, first), |(lo, hi), &p| {
+            (
+                Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+                Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+            )
+        });
+        let center = lo + (hi - lo) * T::from_f64(0.5);
         let radius = control
             .iter()
             .fold(T::zero(), |r, &p| r.max((p - center).norm()));
