@@ -150,3 +150,43 @@ A Boolean instance of E at ε = 1e-9, from PR 5968's review sweep
   the other, …" }` (`census.rs` `CurvedWithinReach`). Which solids'
   faces those are was not read.
 - Not seen in A ∩ B or A ∪ B, nor at `t < 0`.
+
+## Evidence: a plane along a union pinch's face (2026-10-29, SPLITDOOR, branch `splitdoor/pinch-corner-split`)
+
+Cause B, an operand pinch vertex on the section face. The L-prism ∪ the
+tilted cube (`crates/topo/tests/split_through_a_union_pinch.rs`) keeps
+two vertices at the pinch (1, 1, 1). Split by z = 1, the L's top plane,
+either way up, both sides pass tier 3. The z ≤ 1 side fails tier 3′
+against no records with one finding:
+
+    UnrecordedContact { contact: VertexOnFace { vertex, face }, witness: "(1.0, 1.0, 1.0)", margin: Some(0.0) }
+
+`SplitResult::coincidences` is empty. The plane leaves the reflex notch's
+cone vertex one-sided, so `splitting::reduce` mints no null edge there
+and records nothing: it pushes a `SplitOn` coincidence only for an ON
+vertex with two or more runs (`reduce`, the `runs.len() >= 2` arm). The
+vertex then sits on the side's section face, a touch with no record.
+Measured at ε = 1e-9 for five cube tilts and for the three-cone variant
+(a parallelepiped in the notch's gap). The fusion that branch adds
+leaves it unchanged; it reproduces with the fusion switched off.
+
+### In-band tilts at a fused pinch (measured by PR 5981's review)
+
+The ignored sweep `crates/topo/tests/review_pinch_corner_split.rs`,
+`review_sweep_normals_through_the_pinch`, run with `REVIEW_PERTURB=1` at
+ε = 1e-9, splits through the corner at normals 1e-7 off the cube's
+bottom-face plane, unit (1, 1.3, 0.7) either way. 12 sides fail tier 3′
+against the union's records carried through the split with
+`CensusUndecidable` ("they touch where a face of one, seen from the
+touch, has corners or edges too nearly in line to trace at this
+tolerance"):
+
+| union | sides |
+|---|---|
+| three cones (the wedge in the notch's gap) | 4 (2 normals × ±; cones 3, kept 2) |
+| three cones (the wedge in the gap above the top) | 4 (the same) |
+| four cones | 4 (cones 4, kept 3) |
+
+The review measured every one as a cell that refuses with the fusion
+switched off. Tier 3 holds on each; the census cannot decide the touch
+in band. Typed, not fixed here.

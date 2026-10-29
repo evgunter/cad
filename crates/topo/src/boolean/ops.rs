@@ -560,10 +560,13 @@ impl<T: Real> Settler<'_, T> {
     /// [`SettleError::Dead`] where the chase ends on a cell `body` does
     /// not hold: a stage deleted it without its row.
     pub fn settle(&self, vertex: VertexKey) -> Result<Cell, SettleError> {
-        let start = Cell::Vertex(self.fusions.survivor(vertex));
-        self.rows
-            .chase(start, |c| holds(self.body, c))
-            .map_err(|reached| SettleError::Dead { vertex, reached })
+        crate::lineage::settle_through(
+            self.fusions,
+            Cell::Vertex(vertex),
+            |c| self.rows.get(c),
+            |c| holds(self.body, c),
+        )
+        .map_err(|reached| SettleError::Dead { vertex, reached })
     }
 
     /// The live cells `vertex`'s point lies in, one per cone of the
