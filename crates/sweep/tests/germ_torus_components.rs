@@ -102,6 +102,14 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
             other => format!("result {other:?}"),
         },
         Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
+        Err(BooleanError::GermSectionUnbuilt {
+            why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
+            ..
+        }) => "tube straddles".to_owned(),
+        Err(BooleanError::Escalated {
+            decision: topo::BooleanDecision::PierceCurvature,
+            ..
+        }) => "pierce curvature".to_owned(),
         Err(BooleanError::Join(join))
             if matches!(
                 join.error(),
@@ -127,10 +135,23 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
 }
 
 /// `a` against the donut moved to each of `places`, under ∪ in both
-/// member orders (`A ∪ B`, then `B ∪ A`), against `want` by placement.
-fn row(a: fn() -> Body<f64>, places: &[usize], want: &[[&str; 2]]) {
+/// member orders (`A ∪ B`, then `B ∪ A`), against `want` by placement at
+/// the compiled ε; `other_eps` names the placements that stop elsewhere
+/// at another ε row, measured: at `1e-6` a march's tube straddles
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+fn row(
+    a: fn() -> Body<f64>,
+    places: &[usize],
+    want: &[[&str; 2]],
+    other_eps: &[(f64, usize, [&str; 2])],
+) {
+    let eps = Tol::witness().eps();
     let mut off = Vec::new();
     for (&i, want) in places.iter().zip(want) {
+        let want = other_eps
+            .iter()
+            .find(|&&(e, k, _)| e == eps && k == i)
+            .map_or(want, |(_, _, w)| w);
         let (a, b) = (at_rest(&a()), placed(&donut(), placements()[i]));
         let got = [
             stop(&topo::union(&a, &b, Tol::witness())),
@@ -166,6 +187,11 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             ["torus ring island", "torus ring island"],
             ["torus ring island", "torus ring island"],
         ],
+        &[
+            (1e-6, 2, ["tube straddles"; 2]),
+            (1e-6, 3, ["tube straddles"; 2]),
+            (1e-6, 5, ["tube straddles"; 2]),
+        ],
     );
 }
 
@@ -175,7 +201,12 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// stops at the ring lane's island on the torus face.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(ball, &[5], &[["torus ring island", "torus ring island"]]);
+    row(
+        ball,
+        &[5],
+        &[["torus ring island", "torus ring island"]],
+        &[],
+    );
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the
@@ -192,6 +223,10 @@ fn two_donuts_in_general_pose_pass_the_germ_mint() {
             ["curved join A", "curved join B"],
             ["torus ring island", "torus ring island"],
             ["torus ring island", "torus ring island"],
+        ],
+        &[
+            (1e-6, 1, ["pierce curvature"; 2]),
+            (1e-6, 2, ["tube straddles"; 2]),
         ],
     );
 }

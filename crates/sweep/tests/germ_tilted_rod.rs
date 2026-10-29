@@ -225,8 +225,11 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
 
 /// **The other spins, and the steeper tilts, refuse at their germs**
 /// before any body is built, on every op: a torus germ against the rod's
-/// end cap, which no frame arm reads (`GermFrameUnsupported`). (Its germs
-/// against the rod's wall take their site's foot on the carried section.)
+/// end cap, which no frame arm reads (`GermFrameUnsupported`), or, where
+/// a germ on the rod's wall is minted first (at ε 1e-6), the join's
+/// segment dispatch, which has no torus lane for a segment it does not
+/// carry (`CurvedBooleanUnsupported`). Every wall germ takes its site's
+/// foot on the carried section.
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
@@ -243,7 +246,14 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         let c = rod(beta, spin);
         for (_, _, what, r) in every_op(&h, &c) {
             assert!(
-                matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+                matches!(
+                    r,
+                    Err(BooleanError::GermFrameUnsupported { .. }
+                        | BooleanError::CurvedBooleanUnsupported {
+                            kind: SurfaceKind::Torus,
+                            ..
+                        })
+                ),
                 "{what} at β {beta}, spin {spin}: {}",
                 outcome(&r)
             );

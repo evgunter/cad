@@ -1245,9 +1245,12 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     section_site(&c, &s, Point3::new(cyl, 0.0, 0.3))
 }
 
-/// The germ mint's reading of a site on the section of `c` and `s`: the
-/// pair carried, and a site's foot on it, the site a point of its first
-/// component, or `site` where it has none.
+/// The section door's reading of a site on the section of `c` and `s`,
+/// as the germ mint reads it short of the march: the pair classified,
+/// carried where its carriers are closed forms, and a site's foot on it:
+/// a point of its first component, or `site` where it has none.
+/// A section the general rung would march passes here: the march is a
+/// door of its own.
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,
@@ -1263,9 +1266,10 @@ fn section_site(
         Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
         Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
     };
-    let carried = section
-        .carry(Some(geom_brep::SsiLane::marched()), band())
-        .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
+    let carried = match section.carry(None, band()) {
+        Err(geom_brep::CarryError::NoLane { .. }) => return Ok(()),
+        other => other.map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?,
+    };
     let site = carried
         .components()
         .first()

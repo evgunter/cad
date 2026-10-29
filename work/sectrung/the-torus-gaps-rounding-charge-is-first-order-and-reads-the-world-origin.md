@@ -57,3 +57,15 @@ origin as well as the world origin, the frame-dependence this row's fix
 has to remove. `crates/geom-brep/tests/torus_doors_ssi.rs`
 `a_tube_circle_tangency_refuses_at_each_door` reads the pose with
 `u_ref = +x` for that reason.
+
+## Evidence: a square pipe at scale reads tangent far past the band (SECT, 2026-10-29)
+
+`topo` `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+at ε 1e-12 (`CAD_FUZZ_SEED=0x5bd605a63756e366 CAD_FUZZ_EFFORT=1`), found
+on `sect/components-by-foot`, whose diff does not touch the tangency
+path: "a pipe along the core's tangent", `R 46.22`, `r 34.60`,
+`(e, z0, rc) = (−46.22141309604856, 3.26e-10, 34.60196814898672)`, tilt
+`2.8e-20`, answers R-tan on `ct_critical_gap` where the traced
+degeneracy stands `2.67e-10` from tangency, past the search's `16 ×
+escalate` allowance. The pose's scale (`R + r ≈ 81` from the origin)
+fits the charge being read from the world origin.
