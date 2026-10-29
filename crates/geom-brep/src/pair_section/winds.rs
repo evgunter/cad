@@ -121,10 +121,11 @@ enum Channel {
     },
 }
 
-/// A value lifted to its point interval: the scalar's own lift
-/// (`Real::from_f64`, exact on every finite value).
+/// A computed value lifted to its point interval: the scalar's own lift
+/// of a computed value (`Real::from_computed`, the point itself on the
+/// interval lane).
 fn lift(v: f64) -> Interval {
-    <Interval as geom_core::Real>::from_f64(v)
+    <Interval as geom_core::Real>::from_computed(v)
 }
 
 fn lift3(v: Vec3<f64>) -> Vec3<Interval> {
