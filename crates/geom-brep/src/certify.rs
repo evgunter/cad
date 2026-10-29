@@ -9400,6 +9400,12 @@ mod tests {
             (CertCheck::AnalyticBreakResidual, Miss(Unsized::Fit)),
             (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
             (
+                CertCheck::RowImage {
+                    surface: SurfaceKey::default(),
+                },
+                Miss(Unsized::Bound),
+            ),
+            (
                 CertCheck::PlaneNurbsReportedTransversality,
                 NoSize(Unsized::Defect),
             ),
