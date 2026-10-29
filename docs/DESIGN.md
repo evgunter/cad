@@ -801,8 +801,8 @@ tiers".
      only where the tangency is jet-determinate; **maximal edges** (no
      joinable vertex at rest); **chart singularities as vertices**
      (every one in a face's closure is a vertex of it, and every wrap
-     edge's tip lies on its face's chart singularity); **prefer-intrinsic** descriptions
-     ([edges]); and the **orientation invariant**, a solid's faces
+     edge's tip lies on its face's chart singularity);
+     **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
      leaving infinity outside it, read by the one reader of a shell's
      role ([coincidence.booleans]). A zero-volume lamina is a geometric
      defect.
