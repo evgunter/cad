@@ -1426,9 +1426,13 @@ fn rim_about(c: (f64, f64), r: f64, az: &[f64]) -> ProfileLoop<f64> {
 /// the profile escalates on the short arcs.
 ///
 /// The rims swapped, the boss `r = 0.1` inside the hole `r = 0.3`,
-/// tangent there, the boss and the plate only touch, along the run;
-/// their union refuses `ClassificationInvariant` as `main` does
-/// (`work/splitdoor/a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant.md`).
+/// tangent there, the boss and the plate only touch, along the run, and
+/// their union is two solids at the closed form, passing tier 3, whose
+/// tier 3′ reads as [`Reads::Undecided`]'s. At the rims' shared vertex
+/// either side of the tip the long arcs part at about `2s`, which the
+/// short arcs' arm leaves in band and the long arcs' reach decides: no
+/// sector pair of the boss's floor and the hole's wall meets there
+/// (`boolean::sectors` `pair_search`).
 #[test]
 fn short_arcs_at_a_turned_tip_at_the_finest_band() {
     let s = 3e-7;
@@ -1482,11 +1486,18 @@ fn short_arcs_at_a_turned_tip_at_the_finest_band() {
                 match op {
                     "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
                     "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
-                    _ if pose == "swapped" => assert!(
-                        matches!(r, Err(BooleanError::ClassificationInvariant { .. })),
-                        "{row}: {:?}",
-                        r.map(|_| "a body")
-                    ),
+                    _ if pose == "swapped" => {
+                        let b = r
+                            .as_ref()
+                            .ok()
+                            .and_then(BooleanResult::body)
+                            .unwrap_or_else(|| panic!("{row}: {:?}", r.as_ref().map(|_| "empty")));
+                        let v = topo::test_support::pinned_volume(&row, &b.body, tol()).volume;
+                        assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
+                        let t3 = topo::validate_geometric(&b.body, tol());
+                        assert!(t3.is_ok(), "{row}: tier 3 {t3:?}");
+                        reads_as(&row, r, want, Reads::Undecided);
+                    }
                     _ => united_at_the_run(&row, r, want, run),
                 }
             }

@@ -2455,6 +2455,14 @@ pub(super) fn pair_search<T: Decide>(
             } else {
                 pair_codes(sa, sb, band)?
             };
+            // A convex sector whose two bounds lie definitely on one side
+            // of the other's plane meets that plane only at the vertex.
+            // The codes read each bound at its own reach, which can decide
+            // a ray `within` left in band at the shorter arm.
+            let one_side = |c: SidePair| c.0 == c.1 && c.0 != SideCode::On;
+            if one_side(sa_codes) || one_side(sb_codes) {
+                continue;
+            }
             records.push(PairRecord {
                 a: i,
                 b: j,
@@ -6233,6 +6241,45 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::from_array(normal), true),
             arm: 1.0,
         }
+    }
+
+    /// A sector whose long bound leaves the other's plane by an angle
+    /// its short arm leaves in band: `within` at the arm holds the
+    /// planes' line, the codes at the bound's own reach read the whole
+    /// sector on one side of the other's plane, and the pair is no
+    /// record (the boss inside a hole cut into short arcs either side of
+    /// the touch, at the rims' shared vertex).
+    #[test]
+    fn a_sector_wholly_off_the_others_plane_is_no_record() {
+        let b = band();
+        let arm = 100.0 * b.escalate();
+        let theta = b.zero() / (10.0 * arm);
+        let reach = 100.0 * b.escalate() / theta;
+        let floor = BoolSector {
+            start: Vec3::new(-theta.sin(), -theta.cos(), 0.0),
+            end: Vec3::new(-1.0, 0.0, 0.0),
+            start_reach: Reach::Extent(reach),
+            end_reach: Reach::Bisector(arm),
+            arm,
+            ..sector([0.0; 3], [0.0; 3], [0.0, 0.0, -1.0])
+        };
+        let wall = BoolSector {
+            start: Vec3::new(0.0, 0.0, -1.0),
+            end: Vec3::new(0.0, -1.0, 0.0),
+            start_reach: Reach::Extent(reach),
+            end_reach: Reach::Extent(reach),
+            arm: reach,
+            ..sector([0.0; 3], [0.0; 3], [-1.0, 0.0, 0.0])
+        };
+        let line = Vec3::new(0.0, -1.0, 0.0);
+        assert!(
+            within(&floor, line, false, DeclarationRead::Moot, b).unwrap(),
+            "the line reads within the floor at its arm"
+        );
+        let (codes, _) = pair_codes(&floor, &wall, b).unwrap();
+        assert_eq!(codes, (SideCode::Out, SideCode::Out), "the floor's codes");
+        let found = pair_search(&[floor], &[wall], b).unwrap();
+        assert!(found.records.is_empty(), "records: {:?}", found.records);
     }
 
     /// `within`: interior yes, exterior no, boundary graze counts
