@@ -1138,11 +1138,9 @@ suits the slot.
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's slant, held to one side of the
-  profile's plane) or a point and a heading (a revolve's axis line).
-  A profile drawn on a `Frame` reads, in that frame's plane, the trace
-  of a face of the frame's space (its carrier cut by the plane, in
-  closed form, never a variable): "Constructing a coincidence". A loft reads its sections and, for each after the
-  first, a station: slides and spins in the first section's own axes.
+  profile's plane) or a point and a heading (a revolve's axis line). A
+  profile drawn on a `Frame` may read traces in its plane
+  ("Constructing a coincidence").
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1584,16 +1582,10 @@ finding quiet ([intent.structural]).
 
 **Constructing a coincidence.** Coaxiality is one `Axis` read twice,
 directly or as projections of one construction; tangency is
-constructed. A profile drawn on a frame reads another surface's trace
-in its plane and runs onto it at a named crossing (where the piece
-enters or leaves the surface's material, the nth such), then continues
-along the trace's tangent. A sweep of it is tangent to the surface
-along the swept curve where its motion lies in that surface kind's
-symmetry, and at the crossing where the frame's plane contains an axis
-of that symmetry; elsewhere the profile's own tangency is all it
-states. A trace that does not exist, a crossing that is not there, and
-a trace with no tangent at the crossing refuse, typed, naming the step
-and the face.
+constructed: a profile drawn on a frame reads another surface's trace
+in its plane and continues tangent to it, and a sweep of it stays
+tangent to the surface wherever its motion follows that surface's
+symmetry.
 
 **The door and the lint.** `[coincidence.door]` Every coincidence the
 kernel infers from values — a boolean's glue, a split's ON verdict
