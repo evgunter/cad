@@ -168,3 +168,108 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         assert!(read > 0, "{what}: A has a spline edge and B a plane face");
     }
 }
+
+/// Re-review probe: the two walls' signed crossing sine along each shared
+/// rim, read from the walls' own derivatives at the `v = 0` row, finely
+/// sampled, with no certificate in the loop.
+#[test]
+#[ignore = "re-review 2 probe: about a minute in debug, prints the measurement"]
+fn rr_probe_the_walls_crossing_along_the_rims() {
+    let tol = Tol::witness();
+    let base = [0.170, 0.028, 0.020];
+    let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
+    let leaf = blade(
+        d,
+        v,
+        (1.2, -0.3),
+        |s| [0, 1, 2].map(|i| base[i] + ([0.300, 0.034, 0.016][i] - base[i]) * s),
+        tol,
+    );
+    let sheath = blade(-d, v, (0.34, 0.85), |_| base, tol);
+    let walls = |body: &topo::AtRestBody<f64>| {
+        let mut out = Vec::new();
+        for (_, f) in body.faces() {
+            if let Some(geom::Surface::Nurbs(n)) = body.get_surface(f.surface) {
+                let (u0, u1) = n.knot_values_u().domain();
+                let (v0, _) = n.knot_values_v().domain();
+                let on = (0..=8).all(|k| {
+                    let u = u0 + (u1 - u0) * k as f64 / 8.0;
+                    n.eval(u, v0).x.abs() < 1e-9
+                });
+                if on {
+                    out.push(n.clone());
+                }
+            }
+        }
+        out
+    };
+    let (la, sa) = (walls(&leaf), walls(&sheath));
+    println!("leaf walls on x=0: {}, sheath: {}", la.len(), sa.len());
+    for a in &la {
+        let (u0, u1) = a.knot_values_u().domain();
+        let (va, _) = a.knot_values_v().domain();
+        for b in &sa {
+            let (w0, w1) = b.knot_values_u().domain();
+            let (vb, _) = b.knot_values_v().domain();
+            // Same row? compare at the u mid.
+            let um = 0.5 * (u0 + u1);
+            let p = a.eval(um, va);
+            // Locate b's parameter by a fine scan then Newton on |S_b(w) - p|.
+            let closest = |p: Point3<f64>| {
+                let mut best = (f64::INFINITY, w0);
+                for k in 0..=800 {
+                    let w = w0 + (w1 - w0) * k as f64 / 800.0;
+                    let dd = (b.eval(w, vb) - p).norm();
+                    if dd < best.0 {
+                        best = (dd, w);
+                    }
+                }
+                let mut w = best.1;
+                for _ in 0..30 {
+                    let dv = b.ders(w, vb);
+                    let r = b.eval(w, vb) - p;
+                    let step = r.dot(dv.du) / dv.du.dot(dv.du);
+                    w = (w - step).clamp(w0, w1);
+                }
+                (w, (b.eval(w, vb) - p).norm())
+            };
+            if closest(p).1 > 1e-9 {
+                continue;
+            }
+            println!("rim: leaf u [{u0}, {u1}], sheath u [{w0}, {w1}]");
+            let n = 4000;
+            let mut prev: Option<(f64, f64)> = None;
+            let mut min_abs = (f64::INFINITY, 0.0);
+            for k in 0..=n {
+                let u = u0 + (u1 - u0) * k as f64 / n as f64;
+                let p = a.eval(u, va);
+                let (w, miss) = closest(p);
+                let da = a.ders(u, va);
+                let db = b.ders(w, vb);
+                let na = da.du.cross(da.dv);
+                let nb = db.du.cross(db.dv);
+                let t = da.du * (1.0 / da.du.norm());
+                let s = na.cross(nb).dot(t) / (na.norm() * nb.norm());
+                if s.abs() < min_abs.0 {
+                    min_abs = (s.abs(), u);
+                }
+                if let Some((pu, ps)) = prev {
+                    if ps.signum() != s.signum() {
+                        println!(
+                            "  sign change between u = {pu:.7} ({ps:+.3e}) and u = {u:.7} ({s:+.3e}), fraction {:.5}, miss {miss:.1e}",
+                            (u - u0) / (u1 - u0)
+                        );
+                    }
+                }
+                if k % 400 == 0 {
+                    println!(
+                        "  u = {u:.5} (fraction {:.3}): sin = {s:+.4e}",
+                        (u - u0) / (u1 - u0)
+                    );
+                }
+                prev = Some((u, s));
+            }
+            println!("  least |sin| = {:.3e} at u = {:.6}", min_abs.0, min_abs.1);
+        }
+    }
+}
