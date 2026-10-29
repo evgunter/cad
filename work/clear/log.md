@@ -150,3 +150,4 @@ Signed: (CARVE orchestrator)
   - Q2: `let c = bound.c();` is shaped by the from-f64 gate's text matching.
 
   Main's cost-curve red, which the lane added to GREEN's main-reds row, was fixed by #5979. Unblocked: the minsep tightening.
+- 2026-10-29 — **TIGHTEN dispatched** (`docs/TIGHTEN-SPEC.md`, branch `clear/tighten`, cloud lane). It carries out the 2026-10-28 decision on `min-separation-tightening-crosses-the-drive`: a scoped unlogged `k_stats` door, `min_separation` deciding its cells, and the retirement of `LowerBoundOnly`. Review: DUAL.
