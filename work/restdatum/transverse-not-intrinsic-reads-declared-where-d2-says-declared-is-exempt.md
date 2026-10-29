@@ -4,6 +4,8 @@ kind: issue
 title: TransverseNotIntrinsic fires only on a DECLARED locus, while D2's text says a declared conventional description is exempt: a derived chart on a transverse edge passes tier 3
 status: open
 opened: 2026-09-26
+priority: P3
+cost: M
 ---
 
 
