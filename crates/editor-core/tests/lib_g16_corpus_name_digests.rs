@@ -351,6 +351,8 @@ const PINNED: &[(&str, u64)] = &[
     ("reshaped_rod", 0x408e1fae110b5bc4),
     ("pin_in_bore", 0x4efadfbeeee4da76),
     ("axis_projection", 0xc9886636e6ced645),
+    ("blocks_on_one_floor", 0x47c47127b70fd891),
+    ("revolves_on_one_axis", 0x4072475117d1226a),
 ];
 
 #[test]

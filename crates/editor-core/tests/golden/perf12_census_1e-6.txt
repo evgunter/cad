@@ -241,6 +241,17 @@ solids=1 faces=10 edges=18 vertices=12
 at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
+## blocks_on_one_floor
+solids=2 faces=12 edges=24 vertices=16
+at rest: 0 interference, 0 could not look
+census: Ok
+rows: 1
+(CopyRef { var: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), member: 0 }, CopyRef { var: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), member: 0 }) NamedCoincidence { cells: [Entity { input: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 140, digest: 13260371288999922157 }), path: [From { read: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 17, digest: 2078235492002251942 }), path: [Cap(End)] } }] } }, Entity { input: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 140, digest: 13260371288999922157 }), path: [From { read: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [Merged([StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [From { read: VarId(MintId { ordinal: 46, digest: 13114987598050818635 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 36, digest: 13076484443318540851 }), path: [Cap(Start)] } }] }, StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [From { read: VarId(MintId { ordinal: 91, digest: 13423040132005396612 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 81, digest: 4002673168606504690 }), path: [Cap(Start)] } }] }])] } }] } }], relation: SameOpposite, site: CensusAtRest, margin: MarginDiag(Value(0.0, None, ZeroWord(0))), discharge: Numeric, origin: Node }
+## revolves_on_one_axis
+solids=1 faces=6 edges=10 vertices=6
+at rest: 0 interference, 0 could not look
+census: Ok
+rows: 0
 ## heat_sink@10
 solids=11 faces=66 edges=132 vertices=88
 at rest: 9 interference, 0 could not look

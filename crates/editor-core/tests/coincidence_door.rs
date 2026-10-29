@@ -2701,15 +2701,32 @@ fn a_band(name: &StableName) -> bool {
 /// node decides a coincidence, and the world's `⊔` records no at-rest
 /// row: the census meets curved faces of two parts within reach and
 /// says it cannot yet tell whether they touch, at the press fit (whose
-/// walls are one cylinder by value) and at the clearance fit alike.
+/// walls are one cylinder by value) and at the clearance fit alike, and
+/// alike where the press fit's shank reads a second variable typed equal
+/// to the bore (`pin_in_bore_two_variables`).
 ///
 /// Red if a pin stops seating, or once the census decides a curved
 /// contact (then the press fit's walls are a row to pin here).
 #[test]
 fn a_pin_in_a_bore_is_a_contact_the_census_cannot_look_at() {
-    let cd = crate::corpus::pin_in_bore::document();
-    let (rows, _) = door_lines(&cd);
-    assert_eq!(rows, Vec::new(), "no node decides a coincidence");
+    for cd in [
+        crate::corpus::pin_in_bore::document(),
+        crate::corpus::pin_in_bore::two_variables(),
+    ] {
+        pin_in_bore_cannot_be_looked_at(&cd);
+    }
+}
+
+/// [`a_pin_in_a_bore_is_a_contact_the_census_cannot_look_at`] over one
+/// of its two scenes.
+fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
+    let (rows, _) = door_lines(cd);
+    assert_eq!(
+        rows,
+        Vec::new(),
+        "{}: no node decides a coincidence",
+        cd.name
+    );
     let ev = run(&cd.doc);
     let product = editor_core::product_recorded(&cd.doc, &ev, Tol::witness()).expect("gathers");
     let feet: Vec<f64> = product
@@ -2746,7 +2763,8 @@ fn a_pin_in_a_bore_is_a_contact_the_census_cannot_look_at() {
         ]
         .into_iter()
         .collect(),
-        "the census could not look: {:?}",
+        "{}: the census could not look: {:?}",
+        cd.name,
         product.census
     );
 }
@@ -2914,4 +2932,211 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
             }
         )
     });
+}
+
+/// **Two blocks resting on one floor are a flush pair the door leaves
+/// unproven** (INTENT stage 6, `blocks_on_one_floor`). Each block is
+/// mated to the floor's top, never to the other block; the union of the
+/// two decides their bases flush, and their tops, and their abutting
+/// walls opposed, each over the budget, so unproven though the two rests
+/// generate the bases' equivalence (`[coincidence.structural]`;
+/// `work/intent/two-rests-on-one-plane-are-not-one-construction-at-the-door.md`).
+/// The world's `⊔` records the union's base on the floor's top at rest,
+/// unproven alike.
+///
+/// Red if the scene's rows change in kind, site or proof.
+#[test]
+fn two_blocks_resting_on_one_floor_are_an_unproven_flush_pair() {
+    let cd = crate::corpus::blocks_on_one_floor::document();
+    let (_, lines) = door_lines(&cd);
+    let flush = "SameOriented PlaneLadder unproven/Numeric/Budget";
+    let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
+    let on_budget = "OnCarrier VertexFusion unproven/Numeric/Budget";
+    assert_eq!(
+        lines,
+        [
+            flush,
+            flush,
+            flush,
+            "SameOpposite PlaneLadder unproven/Numeric/Budget",
+            flush,
+            on,
+            on,
+            on_budget,
+            on_budget,
+        ]
+    );
+    let ev = run(&cd.doc);
+    let at_rest: Vec<String> = at_rest_rows(&cd.doc, &ev)
+        .iter()
+        .map(|(node, row)| {
+            let how = match proof(&cd.doc, *node, row) {
+                Proof::Structural(rung) => format!("{rung:?}"),
+                Proof::Unproven { residual, recourse } => {
+                    format!("unproven/{:?}/{recourse:?}", residual.replay)
+                }
+            };
+            format!("{:?} {:?} {how}", row.relation, row.site)
+        })
+        .collect();
+    assert_eq!(
+        at_rest,
+        ["SameOpposite CensusAtRest unproven/Numeric/Budget"],
+        "the union rests on the floor"
+    );
+}
+
+/// **Two revolves reading one pair of axis variables glue unproven**
+/// (INTENT stage 6, `revolves_on_one_axis`). Both rings' `axis_through`
+/// slots read `ax` and `ay`; the second stands on the first in its
+/// space. The union reads the two bores and the two walls on one carrier
+/// each and glues the second's base to the first's top, every row
+/// unproven: the replay finds no identity in the carrier verdict or the
+/// margin.
+///
+/// Red if the scene's rows change in kind, site or proof.
+#[test]
+fn two_revolves_reading_one_axis_glue_unproven() {
+    let cd = crate::corpus::revolves_on_one_axis::document();
+    let (_, lines) = door_lines(&cd);
+    let carrier = "SameOriented CarrierLadder unproven/Numeric/OneConstruction";
+    let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
+    assert_eq!(
+        lines,
+        [
+            carrier,
+            "SameOpposite PlaneLadder unproven/Numeric/OneConstruction",
+            carrier,
+            on,
+            on,
+        ]
+    );
+}
+
+/// **The in-space axis identities of INTENT stage 6's scenes, at
+/// `Sym`**, under the door's own replay session: for every mate whose
+/// two sides are axes, the copy's axis carried into the target space
+/// by the placement's solved motion against the target's axis, as the
+/// six residuals of one line on another (`d′ × d` and `(f − f′) × d`);
+/// and for a mate side that reads a revolve's wall, that wall's axis
+/// against the revolve's own `axis` output carried by the same copy. One
+/// line a residual (`AXIS <document> <placement> <identity> <component>
+/// <discharge> <dag size>`). A measurement for the designers weighing
+/// stage 6's coaxial rung, not a gate.
+#[test]
+#[ignore = "a measurement: cargo nextest run -p editor-core --cargo-profile release --run-ignored only --no-capture -E 'test(=coincidence_door::measure_the_stage6_axis_identities)'"]
+fn measure_the_stage6_axis_identities() {
+    use editor_core::pose::PoseValue;
+    use geom_core::sym::deferred;
+    use geom_core::{Band, Decide, Point3, Sym};
+    type S = Sym<f64>;
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let scenes = crate::corpus::documents()
+        .into_iter()
+        .chain(crate::corpus::stage6_beside_the_registry())
+        .filter(|cd| {
+            [
+                "pin_in_bore",
+                "pin_in_bore_two_variables",
+                "shaft_and_bearing",
+                "axis_projection",
+                "revolves_on_one_axis",
+            ]
+            .contains(&cd.name)
+        });
+    for cd in scenes {
+        let doc = &cd.doc;
+        let opts = editor_core::EvalOptions {
+            symbols: true,
+            ..editor_core::EvalOptions::default()
+        };
+        coincide::with_replay_session(opts, |opts| {
+            let ev: Evaluation<S> = editor_core::evaluate(
+                doc,
+                None,
+                &editor_core::CancelToken::new(),
+                opts,
+                Tol::witness(),
+            );
+            let solved = editor_core::mate::SolvedPoses::of(doc, &ev);
+            let axis_of = |slot, var: VarId| match editor_core::eval::bound_pose(
+                doc,
+                &ev,
+                slot,
+                var,
+                Tol::witness(),
+            ) {
+                Ok(PoseValue::Axis(line)) => Some(line),
+                _ => None,
+            };
+            let report = |what: &str, placement: RecipeNodeId, residuals: [S; 6]| {
+                for (i, r) in residuals.into_iter().enumerate() {
+                    let margin = r.sign_within(band).map(|d| d.margin);
+                    let (why, size) = match margin {
+                        Ok(m) => (
+                            format!("{:?}", deferred::discharge_or_why(m)),
+                            format!("{:?}", deferred::dag_size(m)),
+                        ),
+                        Err(e) => (format!("undecided {e:?}"), String::new()),
+                    };
+                    println!(
+                        "AXIS {} {} {what} {i} {why} {size}",
+                        cd.name,
+                        placement.0.ordinal()
+                    );
+                }
+            };
+            let residuals = |(fa, da): (Point3<S>, geom_core::Vec3<S>),
+                             b: &editor_core::pose::AxisLine<S>| {
+                let (db, fb) = (b.dir().get(), b.foot());
+                let cross = da.cross(db);
+                let off = (fb - fa).cross(db);
+                [cross.x, cross.y, cross.z, off.x, off.y, off.z]
+            };
+            for placement in doc.placements() {
+                let Some(map) = solved.relative_map(placement) else {
+                    continue;
+                };
+                let carried = |line: &editor_core::pose::AxisLine<S>| {
+                    (
+                        map.transform_point(line.foot()),
+                        map.transform_vec(line.dir().get()),
+                    )
+                };
+                // The revolve the copy copies, where it copies one.
+                let revolve = match doc.node(placement) {
+                    Some(Node::Place { source, .. }) => doc
+                        .operation_of(source.read)
+                        .filter(|&n| matches!(doc.node(n), Some(Node::Revolve { .. }))),
+                    _ => None,
+                };
+                for c in crate::fixture::bundle(doc, placement) {
+                    let Some(mate) = c.mate() else { continue };
+                    let side = |side| editor_core::OperandSlot::Side {
+                        constraint: c.id,
+                        side,
+                    };
+                    let (Some(on), Some(to)) = (
+                        axis_of(side(editor_core::MateSide::On), mate.on),
+                        axis_of(side(editor_core::MateSide::To), mate.to),
+                    ) else {
+                        continue;
+                    };
+                    report("carried-on≡to", placement, residuals(carried(&on), &to));
+                    // The copy's side against its revolve's own axis
+                    // output, both in the revolve's coordinates.
+                    if let Some(own) = revolve
+                        .and_then(|r| doc.output(r, 1))
+                        .and_then(|axis| axis_of(side(editor_core::MateSide::On), axis))
+                    {
+                        report(
+                            "on≡revolve-axis",
+                            placement,
+                            residuals((own.foot(), own.dir().get()), &on),
+                        );
+                    }
+                }
+            }
+        });
+    }
 }

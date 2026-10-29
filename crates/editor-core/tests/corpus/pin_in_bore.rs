@@ -161,18 +161,51 @@ fn seated(r: &mut Recorder, pin: Revolved, housing: Revolved, seat: RecipeNodeId
 
 /// The pin-in-bore corpus document.
 pub fn document() -> CorpusDoc {
+    scene(
+        (
+            "pin_in_bore",
+            "a shouldered pin seated in a bore by an axis mate, pressed and loose",
+        ),
+        BORE,
+    )
+}
+
+/// **The scene with the press fit's shank its own variable**, `shank`,
+/// written equal to `bore`: two variables equal by value where
+/// [`document`] reads one. Beside the registry
+/// ([`super::stage6_beside_the_registry`]), for the door census.
+pub fn two_variables() -> CorpusDoc {
+    scene(
+        (
+            "pin_in_bore_two_variables",
+            "pin_in_bore with the press fit's shank a second variable typed equal to the bore",
+        ),
+        SHANK,
+    )
+}
+
+/// The second variable [`two_variables`]' press-fit shank reads.
+pub const SHANK: &str = "shank";
+
+/// The two seated pins, the press fit's shank reading `shank`.
+fn scene((name, about): (&'static str, &'static str), shank: &'static str) -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::DeclareVar {
-        name: VarName::from_static(BORE),
-        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
-    });
+    for var in std::iter::once(BORE).chain((shank != BORE).then_some(shank)) {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(var),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
+        });
+    }
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(LOOSE),
         def: VarDecl::Free(FreeVar::continuous(Dimension::Length, LOOSE_R)),
     });
 
     let press_housing = housing(&mut r, bore());
-    let press_pin = pin(&mut r, bore());
+    let press_pin = pin(
+        &mut r,
+        Formula::named(VarName::from_static(shank), Dimension::Length),
+    );
     let press_seat = r.place_part(Operand::output(press_housing.revolve, 0));
     seated(&mut r, press_pin, press_housing, press_seat);
 
@@ -188,8 +221,8 @@ pub fn document() -> CorpusDoc {
     seated(&mut r, loose_pin, loose_housing, loose_seat);
 
     CorpusDoc {
-        name: "pin_in_bore",
-        about: "a shouldered pin seated in a bore by an axis mate, pressed and loose",
+        name,
+        about,
         edits: r.edits,
         doc: r.doc,
         result: None, // the head is the world's four copies

@@ -244,7 +244,7 @@ struct Tally {
 /// its grazes differently, so 348 fewer grazes (347 before main's
 /// slides moved `kitchen_sink`'s copy); the rays and the refusals
 /// unchanged. No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (423_900, 140_665, 26_058, 8_292);
+const PINNED: (usize, usize, usize, usize) = (431_064, 143_421, 27_618, 9_216);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

@@ -45,6 +45,7 @@ use geom_core::Tol;
 use topo::Body;
 
 pub mod axis_projection;
+pub mod blocks_on_one_floor;
 pub mod boss;
 pub mod boss_tangent_by_value;
 pub mod cone_on_sphere;
@@ -70,6 +71,7 @@ pub mod part_select;
 pub mod pin_in_bore;
 pub mod plate_param;
 pub mod reshaped_rod;
+pub mod revolves_on_one_axis;
 pub mod shaft_and_bearing;
 pub mod sink;
 pub mod slots;
@@ -317,17 +319,22 @@ pub fn documents() -> Vec<CorpusDoc> {
         // stand beside the registry ([`stage6_beside_the_registry`]).
         pin_in_bore::document(),
         axis_projection::document(),
+        blocks_on_one_floor::document(),
+        revolves_on_one_axis::document(),
     ]
 }
 
 /// **INTENT stage 6's scenes beside the registry**: each is short of
 /// registry membership, which requires every node green at every lane,
-/// and `coincidence_door.rs` pins where it stops. `shaft_and_bearing`
+/// and `coincidence_door.rs` pins where it stops, or (the press fit
+/// written over two equal variables) it is a variant read for the
+/// census only. `shaft_and_bearing`
 /// and `boss_tangent_by_value` are green at `f64` and their unions
 /// escalate at `Interval`; the others' unions refuse at `f64`. The per-row door census reads them beside
 /// [`documents`], so the rows they reach are counted.
 pub fn stage6_beside_the_registry() -> Vec<CorpusDoc> {
     vec![
+        pin_in_bore::two_variables(),
         shaft_and_bearing::document(),
         boss_tangent_by_value::document(),
         shaft_and_bearing::rounded_mouth(),

@@ -307,6 +307,12 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("pin_in_bore", 162, 0x6873_1af4_d165_17d0),
     ("axis_projection", 38, 0x241b_bf9f_c0f1_3619),
     ("axis_projection", 51, 0x8728_75e0_0186_5dee),
+    ("blocks_on_one_floor", 45, 0x9730_a6b9_70d4_a786),
+    ("blocks_on_one_floor", 90, 0x1d45_bd18_0497_6860),
+    ("blocks_on_one_floor", 118, 0xa91b_63f9_045a_db2e),
+    ("blocks_on_one_floor", 132, 0x3f92_7f0d_ae15_d0d3),
+    ("revolves_on_one_axis", 51, 0xb707_a714_e841_557b),
+    ("revolves_on_one_axis", 67, 0xa78c_57f0_20fe_03bb),
 ];
 
 #[test]
