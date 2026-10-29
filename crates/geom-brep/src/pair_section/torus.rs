@@ -749,18 +749,10 @@ pub(super) fn sphere_torus<T: Decide>(
                     match torus_arms::sphere_arm(radii, &meridian, pose.radius, band)
                         .map_err(pinched)?
                     {
-                        // Each curve about the axis crosses every meridian
-                        // half-plane once, where the sphere's trace crosses
-                        // the tube circle; the trace meets that circle in no
-                        // more than those two points, which lie either side
-                        // of the line through the two centres.
-                        SphereParts::AroundAxis => essential(Sides::Trace {
-                            center: ring.center,
-                            axis: ring.axis,
-                            major: ring.big_r,
-                            sphere: pose.center,
-                            row: "st_component_trace_side",
-                        }),
+                        SphereParts::AroundAxis => essential(Sides::Untold(
+                            "the sphere cuts both tube circles of its meridian: two curves about \
+                             the torus axis, which no plane or meridian reading tells apart",
+                        )),
                         SphereParts::AroundTube => {
                             let (perp, s) = square_part(pose.center - ring.center, ring.axis);
                             essential(Sides::Plane {

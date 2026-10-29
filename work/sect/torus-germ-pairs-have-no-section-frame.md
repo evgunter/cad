@@ -103,36 +103,37 @@ for these pairs owes now is a site reading that tells their components
 apart, and the door rows' carriers.
 
 
-## The sphere × torus half (2026-10-28)
+## The sphere × torus half (2026-10-29)
 
-Done by `sect/teapot-wall-2`. Teapot wall 2 already passed the section,
-the germ mint, the join and island closure on main (PR 5924), and
-stops at the result gate's volume: a face trimmed by spline chords on a
-sphere or torus chart (`QuadratureUnsupported`, "conic trim on a
-cone/sphere/torus chart"), SPIRICARM's
-`a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`; the
-wall's pin is unchanged. What the half still owed, measured on the
-ball × donut placements above (24 runs):
+By `sect/teapot-wall-2`. Teapot wall 2 already passed the section, the
+germ mint, the join and island closure on main (PR 5924), on a pose
+whose two loops about the handle's tube a plane tells apart
+(`SphereParts::AroundTube`, `Sides::Plane`). It stops at the result
+gate's volume: a face trimmed by spline chords on a sphere or torus
+chart (`QuadratureUnsupported`, "conic trim on a cone/sphere/torus
+chart"), SPIRICARM's
+`a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`. The
+wall's pin is unchanged.
 
-- **A site reading for the curves about the axis.** A sphere cutting
-  both tube circles of its meridian (`SphereParts::AroundAxis`) refused
-  `Untold` (4 runs). Each of its two curves crosses every meridian
-  half-plane once, where the sphere's trace circle crosses the tube
-  circle, and the two crossings lie either side of the line through the
-  two circles' centres: `Sides::Trace` (`st_component_trace_side`).
-- **The torus face's ring path with a spline arc.** A carried chord
-  closing a ring on a torus face refused `CurvedBooleanUnsupported
-  { kind: Torus }` (2 runs) and a spline edge in a torus ring's run
-  `RingIslandUnread` (2 runs); `RingClosure::Chord` and
-  `run_loop_arcs` now read the torus as they read the cylinder and the
-  sphere.
-- **Germs on two components never face.** Once told apart, a germ
-  faced a germ on the other curve (`along_facing` compared feet on two
-  components) and the join refused `JoinDesync`; it now reads them
-  apart, as its docs said.
+Measured on the ball × donut placements above (24 runs), main against
+this branch:
 
-After: 20 of the 24 runs build and stop at that volume door; the four at
-the placement a hair short of a right angle escalate before the join
-(`bool_join_nearest`, `bool_pierce_sector_side_curved`), in band.
-Pinned by `crates/sweep/tests/germ_sphere_torus_placements.rs`. The
-cylinder × torus and torus × torus halves stay open here.
+- **The torus face's ring path with a spline arc** (built). A carried
+  chord closing a ring on a torus face refused `CurvedBooleanUnsupported
+  { kind: Torus }` (2 runs), and a spline edge in a torus ring's run
+  `RingIslandUnread` (2 runs). `RingClosure::Chord` and `run_loop_arcs`
+  now read the torus as they read the cylinder and the sphere; all four
+  reach the volume door.
+- **The curves about the axis** (not built). A sphere cutting both tube
+  circles of its meridian (`SphereParts::AroundAxis`) still refuses
+  `Untold` at the germ mint (4 runs): how a section tells its components
+  apart where no closed-form reading does is with SECT's designer pair
+  (2026-10-29), with the general cylinder × torus and torus × torus
+  poses.
+- The other 16 runs are unchanged: 12 at the volume door, and 4 at the
+  placement a hair short of a right angle, escalating before the join
+  (`bool_join_nearest`, `bool_pierce_sector_side_curved`), in band.
+
+Pinned by `crates/sweep/tests/germ_sphere_torus_placements.rs`. The row
+stays open for the site reading and for its cylinder × torus and torus ×
+torus halves.
