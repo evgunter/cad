@@ -80,7 +80,7 @@ def build(kind):
     if kind == "conecap":
         rim = ((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0), CONE_R)
     centre, normal, ref, radius = rim
-    pos = {"A": tuple(c + radius * r for c, r in zip(centre, ref))}
+    pos = {"A": tuple(c + radius * r for c, r in zip(centre, ref, strict=True))}
     if kind == "rimonly2":
         pos["B"] = (-rc, 0.0, h)
     if kind == "seamed":

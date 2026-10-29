@@ -44,7 +44,12 @@ def out(shape, name):
 
 R = 10.0
 ball = BRepPrimAPI_MakeSphere(R).Shape()
-cut = lambda a, b: BRepAlgoAPI_Cut(ball, BRepPrimAPI_MakeBox(gp_Pnt(*a), gp_Pnt(*b)).Shape()).Shape()
+
+
+def cut(a, b):
+    return BRepAlgoAPI_Cut(ball, BRepPrimAPI_MakeBox(gp_Pnt(*a), gp_Pnt(*b)).Shape()).Shape()
+
+
 out(cut((-20, -20, -20), (20, 20, R * math.sin(0.5))), "cap.step")
 out(cut((8, -20, -20), (20, 20, 20)), "side_cut.step")
 out(cut((-20, 8, -20), (20, 20, 20)), "side_cut_ring.step")
