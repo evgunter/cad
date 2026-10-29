@@ -2362,22 +2362,29 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             ));
         };
         let (oa, ob) = (a.clearance_operand(), b.clearance_operand());
-        // **The engine decides no cell on this path** (it takes no band).
-        // This door runs inside an evaluation, and every funnel row a cell
-        // verdict records lands in that leaf's census, while the `f64`
-        // witness build asks none — so the two builds would differ
-        // `0 -> N` on every box and the leaf would refuse `flip_crossing`
-        // (`work/clear/min-separation-tightening-crosses-the-drive.md`).
-        // For the same reason the pair budget is the engine's small
-        // default: a drive of a few hundred leaves pays this search a few
-        // hundred times.
+        // The pair budget is the engine's small default: a drive of a few
+        // hundred leaves pays this search a few hundred times.
         match lane.min_separation(
             &oa.side(),
             &ob.side(),
             oa.same_body(&ob),
+            band(tol)?,
             topo::clearance::Budgets::MIN_SEPARATION,
         ) {
-            Ok(v) => super::measure::finite(v),
+            Ok(Some(v)) => super::measure::finite(v),
+            Ok(None) => {
+                return Ok(OpOut::plain(
+                    ValuePayload::MeasureUnavailable {
+                        reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
+                            verb: primitive.verb(),
+                            scalar: T::NAME,
+                            door: "topo::ClearanceLane",
+                        },
+                        dim,
+                    },
+                    names::empty(),
+                ));
+            }
             Err(refusal) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),
         }
     } else {

@@ -108,7 +108,7 @@ use bvh::{Aabb, Bvh};
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Channel, Pcurve};
 use geom_core::interval::Interval;
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{self, decide};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
 
 use crate::Body;
@@ -839,8 +839,8 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         let mut b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
         if self.strict
             && let Some((p, q)) = coincidence(self.x, self.ca, &a, self.y, self.cb, &b)
-            && Self::placed(&mut *self.region, false, self.ia, self.x, p)
-            && Self::placed(&mut *self.region, true, self.ib, self.y, q)
+            && on_face(&mut *self.region, false, self.ia, self.x, p)
+            && on_face(&mut *self.region, true, self.ib, self.y, q)
         {
             a.push(p);
             b.push(q);
@@ -848,24 +848,23 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         (a, b)
     }
 
-    /// Whether the point door places `(u, v)` of window `index` on its
-    /// face — in the window, for a window that is its face.
-    fn placed(
-        region: &mut RegionMemo,
-        side_b: bool,
-        index: usize,
-        w: &Window<'_, T>,
-        (u, v): (f64, f64),
-    ) -> bool {
-        match w.region {
-            Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
-            Region::Trimmed => matches!(
-                region.station(side_b, index, w, (u, v)),
-                Some(
-                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
-                )
-            ),
-        }
+}
+
+/// Whether the point door places `(u, v)` of window `index` on its face
+/// — in the window, for a window that is its face.
+fn on_face<T: Decide + CertifiedBounds>(
+    region: &mut RegionMemo,
+    side_b: bool,
+    index: usize,
+    w: &Window<'_, T>,
+    (u, v): (f64, f64),
+) -> bool {
+    match w.region {
+        Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
+        Region::Trimmed => matches!(
+            region.station(side_b, index, w, (u, v)),
+            Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+        ),
     }
 }
 
@@ -1868,9 +1867,10 @@ fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MinSeparation {
     lo: f64,
-    hi: f64,
+    hi: Option<f64>,
     receipt: CellReceipt,
     excluded: usize,
+    decided: usize,
     meets: Option<Meets>,
 }
 
@@ -1888,24 +1888,21 @@ pub struct Meets {
 }
 
 impl MinSeparation {
-    /// **The lower bound, certified for the FACES** — the end a gate
-    /// reads. See the type docs for why this end and not the other.
+    /// The lower bound on the faces' separation.
     pub fn lo(&self) -> f64 {
         self.lo
     }
 
-    /// **The upper bound, certified only over the carrier WINDOWS.**
-    /// Not a bound on the trimmed faces' separation in either
-    /// direction; the name is the warning. See the type docs.
-    pub fn window_hi(&self) -> f64 {
+    /// The upper bound on the faces' separation, when some examined pair
+    /// witnessed one ([`Bracket::witness`]).
+    pub fn hi(&self) -> Option<f64> {
         self.hi
     }
 
-    /// The bracket as the interval it is: a containment-true enclosure
-    /// of the WINDOW separation. What an assertion may conclude from it
-    /// is its reader's question, not this door's.
-    pub fn enclosure(&self) -> Interval {
-        Interval::from_bounds(self.lo, self.hi)
+    /// The bracket as the interval it is, a containment-true enclosure
+    /// of the faces' separation, when it has an upper end.
+    pub fn enclosure(&self) -> Option<Interval> {
+        self.hi.map(|hi| Interval::from_bounds(self.lo, hi))
     }
 
     /// The counting receipt of the sweep that produced it.
@@ -1920,43 +1917,58 @@ impl MinSeparation {
         self.excluded
     }
 
+    /// How many region readings the bracket rests on: cells decided
+    /// `Inside` or `Outside`, and centre stations a point door placed.
+    /// They chose which pairs fed the bracket, and are a receipt line
+    /// rather than a census row ([`k_stats::unlogged`]).
+    pub fn decided(&self) -> usize {
+        self.decided
+    }
+
     /// **Where the two scopes meet**, when they do: the bracket is then
     /// `[0, 0]`, and this is its witness.
     pub fn meets(&self) -> Option<Meets> {
         self.meets
     }
 
-    /// **The human form**: the bracket as numbers, what it cost, and
-    /// what the two ends mean — stated at the report rather than left
-    /// to the type's documentation, because the asymmetry (`lo` sound
-    /// for the faces, `hi` for the windows) is the thing a consumer
-    /// must not have to look up.
+    /// **The human form**: the bracket as numbers and what it cost.
     pub fn render(&self) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
-        let _ = writeln!(
-            s,
-            "minimum separation: FACES ≥ {} (certified over the whole parameter box); \
-             WINDOWS ∈ [{}, {}] (width {:e})",
-            self.lo,
-            self.lo,
-            self.hi,
-            self.hi - self.lo
-        );
+        let _ = match self.hi {
+            Some(hi) => writeln!(
+                s,
+                "minimum separation of the faces ∈ [{}, {hi}] (width {:e}), certified over the \
+                 whole parameter box",
+                self.lo,
+                hi - self.lo
+            ),
+            None => writeln!(
+                s,
+                "minimum separation of the faces ≥ {}, certified over the whole parameter box; \
+                 no examined pair witnessed an upper end",
+                self.lo
+            ),
+        };
         let r = self.receipt;
         let _ = writeln!(
             s,
             "  {} candidate pair(s) subdivided, {} excluded at admission; {} discharged \
-             ({} of them vacuously, off the face), {} refused, {} split, {} abandoned",
-            r.candidates, self.excluded, r.discharged, r.outside, r.refused, r.splits, r.abandoned
+             ({} of them vacuously, off the face), {} refused, {} split, {} abandoned; \
+             {} region reading(s) decided",
+            r.candidates,
+            self.excluded,
+            r.discharged,
+            r.outside,
+            r.refused,
+            r.splits,
+            r.abandoned,
+            self.decided
         );
         let _ = writeln!(
             s,
             "  the bracket is honest at any budget: refinement narrows it and cannot \
-             falsify it. `lo` bounds the FACES' clearance from below and is what gates; \
-             `window_hi` is over the carrier WINDOWS, which contain the faces, so it \
-             bounds the faces in NEITHER direction and no assertion arm may read it \
-             (see Certified)."
+             falsify it."
         );
         if let Some(m) = self.meets {
             let _ = writeln!(
@@ -1975,12 +1987,14 @@ impl MinSeparation {
     pub fn serialize(&self) -> String {
         let r = self.receipt;
         format!(
-            "min_separation lo={:016x} hi={:016x} excluded={}\nreceipt candidates={} \
+            "min_separation lo={:016x} hi={} excluded={} decided={}\nreceipt candidates={} \
              discharged={} violated={} refused={} splits={} abandoned={} outside={} \
              holds={}\n",
             self.lo.to_bits(),
-            self.hi.to_bits(),
+            self.hi
+                .map_or_else(|| "none".to_owned(), |hi| format!("{:016x}", hi.to_bits())),
             self.excluded,
+            self.decided,
             r.candidates,
             r.discharged,
             r.violated,
@@ -2039,14 +2053,12 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     a: &Side<'_, T>,
     b: &Side<'_, T>,
     same_body: bool,
+    band: Band,
     budgets: Budgets,
 ) -> Result<MinSeparation, MinSeparationRefusal> {
     if a.faces.is_empty() || b.faces.is_empty() {
         return Err(MinSeparationRefusal::EmptyScope);
     }
-    // **No cell is decided here**: this walk holds no band, so it asks
-    // neither point-in-face door anything and keeps every cell of the
-    // carrier rectangles.
     let narrow = |refusal| match refusal {
         EngineRefusal::Unsupported { carrier, face } => {
             MinSeparationRefusal::Unsupported { carrier, face }
@@ -2067,9 +2079,10 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                 if let Some(shared) = cell {
                     return Ok(MinSeparation {
                         lo: 0.0,
-                        hi: 0.0,
+                        hi: Some(0.0),
                         receipt: CellReceipt::default(),
                         excluded: 0,
+                        decided: 0,
                         meets: Some(Meets {
                             a: x.face,
                             b: y.face,
@@ -2117,22 +2130,30 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             roots.push((i, j, sep));
         }
     }
-    // The incumbent: the least certified UPPER bound over the root
-    // pairs. Every pair's own `separation_hi` bounds the minimum, so
-    // the smallest of them is a bound before any subdivision happens —
-    // which is what makes the very first bracket true.
-    let hi = roots
-        .iter()
-        .fold(f64::INFINITY, |acc, (_, _, s)| acc.min(s.hi()));
+    // The incumbent: the least upper bound on the FACES' separation the
+    // root pairs witness ([`Bracket::witness`]), which is what makes the
+    // very first bracket true.
+    let mut q = Bracket {
+        hi: f64::INFINITY,
+        floor: f64::INFINITY,
+        poison: None,
+        region: RegionMemo::at(band),
+    };
+    for (i, j, sep) in &roots {
+        if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
+            (wa.get(*i), wb.get(*j), root_a.get(*i), root_b.get(*j))
+        {
+            q.witness((*i, x, ca), (*j, y, cb), *sep);
+        }
+    }
     // Admission: a pair whose separation is entirely above the
     // incumbent cannot hold the minimum. It is priced into the floor by
     // its own `separation_lo` and never subdivided.
-    let mut floor = f64::INFINITY;
     let mut frontier: Vec<Task> = Vec::new();
     let mut excluded = 0usize;
     for (i, j, sep) in &roots {
-        if sep.lo() >= hi {
-            floor = floor.min(sep.lo());
+        if sep.lo() >= q.hi {
+            q.floor = q.floor.min(sep.lo());
             excluded += 1;
             continue;
         }
@@ -2155,16 +2176,13 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
         candidates: frontier.len(),
         ..CellReceipt::default()
     };
-    let mut q = Bracket {
-        hi,
-        floor,
-        poison: None,
-    };
     let (receipt, _) = walk(budgets, receipt, frontier, &wa, &wb, &mut q);
     if let Some(poison) = q.poison {
         return Err(poison);
     }
-    let Bracket { hi, floor, .. } = q;
+    let Bracket {
+        hi, floor, region, ..
+    } = q;
 
     // **The floor is capped at the incumbent**, and that cap is what
     // makes the branch-and-bound sound rather than merely plausible. A
@@ -2176,23 +2194,94 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     let lo = floor.min(hi);
     Ok(MinSeparation {
         lo,
-        hi,
+        hi: hi.is_finite().then_some(hi),
         receipt,
         excluded,
+        decided: region.decided(),
         meets: None,
     })
 }
 
 /// **The minimum question, per cell pair**: the incumbent upper bound,
-/// the floor every pair not discharged is priced into, and the
-/// enclosure that did not evaluate, if one did not.
+/// the floor every pair not discharged is priced into, the enclosure
+/// that did not evaluate, if one did not, and the region readings the
+/// walk took.
 struct Bracket {
     hi: f64,
     floor: f64,
     poison: Option<MinSeparationRefusal>,
+    region: RegionMemo,
 }
 
-impl<T: Real> Question<T> for Bracket {
+/// The audit row that argues why [`Bracket`]'s region readings are taken
+/// in [`k_stats::unlogged`]'s scope.
+const REGION_READINGS: &str = "F28";
+
+impl Bracket {
+    /// Whether either cell of a pair is decided outside its face, read
+    /// in the unlogged scope ([`REGION_READINGS`]).
+    fn outside<T: Decide + CertifiedBounds>(
+        &mut self,
+        (i, x, a): (usize, &Window<'_, T>, Cell),
+        (j, y, b): (usize, &Window<'_, T>, Cell),
+    ) -> bool {
+        let region = &mut self.region;
+        k_stats::unlogged(REGION_READINGS, || {
+            region.ask(false, i, x, a) == CellRegion::Outside
+                || region.ask(true, j, y, b) == CellRegion::Outside
+        })
+    }
+
+    /// **What a pair witnesses about the FACES' separation from above**,
+    /// folded into the incumbent: the pair's own `separation_hi` when
+    /// both cells are decided [`CellRegion::Inside`], and the separation
+    /// of its two centre stations when each lies on its face (its cell
+    /// decided `Inside`, or the point door placing it `In`, `OnEdge` or
+    /// `OnVertex`).
+    ///
+    /// Either is the distance between two points of the faces, enclosed
+    /// over the whole parameter box, so it bounds the faces' minimum
+    /// from above at every parameter point. The station pair is what
+    /// makes that bound tight: `separation_hi` is the furthest two points
+    /// of the two cells can be, which approaches the separation only as
+    /// both cells shrink, while two stations across from each other are
+    /// tight the moment they are found.
+    ///
+    /// The readings choose which pairs feed the incumbent and decide
+    /// nothing else, so they run in the unlogged scope
+    /// ([`REGION_READINGS`]).
+    fn witness<T: Decide + CertifiedBounds>(
+        &mut self,
+        (i, x, a): (usize, &Window<'_, T>, Cell),
+        (j, y, b): (usize, &Window<'_, T>, Cell),
+        sep: Interval,
+    ) {
+        let centre = |c: Cell| (geom::mid_param(c.u.0, c.u.1), geom::mid_param(c.v.0, c.v.1));
+        let (sa, sb) = (centre(a), centre(b));
+        let region = &mut self.region;
+        let (cells, stations) = k_stats::unlogged(REGION_READINGS, || {
+            let inside = (
+                region.ask(false, i, x, a) == CellRegion::Inside,
+                region.ask(true, j, y, b) == CellRegion::Inside,
+            );
+            let placed = (inside.0 || on_face(region, false, i, x, sa))
+                && (inside.1 || on_face(region, true, j, y, sb));
+            (inside.0 && inside.1, placed)
+        });
+        if cells {
+            self.hi = self.hi.min(sep.hi());
+        }
+        if stations {
+            let at = |w: &Window<'_, T>, (u, v): (f64, f64)| enclosure(&w.surface, (u, u), (v, v));
+            let s = separation(&at(x, sa), &at(y, sb));
+            if s.hi().is_finite() {
+                self.hi = self.hi.min(s.hi());
+            }
+        }
+    }
+}
+
+impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
     fn pair(
         &mut self,
         walk: &mut Walk,
@@ -2201,6 +2290,14 @@ impl<T: Real> Question<T> for Bracket {
         y: &Window<'_, T>,
     ) -> ControlFlow<()> {
         let pair = task.pair;
+        // **Off the face, before anything is enclosed.** A cell decided
+        // outside its face holds no point of it, so the pair is a leaf
+        // that neither floors the bracket nor witnesses its upper end.
+        if self.outside((task.i, x, pair.a), (task.j, y, pair.b)) {
+            walk.receipt.discharged += 1;
+            walk.receipt.outside += 1;
+            return ControlFlow::Continue(());
+        }
         let sep = separation(&pair.a.enc, &pair.b.enc);
         if !(sep.lo().is_finite() && sep.hi().is_finite()) {
             self.poison = Some(MinSeparationRefusal::PoisonEnclosure {
@@ -2209,42 +2306,17 @@ impl<T: Real> Question<T> for Bracket {
             });
             return ControlFlow::Break(());
         }
-        // Every examined pair tightens the upper bound, INCLUDING
-        // the ones dropped below: a cell pair that cannot hold the
-        // minimum still witnesses a realizable separation.
-        //
-        // **The STATION pair is what makes that bound tight**, and
-        // it is the same enclosure one level down. `sep.hi()` is
-        // the furthest two points of the two CELLS can be, which
-        // only approaches the separation as both cells shrink to
-        // points — on a metre-scale wall pair that is a very slow
-        // number. A pair of single stations, one on each carrier,
-        // enclosed over the whole parameter box, bounds the
-        // distance between THOSE TWO POINTS at every parameter
-        // point in it; the minimum over the windows is at most that
-        // distance at every parameter point, so its `hi` is an
-        // upper bound on the whole measure and is tight the moment
-        // the two stations sit across from each other. Two extra
-        // surface evaluations a pair, and the bracket stops being
-        // dominated by cell size.
-        let station = |w: &Window<'_, T>, c: Cell| {
-            let u = geom::mid_param(c.u.0, c.u.1);
-            let v = geom::mid_param(c.v.0, c.v.1);
-            enclosure(&w.surface, (u, u), (v, v))
-        };
-        let stations = separation(&station(x, pair.a), &station(y, pair.b));
-        if stations.hi().is_finite() {
-            self.hi = self.hi.min(stations.hi());
-        }
-        self.hi = self.hi.min(sep.hi());
+        // Every examined pair may tighten the upper bound, INCLUDING the
+        // ones dropped below: a pair that cannot hold the minimum still
+        // witnesses a separation of the faces.
+        self.witness((task.i, x, pair.a), (task.j, y, pair.b), sep);
         if sep.lo() >= self.hi {
             walk.receipt.discharged += 1;
             return ControlFlow::Continue(());
         }
         // A pair the walk cannot split — at the depth floor, past the
         // pair budget, or on the `f64` grid — is REFUSED: it was
-        // examined, its `hi` is in the incumbent, and its own
-        // `separation_lo` floors the bracket.
+        // examined, and its own `separation_lo` floors the bracket.
         if walk
             .split(task, || split(pair, x, y).map(|(lo, hi)| [lo, hi]))
             .is_err()
@@ -3218,6 +3290,7 @@ pub struct ClearanceLane<T: Decide> {
         &Side<'_, T>,
         &Side<'_, T>,
         bool,
+        Band,
         Budgets,
     ) -> Result<MinSeparation, MinSeparationRefusal>,
 }
@@ -3303,7 +3376,8 @@ impl<T: Decide> ClearanceLane<T> {
     /// a value of `T`: the hull of `T::from_computed` of each end. At
     /// `Interval` that is [`MinSeparation::enclosure`]; at a symbolic
     /// scalar each end is its own unknown, so two measures with equal
-    /// brackets are never proved equal.
+    /// brackets are never proved equal. `None` when the bracket has no
+    /// upper end ([`MinSeparation::hi`]).
     ///
     /// # Errors
     ///
@@ -3313,13 +3387,13 @@ impl<T: Decide> ClearanceLane<T> {
         a: &Side<'_, T>,
         b: &Side<'_, T>,
         same_body: bool,
+        band: Band,
         budgets: Budgets,
-    ) -> Result<T, MinSeparationRefusal> {
-        let m = (self.min_separation)(a, b, same_body, budgets)?;
-        Ok(geom_core::SpanLocate::enclosure_hull(
-            T::from_computed(m.lo),
-            T::from_computed(m.hi),
-        ))
+    ) -> Result<Option<T>, MinSeparationRefusal> {
+        let m = (self.min_separation)(a, b, same_body, band, budgets)?;
+        Ok(m.hi.map(|hi| {
+            geom_core::SpanLocate::enclosure_hull(T::from_computed(m.lo), T::from_computed(hi))
+        }))
     }
 }
 
@@ -3353,7 +3427,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.min_separation,
-            min_separation::<T> as fn(_, _, _, _) -> _,
+            min_separation::<T> as fn(_, _, _, _, _) -> _,
         ) {
             return Err("min_separation is not `min_separation`");
         }

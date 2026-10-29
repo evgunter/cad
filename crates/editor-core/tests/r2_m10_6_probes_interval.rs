@@ -66,6 +66,11 @@ use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
 
+/// The evaluation's own band, which the engine decides its cells at.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+}
+
 /// A variable as the free mass doors' refusals speak it.
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
@@ -330,6 +335,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             &side(b),
             // Two pins, two nodes.
             a == b,
+            band(),
             Budgets {
                 max_cell_pairs: pairs,
                 ..Budgets::MIN_SEPARATION
@@ -339,8 +345,8 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
         eprintln!(
             "pins @ max_cell_pairs={pairs}: [{}, {}] width {:e} (truth {truth})",
             m.lo(),
-            m.window_hi(),
-            m.window_hi() - m.lo()
+            m.hi().expect("an upper end"),
+            m.hi().expect("an upper end") - m.lo()
         );
         assert!(
             m.lo() <= truth,
@@ -349,12 +355,12 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             m.lo()
         );
         assert!(
-            truth <= m.window_hi(),
+            truth <= m.hi().expect("an upper end"),
             "budget {pairs}: hi {} is below the true minimum {truth}",
-            m.window_hi()
+            m.hi().expect("an upper end")
         );
         assert!(m.receipt().holds(), "budget {pairs}: the receipt identity");
-        widths.push(m.window_hi() - m.lo());
+        widths.push(m.hi().expect("an upper end") - m.lo());
     }
     for w in widths.windows(2) {
         assert!(

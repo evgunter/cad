@@ -76,6 +76,11 @@ use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
 
+/// The evaluation's own band, which the engine decides its cells at.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+}
+
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
@@ -365,6 +370,7 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             },
             // Body 0 of node `a` against body 0 of node `b`.
             a == b,
+            band(),
             Budgets {
                 max_cell_pairs: pairs,
                 ..Budgets::MIN_SEPARATION
@@ -376,10 +382,10 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             m.serialize().replace('\n', " | ")
         );
         assert!(
-            m.lo() <= 0.7 && 0.7 <= m.window_hi(),
+            m.lo() <= 0.7 && 0.7 <= m.hi().expect("an upper end"),
             "budget {pairs}: [{}, {}]",
             m.lo(),
-            m.window_hi()
+            m.hi().expect("an upper end")
         );
         assert!(m.receipt().holds());
     }
@@ -427,17 +433,17 @@ fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
         body: body.body(),
         faces: faces.clone(),
     };
-    let m = min_separation(&sel(), &sel(), true, Budgets::MIN_SEPARATION).expect("admitted");
+    let m = min_separation(&sel(), &sel(), true, band(), Budgets::MIN_SEPARATION).expect("admitted");
     eprintln!(
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")
     );
     assert_eq!(
-        (m.lo(), m.window_hi()),
-        (0.0, 0.0),
+        (m.lo(), m.hi()),
+        (0.0, Some(0.0)),
         "[{}, {}]",
         m.lo(),
-        m.window_hi()
+        m.hi().expect("an upper end")
     );
     assert!(
         m.meets().is_some(),
