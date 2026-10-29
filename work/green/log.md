@@ -144,3 +144,30 @@ stays P1, since greening main is this track's central job.
 - The r2_turn_probes fuzz red unrelated PRs twice. The user agreed to
   leave it running. The row moved to GERMCERT at P2, because the bound
   is the defect.
+
+## 2026-10-29 (evening) — nightly 76 greened; the tour compiles once
+
+- Nightly-76 lane (cloud). It merged on top of the triage's #6018, citing
+  its rows:
+  - #6031 (gui cells re-rendered after G's rename) and #6033 (two more
+    doc links), both on the orchestrator's read.
+  - #6025: the slow seam-region row is left out of the nightly's 1e-12
+    command only, citing SECT's row.
+  - #6027: the dev-probe pins (key splits at G's ordinals, the lily's
+    1e-12 stem stop, a census floor of 19). The 24,045 in-band
+    curve-walk margins are filed on CPAIR. One STYLE review covered
+    these three; it caught a citation to a closed CLEAVE row.
+  - #6030: tracker only; #6023 had already re-pinned `review_pick_r2`.
+  - #6044: the large-K lint is a pinned red on its verdict, not on its
+    counts. An exact pin on about 52k margin counts would have made
+    every kernel merge re-pin it.
+- Class filed: `a-pin-or-disabled-red-can-cite-a-closed-or-missing-row`.
+- Latency lane: #6039 splits `demo-tour` into a lib and a thin bin, and
+  moves the 47 unit tests into `tests/` (FULL review, then a fix pass
+  that retired seven `at_rest` copies and the copied bud and teapot
+  constants). Same-runner A/B: the tour build phase went from 648 s to
+  453 s. `demo-tour-unit-tests-compile-the-bin-twice` closed.
+- Open for nightly 77 (09:00 UTC read): close the main-red rows the
+  nightly confirms; check the closure-tier shard balance after #6019;
+  check whether `demos` is still the p90 tail. The remaining P0 lever is
+  sweep's test runtime in the kernel shard.

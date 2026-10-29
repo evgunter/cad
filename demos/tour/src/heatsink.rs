@@ -189,6 +189,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Profile(ProfileProgram {
             loops: base_loops,
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -209,6 +210,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Profile(ProfileProgram {
             loops: fin_loops,
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

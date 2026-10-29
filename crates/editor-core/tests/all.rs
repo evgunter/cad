@@ -854,6 +854,8 @@ mod intent_s5_b_interference;
 mod intent_s5_c_at_rest_check;
 #[path = "intent_s5_c_quietable.rs"]
 mod intent_s5_c_quietable;
+#[path = "intent_s6_c_trace.rs"]
+mod intent_s6_c_trace;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]

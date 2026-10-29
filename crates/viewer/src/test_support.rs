@@ -196,6 +196,7 @@ pub fn rectangle(origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -506,6 +507,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

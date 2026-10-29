@@ -585,6 +585,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
                 .expect("finite corners"),
         ],
         ids: minted.ids.clone(),
+        on: None,
     });
     let doc = session.committed_doc();
     assert_eq!(

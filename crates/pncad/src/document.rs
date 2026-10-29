@@ -577,8 +577,16 @@ pub use topo::coincidence;
 // a caller writing `25 mm` through the path algebra hands
 // `LoopProgram::from_recorded_with_notation` so the document reads back
 // what they wrote.
+//
+// A profile drawn on a frame (`DrawnOn`) reads the traces of faces of
+// the frame's space: `ProgramTarget::OnTrace` and
+// `ProgramStep::AlongTrace` say which crossing and which way
+// (`TraceCrossing`, `TracePassage`, `TraceSense`), and a resolution
+// that refuses says why (`ProgramResolveFault`, `TraceRefusal`,
+// `TraceStepFault`).
 pub use editor_core::{
-    CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
-    WrittenLoopFault, resolve_loops, resolve_written_loops,
+    CanonicalSegment, DrawnOn, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError,
+    StepArg, StepSegmentsError, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
+    TraceStepFault, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };

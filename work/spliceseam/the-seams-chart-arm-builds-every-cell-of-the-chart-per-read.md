@@ -25,7 +25,7 @@ re-celled each time.
 
 Measured (debug, the sweep row
 `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`):
-four reads on lily's rational loft walls (15 control points each) took
+four reads on the row's rational loft walls (15 control points each) took
 0.80 to 0.92 s apiece, about 3.4 s of the row's 100 s.
 
 ## The likely shape

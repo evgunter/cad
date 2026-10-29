@@ -281,6 +281,7 @@ fn cube_node(a: &mut Author, tol: Tol) -> RecipeNodeId {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -301,6 +302,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         Node::Profile(ProfileProgram {
             loops: vec![half_disc()],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
