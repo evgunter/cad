@@ -4373,6 +4373,8 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
@@ -4498,6 +4500,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \

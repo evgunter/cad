@@ -480,6 +480,7 @@ fn crossing_parallels<T: Real>(
             shape: ComponentShape::Loop,
             winds,
             witness: None,
+            residual: 0.0,
             carrier: ClassCarrier::Closed(ring.parallel(p.x, p.y)),
         })
         .collect();
@@ -510,6 +511,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
             winds
         },
         witness: touch,
+        residual: 0.0,
         carrier: ClassCarrier::Unminted(TANGENT_COMPONENT),
     }
 }
@@ -751,6 +753,7 @@ pub(super) fn sphere_torus<T: Decide>(
                             shape: ComponentShape::Loop,
                             winds: order(torus_first, [true, false]),
                             witness: None,
+                            residual: 0.0,
                             carrier: ClassCarrier::General,
                         };
                         (vec![c.clone(), c], sides)
@@ -1010,6 +1013,7 @@ pub(super) fn cylinder_torus<T: Decide>(
                             shape: ComponentShape::Loop,
                             winds,
                             witness: None,
+                            residual: 0.0,
                             carrier: ClassCarrier::Closed(ring.parallel(rc, z)),
                         })
                         .collect();

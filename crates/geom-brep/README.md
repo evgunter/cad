@@ -818,8 +818,18 @@ axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
-`Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet.
+`Section::branch_at`, each at the old edge's middle. The boolean reads
+plane × NURBS (and `Approx` as its fit) through the section value
+(`pair_section_with`, through the march door), built from the
+whole-section reading `PlaneSection::all`:
+- each closed branch is a loop component, with its witness and carrier;
+- each open branch, `Side` region and `Corner` region is a component
+  that reaches its chart's boundary;
+- a refusal maps by name, tangency and grazes to tangent, and any
+  other, an unclosed accounting among them, to `Unaccounted`, carrying
+  its cause.
+
+NURBS × NURBS's whole reading, `Section::all`, no boolean reads yet.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`: the pair's pose
 decided once, its components, and its loops marched and fitted at

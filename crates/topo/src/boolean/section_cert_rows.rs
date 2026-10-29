@@ -413,8 +413,8 @@ fn bump() -> Surface<f64> {
     ))
 }
 
-/// **NURBS × plane: W0 on the control net, else R-reach**, in both
-/// orders. A plane clear of every control point, on either side and
+/// **NURBS × plane with no march door: W0 on the control net, else
+/// R-reach**, in both orders. A plane clear of every control point, on either side and
 /// either orientation, is apart; a plane that cuts the net, one that
 /// touches its top row, and a placeholder's poison net have no arm. Red
 /// against W0 reading any one point clear rather than all (the cut and
@@ -1072,7 +1072,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, |_| Sheet::Not, |_| place)
+        certify(&s, evented, |_| Sheet::Not, |_, _| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1093,6 +1093,8 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
             essential_f: false,
             essential_g: false,
             witness: Some(w),
+            reaches: None,
+            residual: 0.0,
         }],
         single: true,
     }
@@ -1101,8 +1103,8 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
 pub(super) fn at(
     f: Option<FaceContainment>,
     g: Option<FaceContainment>,
-) -> impl FnMut(Point3<f64>) -> [Option<FaceContainment>; 2] {
-    move |_| [f, g]
+) -> impl FnMut(Point3<f64>, f64) -> [Option<FaceContainment>; 2] {
+    move |_, _| [f, g]
 }
 
 pub(super) const IN: Option<FaceContainment> = Some(FaceContainment::In);
@@ -1146,6 +1148,8 @@ fn w4_clears_only_a_certified_single_component() {
         essential_f: false,
         essential_g: false,
         witness: Some(p(0.0, 0.0, 0.0)),
+        reaches: None,
+        residual: 0.0,
     };
     let two = Section::Components {
         parts: vec![c, c],
@@ -1193,6 +1197,8 @@ fn w2_clears_only_where_the_face_describes() {
             essential_f: true,
             essential_g: false,
             witness: Some(p(1.0, 0.0, 0.5)),
+            reaches: None,
+            residual: 0.0,
         }],
         single: false,
     };

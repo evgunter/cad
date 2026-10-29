@@ -606,7 +606,9 @@ pub fn route_pose<T: Decide>(
             | SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
-            | SectionError::UnequalRadii),
+            | SectionError::UnequalRadii
+            | SectionError::NoMarch { .. }
+            | SectionError::Unaccounted { .. }),
         ) => Err(e),
     }
 }
@@ -713,6 +715,20 @@ pub enum SectionError {
         /// The reading.
         predicate: &'static str,
     },
+    /// A plane and a spline's section is a march, and the reader handed
+    /// no march door ([`crate::pair_section_with`]): the scalar named
+    /// does not march.
+    NoMarch {
+        /// The scalar.
+        scalar: &'static str,
+    },
+    /// A spline section's whole reading (C3's `all()`) refused for a
+    /// cause other than a tangency or a graze: its accounting did not
+    /// close, or a branch did not certify.
+    Unaccounted {
+        /// The reading's refusal, rendered.
+        cause: String,
+    },
 }
 
 impl From<EllipseInvalid> for SectionError {
@@ -784,6 +800,15 @@ impl core::fmt::Display for SectionError {
                 "the section's closed form cannot place a crossing of the two surfaces on \
                  either side of the line it reads the section by (`{predicate}`). Recourse: \
                  move one surface a little so the crossing stands clear of that line"
+            ),
+            Self::NoMarch { scalar } => write!(
+                f,
+                "the section of a plane and a spline surface is read by marching it, which \
+                 the `{scalar}` scalar does not do. Recourse: run the operation at `f64`"
+            ),
+            Self::Unaccounted { cause } => write!(
+                f,
+                "the section of a plane and a spline surface was not read whole: {cause}"
             ),
         }
     }

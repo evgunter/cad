@@ -1905,16 +1905,17 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify, of_pair_section};
+    use super::section_cert::{Side, certify, classify_with, of_pair_section};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
         Some(held) => of_pair_section(held),
-        None => classify(
+        None => classify_with(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
+            T::ssi_lane(),
             band,
         ),
     };
@@ -1934,10 +1935,13 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Sheet::Unread
                 })
         },
-        |p| {
+        |p, residual| {
+            let Some(wide) = super::section_cert::witness_band(band, residual) else {
+                return [None, None];
+            };
             [
-                place_witness(a, fa.face, p, band),
-                place_witness(b, fb.face, p, band),
+                place_witness(a, fa.face, p, wide),
+                place_witness(b, fb.face, p, wide),
             ]
         },
     );

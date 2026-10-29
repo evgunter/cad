@@ -121,6 +121,7 @@ fn arm_loop<T: Real>(
         shape: ComponentShape::Loop,
         winds: [torus, partner],
         witness,
+        residual: 0.0,
         carrier: carrier.clone(),
     }
 }

@@ -471,7 +471,7 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
     // The stem's window ends at the weld plane, the arch's starts there.
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
@@ -542,7 +542,7 @@ fn an_evented_lily_pair_clears_only_by_its_witnesses() {
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
