@@ -86,6 +86,7 @@ pub(crate) mod pieced_arc;
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_cones;
 mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
@@ -1296,6 +1297,13 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::RawPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            section_cones::fuse_section_cones(
+                body,
+                side,
+                &mut result.naming,
+                plane.normal.get(),
+                tol,
+            )?;
             // On this run's own output: a refusal discards it.
             finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
             // The side's tier-2 gate again, on the body as joined.

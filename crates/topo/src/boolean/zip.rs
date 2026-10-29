@@ -52,7 +52,7 @@ use geom_core::Decide;
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{FaceSurface, MefSite, MevSite};
+use crate::euler::{EulerOpError, FaceSurface, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::PointKey;
 use crate::live::proven;
@@ -69,7 +69,7 @@ pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 pub use crate::lineage::Fusions;
 
 /// Where a zero-length joint runs between two vertices of one face.
-pub(super) enum Joint {
+pub(crate) enum Joint {
     /// Across two of its loops (`mekr`, which joins them): `target`'s
     /// loop absorbs `ring`'s.
     Loops {
@@ -118,18 +118,30 @@ impl Joint {
 /// by a `kev` that keeps the merged fan's carriers, each re-certified at
 /// the kept vertex under the run's band. Returns the fusion
 /// `(dead, kept)`; `desync` names a joint that no longer resolves.
-pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
+pub(crate) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy, E: From<EulerOpError>>(
+    body: &mut Body<T>,
+    joint: Joint,
+    at: (geom_core::Point3<T>, VertexKey),
+    desync: fn(&'static str) -> E,
+    tol: Tol,
+) -> Result<(VertexKey, VertexKey), E> {
+    fuse_dividing(body, joint, at, desync, tol).map(|(dead, kept, _)| (dead, kept))
+}
+
+/// [`fuse_by_joint`], with the face a chord's `mef` divided off, which a
+/// joint across two loops does not make.
+pub(crate) fn fuse_dividing<T: Decide + crate::props::AtRestPolicy, E: From<EulerOpError>>(
     body: &mut Body<T>,
     joint: Joint,
     (p, keep): (geom_core::Point3<T>, VertexKey),
-    desync: fn(&'static str) -> BooleanError,
+    desync: fn(&'static str) -> E,
     tol: Tol,
-) -> Result<(VertexKey, VertexKey), BooleanError> {
+) -> Result<(VertexKey, VertexKey, Option<FaceKey>), E> {
     let carrier = EdgeCurveSpec::self_loop_circle_at(p);
-    let (plus, minus) = match joint {
+    let (plus, minus, face) = match joint {
         Joint::Loops { target, ring } => {
             let made = body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?;
-            (made.he_plus, made.he_minus)
+            (made.he_plus, made.he_minus, None)
         }
         Joint::Chord { he1, he2 } => {
             let made = body.mef(
@@ -138,7 +150,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
                 FaceSurface::Inherit,
                 tol,
             )?;
-            (made.he_plus, made.he_minus)
+            (made.he_plus, made.he_minus, Some(made.face))
         }
     };
     let start = |he: HalfEdgeKey| {
@@ -151,7 +163,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
         .half_edge_end(he)
         .ok_or_else(|| desync("a joint half-edge has no end"))?;
     body.kev_describing(he, &[], tol)?;
-    Ok((dead, keep))
+    Ok((dead, keep, face))
 }
 
 /// What one seam zip did to the arena — the F9-style record the op

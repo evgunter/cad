@@ -674,6 +674,15 @@ pub enum SplitFinishError {
         /// The deciding reading's diagnostic.
         diag: geom_core::Indeterminate,
     },
+    /// Whether a section corner at a pinch holds another side of its
+    /// loop, read to fuse the pinch's cones on a side
+    /// ([`super::section_cones`]), escalated.
+    ConeCornerEscalated {
+        /// The corner's vertex.
+        vertex: VertexKey,
+        /// The deciding reading's diagnostic.
+        source: geom_core::Indeterminate,
+    },
     /// A curved wall smooth against the section at an edge refused its
     /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
     /// decided zero over an arm too short to read a side.
@@ -933,6 +942,13 @@ impl core::fmt::Display for SplitFinishError {
                 .undecided(
                     "the angle between two faces along the cut",
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
+            Self::ConeCornerEscalated { source, .. } => source
+                .undecided(
+                    "whether a corner of the cut, where pieces of the solid touch, overlaps \
+                     another",
+                    source.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
