@@ -1005,7 +1005,7 @@ fn joined_spec<T: Decide>(
         geom_brep::EdgeDescription::Intersection { pair, selector } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                selector: selector.repinned(&carrier, a, b),
+                selector: selector.repinned(carrier, a, b),
             }
         }
         geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
