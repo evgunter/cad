@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-29
 priority: P0
 cost: M
+pr: 5997
 branch: intent/d10-exit-walk
 ---
 
