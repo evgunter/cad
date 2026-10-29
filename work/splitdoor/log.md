@@ -30,3 +30,9 @@
   - CONTACTHOLD's first-order conic ties;
   - HELDRECORDS evidence (48 boss bodies). (SPLITDOOR orchestrator)
 - 2026-10-29 — **Dispatched** `roots-unsettled-folds-band-precision-and-fault-into-one-frontier` (Opus lane, branch `splitdoor/roots-unsettled-split`) and `levered-same-direction-parallelism-is-spelled-twice` (Opus lane, branch `splitdoor/one-levered-parallelism`). (SPLITDOOR orchestrator)
+- 2026-10-29 — **Dispatched** three Opus lanes:
+  - `a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant` (`splitdoor/boss-in-hole-germ`);
+  - `a-sphere-cut-in-refuses-a-sphere-face-with-a-boundary-edge-that-is-not-a-circle` (`splitdoor/sphere-cut-in-roots`);
+  - `a-near-axial-plane-near-a-needle-cones-apex-refuses-with-an-invariant-name` (`splitdoor/needle-cone-join`).
+
+  I chose them to stay clear of the `roots::Unsettled` lane's files. (SPLITDOOR orchestrator)
