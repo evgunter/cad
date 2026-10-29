@@ -1344,3 +1344,108 @@ mod review_5993_recut_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review3_fault_rows {
+    //! Review 3 (PR 5993): `RootFault::ImpossibleCount` from legal input.
+    //! The residual is the harmonics summed in another order, and the
+    //! frame charges that evaluation's rounding honestly: a door that does
+    //! this is legal input, so a fault here is reachable.
+
+    use super::*;
+
+    const ROWS: SubdivisionRows = SubdivisionRows {
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
+    };
+
+    #[test]
+    #[ignore = "review probe"]
+    fn review3_no_legal_residual_reaches_impossible_count() {
+        let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut tally = std::collections::BTreeMap::<String, usize>::new();
+        let mut faults = Vec::new();
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for i in 0..30_000 {
+                let scale = 10f64.powf(-3.0 * rnd());
+                let phi = core::f64::consts::TAU * rnd();
+                // A near-double root (family 0), a near-quadruple one
+                // (1), or a random pair of harmonics (2).
+                let d = eps * 10f64.powf(3.0 * rnd() - 1.0) * (2.0 * rnd() - 1.0);
+                let tiny = eps * 10f64.powf(2.0 * rnd() - 1.0);
+                let (c, s) = match i % 3 {
+                    0 => (
+                        [scale - d, -scale * phi.cos(), tiny * (2.0 * rnd() - 1.0)],
+                        [0.0, -scale * phi.sin(), tiny * (2.0 * rnd() - 1.0)],
+                    ),
+                    1 => (
+                        // (1 − cos(t−φ))² = 3/2 − 2cos(t−φ) + cos(2(t−φ))/2
+                        [
+                            scale * 1.5 - d,
+                            -2.0 * scale * phi.cos(),
+                            0.5 * scale * (2.0 * phi).cos(),
+                        ],
+                        [
+                            0.0,
+                            -2.0 * scale * phi.sin(),
+                            0.5 * scale * (2.0 * phi).sin(),
+                        ],
+                    ),
+                    _ => (
+                        [
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                        ],
+                        [
+                            0.0,
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                        ],
+                    ),
+                };
+                let f = DegreeTwo::new(c[0], c[1], s[1], c[2], s[2]).poly();
+                let sum: f64 = c.iter().chain(&s).map(|x| x.abs()).sum();
+                let frame = SubdivisionFrame {
+                    t0: -0.5,
+                    t1: 0.5,
+                    speed_hi: 1.0,
+                    noise: 16.0 * f64::EPSILON * sum,
+                    f_per_metre: 1.0,
+                    f_per_metre_hi: 1.0,
+                    residual_reach: None,
+                    jet: None,
+                };
+                let residual = |t: f64| {
+                    ((s[2] * (2.0 * t).sin() + c[2] * (2.0 * t).cos()) + s[1] * t.sin())
+                        + (c[1] * t.cos() + c[0])
+                };
+                let got = certified_subdivision(&f, &residual, &frame, &ROWS, None, band);
+                let key = match &got {
+                    Ok(Roots::Certified(found)) => format!("certified {}", found.count()),
+                    Ok(other) => format!("{other:?}").chars().take(12).collect(),
+                    Err(RootRefusal::Touch(_)) => "touch".into(),
+                    Err(RootRefusal::Escalated(_)) => "escalated".into(),
+                    Err(RootRefusal::Unsettled(u)) => format!("{u:?}"),
+                    Err(RootRefusal::Fault(fault)) => {
+                        faults.push((eps, i % 3, c, s));
+                        format!("FAULT {fault:?}")
+                    }
+                };
+                *tally.entry(format!("{eps:e} {key}")).or_default() += 1;
+            }
+        }
+        println!("{tally:#?}");
+        assert!(faults.is_empty(), "legal residuals fault: {faults:?}");
+    }
+}

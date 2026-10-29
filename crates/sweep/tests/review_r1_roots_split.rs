@@ -189,3 +189,87 @@ fn review_r1_a_seam_touch_is_not_the_users_lever() {
         kind(&seamed)
     );
 }
+
+/// Review 3 probe (PR 5993): where a `CurvedPierceEscalated` says it
+/// stands, read back from the operands: the edge's curve in `operand`,
+/// the face's surface in the other, and how far the edge's ends lie
+/// from that surface's carrier.
+pub(crate) fn review3_locate(
+    label: &str,
+    a: &topo::Body<f64>,
+    b: &topo::Body<f64>,
+    err: &BooleanError,
+) {
+    let BooleanError::CurvedPierceEscalated {
+        operand,
+        face,
+        edge,
+        decision,
+        diag,
+    } = err
+    else {
+        println!("{label}: not located: {err:?}");
+        return;
+    };
+    let (x, y) = match operand {
+        topo::Operand::A => (a, b),
+        topo::Operand::B => (b, a),
+    };
+    let e = x.get_edge(*edge).expect("the edge is the operand's");
+    let c = x.get_curve_geom(e.curve).expect("its curve");
+    let f = y.get_face(*face).expect("the face is the other's");
+    let s = y.get_surface(f.surface).expect("its surface");
+    let short = |s: String| s.chars().take(90).collect::<String>();
+    println!(
+        "{label}: {operand:?} {decision:?} {:?}\n  edge {edge:?}: {}\n  face {face:?}: {}",
+        diag.predicate,
+        short(format!("{c:?}")),
+        short(format!("{s:?}"))
+    );
+}
+
+#[test]
+#[ignore = "review probe"]
+fn review3_where_the_escalations_stand() {
+    let tol = Tol::witness();
+    let d = donut();
+    for exp in [-8.0, -5.5, -5.0, -4.0] {
+        let bar = framed_bar(
+            Point3::new(2.0, 0.1, 0.0),
+            Vec3::new(0.0, 10f64.powf(exp), 1.0),
+            -3.0,
+            3.0,
+            0.02,
+        );
+        let bar = finished("the bar", bar, tol);
+        for (name, r, a, b) in [
+            ("donut ∪ bar", topo::union(&d, &bar, tol), &*d, &*bar),
+            ("bar ∖ donut", topo::subtract(&bar, &d, tol), &*bar, &*d),
+        ] {
+            if let Err(e) = &r {
+                review3_locate(&format!("δ 1e{exp} {name}"), a, b, e);
+            }
+        }
+    }
+}
+
+/// **Review 3 (PR 5993): the seamed Steinmetz pair keeps the frontier,
+/// located or not.** [`review_r1_a_seam_touch_is_not_the_users_lever`]
+/// rejects only `Escalated`, but the head routes every span-path door
+/// escalation through `CurvedPierceEscalated`, so a seam touch read in
+/// the gap would pass it. Its seam ruling is exactly tangent to the
+/// partner wall, a decided Zero, which under A2 is the frontier.
+#[test]
+fn review3_the_seam_touch_keeps_the_frontier() {
+    let tol = Tol::witness();
+    let seamed = topo::union(
+        &finished("A", cyl_spun(0.0, false), tol),
+        &finished("B", cyl_spun(0.0, true), tol),
+        tol,
+    );
+    assert!(
+        matches!(seamed, Err(BooleanError::CurvedPierceUnsupported { .. })),
+        "the seam's decided touch keeps the frontier: {}",
+        kind(&seamed)
+    );
+}

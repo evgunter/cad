@@ -1007,3 +1007,30 @@ fn review_r1_two_rims_escalation_text() {
         }
     }
 }
+
+/// Review 3 probe (PR 5993): the two rims at `k = 80` and `200`, each
+/// op's outcome, one op at a time (`RV_PROBE` prints the walk's exits).
+#[test]
+#[ignore = "review probe"]
+fn review3_two_rims_per_op() {
+    let tol = Tol::witness();
+    let rod = rod_of(0.01, -3.0, 6.0);
+    for k in [80.0, 200.0] {
+        let d = k * tol.eps();
+        let (a, b) = (
+            cut_below(&rod, 100.0, 0.0),
+            cut_below(&rod, 100.0 * (1.0 + d), 0.0),
+        );
+        for (op, res) in [
+            ("b ∪ t", topo::union(&b, &a, tol)),
+            ("b ∖ t", topo::subtract(&b, &a, tol)),
+            ("b ∩ t", topo::intersect(&b, &a, tol)),
+        ] {
+            eprintln!("RV OP {op}");
+            eprintln!("RV RESULT k = {k}: {op}: {res:?}");
+            if let Err(e) = &res {
+                crate::review_r1_roots_split::review3_locate(&format!("k {k} {op}"), &b, &a, e);
+            }
+        }
+    }
+}

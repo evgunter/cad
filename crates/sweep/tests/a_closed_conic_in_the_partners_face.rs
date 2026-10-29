@@ -1571,3 +1571,40 @@ fn a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip() {
         }
     }
 }
+
+/// **Review 3 (PR 5993): the meeting's text does not put the edge on
+/// the face's carrier when it is not.** [`short_arcs_at_a_crescents_tip`]'s
+/// "the boss's only" pose at the default ε escalates
+/// `CurvedPierceEscalated { CurveMeeting }` at the boss's `r = 0.3` rim
+/// against the hole's `r = 0.1` wall about `(0.2, 0)`: the rim touches
+/// that cylinder at one point and does not lie on it, yet the text's
+/// subject reads "where an edge on a curved face's carrier meets a
+/// curve of that face's boundary", and its first lever, "make the two
+/// cuts of the curved face one construction", names no cut this pose has.
+#[test]
+#[ignore = "review 3: red at ac7e9ef4"]
+fn review3_a_meeting_off_the_carrier_says_so() {
+    // The pose's profile validates at the default ε only.
+    if tol().eps() != 1e-9 {
+        return;
+    }
+    let boss_rim = arcs_at(0.0, 0.3, &[-1e-5, 0.0, 1e-5, PI]);
+    let hole_rim = arcs_at(0.2, 0.1, &[0.0, PI]);
+    let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+    let holed = fin(
+        "the holed plate",
+        extruded(vec![square(), hole_rim], -0.5, 0.5),
+    );
+    let got = topo::union(&boss, &holed, tol());
+    let Err(e @ BooleanError::CurvedPierceEscalated { .. }) = &got else {
+        panic!(
+            "the meeting escalates, located: {:?}",
+            got.map(|_| "a body")
+        );
+    };
+    let text = e.to_string();
+    assert!(
+        !text.contains("an edge on a curved face's carrier"),
+        "the rim is not on the hole's wall: {text}"
+    );
+}
