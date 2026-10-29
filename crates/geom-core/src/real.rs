@@ -572,6 +572,17 @@ pub trait Real:
         self.sin_cos().1
     }
 
+    /// **The sine of `self`, whose value is exactly `value`**: the
+    /// caller has read the angle as one whose sine is that number (a
+    /// twelfth of a turn's, `1/2`). Defaults to the literal. A scalar
+    /// that records structure keeps the sine of the angle instead,
+    /// valued `value`, so what reads the structure sees the angle and
+    /// not only its value.
+    fn sin_known(self, value: f64) -> Self {
+        let _ = self;
+        Self::from_f64(value)
+    }
+
     /// The tangent (argument in radians).
     fn tan(self) -> Self;
 

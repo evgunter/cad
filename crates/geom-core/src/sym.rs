@@ -3428,6 +3428,22 @@ fn trig_at_rational_pi(op: SymOp, a: &Form) -> Option<Form> {
 /// is recorded in the session ([`Session::atoms`]) so that reduction
 /// can look its argument form back up.
 fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) -> Option<Form> {
+    // Rule H's deferred fold reaches every argument but a ring op's
+    // (`turn::settle`), so an atom, a reciprocal and a decision read
+    // the value.
+    let held: [Option<Form>; 3];
+    let kids = if early && sess.rules.angle_sum {
+        let settles = |i: usize| match node.op {
+            SymOp::Add | SymOp::Sub | SymOp::Mul | SymOp::Neg => false,
+            SymOp::Powi => (node.payload as u32 as i32) < 0,
+            SymOp::Select => i == 0,
+            _ => true,
+        };
+        held = std::array::from_fn(|i| settles(i).then(|| turn::settle(kids[i], sess)).flatten());
+        [0, 1, 2].map(|i| held[i].as_ref().unwrap_or(kids[i]))
+    } else {
+        kids
+    };
     let (a, b, third) = (kids[0], kids[1], kids[2]);
     let budget = sess.budget;
     // Where A0 applies: in the early walk when one is configured
@@ -4390,6 +4406,11 @@ fn walk(
     } else {
         rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry, false))
     };
+    let out = if early && rules.angle_sum {
+        turn::settle(&out, sess).map_or(out, Arc::new)
+    } else {
+        out
+    };
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
         match kind {
@@ -5275,6 +5296,12 @@ impl<T: Real> Real for Sym<T> {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = self.value.sin_cos();
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
+    }
+
+    /// The `Sin` node, valued `value`: the tier folds a constant angle
+    /// itself (`trig_at_rational_pi`, rule H's settle).
+    fn sin_known(self, value: f64) -> Self {
+        self.unary(self.value.sin_known(value), SymOp::Sin, 0)
     }
 
     fn tan(self) -> Self {
@@ -6400,16 +6427,18 @@ mod tests {
         }
     }
 
-    /// **What rule H does not reach** (its module docs): a ring of 9's
-    /// members at a third and two thirds of a turn, whose cosine `−1/2`
-    /// is folded to the rational before the tier sees it, so the product
-    /// it stood in is not rewritten and the step needs the relation
-    /// `cos(π/9) − cos(2π/9) = sin(π/18)` between constant atoms. Red
-    /// when the tier reaches it.
+    /// **Rule H, a ring whose members' cosines are rational at some
+    /// member**: a ring of 9 or 24 meets members at a third of a turn,
+    /// whose cosine `−1/2` is a constant atom of the rewrite until the
+    /// walk ends, so its products with the irrational steps beside it
+    /// are angle sums like any other. Red if a member at a rational
+    /// cosine is left numeric.
     #[test]
-    fn a_ring_member_at_a_rational_cosine_beside_irrational_steps_is_numeric() {
-        let (unproved, counts) = ring_unproved(9, SymRules::shipped());
-        assert_eq!(unproved, [3, 6], "{counts:?}");
+    fn a_ring_member_at_a_rational_cosine_beside_irrational_steps_is_a_theorem() {
+        for n in [9, 24] {
+            let (unproved, counts) = ring_unproved(n, SymRules::shipped());
+            assert!(unproved.is_empty(), "N = {n}: {unproved:?} {counts:?}");
+        }
     }
 
     /// **Rule H's canonical constant**: two spellings of one irrational

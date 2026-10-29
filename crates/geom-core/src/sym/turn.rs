@@ -95,7 +95,7 @@ use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly, mono_mul};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom, trig_at_rational_pi};
+use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom};
 
 /// The most pair rewrites one node's form takes before it is left as it
 /// was.
@@ -178,21 +178,59 @@ fn atom(sess: &mut Session, op: SymOp, arg: Form) -> Form {
     Form::poly(Poly::indet(id))
 }
 
-/// `sin`/`cos` of the constant angle `(p/s)·π`: a rational where the
-/// first octant's value is one, else `±` its atom.
+/// `sin`/`cos` of the constant angle `(p/s)·π`: `0` or `1` at the
+/// angle `0`, else `±` its atom, `sin(π/6)` among them (module docs).
 fn constant(sess: &mut Session, op: SymOp, p: i128, s: i128) -> Option<Form> {
     let (op, p, s, neg) = first_octant(op, p, s)?;
-    let arg = times(Rat::new(p, s, 0)?, INDET_PI);
-    let f = match trig_at_rational_pi(op, &arg) {
-        Some(f) => f,
-        None if p == 0 => Form::poly(Poly::constant(Rat::new(
-            i128::from(op == SymOp::Cos),
-            1,
-            0,
-        )?)),
-        None => atom(sess, op, arg),
+    let f = if p == 0 {
+        Form::poly(Poly::constant(Rat::new(i128::from(op == SymOp::Cos), 1, 0)?))
+    } else {
+        atom(sess, op, times(Rat::new(p, s, 0)?, INDET_PI))
     };
     if neg { f.neg() } else { Some(f) }
+}
+
+/// The key of the atom `sin(π/6)`, the one constant atom whose value is
+/// rational.
+fn sixth() -> Option<u128> {
+    let arg = times(Rat::new(1, 6, 0)?, INDET_PI);
+    Some(indet_atom(SymOp::Sin.tag(), 0, &[arg.digest()]))
+}
+
+/// `p` with `sin(π/6)` read as `1/2`.
+fn settle_poly(p: &Poly, id: u128) -> Option<Poly> {
+    let mut out = Poly::zero();
+    for (mono, c) in p.terms() {
+        let e = super::form::exp_of(mono, id);
+        if e == 0 {
+            out.insert(mono.clone(), c.clone())?;
+            continue;
+        }
+        let half = Rat::new(1, 1, -i32::try_from(e).ok()?)?;
+        let rest: Mono = mono.iter().copied().filter(|&(x, _)| x != id).collect();
+        out.insert(rest, c.mul(&half)?)?;
+    }
+    Some(out)
+}
+
+/// **The fold rule H defers** (module docs): `f` with `sin(π/6)` read
+/// as its value `1/2`, `None` where `f` does not carry it or the fold
+/// does not fit the ring, and `f` stands. A denominator the fold sends
+/// to zero is poison: the form has no value.
+pub(super) fn settle(f: &Form, sess: &Session) -> Option<Form> {
+    let id = sixth()?;
+    if f.poisoned || !sess.atoms.contains_key(&id) {
+        return None;
+    }
+    let carries = |p: &Poly| p.monos().any(|m| super::form::exp_of(m, id) > 0);
+    if !carries(&f.num) && !carries(&f.den) {
+        return None;
+    }
+    let (num, den) = (settle_poly(&f.num, id)?, settle_poly(&f.den, id)?);
+    if den.is_zero() {
+        return Some(Form::poison());
+    }
+    Some(Form::quotient(num, den))
 }
 
 /// `sin`/`cos` of a symbolic angle `ω` (no rational-turn part), its
