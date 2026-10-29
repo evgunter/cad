@@ -464,6 +464,8 @@ mod spline_reanchor_rows;
 mod split_tangent_edge;
 #[path = "split_through_a_union_pinch.rs"]
 mod split_through_a_union_pinch;
+#[path = "review_pinch_corner_split.rs"]
+mod review_pinch_corner_split;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]

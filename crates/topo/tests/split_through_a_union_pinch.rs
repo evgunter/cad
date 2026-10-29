@@ -24,17 +24,17 @@ fn t() -> Tol {
 }
 
 /// The L's reflex top corner, where the cube's bottom face meets it.
-const PINCH_AT: [f64; 3] = [1.0, 1.0, 1.0];
+pub(crate) const PINCH_AT: [f64; 3] = [1.0, 1.0, 1.0];
 
 /// The normal of the cube's bottom face, unnormalised.
-const CUBE_NORMAL: [f64; 3] = [1.0, 1.3, 0.7];
+pub(crate) const CUBE_NORMAL: [f64; 3] = [1.0, 1.3, 0.7];
 
-fn unit(v: [f64; 3]) -> [f64; 3] {
+pub(crate) fn unit(v: [f64; 3]) -> [f64; 3] {
     let n = v.iter().map(|c| c * c).sum::<f64>().sqrt();
     v.map(|c| c / n)
 }
 
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+pub(crate) fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -42,20 +42,20 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     ]
 }
 
-fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+pub(crate) fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// The cube's frame: its bottom face's normal `m`, and `u` (the tilt of
 /// +z into that face) and `w = m × u` spanning it.
-fn cube_frame() -> [[f64; 3]; 3] {
+pub(crate) fn cube_frame() -> [[f64; 3]; 3] {
     let m = unit(CUBE_NORMAL);
     let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
     [m, u, cross(m, u)]
 }
 
 /// The prism over the L, a unit tall.
-fn ell() -> AtRestBody<f64> {
+pub(crate) fn ell() -> AtRestBody<f64> {
     let prism = common::prism::<f64>(
         &[
             (0.0, 0.0),
@@ -74,7 +74,7 @@ fn ell() -> AtRestBody<f64> {
 /// The cube of side 4 whose bottom face lies on the plane through
 /// [`PINCH_AT`] with normal [`CUBE_NORMAL`], on its side, centred on the
 /// corner there.
-fn cube() -> AtRestBody<f64> {
+pub(crate) fn cube() -> AtRestBody<f64> {
     let [m, u, w] = cube_frame();
     let v = PINCH_AT;
     let body = common::mapped_cube::<f64>(
@@ -92,10 +92,10 @@ fn cube() -> AtRestBody<f64> {
 }
 
 /// A halfspace `n · x ≤ c`.
-type Half = ([f64; 3], f64);
+pub(crate) type Half = ([f64; 3], f64);
 
 /// The box `[lo, hi]` as halfspaces.
-fn box_halves(lo: [f64; 3], hi: [f64; 3]) -> Vec<Half> {
+pub(crate) fn box_halves(lo: [f64; 3], hi: [f64; 3]) -> Vec<Half> {
     (0..3)
         .flat_map(|i| {
             let mut e = [0.0; 3];
@@ -106,7 +106,7 @@ fn box_halves(lo: [f64; 3], hi: [f64; 3]) -> Vec<Half> {
 }
 
 /// The cube as halfspaces.
-fn cube_halves() -> Vec<Half> {
+pub(crate) fn cube_halves() -> Vec<Half> {
     let [m, u, w] = cube_frame();
     let at = |d: [f64; 3]| dot(d, PINCH_AT);
     let neg = |d: [f64; 3]| d.map(|c| -c);
@@ -123,7 +123,7 @@ fn cube_halves() -> Vec<Half> {
 /// The volume of the bounded convex polytope `halves` cut out, by the
 /// divergence theorem over its faces: each face's polygon is the
 /// polytope's vertices on its plane, taken round their centroid.
-fn convex_volume(halves: &[Half]) -> f64 {
+pub(crate) fn convex_volume(halves: &[Half]) -> f64 {
     // A plane listed twice bounds one face, counted once.
     let mut planes: Vec<Half> = Vec::new();
     for &(n, c) in halves {
@@ -218,11 +218,11 @@ fn halves_volumes() -> [f64; 2] {
 /// The edges at [`PINCH_AT`] of [`wedge`], each inside the gap the L's
 /// reflex notch leaves under the cube's bottom face (x, y > 1, z < 1,
 /// below the face), in a right-handed order.
-const WEDGE: [[f64; 3]; 3] = [[0.1, 0.1, -1.0], [0.1, 1.0, -2.5], [1.0, 0.1, -2.0]];
+pub(crate) const WEDGE: [[f64; 3]; 3] = [[0.1, 0.1, -1.0], [0.1, 1.0, -2.5], [1.0, 0.1, -2.0]];
 
 /// The parallelepiped on [`WEDGE`]'s edges scaled by 0.3 from the
 /// corner: it touches the union only there, a third cone.
-fn wedge() -> AtRestBody<f64> {
+pub(crate) fn wedge() -> AtRestBody<f64> {
     let body = common::mapped_cube::<f64>(
         |x, y, z| {
             let q = [0, 1, 2]
