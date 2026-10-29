@@ -29,8 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
+use crate::common::printed;
 use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
