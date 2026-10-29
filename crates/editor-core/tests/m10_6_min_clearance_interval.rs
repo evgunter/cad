@@ -26,9 +26,10 @@
 //! every row below compare against the truth instead of against a
 //! previous run.
 //!
-//! The two walls share no vertex, so the wedge rule admits the pair;
-//! they are two faces of ONE body, which is also the case a
-//! `min_clearance` between two named faces has to handle.
+//! The two walls share no vertex, so the pair is measured by
+//! subdivision rather than read off shared topology; they are two
+//! faces of ONE body, which is also the case a `min_clearance` between
+//! two named faces has to handle.
 //!
 //! The box every row drives over is ε-scaled for the reason M10-5's
 //! header states at length: above a small fraction of ε no node's
@@ -571,26 +572,33 @@ fn the_symbolic_tier_certifies_a_clearance_measure_bit_identical_to_the_numeric_
     );
 }
 
-/// **Row 4b**: a pairing the wedge rule empties refuses typed.
+/// **Row 4b**: two scopes that meet read 0, named on the cell they
+/// share.
 ///
-/// One face against ITSELF: a face is never at a distance from itself,
-/// so the only candidate is dropped and there is no separation to
-/// enclose. The minimum over an empty set is `+∞`, and reporting that
-/// as a clearance would be a number no geometry backs.
+/// One face against ITSELF: the two scopes share that face, so the
+/// minimum separation is 0, read off topology, and the bracket is
+/// `[0, 0]` with the face as its witness. A metric door has no pairing
+/// rule: a scope that meets another is at 0 from it.
 ///
 /// The row is also what holds the measure's same-body derivation
-/// (`MinClearanceOperand::same_body`): the wedge rule applies only to a
-/// same-body pairing, and a derivation that answered `false` here would
-/// admit the face against itself and answer a bracket.
+/// (`MinClearanceOperand::same_body`): the meeting is read only between
+/// two scopes of one body, and a derivation that answered `false` here
+/// would subdivide the face against itself instead.
 #[test]
-fn a_pairing_the_wedge_rule_empties_refuses_typed() {
+fn two_scopes_that_meet_read_zero_on_the_shared_cell() {
     let f = dumbbell();
     let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
-    match neck.ask(0, 0, MinSeparationConfig::default()) {
-        Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
-        Ok(m) => panic!("a face against itself has no pair: {}", m.serialize()),
-    }
+    let m = neck
+        .ask(0, 0, MinSeparationConfig::default())
+        .expect("a face against itself is at 0");
+    assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.serialize());
+    let meets = m.meets().expect("the scopes meet");
+    assert_eq!(meets.a, meets.b, "on the one face: {meets:?}");
+    assert!(
+        matches!(meets.shared, topo::clearance::SharedCell::Face(f) if f == meets.a),
+        "{meets:?}"
+    );
 }
 
 /// **Row 5**: a reference that names neither a body nor a face refuses

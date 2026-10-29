@@ -330,7 +330,8 @@ impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
     }
 
     /// Whether two operands read one body: the same output of the same
-    /// node. The engine's wedge rule applies between them exactly then.
+    /// node. Two such operands that meet are at separation 0, read off
+    /// the topology they share.
     pub fn same_body(&self, other: &Self) -> bool {
         self.at == other.at && self.index == other.index
     }
