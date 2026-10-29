@@ -2,10 +2,12 @@
 id: the-join-refuses-whole-row-lost-its-import-witness
 kind: issue
 title: the join door's refuse-whole row lost its witness when import made the half-cap's pole a vertex
-status: open
+status: closed
 opened: 2026-10-29
 priority: P3
 cost: E
+closed: 2026-10-29
+pr: 6007
 ---
 
 
@@ -30,3 +32,7 @@ Candidate witness: `crates/topo/tests/cleave_mint_doors.rs`'s M7-8 body,
 whose split vertex's join reading is undecided at every ε, with an
 ordinary joinable vertex split in ahead of it. That is topo's join door
 read on a topo body, which is where the row belongs anyway.
+
+## Closed (PR 6007 fix pass, 2026-10-29)
+
+The review found the witness: `crates/topo/tests/cleave_mint_doors.rs`'s M7-8 body, an ordinary line edge split ahead of an M7-8 edge whose join reading is undecided at every ε. It carries the deleted row's name and meaning there, `a_join_refused_in_the_band_leaves_the_body_as_found`, in the nextest slow set (about 13 s in debug).

@@ -18,9 +18,12 @@
 //!
 //! Each split of a boundary edge propagates to every face sharing it,
 //! so the shell stays closed. A face holding both poles of a sphere is
-//! cut through one of its own boundary vertices' azimuth, so the pole
-//! met second is reached on a meridian of the first and completed as a
-//! valence-1 vertex.
+//! cut at the azimuth of its loop's centroid, through the hole the loop
+//! bounds, so the pole met second is reached on a meridian of the first
+//! and completed as a valence-1 vertex. Where a meridian lands is
+//! decided as the point itself is: at a boundary vertex within the
+//! band's zero, splitting the edge past its escalation, and refused
+//! between.
 //!
 //! **Where it lies** is decided at the file's band ([`crate::chart`]):
 //! within ε_in of a vertex or an edge it is on it, past the band's
@@ -337,11 +340,15 @@ enum Near {
     Unread,
 }
 
-/// The distance from `x` to the interior of the edge `spec`.
-fn nearest_on_edge(spec: &EdgeSpec, x: Point3<f64>, read: &Read) -> Result<Near, StepImportError> {
-    let (t0, t1) = (spec.t0, spec.t1);
-    let t = match spec.carrier {
-        Curve3::Line { origin, dir } => (x - origin).dot(dir) / dir.dot(dir),
+/// **The parameter at which `carrier` passes nearest `x`**, the one
+/// reading of it this pass takes: a line's projection, or a circle's
+/// angle about its centre in its own frame (the convention
+/// [`crate::geometry::endpoint_params`] derives edge intervals in),
+/// brought to the representative at or past `from` and short of a turn
+/// beyond it. `None` for any other carrier.
+fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
+    match *carrier {
+        Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
         Curve3::Circle {
             center,
             axis,
@@ -349,13 +356,20 @@ fn nearest_on_edge(spec: &EdgeSpec, x: Point3<f64>, read: &Read) -> Result<Near,
             ..
         } => {
             let w = x - center;
-            let mut t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
-            while t < t0 {
-                t += core::f64::consts::TAU;
-            }
-            t
+            let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
+            let tau = core::f64::consts::TAU;
+            Some(from + (t - from).rem_euclid(tau))
         }
-        _ => {
+        _ => None,
+    }
+}
+
+/// The distance from `x` to the interior of the edge `spec`.
+fn nearest_on_edge(spec: &EdgeSpec, x: Point3<f64>, read: &Read) -> Result<Near, StepImportError> {
+    let (t0, t1) = (spec.t0, spec.t1);
+    let t = match param_at(&spec.carrier, x, t0) {
+        Some(t) => t,
+        None => {
             // No closed-form foot: sampled, and refused only where a
             // sample comes near enough that the sampling could decide.
             let n = 256;
@@ -417,12 +431,13 @@ fn use_end(solid: &SolidSpec, use_: EdgeUse) -> u64 {
 }
 
 /// One loop read through the chart: its winding about the surface axis
-/// (in turns), the signed area of its chart image, and the sign of the
-/// chart `v` it runs at (the cone's nappe).
+/// (in turns), the signed area of its chart image, and its sample of
+/// largest `|v|`, whose sign is the cone's nappe the loop runs on.
 struct LoopReading {
     winding: i64,
     area: f64,
-    v_sign: f64,
+    /// The chart `v` of the loop's sample farthest from `v = 0`.
+    farthest_v: f64,
 }
 
 /// [`LoopReading`] of one loop. A sample at a singular point has no
@@ -524,7 +539,7 @@ fn read_loop(
     Ok(LoopReading {
         winding,
         area: area / 2.0,
-        v_sign: v_extreme,
+        farthest_v: v_extreme,
     })
 }
 
@@ -554,10 +569,10 @@ fn holds(
             Chart::Cone { .. } => match r.winding {
                 0 => return Ok(false),
                 w => {
-                    if r.v_sign == 0.0 {
+                    if r.farthest_v == 0.0 {
                         return Err(unreadable(face.id));
                     }
-                    (w == 1) == (r.v_sign < 0.0)
+                    (w == 1) == (r.farthest_v < 0.0)
                 }
             },
         };
@@ -672,6 +687,9 @@ enum Hit {
     Edge { edge: u64, t: f64 },
     /// At another singular point, off the boundary.
     Singular(Point3<f64>),
+    /// Where a landing beside a boundary vertex is undecided: the refusal,
+    /// raised only if the ray meets nothing sooner.
+    Refused(StepImportError),
 }
 
 /// The carrier length per unit parameter (the radius for a circle).
@@ -745,35 +763,25 @@ fn first_hit(
             crossings(&ray.carrier, &spec.carrier, read).ok_or(foreign_carrier(face.id))?
         {
             let delta = walked(t_ray);
-            // On the edge's own span?
-            let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
-            if (p - ps).norm() <= read.eps {
-                offer(delta, Hit::Vertex(spec.start), ps, &mut best);
-                continue;
-            }
-            if (p - pe).norm() <= read.eps {
-                offer(delta, Hit::Vertex(spec.end), pe, &mut best);
-                continue;
-            }
-            let te = match spec.carrier {
-                Curve3::Line { origin, dir } => (p - origin).dot(dir) / dir.dot(dir),
-                Curve3::Circle {
-                    center,
-                    axis,
-                    u_ref,
-                    ..
-                } => {
-                    let w = p - center;
-                    let mut te = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
-                    while te < spec.t0 {
-                        te += core::f64::consts::TAU;
-                    }
-                    te
-                }
-                _ => return Err(foreign_carrier(face.id)),
+            let te = param_at(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
+            // At one of the edge's ends, decided at the pass's band as
+            // the singular point itself is: within it, the landing is
+            // that vertex; past it, the edge is split there; between,
+            // the landing is undecided and refuses if it is the one the
+            // ray meets first.
+            let ends = [spec.start, spec.end].map(|v| (v, solid.vertices[&v]));
+            let (v, pv) = if (p - ends[0].1).norm() <= (p - ends[1].1).norm() {
+                ends[0]
+            } else {
+                ends[1]
             };
-            if te > spec.t0 && te < spec.t1 {
-                offer(delta, Hit::Edge { edge, t: te }, p, &mut best);
+            match on_boundary((p - pv).norm(), read, face.id) {
+                Ok(true) => offer(delta, Hit::Vertex(v), pv, &mut best),
+                Ok(false) if te > spec.t0 && te < spec.t1 => {
+                    offer(delta, Hit::Edge { edge, t: te }, p, &mut best);
+                }
+                Ok(false) => {}
+                Err(refused) => offer(delta, Hit::Refused(refused), p, &mut best),
             }
         }
     }
@@ -785,29 +793,20 @@ fn first_hit(
             }
         }
     }
-    best.map(|(_, hit, p)| (hit, p))
-        .ok_or(StepImportError::Topology {
+    match best {
+        Some((_, Hit::Refused(refused), _)) => Err(refused),
+        Some((_, hit, p)) => Ok((hit, p)),
+        None => Err(StepImportError::Topology {
             id: face.id,
             what: "internal: a pole-form meridian minted inside a face meets none of its \
                boundary",
-        })
+        }),
+    }
 }
 
 /// The parameter of `carrier` at `x`, when `x` lies on it within ε_in.
 fn foot(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = match *carrier {
-        Curve3::Line { origin, dir } => (x - origin).dot(dir) / dir.dot(dir),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let w = x - center;
-            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref))
-        }
-        _ => return None,
-    };
+    let t = param_at(carrier, x, 0.0)?;
     ((carrier.eval(t) - x).norm() <= read.eps).then_some(t)
 }
 
@@ -951,7 +950,9 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             axis,
             ..
         } => Ray {
-            carrier: plus_zero_curve(geom::pole_form::sphere_meridian(center, radius, axis, d)),
+            carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
+                center, radius, axis, d,
+            )),
             from: if k == 0 { 0.0 } else { core::f64::consts::PI },
             sign: if k == 0 { 1.0 } else { -1.0 },
             reach: core::f64::consts::PI,
@@ -962,36 +963,14 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             half_angle,
             ..
         } => Ray {
-            carrier: plus_zero_curve(geom::pole_form::cone_generator(apex, axis, half_angle, d)),
+            carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
+                apex, axis, half_angle, d,
+            )),
             from: 0.0,
             sign: nappe,
             reach: f64::INFINITY,
         },
     })
-}
-
-/// A minted carrier with its signed zeros made positive
-/// ([`crate::signed_zero`] states why).
-fn plus_zero_curve(c: Curve3<f64>) -> Curve3<f64> {
-    use crate::signed_zero::{plus_zero, plus_zero_point};
-    match c {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: plus_zero_point(origin),
-            dir: plus_zero(dir),
-        },
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: plus_zero_point(center),
-            axis: plus_zero(axis),
-            radius,
-            u_ref: plus_zero(u_ref),
-        },
-        other => other,
-    }
 }
 
 /// Requires every boundary carrier of face `fi` to be one this pass
@@ -1027,6 +1006,7 @@ fn land(
             solid.vertices.insert(v, s);
             Ok(v)
         }
+        Hit::Refused(refused) => Err(refused),
     }
 }
 
@@ -1092,21 +1072,46 @@ fn interior(
         .collect();
     let (axis, origin) = (chart.axis(), chart.origin());
     // The azimuth: the surface's own u_ref, unless the face holds the
-    // other pole too, when it is the azimuth of a boundary vertex, so
-    // that a meridian of the pair reaches the boundary there or
-    // before.
+    // other pole too. Then its loop bounds a pole-free hole, and the
+    // azimuth is that of the loop's centroid, which the hole surrounds:
+    // the meridian there crosses the hole through it, meeting the loop at
+    // two distinct points, rather than grazing it at one (a boundary
+    // vertex's azimuth can be tangent to the hole there). A centroid on
+    // the axis falls back to a boundary vertex's azimuth.
     let mut d = chart.u_ref();
     if let Some(&y) = others.first()
         && holds(solid, fi, chart, 1 - k, read)?
     {
         let lp = &solid.faces[fi].loops[0];
-        let radial = lp.uses.iter().find_map(|u| {
-            let p = solid.vertices[&use_start(solid, *u)];
+        let radial = |p: Point3<f64>| {
             let w = p - origin;
             let r = w - axis * w.dot(axis);
-            ((p - y).norm() > read.escalate && r.norm() > read.escalate).then(|| r / r.norm())
-        });
-        d = radial.ok_or(unreadable(face_id))?;
+            (r.norm() > read.escalate).then(|| r / r.norm())
+        };
+        let mut sum = Vec3::new(0.0, 0.0, 0.0);
+        let mut count = 0.0;
+        for u in &lp.uses {
+            let spec = &solid.edges[&u.edge];
+            for i in 0..8 {
+                let t = spec.t0 + (spec.t1 - spec.t0) * f64::from(i) / 8.0;
+                sum = sum + (spec.carrier.eval(t) - origin);
+                count += 1.0;
+            }
+        }
+        let centroid = origin + sum * (1.0 / count);
+        let vertex = || {
+            lp.uses.iter().find_map(|u| {
+                let p = solid.vertices[&use_start(solid, *u)];
+                if (p - y).norm() > read.escalate {
+                    radial(p)
+                } else {
+                    None
+                }
+            })
+        };
+        d = radial(centroid)
+            .or_else(vertex)
+            .ok_or(unreadable(face_id))?;
     }
     let nappe = match chart {
         Chart::Cone { .. } => {
@@ -1118,10 +1123,10 @@ fn interior(
                 read,
                 face_id,
             )?;
-            if r.v_sign == 0.0 {
+            if r.farthest_v == 0.0 {
                 return Err(unreadable(face_id));
             }
-            r.v_sign.signum()
+            r.farthest_v.signum()
         }
         Chart::Sphere { .. } => 1.0,
     };
@@ -1385,6 +1390,104 @@ mod review_on_boundary {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod side_through_a_pole {
+    use std::collections::BTreeMap;
+
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Chart, Read, holds};
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+
+    /// **`read_loop`'s claim, pinned**: a loop passing THROUGH one pole
+    /// (its samples there skipped) still reads the side of the OTHER.
+    /// The half-cap of a unit sphere above latitude 0.5 in `y ≥ 0`,
+    /// bounded by its rim half and the meridian arc over the north pole
+    /// (a vertex there): under `same_sense` the face is the half-cap and
+    /// the south pole lies outside it; flipped, the face is its
+    /// complement and holds the south pole. A skipped step read as the
+    /// wrong detour would put the south pole on the same side both ways.
+    #[test]
+    fn a_loop_through_one_pole_reads_the_side_of_the_other() {
+        let b = 0.5_f64;
+        let (a, n, bb) = (
+            Point3::new(b.cos(), 0.0, b.sin()),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(-b.cos(), 0.0, b.sin()),
+        );
+        let rim = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, b.sin()),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: b.cos(),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // θ runs from +x up through the north pole (θ = π/2) to −x.
+        let meridian = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, -1.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let edge = |start, end, carrier: &Curve3<f64>, t0, t1| EdgeSpec {
+            start,
+            end,
+            carrier: carrier.clone(),
+            t0,
+            t1,
+            reversed: false,
+        };
+        let pi = core::f64::consts::PI;
+        let edges = || {
+            BTreeMap::from([
+                (11, edge(1, 3, &rim, 0.0, pi)),
+                (12, edge(1, 2, &meridian, b, pi / 2.0)),
+                (13, edge(2, 3, &meridian, pi / 2.0, pi - b)),
+            ])
+        };
+        let vertices = BTreeMap::from([(1, a), (2, n), (3, bb)]);
+        let surface = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let use_ = |edge, forward| EdgeUse { edge, forward };
+        let read = Read {
+            eps: 1e-9,
+            escalate: 1e-8,
+            band: geom_core::Band::new(1e-9, 1e-8).ok(),
+            run: geom_core::Band::new(1e-9, 1e-8).ok(),
+            file: geom_core::FileCoincidence::new(1e-9),
+        };
+        let chart = Chart::of(&surface).unwrap();
+        for (sense, south_inside) in [(true, false), (false, true)] {
+            let solid = SolidSpec {
+                id: 100,
+                faces: vec![FaceSpec {
+                    id: 101,
+                    surface: surface.clone(),
+                    sense,
+                    loops: vec![LoopSpec {
+                        outer: true,
+                        uses: vec![use_(11, true), use_(13, false), use_(12, false)],
+                    }],
+                    band: false,
+                }],
+                edges: edges(),
+                vertices: vertices.clone(),
+                band_seams: Default::default(),
+            };
+            assert_eq!(
+                holds(&solid, 0, chart, 1, &read).unwrap(),
+                south_inside,
+                "sense {sense}: the south pole's side, read through a loop over the north pole"
+            );
         }
     }
 }

@@ -54,8 +54,8 @@ impl fmt::Display for AdoptionCandidate {
 }
 
 /// What [`StepImportError::SingularityUndecided`] asks.
-pub(crate) const SINGULARITY_SUBJECT: &str =
-    "whether a sphere pole or cone apex lies on the boundary of a face that reaches it";
+pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
+     boundary, lies on that boundary or at one of its vertices";
 
 /// **Whether a chart singularity lies on a face's boundary**, a sized
 /// decision: the distance from the point to the nearest vertex or edge
@@ -63,7 +63,7 @@ pub(crate) const SINGULARITY_SUBJECT: &str =
 /// only a distance the band cannot call refuses, and a smaller
 /// tolerance calls any nonzero one.
 pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = SizedDecision {
-    lever: "move the face's boundary onto the pole or apex it passes near, or clear of it",
+    lever: "move the face's boundary, or its vertex, onto that point or clear of it",
     size: "distance",
     passes: geom_core::SizedPass::AnySign,
     side: RefusedSide::Lever,
@@ -75,8 +75,8 @@ pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = SizedDecision {
 /// so it ends in its lever alone, which names the file's coincidence
 /// distance.
 pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
-    lever: "move the face's boundary onto the pole or apex it passes near, or clear of it, or, \
-            if this distance is intended, re-export the file with a smaller declared \
+    lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
+            this distance is intended, re-export the file with a smaller declared \
             uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
             the file's coincidence distance, which no tolerance of this run decides",
 };
@@ -320,7 +320,9 @@ pub enum StepImportError {
         file: FileCoincidence,
     },
     /// Whether a sphere pole or cone apex lies on a face's boundary (at
-    /// one of its vertices, or inside one of its edges) reads in the band
+    /// one of its vertices, or inside one of its edges), or whether a
+    /// pole-form meridian minted from one lands at a boundary vertex or
+    /// beside it, reads in the band
     /// the import decides it at, the coarser of the file's and the run's:
     /// so whether it is a vertex of the face, lies inside an edge, or lies
     /// inside the face is undecided, and the normalization that makes it a

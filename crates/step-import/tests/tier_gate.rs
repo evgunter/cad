@@ -465,33 +465,37 @@ const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
 /// of the face is undecided, and the import door ends the sized
 /// decision with its margin and the tolerance that decides it. Pinned
 /// as the whole message, face, margin, band and number included.
-const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex \
-     lies on the boundary of a face that reaches it is undecided: margin 9.999999999789241e-9 \
-     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary onto the \
-     pole or apex it passes near, or clear of it, or, if this distance is intended, tighten \
+const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 9.999999999789241e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 9.999999999789241e-10 m";
 /// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
-const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex \
-     lies on the boundary of a face that reaches it is undecided: margin 1.0000000011961913e-9 \
-     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary onto the \
-     pole or apex it passes near, or clear of it, or, if this distance is intended, tighten \
+const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 1.0000000011961913e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1.0000000011961913e-10 m";
 /// The poleguard twins' fine-band refusal: at 1e-12 the run's band
 /// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
 /// K·ε_in)`, cannot call it, so no tolerance decides it and the ending
 /// names the file's coincidence distance instead.
 const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a sphere pole or cone \
-     apex lies on the boundary of a face that reaches it is undecided: margin \
+     apex, or where a meridian minted from one meets a face's boundary, lies on that boundary \
+     or at one of its vertices is undecided: margin \
      8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
-     face's boundary onto the pole or apex it passes near, or clear of it, or, if this \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
      distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
      smaller ε_in override): the distance lies in the band past the file's coincidence \
      distance, which no tolerance of this run decides";
 /// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
 const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
-     cone apex lies on the boundary of a face that reaches it is undecided: margin \
+     cone apex, or where a meridian minted from one meets a face's boundary, lies on that \
+     boundary or at one of its vertices is undecided: margin \
      8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
-     face's boundary onto the pole or apex it passes near, or clear of it, or, if this \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
      distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
      smaller ε_in override): the distance lies in the band past the file's coincidence \
      distance, which no tolerance of this run decides";

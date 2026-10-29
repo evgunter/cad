@@ -1582,21 +1582,9 @@ impl<'a> Resolver<'a> {
         vertices.insert(sv, south);
         let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
-            let Curve3::Circle {
-                center,
-                axis: normal,
-                radius,
-                u_ref: start,
-            } = geom::pole_form::sphere_meridian(center, radius, axis, d)
-            else {
-                unreachable!("a sphere meridian is a circle")
-            };
-            let carrier = Curve3::Circle {
-                center,
-                axis: signed_zero::plus_zero(normal),
-                radius,
-                u_ref: start,
-            };
+            let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
+                center, radius, axis, d,
+            ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(
                 eid,

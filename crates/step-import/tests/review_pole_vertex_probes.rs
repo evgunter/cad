@@ -504,4 +504,31 @@ fn a_meridian_landing_beside_a_rim_vertex() {
         }
     }
     eprintln!("{}", report.join("\n"));
+    // Pinned at the default band, (1e-9, 1e-8): within its zero the
+    // landing is the rim vertex, past its escalation the rim is split
+    // there (and the vertex, left with one carrier through it, joined),
+    // and inside it the landing is undecided and refuses, naming the
+    // face the file states.
+    if (0.99e-9..=1.01e-9).contains(&tol.eps()) {
+        let lines: Vec<&str> = report.iter().map(String::as_str).collect();
+        for (i, want) in [
+            "delta 5e-10: ships 4 edges",
+            "delta 1.5e-9: step import: face #33: ",
+            "delta 3e-9: step import: face #33: ",
+            "delta 9e-9: step import: face #33: ",
+            "delta 2e-8: ships 4 edges",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert!(lines[i].starts_with(want), "row {i}: {}", lines[i]);
+        }
+        for line in &lines[1..4] {
+            assert!(
+                line.contains("is undecided: margin")
+                    && line.contains("tighten the tolerance below"),
+                "{line}"
+            );
+        }
+    }
 }

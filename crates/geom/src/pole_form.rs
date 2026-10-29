@@ -22,13 +22,13 @@ use geom_core::{Point3, Real, Vec3};
 
 use crate::Curve3;
 
-/// How many meridians end at a singular vertex in the pole form.
-pub const MERIDIANS: usize = 2;
-
-/// The pole form's two azimuths from one of them: `d` and its half
-/// turn `−d`. `d` is a direction perpendicular to the surface axis,
-/// where `−d` is its half turn exactly, with nothing to round.
-pub fn azimuths<T: Real>(d: Vec3<T>) -> [Vec3<T>; MERIDIANS] {
+/// The pole form's two azimuths from one of them: `d` and its
+/// [`half_turn`] about the axis. For `d` perpendicular to the axis, the
+/// premise here, the half turn is exactly `−d`, which this spells with
+/// nothing to round: `half_turn`'s `2(d·â)â − d` reads the rounding of
+/// `d·â` into the result. One operation, two spellings, because the
+/// meridian carriers take an azimuth and must state it bit for bit.
+pub fn azimuths<T: Real>(d: Vec3<T>) -> [Vec3<T>; 2] {
     [d, -d]
 }
 

@@ -317,14 +317,16 @@ fn kev_describing_runs_the_class_through_the_scalars_door() {
     assert_eq!(dual, Ok(()), "the dual's door mints the moved member");
 }
 
-/// Review probe (PR 6007): **the join door refuses whole**, the property
-/// `step-import`'s deleted `a_join_refused_in_the_band_leaves_the_body_as_found`
-/// witnessed. An ordinary line edge split at its midpoint (joinable,
-/// first in arena order), then an M7-8 edge split (its join reading
-/// undecided at every ε): `join_edges` refuses before any kill and
-/// leaves the body exactly as found.
+/// **The join door refuses whole** (`Body::join_edges`): an ordinary
+/// line edge split at its midpoint (a joinable vertex, first in arena
+/// order), then an M7-8 edge split (its join reading undecided at every
+/// ε, the body this file's first row reaches). The door refuses
+/// `JoinUndecided` before any kill, so the ordinary vertex is not joined
+/// either and the body is exactly as it was. Before import made a sphere
+/// pole a vertex this was read on `step-import`'s half-cap, whose arc
+/// through the pole no longer ships.
 #[test]
-fn a_join_refused_undecided_leaves_the_body_as_found() {
+fn a_join_refused_in_the_band_leaves_the_body_as_found() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let mut body = m7_8_cube::<f64>();
