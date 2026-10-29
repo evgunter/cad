@@ -58,17 +58,26 @@ measurement that started this refold: the klein loop's contact rims are
    re-pin on the refusal they reach, with the scene's findings text
    updated in the same PR.
 3. **The crossing rung**, then **the spline join** built on it.
-4. **The flush readings** (the two SEAMRANK rows): lily wall 8's
-   contact is an exact planar mate between two lofted bodies, so its
-   union reads flush along their NURBS edges.
+4. **The flush readings** (the two SEAMRANK rows): two lofted bodies
+   on an exact planar mate read flush along their NURBS edges. The
+   sweep row `a_sheath_grafted_on_its_blade` is that contact; lily wall
+   8 was too, until 2026-10-29.
 
 **The seam with SECT.** Klein wall 3 (the loop's NURBS walls through
 the bulb's cone) and teapot wall 3 (the spout's walls through the
 belly's sphere) also need a NURBS face against a curved face, which is
 the section object's rung-3 arm and SECT's to build
-(`work/sect/plan.md`). Lily wall 8 needs no curved section. So lily
-wall 8 is this track's first demo witness; the other two retire when
-both tracks have landed.
+(`work/sect/plan.md`). So, since 2026-10-29, does lily wall 8: the
+long leaf grown out of the stem, its NURBS walls through the lower
+stem's torus wall. It refuses first at the curved crossing lane's
+spline dispatch (SPLICEFACE's
+`a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`),
+and behind that needs a NURBS × torus section (SECTARMS'
+`a-nurbs-face-against-a-torus-has-no-section-arm`). The sheath grafted
+on its blade, which needed no curved section, was wall 8 until the
+scene re-spelled the leaf as one loft (`[ev]` PR 5990); its tangent
+rim stays witnessed by the sweep row `a_sheath_grafted_on_its_blade`.
+All three demo joins retire when both tracks have landed.
 
 Spiric operand edges are not on this slate: they stay deferred
 (`reachhold/spiric-operand-edges-reopen-with-their-first-producer`,

@@ -36,7 +36,7 @@ edge could have been re-minted and certified. That is loud, not wrong,
 and it is SELECT unit 7's to re-ask D2's question at those doors.
 
 None of them has a row through a body. The only producer is the
-boolean's recovery, and its one witness (lily wall 8,
+boolean's recovery, and its one witness (the sheath grafted on its blade,
 `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`) stops at the
 interior-loop guard, so no body at rest carries a shared row. The
 remap's re-ordering is guarded at `geom-brep`
