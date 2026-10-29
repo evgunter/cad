@@ -824,10 +824,10 @@ mod kernel {
     use editor_core::TraceStepFault;
     use profile::StructureRefusalKind;
     use topo::SplitError;
-    use topo::boolean::trace::TraceFault;
     use topo::SplitFinishError;
     use topo::SplitJoinError;
     use topo::SplitReduceError;
+    use topo::boolean::trace::TraceFault;
     pub(super) type ShellError = topo::ShellError<f64>;
     pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
     use geom_core::BandError;
@@ -4416,7 +4416,10 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
         ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
         ("Carrier/Apex", F::Carrier(TraceFault::Apex)),
         ("Carrier/OnCarrier", F::Carrier(TraceFault::OnCarrier)),
-        ("Carrier/Escalated", F::Carrier(TraceFault::Escalated(diag()))),
+        (
+            "Carrier/Escalated",
+            F::Carrier(TraceFault::Escalated(diag())),
+        ),
         (
             "Carrier/Unsettled",
             F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),

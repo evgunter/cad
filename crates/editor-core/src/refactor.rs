@@ -2089,13 +2089,19 @@ fn remap_node(
             .collect::<Result<Vec<_>, _>>()
     };
     Ok(match node {
-        // A profile reads nothing. Its step ids do NOT cross: the other document's insert door
-        // mints its own, and the names that spell them cross through
-        // the step map read off that minting ([`carry`]).
+        // A free profile reads nothing; a drawn one's frame and traced
+        // faces cross as every read does. Its step ids do NOT cross: the
+        // other document's insert door mints its own, and the names that
+        // spell them cross through the step map read off that minting
+        // ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             loops: p.loops.clone(),
             ids: Vec::new(),
-            on: None,
+            on: p
+                .on
+                .as_ref()
+                .map(|on| on.try_map(&mut |seat, &var| rd(seat, var)))
+                .transpose()?,
         }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: rd(crate::OperandSlot::Profile, *profile)?,

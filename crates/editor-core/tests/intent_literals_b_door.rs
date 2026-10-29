@@ -447,7 +447,10 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,

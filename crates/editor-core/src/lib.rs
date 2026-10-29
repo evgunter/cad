@@ -90,8 +90,8 @@ pub mod step_handle;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
-mod tree;
 pub mod trace;
+mod tree;
 pub mod update;
 pub mod var;
 mod verbs;
@@ -213,11 +213,10 @@ pub use product::{
 };
 pub use program::{
     DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError,
-    ProgramResolveFault, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
+    ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation,
+    RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
     TraceSense, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
-pub use trace::{TraceRefusal, TraceStepFault, TracedFace, Traces};
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
@@ -244,6 +243,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use trace::{TraceRefusal, TraceStepFault, TracedFace, Traces};
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
     VarKind, VarRef, WrittenDef,

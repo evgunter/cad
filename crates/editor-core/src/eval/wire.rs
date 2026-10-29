@@ -337,8 +337,9 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
-    // A profile and an assertion read no operand, so neither has a
-    // read to project.
+    // An assertion reads no operand, and a profile's frame and traced
+    // faces were read ahead of its key (`trace::drawn`), so neither has
+    // a read to project here.
     let node = match input {
         OpInput::Profile {
             program,

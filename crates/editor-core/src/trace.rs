@@ -31,7 +31,7 @@ use topo::boolean::trace::{self as kernel, Passage, TraceFault};
 
 use crate::expr::VarEnv;
 use crate::program::{
-    ProgramArcData, ProgramStep, ProgramTarget, ProgramResolveFault, TraceCrossing, TracePassage,
+    ProgramArcData, ProgramResolveFault, ProgramStep, ProgramTarget, TraceCrossing, TracePassage,
     TraceSense, program_index,
 };
 
@@ -146,7 +146,10 @@ impl core::fmt::Display for TraceRefusal {
                 "draw the profile on a frame of the traced face's space"
             }
             TraceStepFault::NoSuchFace { traced } => {
-                write!(f, "reads a face the profile does not trace (it traces {traced})")?;
+                write!(
+                    f,
+                    "reads a face the profile does not trace (it traces {traced})"
+                )?;
                 "add the face to the faces the profile traces, or read one it traces"
             }
             TraceStepFault::NoPen => {
@@ -322,8 +325,8 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                 let Some((at, point)) = ran_onto else {
                     return Err(refuse(None, TraceStepFault::OffTrace));
                 };
-                let tangent = tangent(face(at)?, point, *sense)
-                    .map_err(|fault| refuse(Some(at), fault))?;
+                let tangent =
+                    tangent(face(at)?, point, *sense).map_err(|fault| refuse(Some(at), fault))?;
                 Step::Toward {
                     dx: tangent.x,
                     dy: tangent.y,
@@ -339,9 +342,8 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                 };
                 let len = match target {
                     ProgramTarget::OnTrace { face: at, crossing } => {
-                        let (len, point) =
-                            ray_to(face(*at)?, pen.at, heading, *crossing, band)
-                                .map_err(|fault| refuse(Some(*at), fault))?;
+                        let (len, point) = ray_to(face(*at)?, pen.at, heading, *crossing, band)
+                            .map_err(|fault| refuse(Some(*at), fault))?;
                         reached = Some((*at, point));
                         len
                     }
@@ -398,7 +400,8 @@ fn lift_vec<T: Decide>(v: Vec2<T>) -> Vec3<T> {
 fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
     (
         face.sketch_to_body.transform_point(Point3::origin()),
-        face.sketch_to_body.transform_vec(Vec3::new(T::zero(), T::zero(), T::one())),
+        face.sketch_to_body
+            .transform_vec(Vec3::new(T::zero(), T::zero(), T::one())),
     )
 }
 
@@ -430,7 +433,10 @@ fn carrier<T: geom_core::Real>(face: &TracedFace<T>) -> Result<&geom::Surface<T>
 }
 
 /// The face's carrier, refusing where the frame's plane misses it.
-fn traced<T: Decide>(face: &TracedFace<T>, band: Band) -> Result<&geom::Surface<T>, TraceStepFault> {
+fn traced<T: Decide>(
+    face: &TracedFace<T>,
+    band: Band,
+) -> Result<&geom::Surface<T>, TraceStepFault> {
     let surface = carrier(face)?;
     let (point, normal) = plane_in_body(face);
     match kernel::plane_misses(surface, point, normal, band) {

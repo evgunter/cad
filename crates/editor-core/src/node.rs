@@ -3274,13 +3274,17 @@ impl<P> Node<P, crate::Formula> {
     /// **The names this authored node's selection seats author**
     /// ([`crate::Operand::Select`]): what the edit door mints selections
     /// of, in seat order.
-    pub fn selected_names(&self) -> Vec<&StableName> {
+    pub fn selected_names(&self) -> Vec<&StableName>
+    where
+        P: crate::program::SlotPayload<crate::Formula>,
+    {
         let seats: Vec<&crate::Operand> = match self {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
             Node::Shell { open, .. } => vec![open],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            Node::Profile(_)
-            | Node::Extrude { .. }
+            // A drawn profile's traced faces.
+            Node::Profile(p) => p.read_rows().into_iter().map(|(_, read)| read).collect(),
+            Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }
             | Node::HollowTube { .. }

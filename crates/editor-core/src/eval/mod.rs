@@ -3214,26 +3214,26 @@ impl ProfileLane for f64 {
 
 /// Whether `params` binds every variable to `nominal`'s bits.
 fn binds_nominal(params: &crate::expr::VarEnv<f64>, nominal: &crate::expr::VarEnv<f64>) -> bool {
-        use crate::expr::ParamValue;
-        let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
-            (
-                ParamValue::Continuous { dim, value },
-                ParamValue::Continuous {
-                    dim: other,
-                    value: at,
-                },
-            ) => dim == other && value.to_bits() == at.to_bits(),
-            (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
-            _ => false,
-        };
-        params.bindings.len() == nominal.bindings.len()
-            && params
-                .bindings
-                .iter()
-                .zip(&nominal.bindings)
-                .all(|((v, a), (w, b))| v == w && same(a, b))
-            && params.refused == nominal.refused
-            && params.written == nominal.written
+    use crate::expr::ParamValue;
+    let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
+        (
+            ParamValue::Continuous { dim, value },
+            ParamValue::Continuous {
+                dim: other,
+                value: at,
+            },
+        ) => dim == other && value.to_bits() == at.to_bits(),
+        (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
+        _ => false,
+    };
+    params.bindings.len() == nominal.bindings.len()
+        && params
+            .bindings
+            .iter()
+            .zip(&nominal.bindings)
+            .all(|((v, a), (w, b))| v == w && same(a, b))
+        && params.refused == nominal.refused
+        && params.written == nominal.written
 }
 
 /// `f64` wearing a counter, and a lane of its own: its second pass
@@ -3657,28 +3657,29 @@ where
     // expression resolves off the nominal environment: a lane that is
     // not the nominal `f64` one reads them from an evaluation of it,
     // built once here, its decisions its own and not this run's.
-    let nominal_ev = (doc_reads_a_trace(doc) && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
-        .then(|| {
-            let nominal_opts = EvalOptions {
-                param_box: None,
-                seed: None,
-                symbols: false,
-                pin: false,
-                ..opts.clone()
-            };
-            geom_core::k_stats::detached(|| {
-                evaluate_at_descent::<f64>(
-                    doc,
-                    None,
-                    cancel,
-                    &nominal_opts,
-                    None,
-                    PassTwo::SkippedAtF64,
-                    tol,
-                )
-            })
-            .0
-        });
+    let nominal_ev = (doc_reads_a_trace(doc)
+        && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
+    .then(|| {
+        let nominal_opts = EvalOptions {
+            param_box: None,
+            seed: None,
+            symbols: false,
+            pin: false,
+            ..opts.clone()
+        };
+        geom_core::k_stats::detached(|| {
+            evaluate_at_descent::<f64>(
+                doc,
+                None,
+                cancel,
+                &nominal_opts,
+                None,
+                PassTwo::SkippedAtF64,
+                tol,
+            )
+        })
+        .0
+    });
     // The parts, entered before anything below reads one: handed down
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
@@ -4269,11 +4270,11 @@ where
                 tol,
                 band,
             });
-            let resolved =
-                match program.resolve_with(op_env.lane.nominal, nominal_traces.as_ref()) {
-                    Ok(r) => r,
-                    Err(fault) => return fail(bracket, resolve_refusal(fault)),
-                };
+            let resolved = match program.resolve_with(op_env.lane.nominal, nominal_traces.as_ref())
+            {
+                Ok(r) => r,
+                Err(fault) => return fail(bracket, resolve_refusal(fault)),
+            };
             let pre = match wire::prepare_profile(&resolved, &program.ids, tol) {
                 Ok(pre) => pre,
                 Err(kind) => return fail(bracket, kind),

@@ -3346,9 +3346,7 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
                     unreachable!("matched a profile")
                 };
                 let reads: Vec<VarId> = p.read_rows().into_iter().map(|(_, &v)| v).collect();
-                self.reached_all(reads)
-                    .first()
-                    .copied()
+                self.reached_all(reads).first().copied()
             }
             // A sweep of a profile drawn on a frame is in the frame's
             // space; of a free one, in the space it defines.

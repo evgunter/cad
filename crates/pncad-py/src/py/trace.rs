@@ -74,19 +74,17 @@ impl TraceTarget {
     /// The point along the heading whose sketch `x` is `x`.
     #[staticmethod]
     fn at_x(py: Python<'_>, x: SlotArg) -> PyResult<Self> {
-        Ok(Self(d::ProgramTarget::AtX(x.formula(
-            py,
-            d::Dimension::Length,
-        )?)))
+        Ok(Self(d::ProgramTarget::AtX(
+            x.formula(py, d::Dimension::Length)?,
+        )))
     }
 
     /// The point along the heading whose sketch `y` is `y`.
     #[staticmethod]
     fn at_y(py: Python<'_>, y: SlotArg) -> PyResult<Self> {
-        Ok(Self(d::ProgramTarget::AtY(y.formula(
-            py,
-            d::Dimension::Length,
-        )?)))
+        Ok(Self(d::ProgramTarget::AtY(
+            y.formula(py, d::Dimension::Length)?,
+        )))
     }
 
     fn __repr__(&self) -> String {
@@ -105,7 +103,11 @@ impl Chain {
         self.0.steps().len()
     }
 
-    fn target(&self, py: Python<'_>, target: ChainTarget) -> PyResult<d::ProgramTarget<d::Formula>> {
+    fn target(
+        &self,
+        py: Python<'_>,
+        target: ChainTarget,
+    ) -> PyResult<d::ProgramTarget<d::Formula>> {
         Ok(match target {
             ChainTarget::Trace(trace) => trace.0,
             ChainTarget::Start(_) => d::ProgramTarget::Start,
@@ -175,9 +177,11 @@ impl Chain {
             at(py, self.next(), d::StepArg::CenterY, &centre.1)?,
         ];
         let target = self.target(py, target)?;
-        Ok(Self(
-            self.0.clone().arc_about(centre, winding.to_kernel(), target),
-        ))
+        Ok(Self(self.0.clone().arc_about(
+            centre,
+            winding.to_kernel(),
+            target,
+        )))
     }
 
     /// The heading along the trace the previous piece ran onto:
@@ -222,7 +226,12 @@ pub(crate) fn drawn_profile(
 ) -> PyResult<Node> {
     let faces = faces
         .into_iter()
-        .map(|(body, name)| Ok(d::Operand::select(body.read(), vec![name_from_text(&name)?])))
+        .map(|(body, name)| {
+            Ok(d::Operand::select(
+                body.read(),
+                vec![name_from_text(&name)?],
+            ))
+        })
         .collect::<PyResult<Vec<_>>>()?;
     let loops = match outline {
         Outline::One(chain) => vec![chain.0],

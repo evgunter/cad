@@ -48,8 +48,9 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    ProgramResolveFault, StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
+    SlotId, SpokenNode, StepId, ValuePayload, WrittenLoopFault, resolve_loops,
+    resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{

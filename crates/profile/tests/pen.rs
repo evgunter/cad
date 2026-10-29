@@ -2,6 +2,7 @@
 //! position and the heading a leg from it departs along, read off the
 //! replay driver — what a document step reading a face's trace runs
 //! from (`editor_core::trace`).
+#![allow(clippy::expect_used, clippy::float_cmp)]
 
 use geom_core::{Point2, Tol};
 use profile::{Step, Target};

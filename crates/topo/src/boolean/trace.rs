@@ -150,7 +150,9 @@ pub fn ray_crossings<T: Decide>(
         }
     };
     let roots: Vec<T> = match *surface {
-        Surface::Plane { origin: o, normal, .. } => {
+        Surface::Plane {
+            origin: o, normal, ..
+        } => {
             let lead = normal.dot(dir);
             match sign(TRACE_PLANE_LEAD, Margin::levered(lead, reach), band)? {
                 Sign::Zero => return on_carrier(),
@@ -163,24 +165,22 @@ pub fn ray_crossings<T: Decide>(
                 carrier: surface.kind(),
             });
         }
-        _ => match super::reduce::line_wall_roots_of(
-            origin,
-            dir,
-            (T::zero(), reach),
-            surface,
-            band,
-        )
-        .map_err(door)?
-        {
-            None => {
-                return Err(TraceFault::Unsupported {
-                    carrier: surface.kind(),
-                });
+        _ => {
+            match super::reduce::line_wall_roots_of(origin, dir, (T::zero(), reach), surface, band)
+                .map_err(door)?
+            {
+                None => {
+                    return Err(TraceFault::Unsupported {
+                        carrier: surface.kind(),
+                    });
+                }
+                Some(Err(SpanVerdict::Constant)) => return on_carrier(),
+                Some(Err(_)) => {
+                    unreachable!("a line's root door answers a constant residual alone")
+                }
+                Some(Ok(found)) => roots_of(found)?,
             }
-            Some(Err(SpanVerdict::Constant)) => return on_carrier(),
-            Some(Err(_)) => unreachable!("a line's root door answers a constant residual alone"),
-            Some(Ok(found)) => roots_of(found)?,
-        },
+        }
     };
     let mut out = Vec::new();
     for t in roots {
@@ -256,13 +256,9 @@ pub fn circle_crossings<T: Decide>(
                 u_ref,
             };
             let found = match surface {
-                Surface::Torus { .. } => super::circle_torus::circle_torus_roots(
-                    &circle,
-                    T::zero(),
-                    tau,
-                    surface,
-                    band,
-                ),
+                Surface::Torus { .. } => {
+                    super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)
+                }
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
@@ -291,7 +287,11 @@ pub fn circle_crossings<T: Decide>(
         let half_turn = c.max(T::zero() - T::one()).min(T::one()).acos();
         let theta = s.select_le_zero(tau - half_turn, half_turn);
         // A crossing a whole turn on is the pen itself.
-        match sign(TRACE_CROSSING_AHEAD, Margin::metered(tau - theta, rate), band)? {
+        match sign(
+            TRACE_CROSSING_AHEAD,
+            Margin::metered(tau - theta, rate),
+            band,
+        )? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }
@@ -300,9 +300,15 @@ pub fn circle_crossings<T: Decide>(
             Sign::Zero | Sign::Negative => continue,
         }
         let velocity = v_ref * c - u_ref * s;
-        out.push(crossing(surface, sense, theta, point, velocity, radius, band)?);
+        out.push(crossing(
+            surface, sense, theta, point, velocity, radius, band,
+        )?);
     }
-    order(out, |a, b| Margin::metered(b - a, InfSpeed::new(radius)), band)
+    order(
+        out,
+        |a, b| Margin::metered(b - a, InfSpeed::new(radius)),
+        band,
+    )
 }
 
 /// The roots a certified answer holds; one on the carrier refuses.
@@ -398,13 +404,15 @@ pub fn plane_misses<T: Decide>(
     };
     match *surface {
         Surface::Plane {
-            origin,
-            normal: n,
-            ..
+            origin, normal: n, ..
         } => {
             // A tilted plane meets it; a parallel one misses it off it.
             let tilt = n.cross(normal).norm();
-            match sign(TRACE_PLANE_LEAD, Margin::levered(tilt, (origin - point).norm()), band)? {
+            match sign(
+                TRACE_PLANE_LEAD,
+                Margin::levered(tilt, (origin - point).norm()),
+                band,
+            )? {
                 Sign::Zero => beyond(origin, T::zero()),
                 Sign::Positive | Sign::Negative => Ok(false),
             }

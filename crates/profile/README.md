@@ -97,6 +97,19 @@ the lane is the first pass itself. Junction checks re-run under every
 binding, and every constructed tangency is re-verified by `validate`,
 never trusted.
 
+A profile drawn on a frame may hold steps that read a face's trace in
+the frame's `xy` (`editor_core::trace`). The profile itself reads no
+surface. Before the replay, the document lowers each such step to the
+kernel step it lands on, from the pen its prefix leaves
+(`profile::pen`):
+
+- a leg to a crossing, or to a written `x` or `y`, becomes its length;
+- an arc to a crossing becomes the crossing's point;
+- a heading along the trace becomes the trace's gradient components.
+
+The first pass reads the traces off the nominal f64 evaluation, and
+every lane re-reads them at its own scalar.
+
 `ProfileProgram::check` runs resolve + replay + validate under the
 current parameter environment at the edit door
 (`ProgramRefusal::{Resolve, Transition, Geometry, Validate}`);

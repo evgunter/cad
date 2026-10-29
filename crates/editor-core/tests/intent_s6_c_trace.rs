@@ -13,11 +13,11 @@
 
 use crate::fixture::{self, len, len2, scl};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DrawnOn, EvalOptions, FreeVar, UnitSym,
-    VarDecl, VarName, Evaluation, Formula, LoopProgram, Node,
-    NodeErrorKind, Operand, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
-    StableName, TraceCrossing, TracePassage, TraceSense, TraceStepFault, ValuePayload, all_faces,
-    evaluate, face_carrier_kind,
+    CancelToken, Dimension, Distribution, DocEdit, DrawnOn, EvalOptions, Evaluation, Formula,
+    FreeVar, LoopProgram, Node, NodeErrorKind, Operand, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, StableName, TraceCrossing, TracePassage, TraceSense,
+    TraceStepFault, UnitSym, ValuePayload, VarDecl, VarName, all_faces, evaluate,
+    face_carrier_kind,
 };
 use geom::SurfaceKind;
 use geom_core::Tol;
@@ -218,9 +218,17 @@ fn a_boss_drawn_on_the_cylinder_continues_tangent_to_its_wall() {
             .or_else(|| ev.node_error(scene.boss))
             .map(|e| e.kind.to_string())
     );
-    near(max_at(&ev, scene.boss, 1), RADIUS, "the boss's wall is at the radius");
+    near(
+        max_at(&ev, scene.boss, 1),
+        RADIUS,
+        "the boss's wall is at the radius",
+    );
     near(max_at(&ev, scene.boss, 0), REACH, "the boss reaches REACH");
-    near(max_at(&ev, scene.boss, 2), BOSS_H, "the boss stands on the base");
+    near(
+        max_at(&ev, scene.boss, 2),
+        BOSS_H,
+        "the boss stands on the base",
+    );
     assert_eq!(
         scene.doc.node_space(scene.boss),
         scene.doc.node_space(scene.cylinder),
@@ -241,8 +249,16 @@ fn moving_the_cylinders_radius_moves_the_boss_with_it() {
         },
     );
     let ev = eval(&doc);
-    near(max_at(&ev, scene.boss, 1), 0.625, "the wall follows the radius");
-    near(max_at(&ev, scene.cylinder, 0), 0.625, "the cylinder's radius");
+    near(
+        max_at(&ev, scene.boss, 1),
+        0.625,
+        "the wall follows the radius",
+    );
+    near(
+        max_at(&ev, scene.cylinder, 0),
+        0.625,
+        "the cylinder's radius",
+    );
 }
 
 /// **The wall moves with the radius, to first order and over a box**:
@@ -281,7 +297,11 @@ fn the_traced_wall_moves_with_the_radius_at_every_lane() {
         .max_by(|a, b| a.value.total_cmp(&b.value))
         .expect("vertices");
     near(wall.value, RADIUS, "the wall at the radius");
-    near(wall.deriv, 1.0, "the wall moves one for one with the radius");
+    near(
+        wall.deriv,
+        1.0,
+        "the wall moves one for one with the radius",
+    );
 
     let boxed = EvalOptions {
         param_box: Some(std::sync::Arc::new(editor_core::analysis::ParamBox::of(
@@ -333,10 +353,7 @@ fn the_union_records_the_constructed_tangency_unproven() {
     let (doc, union) = fixture::insert(
         scene.doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
-                scene.cylinder.into(),
-                scene.boss.into(),
-            ]),
+            members: editor_core::Bodies::Spelled(vec![scene.cylinder.into(), scene.boss.into()]),
         },
     );
     let ev = eval(&doc);
@@ -460,7 +477,13 @@ fn a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim() {
     let (doc, sphere) = sphere();
     let ev = eval(&doc);
     let wall = face(&ev, sphere, SurfaceKind::Sphere);
-    let (doc, section) = drawn_on(doc, sphere, &editor_core::Frame::IDENTITY, wall, traced_cone());
+    let (doc, section) = drawn_on(
+        doc,
+        sphere,
+        &editor_core::Frame::IDENTITY,
+        wall,
+        traced_cone(),
+    );
     let (doc, cone) = fixture::insert(
         doc,
         fixture::revolve_about(
@@ -546,7 +569,8 @@ fn a_step_reading_a_trace_refuses_typed() {
         steps
     };
     let at = || ProgramStep::At(len2([0.0, BACK]));
-    let rows: Vec<(&str, Vec<ProgramStep<Formula>>, u32, Option<u32>, F)> = vec![
+    type Row = (&'static str, Vec<ProgramStep<Formula>>, u32, Option<u32>, F);
+    let rows: Vec<Row> = vec![
         (
             "a second leave of a disc the line leaves once",
             closing(vec![at(), toward(0.0, 1.0), on(TracePassage::Leave, 2)]),
@@ -697,7 +721,13 @@ fn a_crossing_at_a_cones_apex_has_no_tangent() {
     let (doc, sphere) = sphere();
     let ev = eval(&doc);
     let wall = face(&ev, sphere, SurfaceKind::Sphere);
-    let (doc, section) = drawn_on(doc, sphere, &editor_core::Frame::IDENTITY, wall, traced_cone());
+    let (doc, section) = drawn_on(
+        doc,
+        sphere,
+        &editor_core::Frame::IDENTITY,
+        wall,
+        traced_cone(),
+    );
     let (doc, cone) = fixture::insert(
         doc,
         fixture::revolve_about(
@@ -818,7 +848,11 @@ fn an_arc_about_a_centre_runs_onto_the_trace() {
     ];
     let (doc, profile) = drawn_on(doc, cylinder, &editor_core::Frame::IDENTITY, wall, steps);
     let ev = eval(&doc);
-    assert!(ev.node_error(profile).is_none(), "{:?}", ev.node_error(profile));
+    assert!(
+        ev.node_error(profile).is_none(),
+        "{:?}",
+        ev.node_error(profile)
+    );
     let (doc, swept) = fixture::insert(
         doc,
         Node::Extrude {

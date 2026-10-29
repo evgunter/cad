@@ -142,12 +142,12 @@ pub(crate) mod sphere_region;
 pub(crate) mod spline_region;
 mod surface_group;
 pub mod tables;
-pub mod trace;
 #[cfg(test)]
 mod torn_hop_rows;
 #[cfg(test)]
 mod torus_frame_rows;
 pub(crate) mod torus_region;
+pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;

@@ -1264,7 +1264,8 @@ macro_rules! target_roles {
             ProgramTarget::AtY(y) => {
                 $out.push((twin(second, StepArg::TargetY, StepArg::Target2Y), y))
             }
-            ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::OnTrace { .. } => {}
+            ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::OnTrace { .. } => {
+            }
         }
     }};
 }
@@ -2700,9 +2701,8 @@ impl ProfilePayload for ProfileProgram {
         operand: &mut dyn FnMut(VarId) -> crate::Operand,
     ) -> Self::Authored {
         let on = self.on.as_ref().map(|on| {
-            let Ok(on) = on.try_map(&mut |_, &var| {
-                Ok::<_, core::convert::Infallible>(operand(var))
-            });
+            let Ok(on) =
+                on.try_map(&mut |_, &var| Ok::<_, core::convert::Infallible>(operand(var)));
             on
         });
         ProfileProgram {
@@ -2934,6 +2934,7 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
     /// # Errors
     ///
     /// The first refusal of `read` or `f`.
+    #[allow(clippy::type_complexity)]
     pub fn try_map_slots<S2: crate::expr::Slot, E>(
         &self,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
