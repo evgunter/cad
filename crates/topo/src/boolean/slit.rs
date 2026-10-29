@@ -841,7 +841,9 @@ fn lies_in<T: Decide>(
     };
     let (origin, normal) = match *surface {
         geom::Surface::Plane { origin, normal, .. } => (origin, normal),
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Cylinder { .. }
+        | geom::Surface::Cone { .. }
+        | geom::Surface::Sphere { .. }
             if matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
         {
             let mid = curve.mid_point();
