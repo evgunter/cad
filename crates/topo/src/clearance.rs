@@ -1434,7 +1434,8 @@ where
             }
         }
 
-        let margin = separation(&pair.a.enc, &pair.b.enc) - Interval::from_f64(bound.c());
+        let c = bound.c();
+        let margin = separation(&pair.a.enc, &pair.b.enc) - Interval::from_f64(c);
         let strict = !bound.zero_discharges();
         let verify = &mut self.verify;
         let mut candidate = |region: &mut RegionMemo| {
