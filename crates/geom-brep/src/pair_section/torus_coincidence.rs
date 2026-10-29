@@ -14,7 +14,9 @@
 //! band moves the surface by that much somewhere, so the two are apart.
 
 use geom_core::k_stats::{decide_reported, detached, splice, splice_superseded};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+};
 
 use super::line_tilt;
 
@@ -106,8 +108,7 @@ pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) ->
         predicate: Some(name),
         terminal_sliver: false,
     };
-    let (upper, upper_log) =
-        detached(|| decide_reported(TT_COINCIDENT, Margin::of(d.upper), band));
+    let (upper, upper_log) = detached(|| decide_reported(TT_COINCIDENT, Margin::of(d.upper), band));
     let finite = |x: T| geom_core::is_finite_length(x);
     if let Ok(Decided {
         sign: Sign::Zero,
