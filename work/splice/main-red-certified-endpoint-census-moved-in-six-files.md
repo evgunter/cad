@@ -8,6 +8,7 @@ priority: P0
 cost: E
 closed: 2026-10-29
 branch: splice/census-reds
+pr: 6040
 ---
 
 
