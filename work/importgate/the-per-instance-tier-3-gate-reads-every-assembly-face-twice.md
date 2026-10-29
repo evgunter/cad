@@ -7,7 +7,7 @@ opened: 2026-09-24
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [step-import-anchor-rows-are-recorded-and-not-linted]
 ---
 
 
@@ -57,3 +57,5 @@ carry its source's at-rest result, and an import that became a
 document operation would place its instances that way
 (`work/coincide/step-import-anchor-rows-are-recorded-and-not-linted.md`).
 So the question is asked once D10's build reaches this ground.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** re-parked on `coincide/step-import-anchor-rows-are-recorded-and-not-linted`. D10's placement ground is built (stage 3, closed). The premise this row waits for is an import that has become a document operation placing its instances, and that is not D10's build. The import is still called directly (`crates/step-import/src/lib.rs:843`, `per_part_gate_owed`), and whether it becomes an operation is the open question of that row (P3). The `design` question stays open.

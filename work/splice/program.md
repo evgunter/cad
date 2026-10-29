@@ -16,7 +16,7 @@ none can: every loft or sweep has spline (NURBS) seam edges, and the
 boolean's operand gate (`boolean::reduce::gate_operand_edges`)
 refuses an operand with any spline edge, whether or not that edge is
 anywhere near the other body. Three demo joins stop there: klein wall 3
-(the loop onto the bulb), lily wall 8 (the leaf's sheath onto its
+(the loop onto the bulb), lily wall 8 (then the leaf's sheath onto its
 blade) and teapot wall 3 (the spout onto the pot).
 
 **Split 2026-10-28** (Track size; Ev, in chat): SPLICE keeps lily wall
@@ -24,6 +24,18 @@ blade) and teapot wall 3 (the spout onto the pot).
 on its own sheet), teapot wall 3's to SPLICECARRIER (a NURBS carrier's
 parameter inverse), and the seam reader's residue and the kind-based
 spline refusals to SPLICESEAM.
+
+**Lily wall 8 re-spelled 2026-10-29** (`[ev]` PR 5990, question 3):
+the scene builds the long leaf as one loft from sheath to tip, so the
+sheath-on-blade graft is gone from the tour. Its rim, tangent at two
+points, stays witnessed by the sweep row `a_sheath_grafted_on_its_blade`.
+Wall 8 is now the leaf grown out of the stem: the leaf's NURBS walls
+through the lower stem's torus wall, crossing steeply. It refuses first
+at the curved crossing lane, a leaf seam against the torus
+(SPLICE's
+`a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`),
+and behind that needs a NURBS × torus section, which is SECT's ground
+(SECTARMS' `a-nurbs-face-against-a-torus-has-no-section-arm`).
 
 Deleting the gate alone builds nothing (PR 3984's backed-out attempt:
 every outcome refuses typed). The chain behind it is this slate: the
