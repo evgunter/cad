@@ -1,0 +1,20 @@
+---
+id: main-red-trimmed-rs-folds-the-face-sense-by-hand
+kind: issue
+title: main red: crates/mesh/src/trimmed.rs negates three values by hand under a face's sense bit (topo face_normal fold census, slow set)
+status: open
+opened: 2026-10-29
+priority: P1
+cost: E
+---
+
+**What fails.** topo's slow-set row `face_normal::tests::no_source_file_folds_the_bit_by_hand` (`crates/topo/src/face_normal.rs:916`) walks every `crates/*/src` file for a value negated by hand under a face's `sense` bit. Run on origin/main (2026-10-29, `cargo nextest run -p topo --lib -E 'test(=face_normal::tests::no_source_file_folds_the_bit_by_hand)' --run-ignored all`), it fails with six hits beyond its `sanctioned` list, from two sources: this row covers `crates/mesh/src/trimmed.rs`; the other, `crates/topo/src/injective.rs` (`clear/main-red-injective-rs-folds-the-face-sense-by-hand`), is filed beside it. Found by SPLICE's structural-rim lane while validating PR 5959, and reproduced by the SPLICE orchestrator.
+
+**The hits.**
+- `crates/mesh/src/trimmed.rs:876` `Some(if self.sense { radial } else { -radial })`
+- `crates/mesh/src/trimmed.rs:2152` `let want = if sense { 1.0 } else { -1.0 };`
+- `crates/mesh/src/trimmed.rs:3107` `let area = if face.sense { area } else { -area };`
+
+**Where it came from.** TESS's commit `8a799289c2` ("tess: bulk-load the trimmed CDT; …"), merged through PR 5920 (`tess/sphere-tilted-circle-lane`, merge `148c1a24fb`). The row is in the slow set (`.config/nextest.toml`), which the PR gate does not run, so the PR merged green.
+
+**What closing it takes.** Read each value through the sense door `face_normal.rs` names (`geom_brep::OutwardNormal::from_chart`, or a `face_normal` door). Or, where the value is a genuinely signed scalar at its point of use, add it to the row's `sanctioned` list with that reason. The row goes green when both this row and its sibling close.
