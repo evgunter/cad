@@ -563,7 +563,7 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("crossing_slots", 0x13f6_26db_b10e_0577_u64),
-        ("heat_sink", 0x38a3_e942_327a_45ea),
+        ("heat_sink", 0xb70b_c205_288e_f8fd),
         ("kiss_carry", 0xafd8_5b4e_c535_9cc2),
     ] {
         let doc = corpus::documents()

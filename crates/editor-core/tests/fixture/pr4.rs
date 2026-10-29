@@ -9,10 +9,10 @@
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, evaluate,
 };
 
-use super::{insert, len, minted, scl, slid, step, value_slot};
+use super::{insert, len, minted, slid, step, value_slot};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -92,17 +92,7 @@ where
             members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
         },
     );
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: u.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(5.0),
-            },
-        },
-    );
+    let (doc, k, pat) = crate::fixture::row(doc, u, ("k", 2), editor_core::TargetAxis::Y, 5.0);
     let ev1 = run::<T>(&doc, None);
     // The FIRST FromA rim-edge piece in table order — a
     // deterministic probe.
@@ -123,8 +113,8 @@ where
     let inst = minted(
         EntityKind::Edge,
         pat,
-        RoleSeg::Instance {
-            i: 1,
+        RoleSeg::Member {
+            at: vec![(k, 1)],
             of: piece.clone().into(),
         },
     );
@@ -159,13 +149,15 @@ where
         crate::fixture::resolve_with_prior_at_mint(new, prior, &inst),
     ));
 
-    // ---- Scenario B: pattern count shrink (StructuralParam). ----
+    // ---- Scenario B: the index's count shrinks. ----
     let (doc3, _) = step(
         doc.clone(),
-        DocEdit::SetStructuralParam {
-            node: pat,
-            slot: SlotId::Count,
-            expr: editor_core::Formula::count(1),
+        DocEdit::DefineVar {
+            var: editor_core::VarRef::Id(k),
+            def: editor_core::VarDecl::Index {
+                count: editor_core::Formula::count(1),
+                within: None,
+            },
             fresh: Vec::new(),
         },
     );

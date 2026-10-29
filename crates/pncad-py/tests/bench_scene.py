@@ -34,13 +34,14 @@ the tour's authored swing of zero, and authors no crate
 (`work/lib/the-turntable-bench-has-no-python-row.md`).
 
 The layout's placed family is NOT such a difference: `layout` spells
-the posts with `Node.pattern`, the tour's own node, whose value is the
-plural family. `posts=` switches that one call site to
-`Node.placed_union`, which says the same family fused into one body —
-so a test can hold the two spellings against each other rather than
-assert that they agree. What the switch is for is that comparison
+the posts as the tour does, a row under the index `k = index(2)`
+(`Node.linear_pattern`) whose value is the plural family, each member
+`row[i]` placed into the world. `posts="union"` switches that one call
+site to placing `Node.union(row)`, the same family fused into one body,
+whole — so a test can hold the two spellings against each other rather
+than assert that they agree. What the switch is for is that comparison
 (`test_assembly_author.TestBenchLayout`); what the scene ships is the
-pattern.
+members.
 
 A `Doc`'s identity is derived from its seed, so the two part documents
 have the same identities whatever authored them, and a document
@@ -62,13 +63,13 @@ from pncad import (
     MateValue,
     NamePat,
     Node,
-    PartSelect,
-    PatternKind,
     Placed,
     PoseDef,
     SegPat,
     SegTag,
     Selector,
+    VarDecl,
+    VarName,
     content_pin,
     evaluate,
     m,
@@ -304,7 +305,7 @@ def lying():
     )
 
 
-def layout(store, post_ref, shelf_ref, posts=Node.pattern):
+def layout(store, post_ref, shelf_ref, posts="members"):
     """The flat-pack: one post instance patterned along +y, plus the
     shelf, nothing touching — A5's disjoint half.
 
@@ -318,31 +319,32 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     no part of the product, which is what a pattern master is here. The pattern steps along +y, which the turn about +y
     each copy is laid at leaves where it was.
 
-    `posts` is the node the placed family is said with, and the two it
-    admits take the same `(input, count, kind)`: `Node.pattern`, the
-    tour's own, whose value is the PLURAL family; and
-    `Node.placed_union`, whose value is that family fused into one
-    body. One count and one rule serve both, so nothing about the
-    scene moves with the switch.
+    `posts` is how the placed family reaches the world, and the two it
+    admits read the same row: `"members"`, the tour's own, places each
+    member `row[i]` of the PLURAL family; and `"union"` places
+    `Node.union(row)`, that family fused into one body, whole. One index
+    and one pitch serve both, so nothing about the scene moves with the
+    switch.
 
-    The product is the posts' copies, then the shelf's: each pattern
-    instance is projected out of the family by `Node.part` and placed,
-    and a fused `placed_union` family, one body, is placed whole; the
-    shelf instance is set beside them in the world. Each is placed by
+    The product is the posts' copies, then the shelf's; the shelf
+    instance is set beside them in the world. Each is placed by
     the values that put it at its pose (`placing.placed`, and
     `Doc.set_constraints` for the shelf).
 
-    Answers the document and its three nodes, in document order.
+    Answers the document, the post instance, the row and the shelf
+    instance.
     """
     doc = Doc(LAYOUT_SEED)
     # The pattern's master is placed into a space of its own: no part
     # of the product, only the copies placed into the world are.
     post_i = doc.insert(Node.instantiate_part(post_ref, doc.new_space()))
+    doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(PATTERN_COUNT)))
     family = doc.insert(
-        posts(
+        Node.linear_pattern(
+            VarName("k"),
             post_i,
-            Formula.count(PATTERN_COUNT),
-            PatternKind.linear((Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)), Formula.length_in(PATTERN_SPACING, m)),
+            doc.space(post_i),
+            [("y", Formula.length_in(PATTERN_SPACING, m))],
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
@@ -350,11 +352,11 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
         shelf_i,
         Placed.unmated(moves(doc, Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m)))),
     )
-    if posts is Node.pattern:
+    if posts == "members":
         for i in range(PATTERN_COUNT):
-            placed(doc, doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))), lying())
+            placed(doc, family[i], lying())
     else:
-        placed(doc, family, lying())
+        placed(doc, doc.insert(Node.union(family)), lying())
     assemble_world_copies(doc)
     return doc, post_i, family, shelf_i
 

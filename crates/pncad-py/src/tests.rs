@@ -545,7 +545,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind};
+    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind, Which};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -562,10 +562,11 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(MinSeparationRefusal::EmptyScope);
+    let empty = refused(MinSeparationRefusal::EmptyScope { side: Which::First });
     let unsupported = refused(MinSeparationRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
+        side: Which::First,
     });
     let poison = refused(MinSeparationRefusal::PoisonEnclosure {
         a: FaceKey::default(),
@@ -2015,8 +2016,8 @@ fn shell_refusal_tags_are_stable() {
 /// The split classes' words are shared with the other doors that
 /// publish the same fault by delegation, not by this table: the seam
 /// classes read [`crate::tags::resolve_fault_tag`], and
-/// `placement_rule_fault_tag` and `mate_fault_tag` read
-/// [`crate::tags::node_error_tag`] through the fault's class.
+/// `mate_fault_tag` reads [`crate::tags::node_error_tag`] through the
+/// fault's class.
 #[test]
 fn node_error_tags_are_the_published_words() {
     use crate::tags::node_error_tag;
@@ -2069,7 +2070,11 @@ fn node_error_tags_are_the_published_words() {
         EmptyOperand => "empty_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
-        InstanceOutOfRange => "instance_out_of_range",
+        MemberOutOfRange => "member_out_of_range",
+        MemberRefused => "member_refused",
+        IndicesUnrelated => "indices_unrelated",
+        IndexCount => "index_count",
+        IndexCountOutOfRange => "index_count_out_of_range",
         DegenerateDirection => "degenerate_direction",
         NonFiniteDirection => "non_finite_direction",
         UnderflowedDirection => "underflowed_direction",
@@ -2080,15 +2085,6 @@ fn node_error_tags_are_the_published_words() {
         PoseDegenerate => "pose_degenerate",
         PoseScalar => "pose_scalar",
         CountOutOfRange => "count_out_of_range",
-        NegativeSpacing => "negative_spacing",
-        DegenerateSpacing => "degenerate_spacing",
-        DegenerateStep => "degenerate_step",
-        FullRangeStep => "full_range_step",
-        PlacementsUncertified => "placements_uncertified",
-        PlacementRuleCountSpelling => "placement_rule_mismatch",
-        PlacementRuleNoPlacements => "empty_placement_list",
-        PlacementRuleNonFiniteFrame => "non_finite_placement",
-        PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
         UnionFoldStep => "union_fold_step",
@@ -2155,7 +2151,7 @@ fn node_error_tags_are_the_published_words() {
 #[test]
 fn inner_arm_tags_are_stable() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{NodeErrorKind, PlacementRuleFault};
+    use pncad::document::NodeErrorKind;
     use pncad::profile::ProfileError;
     use pncad::sweep::blend::{BlendError, BlendKind};
     use pncad::sweep::{ExtrudeError, RevolveError, TubeError};
@@ -2213,23 +2209,23 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::UnschedulableCycle),
         ("unschedulable_cycle", None)
     );
-    // The fault's word is already the carrier's own (`kind` IS that
-    // discriminant), so the second word is the count mismatch's shape,
-    // as `EditError.inner_variant` publishes it, and a fault with no
-    // arms of its own has none.
+    // An index whose count refused: the second word is the expression
+    // refusal's own, as `EvalError.variant` publishes it.
     assert_eq!(
-        pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling {
-                shape: pncad::document::CountMismatch::ListedOnPattern,
-            }
-        )),
-        ("placement_rule_mismatch", Some("listed_on_pattern"))
+        pair(&NodeErrorKind::IndexCount {
+            index: pncad::document::VarId::new(2, 0),
+            source: pncad::document::EvalError::NonFiniteResult,
+        }),
+        ("index_count", Some("non_finite_result"))
     );
+    // A member that refused: its own refusal is a whole node refusal,
+    // read through `kind` rather than a second word.
     assert_eq!(
-        pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::NoPlacements
-        )),
-        ("empty_placement_list", None)
+        pair(&NodeErrorKind::MemberRefused {
+            at: vec![(pncad::document::VarId::new(2, 0), 3)],
+            source: Box::new(NodeErrorKind::UnschedulableCycle),
+        }),
+        ("member_refused", None)
     );
 }
 
@@ -2386,13 +2382,29 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "constraint"],
     );
     carries(
-        &E::PlacementRuleMismatch {
+        &E::Index {
+            var: spv(),
+            fault: pncad::document::IndexFault::CountNotCount {
+                found: Dimension::Length,
+            },
+        },
+        &["param", "found"],
+    );
+    carries(
+        &E::Index {
+            var: spv(),
+            fault: pncad::document::IndexFault::WithinNoIndex,
+        },
+        &["param"],
+    );
+    carries(
+        &E::IndicesUnrelated {
             node: sp(1),
-            shape: pncad::document::CountMismatch::ListedOnPattern,
+            a: Box::new(spv()),
+            b: Box::new(spv()),
         },
         &["node"],
     );
-    carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::LoftSectionCount {
             node: sp(1),
@@ -2400,13 +2412,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             given: 2,
         },
         &["node", "count", "given"],
-    );
-    carries(
-        &E::NonFinitePlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 0 },
-        },
-        &["node", "index"],
     );
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
@@ -2489,7 +2494,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::UnknownSlot {
             id: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot"],
     );
@@ -2503,7 +2508,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::StructuralSlotNeedsStructuralEdit {
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["slot"],
     );
@@ -2562,7 +2567,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotUnresolvedVar {
             var: spv(),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot", "param"],
     );
@@ -2574,7 +2579,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotUnknownVarName {
             name: param(),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot", "param"],
     );
@@ -2582,7 +2587,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotVarKind {
             var: Box::new(spv()),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
             found: pncad::document::VarKind::Count,
             expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         },
@@ -2783,14 +2788,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- scalars and addresses ----
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
-    carries(
-        &E::NonRigidPlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 0 },
-            check: "transform_rigid_col0_unit",
-        },
-        &["node", "index"],
-    );
     carries(
         &E::PinUnchanged {
             node: sp(1),
@@ -4489,16 +4486,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_inner_tag",
         values: &[],
-        delegates: &["placement_rule_inner_tag"],
+        delegates: &[],
     },
     TagEntry {
         function: "boundary_edit_tag",
         values: &["name_serialize", "param_name_not_an_identifier"],
-        delegates: &[
-            "label_fault_tag",
-            "pin_refusal_tag",
-            "placement_rule_fault_tag",
-        ],
+        delegates: &["label_fault_tag", "pin_refusal_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4601,15 +4594,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "count_mismatch_tag",
-        values: &[
-            "listed_on_pattern",
-            "listed_with_count",
-            "stepped_without_count",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "crossing_senses_shape_tag",
         values: &[
             "unsupported_crossing_senses_name_reads_two_senses",
@@ -4695,13 +4679,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "delete_anonymous_var",
             "dimension",
             "duplicate_witness_entry",
-            "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
             "fresh_kind",
             "fresh_unheld",
             "fresh_unread",
+            "index",
             "indexed_read",
+            "indices_unrelated",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
@@ -4714,9 +4699,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
-            "non_finite_placement",
             "non_finite_var",
-            "non_rigid_placement",
             "not_a_free_var",
             "not_structural_slot",
             "operand_unresolved",
@@ -4727,7 +4710,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pick_path",
             "pin_unchanged",
             "placement_axis",
-            "placement_rule_mismatch",
             "pose_shape",
             "product_read",
             "profile_program_refused",
@@ -4774,11 +4756,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "edit_inner_variant_tag",
-        values: &[],
+        values: &["count_not_count", "within_no_index"],
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
-            "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "input_fault_tag",
@@ -4814,6 +4795,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_overflow",
             "count_to_scalar_out_of_range",
             "definition_refused",
+            "index_outside_member",
+            "mod_by_non_positive",
             "non_finite_result",
             "output_read",
             "unresolved_var",
@@ -5163,17 +5146,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "crossing_unverified",
             "curved_solid_frontier",
             "degenerate_direction",
-            "degenerate_spacing",
-            "degenerate_step",
             "empty_half",
             "empty_operand",
-            "empty_placement_list",
             "escalated",
             "expr",
             "extrude",
             "fillet",
-            "full_range_step",
-            "instance_out_of_range",
+            "index_count",
+            "index_count_out_of_range",
+            "indices_unrelated",
             "loft",
             "mate_backwards",
             "mate_kinds_differ",
@@ -5190,16 +5171,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_not_parallel",
             "measure_ref_unreadable",
             "measure_unsupported",
+            "member_out_of_range",
+            "member_refused",
             "mirror",
             "missing_input",
             "missing_slot",
             "motion",
             "naming",
-            "negative_spacing",
             "no_such_piece",
             "non_finite_direction",
-            "non_finite_placement",
-            "non_rigid_placement",
             "param_box",
             "part_depth_exceeded",
             "part_no_resolver",
@@ -5211,8 +5191,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_reference_cycle",
             "payload_expr",
             "piece_shape",
-            "placement_rule_mismatch",
-            "placements_uncertified",
             "pose_degenerate",
             "pose_read",
             "pose_scalar",
@@ -5254,12 +5232,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "eval_error_tag",
             "eval_error_tag",
             "eval_error_tag",
+            "eval_error_tag",
             "extrude_error_tag",
             "interrogate_error_tag",
             "loft_error_tag",
             "naming_error_tag",
             "param_box_error_tag",
-            "placement_rule_inner_tag",
             "pose_read_fault_tag",
             "profile_error_tag",
             "replay_error_tag",
@@ -5424,16 +5402,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pin_unevaluated",
         ],
         delegates: &[],
-    },
-    TagEntry {
-        function: "placement_rule_fault_tag",
-        values: &[],
-        delegates: &["node_error_tag"],
-    },
-    TagEntry {
-        function: "placement_rule_inner_tag",
-        values: &[],
-        delegates: &["count_mismatch_tag"],
     },
     TagEntry {
         function: "pose_fault_tag",
@@ -5778,13 +5746,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
-            "count",
-            "direction_x",
-            "direction_y",
-            "direction_z",
             "distance",
             "index",
-            "instance",
             "origin_x",
             "origin_y",
             "origin_z",
@@ -5792,11 +5755,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "radius",
             "revolve_angle",
             "shell_thickness",
-            "spacing",
             "station_slide",
             "station_spin",
             "stations",
-            "step",
             "tube_major_radius",
             "tube_minor_radius",
             "tube_wall",
@@ -5834,9 +5795,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "output_signature",
             "payload_var_kind",
             "pick_path",
-            "placement_non_finite",
-            "placement_non_rigid",
-            "placement_rule",
             "pose_shape",
             "product_read",
             "read_cycle",
@@ -6295,7 +6253,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
-    ("empty_placement_list", 2),
     ("escalated", 10),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6315,10 +6272,15 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Two: a resolution lands in the ambiguity band exactly as a
     // profile's structure does — the same verdict, undecided at this ε.
     ("indeterminate", 2),
+    // Coincidence, not one fact: an index variable refused as declared
+    // at the edit door, and a slot of an indexed read.
+    ("index", 2),
+    // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
+    // indices one reader reads, neither within the other.
+    ("indices_unrelated", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::InsideOut`) found material wound negative.
     ("inside_out_operand", 2),
-    ("instance", 2),
     ("io", 2),
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
@@ -6340,8 +6302,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("node_failed", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
-    ("non_finite_placement", 2),
-    ("non_rigid_placement", 2),
     ("not_a_body", 2),
     ("null_scaffold_edge", 3),
     ("op", 3),
@@ -6363,7 +6323,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
     ("pieces", 2),
-    ("placement_rule_mismatch", 2),
     ("plane", 2),
     ("poisoned", 3),
     // One fact at the edit and load doors: a pose definition of a shape
@@ -10149,10 +10108,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "loft",
     "measure",
     "mirror",
-    "part",
-    "pattern",
     "place",
-    "placed_union",
     "profile",
     "revolve",
     "shell",
@@ -10171,7 +10127,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
 /// arm, so a NEW kernel variant stops this crate compiling: the
 /// EXISTENCE half of the contract is the compiler's and wants nothing
 /// from a test. The VALUES have no such guard. They are bare string
-/// literals, and renaming one — `"placed_union"` to `"group"` —
+/// literals, and renaming one — `"place"` to `"copy"` —
 /// compiles clean and breaks every Python caller branching on the
 /// string. That is the argument
 /// [`the_whole_tag_table_matches_its_committed_inventory`] makes about
@@ -10198,7 +10154,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
 /// not: this pins the vocabulary, not the MAPPING. Swap two arms'
 /// literals and the set is unchanged. The mapping is executed by the
 /// Python suite, which drives real documents through the door
-/// (`tests/test_document.py`, `tests/test_placed_union.py`).
+/// (`tests/test_document.py`, `tests/test_pattern.py`).
 #[test]
 fn the_node_kind_vocabulary_matches_its_committed_roster() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed

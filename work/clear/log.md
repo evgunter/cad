@@ -139,3 +139,21 @@ Signed: (CARVE orchestrator)
   - After the fix pass, a focused single review of the presentation fix runs before merge, given that a soundness MAJOR was fixed.
 - 2026-10-28 — **SYMCLEAR merges (#5928)** with this commit last. The orchestrator read and accepted the fix pass at `0fa633d5`; the `cell_region` hoist is sound, because the station's bounds are the same at both lanes. Friction, recorded: tier-on per-leaf queries moved fifteen rows into the slow set. The cost is the symbolic tier's per-decision `decide_sign` form expansion (~0.9 s on the e2e leaf), which is SYM's ground. Unblocked: CLEARTEXT.
 - 2026-10-29 — **SELFX merges (#5955)** with this commit last. Fix pass 2 (`89edd2d473`) was read and accepted. The dual-review row records tally 1. CARVE's loft row is unparked.
+- 2026-10-29 — **LOOPS merges (#5976)** with this commit last. The single FULL review (`bb8d6a4dcc`) returned APPROVE-WITH-FIXES and re-proved there was no behaviour change by sweeping budgets on both doors. Fixed in the closing commit:
+  - the MINOR: the `CellReceipt` type doc contradicted its field doc on `abandoned`;
+  - Q5: the module header's "same split rule";
+  - Q7: `Walk::split` now takes `N` from `cut`'s array length, not a separate count.
+
+  Filed to CLEARTAIL (P4): the root phase's second walk and the second spelling of `abandoned`. Accepted unfixed, with reasons:
+  - Q3: nothing guards the shared walk once the differential is reverted. Its equivalence was proved at merge, and from here it is ordinary code.
+  - `CellBudget` as a fourth spelling of the budget pair: it is the refusal type, which belongs to CLEARTEXT.
+  - Q2: `let c = bound.c();` is shaped by the from-f64 gate's text matching.
+
+  Main's cost-curve red, which the lane added to GREEN's main-reds row, was fixed by #5979. Unblocked: the minsep tightening.
+- 2026-10-29 — **CLEARTEXT merges (#5977)** with this commit last. The single STYLE review (`25f81b1897`) returned APPROVE-WITH-FIXES:
+  - two refusal sentences were false in reachable cases: `Unsupported` at the injectivity raise, and the table-local body index of `Tied`/`OtherBody`;
+  - the item-3 hit list was incomplete;
+  - an unscheduled VIOLATED line;
+  - style: a broken invariant read as a caller fault, side-less one-face arms, two renderings of one refusal, and duplicated wording.
+
+  The orchestrator read and accepted the fix pass at `7bc8900b`. Every item was taken. The new `_ =>`-over-`Result` pass found one real case: the meeting-pair margin's `Err`, possible only when the bound lies in the band, had counted as a violation and then been refused as `WitnessUnverified`; it now refuses `Sliver`. Filed to CLEARTAIL: `clearance-violated-verdict-names-its-pair-by-bare-keys`. Filed to TALLY: the `eval/measure.rs` corruption arms. `injective.rs` gained four one-line side arguments, so CURVEDEP (#5991, in DUAL review) will merge main over them.

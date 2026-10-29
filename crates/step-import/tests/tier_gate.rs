@@ -668,7 +668,7 @@ const CORPUS: [(&str, Disposition); 82] = [
     // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
     // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
     // this face in the seamed form
-    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
+    // (`work/foreign/import-normalizes-the-rim-only-cap.md`): more faces,
     // edges and vertices here is that unit working, not a regression.
     (
         "tests/fixtures/rim-only-cap/rimonly1.step",

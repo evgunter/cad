@@ -69,7 +69,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -222,9 +222,11 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.doc
 }
 
-/// **The terminal-sliver fixture**: a linear pattern whose DIRECTION
-/// length is a document parameter, over a box reaching into the
-/// ambiguity band.
+/// **The terminal-sliver fixture**: a block placed by an `Axis` mate
+/// onto the line where two planes meet — its top cap's plane, and that
+/// plane spun about the cap's front edge by an ANGLE that is a document
+/// parameter — so the line's direction, `n × spun(n)`, has the length
+/// `|sin(angle)|`.
 ///
 /// The direction's norm is a margin like any other. At the nominal (`20ε`)
 /// it is definitely positive, so the witness builds; a leaf whose whole
@@ -234,13 +236,15 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// refuse it rather than refine it.
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
+    use editor_core::Operand;
+    use editor_core::pose::{PoseDef, RoleRead};
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("axis"),
         def: editor_core::VarDecl::Free(FreeVar::Continuous {
-            dim: Dimension::Scalar,
+            dim: Dimension::Angle,
             value: 20.0 * eps(),
-            display_unit: UnitSym::canonical_for(Dimension::Scalar),
+            display_unit: UnitSym::canonical_for(Dimension::Angle),
             distribution: Some(uniform(15.0 * eps())),
         }),
     });
@@ -252,18 +256,25 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
         profile: p.into(),
         distance: len(1.0),
     });
-    r.insert(Node::Pattern {
-        input: block.into(),
-        count: Formula::count(2),
-        kind: editor_core::PatternKind::Linear {
-            direction: [
-                scl(0.0),
-                scl(0.0),
-                Formula::named(name("axis"), Dimension::Scalar),
-            ],
-            spacing: len(2.0),
-        },
-    });
+    let top = fixture::plane_on(&r.doc, block, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
+    let edge = fixture::axis_on(&r.doc, block, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let spun = RoleRead::plain(Operand::Pose(Box::new(PoseDef::Spin {
+        pose: top.clone(),
+        about: edge.clone(),
+        by: Formula::named(name("axis"), Dimension::Angle),
+    })));
+    let meet = Operand::Pose(Box::new(PoseDef::Meet { a: top, b: spun }));
+    let target = fixture::space(&r.doc, block);
+    let placed = editor_core::Placed::of(
+        &r.doc,
+        vec![fixture::mate(edge.read.clone(), meet)],
+        Vec::new(),
+    );
+    r.insert(Node::place(
+        editor_core::BodyRead::plain(Operand::Node(block)),
+        Operand::Var(target),
+        placed.bundle(),
+    ));
     r.doc
 }
 
@@ -973,7 +984,7 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
         .collect();
     assert_eq!(
         slivers.first(),
-        Some(&"eval_direction_norm"),
+        Some(&topo::POSE_UNIT_NORM),
         "classes were {:?}",
         v.refused()
             .iter()

@@ -2,13 +2,13 @@
 id: the-box-driver-carries-no-part-resolver
 kind: issue
 title: The box driver carries no part resolver, so no drive, and so no stackup, runs over an assembly
-status: parked
+status: open
 priority: P2
 cost: M
 design: true
 opened: 2026-10-03
 refs: [MSOLVE-14, a-box-independent-mate-fault-bisects-the-whole-leaf-budget]
-blocked_on: [intent-stage3-is-built]
+
 ---
 
 ## Finding
@@ -45,3 +45,7 @@ question.
 ## Moved (2026-10-26, tracker sweep)
 
 From FLUXHOLD, which closed (`docs/doc-ledger/fluxhold-leaves-the-tracker.md`); this program claims the file the row is about.
+
+## D10 exit walk (2026-10-29)
+
+The scene still stands on main: `DriveConfig` (`crates/editor-core/src/drive.rs:145`) has no resolver field. `lane_opts` (`drive.rs:1515`) is `EvalOptions::default()`, so a drive over an instance still meets "no part resolver was given" (`eval/parts.rs:389`) and refuses `WitnessDoesNotBuild` (`drive.rs:1312`). Stage 3 changed nothing on this path. Open.

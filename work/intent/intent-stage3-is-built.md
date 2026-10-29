@@ -2,11 +2,12 @@
 id: intent-stage3-is-built
 kind: issue
 title: INTENT stage 3 (spaces and placement) is built: poses defined, placements owning mates and values, the world node, constructions placed, the per-operation computing frame, overconstraint refusing, repetition by index
-status: parked
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [patterns-are-index-variables]
+blocked_on: []
+closed: 2026-10-29
 ---
 
 The release trigger for the rows that wait on INTENT stage 3 and on nothing later (`work/intent/plan.md`, stage 3; `docs/INTENT-STAGE3-SPEC.md`). Those rows park with `blocked_on: [intent-stage3-is-built]` instead of on the whole-program hold `d10-one-way-to-say-intent-is-unbuilt`, so they are released as soon as this stage lands (the 2026-10-08 re-homing, `work/intent/log.md`).

@@ -10,11 +10,14 @@
 //! ([`super::Framed::moved`]) and so keeps every key, so the one thing
 //! a placement changes in what it carries is where the pieces stand
 //! ([`Carry::moved`]). A placement's copy of one body and an instance's
-//! take it through that one door (`wire::copy_of`), and a placement of
-//! a family through `Carry::moved` beside it. A pattern's members, a
-//! projection of one, and a pick of one piece carry their source's
-//! carry by hand, and a mirror builds its own; one door for all of
-//! them is `work/intent/a-mirror-of-an-assemble-reports-its-findings-twice.md`'s
+//! take it through that one door (`wire::copy_of`). A family read
+//! whole carries each member's own ([`Carry::members`]): every member
+//! is evaluated on its own, at its own index values, so its records
+//! are keyed in its own arena, and each reader of a family's bodies
+//! reads member `i`'s through [`Carry::member`]. A projection of a
+//! member and a pick of one piece carry their source's carry by hand,
+//! and a mirror builds its own; one door for all of them is
+//! `work/intent/a-mirror-of-an-assemble-reports-its-findings-twice.md`'s
 //! cure.
 
 use std::sync::Arc;
@@ -25,10 +28,10 @@ use super::NodeErrorKind;
 
 /// **A body value's at-rest result**, as its copies carry it.
 ///
-/// A family's (an `Instances` value's) is each member's: its members
-/// are copies of one body, which share its arena, so one set of records
-/// keys every member. It holds no pieces: until patterns are index
-/// variables a member's pieces stand where no one value says.
+/// A family's (an `Instances` value's) is its members' together: their
+/// findings, each once; their parts, summed; and each member's own
+/// carry ([`Self::members`]), whose records are keyed in that member's
+/// arena. It holds no records, pieces or census of its own.
 #[derive(Debug, Clone)]
 pub struct Carry<T: Decide> {
     /// **The contact records its body carries**, keyed in its arena:
@@ -65,6 +68,10 @@ pub struct Carry<T: Decide> {
     /// them), and a copy of either. A census reading such a body as one
     /// arrival discards what it finds inside it.
     pub censused: bool,
+    /// **A family's members' own carries**, in member order: each
+    /// member's records keyed in its own arena, its findings, parts,
+    /// pieces and census. `None` on a value that is no family.
+    pub members: Option<Arc<[Carry<T>]>>,
 }
 
 impl<T: Decide> Default for Carry<T> {
@@ -77,6 +84,7 @@ impl<T: Decide> Default for Carry<T> {
             pieces: None,
             census: None,
             censused: false,
+            members: None,
         }
     }
 }
@@ -91,8 +99,18 @@ impl<T: Decide> Carry<T> {
     /// [`NodeErrorKind::Motion`] where a piece's composed frame
     /// overflows.
     pub(crate) fn moved(&self, map: Option<&RigidMotion<T>>) -> Result<Self, NodeErrorKind> {
+        let members = match &self.members {
+            Some(members) => Some(
+                members
+                    .iter()
+                    .map(|member| member.moved(map))
+                    .collect::<Result<Arc<[Self]>, NodeErrorKind>>()?,
+            ),
+            None => None,
+        };
         Ok(Self {
             pieces: moved_pieces(self.pieces.as_ref(), map)?,
+            members,
             ..self.clone()
         })
     }
@@ -102,13 +120,50 @@ impl<T: Decide> Carry<T> {
         Self { contacts, ..self }
     }
 
-    /// What a family of copies of a body carrying this carries: each
-    /// member's, no pieces.
-    pub(crate) fn of_members(&self) -> Self {
-        Self {
-            pieces: None,
-            ..self.clone()
+    /// **What a family whose members carry `members` carries**: their
+    /// findings, each once (the members of a family of copies carry
+    /// their source's, which it reports once, as the source's); their
+    /// parts, summed; each member's carry as its own; and no records,
+    /// pieces or census of its own. Its body is a door's census only
+    /// where every member's is.
+    pub(crate) fn of_family(members: Vec<Self>) -> Self {
+        let mut findings = crate::checks::at_rest::CarriedFindings::default();
+        for member in &members {
+            let of = member.findings.as_ref();
+            for row in &of.interference {
+                if !findings.interference.contains(row) {
+                    findings.interference.push(row.clone());
+                }
+            }
+            for row in &of.at_rest {
+                if !findings.at_rest.contains(row) {
+                    findings.at_rest.push(row.clone());
+                }
+            }
+            for row in &of.coincidences {
+                if !findings.coincidences.contains(row) {
+                    findings.coincidences.push(row.clone());
+                }
+            }
         }
+        Self {
+            contacts: Arc::default(),
+            findings: Arc::new(findings),
+            parts: members.iter().map(|member| member.parts).sum(),
+            pieces: None,
+            census: None,
+            censused: !members.is_empty() && members.iter().all(|member| member.censused),
+            members: Some(Arc::from(members)),
+        }
+    }
+
+    /// **Member `i`'s carry**: a family's member's own, and this on a
+    /// value that is no family.
+    pub(crate) fn member(&self, i: usize) -> &Self {
+        self.members
+            .as_ref()
+            .and_then(|members| members.get(i))
+            .unwrap_or(self)
     }
 }
 

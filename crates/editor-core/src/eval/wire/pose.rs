@@ -230,7 +230,11 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
     let value = match held.def() {
         VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pick(_) => {
+        VarDef::Free(_)
+        | VarDef::Defined(_)
+        | VarDef::Select(_)
+        | VarDef::Pick(_)
+        | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
@@ -551,7 +555,10 @@ fn read_off<T: crate::mate::SolveScalar>(
     let projected = super::project_ports(&[body_var], doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
     let (at, ent) = select_one(doc, results, slot, of)?;
-    let framed = super::read_named_body(results, at, ent.body)?;
+    let whole = doc
+        .selection(of)
+        .is_some_and(|select| crate::repetition::names_members(doc, select));
+    let framed = super::read_named_body(results, at, ent.body, whole)?;
     // In the coordinates of the body it is read off.
     Ok(Posed {
         value: read_off_body(framed.body(), ent.key, pose, band)?,
@@ -763,7 +770,7 @@ fn walk<T: Decide>(
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_)) | None => {
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

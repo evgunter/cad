@@ -83,7 +83,7 @@ impl NameOrigin {
 pub(crate) enum SegOrigin<'a> {
     /// The entity existed in an operand; the name is its name there,
     /// and the [`CarriedAs`] says what the op did to it on the way.
-    Carried(&'a StableName, CarriedAs),
+    Carried(&'a StableName, CarriedAs<'a>),
     /// This op made the entity.
     Minted,
     /// A segment the partition does not place.
@@ -93,7 +93,7 @@ pub(crate) enum SegOrigin<'a> {
 /// **How an operand's entity was carried through** — the module docs'
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
-pub(crate) enum CarriedAs {
+pub(crate) enum CarriedAs<'a> {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
@@ -102,8 +102,8 @@ pub(crate) enum CarriedAs {
     /// Copied into a split's half, where the tool plane passed through
     /// it.
     ToolCopy,
-    /// Copied into a pattern's instance `i`.
-    Instance(u32),
+    /// Held by a family's member at these index values.
+    Member(&'a super::role::MemberAt),
     /// Shortened where a blend band's trimline cut it.
     Cut,
 }
@@ -122,7 +122,7 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
         RoleSeg::SplitFragment { parent } => SegOrigin::Carried(parent, CarriedAs::Split),
         RoleSeg::OnToolVertex { of } => SegOrigin::Carried(of, CarriedAs::ToolCopy),
-        RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
+        RoleSeg::Member { of, at } => SegOrigin::Carried(of, CarriedAs::Member(at)),
         RoleSeg::BandCut(of) => SegOrigin::Carried(of, CarriedAs::Cut),
 
         // Minted here. The names these carry are the entities the op
@@ -211,7 +211,7 @@ mod tests {
     const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1);
     const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
     const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
-    const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
+    const FAMILY: RecipeNodeId = RecipeNodeId::new(0, 4);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.
@@ -321,21 +321,21 @@ mod tests {
         assert_eq!(it.chain(), [FILLET, CUT, EXTRUDE].as_slice());
     }
 
-    /// A pattern instance is a COPY of the master's entity, so it
-    /// belongs to the node that made the master — which is what makes
+    /// A family's member is a COPY of its source's entity, so it
+    /// belongs to the node that made the source — which is what makes
     /// selecting that feature light every copy.
     #[test]
-    fn a_pattern_instance_belongs_to_the_master() {
+    fn a_member_belongs_to_its_source() {
         let copy = at(
-            PATTERN,
-            RoleSeg::Instance {
-                i: 3,
+            FAMILY,
+            RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), 3)],
                 of: cap().into(),
             },
         );
         let it = attribute(&copy);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
-        assert!(it.passes_through(PATTERN));
+        assert!(it.passes_through(FAMILY));
     }
 
     /// A path this partition cannot read answers NO minting node —

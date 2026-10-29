@@ -1,9 +1,4 @@
-//! The placement vocabulary: `Frame` and `PatternKind`.
-//!
-//! GROUP-BOOLEAN-DESIGN's rule vocabulary, crossing whole. A
-//! `PlacedUnion` node needs exactly two values that no other node
-//! kind needs — an absolute placement and a replication rule — so
-//! they live together here rather than swelling the document module.
+//! The absolute placement value: `Frame`.
 //!
 //! Dimensioned throughout: lengths cross as `Length`, angles as `Angle`, and
 //! a bare float appears only where the Rust side is itself a
@@ -12,7 +7,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use super::expr::SlotArg;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -184,9 +178,8 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 /// An ABSOLUTE placement: a linear part and a translation, together
 /// the affine map that puts a prototype somewhere in the world.
 ///
-/// This is the value [`PatternKind::explicit`] lists and the one
-/// `Node.placed_union_at` places a prototype at. It is authored
-/// through the two constructors below rather than field by field,
+/// It is what a placement's pose reads back as. It is authored
+/// through the constructors below rather than field by field,
 /// because a frame's linear part is a MATRIX and hand-writing one is
 /// how a mirror or a shear arrives by accident — and a frame that is
 /// not a rigid motion is refused at the edit door, not admitted. A
@@ -376,74 +369,8 @@ impl Frame {
     }
 }
 
-/// A pattern's replication rule: how a prototype's placements are
-/// generated (`PatternKind`, crossing whole).
-///
-/// Three rules and no fourth. The two PARAMETRIC ones step — along a
-/// direction, or around an axis — and take their count from the
-/// node's structural slot; the EXPLICIT one lists absolute frames and
-/// **the list IS the count**, which is why the node door that takes it
-/// takes no count at all.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PatternKind(pub(crate) d::PatternKind<d::Formula>);
-
-#[pymethods]
-impl PatternKind {
-    /// Instances stepped along `direction`, `spacing` apart.
-    ///
-    /// The direction's three slots are dimensionless
-    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`,
-    /// and a size: the direction says which way the copies step, so a
-    /// spacing below zero refuses at `evaluate` (`negative_spacing`,
-    /// naming the direction negated) and a zero one too
-    /// (`degenerate_spacing`), wherever a second copy reads it.
-    #[staticmethod]
-    fn linear(
-        py: Python<'_>,
-        direction: (SlotArg, SlotArg, SlotArg),
-        spacing: SlotArg,
-    ) -> PyResult<Self> {
-        Ok(Self(d::PatternKind::Linear {
-            direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
-            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, &spacing)?,
-        }))
-    }
-
-    /// Instances stepped `step` apart around `axis`: an axis read off
-    /// geometry (`PoseDef.axis`), or a frame's axis read through its
-    /// role.
-    ///
-    /// The step is signed by the right-hand rule about the axis and
-    /// lies within a turn: a zero step refuses at `evaluate`
-    /// (`degenerate_step`), and so does one at or past a full turn
-    /// (`full_range_step`), wherever a second copy reads it.
-    #[staticmethod]
-    fn circular(py: Python<'_>, axis: super::pose::PoseArg, step: SlotArg) -> PyResult<Self> {
-        Ok(Self(d::PatternKind::Circular {
-            axis: axis.read(),
-            step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,
-        }))
-    }
-
-    /// Instances at the ABSOLUTE frames listed — the non-parametric
-    /// member, for placements no linear or circular step generates.
-    ///
-    /// Order is data: the index is what a name's `Instance(i)`
-    /// segment carries, so appending a placement changes no existing
-    /// index. An EMPTY list is this rule's `count < 1` and refuses
-    /// typed at the edit door (`empty_placement_list`).
-    #[staticmethod]
-    fn explicit(frames: Vec<Frame>) -> Self {
-        Self(d::PatternKind::Explicit(
-            frames.into_iter().map(|f| f.0).collect(),
-        ))
-    }
-}
-
 /// Register the placement vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Frame>()?;
-    m.add_class::<PatternKind>()?;
     Ok(())
 }

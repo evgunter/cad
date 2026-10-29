@@ -207,6 +207,7 @@ pub mod authoring;
 pub mod document;
 pub mod export;
 pub mod guide;
+pub mod pattern;
 pub mod prelude;
 pub mod profile;
 pub mod select;
