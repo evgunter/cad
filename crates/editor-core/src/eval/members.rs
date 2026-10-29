@@ -221,6 +221,10 @@ pub(super) fn eval_family<T: Decide>(
             lane: super::wire::LaneEnv {
                 params: &member_env,
                 nominal: &nominal,
+                // The nominal document's results hold the family, not
+                // this member: a member reading a trace off them resolves
+                // at the nominal lane alone.
+                nominal_results: None,
                 pass_two: op_env.lane.pass_two,
             },
         };

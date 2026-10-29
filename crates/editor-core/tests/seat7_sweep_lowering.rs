@@ -89,6 +89,7 @@ fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
                 radius,
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -128,6 +129,7 @@ fn both_sweeps() -> BothSweeps {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square_loop],
         ids: Vec::new(),
+        on: None,
     }));
     let extruded = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -138,6 +140,7 @@ fn both_sweeps() -> BothSweeps {
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
+        on: None,
     }));
     let revolved = r.insert(revolve_about(
         rev_profile,
@@ -539,6 +542,7 @@ fn extruded(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = insert(
@@ -607,6 +611,7 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, solid) = insert(

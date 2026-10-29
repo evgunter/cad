@@ -257,6 +257,7 @@ fn distributed_plate() -> ProfileDoc {
             .expect("finite plate corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
@@ -272,6 +273,7 @@ fn distributed_plate() -> ProfileDoc {
             radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p.into(),
@@ -283,6 +285,7 @@ fn distributed_plate() -> ProfileDoc {
             radius: Formula::named(name("hole_b_r"), Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p.into(),
@@ -416,6 +419,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -883,6 +887,7 @@ fn plain_distance_doc() -> ProfileDoc {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

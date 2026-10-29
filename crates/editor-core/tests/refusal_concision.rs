@@ -24,6 +24,7 @@ fn cone_block_union_refusal() -> String {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let cone = r.insert(revolve_about(
         cone_p,
@@ -36,6 +37,7 @@ fn cone_block_union_refusal() -> String {
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: block_p.into(),

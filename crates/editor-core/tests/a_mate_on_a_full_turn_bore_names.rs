@@ -84,6 +84,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, collar) = insert(
@@ -98,6 +99,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 radius: len(0.3),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, shaft) = insert(

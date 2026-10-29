@@ -32,6 +32,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -255,6 +256,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -310,6 +312,7 @@ fn insert_node_checks_program_dimensions() {
             radius: ang(0.5),
         }],
         ids: Vec::new(),
+        on: None,
     };
     match doc.apply(
         &DocEdit::InsertNode {
@@ -411,6 +414,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 },
             ])],
             ids: Vec::new(),
+            on: None,
         });
 
         // Both roles are enumerated, once each.
@@ -987,7 +991,7 @@ fn tag_operands(
 ) {
     let mut next = reads.iter().copied();
     let retagged = node.try_map_slots(
-        |p, f| p.try_map_slots(&mut |e| f(e)),
+        |p, f, r| p.try_map_slots(&mut |e| f(e), r),
         &mut |e: &editor_core::VarId| Ok::<_, core::convert::Infallible>(*e),
         &mut |_, _| Ok(next.next().expect("one tag per operand")),
     );

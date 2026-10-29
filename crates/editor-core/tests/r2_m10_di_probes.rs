@@ -491,6 +491,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![disc],
         ids: Vec::new(),
+        on: None,
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),

@@ -287,6 +287,7 @@ mod interference {
                 Node::Profile(ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(
@@ -405,6 +406,7 @@ mod interference {
                 Node::Profile(ProfileProgram {
                     loops: vec![LoopProgram::<Formula>::circle(cx, cy, r).expect("a circle")],
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(
@@ -513,6 +515,7 @@ mod interference {
                 Node::Profile(ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(

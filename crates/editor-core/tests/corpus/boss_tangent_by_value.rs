@@ -40,6 +40,7 @@ pub fn document() -> CorpusDoc {
     let disc = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle(0.0, 0.0, RADIUS).expect("a disc")],
         ids: Vec::new(),
+        on: None,
     }));
     let cylinder = r.insert(Node::Extrude {
         profile: disc.into(),
