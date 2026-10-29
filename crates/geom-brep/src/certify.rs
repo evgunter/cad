@@ -2973,19 +2973,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
                         pair,
-                        selector: match selector {
-                            // The point the WitnessMidpoint pin reads:
-                            // zero residual by construction.
-                            CurveSelector::Witness(_) => {
-                                CurveSelector::Witness(self.carrier.mid_point(ta, tb))
-                            }
-                            // Each row image is a function of the
-                            // carrier's own parameter, as a chart
-                            // image is, so a child keeps it verbatim.
-                            CurveSelector::Structural(row) => {
-                                CurveSelector::Structural(row.clone())
-                            }
-                        },
+                        selector: selector.repinned(&self.carrier, ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:

@@ -60,11 +60,11 @@ Landed on `splice/structural-rim` (2026-10-28).
 
 - **The selector.** A two-surface edge's description is
   `Intersection { pair, selector }`, the selector
-  `Selector::Witness(point)` or `Selector::Structural(..)`, whose one
+  `CurveSelector::Witness(point)` or `CurveSelector::Structural(..)`, whose one
   form today is `Structural::SharedRow`: each wall's iso row image, held
   in the pair's key order and admitted only as an `IsoLine` or `IsoArc`
   along one chart coordinate (`geom-brep/src/description.rs`). A key remap
-  goes through `Selector::remapped`, which re-orders the images with the
+  goes through `CurveSelector::remapped`, which re-orders the images with the
   pair. `TangentIntersection` keeps its witness.
 - **Per-surface certification.** A shared row is certified by each
   wall's own row certificate (`PcurveCache::certify`, limbs 1 and 2 read

@@ -1070,17 +1070,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
 ///
-/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
-/// moved from the edge's `Certificate` onto the edge, which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
-///
-/// RE-BLESSED when `Intersection`'s witness became its selector
-/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
-/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
+/// RE-BLESSED twice for the edge curve's `Debug` the digest feeds: when
+/// check 2's turn moved from the edge's `Certificate` onto the edge (PR
+/// 5728), and when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`). Each time, with
+/// that `Debug` written in main's shape, every digest here reproduced
+/// main's value at all three ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

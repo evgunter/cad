@@ -3014,7 +3014,6 @@ fn plan_between_moved<'w, 's, T: Decide>(
     let description = curve.description().clone();
     untilted(edge, &description)?;
     if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
-        let mid = carrier.mid_point(t0, t1);
         // Both charts move, so an image in either has slid within it and
         // is derived afresh from the moved carrier; a declaration rides
         // the edge's own rigid shift.
@@ -3034,7 +3033,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             curve.authority(),
             [(a.old_key, true), (b.old_key, true)],
             true,
-            mid,
+            (&carrier, t0, t1),
             carried,
             |declared| {
                 crate::offset_restate::re_ask_on_pair(
@@ -3905,12 +3904,7 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::Intersection { pair, selector } => {
                 EdgeDescriptionSpec::Intersection {
                     pair,
-                    selector: match selector {
-                        geom_brep::CurveSelector::Witness(_) => {
-                            geom_brep::CurveSelector::Witness(mid)
-                        }
-                        structural @ geom_brep::CurveSelector::Structural(_) => structural,
-                    },
+                    selector: selector.repinned(&carrier, t0, t1),
                 }
             }
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
@@ -4622,18 +4616,9 @@ fn read_ends<T: Decide>(
     };
     let restated = |m| restate(restate(m, p_start, true)?, p_end, false);
     match &mut plan.spec.description {
-        EdgeDescriptionSpec::Intersection {
-            selector: geom_brep::CurveSelector::Witness(witness),
-            ..
-        } => {
-            *witness = plan.spec.carrier.mid_point(t0, t1);
+        EdgeDescriptionSpec::Intersection { selector, .. } => {
+            *selector = selector.repinned(&plan.spec.carrier, t0, t1);
         }
-        // A row is stated on the carrier's own parameter: the new
-        // interval keeps it, and the certificate decides it still holds.
-        EdgeDescriptionSpec::Intersection {
-            selector: geom_brep::CurveSelector::Structural(_),
-            ..
-        } => {}
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
         }

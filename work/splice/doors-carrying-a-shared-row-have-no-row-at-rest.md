@@ -13,7 +13,7 @@ Filed by SPLICE's structural-rim lane.
 
 ## What
 
-An `Intersection` under `Selector::Structural(SharedRow)` travels through
+An `Intersection` under `CurveSelector::Structural(SharedRow)` travels through
 these doors with its row images verbatim, and its re-run certificate
 decides whether the rows still hold:
 
@@ -22,12 +22,18 @@ decides whether the rows still hold:
 - `geom-brep/src/certify.rs` `with_remapped_surfaces`, and
   `topo/src/boolean/combine.rs`'s graft and
   `topo/src/replace_face.rs` `remap_description`: keys re-mapped through
-  `Selector::remapped`, which re-orders the images when the pair's order
+  `CurveSelector::remapped`, which re-orders the images when the pair's order
   flips;
 - `geom-brep/src/certify.rs` `split_specs`, `topo/src/boolean/edge_join.rs`
-  `joined_spec` and `topo/src/replace_face.rs`'s re-anchor and
-  `read_ends`: the rows kept over the new interval;
-- `topo/src/offset_restate.rs` `restate`: the rows kept.
+  `joined_spec`, `topo/src/replace_face.rs`'s re-anchor and `read_ends`,
+  and `topo/src/offset_restate.rs` `restate`: the rows kept over the new
+  interval, through `CurveSelector::repinned`.
+
+A shared row will usually not survive an offset or a face replacement.
+The moved wall's surface is new, and the carrier leaves the unmoved
+wall's row, so the re-run certificate refuses `RowImage` where a witness
+edge could have been re-minted and certified. That is loud, not wrong,
+and it is SELECT unit 7's to re-ask D2's question at those doors.
 
 None of them has a row through a body. The only producer is the
 boolean's recovery, and its one witness (lily wall 8,

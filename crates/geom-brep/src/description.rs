@@ -138,14 +138,6 @@ pub enum CurveSelector<T: Real> {
 }
 
 impl<T: Real> CurveSelector<T> {
-    /// The witness point, where the selector is one.
-    pub fn witness(&self) -> Option<geom_core::Point3<T>> {
-        match self {
-            CurveSelector::Witness(p) => Some(*p),
-            CurveSelector::Structural(_) => None,
-        }
-    }
-
     /// This selector under `pair` re-keyed through `f`: the pair rebuilt
     /// in its new keys' order, and a structural selector's per-surface
     /// data re-ordered with it. The one way a pair is rebuilt under a
@@ -168,6 +160,23 @@ impl<T: Real> CurveSelector<T> {
             }
         };
         Some((new, selector))
+    }
+}
+
+impl<T: geom_core::SpanLocate> CurveSelector<T> {
+    /// **This selector over `carrier`'s interval `(t0, t1)`**: the one door
+    /// for an edge whose interval moved (a split child, a join, a
+    /// re-anchored end, a mapped carrier). A witness is re-pinned at the
+    /// carrier's mid-parameter point, the point its certificate's
+    /// mid-parameter pin reads. A structural selector is kept: its images
+    /// are functions of the carrier's own parameter, and its certificate
+    /// decides that the new interval still lies in each wall's row.
+    #[must_use]
+    pub fn repinned(&self, carrier: &geom::Curve3<T>, t0: T, t1: T) -> Self {
+        match self {
+            CurveSelector::Witness(_) => CurveSelector::Witness(carrier.mid_point(t0, t1)),
+            structural @ CurveSelector::Structural(_) => structural.clone(),
+        }
     }
 }
 

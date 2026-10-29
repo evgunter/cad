@@ -780,8 +780,8 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
                 pair: *pair,
                 selector: match selector {
-                    geom_brep::CurveSelector::Witness(_) => {
-                        geom_brep::CurveSelector::Witness(carrier.mid_point(param_start, param_end))
+                    witness @ geom_brep::CurveSelector::Witness(_) => {
+                        witness.repinned(&carrier, param_start, param_end)
                     }
                     // Each wall's row maps as a chart image does.
                     geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row)) => {

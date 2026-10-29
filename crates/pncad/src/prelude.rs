@@ -485,13 +485,9 @@ pub use geom::SurfaceKind;
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 //
-// **`CurveSelector` and `Structural` ARE here**: `EdgeDescription::
-// Intersection`'s selector is the discriminant a reader of an at-rest
-// two-surface edge branches on (a witness point, or a curve known in
-// advance), as the witness point it replaced was read there. The
-// structural form's payload, a `SharedRow`, holds each wall's row as a
-// `Pcurve`, the `Chart` arm's discriminant, and stays out with it on the
-// argument above.
+// **`CurveSelector` and `Structural` ARE here**: the discriminant a reader
+// of an at-rest `Intersection` branches on. `SharedRow`'s payload is a
+// `Pcurve`, which stays out on the argument above.
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, Cited, Cites, ContactRecords, Curve3, CurveSelector, EdgeCarrierSite,

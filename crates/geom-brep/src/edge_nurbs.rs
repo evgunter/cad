@@ -1457,10 +1457,13 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         hull_sup = hull_sup.max(hull);
     }
     // Limb 3 alone, its tube about the image each chart's limb 2 read.
-    // The choice is unguardable: the exact image's polyline and the
-    // fitted feet agree to the foot's precision, and no exact chart
-    // reaches `Ok`, since a carrier on a chart's boundary row refuses here
+    // In this witness lane the choice is unguardable: the exact image's
+    // polyline and the fitted feet agree to the foot's precision, and no
+    // witness through an exact chart reaches `Ok`, since a carrier on a
+    // chart's boundary row refuses here
     // (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
+    // A rim on both walls' boundary rows is a shared row, certified
+    // without this tube.
     #[allow(clippy::type_complexity)]
     fn tube_image<'a, C, I, T: Real>(
         exact: &'a Option<Result<(C, NurbsCurve2<T>), I>>,

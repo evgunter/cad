@@ -1005,17 +1005,7 @@ fn joined_spec<T: Decide>(
         geom_brep::EdgeDescription::Intersection { pair, selector } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                selector: match selector {
-                    geom_brep::CurveSelector::Witness(_) => {
-                        geom_brep::CurveSelector::Witness(carrier.mid_point(a, b))
-                    }
-                    // A row is stated on the carrier's own parameter, so
-                    // the joined edge keeps it; its certificate decides
-                    // that the joined span lies in the row.
-                    geom_brep::CurveSelector::Structural(row) => {
-                        geom_brep::CurveSelector::Structural(row.clone())
-                    }
-                },
+                selector: selector.repinned(&carrier, a, b),
             }
         }
         geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {

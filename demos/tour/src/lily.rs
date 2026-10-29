@@ -2433,37 +2433,46 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The SITE moves with ε. Measured 2026-10-28: at 1e-9 the
-        // interior-loop guard refuses B's spline wall against A's cap
-        // plane, the rim having certified as the walls' shared row; at
-        // 1e-6 the rim's certificate reads the walls' crossing angle in
-        // band at a sample
-        // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`);
-        // at 1e-12 the tour stands the lily walls down before this one.
-        // If this ever refuses elsewhere, the sentence above is wrong and
-        // must be re-derived before it is believed.
-        |e| match e {
-            BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::InteriorLoopGuard,
-                operand: Operand::B,
-                kind: SurfaceKind::Nurbs,
-                other_kind: SurfaceKind::Plane,
-                ..
-            } => true,
-            BooleanError::EdgeUndescribed {
-                failure: EdgeDescribeFailure::Intersection,
-                cause: Some(cause),
-                ..
-            } => matches!(
-                **cause,
-                EulerOpError::Certification {
-                    error: CertifyError::Escalated {
-                        check: CertCheck::Transversality,
+        // The SITE moves with ε, so the pin is keyed by it (measured
+        // 2026-10-29). At 1e-9 the rim certifies as the walls' shared row
+        // and the interior-loop guard refuses B's spline wall against A's
+        // cap plane. At 1e-6 the rim's certificate reads the walls'
+        // crossing angle in band
+        // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`).
+        // At 1e-12 the lower stem's declared frontier stands the lily walls
+        // down before this one. If this ever refuses elsewhere, the
+        // sentence above is wrong and must be re-derived before it is
+        // believed.
+        |e| {
+            if tol.eps() == 1e-6 {
+                matches!(
+                    e,
+                    BooleanError::EdgeUndescribed {
+                        failure: EdgeDescribeFailure::Intersection,
+                        cause: Some(cause),
                         ..
-                    },
-                }
-            ),
-            _ => false,
+                    } if matches!(
+                        **cause,
+                        EulerOpError::Certification {
+                            error: CertifyError::Escalated {
+                                check: CertCheck::Transversality,
+                                ..
+                            },
+                        }
+                    )
+                )
+            } else {
+                matches!(
+                    e,
+                    BooleanError::CurvedPairUnsupported {
+                        site: PairRefusalSite::InteriorLoopGuard,
+                        operand: Operand::B,
+                        kind: SurfaceKind::Nurbs,
+                        other_kind: SurfaceKind::Plane,
+                        ..
+                    }
+                )
+            }
         },
         "grow the leaves out of the stem instead of standing them beside it",
     );
