@@ -187,3 +187,20 @@ row) in the same PR, and re-measures what each row runs after the stop.
   since they pass. The near-node cost residue (`CellBudget` at the default
   ε, unmeasured cause) stays on SECTRUNG's
   `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`.
+
+## 2026-10-29 — PR 5972 in dual review; the components fork to the designers
+
+- **`sect-torusdoors` opened PR 5972** (head f2bd69c, CI green): the
+  cylinder × torus and torus × torus doors over a certified ball; both
+  door rows closed in it. The lane stopped on a design fork, filed in the
+  PR as `a-general-torus-pose-lists-no-components` (P0, `design: true`):
+  a general pose of either pair has no closed-form component list, so
+  `pair_section` still refuses it and the join stops at the germ mint.
+- **Dual concurrent review** dispatched on the frozen head (H; brief on
+  `briefs/sect-torusdoors-review`, both reviewers remote).
+- **Designer pair** (Opus + Fable, concurrent, blind) dispatched on the
+  fork, framed as the problem rather than the lane's three options, and
+  widened to the `Sides::Untold` symmetric poses (square wall, parallel
+  tori, a sphere round both tube circles), which ask the same question.
+  `sect-teapot2` is told to keep to the sphere × torus poses whose
+  closed-form readings already tell components apart.
