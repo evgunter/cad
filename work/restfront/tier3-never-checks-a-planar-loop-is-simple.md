@@ -4,6 +4,8 @@ kind: issue
 title: tier 3 never checks a planar loop is simple - a section face whose loop runs through its own vertex passes every tier
 status: open
 opened: 2026-10-01
+priority: P1
+cost: M
 ---
 
 

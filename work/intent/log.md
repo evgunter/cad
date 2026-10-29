@@ -1076,3 +1076,14 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - two INTENT P2s: the plane-transitivity gap and two revolves on one axis;
     - `the-ruled-region-span-holds-two-stage6-scenes-off-the-registry` (P2).
   - **Stage 6 B dispatched** (`session_01VyvYnHiQmPFKJF4LW5roUJ`) to #6004's converged design.
+- 2026-10-29 21:25 — **Stage 6 B merged (#6041).**
+  - Rung one reads every mate kind, closed transitively. A revolve minter arm and the replay's stated-axis substitution land with it.
+  - Dual H review, tally 2:
+    - R1's MAJOR, introduced here: refused bundles fed the classes. Fixed: only admitted bundles are read.
+    - R2's MAJOR, pre-existing: a revolve's wall classification has no door row. B no longer builds on it; filed P1 on COINCIDE.
+  - Row: `docs/dual-review-log/rows/PR-6041.md`.
+- **Stage 6 C** (#6043): dual H review in, tally 0, fix pass running.
+- **The D10 hold, brought up to date at Ev's request.**
+  - `d10-one-way-to-say-intent-is-unbuilt` now states where the build stands. Its old text said the code still had every mechanism D10 retires.
+  - `plan.md`'s stage state is updated.
+  - A lane re-reads the ~26 rows held on the hold (`session_01VyvYnH4C7X55BN67GaEqMo`). It releases those whose ground is built and re-parks the rest on the specific remainder.
