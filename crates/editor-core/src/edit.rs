@@ -3170,11 +3170,10 @@ pub enum EditError {
     /// author building a frame and setting it speaks ONE error type
     /// from the constructor through the door.
     ///
-    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
-    /// that one's subject is the frame's coordinates, and a reader
-    /// told their frame is not finite goes looking at the frame,
-    /// which is exactly the mistaken subject this arm exists to stop
-    /// reporting. The cause is the axis, in the evaluation layer's
+    /// Its own arm rather than a refusal of the frame's coordinates:
+    /// a reader told their frame is not finite goes looking at the
+    /// frame, which is exactly the mistaken subject this arm exists to
+    /// stop reporting. The cause is the axis, in the evaluation layer's
     /// own words, with the role word naming the vector.
     PlacementAxis {
         /// The direction door's refusal, unaltered.
