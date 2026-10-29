@@ -1076,3 +1076,200 @@ mod subdivision_guard_rows {
         }
     }
 }
+
+#[cfg(test)]
+mod review_5993_recut_rows {
+    //! Review rows (PR 5993, R2): the first cut's re-cut of a sixteenth
+    //! with no definite share. Each residual is read against a dense
+    //! sampling of its sign changes; the walk may refuse, but a certified
+    //! count must be the true one.
+
+    use core::f64::consts::PI;
+
+    use super::*;
+
+    const ROWS: SubdivisionRows = SubdivisionRows {
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
+    };
+
+    fn walk(f: &TrigPoly<f64>, eps: f64) -> Result<TrigRoots<f64>, RootRefusal> {
+        let frame = SubdivisionFrame {
+            t0: -0.5,
+            t1: 0.5,
+            speed_hi: 1.0,
+            noise: 0.0,
+            f_per_metre: 1.0,
+            f_per_metre_hi: 1.0,
+            residual_reach: None,
+            jet: None,
+        };
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        certified_subdivision(
+            f,
+            &value,
+            &frame,
+            &ROWS,
+            None,
+            Band::new(eps, 10.0 * eps).unwrap(),
+        )
+    }
+
+    fn sign_changes(f: &TrigPoly<f64>) -> usize {
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        let n = 400_000_u32;
+        let s: Vec<f64> = (0..=n)
+            .map(|k| value(-PI + 2.0 * PI * f64::from(k) / f64::from(n)))
+            .collect();
+        s.windows(2)
+            .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+            .count()
+    }
+
+    /// How many sixteenths of the first cut have no definite share.
+    fn dropped(f: &TrigPoly<f64>, eps: f64) -> usize {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
+        let base = 0.0 - PI;
+        (0..SUBDIVISION_START)
+            .filter(|&k| {
+                let from = base + piece * f64::from(k);
+                !SPLITS.iter().any(|&s| {
+                    matches!(
+                        decide(ROWS.side, Margin::of(value(from + piece * s)), band),
+                        Ok(Sign::Positive | Sign::Negative)
+                    )
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    fn review_5993_recut_never_certifies_a_wrong_count() {
+        let eps = 1e-9;
+        // A small-amplitude second harmonic over a near-cancelling first:
+        // wide in-band stretches at the first cut's shares.
+        let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut recut, mut certified, mut touched, mut other) = (0, 0, 0, 0);
+        for _ in 0..4000 {
+            let amp = 10f64.powf(-9.0 + 3.0 * rnd()); // 1e-9 .. 1e-6
+            let c0 = amp * (2.0 * rnd() - 1.0);
+            let f = DegreeTwo::new(
+                c0,
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+            )
+            .poly();
+            let drops = dropped(&f, eps);
+            let got = walk(&f, eps);
+            if drops == 0 {
+                continue;
+            }
+            recut += 1;
+            match got {
+                Ok(Roots::Certified(found)) => {
+                    certified += 1;
+                    let truth = sign_changes(&f);
+                    assert_eq!(
+                        found.count(),
+                        truth,
+                        "{:?}: dropped {drops}",
+                        (f.cos, f.sin)
+                    );
+                }
+                Ok(Roots::Miss) => {
+                    certified += 1;
+                    assert_eq!(
+                        sign_changes(&f),
+                        0,
+                        "{:?}: a miss, dropped {drops}",
+                        (f.cos, f.sin)
+                    );
+                }
+                Err(RootRefusal::Touch(_)) => touched += 1,
+                _ => other += 1,
+            }
+        }
+        println!("recut {recut}: certified {certified}, touch {touched}, other {other}");
+        assert!(
+            certified > 0,
+            "the re-cut certified nothing in {recut} draws"
+        );
+    }
+
+    /// Two transverse roots in adjacent sixteenths about a stretch in band.
+    #[test]
+    fn review_5993_two_roots_beside_a_dropped_sixteenth() {
+        let eps = 1e-9;
+        for &(a, d) in &[
+            (1e-7, 5e-10),
+            (1e-7, 2e-9),
+            (1e-7, 4e-9),
+            (3e-8, 1e-9),
+            (1e-6, 2e-8),
+        ] {
+            // a·(1 − cos t) − d: roots at ±acos(1 − d/a).
+            let f = DegreeTwo::new(a - d, -a, 0.0, 0.0, 0.0).poly();
+            let got = walk(&f, eps);
+            println!(
+                "a {a:e} d {d:e} dropped {} truth {} -> {got:?}",
+                dropped(&f, eps),
+                sign_changes(&f)
+            );
+            if let Ok(Roots::Certified(found)) = got {
+                assert_eq!(found.count(), sign_changes(&f));
+            }
+            assert!(!matches!(got, Ok(Roots::Miss)), "a miss of two roots");
+        }
+    }
+
+    /// An exact double root, and a root exactly at a cut's first share.
+    #[test]
+    fn review_5993_double_root_and_root_at_a_cut() {
+        let eps = 1e-9;
+        let f = DegreeTwo::new(1e-7, -1e-7, 0.0, 0.0, 0.0).poly();
+        let got = walk(&f, eps);
+        println!("double: dropped {} -> {got:?}", dropped(&f, eps));
+        assert!(!matches!(got, Ok(_)), "a double root certified: {got:?}");
+        let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
+        let at = -PI + piece * 9.0 + piece * SPLITS[0];
+        // sin(t − at) · 1e-3: roots at `at` and `at + π`.
+        let (s, c) = at.sin_cos();
+        let f = DegreeTwo::new(0.0, -1e-3 * s, 1e-3 * c, 0.0, 0.0).poly();
+        let got = walk(&f, eps);
+        println!("root at a cut -> {got:?}");
+        match got {
+            Ok(Roots::Certified(found)) => assert_eq!(found.count(), 2),
+            other => panic!("{other:?}"),
+        }
+    }
+}
