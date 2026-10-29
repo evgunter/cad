@@ -1817,7 +1817,13 @@ mod tests {
         let b = band();
         let e = b.zero();
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 2.0, 1.0, true);
-        let other = torus([0.0, 0.0, 0.9 * e], [0.0, 0.0, 1.0], 2.0 + 0.9 * e, 1.0, true);
+        let other = torus(
+            [0.0, 0.0, 0.9 * e],
+            [0.0, 0.0, 1.0],
+            2.0 + 0.9 * e,
+            1.0,
+            true,
+        );
         let ext = ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
             Point3::new(1.0, 0.0, 0.0),
             1e-3,

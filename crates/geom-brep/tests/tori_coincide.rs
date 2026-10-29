@@ -12,13 +12,13 @@ test_utils::gated_to![
 ];
 
 use crate::shared::tol::band;
-use geom_core::Band;
 use core::f64::consts::TAU;
 use geom::Surface;
 use geom_brep::{
     TorusCoincidence, TorusData, TorusDisplacement, TorusPoseRefusal, TorusQuestion,
     TorusTorusPose, tori_coincide,
 };
+use geom_core::Band;
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
@@ -238,7 +238,12 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
 fn a_torus_tangent_inside_the_tube_along_a_tube_circle_refuses_at_the_gap() {
     let b = band();
     let first = surface(data(Point3::origin(), Vec3::unit_z(), 2.0, 0.5));
-    let small = surface(data(Point3::new(2.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 0.3, 0.2));
+    let small = surface(data(
+        Point3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        0.3,
+        0.2,
+    ));
     for (x, y) in [(&first, &small), (&small, &first)] {
         assert!(matches!(
             TorusTorusPose::decide(x, y, b).expect("tori"),
@@ -261,7 +266,12 @@ fn data_each_zero_beside_a_bound_past_the_band_straddle() {
     let b = Band::new(1e-9, 2e-9).unwrap();
     let e = b.zero();
     let ring = data(Point3::origin(), Vec3::unit_z(), 5.0, 0.5);
-    let other = data(Point3::new(0.0, 0.0, 0.9 * e), Vec3::unit_z(), 5.0 + 0.9 * e, 0.5 + 0.9 * e);
+    let other = data(
+        Point3::new(0.0, 0.0, 0.9 * e),
+        Vec3::unit_z(),
+        5.0 + 0.9 * e,
+        0.5 + 0.9 * e,
+    );
     match tori_coincide(ring, other, b) {
         TorusCoincidence::Undecided(diag) => {
             assert_eq!(diag.predicate, Some("tt_coincident_straddle"));
