@@ -97,3 +97,30 @@ the plane face's descent levers its own `Zero` at `BendBounds::Planar`'s
 `reach` (an upper bound), and a spline's descent escalates. Whatever
 replaces the first-order `On` here should lever its `Zero` at
 `edge_extent_sup` rather than at `Reach::length`.
+
+## A curved face tangent to a rim at its vertex (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+Item 2 is now in the way of a reading that exists. PR 5968 orders a
+pierce ring's two germs that are tied along one tangent by their
+bends. In a curved pierced face that bend is
+`geom_brep::implicit_section_acceleration`'s curved-reference term,
+which is unit-pinned (`crates/geom-brep/tests/section_acceleration_review.rs`)
+but has no end-to-end Boolean.
+
+Every pose that reaches the term has a rim tangent to the curved face
+at the vertex: the face's trace on the rim's face is tangent to the rim
+there. So the crossing layer meets the rim's arc tangent to the face
+before the ring reads anything.
+
+Measured at ε = 1e-9, with `a_split_through_a_wrap_edges_vertex.rs`
+`a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound`:
+
+- A: the two-arc holed block, turned 0.4 about x.
+- B: the ball of radius 3 touching `z = z₀` from below at the turned
+  vertex, poles along x.
+- A − B, A ∩ B and A ∪ B all refuse `CurvedPierceUnsupported { operand:
+  A, face: <the sphere>, edge: <a bottom rim arc> }`.
+
+That test holds the refusal, and goes red into its full checks (tiers
+1–3, 3′, and the operands' volume identities) when the arc's tie reads
+one order down.

@@ -128,7 +128,15 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// main's merge at `1235f4c050`, which brings stage 4 I's id moves and
 /// the wall spelling's name moves (`f077063267`, `f9288d4a02`) beneath
 /// D′3's: names and ids only, and the ids-masked row held.
-const DIE_TABLE_DIGEST: u64 = 0x6a1f_023d_9ba4_9421;
+///
+/// RE-BLESSED for PR 5742 (the value chart reads a written orientation),
+/// bisected to its merge (`19eff38c58`; `8c3f542123` before it holds the
+/// old pin), with [`DIE_NAMES_DIGEST`]: the mate's orientation is
+/// written in the minting edits' bytes, so the ids and the names that
+/// spell the mate moved, as PR 5742 measured on its own branch. Both
+/// digests read their merge's values on main today. `m10_p_fence`'s
+/// ids-masked row holds, so no point moved.
+const DIE_TABLE_DIGEST: u64 = 0x35eb_46e3_c6c9_38ab;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -172,7 +180,9 @@ const DIE_TABLE_DIGEST: u64 = 0x6a1f_023d_9ba4_9421;
 ///
 /// Re-pinned with `DIE_TABLE_DIGEST` over main's merge at `1235f4c050`
 /// (stage 4 I and the wall spelling, `f077063267`, `f9288d4a02`).
-const DIE_NAMES_DIGEST: u64 = 0x858d_2d6e_f24c_3fdb;
+///
+/// Re-pinned with `DIE_TABLE_DIGEST` for PR 5742, at its merge's reading.
+const DIE_NAMES_DIGEST: u64 = 0x2bcd_a7f2_f5d4_dffb;
 
 #[test]
 fn die_name_tables_are_golden() {
