@@ -223,7 +223,7 @@ impl ResolveError {
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
                      tie is never broken by picking. {}",
                     tie.width,
-                    crate::sentence::Recourse("refine the reference until one candidate remains")
+                    crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
             Self::ReadGone { name, read, edit } => {

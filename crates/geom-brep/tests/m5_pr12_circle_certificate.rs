@@ -315,7 +315,7 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
     certify_cap_quarter::<f64>(r, false, |s1, s2, witness| {
         EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         }
     })
     .expect("the cap crossing is a certified transverse intersection");

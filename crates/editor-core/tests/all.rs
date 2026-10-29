@@ -121,6 +121,8 @@ mod boss_flush_offer;
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "clearance_refusals_say_what_they_found.rs"]
+mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
 #[path = "display_contract.rs"]

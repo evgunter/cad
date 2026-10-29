@@ -30,3 +30,19 @@ right is the owner's call; not looked into further.
 Reproduce: `CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0xcc21d29c318a7479
 CAD_FUZZ_EFFORT=1 cargo nextest run -p geom --profile ci -E
 'test(=r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval)'`.
+
+## A second seed, 2026-10-29 (GREEN latency lane)
+
+PR 6019's gate (run 40847689090, `test (kernel)`) reds the same row at
+ε 1e-12, on a diff that touches only `scripts/ci-filter.py`:
+
+> sup over the defect: 2.953798525442482 (f64) / 2.953798525442482
+> (Interval) < 2.9537985254424868 at 21/64: a 1.0336476587993828 b
+> 2.953798525442482 t0 0.0002488148581001326 gap 7.583415220477767e-4
+
+The bound reads exactly `|b|` and the sample sits about 4.8e-15 above
+it, about eleven ulps and more than a `1e-15` relative slack, so neither
+fix named above covers this seed.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0x85193fcde51a223a`
+with the same command.

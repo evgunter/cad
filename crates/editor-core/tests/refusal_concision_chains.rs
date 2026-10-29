@@ -196,9 +196,8 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `EngineRefusal::payload` (`topo/src/clearance.rs`) is the
-    // goldening form, and this arm prints it: faces as `FaceKey`
-    // `Debug`.
+    // `EngineRefusal::say` (`topo/src/clearance.rs`) names a face by
+    // its side and its `FaceKey` `Debug`, and this arm says it.
     Admission {
         row: "MeasureClearanceRefused/Unsupported",
         span: "FaceKey(null)",
@@ -206,7 +205,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     },
     Admission {
         row: "MeasureClearanceRefused/PoisonEnclosure",
-        span: "FaceKey(null)/FaceKey(null)",
+        span: "FaceKey(null)",
         filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     // A smooth-join refusal names its edge by key.
@@ -966,7 +965,7 @@ mod kernel {
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
-            SectionCrossings,
+            SectionCrossings, SectionDepartureGrazes,
         ];
     }
 
@@ -974,7 +973,7 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -2629,6 +2628,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     band: band(),
                 },
             ),
+            (
+                "SectionDepartureGrazes",
+                J::SectionDepartureGrazes { face, band: band() },
+            ),
         ]
     };
     let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
@@ -2658,6 +2661,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
+        ),
+        (
+            "ConeCornerEscalated",
+            F::ConeCornerEscalated {
+                vertex,
+                source: diag(),
+            },
+        ),
+        ("ConeCornerUnread", F::ConeCornerUnread { vertex }),
+        (
+            "ConeFusionDesync",
+            F::ConeFusionDesync {
+                what: "a joint half-edge has no end",
+            },
         ),
         (
             "DescribeSideEscalated",
@@ -4958,6 +4975,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 MinSeparationRefusal::Unsupported {
                     carrier: "an approximated face",
                     face: FaceKey::default(),
+                    side: topo::clearance::Which::First,
                 },
             ),
             (
@@ -4967,7 +4985,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                     b: FaceKey::default(),
                 },
             ),
-            ("EmptyScope", MinSeparationRefusal::EmptyScope),
+            (
+                "EmptyScope",
+                MinSeparationRefusal::EmptyScope {
+                    side: topo::clearance::Which::First,
+                },
+            ),
         ] {
             rows.push(row(
                 &format!("MeasureClearanceRefused/{n}"),

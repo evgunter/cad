@@ -151,6 +151,7 @@ mod datum;
 mod net;
 mod param;
 mod periodic;
+pub mod pole_form;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
