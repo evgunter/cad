@@ -17,7 +17,9 @@
 //!   is the one-face seamed statement of the cap, and meshes; one that
 //!   stops short leaves the pole interior — the state the guard
 //!   refuses, in disguise — and is caught only by the deviation
-//!   certificate.
+//!   certificate. A STEP file stating either never reaches this lane:
+//!   import makes the pole a vertex in the two-meridian pole form
+//!   (`step-import/tests/chart_singularity_vertex.rs`).
 //!
 //! Every outcome here is read where debug assertions run, which is
 //! every profile this workspace builds; the census is a `debug_assert`,

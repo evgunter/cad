@@ -689,8 +689,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
-    import_step,
+    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and

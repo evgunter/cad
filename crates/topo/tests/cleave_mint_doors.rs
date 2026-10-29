@@ -77,7 +77,8 @@ fn set_edge_curve_re_describes_every_m7_8_edge_at_f64() {
 /// is the composed door's order when check 11 is the only structural
 /// refusal (`validate_geometric_certificate`). This is the at-rest body whose join reading is undecided:
 /// a split nearer a pole or an apex refuses at the split's own readings
-/// in the same band, and the halfcap files at the import's join.
+/// in the same band, and the halfcap files at the import's reading of
+/// the pole.
 #[test]
 fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
     let mut body = m7_8_cube::<f64>();

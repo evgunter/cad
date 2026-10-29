@@ -33,7 +33,7 @@ use crate::py::{
 };
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
 };
 use crate::validation;
 use pncad::document as d;
@@ -2030,11 +2030,13 @@ impl FaceCensus {
 /// cut. `file_census` and `kernel_census` are that change, counted.
 ///
 /// `kind` is the stable word for what was re-minted, and the payload
-/// of the one arm that carries one arrives beside it, `None` on the
-/// other four: `promoted_to` is which analytic surface kind certified
-/// and `residual` is the certified deviation that let it. Present on
-/// every row, so a read never raises and a caller never has to branch
-/// on `kind` first.
+/// of each arm that carries one arrives beside it, `None` on the
+/// others: `promoted_to` is which analytic surface kind certified and
+/// `residual` is the certified deviation that let it
+/// (`surface_promotion`), and `singularity` is where the file put the
+/// pole or apex import made a vertex (`chart_singularity_vertex`).
+/// Present on every row, so a read never raises and a caller never has
+/// to branch on `kind` first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct StructureNormalization(pncad::step_import::StructureNormalization);
@@ -2073,6 +2075,18 @@ impl StructureNormalization {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::SurfacePromotion { residual, .. } => {
                 Some(*residual)
+            }
+            _ => None,
+        }
+    }
+
+    /// Where the file put the chart singularity import made a vertex —
+    /// on `chart_singularity_vertex` alone.
+    #[getter]
+    fn singularity(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::ChartSingularityVertex { found } => {
+                Some(singularity_found_tag(found))
             }
             _ => None,
         }
