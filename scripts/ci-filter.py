@@ -2819,9 +2819,11 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
 
 # THE TEST SHARDS. The test job's build is the per-PR floor and is
 # throughput-bound on one 4-core runner, so its scope is split in two and each
-# half builds and runs on its own runner: `app` is this roster (editor-core,
-# the members that depend on it, and verbs), `kernel` the rest. A half the
-# scope leaves empty is not run.
+# half builds and runs on its own runner: `app` is `APP_ROOT` and every member
+# that depends on it (dev edges included), `kernel` the rest. A half the scope
+# leaves empty is not run. The roster is spelled out so the shard scopes keep
+# their order; `_selftest_app_shard_premise` checks it against the member graph.
+APP_ROOT = "verbs"
 APP_SHARD: tuple[str, ...] = ("verbs", "editor-core", "pncad", "pncad-py", "viewer")
 
 
@@ -3875,6 +3877,7 @@ def selftest() -> None:
 
     _selftest_docs_premise()
     _selftest_wheel_members_premise()
+    _selftest_app_shard_premise()
     _selftest_unsampled()
     _selftest_config()
     _selftest_gated()
@@ -3918,6 +3921,22 @@ _FIXTURE_NEXTEST = (
 )
 
 
+def _selftest_app_shard_premise() -> None:
+    """`APP_SHARD` is `APP_ROOT` and its dependents on THIS tree's member graph,
+    so a new dependent of verbs or editor-core reds here rather than landing in
+    the kernel shard."""
+    try:
+        _, deps = _members(_repo_root())
+        want = set(_closure({APP_ROOT}, deps))
+    except Bail as exc:
+        raise SystemExit(f"SELFTEST FAILED: the app shard's roster cannot be derived: {exc}") from exc
+    if set(APP_SHARD) != want or len(APP_SHARD) != len(want):
+        raise SystemExit(
+            f"SELFTEST FAILED: APP_SHARD is {sorted(APP_SHARD)}, but {APP_ROOT} and its "
+            f"dependents on this tree are {sorted(want)}"
+        )
+
+
 def _selftest_test_shards(t: str) -> None:
     """The test job's matrix, through the CLI on the fixture (where `verbs` is
     the one roster member) and, for the scopes no fixture diff can draw,
@@ -3925,8 +3944,9 @@ def _selftest_test_shards(t: str) -> None:
     def shards(*halves: tuple[str, str]) -> str:
         return json.dumps([{"shard": n, "scope": s} for n, s in halves], separators=(",", ":"))
 
-    kernel = "--workspace " + " ".join(f"--exclude {p}" for p in APP_SHARD)
-    app = " ".join(f"-p {p}" for p in APP_SHARD)
+    kernel = ("--workspace --exclude verbs --exclude editor-core --exclude pncad"
+              " --exclude pncad-py --exclude viewer")
+    app = "-p verbs -p editor-core -p pncad -p pncad-py -p viewer"
     for what, files, scope, want in (
         # test-utils, alone on the kernel side, rides with the app shard.
         ("an app-only closure", ["crates/verbs/src/lib.rs"], "-p verbs -p test-utils",
@@ -4784,7 +4804,9 @@ def main() -> int:
     out = decorate(res, files, config, wheel_members)
     out["ALL_REASON"] = all_reason if out["TIER"] == "all" else ""
     # Outside the fail-closed wrapper: a run that builds and tests nothing is
-    # a red step, not a classification to fall back from.
+    # a red step, not a classification to fall back from. It checks the
+    # classification itself, so a draft (whose RUN_* ci.yml turns off after
+    # this) reds on it too.
     try:
         out["TEST_SCOPE"], out["TEST_SHARDS"] = test_shards(
             out["TIER"], out["CARGO_SCOPE"], out["RUN_BUILD"]

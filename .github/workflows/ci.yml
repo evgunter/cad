@@ -57,7 +57,7 @@ jobs:
       sha: ${{ steps.target.outputs.sha }}
       render_dispatch: ${{ steps.render-tag.outputs.render_dispatch }}
       tier: ${{ steps.classify.outputs.TIER }}
-      cargo_scope: ${{ steps.classify.outputs.TEST_SCOPE }}
+      test_scope: ${{ steps.classify.outputs.TEST_SCOPE }}
       test_shards: ${{ steps.classify.outputs.TEST_SHARDS }}
       run_build: ${{ steps.classify.outputs.RUN_BUILD }}
       test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
@@ -72,6 +72,7 @@ jobs:
       run_mesh_budget: ${{ steps.paths.outputs.mesh_budget }}
       run_demos: ${{ steps.paths.outputs.demos }}
       run_tools: ${{ steps.paths.outputs.tools }}
+      run_filter_selftest: ${{ steps.paths.outputs.filter_selftest }}
       eps_extra: ${{ steps.paths.outputs.eps_extra }}
       base: ${{ steps.base.outputs.sha }}
     steps:
@@ -173,6 +174,9 @@ jobs:
             flag step_export "seeded step-export"
             flag mesh_budget "case ',$PKGS,' in *,mesh,*) true;; *) false;; esac"
             flag demos "touched '^demos/'"
+            # The filter's selftest reads the script, the slow-set parser it
+            # imports, and the member graph (a manifest edit is TIER=all).
+            flag filter_selftest "touched '^scripts/(ci-filter|slow_set)\.py$'"
             # k-lint's predicate roster reads its MINT_SOURCES as text, so an
             # edit there is the roster's own subject too.
             flag tools "touched '^(tools/|crates/geom-brep/src/props/quad/|crates/topo/src/props\.rs$|crates/topo/src/props/settle\.rs$)'"
@@ -244,6 +248,7 @@ jobs:
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
       - name: change filter self-test
+        if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
@@ -288,7 +293,7 @@ jobs:
         if: needs.filter.outputs.run_build == 'true'
         env:
           TIER: ${{ needs.filter.outputs.tier }}
-          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+          SCOPE: ${{ needs.filter.outputs.test_scope }}
           TOOLKIT: ${{ needs.filter.outputs.run_viewer_toolkit }}
         run: |
           # viewer's `app` feature is the eframe/wgpu graph; the viewer job

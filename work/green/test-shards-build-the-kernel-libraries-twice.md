@@ -137,8 +137,18 @@ paths step did.
   both sides, `--workspace`, docs, lone test-utils, test-utils not added
   twice, and the no-shard error. Breaking the test-utils fold or the error
   check each reds one of them.
-- **`ci-filter.py --selftest` ran in no CI job.** The lint job now runs it
-  (about 24 s locally, off the critical path).
+- **`ci-filter.py --selftest` ran in no CI job.** It takes 23 s on a hosted
+  runner. The lint job runs it when the diff touches `scripts/ci-filter.py`
+  or `scripts/slow_set.py`. Those diffs are TIER=all, where `test`, not
+  `lint`, is the last job. On docs and aux runs `lint` is the last job, so
+  an unconditional step would have added 23 s there. The nightly's
+  gate-self-test job runs it every night, because its premise checks read
+  the whole tree.
+- **The roster is checked against the graph.** `APP_SHARD` is `APP_ROOT`
+  (verbs) and every member that depends on it.
+  `_selftest_app_shard_premise` reds when the member graph says
+  otherwise, so a new dependent of verbs or editor-core cannot land in
+  `kernel` silently.
 
 The rebalance (items 1 and 2) is still owed; it is now a one-line edit to
 `APP_SHARD` plus its selftest rows.
