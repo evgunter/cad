@@ -5947,6 +5947,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_undecided",
             "structure",
             "syntax",
             "tier_invalid",

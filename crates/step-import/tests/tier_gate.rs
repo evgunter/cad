@@ -302,10 +302,10 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // default band it lies in the band of the pole and the import
     // refuses rather than guess; at 1e-12 it is off the pole, so the
     // arc is split there and the vertex, a regular point, joined.
-    (HALFCAP_EPS6, 1e-9, "file", Refused(POLE_IN_BAND)),
+    (HALFCAP_EPS6, 1e-9, "file", Refused(HALFCAP_EPS6_POLE)),
     (HALFCAP_EPS6, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
     (HALFCAP_EPS6, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
-    (HALFCAP_EPS7, 1e-9, "file", Refused(POLE_IN_BAND)),
+    (HALFCAP_EPS7, 1e-9, "file", Refused(HALFCAP_EPS7_POLE)),
     (HALFCAP_EPS7, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
     (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
@@ -346,8 +346,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // default band's indeterminate zone and certifies ZERO at 1e-6. At
     // 1e-12 the pole the feature sits beside is read before any of it:
     // 0.9e-9 m is inside the file's band (ε_in = 1e-10 m, K·ε_in =
-    // 1e-9 m), so whether it is a vertex of the face is a guess and the
-    // import refuses (`chart_singularity_vertex.rs`); the pcurve
+    // 1e-9 m), so whether it is a vertex of the face is undecided and
+    // the import refuses, its ending naming the file's coincidence
+    // distance (`chart_singularity_vertex.rs`); the pcurve
     // re-mint that refused there before is no longer reached —
     // `poleguard.rs` holds the route argument.
     (
@@ -357,7 +358,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
     (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
-    (POLEBAND, 1e-12, "file", Refused(POLE_IN_BAND)),
+    (POLEBAND, 1e-12, "file", Refused(POLEBAND_POLE_IN_FILE_BAND)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
@@ -381,7 +382,12 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         "file",
         Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
     ),
-    (POLEFRUSTUM, 1e-12, "file", Refused(POLE_IN_BAND)),
+    (
+        POLEFRUSTUM,
+        1e-12,
+        "file",
+        Refused(POLEFRUSTUM_POLE_IN_FILE_BAND),
+    ),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
@@ -455,9 +461,40 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
 /// The halfcap near-pole twins' default-band refusal: the split vertex
-/// lies in the band of the pole, so whether it is the pole is a guess.
-const POLE_IN_BAND: &str = "a sphere pole or cone apex within the file's interpretation band \
-     of a face's boundary, decidably neither on it nor off it";
+/// lies in the RUN's band of the pole, so whether the pole is a vertex
+/// of the face is undecided, and the import door ends the sized
+/// decision with its margin and the tolerance that decides it. Pinned
+/// as the whole message, face, margin, band and number included.
+const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex \
+     lies on the boundary of a face that reaches it is undecided: margin 9.999999999789241e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary onto the \
+     pole or apex it passes near, or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 9.999999999789241e-10 m";
+/// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
+const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex \
+     lies on the boundary of a face that reaches it is undecided: margin 1.0000000011961913e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary onto the \
+     pole or apex it passes near, or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 1.0000000011961913e-10 m";
+/// The poleguard twins' fine-band refusal: at 1e-12 the run's band
+/// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
+/// K·ε_in)`, cannot call it, so no tolerance decides it and the ending
+/// names the file's coincidence distance instead.
+const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a sphere pole or cone \
+     apex lies on the boundary of a face that reaches it is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary onto the pole or apex it passes near, or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
+/// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
+const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
+     cone apex lies on the boundary of a face that reaches it is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary onto the pole or apex it passes near, or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
 
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.

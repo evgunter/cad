@@ -2175,6 +2175,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
+        StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",

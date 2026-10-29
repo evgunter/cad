@@ -100,16 +100,28 @@ fn the_no_split_twin_certifies_the_same_volume() {
 #[test]
 fn a_split_vertex_a_hair_off_the_pole_refuses_at_the_default_band() {
     let eps = Tol::witness().eps();
-    for name in ["halfcap_eps6.step", "halfcap_eps7.step"] {
+    for (name, below) in [
+        ("halfcap_eps6.step", "9.999999999789241e-10 m"),
+        ("halfcap_eps7.step", "1.0000000011961913e-10 m"),
+    ] {
         if (0.99e-9..=1.01e-9).contains(&eps) {
             let refused = import_step(&fixture(name), &ImportOptions::default(), Tol::witness());
-            let Err(step_import::StepImportError::Topology { id: 56, what }) = refused else {
+            let Err(
+                e @ step_import::StepImportError::SingularityUndecided {
+                    id: 56,
+                    band: step_import::SingularityBand::Run,
+                    ..
+                },
+            ) = refused
+            else {
                 panic!("{name}: the pole's reading refuses at the default band, got {refused:?}");
             };
+            let msg = e.to_string();
             assert!(
-                what.contains("decidably neither on it nor off it")
-                    && what.contains("a finer tolerance"),
-                "{name}: the refusal says why and what decides it: {what}"
+                msg.ends_with(&format!(
+                    "if this distance is intended, tighten the tolerance below {below}"
+                )),
+                "{name}: the recourse names the tolerance that decides it: {msg}"
             );
         } else {
             certifies_exactly(name);

@@ -427,7 +427,7 @@ fn the_half_cap_witness_ships_quiet_at_every_band() {
         let imported = import_step(&halfcap_fixture(name), &examining(), tol);
         if !ships {
             assert!(
-                matches!(&imported, Err(StepImportError::Topology { what, .. }) if what.contains("decidably neither on it nor off it")),
+                matches!(&imported, Err(StepImportError::SingularityUndecided { .. })),
                 "{name}: the pole in the band of a vertex refuses: {imported:?}"
             );
             continue;

@@ -183,12 +183,14 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let text = std::fs::read_to_string(&p).unwrap();
     let imported = import_step(&text, &ImportOptions::default(), Tol::witness());
     if (0.99e-9..=1.01e-9).contains(&eps) {
-        let Err(step_import::StepImportError::Topology { what, .. }) = imported else {
+        let Err(e @ step_import::StepImportError::SingularityUndecided { .. }) = imported else {
             panic!("at eps {eps:e} the pole's reading lands in the band and refuses: {imported:?}");
         };
         assert!(
-            what.contains("decidably neither on it nor off it"),
-            "the refusal says why: {what}"
+            e.to_string().ends_with(
+                "if this distance is intended, tighten the tolerance below 1.0000000011961913e-10 m"
+            ),
+            "the refusal names the tolerance that decides it: {e}"
         );
         return;
     }

@@ -156,10 +156,16 @@ pub(super) fn singularity_vertices(
     // from it, and one the file cannot place is not placed finer.
     let zero = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::zero);
     let escalate = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::escalate);
+    let (eps, escalate) = (
+        eps_in.max(zero(chart_band)).max(zero(run_band)),
+        eps_in.max(escalate(chart_band)).max(escalate(run_band)),
+    );
     let read = Read {
-        eps: eps_in.max(zero(chart_band)).max(zero(run_band)),
-        escalate: eps_in.max(escalate(chart_band)).max(escalate(run_band)),
+        eps,
+        escalate,
         band: chart_band,
+        run: run_band,
+        file: geom_core::FileCoincidence::new(eps_in),
     };
     // Each action makes one singular point a vertex with an edge on
     // each side, which no later scan re-finds, so the pass ends; the
@@ -185,6 +191,7 @@ pub(super) fn singularity_vertices(
 }
 
 /// The file's band, as the pass reads it.
+#[derive(Clone, Copy)]
 struct Read {
     /// ε_in: on a vertex or an edge within this distance.
     eps: f64,
@@ -192,16 +199,44 @@ struct Read {
     escalate: f64,
     /// The band the chart is read at.
     band: Option<geom_core::Band>,
+    /// The run's own linear band, the on-or-off decision's other band.
+    run: Option<geom_core::Band>,
+    /// The file's ε_in, the door a refusal ends at.
+    file: geom_core::FileCoincidence,
 }
 
-fn undecided(id: u64) -> StepImportError {
-    StepImportError::Topology {
+/// Whether the singular point lies on the boundary feature `d` metres
+/// from it, at the coarser of the run's band and the file's
+/// (`chart_band`, `(ε_in, K·ε_in)`): on it where either reads zero, off
+/// it where both read a clear distance, and otherwise the typed refusal
+/// with the margin of the band that could not call it
+/// ([`StepImportError::SingularityUndecided`]). The run's band is asked
+/// first, so a distance the kernel reads as zero is never refused for
+/// the file's.
+fn on_boundary(d: f64, read: &Read, id: u64) -> Result<bool, StepImportError> {
+    use crate::error::SingularityBand;
+    use geom_core::{Margin, Sign, k_stats::decide};
+    const NAME: &str = "import_singularity_on_boundary";
+    let refuse = |cause, band| StepImportError::SingularityUndecided {
         id,
-        what: "a sphere pole or cone apex within the file's interpretation band of a face's \
-               boundary, decidably neither on it nor off it: whether it is a vertex of the \
-               face, lies inside an edge, or lies inside the face is a guess at this band, \
-               and D7 forbids guessing (moving the boundary clear of the point, or a finer \
-               tolerance and ε_in, decides it)",
+        cause,
+        band,
+        file: read.file,
+    };
+    let run = read.run.map(|band| decide(NAME, Margin::of(d), band));
+    if let Some(Ok(Sign::Zero)) = run {
+        return Ok(true);
+    }
+    match read.band.map(|band| decide(NAME, Margin::of(d), band)) {
+        Some(Ok(Sign::Zero)) => return Ok(true),
+        Some(Err(cause)) => return Err(refuse(cause, SingularityBand::File)),
+        Some(Ok(_)) => {}
+        None if d <= read.eps => return Ok(true),
+        None => {}
+    }
+    match run {
+        Some(Err(cause)) => Err(refuse(cause, SingularityBand::Run)),
+        _ => Ok(false),
     }
 }
 
@@ -255,16 +290,13 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 }
             }
         }
-        if let Some((v, d)) = nearest {
-            if d <= read.eps {
-                if valence.get(&v) == Some(&1) && strut_uses(solid, fi, v).is_some() {
-                    return Ok(Some(Action::StrutTip { fi, vertex: v }));
-                }
-                continue;
+        if let Some((v, d)) = nearest
+            && on_boundary(d, read, face.id)?
+        {
+            if valence.get(&v) == Some(&1) && strut_uses(solid, fi, v).is_some() {
+                return Ok(Some(Action::StrutTip { fi, vertex: v }));
             }
-            if d <= read.escalate {
-                return Err(undecided(face.id));
-            }
+            continue;
         }
         // Inside an edge of the face?
         for lp in &face.loops {
@@ -272,16 +304,16 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 let spec = &solid.edges[&u.edge];
                 match nearest_on_edge(spec, x, read)? {
                     Near::Off => {}
-                    Near::Band => return Err(undecided(face.id)),
-                    Near::On { t, d } if d <= read.eps => {
-                        return Ok(Some(Action::InsideEdge {
-                            fi,
-                            edge: u.edge,
-                            t,
-                            point: x,
-                        }));
+                    Near::On { t, d } => {
+                        if on_boundary(d, read, face.id)? {
+                            return Ok(Some(Action::InsideEdge {
+                                fi,
+                                edge: u.edge,
+                                t,
+                                point: x,
+                            }));
+                        }
                     }
-                    Near::On { .. } => return Err(undecided(face.id)),
                     Near::Unread => return Err(foreign_carrier(face.id)),
                 }
             }
@@ -298,11 +330,9 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
 enum Near {
     /// Farther than the band's escalation distance.
     Off,
-    /// Inside the band, at the edge's closest interior point `t`.
+    /// Within the band's escalation distance of the edge's closest
+    /// interior point `t`, `d` away: on or off is the decision's.
     On { t: f64, d: f64 },
-    /// Within the band's escalation distance, but not decidable as on
-    /// the edge's interior (near an end, which the vertex test owns).
-    Band,
     /// A carrier this pass reads no distance to, near enough to matter.
     Unread,
 }
@@ -356,12 +386,8 @@ fn nearest_on_edge(spec: &EdgeSpec, x: Point3<f64>, read: &Read) -> Result<Near,
     if d > read.escalate {
         return Ok(Near::Off);
     }
-    // The ends are the vertex test's: a point in the band of one is
-    // already refused or taken there.
-    let ends = [spec.carrier.eval(t0), spec.carrier.eval(t1)];
-    if ends.iter().any(|e| (*e - x).norm() <= read.escalate) {
-        return Ok(Near::Band);
-    }
+    // Its ends are the face's vertices, which the vertex test read: a
+    // point within the band of one was taken or refused there.
     Ok(Near::On { t, d })
 }
 
@@ -905,8 +931,7 @@ fn crossings(
                 p,
                 &Read {
                     eps: read.escalate,
-                    escalate: read.escalate,
-                    band: read.band,
+                    ..*read
                 },
             )?;
             Some(vec![(t, p)])

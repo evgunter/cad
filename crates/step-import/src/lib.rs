@@ -229,7 +229,7 @@ mod recognize_curve;
 mod signed_zero;
 mod units;
 
-pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
+pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
 
 use geom_core::Tol;
 
