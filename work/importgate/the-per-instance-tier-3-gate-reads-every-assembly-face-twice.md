@@ -2,8 +2,12 @@
 id: the-per-instance-tier-3-gate-reads-every-assembly-face-twice
 kind: issue
 title: an assembly import reads every face twice: the per-instance tier-3 gate, then the aggregate tier-3' gate
-status: open
+status: parked
 opened: 2026-09-24
+priority: P3
+cost: M
+design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -44,3 +48,12 @@ solid's `NegativeVolume` (ATREST's
 `check-7-stops-body-wide-so-one-solids-defect-hides-anothers-orientation`).
 A per-instance subject is therefore still something the aggregate gate
 alone does not give. STEP import is now `per_part_gate_owed`'s only caller.
+
+## Parked on the D10 refactor hold (EXCH split, 2026-10-29)
+
+Whether a per-instance gate still buys anything depends on what an
+imported instance is under D10: `[placement.placement]` has a placement
+carry its source's at-rest result, and an import that became a
+document operation would place its instances that way
+(`work/coincide/step-import-anchor-rows-are-recorded-and-not-linted.md`).
+So the question is asked once D10's build reaches this ground.

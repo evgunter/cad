@@ -5,7 +5,7 @@ title: No public door reaches a body carrying an M7-8 edge, so the fold's Python
 status: open
 opened: 2026-09-21
 priority: P3
-cost: D
+cost: M
 ---
 
 ## Finding

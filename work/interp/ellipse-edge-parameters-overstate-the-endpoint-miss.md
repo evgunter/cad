@@ -4,6 +4,8 @@ kind: issue
 title: step-import: an ellipse edge's parameters are a scaled angle, not the vertex's nearest point, so the endpoint residual overstates the vertex's distance by up to a/b
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

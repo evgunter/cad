@@ -18,8 +18,8 @@ D7 says an adopted entity's caches are "recomputed from its description by our o
 **Witness:** `crates/step-import/tests/tier_gate.rs`, `(NIST09, 1e-12, "file", Refused(NIST09_STOPGAP))`. `nist_ftc_09` declares ε_in ≈ 3.4e-5 m and prints about 12 digits. It imports at ambient 1e-9, but refuses at 1e-12 on an endpoint residual that lies within its own declared coincidence distance.
 
 **Same seam, symptoms of this stage:**
-- `work/exch/step-import-eps-in-ambient-two-dial-strand.md`
-- `work/exch/step-import-adopts-frame-directions-on-eps-in-that-check-1-refuses-at-eps.md`
+- `work/interp/step-import-eps-in-ambient-two-dial-strand.md`
+- `work/interp/step-import-adopts-frame-directions-on-eps-in-that-check-1-refuses-at-eps.md`
 
 ## Repair shape
 
