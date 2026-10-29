@@ -371,48 +371,361 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
     }
 }
 
-/// **A curved junction the injectivity question cannot present refuses
-/// typed, naming the departure arm and the edge.** The pipe's wall meets
-/// its oblique roof along an ellipse: on the wall's chart that is no
-/// coordinate line, and on the roof's plane no straight one, so neither
-/// face is presented on the shared edge and no separator is read. The
-/// pair is refused `Uncertified { arm: Departure }` on that edge, never
-/// certified and never measured by distance — the arm that would present
-/// such an edge is its own row
-/// (`work/clear/` — the curved-junction departure arm, filed by the
-/// orchestrator), and this is the narrowing it lifts.
-#[test]
-fn a_curved_junction_refuses_typed_naming_the_departure_arm() {
-    use geom_core::Band;
-    use topo::clearance::{
-        BoundVerdict, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal,
-        SharedCell, Side, Sweep,
-    };
-    let tol = Tol::witness();
-    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-    let body = pipe::<f64>(POSES[0], &f, tol);
-    let faces = body.faces().map(|(k, _)| k).collect();
-    let side = Side { body: &body, faces };
+/// The injectivity question over `faces` of `body` (every face where
+/// `None`), at the default
+/// depth and the document door's default budget. A candidate pair is a
+/// witness where the closest pair of its cells' on-face stations,
+/// evaluated afresh, is decided at distance zero; it reports the two
+/// faces and that distance.
+fn injectivity(
+    body: &Body<f64>,
+    faces: Option<Vec<topo::FaceKey>>,
+    tol: Tol,
+) -> topo::clearance::BoundReport<(topo::FaceKey, topo::FaceKey, f64)> {
+    use geom_core::k_stats::decide;
+    use geom_core::{Band, Margin, Sign};
+    use topo::clearance::{ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep};
+    let band = Band::linear(tol).unwrap();
+    let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
+    let side = Side { body, faces };
     let windows = side.windows().expect("every face has a window");
+    let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
-        bound: ClearanceBound::StrictlyPositive,
-        band: Band::linear(tol).unwrap(),
+        bound,
+        band,
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
         max_cell_pairs: 65_536,
     };
-    let report = sweep.run(&windows, &windows, true, |_| {
-        Err::<(), String>("no witness is offered".to_owned())
+    let surface = |f: topo::FaceKey| {
+        body.get_surface(body.get_face(f).unwrap().surface)
+            .unwrap()
+            .clone()
+    };
+    let report = sweep.run(&windows, &windows, true, |candidate| {
+        let (fa, fb) = candidate.faces();
+        let (sa, sb) = (surface(fa), surface(fb));
+        let (la, lb) = candidate.on_face_stations();
+        let mut d = f64::INFINITY;
+        for &(au, av) in &la {
+            let pa = sa.eval(au, av);
+            for &(bu, bv) in &lb {
+                d = d.min((pa - sb.eval(bu, bv)).norm());
+            }
+        }
+        match decide(bound.predicate(), Margin::of(d - bound.c()), band) {
+            Ok(Sign::Negative | Sign::Zero) => Ok((fa, fb, d)),
+            _ => Err(format!("the closest station pair is {d} apart")),
+        }
     });
     assert!(report.receipt.holds(), "{:?}", report.receipt);
-    match report.verdict {
-        BoundVerdict::Refused(EngineRefusal::Uncertified {
-            arm: CertificateArm::Departure,
-            shared: SharedCell::Edge(_),
-            ..
-        }) => {}
-        other => panic!(
-            "the wall and its roof meet on an ellipse: {other:?} {:?}",
-            report.receipt
+    report
+}
+
+/// **A curved junction certifies across the departure arm.** The pipe's
+/// wall meets its oblique roof along an ellipse: on the wall's chart
+/// that is no coordinate line, and on the roof's plane no straight one.
+/// Each face is presented by the region on its side of the ellipse's
+/// chart curve, and the other face's carrier separates them — in every
+/// frame and pose, the wall–roof and wall–floor pairs each certified
+/// across faces at least once. Red if the curved presentation is
+/// refused, or reads the wrong side of the curve so that no separator
+/// takes opposite signs.
+#[test]
+fn a_curved_junction_certifies_across_the_departure_arm() {
+    use topo::clearance::BoundVerdict;
+    let tol = Tol::witness();
+    for (o, axis) in FRAMES {
+        let f = Frame::at(o, axis);
+        for pose in POSES {
+            let body = pipe::<f64>(pose, &f, tol);
+            let report = injectivity(&body, None, tol);
+            println!(
+                "[curvedep] pipe {o:?} {axis:?} {pose:?}: {:?} {:?}",
+                report.verdict, report.receipt
+            );
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "the pipe in frame {o:?} {axis:?}, {pose:?}, is embedded: {:?} {:?}",
+                report.verdict,
+                report.receipt
+            );
+            let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let wall = faces
+                .iter()
+                .copied()
+                .find(|&k| {
+                    matches!(
+                        body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
+                        Surface::Cylinder { .. }
+                    )
+                })
+                .unwrap();
+            for &cap in faces.iter().filter(|&&k| k != wall) {
+                let pair = (wall.min(cap), wall.max(cap));
+                assert!(
+                    report.across.get(&pair).is_some_and(|&n| n > 0),
+                    "the wall and each cap are certified across: {:?}",
+                    report.across
+                );
+            }
+        }
+    }
+}
+
+/// **The pipe folded at its roof**: the wall and floor of `pose`, and in
+/// place of the roof's plane a band of the OTHER circular cylinder that
+/// holds the roof's ellipse — the wall's own cylinder mirrored through
+/// the roof's plane — hung below the roof down to a circle `drop` along
+/// its axis. The two cylinders meet again along a second ellipse, in the
+/// plane `z = h + x·cot θ`, so below the roof the band passes through the
+/// wall on a curve that runs into the junction at the two points where
+/// the cylinders touch.
+fn folded(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
+    let band_sense = drop < 0.0;
+    let Pose { r, z0, h, theta } = pose;
+    let (s, c) = theta.sin_cos();
+    let n = (s, 0.0, c);
+    let major = (c, 0.0, -s);
+    // The mirror of the wall's axis through the roof: `z − 2(z·n)n`.
+    let a2 = (-2.0 * c * s, 0.0, 1.0 - 2.0 * c * c);
+    let circle = Curve3::Circle {
+        center: f.p((0.0, 0.0, z0)),
+        axis: f.v((0.0, 0.0, 1.0)),
+        radius: r,
+        u_ref: f.v((1.0, 0.0, 0.0)),
+    };
+    let ellipse = Curve3::Ellipse {
+        center: f.p((0.0, 0.0, z0 + h)),
+        axis: -f.v::<f64>(n),
+        semi_u: r / c,
+        semi_v: r,
+        u_ref: f.v(major),
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(f.p((r, 0.0, z0)), true).unwrap();
+    let cyl = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: f.p((0.0, 0.0, 0.0)),
+                    axis: f.v((0.0, 0.0, 1.0)),
+                    radius: r,
+                    u_ref: f.v((1.0, 0.0, 0.0)),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let cap_b = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim(cyl, circle.clone()),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    let start = (r, 0.0, z0 + h - r * s / c);
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: cap_b.he_plus,
+                he2: cap_b.he_plus,
+            },
+            f.p(start),
+            tol,
+        )
+        .unwrap();
+    // The band's cylinder: the wall's mirrored through the roof, about
+    // the axis through the roof's centre, its reference ruling through
+    // the ellipse's vertex.
+    let o2 = (0.0, 0.0, z0 + h);
+    let w = (start.0 - o2.0, start.1 - o2.1, start.2 - o2.2);
+    let along = w.0 * a2.0 + w.1 * a2.1 + w.2 * a2.2;
+    let radial = (w.0 - along * a2.0, w.1 - along * a2.1, w.2 - along * a2.2);
+    let rn = (radial.0 * radial.0 + radial.1 * radial.1 + radial.2 * radial.2).sqrt();
+    let u2 = (radial.0 / rn, radial.1 / rn, radial.2 / rn);
+    let band = body
+        .mef(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2: strut.he_minus,
+            },
+            rim(cyl, ellipse.clone()),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    // Lifts `RechartUnvouched`: the ellipse lies on the mirrored cylinder
+    // by construction, and is re-described as the two cylinders'
+    // intersection below.
+    body.set_face_surface_unvouched_for_tests(
+        band.face,
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: f.p(o2),
+                axis: f.v(a2),
+                radius: r,
+                u_ref: f.v(u2),
+            },
+            sense: band_sense,
+        },
+    )
+    .unwrap();
+    body.set_face_surfaces_describing(
+        vec![Rechart::new(
+            Surface::Plane {
+                origin: f.p((0.0, 0.0, z0)),
+                normal: -f.v::<f64>((0.0, 0.0, 1.0)),
+                u_ref: f.v((1.0, 0.0, 0.0)),
+            },
+            cap_b.face,
+            true,
+        )],
+        &[],
+        tol,
+    )
+    .unwrap();
+    let floor = body.get_face(cap_b.face).unwrap().surface;
+    let mirror = body.get_face(band.face).unwrap().surface;
+    // The ellipse keeps its image on the wall's chart: the cylinders
+    // touch at two of its points, where no intersection description
+    // certifies.
+    let _ = ellipse;
+    for (edge, carrier, pair, witness) in [
+        (
+            cap_b.edge,
+            circle,
+            SurfacePair::new(cyl, floor),
+            f.p((-r, 0.0, z0)),
         ),
+    ] {
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection { pair, witness },
+            carrier,
+            param_start: 0.0,
+            param_end: TAU,
+        };
+        body.set_edge_curve(edge, spec, tol).unwrap();
+    }
+    // The band's far rim: the circle `drop` along the mirrored axis past
+    // the ellipse's vertex, closed by a plane.
+    let foot = (
+        start.0 + drop * a2.0,
+        start.1 + drop * a2.1,
+        start.2 + drop * a2.2,
+    );
+    let centre = (
+        o2.0 + (along + drop) * a2.0,
+        o2.1 + (along + drop) * a2.1,
+        o2.2 + (along + drop) * a2.2,
+    );
+    let lower = Curve3::Circle {
+        center: f.p(centre),
+        axis: f.v(a2),
+        radius: r,
+        u_ref: f.v(u2),
+    };
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: band.he_minus,
+                he2: band.he_minus,
+            },
+            f.p(foot),
+            tol,
+        )
+        .unwrap();
+    let cap_l = body
+        .mef(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2: strut.he_minus,
+            },
+            rim(mirror, lower.clone()),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    body.set_face_surfaces_describing(
+        vec![Rechart::new(
+            Surface::Plane {
+                origin: f.p(centre),
+                normal: f.v(a2),
+                u_ref: f.v(u2),
+            },
+            cap_l.face,
+            false,
+        )],
+        &[],
+        tol,
+    )
+    .unwrap();
+    let plane = body.get_face(cap_l.face).unwrap().surface;
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(mirror, plane),
+            witness: f.p((
+                centre.0 - r * u2.0,
+                centre.1 - r * u2.1,
+                centre.2 - r * u2.2,
+            )),
+        },
+        carrier: lower,
+        param_start: 0.0,
+        param_end: TAU,
+    };
+    body.set_edge_curve(cap_l.edge, spec, tol).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+#[test]
+fn zz_probe_fold() {
+    let tol = Tol::witness();
+    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let body = folded(POSES[0], &f, std::env::var("DROP").map_or(1.5, |d| d.parse().unwrap()), tol);
+    println!("validate: {:?}", topo::validate::validate_geometric(&body, tol));
+    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| matches!(body.get_surface(body.get_face(k).unwrap().surface).unwrap(), Surface::Cylinder{..})).collect();
+    let report = injectivity(&body, Some(faces), tol);
+    println!("[probe] fold {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
+}
+
+#[test]
+fn zz_probe_fold_region() {
+    let tol = Tol::witness();
+    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let body = folded(POSES[0], &f, 1.5, tol);
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (s, c) = POSES[0].theta.sin_cos();
+    for x in [-0.5f64, -0.3, -0.8] {
+        for sy in [1.0f64, -1.0] {
+            let y = sy * (1.0 - x * x).sqrt();
+            // The mirror, through the roof, of the wall's point under it.
+            let q = Point3::new(x, y, 1.0);
+            let n = geom_core::Vec3::new(s, 0.0, c);
+            let off = (q - Point3::new(0.0, 0.0, 2.0)).dot(n);
+            let p = q - n * (2.0 * off);
+            for (k, face) in body.faces() {
+                let surf = body.get_surface(face.surface).unwrap();
+                let (u, v) = match *surf {
+                    Surface::Cylinder { origin, axis, u_ref, .. } => {
+                        let w = p - origin;
+                        let v = w.dot(axis);
+                        let rad = w - axis * v;
+                        let vr = axis.cross(u_ref);
+                        (rad.dot(vr).atan2(rad.dot(u_ref)), v)
+                    }
+                    _ => continue,
+                };
+                let at = surf.eval(u, v);
+                println!("p {p:?} face {k:?} sense {} (u,v)=({u},{v}) back {:e} region {:?}", face.sense, (at - p).norm(),
+                    topo::cell_region::station_region(&body, k, (u, v), band));
+            }
+        }
     }
 }

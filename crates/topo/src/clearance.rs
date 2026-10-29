@@ -2643,8 +2643,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         ..Boundary::default()
     };
     let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
-    let mut images: BTreeMap<HalfEdgeKey, ([Point2<Interval>; 2], Option<IsoImage>)> =
-        BTreeMap::new();
+    let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
     for &lk in core::iter::once(&f.outer).chain(&f.rings) {
         let l = body.get_loop(lk)?;
         match l.boundary {
@@ -2681,7 +2680,14 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                 Interval::from_certified(q.y),
                             )
                         };
-                        images.insert(row.half_edge, ([lift(t0), lift(t1)], iso_of(&row.pcurve)));
+                        images.insert(
+                            row.half_edge,
+                            (
+                                [lift(t0), lift(t1)],
+                                iso_of(&row.pcurve),
+                                harmonic_of(&row.pcurve),
+                            ),
+                        );
                     }
                 }
             }
@@ -2707,9 +2713,10 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let found = images.get(he);
                 Use {
                     plus: e.he_plus == *he,
-                    image: found.map(|(image, _)| *image),
+                    image: found.map(|(image, _, _)| *image),
+                    harmonic: found.and_then(|(_, _, h)| *h),
                     iso: found
-                        .and_then(|(_, iso)| *iso)
+                        .and_then(|(_, iso, _)| *iso)
                         .map(|(held, at, angle)| Iso {
                             held,
                             at,
@@ -2783,6 +2790,27 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
 /// A coordinate line's held axis, its value, and whether its moving
 /// coordinate is an angle ([`iso_of`]).
 type IsoImage = (Axis, Interval, bool);
+
+/// A half-edge's chart image as the boundary lifts it: its two end
+/// points, the coordinate line it is, and its harmonic form.
+type Image = (
+    [Point2<Interval>; 2],
+    Option<IsoImage>,
+    Option<injective::Harmonic>,
+);
+
+/// **A harmonic chart image's coefficients, lifted**
+/// ([`injective::Harmonic`]); `None` for every other variant.
+fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic> {
+    let (p0, pa, pb, pl) = p.harmonic_form()?;
+    let lift = |x: T, y: T| [Interval::from_certified(x), Interval::from_certified(y)];
+    Some(injective::Harmonic {
+        p0: lift(p0.x, p0.y),
+        pa: lift(pa.x, pa.y),
+        pb: lift(pb.x, pb.y),
+        pl: lift(pl.x, pl.y),
+    })
+}
 
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is

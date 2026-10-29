@@ -691,3 +691,76 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         assert!(w.d < 1e-9, "a coincidence: {w:?}");
     }
 }
+
+#[test]
+fn zz_probe_fillet() {
+    use sweep::blend::fillet_edges;
+    use sweep::test_support::finished;
+    let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp.into()]).validate(tol()).unwrap();
+    let drum = extrude(&profile, to_offset(2.0), tol()).unwrap().body;
+    let drum = finished("drum", drum, tol());
+    let edges: Vec<topo::EdgeKey> = drum.edges().filter(|(_, e)| {
+        matches!(drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()), Some(geom::Curve3::Circle { center, .. }) if (center.z - 2.0).abs() < 1e-9)
+    }).map(|(k, _)| k).collect();
+    println!("rim edges {}", edges.len());
+    let f = fillet_edges(&drum, &edges, 0.3, tol()).map_err(|e| e.error).unwrap();
+    let body = &f.body;
+    for (k, face) in body.faces() {
+        let s = surface(body, k);
+        let kind = match s { Surface::Plane{..}=>"plane", Surface::Cylinder{..}=>"cyl", Surface::Torus{..}=>"torus", Surface::Sphere{..}=>"sphere", Surface::Cone{..}=>"cone", _=>"other"};
+        println!("face {k:?} {kind} rings {}", face.rings.len());
+    }
+    for (k, e) in body.edges() {
+        let c = body.get_curve_geom(e.curve).unwrap();
+        let fa = body.get_loop(body.get_half_edge(e.he_plus).unwrap().parent_loop).unwrap().face;
+        let fb = body.get_loop(body.get_half_edge(e.he_minus).unwrap().parent_loop).unwrap().face;
+        println!("edge {k:?} {:?} {:?}-{:?} faces {fa:?} {fb:?}", c.certified().map(|g| match g.carrier() { geom::Curve3::Line{..}=>"line", geom::Curve3::Circle{..}=>"circle", geom::Curve3::Ellipse{..}=>"ellipse", _=>"other"}), body.get_half_edge(e.he_plus).unwrap().start, body.get_half_edge(e.he_minus).unwrap().start);
+    }
+    let pick: Vec<FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| {
+        let s = surface(body, k);
+        matches!(s, Surface::Torus{..}) || matches!(s, Surface::Plane{origin, ..} if origin.y > 1.0)
+    }).collect();
+    let _ = pick; let report = injective(body, None, BUDGET);
+    println!("[probe] {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
+}
+
+#[test]
+fn zz_probe_tee() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::{brick, finished};
+    let tol = tol();
+    let rod = |spin: f64, (z0, z1): (f64, f64)| {
+        let rod = sweep::test_support::prism_at(
+            vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
+            z0,
+            z1 - z0,
+            tol,
+        );
+        let rod = finished("the rod", rod, tol);
+        let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), spin);
+        finished("spun", topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap(), tol)
+    };
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
+    let under = finished("under", topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(), tol);
+    let a = match topo::subtract(&rod(0.0, (-3.0, 3.0)), &under, tol) { Ok(topo::BooleanResult::Body(b)) => b.body, o => panic!("{o:?}") };
+    let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    let b = finished("b", topo::transform_rigid(&rod(0.0, (0.2, 3.0)), &geom_core::test_support::rigid(&m, tol), tol).unwrap(), tol);
+    let u = match topo::union(&a, &b, tol) { Ok(topo::BooleanResult::Body(b)) => b.body, o => panic!("{o:?}") };
+    let body: &Body<f64> = &u;
+    for (k, face) in body.faces() {
+        let s = surface(body, k);
+        let kind = match s { Surface::Plane{..}=>"plane", Surface::Cylinder{..}=>"cyl", _=>"other"};
+        println!("face {k:?} {kind} rings {}", face.rings.len());
+    }
+    for (k, e) in body.edges() {
+        let c = body.get_curve_geom(e.curve).unwrap();
+        let fa = body.get_loop(body.get_half_edge(e.he_plus).unwrap().parent_loop).unwrap().face;
+        let fb = body.get_loop(body.get_half_edge(e.he_minus).unwrap().parent_loop).unwrap().face;
+        println!("edge {k:?} {:?} {:?}-{:?} faces {fa:?} {fb:?}", c.certified().map(|g| match g.carrier() { geom::Curve3::Line{..}=>"line", geom::Curve3::Circle{..}=>"circle", geom::Curve3::Ellipse{..}=>"ellipse", _=>"other"}), body.get_half_edge(e.he_plus).unwrap().start, body.get_half_edge(e.he_minus).unwrap().start);
+    }
+    let report = injective(body, None, BUDGET);
+    println!("[probe] tee {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
+}
