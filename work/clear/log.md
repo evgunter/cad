@@ -210,3 +210,4 @@ Signed: (CARVE orchestrator)
     - an order-independent lamina pin.
   - **Moved to CLEARTAIL:** its two P2 filings, `curved-presentation-reads-plane-and-cylinder-images-only` and `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`.
   - **Stays P1 in CLEAR:** `departure-reads-no-curved-corner`, which SHELL-4 waits on.
+- 2026-10-29 — **SENSEFOLD dispatched** (`docs/SENSEFOLD-SPEC.md`, branch `clear/sensefold`, cloud lane) for `main-red-injective-rs-folds-the-face-sense-by-hand`, after CURVEDEP. Review: the orchestrator's read.

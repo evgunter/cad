@@ -2,10 +2,11 @@
 id: main-red-injective-rs-folds-the-face-sense-by-hand
 kind: issue
 title: main red: crates/topo/src/injective.rs negates three values by hand under a face's sense bit (topo face_normal fold census, slow set)
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: E
+branch: clear/sensefold
 ---
 
 **What fails.** topo's slow-set row `face_normal::tests::no_source_file_folds_the_bit_by_hand` (`crates/topo/src/face_normal.rs:916`) walks every `crates/*/src` file for a value negated by hand under a face's `sense` bit. Run on origin/main (2026-10-29, `cargo nextest run -p topo --lib -E 'test(=face_normal::tests::no_source_file_folds_the_bit_by_hand)' --run-ignored all`), it fails with six hits beyond its `sanctioned` list, from two sources: this row covers `crates/topo/src/injective.rs`; the other, `crates/mesh/src/trimmed.rs` (`tess/main-red-trimmed-rs-folds-the-face-sense-by-hand`), is filed beside it. Found by SPLICE's structural-rim lane while validating PR 5959, and reproduced by the SPLICE orchestrator.
