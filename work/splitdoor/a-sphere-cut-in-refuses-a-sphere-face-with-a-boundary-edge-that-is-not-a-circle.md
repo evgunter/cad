@@ -34,3 +34,37 @@ conic, that is the conic–plane meeting `splitting::plane_crossing_lane`
 already reads (`ConicPlaneMeet`); for a spline or spiric, the crossing
 layer's own plane rung. Build the fixture first (a sphere face bounded
 by a cylinder section, taking a cut-in), then route the roots by kind.
+
+## Measured (2026-10-29, at `26202d6f`)
+
+The refusal is not reachable through the public doors today: no
+at-rest body holds a sphere face with a non-circle edge, because the
+result gate refuses the drilled ball before any cut-in is asked.
+
+Fixture: the unit ball (`sweep::test_support::ball_poled_y`, seams in
+`z = 0`) less a radius-0.15 bore, then a slab 0.985 from the centre
+toward latitude 10° at azimuth π/2 (the banded-ball cut-in of
+`snowman.rs`). The subtract that drills the ball refuses at ε 1e-6,
+1e-9 and 1e-12 alike:
+
+- bore along `z` through `(0.4, −0.4)`, its holes rings of the
+  half-bands: `ResultInvalid { [VolumeUncomputable { source:
+  RingOnCurvedFace { face } }] }`, raised by
+  `topo::props::face_flux_about`'s ring gate;
+- bore along `x` through `(y, z) = (−0.4, 0)`, across both seams:
+  `ResultInvalid { [VolumeUncomputable { source: Face { source:
+  QuadratureUnsupported { what: "curved-cut face half-edge carries a
+  pcurve with no harmonic form on an analytic chart …" } } }] }`,
+  raised by `topo::props::quad_lane` (the projected-image arm).
+
+A conic on a sphere is a circle, so the conic route the direction
+names adds nothing a sphere face can hold; every non-circle edge on a
+sphere is a spline or spiric section whose pcurve is a projected or
+fitted image, and `quad_lane` refuses a sphere chart outright ("conic
+trim on a cone/sphere/torus chart"). An off-axis cone or torus bore is
+the same class. The cut-in is therefore downstream of
+`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`
+(the sphere lane and its rings). `sphere_region::sphere_face_region` admits
+circles only by the same roster (`None` on any other edge, read as
+`unread()` in `apply_cut_ins`' piece choice), so a fix here needs that
+reader too.
