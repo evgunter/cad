@@ -2,7 +2,7 @@
 id: a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant
 kind: issue
 title: A boss inside a hole, tangent, with short arcs either side of the touch: the union refuses ClassificationInvariant
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M

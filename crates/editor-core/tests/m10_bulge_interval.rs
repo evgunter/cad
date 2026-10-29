@@ -486,7 +486,7 @@ fn d_tab_table(mapped_source: [u64; 2]) -> Vec<(&'static str, [u64; 2])> {
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
 /// with `carrier_matches_mapped_source` 126/0/44/10 (188/10 since its
-/// map runs) — six of the
+/// map runs, 192/6 with rule H's angle sums) — six of the
 /// eighteen that used to stand went to the DOOR with SYM-5's rule E,
 /// and two more with the schedule's assigned last sample.
 #[test]
@@ -496,7 +496,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([188, 10]),
+        &d_tab_table([192, 6]),
     );
 }
 

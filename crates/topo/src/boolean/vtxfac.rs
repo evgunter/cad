@@ -82,6 +82,7 @@
 //! ([`pair_classes`]).
 
 use geom_brep::OutwardNormal;
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::contain::FaceContainment;
@@ -774,7 +775,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     branch: Option<super::Branch>,
-    tips: &super::sectors::SlitTips,
+    tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -1374,13 +1375,34 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Ok((germ_of(t0, o0)?, germ_of(t1, o1)?))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    // The germs the ring orders its struts by ([`mint_ring`]).
-    let order_germs: Vec<[(Vec3<T>, T); 2]> = runs
+    // The germs the ring orders its struts by ([`mint_ring`]). A germ
+    // riding a bisector plane's ellipse (`on_wall`) has no bend in the
+    // face.
+    let bend_of = |t: usize, d: Vec3<T>| {
+        let face = sectors[t].face;
+        let surface = piercing_body
+            .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+        on_wall[t].is_none().then(|| GermBend {
+            bend: geom_brep::implicit_section_acceleration(
+                pierced_surface,
+                surface,
+                p,
+                d,
+                n_pierced.vec().cross(d),
+            ),
+            face,
+            kind: surface.kind(),
+        })
+    };
+    let order_germs: Vec<_> = runs
         .iter()
         .zip(&run_germs)
         .map(|(&run, (s, e))| {
             let [(t0, _), (t1, _)] = run_transitions(run, n);
-            [(s.1, sectors[t0].arm), (e.1, sectors[t1].arm)]
+            (
+                [(s.1, sectors[t0].arm), (e.1, sectors[t1].arm)],
+                [bend_of(t0, s.1), bend_of(t1, e.1)],
+            )
         })
         .collect();
     let mut run_edges = Vec::new();
@@ -1501,10 +1523,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .zip(run_germs)
             .zip(order_germs)
-            .map(|((rec, germs), order)| PlannedRun {
+            .map(|((rec, germs), (order, bends))| PlannedRun {
                 edge: rec.edge,
                 germs,
                 order,
+                bends,
             })
             .collect(),
     });
@@ -1535,6 +1558,20 @@ struct PlannedRun<T: geom_core::Real> {
     /// Its start and end germs' directions, each with its arm, for
     /// [`germ_order`].
     order: [(Vec3<T>, T); 2],
+    /// Its start and end germs' bends, where [`germ_order`] reads one.
+    bends: [Option<GermBend<T>>; 2],
+}
+
+/// **How a pierce germ's section curves in the pierced face**: how fast
+/// it leaves its direction `d` toward `n × d`, `n` the face's outward
+/// normal ([`geom_brep::implicit_section_acceleration`] of the pierced
+/// surface and the face it is the section of), and that face, which a
+/// bend that does not read names.
+#[derive(Clone, Copy, Debug)]
+struct GermBend<T> {
+    bend: T,
+    face: crate::entity::FaceKey,
+    kind: geom::SurfaceKind,
 }
 
 /// What [`mint_ring`] minted.
@@ -1813,8 +1850,31 @@ fn ring_struts<T: Decide>(
         ));
     }
     let germs: Vec<_> = runs.iter().flat_map(|(.., run)| run.order).collect();
+    let bends: Vec<_> = runs.iter().flat_map(|(.., run)| run.bends).collect();
     let member: Vec<usize> = runs.iter().flat_map(|&(k, ..)| [k, k]).collect();
-    let (order, tied) = germ_order(&germs, &member, normal, site, band)?;
+    let curving = |Turn { from, to }: Turn, arm: T| -> Result<Option<Sign>, BooleanError> {
+        let (Some(x), Some(y)) = (bends[from], bends[to]) else {
+            return Ok(None);
+        };
+        match geom_brep::tied_germ_turn(normal, germs[from].0, [x.bend, y.bend], arm, band) {
+            Ok(Sign::Zero) => Ok(None),
+            Ok(sign) => Ok(Some(sign)),
+            Err(geom_brep::TiedGermsError::Singular) => {
+                let at = if x.bend.is_bounded() { y } else { x };
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    operand: site.0,
+                    face: at.face,
+                    kind: at.kind,
+                })
+            }
+            Err(geom_brep::TiedGermsError::Lever(escalation)) => Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                escalation.diag(),
+            )),
+        }
+    };
+    let (order, tied) = germ_order(&germs, &member, normal, site, curving, band)?;
     let struts = crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
         BooleanError::ClassificationInvariant {
             what: "a pierce's runs read as crossing chords about the pierced face's normal",
@@ -1975,6 +2035,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
             edge: crate::entity::EdgeKey::default(),
             germs: (s, e),
             order: [(s.1, arm), (e.1, arm)],
+            bends: [None, None],
         })
         .collect();
     let contact = VfContact {
@@ -2544,6 +2605,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
                 edge: created.edge,
                 germs,
                 order: [(d, arm), (-d, arm)],
+                bends: [None, None],
             }],
         },
     })
@@ -2590,57 +2652,81 @@ fn one_carrier<T: Decide>(
 /// `2r + 1`), clockwise about the pierced face's outward `normal` from
 /// `germs[0]`. Every comparison is [`super::insert::strut_order`]'s
 /// from `germs[0]`, levered at the shortest of its three germs' arms. A
-/// germ along `germs[0]` has no place before or after it, so each
-/// germ's side of `germs[0]` is read first at every arm a reading of it
-/// uses, its own pair's and each comparison's: in band with its sense
-/// along (`bool_strut_side`, `bool_dir_same`), it refuses as the
-/// sectors' coincidence rather than stand at `germs[0]`.
+/// germ along `germs[0]` has no place before or after it at first
+/// order, so each germ's side of `germs[0]` is read first at every arm
+/// a reading of it uses, its own pair's and each comparison's: in band
+/// with its sense along (`bool_strut_side`, `bool_dir_same`), it
+/// refuses as the sectors' coincidence rather than stand at `germs[0]`.
 ///
-/// Two germs of different pierces (`member`) along one direction,
-/// decided so, are two cones touching along a ray in the face: each
-/// cone's run keeps its own side of the ray, so the two take the order
-/// in which their runs' chords nest ([`tie_breaks_after`]). A third germ
-/// on that ray has no such order, and refuses
-/// [`BooleanError::PinchRaysInAFace`] (`site`: the piercing operand and
-/// the face). Any other reading that does not decide refuses; nothing
-/// orders the germs otherwise. Every reading is levered at the shortest
-/// arm among the directions it reads.
+/// Two germs along one direction, decided so, are ordered by the rule
+/// for their tie:
+///
+/// - of one pierce, by how their sections curve off it in the face
+///   (`curving`, the sign of a [`Turn`]; `None` where it reads nothing,
+///   which refuses as the first-order tie);
+/// - of different pierces (`member`), two cones touching along a ray in
+///   the face: each cone's run keeps its own side of the ray, so the two
+///   take the order in which their runs' chords nest
+///   ([`tie_breaks_after`]). A third germ on that ray has no such order,
+///   and refuses [`BooleanError::PinchRaysInAFace`] (`site`: the
+///   piercing operand and the face).
+///
+/// Any other reading that does not decide refuses; nothing orders the
+/// germs otherwise. Every reading is levered at the shortest arm among
+/// the directions it reads.
 fn germ_order<T: Decide>(
     germs: &[(Vec3<T>, T)],
     member: &[usize],
     normal: Vec3<T>,
     site: (Operand, crate::entity::FaceKey),
+    curving: impl Fn(Turn, T) -> Result<Option<Sign>, BooleanError>,
     band: Band,
 ) -> Result<(Vec<usize>, bool), BooleanError> {
     let (from, from_arm) = germs[0];
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    // Whether germs `i` and `j` of different pierces lie along one
-    // direction, decided Zero; `false` for one pierce's two germs,
-    // which the readings below refuse.
-    let tied = |i: usize, j: usize, arm: T| -> Result<bool, BooleanError> {
-        if member[i] == member[j] {
-            return Ok(false);
-        }
+    let side = |i: usize, j: usize, arm: T| -> Result<GermSide, BooleanError> {
         let (g, h) = (germs[i].0, germs[j].0);
         let side = Margin::levered(g.cross(h).dot(normal), arm);
-        Ok(
-            decide("bool_strut_side", side, band).map_err(refuse)? == Sign::Zero
-                && super::sectors::direction_sense(g, h, arm, band)?,
-        )
-    };
-    // Each germ already tied with another: a second tie puts three on
-    // one ray.
-    let mut on_a_tie = vec![false; germs.len()];
-    let mut tie = |i: usize, j: usize| -> Result<(), BooleanError> {
-        if on_a_tie[i] || on_a_tie[j] {
-            return Err(BooleanError::PinchRaysInAFace {
-                operand: site.0,
-                face: site.1,
-            });
+        match crate::validate::decide_nonzero("bool_strut_side", side, band) {
+            Ok(sign) => Ok(GermSide::Apart(sign)),
+            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
+                Ok(if super::sectors::direction_sense(g, h, arm, band)? {
+                    GermSide::Along(diag)
+                } else {
+                    GermSide::Opposite
+                })
+            }
+            Err(diag) => Err(refuse(diag)),
         }
-        on_a_tie[i] = true;
-        on_a_tie[j] = true;
-        Ok(())
+    };
+    let along = |i: usize, j: usize, arm: T| -> Result<Option<_>, BooleanError> {
+        Ok(match side(i, j, arm)? {
+            GermSide::Along(diag) => Some(diag),
+            GermSide::Apart(_) | GermSide::Opposite => None,
+        })
+    };
+    // Each germ already tied with another of a different pierce: a
+    // second such tie puts three on one ray.
+    let mut on_a_tie = vec![false; germs.len()];
+    // Of germs `i` and `j` along one direction, whether `i` comes after
+    // `j` clockwise.
+    let mut after = |i: usize, j: usize, diag| -> Result<bool, BooleanError> {
+        if member[i] != member[j] {
+            if on_a_tie[i] || on_a_tie[j] {
+                return Err(BooleanError::PinchRaysInAFace {
+                    operand: site.0,
+                    face: site.1,
+                });
+            }
+            on_a_tie[i] = true;
+            on_a_tie[j] = true;
+            return tie_breaks_after(germs, (i, j), normal, band);
+        }
+        match curving(Turn { from: j, to: i }, germs[i].1.min(germs[j].1))? {
+            Some(Sign::Negative) => Ok(true),
+            Some(Sign::Positive) => Ok(false),
+            Some(Sign::Zero) | None => Err(refuse(diag)),
+        }
     };
     let apart = |g: Vec3<T>, arm: T| -> Result<(), BooleanError> {
         let side = Margin::levered(g.cross(from).dot(normal), arm);
@@ -2650,17 +2736,35 @@ fn germ_order<T: Decide>(
         }
     };
     // `order` holds the germs strictly off `germs[0]`'s direction; a
-    // germ tied with it stands just after it (`head`) or, a full turn
-    // round, just before it (`tail`).
-    let (mut order, mut head, mut tail) = (vec![0], Vec::new(), Vec::new());
+    // germ along it stands just after it (`head`) or, a full turn
+    // round, just before it (`tail`), each in its own order.
+    let (mut order, mut head, mut tail): (Vec<usize>, Vec<usize>, Vec<usize>) =
+        (vec![0], Vec::new(), Vec::new());
     for (i, &(g, g_arm)) in germs.iter().enumerate().skip(1) {
-        if tied(i, 0, from_arm.min(g_arm))? {
-            tie(i, 0)?;
-            if tie_breaks_after(germs, (0, i), normal, band)? {
-                tail.push(i);
+        if let Some(diag) = along(i, 0, from_arm.min(g_arm))? {
+            let ray = if after(0, i, diag)? {
+                &mut tail
             } else {
-                head.push(i);
+                &mut head
+            };
+            let mut at = ray.len();
+            for (slot, &j) in ray.iter().enumerate() {
+                // Two germs each along `germs[0]` may still read apart.
+                let later = match side(i, j, g_arm.min(germs[j].1))? {
+                    GermSide::Along(diag) => after(i, j, diag)?,
+                    GermSide::Apart(sign) => sign == NonzeroSign::Positive,
+                    GermSide::Opposite => {
+                        return Err(BooleanError::ClassificationInvariant {
+                            what: "two germs along a ring's first germ point opposite ways",
+                        });
+                    }
+                };
+                if !later {
+                    at = slot;
+                    break;
+                }
             }
+            ray.insert(at, i);
             continue;
         }
         apart(g, from_arm.min(g_arm))?;
@@ -2668,9 +2772,8 @@ fn germ_order<T: Decide>(
         for (slot, &j) in order.iter().enumerate().skip(1) {
             let (h, h_arm) = germs[j];
             let arm = from_arm.min(g_arm).min(h_arm);
-            if tied(i, j, g_arm.min(h_arm))? {
-                tie(i, j)?;
-                if !tie_breaks_after(germs, (i, j), normal, band)? {
+            if let Some(diag) = along(i, j, g_arm.min(h_arm))? {
+                if !after(i, j, diag)? {
                     at = slot;
                     break;
                 }
@@ -2678,7 +2781,14 @@ fn germ_order<T: Decide>(
             }
             apart(g, arm)?;
             apart(h, arm)?;
-            if super::insert::strut_order(from, normal, (g, h), arm, band)? {
+            let tie = || {
+                if member[i] == member[j] {
+                    curving(Turn { from: i, to: j }, arm)
+                } else {
+                    Ok(None)
+                }
+            };
+            if super::insert::strut_order(from, normal, (g, h), arm, tie, band)? {
                 at = slot;
                 break;
             }
@@ -2687,6 +2797,27 @@ fn germ_order<T: Decide>(
     }
     let tied = on_a_tie.iter().any(|&t| t);
     Ok(([&order[..1], &head, &order[1..], &tail].concat(), tied))
+}
+
+/// Where germ `j` lies from germ `i` about the pierced face's normal
+/// ([`germ_order`], `bool_strut_side`).
+enum GermSide {
+    /// Off `i`'s line: the sign of `(gᵢ × gⱼ)·n`.
+    Apart(NonzeroSign),
+    /// Along `i`'s direction, decided so by this reading.
+    Along(geom_core::Indeterminate),
+    /// Along the ray opposite `i`.
+    Opposite,
+}
+
+/// Two germs along one direction, `to` read turned from `from` one
+/// order down: `Positive` where `to` curves counterclockwise of `from`
+/// about the pierced face's normal ([`geom_brep::tied_germ_turn`]'s
+/// germ 0 and germ 1).
+#[derive(Clone, Copy, Debug)]
+struct Turn {
+    from: usize,
+    to: usize,
 }
 
 /// Of two germs `i` and `j` along one direction, whether `i` comes
@@ -2702,7 +2833,7 @@ fn tie_breaks_after<T: Decide>(
     let (at, at_arm) = germs[i];
     let ((pi, pi_arm), (pj, pj_arm)) = (germs[i ^ 1], germs[j ^ 1]);
     let arm = at_arm.min(pi_arm).min(pj_arm);
-    super::insert::strut_order(at, normal, (pi, pj), arm, band)
+    super::insert::strut_order(at, normal, (pi, pj), arm, || Ok(None), band)
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after
@@ -2969,7 +3100,7 @@ mod tests {
         site: (Operand, crate::entity::FaceKey),
         band: Band,
     ) -> Result<Vec<usize>, BooleanError> {
-        germ_order(germs, member, normal, site, band).map(|(order, _)| order)
+        germ_order(germs, member, normal, site, |_, _| Ok(None), band).map(|(order, _)| order)
     }
     use SideCode::{In, On, Out};
 
@@ -3971,7 +4102,7 @@ mod tests {
             &body,
             Operand::A,
             vertex,
-            &super::super::sectors::SlitTips::default(),
+            &crate::sector_shape::SlitTips::default(),
             band,
         )
         .unwrap();
@@ -4052,7 +4183,7 @@ mod tests {
         let site = (Operand::A, crate::entity::FaceKey::default());
         let two = [germ_at(0.0), germ_at(60.0), germ_at(0.0), germ_at(300.0)];
         assert_eq!(
-            germ_order(&two, &[0, 0, 1, 1], n, site, band).ok(),
+            germ_order(&two, &[0, 0, 1, 1], n, site, |_, _| Ok(None), band).ok(),
             Some((vec![0, 1, 3, 2], true)),
             "the tie nests the chords"
         );
@@ -4066,7 +4197,7 @@ mod tests {
         ];
         assert!(
             matches!(
-                germ_order(&three, &[0, 0, 1, 1, 2, 2], n, site, band),
+                germ_order(&three, &[0, 0, 1, 1, 2, 2], n, site, |_, _| Ok(None), band),
                 Err(BooleanError::PinchRaysInAFace { .. })
             ),
             "three germs on one ray refuse"
@@ -4273,7 +4404,7 @@ mod tests {
                 &super::super::ReductionContacts::default(),
                 None,
                 None,
-                &super::super::sectors::SlitTips::default(),
+                &crate::sector_shape::SlitTips::default(),
                 band,
             )
             .unwrap();

@@ -168,9 +168,7 @@ use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
-use crate::node::{
-    AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId,
-};
+use crate::node::{AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -548,59 +546,112 @@ fn carry<E>(
                     .zip(images.into_iter().flatten()),
             );
         }
-        if !bundle.is_empty() {
+        // A family's placement takes its bundle at once where every read
+        // in it is carried, since its values are what make its copy a
+        // family for the member reads carried after it.
+        let family_now = !bundle.is_empty()
+            && !source.node_reach(old).is_none()
+            && carry_bundle(
+                source,
+                target,
+                vars,
+                (&node_map, &step_map, &out_map),
+                new,
+                &bundle,
+            )
+            .map_or_else(
+                |error| match error {
+                    BundleMiss::Remap(_) => Ok(false),
+                    BundleMiss::Edit(error) => Err(edit(error)),
+                },
+                |()| Ok(true),
+            )?;
+        if !bundle.is_empty() && !family_now {
             bundles.push((old, new, bundle));
         }
     }
     // The bundles, now every node is in, each as one write, verbatim.
     for (old, new, bundle) in bundles {
-        let whole = Node::Place {
-            source: crate::BodyRead::plain(VarId::WORLD),
-            target: VarId::WORLD,
-            constraints: bundle.clone(),
-        };
-        let (carried, selects) =
-            remap_with_selects(source, &whole, vars, (&node_map, &step_map, &out_map))
-                .map_err(|error| miss(old, error))?;
-        let (authored, fresh) = vars.author(&carried, &selects);
-        let Node::Place {
-            constraints: authored,
-            ..
-        } = authored
-        else {
-            unreachable!("a carried placement carrier stays one")
-        };
-        let record = target
-            .apply_recorded(DocEdit::SetConstraints {
-                placement: new,
-                constraints: authored,
-                fresh: fresh.fresh.clone(),
-            })
-            .map_err(&edit)?;
-        vars.minted(fresh, &record.fresh);
-        let minted: Vec<crate::mate::Mate> = target
-            .doc()
-            .node(new)
-            .and_then(crate::mate::solve::bundle_of)
-            .map(|bundle| {
-                bundle
-                    .iter()
-                    .filter_map(crate::mate::Constraint::mate)
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-        let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
-        for (source_mate, minted) in bundle
-            .iter()
-            .filter_map(crate::mate::Constraint::mate)
-            .zip(&minted)
-        {
-            name_selections(source, target, vars, reads(source_mate), reads(minted))
-                .map_err(&edit)?;
-        }
+        carry_bundle(
+            source,
+            target,
+            vars,
+            (&node_map, &step_map, &out_map),
+            new,
+            &bundle,
+        )
+        .map_err(|error| match error {
+            BundleMiss::Remap(error) => miss(old, error),
+            BundleMiss::Edit(error) => edit(error),
+        })?;
     }
     Ok((node_map, step_map, out_map))
+}
+
+/// Why [`carry_bundle`] could not carry a bundle.
+enum BundleMiss {
+    /// A read the maps do not hold yet, or cannot.
+    Remap(RemapMiss),
+    /// The target's door refused the write.
+    Edit(EditError),
+}
+
+/// **`bundle`, the constraints of a source placement, carried onto
+/// `new`** as one write, each mate's selections named as their
+/// sources are.
+fn carry_bundle(
+    source: &ProfileDoc,
+    target: &mut Recording<'_, ProfileProgram>,
+    vars: &mut VarCarry<'_>,
+    maps: (&NodeMap, &StepMap, &ReadMap),
+    new: RecipeNodeId,
+    bundle: &[crate::mate::Constraint],
+) -> Result<(), BundleMiss> {
+    let whole = Node::Place {
+        source: crate::BodyRead::plain(VarId::WORLD),
+        target: VarId::WORLD,
+        constraints: bundle.to_vec(),
+    };
+    let (carried, selects) =
+        remap_with_selects(source, &whole, vars, maps).map_err(BundleMiss::Remap)?;
+    let (authored, fresh) = vars.author(&carried, &selects);
+    let Node::Place {
+        constraints: authored,
+        ..
+    } = authored
+    else {
+        unreachable!("a carried placement carrier stays one")
+    };
+    let record = target
+        .apply_recorded(DocEdit::SetConstraints {
+            placement: new,
+            constraints: authored,
+            fresh: fresh.fresh.clone(),
+        })
+        .map_err(BundleMiss::Edit)?;
+    vars.minted(fresh, &record.fresh);
+    let minted: Vec<crate::mate::Mate> = target
+        .doc()
+        .node(new)
+        .and_then(crate::mate::solve::bundle_of)
+        .map(|bundle| {
+            bundle
+                .iter()
+                .filter_map(crate::mate::Constraint::mate)
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
+    for (source_mate, minted) in bundle
+        .iter()
+        .filter_map(crate::mate::Constraint::mate)
+        .zip(&minted)
+    {
+        name_selections(source, target, vars, reads(source_mate), reads(minted))
+            .map_err(BundleMiss::Edit)?;
+    }
+    Ok(())
 }
 
 /// **`node` remapped for the target, with each selection it reads
@@ -641,12 +692,15 @@ fn remap_with_selects(
     // in a body that reaches an instance (spelled in ids the source
     // never minted), carried verbatim: the carried instance's copy
     // carries it as the source's did.
+    // A name's `Member` indices are declared variables the carry has
+    // mapped, read beside the outputs.
+    let reads_and_indices = vars.with_indices(out_map);
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
         remap_name_keeping(
             n,
             node_map,
             step_map,
-            out_map,
+            &reads_and_indices,
             (source, source.reaches_instance(body)),
         )
         .map_err(|missing| RemapMiss::Name {
@@ -1657,6 +1711,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshKind { .. }
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
+            | EditError::Index { .. }
+            | EditError::IndicesUnrelated { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
@@ -1696,10 +1752,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SpaceMismatch { .. }
             | EditError::ConstraintOnNonPlacement { .. }
             | EditError::UnknownConstraint { .. }
-            | EditError::PlacementRuleMismatch { .. }
-            | EditError::EmptyPlacementList { .. }
-            | EditError::NonFinitePlacement { .. }
-            | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
             | EditError::UpdateOnNonInstance { .. }
             | EditError::PinUnchanged { .. }
@@ -1936,6 +1988,12 @@ impl SegRewrite for Remapping<'_> {
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(self.2.get(&r).copied().ok_or(Unmapped::Read(r))?)
     }
+
+    // An index is declared, not an output; the carry maps it beside
+    // the reads ([`remap_with_selects`]).
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(self.2.get(&index).copied().ok_or(Unmapped::Read(index))?)
+    }
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable
@@ -1975,27 +2033,6 @@ enum RemapMiss {
         /// Why.
         missing: RemapError,
     },
-}
-
-/// Rewrites a placement rule's id references: the circular rule's axis
-/// read is the only one the vocabulary carries (a linear rule is pure
-/// expressions, an explicit rule pure frames). Shared by both
-/// placement-rule nodes so their seam behavior cannot drift apart.
-///
-/// # Errors
-///
-/// The first [`RemapMiss`].
-fn remap_rule(
-    kind: &PatternKind,
-    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
-) -> Result<PatternKind, RemapMiss> {
-    Ok(match kind {
-        PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
-        PatternKind::Circular { axis, step } => PatternKind::Circular {
-            axis: axis.try_map(|axis| rd(crate::OperandSlot::Axis, *axis))?,
-            step: *step,
-        },
-    })
 }
 
 /// Rewrites a node payload's reads through `rd`, for insertion into
@@ -2150,22 +2187,6 @@ fn remap_node(
         // constraint reading it names no id.
         Node::World => Node::World,
         Node::Space => Node::Space,
-        Node::Pattern { input, count, kind } => Node::Pattern {
-            input: rd(crate::OperandSlot::Input, *input)?,
-            count: *count,
-            kind: remap_rule(kind, rd)?,
-        },
-        // The selector is payload with no id in it (a half, or an
-        // index expression); only the edge remaps.
-        Node::Part { of, select } => Node::Part {
-            of: rd(crate::OperandSlot::Of, *of)?,
-            select: select.clone(),
-        },
-        Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
-            input: rd(crate::OperandSlot::Input, *input)?,
-            count: *count,
-            kind: remap_rule(kind, rd)?,
-        },
         // The reference crosses verbatim (the function's docs say why),
         // and its bundle as a placement's does.
         Node::InstantiatePart {
@@ -2260,6 +2281,23 @@ struct VarCarry<'s> {
     map: BTreeMap<VarId, VarId>,
 }
 
+impl VarCarry<'_> {
+    /// `reads` with the carried index variables beside them: a name's
+    /// `Member` indices are declared variables, mapped by the carry
+    /// rather than read at a port.
+    fn with_indices(&self, reads: &ReadMap) -> ReadMap {
+        reads
+            .iter()
+            .chain(self.map.iter().filter(|&(&var, _)| {
+                self.source
+                    .var(var)
+                    .is_some_and(|held| held.def().index().is_some())
+            }))
+            .map(|(&from, &to)| (from, to))
+            .collect()
+    }
+}
+
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
@@ -2334,6 +2372,22 @@ impl<'s> VarCarry<'s> {
                         )
                     });
                 VarDecl::Defined(formula)
+            }
+            VarDef::Index(index) => {
+                let read = |var: VarId| self.reader(anonymous, var, Dimension::Count);
+                let count = Formula::from(&index.count)
+                    .substitute_vars(&mut |var| {
+                        Some(self.reader(anonymous, var, kind_of(self.source, var)?))
+                    })
+                    .unwrap_or_else(|fault| {
+                        unreachable!(
+                            "a reader re-pointed at its own kind keeps every dimension: {fault}"
+                        )
+                    });
+                VarDecl::Index {
+                    count,
+                    within: index.within.map(read),
+                }
             }
             VarDef::Output { .. } => {
                 unreachable!("an output crosses with its node, minted by the target's insert")
@@ -2663,19 +2717,14 @@ pub fn split(
     // it is, and a name of a body a cut world `Place` copies, which
     // that placement's copy carries verbatim. The copy holds the names its
     // body minted, those a transform below it carried whole (N1's
-    // `Whole` edge), and a pattern copy's names where a part picks that
-    // copy: the name's own `Instance` index against the pick's, at the
-    // document's values, as the member walk judges a pick
-    // (`mate::member`). That match is positional and interim: it
-    // retires with `[ev]` #4341's `Member` keys. A split half's pick is
-    // not followed, since which half holds a split's name is the
-    // geometry's answer. A name of material no cut world placement
-    // places, or two do, names nothing the instance carries.
-    let env = doc.var_env::<f64>();
+    // `Whole` edge), and a family member's, by the member its `Member`
+    // segment names, which no value decides. A split half's pick is not
+    // followed, since which half holds a split's name is the geometry's
+    // answer. A name of material no cut world placement places, or two
+    // do, names nothing the instance carries.
     // With `body`, the copy is the one a cut placement makes of that body
-    // (a selection's): the placement copies it, or a `Part` that picks a
-    // copy out of it (the gate's copy rule, `assembly::copy_face`), and
-    // the walk follows the name from there to its minting node. The
+    // (a selection's): the placement copies it (the gate's copy rule,
+    // `assembly::copy_face`), and the name heads there. The
     // answer is the placement, and whether the part's product wraps the
     // name under it.
     let home = |name: &StableName, body: Option<RecipeNodeId>| -> Option<(RecipeNodeId, bool)> {
@@ -2688,51 +2737,13 @@ pub fn split(
         {
             return world(name.node).then_some((name.node, false));
         }
-        let copy_of_name = match name.path.first() {
-            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
-            _ => None,
-        };
         let holds = |placed: Option<RecipeNodeId>, body: Option<RecipeNodeId>| -> bool {
-            let mut picked: Option<i64> = None;
-            let mut at = match (placed, body) {
+            let at = match (placed, body) {
                 (placed, None) => placed,
                 (Some(node), Some(body)) if node == body => Some(node),
-                (Some(node), Some(body)) => {
-                    match doc.node(node).and_then(crate::names::verbatim_edge) {
-                        Some(crate::names::VerbatimEdge::Selected {
-                            of,
-                            select: crate::node::PartSelect::Instance(index),
-                        }) if doc.operation_of(of) == Some(body) => {
-                            picked = crate::expr::eval_var_count(*index, &env).ok();
-                            picked.map(|_| body)
-                        }
-                        _ => None,
-                    }
-                }
-                (None, Some(_)) => None,
+                (Some(_) | None, Some(_)) => None,
             };
-            while let Some(node) = at {
-                if node == name.node {
-                    return picked.is_none_or(|k| copy_of_name == Some(k));
-                }
-                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
-                    Some(crate::names::VerbatimEdge::Selected {
-                        of,
-                        select: crate::node::PartSelect::Instance(index),
-                    }) if picked.is_none() => {
-                        picked = crate::expr::eval_var_count(*index, &env).ok();
-                        picked.and_then(|_| doc.operation_of(of))
-                    }
-                    Some(
-                        crate::names::VerbatimEdge::Selected { .. }
-                        | crate::names::VerbatimEdge::Intact { .. }
-                        | crate::names::VerbatimEdge::Reflected { .. }
-                        | crate::names::VerbatimEdge::Copied { .. },
-                    )
-                    | None => None,
-                };
-            }
-            false
+            at == Some(name.node)
         };
         // A name read at a cut placement's own copy is its source's, as
         // the copy carries it: walked from that source.
@@ -3311,6 +3322,7 @@ pub fn split(
             .output(carried, 0)
             .unwrap_or_else(|| unreachable!("a placement defines its copy"))
     };
+    let names_map = vars.with_indices(&read_map);
     // A cut name as the part's product spells it ([`home`] above): the
     // name its copy carries, keyed by that copy's read where the
     // product is a `⊔`.
@@ -3327,7 +3339,7 @@ pub fn split(
                 // A part's ids inside the name (a pattern copy of an
                 // instance's face) cross as they are.
                 None => (
-                    remap_name_keeping(name, &node_map, &step_map, &read_map, (doc, true))
+                    remap_name_keeping(name, &node_map, &step_map, &names_map, (doc, true))
                         .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),
@@ -4029,7 +4041,10 @@ pub fn inline(
             }
         }
     }
-    let mut host_reads = read_map.clone();
+    // A name's `Member` indices are the part's declared variables, mapped
+    // by the carry beside its outputs.
+    let names_map = vars.with_indices(&read_map);
+    let mut host_reads = names_map.clone();
     for var in doc.definition_order() {
         host_reads.entry(var).or_insert(var);
     }
@@ -4127,7 +4142,7 @@ pub fn inline(
     // refusal below — never an auto-pick.
     for (at, record) in part.appearance().iter() {
         let name = &at.name;
-        let key = remap_name(name, &node_map, &step_map, &read_map)
+        let key = remap_name(name, &node_map, &step_map, &names_map)
             .map_err(|missing| InlineError::stranded(&part, name, missing))?;
         let body = read_map.get(&at.at).copied().ok_or_else(|| {
             InlineError::stranded(&part, name, RemapError::Unmapped(Unmapped::Read(at.at)))
@@ -4216,7 +4231,7 @@ pub fn inline(
     // name, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_name(inner, &node_map, &step_map, &read_map)
+        remap_name(inner, &node_map, &step_map, &names_map)
             .map_err(|missing| InlineError::stranded(&part, inner, missing))?;
     }
     // A body read of the instance's copy, as the new placement's: the

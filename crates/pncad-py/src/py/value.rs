@@ -1057,7 +1057,8 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 }
 
 /// A node's successful value.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
     /// The value's OWN contact-record channel (ASM-R2b D-1): what
@@ -1069,9 +1070,29 @@ pub(crate) struct Value {
     /// same body must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
+    /// A family's members (D10 `[repetition]`), in index order: each
+    /// member's index values, outermost first, and its value. Empty for
+    /// a node evaluated once.
+    members: Vec<(Vec<u32>, Value)>,
 }
 
 impl Value {
+    /// `node`'s value as the evaluation holds it, its members with it.
+    pub(crate) fn of(node_value: &d::NodeValue<f64>, node: NodeId) -> Self {
+        Self {
+            payload: node_value.payload.clone(),
+            contacts: Arc::clone(&node_value.carry.contacts),
+            node,
+            members: node_value.members.as_ref().map_or_else(Vec::new, |family| {
+                family
+                    .members
+                    .iter()
+                    .map(|(at, member)| (at.clone(), Self::of(member, node)))
+                    .collect()
+            }),
+        }
+    }
+
     /// One of this value's bodies with the contact records that body
     /// carries — `sources_of`'s rule, restated at the boundary.
     ///
@@ -1105,6 +1126,15 @@ impl Value {
     #[getter]
     fn kind(&self) -> &'static str {
         self.payload.kind_name()
+    }
+
+    /// **A family's members** (D10 `[repetition]`), in index order: each
+    /// member's index values (one per index the family reaches,
+    /// outermost first) and its value. Empty for a node evaluated once.
+    /// A family of bodies also answers them flat (`bodies`); a family
+    /// of anything else (`kind == "family"`) answers them here only.
+    fn members(&self) -> Vec<(Vec<u32>, Value)> {
+        self.members.clone()
     }
 
     /// The single body this value denotes.
@@ -1386,11 +1416,7 @@ impl Evaluation {
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
         let standing = match self.inner.usable(node.0) {
             Ok(node_value) => {
-                return Ok(Value {
-                    payload: node_value.payload.clone(),
-                    contacts: Arc::clone(&node_value.carry.contacts),
-                    node: *node,
-                });
+                return Ok(Value::of(node_value, *node));
             }
             Err(standing) => standing,
         };

@@ -606,8 +606,8 @@ impl ProductError {
 /// placement reads a split's `above` port is that one half, and one
 /// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
-    // The records and findings a body carries are keyed in its arena,
-    // and every member of a family shares one ([`crate::Carry`]).
+    // The records and findings a body carries are keyed in its arena:
+    // each member of a family brings its own ([`crate::Carry::member`]).
     let carried = || Arc::clone(&value.carry.contacts);
     let none = || Arc::new(ContactRecords::default());
     let rows = || Arc::clone(&value.carry.findings);
@@ -630,7 +630,13 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                     let ix = crate::names::output_body(i).unwrap_or_else(|e| {
                         unreachable!("instance {i} outlived its minting op's index refusal: {e}")
                     });
-                    (ix, body.clone(), carried(), rows())
+                    let member = value.carry.member(i);
+                    (
+                        ix,
+                        body.clone(),
+                        Arc::clone(&member.contacts),
+                        Arc::clone(&member.findings),
+                    )
                 })
                 .collect(),
         ),
@@ -659,7 +665,8 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
-        | ValuePayload::Assertion(_) => None,
+        | ValuePayload::Assertion(_)
+        | ValuePayload::Family => None,
     }
 }
 
@@ -976,33 +983,43 @@ pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 ) -> Vec<AssembleGather<T>> {
     doc.ids()
         .into_iter()
-        .filter_map(|id| {
-            let var = doc.output(id, 0)?;
-            (Some(var) != product).then_some((id, var))
-        })
-        .filter_map(|(id, var)| {
+        .filter_map(|id| Some((id, doc.output(id, 0)?, evaluation.value(id)?)))
+        .flat_map(|(id, var, value)| {
             // A door's own census, not one a copy carries from its
-            // source's.
-            let census = evaluation
-                .value(id)
-                .and_then(|value| value.carry.census.as_ref())
-                .filter(|census| census.node == id)?;
-            Some(AssembleGather {
-                var,
-                gather: census.verdict(doc, tol).map_err(Into::into).map(|verdict| {
-                    let mut verdict = verdict.fresh();
-                    verdict.document = doc.id();
-                    verdict.gap_assertions = crate::checks::at_rest::gap_assertions(
-                        doc,
-                        evaluation,
-                        &verdict.body,
-                        &verdict.names,
-                        &verdict.copies,
-                        tol,
-                    );
-                    Box::new(verdict)
-                }),
-            })
+            // source's. A family of doors is a door per member, each
+            // censused at its own; the product's gather reads each
+            // member as one arrival, so it reads none of theirs.
+            let own = |carry: &'_ crate::Carry<T>| {
+                carry
+                    .census
+                    .as_ref()
+                    .filter(|census| census.node == id)
+                    .cloned()
+            };
+            let censuses: Vec<Arc<Census<T>>> = match &value.carry.members {
+                Some(members) => members.iter().filter_map(own).collect(),
+                None => own(&value.carry)
+                    .filter(|_| Some(var) != product)
+                    .into_iter()
+                    .collect(),
+            };
+            censuses.into_iter().map(move |census| (var, census))
+        })
+        .map(|(var, census)| AssembleGather {
+            var,
+            gather: census.verdict(doc, tol).map_err(Into::into).map(|verdict| {
+                let mut verdict = verdict.fresh();
+                verdict.document = doc.id();
+                verdict.gap_assertions = crate::checks::at_rest::gap_assertions(
+                    doc,
+                    evaluation,
+                    &verdict.body,
+                    &verdict.names,
+                    &verdict.copies,
+                    tol,
+                );
+                Box::new(verdict)
+            }),
         })
         .collect()
 }
@@ -1137,16 +1154,16 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         let keyed = Arc::new(keyed.unwrap_or_else(|e| {
             unreachable!("a member's table keyed by its read stays a table: {e:?}")
         }));
-        // A piece whose own door censused it brings that door's
-        // records, the touches inside it among them; each member of a
-        // family carries what its family carries.
-        let carry = &piece.carry;
-        let contacts = carry
-            .census
-            .as_ref()
-            .and_then(|census| census.records(doc, tol))
-            .unwrap_or_else(|| Arc::clone(&carry.contacts));
         for (i, body) in piece.bodies.iter().enumerate() {
+            // A piece whose own door censused it brings that door's
+            // records, the touches inside it among them; each member of
+            // a family brings its own.
+            let carry = piece.carry.member(i);
+            let contacts = carry
+                .census
+                .as_ref()
+                .and_then(|census| census.records(doc, tol))
+                .unwrap_or_else(|| Arc::clone(&carry.contacts));
             let ix = if piece.family {
                 crate::names::output_body(i).unwrap_or_else(|e| {
                     unreachable!("piece {i} outlived its minting op's index refusal: {e}")
@@ -1221,18 +1238,30 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let table = evaluation
                 .shared_table_at(var)
                 .unwrap_or_else(crate::names::empty);
+            // A family's member brings the records its own door kept.
             let sources = bodies
                 .into_iter()
-                .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
-                .map(|(ix, body, contacts, rows)| Source {
-                    node,
-                    var,
-                    ix,
-                    body,
-                    table: Arc::clone(&table),
-                    contacts: kept.clone().unwrap_or(contacts),
-                    rows,
-                    censused: carry.censused,
+                .enumerate()
+                .filter(|(_, (ix, ..))| half.is_none_or(|h| h == *ix))
+                .map(|(i, (ix, body, contacts, rows))| {
+                    let member = carry.member(i);
+                    let kept = match &carry.members {
+                        Some(_) => member
+                            .census
+                            .as_ref()
+                            .and_then(|census| census.records(doc, tol)),
+                        None => kept.clone(),
+                    };
+                    Source {
+                        node,
+                        var,
+                        ix,
+                        body,
+                        table: Arc::clone(&table),
+                        contacts: kept.unwrap_or(contacts),
+                        rows,
+                        censused: member.censused,
+                    }
                 })
                 .collect();
             let mut product = gather_sources(doc, tol, sources)?;

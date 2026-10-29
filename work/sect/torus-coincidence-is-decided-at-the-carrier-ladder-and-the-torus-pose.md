@@ -2,8 +2,10 @@
 id: torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose
 kind: issue
 title: Two tori decided one surface are spelled twice: the carrier ladder's torus rows and the torus pose's tt_coincident
-status: open
+status: dispatched
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 

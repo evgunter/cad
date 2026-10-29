@@ -214,9 +214,8 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// accepted at its certified roots, the crossing layer passes, and every
 /// op stops at the join: an oblique plane × torus germ pair cuts a
 /// general spiric quartic, refused by name, and a wall × torus pair in a
-/// general pose routes to the general rung, whose cylinder × torus door
-/// is unbuilt, refused at the section
-/// (`work/sect/cylinder-torus-rung-three-arm-is-unretired.md`).
+/// general pose has no component list in the section value, refused at
+/// the section (`work/sect/a-general-torus-pose-lists-no-components.md`).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();

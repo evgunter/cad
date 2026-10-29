@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
-blocked_on: [intent-stage3-is-built]
+blocked_on: [intent-stage6-is-built, a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
 ---
 
 
