@@ -44,3 +44,15 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo test -p editor-core --features
 probe --test all -- --ignored
 m4_pr8_k_probe::probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits`, with
 `PINNED_KEY_SPLITS` emptied.
+
+**Re-pinned 2026-10-29 (GREEN, after PR 5954).** PR 5954 (INTENT stage 3
+G, patterns are index variables) rewrote the `heat_sink`,
+`heat_sink_fins`, `kitchen_sink`, `die_tool` and `part_select` corpus
+documents. It was the only merge to touch `crates/editor-core/tests/corpus`
+after PR 5966 wrote the pin, and it merged without re-pinning. Their
+split nodes renumber with the new mint order, and the other 21 documents
+read the old pin exactly. `PINNED_KEY_SPLITS` now holds main's set,
+identical at 1e-6, 1e-9 and 1e-12 and identical to nightly 76's message.
+The split itself is unchanged in kind: 26 documents, and every node
+splits both keys.
+
