@@ -173,3 +173,24 @@ Signed: (CARVE orchestrator)
   - **CLEARTEXT:** the four refusal-text rows. It runs as a cloud session, `session_018u3gVFPqmdk3LCeY6Ud5ae`; its review is a single STYLE review.
   - **CURVEDEP:** `departure-presents-no-curved-shared-edge`. It runs as a cloud session, `session_018u3gVF7V1QL1mSkAd58VeW`; its review is a DUAL concurrent pair.
 - **Waiting:** the minsep tightening on LOOPS, and SHELL-4 on CURVEDEP.
+- 2026-10-29 — **TIGHTEN merges (#5998)** with this commit last. The arm is SEQUENTIAL (byte 64, mod 3 = 1).
+  - **The review.** A single review at `e27260a2` returned APPROVE-WITH-FIXES with no MAJOR, so there was no second review. It probed 15 configurations, and every bracket contained the truth. Mutants A and B were killed by shipped rows. Mutant C (the scope removed) was caught only by wall time.
+  - **Its findings.** MINORs:
+    - `OnEdge` in `hi` while the docs claimed exact containment;
+    - a redundant station read and a dominated arm;
+    - stale docs.
+
+    NOTEs:
+    - `lo` could be `+∞`;
+    - the latent k-lint hazard.
+  - **The fix pass at `535a6988`**, read and accepted:
+    - `hi` is now stated "up to the band" at every claim site and in F28;
+    - one station read;
+    - an `Option` incumbent;
+    - a live kernel-defect assert on `lo`;
+    - a fast scope-pin row, red under mutant C;
+    - the r2 gap row pinned tight;
+    - `flagged_census` now checks every `unlogged` row.
+  - **Cost**, re-measured: about 2.4× on single-drive rows, about 1.25× on the suites.
+  - **Amended in the row's Decided section:** no bisection on an absent `hi`; `hi` up to the band.
+  - **Also closed:** `an-assertion-over-scopes-that-meet-…`.
