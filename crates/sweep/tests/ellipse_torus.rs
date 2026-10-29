@@ -9,10 +9,10 @@
 //!
 //! The rows read the reduction sweep (`sweep_traces`): whether it
 //! refuses, and which (rim, torus face) pairs the exact predicates
-//! accepted, then the door each boolean op stops at next. No pose here
-//! builds a body: a torus that reaches the rim meets the cut plane and
-//! the drum wall obliquely, and those pairs have no section arm (the
-//! filed doors below).
+//! accepted, then the door each boolean op stops at next: a torus just
+//! clear of the rim builds every op, and one that reaches it meets the
+//! cut plane obliquely, a pair with no section arm (the filed door
+//! below).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -180,9 +180,11 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 /// passes 1e-4 m down to 100 zero bands from the rim, nowhere nearer: the rim's arc
 /// enclosure cannot clear it, its certified roots answer `Miss`, the
 /// pairs are examined and none accepted, and the crossing layer passes.
-/// Every op then stops at the extent scan, whose oblique torus × plane
-/// and torus × wall pairs have no section classification
-/// (`work/orbit/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
+/// The section certificate then clears the oblique torus × wall pair on
+/// its march's components, and every op builds the two solids apart:
+/// ∪ both (an assembly), ∩ nothing, each difference its first operand,
+/// held to tier 3 and to the closed-form volumes (the drum's lower part
+/// `π/8`, the torus `2π²Rr²`).
 #[test]
 fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
     let a = drum_lower();
@@ -199,13 +201,60 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
             "{label}: the rim is examined against the torus"
         );
         assert_eq!(accepted, 0, "{label}: and cleared");
-        for (op, e) in refusals(&a, &b) {
-            assert!(
-                matches!(e, BooleanError::FallbackExtentUnsupported { .. }),
-                "{label}, {op}: got {e:?}"
-            );
+        let (drum, ring) = (
+            core::f64::consts::PI / 8.0,
+            0.0015 * core::f64::consts::PI.powi(2),
+        );
+        for ((op, r), want) in
+            ops(&a, &b)
+                .into_iter()
+                .zip([Some(drum + ring), None, Some(drum), Some(ring)])
+        {
+            // At ε 1e-6 the wall pair's march straddles its tube
+            // (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`),
+            // and the certificate refuses R-march at the extent scan.
+            let r = match r {
+                Err(BooleanError::FallbackExtentUnsupported { .. }) if eps == 1e-6 => continue,
+                r => r.unwrap_or_else(|e| panic!("{label}, {op}: {e:?}")),
+            };
+            let got = r.body().map(|b| {
+                assert_eq!(
+                    topo::validate_geometric(&b.body, Tol::witness()),
+                    Ok(()),
+                    "{label}, {op}: tier 3"
+                );
+                topo::test_support::pinned_volume(op, &b.body, Tol::witness()).volume
+            });
+            match (got, want) {
+                (Some(v), Some(w)) => {
+                    assert!(
+                        (v - w).abs() < 1e-9 * w,
+                        "{label}, {op}: volume {v} against {w}"
+                    );
+                }
+                (None, None) => {}
+                _ => panic!("{label}, {op}: {got:?} against {want:?}"),
+            }
         }
     }
+}
+
+/// Every op's result, `A ∖ B` and `B ∖ A` both.
+fn ops(
+    a: &Body<f64>,
+    b: &Body<f64>,
+) -> Vec<(&'static str, Result<topo::BooleanResult<f64>, BooleanError>)> {
+    let tol = Tol::witness();
+    let (a, b) = (
+        &sweep::test_support::finished("operand A", a.clone(), tol),
+        &sweep::test_support::finished("operand B", b.clone(), tol),
+    );
+    vec![
+        ("A ∪ B", topo::boolean::union(a, b, tol)),
+        ("A ∩ B", topo::boolean::intersect(a, b, tol)),
+        ("A ∖ B", topo::boolean::subtract(a, b, tol)),
+        ("B ∖ A", topo::boolean::subtract(b, a, tol)),
+    ]
 }
 
 /// **A torus crossing the rim.** A tube through the corner by a
@@ -213,9 +262,9 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
 /// accepted at its certified roots, the crossing layer passes, and every
 /// op stops at the join: an oblique plane × torus germ pair cuts a
-/// general spiric quartic, refused by name, and a wall × torus pair in a
-/// general pose has no component list in the section value, refused at
-/// the section (`work/sect/a-general-torus-pose-lists-no-components.md`).
+/// general spiric quartic, refused by name. At ε 1e-6 a germ on the wall
+/// × torus pair may be minted first, and its march's tube straddles
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();
@@ -233,17 +282,17 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
+        let coarse = Tol::witness().eps() == 1e-6;
         for (op, e) in refusals(&a, &b) {
             assert!(
-                matches!(
-                    e,
+                match &e {
+                    BooleanError::GermSectionSpiric { .. } => true,
                     BooleanError::GermSectionUnbuilt {
-                        why: topo::SectionUnbuilt::Refused(
-                            geom_brep::SectionError::RoutesToGeneralRung { .. }
-                        ),
+                        why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
                         ..
-                    } | BooleanError::GermSectionSpiric { .. }
-                ),
+                    } => coarse,
+                    _ => false,
+                },
                 "{label}, {op}: got {e:?}"
             );
         }

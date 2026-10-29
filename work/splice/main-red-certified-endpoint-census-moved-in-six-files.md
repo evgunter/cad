@@ -2,10 +2,13 @@
 id: main-red-certified-endpoint-census-moved-in-six-files
 kind: issue
 title: Main red: the certified endpoint census moved in nine files (PRs 5855, 5868, 5886, 5728, 5897, 5909, 5927); 27 new reads sit outside an is_certified function
-status: open
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: E
+closed: 2026-10-29
+branch: splice/census-reds
+pr: 6040
 ---
 
 
@@ -79,3 +82,36 @@ argument; the census checks the counts, not the notes, so a stale note
 does not go red by itself.
 
 **2026-10-29, nightly triage** (run 40823227622, main `5648e577eb`): four files moved past the pinned roster since this row's pin, at every ε. `ssi/four.rs` (3, 2) → (4, 2), from PR 5938 (`splice/tube-side-tripwire`). `geom/src/curves/nurbs.rs` is new at (3, 3), from PR 5955 (`clear/selfx`). `geom/src/surfaces/nurbs.rs` (4, 1) → (8, 2) and `topo/src/clearance.rs` (20, 3) → (28, 8), from PRs 5955 and 5976 (`clear/loops`). Seven of the new reads sit outside a function that asks: `four.rs` +1 (SPLICE), `surfaces/nurbs.rs` +3 and `clearance.rs` +3 (CLEAR). All three of `curves/nurbs.rs`'s reads sit in functions that ask.
+
+## Closed
+
+Closed 2026-10-29 by `splice/census-reds`, measured on main `0011f58a`.
+The census was red there at `ssi/enclose.rs` (20, 19), `ssi/four.rs`
+(5, 2), `surfaces/nurbs.rs` (8, 2), `clearance.rs` (23, 6), and at two
+files new to it, `curves/nurbs.rs` (3, 3) and `topo/src/injective.rs`
+(52, 1). Every read outside an asking function was read and
+dispositioned. Fixed rather than rostered:
+- `spline_face.rs`: `Path::at`/`tangent` (NURBS arm) now ask through
+  `certified_window`;
+- `offset_meters.rs`: `cell_distance` reads a cell with a partial that
+  does not certify at distance 0 (`a_refused_partial_puts_its_cell_at_the_point`);
+- `pcurve_cache.rs`: `limb2_offset_sup`'s `upper` goes through
+  `certified_bracket()`;
+- `spline/blossom.rs`: `whole_bezier_span` asks before it takes a refused
+  end for an exact knot (`a_whole_span_restriction_refuses_as_the_pyramid_does`);
+- `ssi/enclose.rs`: `first_order_continuous_in` reads crease knots through
+  `certified_bracket()` (`a_refused_crease_reads_as_not_continuous`);
+- `ssi/four.rs`: `along_side` reads controls through `certified_bracket()`,
+  since its answer moves a refusal from `Undecided` to the sign-certain
+  `AlongSide` (`a_refused_control_is_not_along_a_side`);
+- `offset_meters::chart_arm`: a NaN cell distance now counts as 0, not as
+  a skipped cell, and a non-finite `p` refuses as its doc said.
+
+Argued sound at the site:
+- `spline_face::end_state`, a seed;
+- `four::row_crossing`, read after `tube_margin` has asked;
+- `surfaces/nurbs.rs` and `curves/nurbs.rs`'s knot clip ends.
+
+CLEAR's `clearance.rs` and `injective.rs` are pinned at main's counts.
+Their reads that are not sound are filed on CLEAR:
+`work/clear/clearance-lifts-trv-brackets-and-reads-their-ends`.

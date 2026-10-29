@@ -1066,3 +1066,13 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **FORK-S6-1 (#6004)** is approved with no ratified text changed. Ev asked how the edits contradicted DESIGN.md, and they do not: the recommendation implements the existing `[coincidence.structural]` and `[placement.placement]`, as with ring fork row 207. Fork-log row 213 is filled.
   - **FORK-S6-2/3/4 (#6006)** is approved ("yes this looks good!"). On Ev's question "what's the actual principle", the text was restated: FORK-S3P's principle is stated once (only a placement relates two spaces; a construction reads poses of its own space only), in place of an exception list. The point tier is ratified in B's reading, with building deferred (P3 `a-traced-profile-is-tangent-at-a-point-where-its-plane-holds-a-symmetry-axis`). Ev's style notes trimmed the Profile bullet and "Constructing a coincidence". Fork-log row 214 is filled.
   - Stage 6 C is dispatched (`session_01VyvYnKbd3CphktXfFu7w3j`). B waits on A (#6023, in its STYLE fix pass); D waits on A and C.
+- 2026-10-29 16:35 —
+  - **Stage 6 A merged (#6023), the corpus scenes.**
+    - New scenes: pin_in_bore, axis_projection, blocks_on_one_floor and revolves_on_one_axis in the registry; shaft_and_bearing, boss_tangent_by_value and the curved scenes beside it.
+    - Each row's proof is pinned as it stands today.
+    - Review: single STYLE, APPROVE-WITH-FIXES. The fix pass moved the fast pins out of the slow set, pinned the press fit at its wall pair, wrote the spec's departures into §2.1 and §7, and swept the provenance prose on every aggregate pin.
+  - **Filed:**
+    - GERM's coaxial unions;
+    - two INTENT P2s: the plane-transitivity gap and two revolves on one axis;
+    - `the-ruled-region-span-holds-two-stage6-scenes-off-the-registry` (P2).
+  - **Stage 6 B dispatched** (`session_01VyvYnHiQmPFKJF4LW5roUJ`) to #6004's converged design.

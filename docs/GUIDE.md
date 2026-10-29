@@ -171,7 +171,7 @@ this section teaches — it is the shape of *using* this kernel:
 
 > **author → validate → measure → tessellate → cross-check → export**
 
-The tour's `run_body` (`demos/tour/src/main.rs`) is that ladder
+The tour's `run_body` (`demos/tour/src/lib.rs`) is that ladder
 written once and applied to every scene. Nothing about it is
 demo-specific; your own program should look like it.
 

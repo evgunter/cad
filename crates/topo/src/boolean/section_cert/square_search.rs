@@ -590,8 +590,8 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
     let b = band();
     let (torus, wall) = (p.ring.surface(), p.wall.surface());
     let reach = reach_of(&p.ring);
-    let sec = classify(&torus, &wall, reach, b);
-    let back = classify(&wall, &torus, reach, b);
+    let sec = classify(&torus, &wall, reach, Some(geom_brep::SsiLane::marched()), b);
+    let back = classify(&wall, &torus, reach, Some(geom_brep::SsiLane::marched()), b);
     let mut bad = Vec::new();
     if !swapped_agrees(&sec, &back) {
         bad.push(format!(
@@ -665,6 +665,7 @@ fn the_square_wall_arm_agrees_with_the_traced_section() {
                 &p.ring.surface(),
                 &p.wall.surface(),
                 reach_of(&p.ring),
+                Some(geom_brep::SsiLane::marched()),
                 band(),
             );
             let key = match &sec {
@@ -698,7 +699,13 @@ fn json_vec(v: [f64; 3]) -> String {
 /// One pose and the arm's answer, as `scripts/oracles/torus_square_wall_mpmath.py`
 /// reads it.
 pub(super) fn dump_line(what: &str, ring: &Ring, wall: &Wall) -> String {
-    let sec = classify(&ring.surface(), &wall.surface(), reach_of(ring), band());
+    let sec = classify(
+        &ring.surface(),
+        &wall.surface(),
+        reach_of(ring),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     let xyz = |p: Vec3<f64>| json_vec([p.x, p.y, p.z]);
     let answer = match &sec {
         Section::Components { parts, single } => {

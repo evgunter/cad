@@ -331,3 +331,17 @@ ladder.
   whether PR 6011's `RunImageNotYet` stops are this row's site.
 - PR 6011's dual review: both APPROVE-WITH-FIXES, no MAJOR (row written at
   its state sync); fix pass running.
+## 2026-10-29 — components are the march's (PR 6011)
+
+PR 6011 closes `a-general-torus-pose-lists-no-components` as fork row 212
+decided it. Every P0 consumer passes the germ mint: GERM's radial hole (4
+and 3 loops), all six drum × donut placements, the general donut × donut
+placements and the ball × donut `AroundAxis` placement stop downstream
+(mostly SPIRICARM's volume door); the lily's stem at the march's
+`CellBudget` (SECTRUNG); a torus just clear of a tilted cut builds every op
+with checked volumes. Dual concurrent review (row
+`docs/dual-review-log/rows/PR-6011.md`): no MAJOR; two fix passes and one
+confirmation review. The one-way winding cross-check is a filed deviation
+(`a-counted-sections-winding-is-a-claim-not-a-reading`, P2). Cost: at ε 1e-12
+the new marching rows take up to ~30 min each at opt-level 2 in the nightly
+(`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).

@@ -956,3 +956,38 @@ becomes.
 
 Filed: `doors-carrying-a-shared-row-have-no-row-at-rest` (P2) and
 `no-row-certifies-a-shared-row-at-interval` (P3).
+
+## 2026-10-29 — PR 6040 merges: the two geom-core census reds
+
+Review tier: a single FULL review, because the unit fixed soundness
+reads. The review (frozen at 889bc2da) was APPROVE-WITH-FIXES with no
+MAJOR.
+- Five reads are fixed: `spline_face` `Path::at`/`tangent`,
+  `offset_meters::cell_distance`, `limb2_offset_sup`,
+  `blossom::whole_bezier_span` and `enclose::first_order_continuous_in`.
+  Each fixed read has a row that reds when its fix is reverted.
+- `four::along_side` now asks `is_certified`. The reviewer showed its
+  "renames only" disposition was untrue: it could move an `Undecided`
+  refusal to `AlongSide`.
+- `chart_arm` refuses a non-finite `p`. A NaN `p` used to answer
+  `Some(reach)`.
+- One plant for a refused point bracket,
+  `geom_core::test_support::refused_point`.
+- `clearance.rs` and `injective.rs` are pinned at main's counts. Their
+  unsound reads are filed on CLEAR, each with its line:
+  `clear/clearance-lifts-trv-brackets-and-reads-their-ends` (P1).
+
+I read the fix pass myself, with no re-review.
+## 2026-10-29 — PR 5990 merges: the guard's spline arms, and `[one-way.readings]` re-phrased
+
+Ev approved the design for the interior-loop guard's spline arms, and
+ratified the W5 stage after a probe settled the factual crux.
+`[one-way.readings]` is re-phrased so that stages always run together
+may jointly prove one rule (fork row 217). Ev also approved re-spelling
+lily's leaf as one loft, with a stem graft as the new wall 8, now in
+flight.
+- Filed `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` (P1),
+  to be built after PR 6026.
+- Re-banded P0 → P3: `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  and `a-pair-walk-end-at-a-domain-corner-refuses-undecided`. Neither
+  has a consumer.

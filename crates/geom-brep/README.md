@@ -515,11 +515,29 @@ pass walks all eight faces as limb 3 walks a box's
 (`ssi::four::face_roots`), each solution it isolates settled onto both
 surfaces with its face's coordinate held, or refused
 `SsiError::EndNotOnLocus`; those are the crossings, the only ends an
-open branch has. A face the walk does not resolve within its pieces —
-the section touching or running along a side, or through a corner, of
-either rectangle — refuses `SsiError::PairBoundaryUnresolved`: this
-lane reports no `Side` or `Corner` region. Its two readings are one
-contract. `branch_at(seed)` settles the seed's feet on both charts
+open branch has. The lane reports the two boundary regions the
+plane × NURBS lane does, each built from a solution handed to the
+reading as known, because the lane has no parameter inverse to find a
+side's image on the other chart:
+- **A `Side` region** comes from a shared row: a row of both charts
+  that the caller hands in with its two certified images. The region
+  is the row's cover, a chain of boxes along the row, each wide enough
+  across it to hold the accounting floor's cells beside it, over which
+  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
+  that width) is zero-free. Each slice across the row then holds at
+  most one solution, and the row is that solution. Its cells are
+  contact cells in the accounting.
+- **A `Corner` region** comes from a shared vertex at a corner of both
+  rectangles. The reading certifies the crossing reading zero-free
+  over the corner cell, and reads the signs of the direction the
+  section leaves along there, as the plane lane reads a corner's
+  inward partials: either the section leaves the domain (an isolated
+  point), or a branch starts there.
+
+A face the walk does not resolve within its pieces and that no handed-in
+row or vertex covers (the section touching or running along a side, or
+through a corner, of either rectangle) refuses
+`SsiError::PairBoundaryUnresolved`. Its two readings are one contract. `branch_at(seed)` settles the seed's feet on both charts
 onto the section by Newton (outside either rectangle it refuses
 `SeedOffDomain`; where the surfaces are tangent, by the march's
 transversality decision); a seed inside a tube already certified is
@@ -818,12 +836,36 @@ axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
-`Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet.
+`Section::branch_at`, each at the old edge's middle. The boolean reads
+plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
+section value, built from the whole-section reading `all()`:
+- each closed branch is a loop component, with its witness and carrier;
+- each open branch, `Side` region and `Corner` region is a component
+  that reaches its chart's boundary;
+- a refusal maps by name, tangency and grazes to tangent, and an
+  unclosed accounting to intractable, carrying its cause.
+
+A component that reaches its chart's boundary is not interior to the
+face. A point of the rectangle's side that lies in the face lies on one
+of the face's pcurves (C4), which is an edge of the face. So the
+interior-loop guard clears such a component as it clears an unbounded
+one.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
-pairs through the section value (`pair_section`: the pair's pose
-decided once, its components, and its loops marched and fitted at
-`f64` where a join matches germs on them). Each torus pair's pose
+pairs through the section value (`pair_section`), classified, then
+carried: the classification decides the pair's pose once and, where a
+closed form counts them, its components (`Components::Counted`); it
+costs no march and needs no lane. Carrying marches and fits the loops
+at `f64`, and lists the components: a counted section's, the march a
+cross-check of the count (as many distinct branches, each listed
+witness on one branch, each claimed winding held, else a desync), and
+otherwise the march's own closed branches (`Components::Marched`), each
+winding about an operand as the fitted loop's turns about the
+operand's axis and core circle, read off the loop in ℝ³, say
+(`pair_section::winds`); a point is read on a carried loop within the
+band padded by the loop's pad (`CarriedComponent::pad`, where its
+closeness and uniqueness are argued). A reader that needs a list no closed form
+counts carries; a site's component is its foot on the carried section,
+its one reading. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
@@ -860,16 +902,16 @@ crossing, levered by the core radius. Where the core crosses a torus
 partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
-the symmetric poses (coaxial, parallel, square) list their components
+the symmetric poses (coaxial, parallel, square) count their components
 in closed form, the coaxial ones as circles and the rest the general
 rung's, marched by `carry` over a ball that holds the whole section
 (`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
 smaller of two tori's), every branch closing inside it; a general
 sphere × torus pose is the sphere arm's, marched; a general cylinder or
-torus pose has no closed-form count of its components, and the value
-refuses it (`RoutesToGeneralRung`) while the general rung's door
-(`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches it past a
-transverse gap. `implemented` covers the whole operation.
+torus pose has no closed-form count of its components, and its
+components are the march's (`Components::Marched`), which the general
+rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
+past a transverse gap. `implemented` covers the whole operation.
 Every other pair refuses: the cone pairs blocked on the cone's metres
 conversion (C2 limb 2).
 

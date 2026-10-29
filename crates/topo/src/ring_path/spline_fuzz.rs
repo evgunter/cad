@@ -199,8 +199,8 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
             panic!("the value builds sphere × torus");
         };
         assert_eq!(
-            section.components().len(),
-            1,
+            section.counted().map(<[_]>::len),
+            Some(1),
             "centre {centre:?}, radius {big}: the pose is one oval"
         );
         let carried = section
@@ -686,6 +686,9 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
         span: (0.0, 1.0),
         closed: false,
         certificate: None,
+        winds: [false, false],
+        pad: 0.0,
+        witness: curve.eval(0.5),
     };
     assert!(
         SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),

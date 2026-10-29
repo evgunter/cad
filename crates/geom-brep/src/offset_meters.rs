@@ -758,7 +758,8 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
 /// chart at the cell's low corner plus its partials' enclosures over the
 /// cell's sides (mean value, componentwise), up to the rounding of that
 /// corner and those sums. The enclosure holds the cell, so a cell counts
-/// at no more than its distance.
+/// at no more than its distance. A cell whose partials do not certify, or
+/// whose distance reads NaN, bounds nothing and counts at distance `0`.
 ///
 /// The bound is a lower end only ([`crate::classify_seam`] brackets the
 /// arm between it and the reach), so its slack can cost an escalation and
@@ -775,7 +776,7 @@ pub(crate) fn chart_arm(
     p: geom_core::Point3<f64>,
     reach: f64,
 ) -> Option<f64> {
-    if reach.is_nan() {
+    if reach.is_nan() || !(p.x.is_finite() && p.y.is_finite() && p.z.is_finite()) {
         return None;
     }
     let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
@@ -795,7 +796,7 @@ pub(crate) fn chart_arm(
     let mut near = Vec::new();
     for cell in &cells {
         let d = cell_distance(net, cell, p);
-        if d.is_nan() || d > reach {
+        if d > reach {
             continue;
         }
         let on = |c: &[f64], (lo, hi): (f64, f64)| c.iter().any(|&k| k == lo || k == hi);
@@ -824,12 +825,17 @@ pub(crate) fn chart_arm(
 
 /// The distance from `p` to `cell`'s spatial enclosure ([`chart_arm`]):
 /// the chart at the cell's low corner, plus, per coordinate, the partials'
-/// enclosures times each side's extent, signed toward either end.
+/// enclosures times each side's extent, signed toward either end. `0`, the
+/// vacuous lower bound, where a partial does not certify or the distance
+/// reads NaN: either way no enclosure was read.
 fn cell_distance(
     net: &geom::surfaces::NurbsSurface<f64>,
     cell: &PatchCell,
     p: geom_core::Point3<f64>,
 ) -> f64 {
+    if !cell.s_u.iter().chain(&cell.s_v).all(|c| c.is_certified()) {
+        return 0.0;
+    }
     let corner = net.ders(cell.u.0, cell.v.0).point;
     let (du, dv) = (cell.u.1 - cell.u.0, cell.v.1 - cell.v.0);
     let gap = |c: f64, q: f64, su: Interval, sv: Interval| {
@@ -842,7 +848,8 @@ fn cell_distance(
         gap(corner.y, p.y, cell.s_u[1], cell.s_v[1]),
         gap(corner.z, p.z, cell.s_u[2], cell.s_v[2]),
     ];
-    (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt()
+    let d = (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt();
+    if d.is_nan() { 0.0 } else { d }
 }
 
 /// Meter 2, whole patch: the certified curvature range and the
@@ -1309,6 +1316,40 @@ mod tests {
             ),
             "{escalation:?}"
         );
+    }
+
+    /// **A cell whose partial does not certify counts as touching the
+    /// point.** The unit square in `z = 0`, read from `(0.5, 0.5, 10)`:
+    /// at `10` with certified partials, and at `0` once `S_u`'s `z`
+    /// component is a point bracket that does not certify. Red under a
+    /// read of its ordinary ends, which still say `10`.
+    #[test]
+    fn a_refused_partial_puts_its_cell_at_the_point() {
+        let kv = || geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+            .to_vec();
+        let net = geom::surfaces::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap();
+        let p =
+            |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
+        let cell = PatchCell {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+            s_u: p(1.0, 0.0, 0.0),
+            s_v: p(0.0, 1.0, 0.0),
+            s_uu: p(0.0, 0.0, 0.0),
+            s_uv: p(0.0, 0.0, 0.0),
+            s_vv: p(0.0, 0.0, 0.0),
+            s_u_sup: 1.0,
+            s_v_sup: 1.0,
+            m_sup: 1.0,
+            m_inf: 1.0,
+        };
+        let at = geom_core::Point3::new(0.5, 0.5, 10.0);
+        assert_eq!(cell_distance(&net, &cell, at), 10.0, "the certified cell");
+        let mut refused = cell;
+        refused.s_u[2] = geom_core::test_support::refused_point(0.0);
+        assert_eq!(cell_distance(&net, &refused, at), 0.0, "the refused cell");
     }
 
     /// **A refused cell refuses the patch's chart speed.** One cell

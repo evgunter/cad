@@ -277,17 +277,17 @@ const WALL: f64 = 0.05;
 /// Half-angle of the body's flare, from the axis.
 const ALPHA: f64 = 30.0 * PI / 180.0;
 /// Height of the neck's top rim, where the loop attaches.
-const ZTOP: f64 = 3.0;
+pub const ZTOP: f64 = 3.0;
 /// Height of the spine corner where the neck turns into the flare.
 const ZNECK: f64 = 2.5;
 /// Spine radius of the neck→flare blend (authored in the meridian;
 /// `fillet_edges` rolls the same blend — findings entry 3).
-const RF: f64 = 0.30;
+pub const RF: f64 = 0.30;
 /// Spine radius of the wide bottom rim — the "wide torus" the surface
 /// turns back on. Its hole comes out at exactly `R` by construction.
 const RRIM: f64 = 0.80;
 /// Spine radius of each of the top loop's two arcs.
-const RLOOP: f64 = 1.20;
+pub const RLOOP: f64 = 1.20;
 
 /// The 270° arc, over the top.
 const SWEEP_OVER: f64 = 1.5 * PI;
@@ -317,13 +317,13 @@ const DELTA: f64 = 1e-2;
 /// `(radius, height)`. Structure selection is f64 (C6): these are the
 /// tangent points and centres the band is authored from, chosen once
 /// and embedded into whatever scalar the scene runs at.
-struct Meridian {
+pub struct Meridian {
     /// Spine radius of the neck→flare blend (a parameter, not a
     /// constant, because wall 7 builds bottles at other proportions).
     rf: f64,
     /// Outer and inner offsets of the tube radius.
-    ro: f64,
-    ri: f64,
+    pub ro: f64,
+    pub ri: f64,
     /// The flare's direction, `(sin α, −cos α)`.
     dir: (f64, f64),
     /// Where the rim arc leaves the flare, on the outer offset…
@@ -355,14 +355,14 @@ struct Meridian {
 /// on its far side has centre radius `R + RRIM`; walking the flare
 /// line out to the radius where its perpendicular hits that centre
 /// gives the tangent point, and the centre's height follows.
-fn meridian() -> Meridian {
+pub fn meridian() -> Meridian {
     meridian_at(ALPHA, RF, RRIM, RLOOP)
 }
 
 /// The meridian at any proportions. Only wall 7 asks for proportions
 /// other than the bottle's own: it re-runs the flare-angle × rim-radius
 /// lattice points that used to decide whether the cap meshed.
-fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
+pub fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
     let half = WALL / 2.0;
     let (sa, ca) = alpha.sin_cos();
     // The flare line runs from the spine corner (R, ZNECK) along dir.
@@ -402,7 +402,7 @@ fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
 /// neck→flare blend curves AWAY from the axis (outer offset is the
 /// smaller radius), the rim curves toward it. That bookkeeping is
 /// finding 1 in its most concrete form.
-fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
+pub fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
     let half = S::from_f64(WALL / 2.0);
     Open.at(p2::<S>(m.ri, ZTOP))
         .toward(S::from_f64(0.0), S::from_f64(-1.0), tol)
@@ -493,7 +493,7 @@ fn meridian_plane<S: Scalar>() -> SketchPlane<S> {
 /// Revolves a meridian band about the bottle's axis. `Full` is the
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
-fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
+pub fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
     let plane = meridian_plane::<S>();
     revolve(
         &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
@@ -526,7 +526,7 @@ fn into_arc(m: &Meridian, psi: f64) -> (f64, f64) {
 /// The top loop's whole spine: the two tangent arcs, sampled at exact
 /// points ([`SPINE_OVER`] + [`SPINE_IN`] intervals) and interpolated
 /// at degree 3, so the U-turn is ONE path.
-fn loop_spine(m: &Meridian) -> NurbsCurve3<f64> {
+pub fn loop_spine(m: &Meridian) -> NurbsCurve3<f64> {
     let over =
         (0..=SPINE_OVER).map(|k| over_arc(SWEEP_OVER * f64::from(k) / f64::from(SPINE_OVER)));
     let into = (1..=SPINE_IN)
@@ -611,7 +611,7 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 /// WORKAROUND, to be deleted: the loop is a sweep, and this function
 /// is replaced by [`swept_loop`] on [`exact_spine`] once wall 9 stops
 /// refusing.
-fn lofted_loop<S: Scalar>(
+pub fn lofted_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
     section: &[ConstructedLoop<f64>],
     stations: usize,
@@ -682,13 +682,13 @@ fn swept_loop<S: Scalar>(
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
 /// loop was lofted along.
-struct Bottle<S: Scalar> {
-    bulb: AtRestBody<S>,
-    top: AtRestBody<S>,
-    spine: NurbsCurve3<f64>,
+pub struct Bottle<S: Scalar> {
+    pub bulb: AtRestBody<S>,
+    pub top: AtRestBody<S>,
+    pub spine: NurbsCurve3<f64>,
 }
 
-fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
+pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = loop_spine(&m);
     let top = lofted_loop::<S>(
@@ -717,7 +717,11 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
 /// continuous across it, but its parametric derivative jumps there, and
 /// the spline-face arm reads no Jacobian across such a knot. Shared with
 /// `verbs_gate_r1_probes`, so the two cannot drift.
-fn wall3_pinned<S: Scalar>(e: &BooleanError, bulb: &AtRestBody<S>, top: &AtRestBody<S>) -> bool {
+pub fn wall3_pinned<S: Scalar>(
+    e: &BooleanError,
+    bulb: &AtRestBody<S>,
+    top: &AtRestBody<S>,
+) -> bool {
     let BooleanError::SplineCrossingUnsettled {
         operand: Operand::A,
         edge,
@@ -758,7 +762,7 @@ fn wall3_pinned<S: Scalar>(e: &BooleanError, bulb: &AtRestBody<S>, top: &AtRestB
 /// NURBS face has no seam lane under ∖ and ∩, and the roster has no
 /// covered rung whatever the pair; it answers before the sweep that
 /// stops wall 3.
-fn wall4_pinned(e: &BooleanError) -> bool {
+pub fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::CurvedPairUnsupported {
@@ -1415,196 +1419,4 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          findings entry 11's seam measures (they become zero) and drop `lofted_loop`'s \
          gap comment",
     );
-}
-
-#[cfg(test)]
-mod loop_volume_grid {
-    //! **The loop's volume over its knots, its degree and its place.**
-    //! The same tube, lofted with two semicircles or with eighth arcs a
-    //! wall, at 9 or 17 stations, at v-degree 2 or 3, here or moved
-    //! across the world origin: tier 3 decides each one's sign, the
-    //! continuation meets the printed precision, and the bracket holds
-    //! the body's own volume from an independent quadrature of its
-    //! patches ([`crate::patch_quadrature`]). The lofts differ between
-    //! cells (a coarse skin differs from A·L by up to 1 %), so each
-    //! cell is held to its own body's oracle, not to A·L.
-
-    use super::*;
-    use pncad::geom_core::Vec3;
-    use pncad::prelude::circle_split;
-
-    #[test]
-    fn the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place() {
-        let tol = Tol::witness();
-        let m = meridian();
-        let spine = loop_spine(&m);
-        let ring = PI * (m.ro.powi(2) - m.ri.powi(2));
-        // Across the origin: the loop's arcs straddle it.
-        let across = Vec3::new(-1.2, 0.0, -1.8);
-        for (arcs, stations, v_degree, moved) in [
-            (2, 9, 2, false),
-            (2, 9, 3, false),
-            (4, 9, 3, false),
-            (8, 9, 3, false),
-            (2, 17, 3, true),
-        ] {
-            let cell = format!(
-                "{arcs} arcs a wall, {stations} stations, v-degree {v_degree}{}",
-                if moved {
-                    ", moved across the origin"
-                } else {
-                    ""
-                }
-            );
-            let section: Vec<ConstructedLoop<f64>> = [m.ro, m.ri]
-                .into_iter()
-                .map(|r| {
-                    if arcs == 2 {
-                        circle(p2(0.0, 0.0), r, tol).expect("a wall").into()
-                    } else {
-                        circle_split(p2(0.0, 0.0), r, arcs, 0.0, tol)
-                            .expect("a wall")
-                            .into()
-                    }
-                })
-                .collect();
-            let body = lofted_loop::<f64>(&spine, &section, stations, v_degree, tol)
-                .unwrap_or_else(|e| panic!("{cell}: the loop lofts: {e:?}"));
-            let body = if moved {
-                let motion = RigidMotion::translation(across).expect("a translation");
-                pncad::topo::transform_rigid(&body, &motion, tol)
-                    .unwrap_or_else(|e| panic!("{cell}: the loop moves: {e:?}"))
-            } else {
-                body
-            };
-            let measured = pncad::topo::validate_geometric_certificate(&body, tol)
-                .unwrap_or_else(|e| panic!("{cell}: tier 3 refuses: {e:?}"))
-                .measure(crate::printed())
-                .unwrap_or_else(|e| panic!("{cell}: the volume refuses: {e:?}"));
-            assert_eq!(
-                measured.stop,
-                pncad::topo::Stop::Met,
-                "{cell}: the volume stops short of the printed precision at ε = {:e}",
-                tol.eps()
-            );
-            let props = measured.enclosure;
-            let c = if moved {
-                across
-            } else {
-                Vec3::new(0.0, 0.0, 0.0)
-            };
-            let about = [[c.x, c.y, c.z], [RLOOP + c.x, c.y, ZTOP + c.z]];
-            let coarse = crate::patch_quadrature::measure(&body, 16, &about, |_, _| ring);
-            let oracle = crate::patch_quadrature::measure(&body, 24, &about, |_, _| ring);
-            let [v0, v1] = oracle.volume[..] else {
-                unreachable!("two reference points")
-            };
-            assert!(
-                (coarse.volume[0] - v0).abs() <= 1e-12 * v0 && (v0 - v1).abs() <= 1e-12 * v0,
-                "{cell}: the oracle converges and its shell closes: {coarse:?} vs {oracle:?}"
-            );
-            println!(
-                "{cell} at ε = {:e}: V = {} ± {:.1e}, oracle {v0}",
-                tol.eps(),
-                props.volume,
-                props.volume_pad
-            );
-            assert!(
-                (props.volume - v0).abs() <= props.volume_pad,
-                "{cell}: the loop's V = {} ± {:.1e} misses its own quadrature's {v0}",
-                props.volume,
-                props.volume_pad
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod verbs_gate_r1_probes {
-    //! The bottle's two boolean walls, as a TEST rather than only as
-    //! a run-the-whole-tour probe.
-    //!
-    //! `wall_probes` reaches these two through a full render pass, so
-    //! a change to the boxes under the operand gate could only be
-    //! re-measured by rebuilding and re-running the tour. That is a
-    //! twenty-minute answer to a one-second question, and the walls
-    //! are exactly what an operand-gate change moves.
-    //!
-    //! Same pins as the walls themselves — one matcher each,
-    //! `wall3_pinned` and `wall4_pinned`, so the two cannot drift.
-    //!
-    //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
-    //! It is a SUBTRACT, and the revert roster it refuses at, on the
-    //! loop's NURBS wall, has no covered rung at all: a decided
-    //! coincidence supplies the verdict a germ arm would have, and it
-    //! cannot supply a seam lane to revert through. (Wall 3, a union,
-    //! passes that roster and refuses in the sweep.)
-
-    use super::*;
-
-    #[test]
-    fn the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims() {
-        let tol = Tol::witness();
-        let Bottle {
-            bulb: bulb_body,
-            top,
-            ..
-        } = bottle::<f64>(tol);
-
-        let joined = pncad::topo::union(&bulb_body, &top, tol)
-            .expect_err("the bottle's pieces still cannot be joined");
-        println!("klein wall 3: {joined:?}");
-        assert!(
-            wall3_pinned(&joined, &bulb_body, &top),
-            "wall 3 must refuse an edge of the bulb on a crease of the loop's NURBS wall: \
-             {joined:?}"
-        );
-
-        let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)
-            .expect_err("the self-intersection still cannot be trimmed");
-        println!("klein wall 4: {trimmed:?}");
-        assert!(
-            wall4_pinned(&trimmed),
-            "wall 4 must name a NURBS wall of the loop against a planar face of the bulb: \
-             {trimmed:?}"
-        );
-    }
-}
-
-#[cfg(test)]
-mod r1_mesh2_review_probes {
-    //! R1 review probes for MESH-2 (PR #1421, issue 555): the
-    //! flare-angle × rim-radius lottery cells, exercised through the
-    //! public `mesh::tessellate` door on the real Klein bulb. The
-    //! probe PRINTS each cell's outcome rather than asserting, so the
-    //! identical file runs on the merge base (where the four cells
-    //! should refuse) and on the head (where they should mesh).
-
-    use super::*;
-
-    #[test]
-    fn r1_lottery_cells_outcomes() {
-        let tol = Tol::witness();
-        for (alpha_deg, rim) in [
-            (24.0_f64, 0.85_f64), // PR re-sweep cell
-            (26.0, 0.75),         // PR re-sweep cell
-            (30.0, 0.85),         // issue 555 cell
-            (34.0, 1.00),         // issue 555 cell
-            (30.0, 0.80),         // the shipped bottle: control, always meshed
-            (28.0, 0.85),         // an "ok" neighbour in both sweeps
-        ] {
-            let body = bulb::<f64>(
-                band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
-                Revolution::Full,
-                tol,
-            );
-            match pncad::mesh::tessellate(&body, 1e-2, tol) {
-                Ok(m) => println!(
-                    "R1PROBE cell ({alpha_deg}, {rim}): MESHED {} triangles",
-                    pncad::mesh::validate::triangle_count(&m)
-                ),
-                Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
-            }
-        }
-    }
 }
