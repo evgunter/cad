@@ -487,7 +487,9 @@ pub struct FaceSite {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlap {
     /// One connected overlap of the two copies' material, named by the
-    /// faces of both copies that bound it, sorted and deduplicated.
+    /// faces that bound it, sorted and deduplicated: each on the copy
+    /// whose face the intersection keeps, which for a face of one copy
+    /// lying on a face of the other is the first copy's (Eq. 15.3).
     Bounded {
         /// The bounding faces.
         faces: Vec<FaceSite>,
