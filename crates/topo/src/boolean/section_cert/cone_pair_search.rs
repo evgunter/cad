@@ -1045,8 +1045,20 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     let partner = &pose.partner.surface;
     let reach = reach_of(k);
     let b = band();
-    let sec = classify(&cone, partner, reach, b);
-    let back = classify(partner, &cone, reach, b);
+    let sec = classify(
+        &cone,
+        partner,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
+    let back = classify(
+        partner,
+        &cone,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
     let clear = m.min(clear_of(k, partner));
     let mut bad = Vec::new();
@@ -1268,7 +1280,13 @@ fn dump_for_the_mpmath_oracle() {
                 continue;
             };
             done += 1;
-            let sec = classify(&k.surface(), &pose.partner.surface, reach_of(&k), band());
+            let sec = classify(
+                &k.surface(),
+                &pose.partner.surface,
+                reach_of(&k),
+                Some(geom_brep::SsiLane::marched()),
+                band(),
+            );
             println!(
                 "CPDUMP {}",
                 dump_line(name, k.scale, &k.surface(), &pose.partner.surface, &sec)

@@ -1138,6 +1138,25 @@ pub(crate) enum Folded<T: Real> {
     Chained(geom_core::RigidMotion<T>),
 }
 
+/// **Whether `placement`'s bundle is one the doors admit**: each mate's
+/// own admission ([`admit_mate`]), the bundle rule ([`overconstrained`])
+/// and the pin ([`unpinned`]), the reading the edit doors and the solve
+/// ask, over the recipe alone. A loaded or rebound bundle no edit door
+/// saw can fail it; the solve then refuses the placement, and what the
+/// bundle's mates say is no statement.
+pub(crate) fn admits<P>(
+    doc: &Doc<P>,
+    placement: RecipeNodeId,
+    bundle: &[super::Constraint],
+) -> bool {
+    let equations = equations_of(doc, bundle);
+    bundle.iter().all(|c| {
+        c.mate()
+            .is_none_or(|mate| admit_mate(doc, MateRef::new(placement, c.id), mate).is_ok())
+    }) && overconstrained(placement, &equations).is_ok()
+        && unpinned(placement, &equations).is_ok()
+}
+
 /// **One placement's bundle, solved.** `equations` are the bundle's,
 /// read once off its definitions ([`equations_of`]) — the reading the
 /// edit doors ask the rule of, so the door and the solve decide over

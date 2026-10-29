@@ -1571,6 +1571,9 @@ impl NurbsSurface<Interval> {
             Interval::from_bounds(v.0, v.1),
         );
         let poison = || poison_point(iu + iv);
+        // The knot reads here and in `clip_to_span` only select cells and
+        // clip ends: the restriction re-admits each end to the span's own
+        // knots (`blossom`'s `admit`) and refuses one outside it.
         let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
             let (start, end) = knots.domain();
             start.hi() <= lo && lo <= hi && hi <= end.lo()
@@ -1641,6 +1644,9 @@ impl NurbsSurface<Interval> {
             Interval::from_bounds(u.0, u.1),
             Interval::from_bounds(v.0, v.1),
         );
+        // The knot reads here and in `clip_to_span` only select cells and
+        // clip ends: the restriction re-admits each end to the span's own
+        // knots (`blossom`'s `admit`) and refuses one outside it.
         let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
             let (start, end) = knots.domain();
             start.hi() <= lo && lo <= hi && hi <= end.lo()

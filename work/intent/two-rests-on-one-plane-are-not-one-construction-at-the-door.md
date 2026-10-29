@@ -2,11 +2,12 @@
 id: two-rests-on-one-plane-are-not-one-construction-at-the-door
 kind: issue
 title: Two blocks each resting on one floor make a flush pair the door leaves unproven (over the budget), though the two rests generate their equivalence
-status: open
+status: closed
 opened: 2026-10-29
 priority: P2
 cost: M
 refs: [tangent-and-coaxial-scenes-are-in-the-corpus]
+closed: 2026-10-29
 ---
 
 Measured by INTENT stage 6 PR A on the corpus document
@@ -40,3 +41,4 @@ is no mate's statement, so they are rightly rung two's or three's.
 **Done when** the door proves the bases' flush pair by rung one (the
 mates' generated equivalence), and the pin above flips that row.
 
+**Closed by INTENT stage 6 PR B** (`a-coaxiality-is-one-axis-read-twice`): rung one reads the equivalence the mates generate, closed transitively (`coincide/stated.rs`). The bases' flush row is now `SameConstruction`, pinned by `coincidence_door::two_blocks_resting_on_one_floor_are_one_plane_at_their_bases`. The tops, the side walls and the abutting walls stay over the budget, as above. The at-rest row lays the union's base on the floor's top, and that base is a face the union mints from the two bases, a construction of its own, so it stays unproven.

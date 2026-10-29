@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::printed;
+use demo_tour::booleans::at_rest;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2};
@@ -18,16 +18,6 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, EdgeKey, SolidContainment};
 
 use crate::common::rim_select::{Seeds, rim_at};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 fn tol() -> Tol {
     Tol::witness()
@@ -111,8 +101,8 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p =
-        mass_properties(&at_rest(body, tol()), tol(), printed::printed()).expect("mass properties");
+    let p = mass_properties(&at_rest(body, tol()), tol(), demo_tour::printed())
+        .expect("mass properties");
     assert_eq!(p.enclosure.volume_pad, 0.0, "closed-form faces only");
     p.enclosure.volume
 }
@@ -315,7 +305,7 @@ fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
         .expect("a ball subtracted into the vase's top annulus builds");
     let body = &out.body().expect("material remains").body;
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
-    let got = mass_properties(body, tol(), printed::printed())
+    let got = mass_properties(body, tol(), demo_tour::printed())
         .expect("mass properties")
         .enclosure
         .volume;
