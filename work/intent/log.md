@@ -1052,3 +1052,13 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - Stage 6 B waits on #6004, and C and D wait on #6006.
   - **One copy door** (#5999): a FULL review gave APPROVE-WITH-FIXES with one MAJOR. A mirror-product part's overlap goes silent across a seam. The cause predates this PR, and the lane fixes it in the PR.
   - **Housekeeping:** DESIGN's "state of the build" now lists stage 3 C–G and stage 4 as built. That describes merged work, so it needs no ratification.
+- 2026-10-29 08:45 —
+  - **#5999 merged: one copy door.**
+    - Every copy, mirror and pick goes through `Carry::copied`, and records have one home in `Carry`.
+    - Single FULL review: APPROVE-WITH-FIXES, with one MAJOR. A mirror-product part's overlap went silent across a seam, a gap that predates the PR.
+    - Fix: the seam now carries the part's whole at-rest reading (`checks::at_rest::whole_reading`).
+    - Filed a P3: `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census`.
+  - **#6009 merged: a ring of N closes whatever its members' cosines.**
+    - Repair 1: the rational-turn fold is deferred past rule H's linearisation. N = 9 and 24 now prove every seat, at no cost and with no golden moved.
+    - Single FULL review: APPROVE-WITH-FIXES, no false proof found. The fix pass gave each settle branch a row that goes red without it, and one `turn::over` for a zero denominator.
+  - **Nightly triage 10-29** dispatched (`session_01VyvYnJYF72fBxdR7k7z2E7`) with the corrected brief: the full doc-gate, README bands, attribution without re-running the slow set.

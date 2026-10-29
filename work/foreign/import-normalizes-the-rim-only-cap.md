@@ -2,11 +2,14 @@
 id: import-normalizes-the-rim-only-cap
 kind: issue
 title: STEP import re-mints a rim-only sphere cap into the seamed form, as a reported normalization
-status: open
+status: closed
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
 priority: P0
 cost: M
+closed: 2026-10-29
+pr: 6007
+branch: foreign/pole-vertex
 ---
 
 
@@ -89,3 +92,7 @@ What import does is settled; the pole's normal form is not, and is not this row'
 - **Not this row: the form itself.** Both designers lean to a one-face form (a pole reached by one wrap meridian, a vertex with one edge), which would change tier 2's valence-1 ban, revolve's two π-bands and the sweep README's minimal sphere. That question is `work/carve/a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote.md`'s, put to Ev with a probe of the consumers a one-face pole meets. If Ev picks it, the shared description flips and import's target flips with revolve's.
 - **Fixtures:** a FreeCAD `Part.makeSphere(..).cut(box)` cap through `crates/step-import/tests/fixtures/freecad/gen.py` if FreeCAD is reachable (it shows which statement OCC really writes, including a possible degenerate pole edge, a fourth statement of the same defect); the hand-made `rim-only-cap/` files; `seamed.step` lifted from `tess/rim-only-cap-diag` at `83833e586`. Rows that move by design: `meridian_free_cap.rs`, `tier_gate.rs`'s rim-only and halfcap rows, `poles_inside_a_seam_region.rs` (normalized now, not refused), `loops_the_meridian_guard_admits.rs`'s doc, `MeridianFreeCurvedFace`'s recourse text, and the `entities.rs` face-gate message naming a "sphere-zone band" re-mint that does not exist.
 - **Ratified text:** DESIGN `[topology]`'s seam clause gains its second exception, "or where a chart singularity lies inside a face, which is a vertex of it" (the rule is ratified in `crates/geom-brep/README.md` C12 (7), [ev] PR 4549). That sentence is an Ev decision and rides the `[ev]` PR with the form question, not this row's unit.
+
+## Closed (PR 6007, FOREIGN implementer, 2026-10-29)
+
+Built to the `## Designed` spec: `NormalizationKind::ChartSingularityVertex { found }` (`Interior`, `InsideEdge`, `ValenceOneVertex`; `DegenerateApexCone` retired into it), the pass in `crates/step-import/src/normalize/singularity.rs`, the shared description `geom::pole_form`, cited by revolve's `build_wire`, `entities::edge_free_face` and the pass. The row reading it is `crates/step-import/tests/chart_singularity_vertex.rs`. FreeCAD was not runnable; OCC 7.8.1 (through OCP) writes the cap as the seamed statement, a seam to a valence-1 pole with no degenerate pole edge (`fixtures/occ/`). Residue filed: `a-sphere-with-a-hole-stated-as-a-vertex-loop-refuses`, `the-coherence-channel-has-no-shipped-finding`, `the-join-refuses-whole-row-lost-its-import-witness`.
