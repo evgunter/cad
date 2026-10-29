@@ -65,7 +65,7 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 | P0 | `torus-germ-pairs-have-no-section-frame` | H +design | dispatched (sphere half) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
 | P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The cylinder × torus door over a Positive gap |
 | P0 | `torus-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The torus × torus door over a Positive gap |
-| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | open | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
+| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | closed (PR 6047) | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
 | P0 | `a-general-torus-pose-lists-no-components` | H (decided) | dispatched | A section's components are the march's; a site's component is its foot (fork row 212) |
 | P1 | `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose` | M | dispatched | Two tori decided one surface twice (C5: decided once) |
 | P1 | `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane` | M | dispatched | A tube-circle tangency read twice (C5: decided once) |

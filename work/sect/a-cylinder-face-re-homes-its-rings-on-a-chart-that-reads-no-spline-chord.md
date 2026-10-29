@@ -7,6 +7,7 @@ opened: 2026-10-28
 closed: 2026-10-29
 priority: P1
 cost: M
+pr: 6047
 branch: sect/rehome-by-path
 ---
 
