@@ -743,3 +743,210 @@ fn a_traced_profile_round_trips() {
     let ev = eval(&loaded.doc);
     near(max_at(&ev, scene.boss, 1), RADIUS, "the same boss");
 }
+
+/// **The same boss typed by value stays where it was typed** when the
+/// radius moves: only the traced boss follows the cylinder.
+#[test]
+fn a_boss_typed_by_value_stays_when_the_radius_moves() {
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let (doc, footprint) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(vec![vec![
+            (0.0, BACK),
+            (REACH, BACK),
+            (REACH, RADIUS),
+            (0.0, RADIUS),
+        ]])),
+    );
+    let (doc, boss) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: footprint.into(),
+            distance: len(BOSS_H),
+        },
+    );
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetVarValue {
+            var: VarName::new("r").expect("a name").into(),
+            value: editor_core::FreeValue::Continuous(0.625),
+        },
+    );
+    let ev = eval(&doc);
+    near(max_at(&ev, cylinder, 0), 0.625, "the cylinder moved");
+    near(max_at(&ev, boss, 1), RADIUS, "the typed wall did not");
+}
+
+/// The largest coordinate `axis` of `node`'s vertices, at `f64`, of a
+/// profile's sweep `up` along its own `z`.
+fn swept_max(doc: ProfileDoc, profile: RecipeNodeId, axis: usize) -> f64 {
+    let (doc, swept) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.125),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        ev.node_error(swept).is_none(),
+        "the swept profile builds: {:?}",
+        ev.node_error(swept).map(|e| e.kind.to_string())
+    );
+    max_at(&ev, swept, axis)
+}
+
+/// **An arc about a centre runs to a crossing**: from `(2, 0)` about
+/// `(1, 0)` counter-clockwise, it enters the disc of the cylinder's
+/// radius at `(1/8, √(1/4 − 1/64))`.
+#[test]
+fn an_arc_about_a_centre_runs_onto_the_trace() {
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let ev = eval(&doc);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let steps = vec![
+        ProgramStep::At(len2([2.0, 0.0])),
+        ProgramStep::ArcTo(editor_core::ProgramArcData::Center {
+            c: len2([1.0, 0.0]),
+            winding: profile::ArcSweep::Ccw,
+            target: ProgramTarget::OnTrace {
+                face: 0,
+                crossing: TraceCrossing::first(TracePassage::Enter),
+            },
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let (doc, profile) = drawn_on(doc, cylinder, &editor_core::Frame::IDENTITY, wall, steps);
+    let ev = eval(&doc);
+    assert!(ev.node_error(profile).is_none(), "{:?}", ev.node_error(profile));
+    let (doc, swept) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.125),
+        },
+    );
+    let ev = eval(&doc);
+    let corner = vertices(&ev, swept)
+        .into_iter()
+        .min_by(|a, b| a[0].total_cmp(&b[0]))
+        .expect("vertices");
+    near(corner[0], 0.125, "the arc's end x");
+    near(corner[1], (0.25_f64 - 1.0 / 64.0).sqrt(), "the arc's end y");
+}
+
+/// **A line runs onto a planar face's trace** — the cylinder's top cap,
+/// cut by a plane through its axis — **and across a torus's**, whose
+/// trace in its midplane is two circles, to the second entry.
+#[test]
+fn a_line_runs_onto_a_plane_and_across_a_torus() {
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let ev = eval(&doc);
+    let caps: Vec<StableName> = all_faces(&ev, cylinder)
+        .into_iter()
+        .filter(|n| face_carrier_kind(&ev, cylinder, n) == Ok(SurfaceKind::Plane))
+        .collect();
+    assert_eq!(caps.len(), 2, "two caps");
+    // Sketch x along the world's x, sketch y up the axis; the line runs
+    // up from below both caps. It enters the bottom cap's material and
+    // leaves the top's, so a `leave` finds the top cap alone.
+    let upright =
+        editor_core::test_support::axes_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let up = || {
+        vec![
+            ProgramStep::At(len2([0.25, -0.5])),
+            ProgramStep::Toward {
+                dx: scl(0.0),
+                dy: scl(1.0),
+            },
+            ProgramStep::LineTo(ProgramTarget::OnTrace {
+                face: 0,
+                crossing: TraceCrossing::first(TracePassage::Leave),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.5]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let mut tops = Vec::new();
+    for cap in caps {
+        let (doc, profile) = drawn_on(doc.clone(), cylinder, &upright, cap, up());
+        let ev = eval(&doc);
+        match ev.node_error(profile) {
+            None => tops.push(swept_max(doc, profile, 2)),
+            Some(_) => assert_eq!(
+                trace_refusal(&ev, profile).fault,
+                TraceStepFault::NoSuchCrossing {
+                    crossing: TraceCrossing::first(TracePassage::Leave),
+                    found: 0,
+                },
+                "the bottom cap is entered, never left"
+            ),
+        }
+    }
+    assert_eq!(tops.len(), 1, "one cap is left: {tops:?}");
+    near(tops[0], HEIGHT, "the line leaves the top cap at its height");
+
+    let doc = ProfileDoc::empty_derived("s6c_torus", Tol::witness());
+    let (doc, ring) = fixture::insert(
+        doc,
+        Node::Tube {
+            major_radius: len(2.0),
+            window: editor_core::TubeWindow::Full,
+            minor_radius: len(0.5),
+        },
+    );
+    let ev = eval(&doc);
+    let tube = face(&ev, ring, SurfaceKind::Torus);
+    let across = vec![
+        ProgramStep::At(len2([-3.0, 0.0])),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::LineTo(ProgramTarget::OnTrace {
+            face: 0,
+            crossing: TraceCrossing {
+                passage: TracePassage::Enter,
+                nth: 2,
+            },
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let (doc, profile) = drawn_on(doc, ring, &editor_core::Frame::IDENTITY, tube, across);
+    near(
+        swept_max(doc, profile, 0),
+        1.5,
+        "the second entry is the inner circle beyond the hole",
+    );
+}
+
+/// **A traced face that vanishes is unresolved, typed**: the cylinder
+/// recut as a square has no round wall, and the profile tracing it
+/// refuses at its selection.
+#[test]
+fn a_vanished_traced_face_is_unresolved() {
+    let scene = traced_boss(RADIUS, None, boss_steps());
+    let disc = scene.doc.ids()[0];
+    let (doc, _) = fixture::step(
+        scene.doc,
+        DocEdit::SetProgram {
+            node: disc,
+            loops: vec![
+                LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)])
+                    .expect("a square"),
+            ],
+            ids: vec![vec![None; 5]],
+            fresh: Vec::new(),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        matches!(
+            ev.node_error(scene.footprint).map(|e| &e.kind),
+            Some(NodeErrorKind::SelectResolve { .. })
+        ),
+        "the traced face's selection is unresolved: {:?}",
+        ev.node_error(scene.footprint).map(|e| e.kind.to_string())
+    );
+}
