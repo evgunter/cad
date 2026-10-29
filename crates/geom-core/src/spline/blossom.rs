@@ -510,7 +510,7 @@ fn span_restrict(
 fn whole_bezier_span(span: Span<'_>, (a, b): (Interval, Interval)) -> bool {
     use crate::real::Bounds as _;
     let (p, s, t) = span_knots(span);
-    let point_at = |x: Interval, k: f64| x.lo() == k && x.hi() == k;
+    let point_at = |x: Interval, k: f64| x.is_certified() && x.lo() == k && x.hi() == k;
     // Indexing justified as `span_ratio`'s: `p ≤ s` and `s + p < t.len()`.
     point_at(a, t[s])
         && point_at(b, t[s + 1])
@@ -632,6 +632,27 @@ mod tests {
         assert!(
             bare.iter().all(|c| !c.is_certified()),
             "the bare segment's door refuses a holed row whole: {bare:?}"
+        );
+        // A refused end whose ordinary ends sit on the knot is no exact
+        // point: the certified row restricted at it is the pyramid's, and
+        // the first output, read at that end alone, refuses. Red under a
+        // shortcut that reads the end's bounds alone.
+        let refused_end = crate::test_support::refused_point(2.0);
+        let at_refused = span.restrict((refused_end, ends.1)).unwrap();
+        let (closure, ratio) = span_ratio(span.span());
+        let pyramid_at = pyramid(
+            &certified,
+            (admit(refused_end, 0, closure).unwrap(), ends.1),
+            ratio,
+        );
+        assert_eq!(
+            bits(&at_refused),
+            bits(&pyramid_at),
+            "a refused end is the pyramid's"
+        );
+        assert!(
+            !at_refused[0].is_certified(),
+            "the output at the refused end refuses: {at_refused:?}"
         );
     }
 
