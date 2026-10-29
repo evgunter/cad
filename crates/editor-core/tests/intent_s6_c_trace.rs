@@ -984,3 +984,6 @@ fn a_vanished_traced_face_is_unresolved() {
         ev.node_error(scene.footprint).map(|e| e.kind.to_string())
     );
 }
+
+#[path = "review_s6c_r1.rs"]
+mod review_s6c_r1;
