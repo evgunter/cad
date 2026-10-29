@@ -2022,6 +2022,9 @@ pub(super) mod section_cert_rows;
 #[path = "section_cert_spline_rows.rs"]
 mod section_cert_spline_rows;
 #[cfg(test)]
+#[path = "section_cert_spline_review_rows.rs"]
+mod section_cert_spline_review_rows;
+#[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;
 #[cfg(test)]
