@@ -2,7 +2,7 @@
 id: validity-refuses-an-interior-chart-singularity
 kind: issue
 title: Validity refuses a revolution-chart face whose loop is rims only (a pole or apex interior to the face)
-status: spec
+status: dispatched
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census, import-normalizes-the-rim-only-cap]
 priority: P0
