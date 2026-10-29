@@ -223,6 +223,16 @@ fn window(u: (f64, f64), v: (f64, f64)) -> Option<UvWindow> {
     UvWindow::new(u.0, u.1, v.0, v.1)
 }
 
+/// The sheet's window over the parameter `t`, `None` where `t` does not
+/// certify: a NURBS carrier is read off boxes over the window, which
+/// carry no decoration of `t`'s, so the refusal is asked here.
+fn certified_window(t: Interval) -> Option<UvWindow> {
+    if !t.is_certified() {
+        return None;
+    }
+    window((t.lo(), t.hi()), (0.0, 0.0))
+}
+
 /// The enclosure of a vector that does not certify, which fails every
 /// test.
 fn poison() -> [Interval; 3] {
@@ -306,7 +316,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
                 let (s, co) = Real::sin_cos(t);
                 core::array::from_fn(|k| c[k] + e1[k] * co + e2[k] * s)
             }
-            Self::Spline { boxes, .. } => match window((t.lo(), t.hi()), (0.0, 0.0)) {
+            Self::Spline { boxes, .. } => match certified_window(t) {
                 Some(w) => {
                     let b = boxes.rect_box(w);
                     [b.x, b.y, b.z]
@@ -323,7 +333,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
                 let (s, co) = Real::sin_cos(t);
                 core::array::from_fn(|k| e2[k] * co - e1[k] * s)
             }
-            Self::Spline { boxes, .. } => match window((t.lo(), t.hi()), (0.0, 0.0)) {
+            Self::Spline { boxes, .. } => match certified_window(t) {
                 Some(w) => {
                     let b = boxes.deriv_box(w, true);
                     [b.x, b.y, b.z]
