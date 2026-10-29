@@ -14,7 +14,7 @@
 //! | plane | origin, outward normal | `bool_plane_parallel` (·arm), `bool_plane_offset` |
 //! | sphere | centre, radius | `carrier_sphere_center`, `carrier_sphere_radius` |
 //! | cylinder | axis line, radius | `carrier_cyl_axis_parallel` (·arm), `carrier_cyl_axis_offset`, `carrier_cyl_radius` |
-//! | torus | centre, axis line, both radii | `carrier_torus_axis_parallel` (·arm), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius` |
+//! | torus | centre, axis line, both radii | the pair's own coincidence ([`geom_brep::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
 //!
 //! The lever arms are the honest ones: an ANGULAR margin (two
 //! normalized directions crossed) is dimensionless, so it is metered
@@ -382,8 +382,10 @@ pub(crate) fn carrier_eq_reading<T: Decide>(
 /// extent: it stands only where the declared reading's sum decides Zero
 /// too ([`coincident_as_declared`]), so the glue an undeclared pair
 /// takes is the one its declaration would verify
-/// [`ContactVerdict::Definite`]. The corner sites read their own arm,
-/// not a pair's extent, and take [`carrier_eq_verdict`] as it is.
+/// [`ContactVerdict::Definite`]. A torus pair's undeclared coincidence
+/// already stands on that bound ([`geom_brep::tori_coincide`]). The
+/// corner sites read their own arm, not a pair's extent, and take
+/// [`carrier_eq_verdict`] as it is.
 ///
 /// # Errors
 ///
@@ -400,7 +402,7 @@ pub(super) fn pair_door_reading<T: Decide>(
             relation @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite),
             verdict,
             margin,
-        )) if !id.declared => {
+        )) if !id.declared && torus_of(c1).zip(torus_of(c2)).is_none() => {
             let sum = coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
                 CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
@@ -479,26 +481,28 @@ fn undeclared_ladder<T: Decide>(
             *w1 == *w2,
             band,
         ),
-        (
-            CarrierDesc::Torus {
-                center: p1,
-                axis: a1,
-                major_radius: r1,
-                minor_radius: t1,
-                outward: w1,
-            },
-            CarrierDesc::Torus {
-                center: p2,
-                axis: a2,
-                major_radius: r2,
-                minor_radius: t2,
-                outward: w2,
-            },
-        ) => data_rungs(
-            &torus_data((*p1, *a1, *r1, *t1), (*p2, *a2, *r2, *t2), arm),
-            *w1 == *w2,
-            band,
-        ),
+        (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => {
+            let same = if w1 == w2 {
+                CarrierRelation::SameOriented
+            } else {
+                CarrierRelation::SameOpposite
+            };
+            let (Some(t1), Some(t2)) = (torus_of(&c1), torus_of(&c2)) else {
+                unreachable!("two torus descriptions read as tori")
+            };
+            match geom_brep::tori_coincide(t1, t2, band) {
+                geom_brep::TorusCoincidence::One(margin) => {
+                    Ok((same, ContactVerdict::Definite, Some(margin)))
+                }
+                geom_brep::TorusCoincidence::Apart => {
+                    Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None))
+                }
+                geom_brep::TorusCoincidence::Undecided(diag) => Err(CarrierEqError::Undecided {
+                    coincidence: CoincidenceMeasure::not_zero(diag),
+                    relation: same,
+                }),
+            }
+        }
         // Different kinds: definitely different carriers. A plane is
         // not a cylinder at any radius, so this needs no numerics.
         _ => Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None)),
@@ -553,39 +557,40 @@ fn cylinder_data<T: Decide>(
     ]
 }
 
-/// The torus's data. The axis LINE, as for a cylinder; the offset
-/// datum, however, is NOT a cylinder's: a torus pins a point ON its
-/// axis (the tube midplane's centre), so the whole centre separation is
-/// the datum and projecting out its axial part would discard a real
-/// difference — two coaxial tori slid along the axis are different
-/// carriers.
-fn torus_data<T: Decide>(
-    (p1, a1, r1, t1): (Point3<T>, Vec3<T>, T, T),
-    (p2, a2, r2, t2): (Point3<T>, Vec3<T>, T, T),
-    arm: T,
-) -> Vec<Datum<T>> {
-    vec![
-        (
-            "carrier_torus_axis_parallel",
-            Contradiction::TorusAxesNotParallel,
-            Margin::levered(a1.cross(a2).norm(), arm),
-        ),
-        (
-            "carrier_torus_center",
-            Contradiction::TorusCentresDiffer,
-            Margin::norm3(p1 - p2),
-        ),
-        (
-            "carrier_torus_major_radius",
-            Contradiction::TorusMajorRadiiDiffer,
-            Margin::of(r1 - r2),
-        ),
-        (
-            "carrier_torus_minor_radius",
-            Contradiction::TorusTubeRadiiDiffer,
-            Margin::of(t1 - t2),
-        ),
+/// The torus's data, as the pair's coincidence reads them
+/// ([`geom_brep::TorusDisplacement`]), each with the fact it
+/// contradicts.
+fn torus_data<T: Decide>(d: &geom_brep::TorusDisplacement<T>) -> Vec<Datum<T>> {
+    [
+        Contradiction::TorusAxesNotParallel,
+        Contradiction::TorusCentresDiffer,
+        Contradiction::TorusMajorRadiiDiffer,
+        Contradiction::TorusTubeRadiiDiffer,
     ]
+    .into_iter()
+    .zip(d.data)
+    .map(|(fact, (name, margin))| (name, fact, margin))
+    .collect()
+}
+
+/// A torus description as the pair's coincidence reads it; `None` for
+/// another kind.
+fn torus_of<T: geom_core::Real>(c: &CarrierDesc<T>) -> Option<geom_brep::TorusData<T>> {
+    match *c {
+        CarrierDesc::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(geom_brep::TorusData {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+        }),
+        _ => None,
+    }
 }
 
 /// `v`'s part perpendicular to the unit `axis`.
@@ -609,8 +614,8 @@ pub(crate) use geom_brep::line_tilt;
 /// - cylinder — the axis offset is read at the second description's
 ///   axis point, which moves along its axis to the foot of the
 ///   extent's centre;
-/// - torus — the datum is the centre: the arm is the extent's reach
-///   from it.
+/// - torus — the pair's coincidence reads no extent
+///   ([`geom_brep::tori_coincide`]), and the pair passes through.
 ///
 /// Sphere pairs and mixed kinds carry no angular datum; they pass
 /// through with the arm read from the extent's centre.
@@ -641,9 +646,6 @@ fn at_consumed_extent<T: geom_core::Real>(
                 },
                 foot,
             )
-        }
-        (c1, c2 @ CarrierDesc::Torus { center, .. }) if matches!(c1, CarrierDesc::Torus { .. }) => {
-            (c1, c2, center)
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -689,10 +691,9 @@ fn definite(predicate: &'static str, band: Band) -> Indeterminate {
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
 ///   axis) plus `t` times the reach from `p` (widened by that offset,
 ///   so it holds from either axis), plus the radius difference;
-/// - torus — the centre separation, the major-radius difference and
-///   `t·max(R₁, R₂)` move the tube's core circle, plus the
-///   minor-radius difference; this holds at every point of the torus,
-///   whatever the ball.
+/// - torus — the pair's own displacement bound
+///   ([`geom_brep::TorusDisplacement`]), which holds at every point of
+///   the torus, whatever the ball.
 ///
 /// The verdict, its trilean, and the margin its upper bound was decided
 /// on: Zero for a [`ContactVerdict::Definite`], in band for a
@@ -971,31 +972,16 @@ fn reading<T: Decide>(
                 cylinder_data((o1, a1, r1), (pivot, a2, r2), arm),
             )
         }
-        (
-            CarrierDesc::Torus {
-                center: p1,
-                axis: a1,
-                major_radius: r1,
-                minor_radius: t1,
-                ..
-            },
-            CarrierDesc::Torus {
-                center: p2,
-                axis: a2,
-                major_radius: r2,
-                minor_radius: t2,
-                ..
-            },
-        ) => {
-            let arm = r1.max(r2);
-            let core = (p1 - p2).norm()
-                + (r1 - r2).abs()
-                + Margin::levered(line_tilt(a1, a2), arm).value();
+        (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. }) => {
+            let (Some(t1), Some(t2)) = (torus_of(c1), torus_of(c2)) else {
+                unreachable!("two torus descriptions read as tori")
+            };
+            let d = geom_brep::TorusDisplacement::of(t1, t2);
             (
                 ["carrier_torus_reach", "carrier_torus_reach_floor"],
-                (t1 - t2).abs() + core,
-                (t1 - t2).abs() - core,
-                torus_data((p1, a1, r1, t1), (p2, a2, r2, t2), arm),
+                d.upper,
+                d.across,
+                torus_data(&d),
             )
         }
         _ => return None,

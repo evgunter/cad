@@ -191,8 +191,9 @@ pub use pair_section::{
     ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
     FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent,
     SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane,
-    StStance, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind,
-    ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
+    StStance, TorusCoincidence, TorusData, TorusDisplacement, TorusGap, TorusPoseRefusal,
+    TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind, ZeroVerdict, axis_pose, line_tilt,
+    pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

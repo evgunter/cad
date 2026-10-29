@@ -64,6 +64,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 pub mod gap;
 pub mod torus;
 mod torus_arms;
+pub mod torus_coincidence;
 
 pub use gap::Gap;
 pub use torus::{
@@ -71,6 +72,7 @@ pub use torus::{
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
 };
 pub use torus_arms::{Pinch, SquareWall, signs, signs_across};
+pub use torus_coincidence::{TorusCoincidence, TorusData, TorusDisplacement, tori_coincide};
 
 /// **`v`'s part square to the unit `a`, and its norm**, taken as
 /// `a × (v × a)`, which stands square to `a` to the rounding of its own
