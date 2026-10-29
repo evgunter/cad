@@ -235,20 +235,24 @@ fn an_arc_through_the_inner_contour_pierces() {
 
 /// **A tangent arc refuses.** `A`'s inner seam touches `B`'s outer
 /// contour at its apex (a double root of the quartic), inside the
-/// window: the ladder has no certified count, and the pair keeps the
-/// typed frontier door.
+/// window: the touch is in band, and the circle × torus roots escalate
+/// on it.
 #[test]
 fn a_tangent_arc_refuses_typed() {
     let d = b_outer_contour() + (A_MAJOR - A_MINOR);
     let (a, b) = (a_half(45_f64.to_radians(), d, true), b_quarter());
-    let seam = circle_edges(&a, A_MAJOR - A_MINOR);
     let err = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness())
         .expect_err("a graze is not a crossing this lane can act on");
-    let BooleanError::CurvedPierceUnsupported { edge, face, .. } = err else {
-        panic!("the tangent pair keeps the frontier door: {err:?}");
-    };
-    assert!(seam.contains(&edge), "the refusal names the tangent seam");
-    assert!(torus_faces(&b).contains(&face), "against B's wall");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::ArcTorusRoots,
+                ..
+            }
+        ),
+        "the tangent pair's touch escalates on the circle × torus roots: {err:?}"
+    );
 }
 
 /// **A coaxial circle**: `A`'s ring coaxial with `B`'s (centre on `B`'s

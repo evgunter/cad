@@ -390,7 +390,8 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             let err = r.expect_err(op);
             // The escalation is the circle rung's sampled clearance
             // landing in the band's window (the `1e-6` row); at the
-            // finer rows the same edge refuses at the pierce door.
+            // finer rows the same edge's touch escalates on the circle ×
+            // torus roots.
             assert!(
                 matches!(
                     err,
@@ -400,6 +401,10 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
                                 predicate: Some("bool_conic_curved_clearance"),
                                 ..
                             },
+                            ..
+                        }
+                        | BooleanError::Escalated {
+                            decision: topo::BooleanDecision::ArcTorusRoots,
                             ..
                         }
                 ),

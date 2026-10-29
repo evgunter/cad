@@ -796,10 +796,10 @@ fn a_rod_inside_the_tube_is_not_passed_silently() {
     }
 }
 
-/// **A grazing line keeps the door.** A rod along `y` whose edge
-/// touches the donut's outer equator at one point — a double root, a
-/// root count the quartic cannot certify — must refuse typed at the
-/// crossing layer. An uncertain count read as a miss would pass the
+/// **A grazing line refuses.** A rod along `y` whose edge touches the
+/// donut's outer equator at one point — a double root, a touch the
+/// quartic reads in band — must refuse, escalating the line × torus
+/// roots. An uncertain count read as a miss would pass the
 /// rod as clear.
 #[test]
 fn a_rod_grazing_the_outer_equator_refuses_at_the_crossing_layer() {
@@ -816,12 +816,12 @@ fn a_rod_grazing_the_outer_equator_refuses_at_the_crossing_layer() {
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPierceUnsupported {
-                operand: topo::Operand::B,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::TorusRoots,
                 ..
             }
         ),
-        "the grazing edge keeps the crossing layer's door: {err:?}"
+        "the grazing edge's touch escalates on the line × torus roots: {err:?}"
     );
 }
 

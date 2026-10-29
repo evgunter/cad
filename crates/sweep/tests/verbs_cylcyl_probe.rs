@@ -12,8 +12,8 @@
 //!   lane certifies — meet their partner in a carrier their margins
 //!   decide one (the walls, or the cap discs), which the boolean glues:
 //!   each builds its union at its closed form. The Steinmetz pose
-//!   refuses at `CurvedPierceUnsupported`, the curved sweep arm's
-//!   frontier, pinned with the datum that says whose work it waits on.
+//!   refuses: its seams' touch of the partner wall escalates on the
+//!   line × wall discriminant.
 //! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
 //!   `r ≥ 5` refuses — exactly `2r > 8`, the corner round's CARRIER
 //!   reaching the pocket's `x = 8` wall while its ARC stayed 2 mm
@@ -65,29 +65,9 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
     topo::union(&a, &b, tol).expect_err("this pair has no arm yet")
 }
 
-/// The carrier kind of the edge a refusal names — the datum that says
-/// WHICH family a row belongs to: a line's door waits on second-order
-/// work.
-fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
-    let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
-        panic!("not a pierce refusal: {err:?}");
-    };
-    let Some(topo::CurveGeom::Certified(c)) = body
-        .get_edge(*edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-    else {
-        panic!("the named edge has no certified curve");
-    };
-    match c.carrier() {
-        topo::Curve3::Line { .. } => "line",
-        topo::Curve3::Circle { .. } => "circle",
-        _ => "other",
-    }
-}
-
 /// #347's "two `circle`-derived cylinders refuse to union at all
-/// (coaxial or not)": three poses build now and one refuses at the
-/// CURVED SWEEP ARM's frontier, none of them at a kind gate.
+/// (coaxial or not)": three poses build now and one refuses, escalating
+/// its seams' touch, none of them at a kind gate.
 ///
 /// **The four rows are not one family.** Each is named with what
 /// decides it, measured rather than inferred:
@@ -115,10 +95,9 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    The clearance there is exactly zero, and the dip bound is not
 ///    loose about it: `m = 0` centres the parabola's vertex, where the
 ///    charge `q/8` IS the true dip. A tangency is not a crossing at any
-///    order the pierce machinery reads, so the ring lane leaves it
-///    where it is; what moves this row is a second-order lane, not an
-///    arm. The carrier of the edge it names is pinned, because that is
-///    what decides whose work the row is waiting on.
+///    order the pierce machinery reads, and the line × wall roots read
+///    the touch in band (their discriminant decided zero), so the union
+///    escalates on it.
 #[test]
 fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce() {
     let tol = Tol::witness();
@@ -169,23 +148,18 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
     let a_tall = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     // The Steinmetz pair: perpendicular axes, equal radius.
     let err = union_err(&a_tall, &turned);
+    // A seam ruling touches the partner wall: the line × wall roots
+    // escalate on their discriminant.
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "steinmetz: expected the curved pierce door, got {err:?}"
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::WallRoots(topo::WallRung::Discriminant),
+                ..
+            }
+        ),
+        "steinmetz: a seam's touch escalates, got {err:?}"
     );
-    // The carrier is read from the body the refusal NAMES, not from an
-    // assumption that it is always A: the pierce row measures A-side
-    // today, and asserting that here means a row that moves to B reds
-    // this table instead of silently reading the wrong body's arena.
-    let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
-        panic!("steinmetz: not a pierce refusal: {err:?}");
-    };
-    assert_eq!(
-        operand,
-        topo::Operand::A,
-        "steinmetz: this table reads the carrier out of A's arena"
-    );
-    assert_eq!(refused_carrier(&a_tall, &err), "line", "steinmetz");
 }
 
 /// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is not a pierce

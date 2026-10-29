@@ -204,8 +204,8 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 /// **A node on an operand's edge is not this lane's** (U2): where a cap
 /// stands at the axes' meeting point, its rim circle passes through
 /// both nodes, tangent there to the partner wall. With one operand
-/// capped there the crossing layer refuses that tangency at its own
-/// door; with both, the rims meet at the nodes, which lie on both
+/// capped there that touch is in band and the circle × wall roots
+/// escalate; with both, the rims meet at the nodes, which lie on both
 /// walls' boundaries, and the node pass refuses them. Every operation,
 /// both poses.
 #[test]
@@ -241,8 +241,14 @@ fn a_rim_through_the_nodes_refuses_typed() {
                     );
                 } else {
                     assert!(
-                        matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
-                        "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                        matches!(
+                            r,
+                            Err(topo::BooleanError::Escalated {
+                                decision: topo::BooleanDecision::ArcCylinderRoots,
+                                ..
+                            })
+                        ),
+                        "{what}, {pose}, {op}: the rim's touch of the wall escalates, got {r:?}"
                     );
                 }
             }

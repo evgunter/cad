@@ -537,14 +537,23 @@ fn an_edge_through_the_apex_refuses_at_the_apex() {
     });
 }
 
-/// **A graze keeps the frontier**: a brick whose bottom edge runs
-/// tangent to the full cone's wall at `y = 0.8`, where its radius is
-/// `0.2`.
+/// **A graze escalates**: a brick whose bottom edge runs tangent to the
+/// full cone's wall at `y = 0.8`, where its radius is `0.2`, a touch the
+/// line × cone roots read in band on their depth.
 #[test]
-fn an_edge_grazing_the_wall_keeps_the_frontier() {
+fn an_edge_grazing_the_wall_escalates() {
     let other = brick((-0.2, 0.2), (0.8, 1.2), (0.2, 0.6));
     assert_sweep_refuses("a brick grazing the wall", FULL, &other, |e| {
-        matches!(e, BooleanError::CurvedPierceUnsupported { .. })
+        matches!(
+            e,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::ConeRoots,
+                diag: geom_core::Indeterminate {
+                    predicate: Some("bool_line_cone_depth"),
+                    ..
+                },
+            }
+        )
     });
 }
 

@@ -218,8 +218,16 @@ fn assert_every_op_refuses(
     }
 }
 
-fn pierce_refusal(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::CurvedPierceUnsupported { .. })
+/// The touch of a brick's edge with the lens's sphere, in band on the
+/// face, escalating the line × sphere roots.
+fn touch_refusal(e: &BooleanError) -> bool {
+    matches!(
+        e,
+        BooleanError::Escalated {
+            decision: topo::BooleanDecision::SphereRoots,
+            ..
+        }
+    )
 }
 
 /// The radius of the ball about a touch on a carrier of radius `r`.
@@ -259,13 +267,12 @@ fn a_touch_just_outside_the_lens_face_builds() {
     assert_every_op_apart("lens, brick outside", &lens(), &brick, (lens_volume(), 0.5));
 }
 
-/// **Just inside the face**: the brick's edge touches the lens's own
-/// boundary, which the crossing layer cannot represent, and it refuses
-/// at the pierce.
+/// **Just inside the face**: the brick's edge touches the lens's sphere
+/// on the face, in band, and it refuses on that touch.
 #[test]
 fn a_touch_just_inside_the_lens_face_refuses() {
     let brick = brick_touching_unit_sphere(0.25, rim_angle() - 3.0 * reach(R1));
-    assert_every_op_refuses("lens, brick inside", &lens(), &brick, pierce_refusal);
+    assert_every_op_refuses("lens, brick inside", &lens(), &brick, touch_refusal);
 }
 
 /// **Outside the face, 0.3 balls from its rim, the edge along the
@@ -318,7 +325,7 @@ fn a_touch_outside_the_lens_face_within_reach_of_its_rim_across_it_refuses() {
     for op in OPS {
         match boolean(op, &brick, &lens()) {
             Err(e) => assert!(
-                pierce_refusal(&e),
+                touch_refusal(&e),
                 "lens, turned brick at the rim {op:?}: got {e:?}"
             ),
             Ok(_) => {
