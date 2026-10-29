@@ -225,7 +225,6 @@ fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
 /// the lamina's members that encode none alone
 /// (`topo::props::seam_refusals`).
 #[test]
-#[ignore = "disabled red: work/sect/main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord"]
 fn the_door_names_the_flipped_face_tier_3_names() {
     let tol = Tol::witness();
     let mut misnamed = Vec::new();

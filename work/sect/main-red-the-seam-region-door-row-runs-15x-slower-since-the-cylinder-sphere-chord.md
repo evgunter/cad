@@ -15,8 +15,11 @@ Found by nightly triage 2026-10-29, run
 The job was **cancelled**: at the 1e-12 ε row,
 `sweep::all the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names`
 (`crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:228`)
-was still running at 960 s when the job hit its time limit. Every other
-1e-12 result after that point was lost. The row passes, but slowly:
+was still running at 960 s when the job hit its time limit. In that
+row 16,375 of 16,376 tests had finished, so this one was the only 1e-12
+result lost. The steps after the ε loop (doc-tests, the slow-set names
+check, the per-op scalpel, wasm32) never ran. The row passes slowly at
+default ε and 1e-6, and at 1e-12 it was never seen to finish:
 
 | night | default | 1e-6 | 1e-12 |
 |---|---|---|---|
@@ -44,8 +47,8 @@ Profile the row at `34051ed3` against `07320fac`: find which corpus body's
 boolean or validation got slower, and whether the new chord path does
 work proportional to something it should not. Make it cheap again, or,
 if the cost is the price of a correct answer, split the corpus so the
-1e-12 row fits the job's limit. Until then, the full suite loses every
-1e-12 result that sorts after this row.
+1e-12 row fits the job's limit. Until then, the nightly holds the row
+out at 1e-12 (below).
 
 Banded P3: the answers are right. The harm is a guard (the nightly's
 1e-12 row) going blind. That makes it tooling against silent bugs.
@@ -54,13 +57,16 @@ Reproduce: `cargo nextest run -p sweep --ignore-default-filter -E
 'test(=the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names)'`
 (time it), at both merges.
 
-## Disabled (2026-10-29, GREEN)
+## Held out at 1e-12 (2026-10-29, GREEN)
 
-The row is `#[ignore = "disabled red: …"]`, naming this file, so the
-nightly full suite's 1e-12 row finishes again. It is slow, not hung:
-it passes at default ε and 1e-6, and was cancelled past 960 s at 1e-12
-(the table above). Because it is ignored at every ε, its default-ε and
-1e-6 coverage is gone too until this row closes. Closing this row
-removes the `#[ignore]`.
+`.github/workflows/nightly.yml`'s full-suite step runs its 1e-12 row
+with `-E 'not (binary_id(sweep::all) & test(=…))'`, citing this file,
+so that row finishes inside the job's limit again. The default-ε and
+1e-6 rows still run the test (231 s and 47 s on nightly 76).
 
-Run it by hand: append `--run-ignored only` to the reproduce line above.
+Whether it is slow or hung at 1e-12 is unknown: it was never observed
+to finish there. Closing this row removes the exclusion, and un-pinning
+owes a 1e-12 timing of the row first.
+
+Time it at 1e-12: `CAD_TOLERANCE_EPS=1e-12` before the reproduce line
+above.
