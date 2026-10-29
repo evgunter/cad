@@ -4,7 +4,7 @@ kind: issue
 title: A glued pair is re-read at its consuming site through C4's declared rung, which bridges an in-band displacement D10 says refuses
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P0
 cost: M
 design: true
 refs: [d10-exit-walk]
