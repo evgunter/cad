@@ -205,6 +205,53 @@ solids=1 faces=10 edges=24 vertices=16
 at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
+## pin_in_bore
+solids=4 faces=22 edges=36 vertices=24
+at rest: 0 interference, 26 could not look
+census: 26 findings
+UnrecordedContact { contact: VertexVertex { a: VertexKey(2v1), b: VertexKey(7v1) }, witness: "(0.25, 1.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(8v1), edge: EdgeKey(1v1) }, witness: "(0.25, 0.25, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(11v1), edge: EdgeKey(4v1) }, witness: "(-0.25, 1.0, -3.061616997868383e-17)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(6v1), face: FaceKey(2v1) }, witness: "(0.5, 1.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(10v1), face: FaceKey(2v1) }, witness: "(-0.5, 1.0, -6.123233995736766e-17)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(14v1), face: FaceKey(18v1) }, witness: "(2.25, 1.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(18v1), face: FaceKey(13v1) }, witness: "(2.5, 1.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(22v1), face: FaceKey(13v1) }, witness: "(1.5, 1.0, -6.123233995736766e-17)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(8v1) }, witness: "(0.25, 0.625, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(4v1), b: EdgeKey(11v1) }, witness: "(1.5308084989341915e-17, 1.0, -0.25)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(4v1), b: EdgeKey(17v1) }, witness: "(-4.592425496802574e-17, 1.0, 0.25)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(11v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(7v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(9v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(6v1)), b: Face(FaceKey(2v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(8v1)), b: Face(FaceKey(2v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(10v1)), b: Face(FaceKey(2v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(11v1)), b: Face(FaceKey(2v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(12v1)), b: Face(FaceKey(18v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(17v1)), b: Face(FaceKey(13v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(21v1)), b: Face(FaceKey(13v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(7v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Face(FaceKey(13v1)), b: Face(FaceKey(18v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
+CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first", reason: MayOverlap }
+CensusUndecidable { a: Solid(SolidKey(3v1)), b: Solid(SolidKey(4v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first", reason: MayOverlap }
+rows: 0
+## axis_projection
+solids=1 faces=10 edges=18 vertices=12
+at rest: 0 interference, 0 could not look
+census: Ok
+rows: 0
+## blocks_on_one_floor
+solids=2 faces=12 edges=24 vertices=16
+at rest: 0 interference, 0 could not look
+census: Ok
+rows: 1
+(CopyRef { var: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), member: 0 }, CopyRef { var: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), member: 0 }) NamedCoincidence { cells: [Entity { input: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 140, digest: 13260371288999922157 }), path: [From { read: VarId(MintId { ordinal: 119, digest: 14001463020605498074 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 17, digest: 2078235492002251942 }), path: [Cap(End)] } }] } }, Entity { input: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 140, digest: 13260371288999922157 }), path: [From { read: VarId(MintId { ordinal: 133, digest: 9442198097551126413 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [Merged([StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [From { read: VarId(MintId { ordinal: 46, digest: 13114987598050818635 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 36, digest: 13076484443318540851 }), path: [Cap(Start)] } }] }, StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 110, digest: 17460630763868819249 }), path: [From { read: VarId(MintId { ordinal: 91, digest: 13423040132005396612 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 81, digest: 4002673168606504690 }), path: [Cap(Start)] } }] }])] } }] } }], relation: SameOpposite, site: CensusAtRest, margin: MarginDiag(Value(0.0, None, ZeroWord(0))), discharge: Numeric, origin: Node }
+## revolves_on_one_axis
+solids=1 faces=6 edges=10 vertices=6
+at rest: 0 interference, 0 could not look
+census: Ok
+rows: 0
 ## heat_sink@10
 solids=11 faces=66 edges=132 vertices=88
 at rest: 9 interference, 0 could not look

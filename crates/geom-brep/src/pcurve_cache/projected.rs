@@ -1832,6 +1832,21 @@ pub(crate) enum Offset<T> {
     },
 }
 
+impl<T: geom_core::CertifiedEnclosure> Offset<T> {
+    /// The upper bound's upper end, NaN where none was read or the bound
+    /// does not certify: at an enclosure scalar limb 2 decides this end
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]), so a refused bound
+    /// stalls the limb rather than passing on its ordinary ends.
+    pub(crate) fn upper(&self) -> f64 {
+        match self {
+            Self::Bound(b) | Self::Miss { bound: Ok(b), .. } => {
+                b.certified_bracket().map_or(f64::NAN, |(_, hi)| hi)
+            }
+            Self::Miss { bound: Err(_), .. } => f64::NAN,
+        }
+    }
+}
+
 /// The carrier's own size in the frame a round's composite read it in
 /// ([`crate::carrier_net::CarrierNet::width`] and `extent`), in metres.
 #[derive(Clone, Copy, Debug)]

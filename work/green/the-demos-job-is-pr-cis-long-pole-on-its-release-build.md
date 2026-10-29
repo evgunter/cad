@@ -140,3 +140,19 @@ locally. Without the harness the tour part measured 346 s, another
 −190 s. That lever is `demo-tour-unit-tests-compile-the-bin-twice`.
 Splitting a lib out of the bin does not reach it on its own: the lib's
 `#[cfg(test)]` harness compiles the same 32k lines a second time.
+
+## The bin compiled once, 2026-10-29 (GREEN, PR #6039)
+
+`demo-tour-unit-tests-compile-the-bin-twice` is closed: the tour is a
+lib with a thin bin and no harness. On one hosted runner, with the
+kernel warm, the tour phase went from 648 to 453 s (−3.3 min). The
+units are now a serial chain (lib 268 s, then `all` 184 s), so `all`
+is what is left to cut. The moved unit tests re-instantiate the
+scenes' generics for `f64` inside `all`, because release builds do not
+share generics across crates.
+
+**Still open.** A `demos` job at its pre-change median of 28.4 min
+less 3.3 min is about 25 min, at the `test` job's p90 (25.1). Whether
+`demos` is still the p90 tail has to be read from the PR runs after
+this lands. The kernel half of the build (8–10 min uncached) is
+untouched.

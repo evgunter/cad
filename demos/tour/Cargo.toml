@@ -10,13 +10,29 @@ license = "MIT OR Apache-2.0"
 publish = false
 autotests = false  # tests/all.rs is the one test binary; see its header
 
+# The scenes are a library and `src/main.rs` is a thin bin over it, so
+# that the tests can reach the scenes from `tests/` and the scene code
+# compiles once per build. Neither target carries a test harness: a lib
+# or bin harness is a second compile of the same 32k lines, and every
+# test lives in `tests/all.rs`.
+[lib]
+test = false
+doctest = false
+bench = false
+
+[[bin]]
+name = "demo-tour"
+path = "src/main.rs"
+test = false
+bench = false
+
 [[test]]
 name = "all"
 path = "tests/all.rs"
 
 [workspace]
 
-# The `k-probe` mode only (src/probe.rs + its dispatch in main.rs), which
+# The `k-probe` mode only (src/probe.rs + its dispatch in lib.rs), which
 # rebuilds every scene at `geom_core::k_stats::Probe` to dump the margin
 # CSV for the K sweep. Opt-in because Probe is a `Real` instantiation:
 # carrying it unconditionally made every RELEASE RENDER of this tour
