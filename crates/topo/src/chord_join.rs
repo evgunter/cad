@@ -1492,6 +1492,12 @@ fn section_loop<T: Decide>(
         Some(crate::boolean::Branch::Positive) => return Ok(positive),
         Some(crate::boolean::Branch::Negative) => return Ok(negative),
         Some(crate::boolean::Branch::Only) | None => {}
+        Some(crate::boolean::Branch::Component(_)) => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a germ riding a carried section's component reached a two-loop frame",
+            });
+        }
     }
     let side = |p| match decide("chord_section_loop", Margin::of(split.margin(p)), band) {
         Ok(Sign::Zero) => Err(SplitJoinError::SectionInvariant {

@@ -113,6 +113,10 @@ enum Because {
     /// It refuses as the join's invariant break with this `what`, so a
     /// different desync turns the row red.
     Desyncs(&'static str),
+    /// It refuses at the germ mint's march of the pair's section, whose
+    /// refusal says this, so a refusal of the classification (the same
+    /// `GermSectionUnbuilt`) turns the row red.
+    MarchRefuses(&'static str),
     /// It passes on this pose: the offer is withdrawn for a pose where it
     /// would be false, which the case's comment names.
     Passes,
@@ -370,15 +374,19 @@ cases! {
     // a clear cylinder radius is a pair that does not meet: decided, it
     // is no section, which a real germ site never lies on (a desync).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Desyncs("a site on a section with no component")) =>
+        Withdrawn(Because::Desyncs("a site lies on no component of its section")) =>
         coaxial_frame(0.5, D);
     // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
-    // tolerance; the tolerance it withdrew decides the loop count.
+    // tolerance; the tolerance it withdrew decides the loop count. On
+    // either side the loops nearly meet at the far ruling (two loops
+    // past it, the figure-eight's lobes short of it), and the germ mint's
+    // march over them cannot prove one arc per tube there.
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
-        Withdrawn(Because::Passes) => transverse_frame(D);
+        Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Passes) => transverse_frame(-D);
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
+        transverse_frame(-D);
     // Two parallel walls whose axes stand a band apart: their radical
     // plane's normal has no decided length. The coincidence names no
     // tolerance; the tolerance it withdrew decides the offset.
@@ -481,6 +489,8 @@ const FRAME_SITE: Door = Door::Site(
     "the radius guards run on the cylinder and sphere pose at the section door, whose radii \
      are set directly",
 );
+/// What the march's tube refusal says ([`geom_brep::SsiError::TubeStraddles`]).
+const TUBE_STRADDLES: &str = "the uniqueness tube's lower bound on the crossing angle";
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the cylinder and sphere pose's far reach is read at the section door on the two \
      surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
@@ -1242,24 +1252,38 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    section_site(&c, &s, Point3::new(cyl, 0.0, 0.3))
+    // On the upper circle, `z = √(R² − r²)`, where the sphere meets the
+    // wall; a sphere too small to meet it has no such point, and the
+    // site stands where the wall's would.
+    let z = (sph * sph - cyl * cyl).max(0.0).sqrt();
+    section_site(&c, &s, Point3::new(cyl, 0.0, z))
 }
 
-/// [`super::super::join::section_branch`] at `site` on the section of
-/// `c` and `s`.
+/// **The germ mint's reading of the site `site` on the section of `c`
+/// and `s`**: the pair classified, carried through the march's lane,
+/// and the site's foot on it ([`geom_brep::CarriedSection::foot`]).
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,
     site: Point3<f64>,
 ) -> Result<(), BooleanError> {
     let face = crate::entity::FaceKey::default();
-    let held = match geom_brep::pair_section(c, s, band()) {
-        Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
-        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
-        Err(e) => Err(e),
+    let kinds = ((face, c.kind()), (face, s.kind()));
+    let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
+        super::super::join::section_unbuilt(why, kinds.0, kinds.1)
     };
-    super::super::join::section_branch(&held, (face, c.kind()), (face, s.kind()), site, band())
+    let section = match geom_brep::pair_section(c, s, band()) {
+        Ok(geom_brep::SectionRead::Built(section)) => section,
+        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
+        Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
+    };
+    let carried = section
+        .carry(Some(geom_brep::SsiLane::marched()), band())
+        .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
+    carried
+        .foot(site, band())
         .map(|_| ())
+        .map_err(super::super::join::site_refusal)
 }
 
 /// The radical plane of a radius-0.5 cylinder about `z` and a
@@ -1292,7 +1316,10 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    section_site(&c, &s, Point3::new(0.5, 0.0, 0.3))
+    // On the nearest ruling, where the sphere meets the wall at
+    // `h² = R² − (r − d)²`.
+    let h = ((0.75 + reach).powi(2) - 0.0625).sqrt();
+    section_site(&c, &s, Point3::new(0.5, 0.0, h))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -2109,6 +2136,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
             (Outcome::Refused { key, .. }, Because::Refuses(want)) => key == want,
             (Outcome::Refused { key, text, .. }, Because::Desyncs(what)) => {
                 key == "JoinDesync" && text.contains(what)
+            }
+            (Outcome::Refused { key, text, .. }, Because::MarchRefuses(what)) => {
+                key == "GermSectionUnbuilt" && text.contains(what)
             }
             (Outcome::Pass, Because::Passes) => true,
             _ => false,

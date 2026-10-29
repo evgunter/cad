@@ -2,11 +2,10 @@
 id: an-escalated-census-finding-names-no-pair
 kind: issue
 title: An escalated at-rest census finding names no pair, so it cannot be carried or matched to the pair it is about
-status: parked
+status: open
 opened: 2026-10-16
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 An at-rest face pair the census reads in the sliver band escalates as
@@ -51,3 +50,5 @@ equal a part's. A loud double report is the safer error. Naming the pair
 lets the in-arrival discard place the re-found verdict inside its copy,
 which ends the double report. No row pins it today: the escalation rows
 of `intent_part_census_seam` read `ThinInBand` since #5782.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Stage 5 made the census a check (`the-at-rest-census-is-a-check`, evidence above). `ValidationError::CensusEscalated` still carries only `cause` (`crates/topo/src/validate.rs:1967`), so the finding shape this row changes is settled and still owed.

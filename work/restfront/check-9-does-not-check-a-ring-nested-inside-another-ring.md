@@ -5,7 +5,7 @@ title: tier 3 accepts a face whose ring lies inside another ring of the same fac
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
 ---
 
 

@@ -64,8 +64,17 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
         ("cs_coaxial", Coincident::CylinderSphere)
     );
     assert!(section.tangency().is_none(), "no tangency");
-    assert_eq!(section.components().len(), 2, "two circles");
-    for (k, c) in section.components().iter().enumerate() {
+    assert_eq!(
+        section.counted().expect("a counted section").len(),
+        2,
+        "two circles"
+    );
+    for (k, c) in section
+        .counted()
+        .expect("a counted section")
+        .iter()
+        .enumerate()
+    {
         assert_eq!(
             c.winds,
             [true, false],
@@ -75,23 +84,17 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
             panic!("circle {k}: a closed-form circle, got {:?}", c.carrier);
         };
         for i in 0..6 {
-            let p = curve.eval(f64::from(i));
-            on_both(p, &cyl, &sph, "a coaxial circle");
-            assert_eq!(
-                section.component_of(p, band()),
-                Ok(k),
-                "circle {k} at {p:?}"
-            );
+            on_both(curve.eval(f64::from(i)), &cyl, &sph, "a coaxial circle");
         }
     }
     let swapped = built(&sph, &cyl);
     assert_eq!(
-        swapped.components()[0].winds,
+        swapped.counted().expect("a counted section")[0].winds,
         [false, true],
         "the order asked of"
     );
     let carried = section.carry(None, band()).expect("closed forms carry");
-    let p = match &section.components()[1].carrier {
+    let p = match &section.counted().expect("a counted section")[1].carrier {
         ClassCarrier::Closed(curve) => curve.eval(0.4),
         _ => unreachable!(),
     };
@@ -151,7 +154,7 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
             (decision, ZeroKind::Tangency),
             "{label}"
         );
-        let [c] = section.components() else {
+        let [c] = section.counted().expect("a counted section") else {
             panic!("{label}: one component");
         };
         assert_eq!(c.shape, shape, "{label}");
@@ -177,23 +180,28 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
 #[test]
 fn off_the_axis_the_reach_counts_the_loops() {
     let none = built(&cylinder(0.5), &sphere(2.0, 0.5));
-    assert!(none.components().is_empty(), "the sphere misses the wall");
+    assert!(
+        none.counted().expect("a counted section").is_empty(),
+        "the sphere misses the wall"
+    );
     let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
     let one = built(&cyl, &sph);
-    let [c] = one.components() else {
+    let [c] = one.counted().expect("a counted section") else {
         panic!("one loop");
     };
     assert_eq!(c.winds, [false, false], "null on both carriers");
     assert!(matches!(c.carrier, ClassCarrier::General));
     on_both(c.witness.unwrap(), &cyl, &sph, "the lone loop's witness");
     let two = built(&cylinder(0.5), &sphere(0.1, 0.7));
-    assert_eq!(two.components().len(), 2, "two loops");
-    for c in two.components() {
+    assert_eq!(
+        two.counted().expect("a counted section").len(),
+        2,
+        "two loops"
+    );
+    for c in two.counted().expect("a counted section") {
         assert_eq!(c.winds, [true, false], "each winds about the cylinder");
         assert!(matches!(c.carrier, ClassCarrier::General));
     }
-    assert_eq!(two.component_of(Point3::new(0.5, 0.0, 0.8), band()), Ok(0));
-    assert_eq!(two.component_of(Point3::new(0.5, 0.0, -0.4), band()), Ok(1));
 }
 
 /// **An axis offset in the band escalates** (`cs_coaxial`), and a reach
@@ -344,7 +352,9 @@ fn the_general_rung_carries_through_its_door() {
         c.closed && c.certificate.is_some(),
         "a closed certified loop"
     );
-    let witness = section.components()[0].witness.unwrap();
+    let witness = section.counted().expect("a counted section")[0]
+        .witness
+        .unwrap();
     assert_eq!(carried.foot(witness, band()).unwrap().component, 0);
     // Seated at an interior parameter: the loop opened there, certified
     // again, the same locus run from that point round to it.
@@ -586,12 +596,12 @@ fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
     match geom_brep::pair_section(a, b, band()) {
         Ok(SectionRead::Built(s)) => {
             let class = if s.tangency().is_some() {
-                match s.components() {
+                match s.counted().expect("a counted section") {
                     [c] if c.shape == ComponentShape::Point && c.witness.is_some() => Class::Touch,
                     _ => Class::Tangent,
                 }
             } else {
-                match s.components().len() {
+                match s.counted().expect("a counted section").len() {
                     0 => Class::Empty,
                     1 => Class::Lone,
                     2 => Class::Pair,
@@ -781,10 +791,10 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 
 /// **Two loops keep their sites and their order, down to the node**:
 /// `R` past `d + r` by a wide margin and by hairs, so the loops nearly
-/// meet at the far ruling. In either order every analytic site lies on
-/// the component `component_of` names (the upper sheet's first), `foot`
-/// agrees, and the feet run round each loop in the azimuth's order,
-/// once. Marches: in the slow set.
+/// meet at the far ruling. In either order every analytic site of one
+/// sheet has its foot on one component, the two sheets' on two, and the
+/// feet run round each loop in the azimuth's order, once. Marches: in
+/// the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
     let r = 0.5;
@@ -796,19 +806,26 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
                 .carry(Some(SsiLane::marched()), band())
                 .unwrap_or_else(|e| panic!("d {d}, R {big}: {e:?}"));
             assert_eq!(c.components().len(), 2, "d {d}, R {big}");
-            for (sheet, want) in [(1.0, 0), (-1.0, 1)] {
+            let mut seen = Vec::new();
+            for sheet in [1.0, -1.0] {
                 let mut ts = Vec::new();
+                let mut want = None;
                 for i in 0..97 {
                     // Densest near the far ruling, θ = π.
                     let u = f64::from(i) / 97.0;
                     let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
                     let p = wall_point(r, d, big, theta, sheet).unwrap();
                     let at = format!("d {d}, R {big}, θ {theta}");
-                    assert_eq!(s.component_of(p, band()), Ok(want), "{at}");
                     let f = c.foot(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}"));
-                    assert_eq!(f.component, want, "{at}");
+                    assert_eq!(*want.get_or_insert(f.component), f.component, "{at}");
                     ts.push(f.t);
                 }
+                let want = want.expect("a site on the sheet");
+                assert!(
+                    !seen.contains(&want),
+                    "d {d}, R {big}: each sheet its own loop"
+                );
+                seen.push(want);
                 let (lo, hi) = c.components()[want].span;
                 assert!(turns_once(&ts, hi - lo), "d {d}, R {big}, sheet {sheet}");
             }

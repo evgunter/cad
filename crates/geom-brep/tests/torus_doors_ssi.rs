@@ -23,8 +23,8 @@ use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::ssi::{self, SsiDomain, SsiError, TangentPair, TorusPair};
 use geom_brep::{
-    CarryError, ClassCarrier, CylinderTorusPose, PairPose, SectionRead, SiteRefusal, SsiLane,
-    SsiOutcome, TorusGap, TorusTorusPose,
+    ClassCarrier, CylinderTorusPose, PairPose, SectionRead, SsiLane, SsiOutcome, TorusGap,
+    TorusTorusPose,
 };
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
@@ -292,7 +292,8 @@ fn oracle_loops(t: &Surface<f64>, partner: &Surface<f64>, n: usize) -> usize {
 /// **One germ-row pair at every placement**: `pair(place)` is the two
 /// surfaces, the torus first; each pose is decided once and marched over
 /// its domain, in both orders, which answer alike. Every certified pose's
-/// branches lie on both surfaces and number the oracle's loops. The
+/// branches lie on both surfaces and number the oracle's loops, and the
+/// section value carries as many components, marched or counted. The
 /// verdicts are `want`, by placement, at the compiled ε; `off` names the
 /// placements whose verdict differs at another ε row, measured: at
 /// `1e-6` a transverse pose may refuse on the tube, at `1e-12` on the
@@ -314,6 +315,17 @@ fn germ_row(
                 out.branches.len(),
                 oracle_loops(&a, &b, 600),
                 "{what}: the oracle's loop count"
+            );
+            let Ok(SectionRead::Built(section)) = geom_brep::pair_section(&a, &b, band()) else {
+                panic!("{what}: the value builds the pair");
+            };
+            let carried = section
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            assert_eq!(
+                carried.components().len(),
+                out.branches.len(),
+                "{what}: the carried section lists the door's loops"
             );
         }
         assert_eq!(verdict(&door(&b, &a)), verdict(&got), "{what}, reversed");
@@ -417,11 +429,11 @@ fn near_tangent_cost() {
 
 /// **GERM's radial hole, marched.** The donut (`R = 2`, `r = 1/2` about
 /// `y`) and a rod of radius `0.2` along `x`, through the axis and off it:
-/// a square pose, whose classification lists its components in closed
+/// a square pose, whose classification counts its components in closed
 /// form with the general rung's carrier. The door marches as many closed
-/// loops as the classification lists, each on both surfaces; carrying
-/// the section refuses only on telling its two components apart, which
-/// the classification cannot.
+/// loops as the classification counts, each on both surfaces, and the
+/// section carries them, each loop matched to its count by its witness
+/// or its winding.
 #[test]
 fn the_radial_hole_marches_the_square_walls_loops() {
     let t = torus(Point3::origin(), Vec3::unit_y(), 2.0, 0.5);
@@ -432,7 +444,8 @@ fn the_radial_hole_marches_the_square_walls_loops() {
         };
         assert!(
             section
-                .components()
+                .counted()
+                .expect("a counted section")
                 .iter()
                 .all(|c| matches!(c.carrier, ClassCarrier::General)),
             "{what}: every component is the general rung's"
@@ -441,16 +454,17 @@ fn the_radial_hole_marches_the_square_walls_loops() {
             .unwrap_or_else(|e| panic!("{what}: {e}"));
         assert_eq!(
             out.branches.len(),
-            section.components().len(),
+            section.counted().expect("a counted section").len(),
             "{what}: one loop per listed component"
         );
         on_both(what, &out, &t, &rod);
-        assert!(
-            matches!(
-                section.carry(Some(SsiLane::marched()), band()),
-                Err(CarryError::Site(SiteRefusal::Untold(_)))
-            ),
-            "{what}: the square wall's two components are untold"
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        assert_eq!(
+            carried.components().len(),
+            out.branches.len(),
+            "{what}: the carried section lists the march's loops"
         );
     }
 }
@@ -462,9 +476,8 @@ fn the_radial_hole_marches_the_square_walls_loops() {
 /// **A parallel rod through the tube carries.** The torus `R = 1`,
 /// `r = 1/4` about `z` and a rod of radius `0.1` parallel to it through
 /// the core: two loops round the rod, one above the torus's plane and
-/// one below, which the classification tells apart by that plane. The
-/// carried section holds each as a certified fitted loop, on both
-/// surfaces.
+/// one below. The carried section holds each as a certified fitted loop,
+/// on both surfaces, winding about the rod and not the torus.
 #[test]
 fn a_rod_through_the_tube_carries_both_loops() {
     let t = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
@@ -472,13 +485,19 @@ fn a_rod_through_the_tube_carries_both_loops() {
     let SectionRead::Built(section) = geom_brep::pair_section(&rod, &t, band()).unwrap() else {
         panic!("the value builds the pair");
     };
-    assert_eq!(section.components().len(), 2, "two loops round the rod");
+    assert_eq!(
+        section.counted().expect("a counted section").len(),
+        2,
+        "two loops round the rod"
+    );
     let carried = section
         .carry(Some(SsiLane::marched()), band())
         .unwrap_or_else(|e| panic!("{e:?}"));
+    let mut sides = Vec::new();
     for (k, c) in carried.components().iter().enumerate() {
         let cert = c.certificate.as_ref().expect("a fitted loop");
         assert!(c.closed, "component {k} closes");
+        assert_eq!(c.winds, [true, false], "component {k} winds about the rod");
         let (t0, t1) = c.span;
         for i in 0..=256 {
             let p = c.carrier.eval(t0 + (t1 - t0) * f64::from(i) / 256.0);
@@ -489,12 +508,12 @@ fn a_rod_through_the_tube_carries_both_loops() {
                 );
             }
         }
-        let side = c.carrier.eval(t0).z;
-        assert!(
-            (side > 0.0) == (k == 0),
-            "component {k} lies on its own side of the torus's plane ({side})"
-        );
+        sides.push(c.carrier.eval(t0).z > 0.0);
     }
+    assert!(
+        sides.contains(&true) && sides.contains(&false),
+        "one loop on each side of the torus's plane: {sides:?}"
+    );
 }
 
 /// **A parallel wall round the torus's hole winds the torus.** The torus
@@ -515,7 +534,7 @@ fn a_parallel_wall_round_the_hole_winds_the_torus() {
             panic!("the value builds the pair");
         };
         assert_eq!(
-            s.components().len(),
+            s.counted().expect("a counted section").len(),
             2,
             "e = {e}: an upper and a lower loop"
         );
@@ -537,7 +556,12 @@ fn a_parallel_wall_round_the_hole_winds_the_torus() {
             let turns = (w / TAU).round().abs() == 1.0;
             assert_eq!(turns, round, "e = {e}, component {k}: its turning");
             assert_eq!(
-                s.components()[k].winds,
+                comp.winds,
+                [round, true],
+                "e = {e}, component {k}: the carried winding"
+            );
+            assert_eq!(
+                s.counted().expect("a counted section")[k].winds,
                 [round, true],
                 "e = {e}, component {k}"
             );
