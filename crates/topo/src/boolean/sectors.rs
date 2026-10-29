@@ -37,7 +37,14 @@
 //! `±(n_a × n_b)` lies within both (convex) sectors — `within` =
 //! both boundary triples `(start × dir)·n`, `(dir × end)·n` not
 //! definitely negative (a Zero graze counts as within: boundary hits
-//! are exactly what must flow into the ON machinery). Coplanar pairs
+//! are exactly what must flow into the ON machinery) — and neither
+//! sector's two side codes read one definite side of the other's plane
+//! ([`one_side`]). `within` reads at the sector's arm and the codes at
+//! each bound's reach; where they disagree a crossing pair sides with
+//! the reach, because its codes are what the germ machinery consumes,
+//! while the coplanar test sides with the arm, because a coplanar pair
+//! never reads its codes and goes to the carrier ladder, which
+//! certifies the coincidence over the whole sector. Coplanar pairs
 //! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
@@ -2307,6 +2314,12 @@ pub(super) fn plane_side_code<T: Decide>(
 /// One sector's two side codes, `(start, end)`.
 type SidePair = (SideCode, SideCode);
 
+/// Whether a sector's two bounds lie definitely on one side of the
+/// other's plane: the sector meets that plane only at the vertex.
+pub(super) fn one_side(codes: SidePair) -> bool {
+    codes.0 == codes.1 && codes.0 != SideCode::On
+}
+
 /// The four side codes of a sector pair: each sector's bounds against
 /// the other's face.
 pub(super) fn pair_codes<T: Decide>(
@@ -2396,6 +2409,11 @@ pub(super) fn pair_search<T: Decide>(
             } else {
                 pair_codes(sa, sb, band)?
             };
+            // The codes read each bound at its own reach, which can decide
+            // a ray `within` left in band at the shorter arm.
+            if one_side(sa_codes) || one_side(sb_codes) {
+                continue;
+            }
             records.push(PairRecord {
                 a: i,
                 b: j,
@@ -6263,6 +6281,45 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::from_array(normal), true),
             arm: 1.0,
         }
+    }
+
+    /// A sector whose long bound leaves the other's plane by an angle
+    /// its short arm leaves in band: `within` at the arm holds the
+    /// planes' line, the codes at the bound's own reach read the whole
+    /// sector on one side of the other's plane, and the pair is no
+    /// record (the boss inside a hole cut into short arcs either side of
+    /// the touch, at the rims' shared vertex).
+    #[test]
+    fn a_sector_wholly_off_the_others_plane_is_no_record() {
+        let b = band();
+        let arm = 100.0 * b.escalate();
+        let theta = b.zero() / (10.0 * arm);
+        let reach = 100.0 * b.escalate() / theta;
+        let floor = BoolSector {
+            start: Vec3::new(-theta.sin(), -theta.cos(), 0.0),
+            end: Vec3::new(-1.0, 0.0, 0.0),
+            start_reach: Reach::Extent(reach),
+            end_reach: Reach::Bisector(arm),
+            arm,
+            ..sector([0.0; 3], [0.0; 3], [0.0, 0.0, -1.0])
+        };
+        let wall = BoolSector {
+            start: Vec3::new(0.0, 0.0, -1.0),
+            end: Vec3::new(0.0, -1.0, 0.0),
+            start_reach: Reach::Extent(reach),
+            end_reach: Reach::Extent(reach),
+            arm: reach,
+            ..sector([0.0; 3], [0.0; 3], [-1.0, 0.0, 0.0])
+        };
+        let line = Vec3::new(0.0, -1.0, 0.0);
+        assert!(
+            within(&floor, line, false, DeclarationRead::Moot, b).unwrap(),
+            "the line reads within the floor at its arm"
+        );
+        let (codes, _) = pair_codes(&floor, &wall, b).unwrap();
+        assert_eq!(codes, (SideCode::Out, SideCode::Out), "the floor's codes");
+        let found = pair_search(&[floor], &[wall], b).unwrap();
+        assert!(found.records.is_empty(), "records: {:?}", found.records);
     }
 
     /// `within`: interior yes, exterior no, boundary graze counts
