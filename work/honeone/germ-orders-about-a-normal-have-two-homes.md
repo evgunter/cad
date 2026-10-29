@@ -66,3 +66,27 @@ Two germs along one direction now meet three different rules:
   (`work/splitdoor/a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order.md`).
 
 One door would also have to say which of these a tie means.
+
+## One home for the tie's second order (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+`geom_brep::tied_germ_turn` now orders two germs along one tangent by
+their bends (each section's acceleration off the tangent toward
+`n × t`, `implicit_graph_acceleration` in a plane,
+`implicit_section_acceleration` in a curved face's tangent plane),
+returning the tie (`Zero`) and a singular bend to the caller. The
+split's `section_chords` (`curving`) and the pierce ring's
+`germ_order` both read it; `insert::strut_order` takes the caller's
+tie as a closure, so the rules that remain are the caller's, stated
+where they apply:
+
+- one pierce's two germs along one direction (the ring) and two
+  sectors' germs (the split): one order down, then refused;
+- two pierces' germs along one ray (the ring): the chords' nesting
+  (`tie_breaks_after`), unchanged: cones touching along a ray in the
+  face have sections tangent to it, which read no bend;
+- the orbit walk's two germs in one entry (`walk_faces_first`,
+  `walks_after`): still first order alone
+  (`work/splitdoor/the-booleans-orbit-walk-orders-two-germs-along-one-direction-at-first-order-alone.md`).
+
+The first-order readings, their K names and the sense difference are
+as before.
