@@ -2,13 +2,13 @@
 id: the-box-driver-carries-no-part-resolver
 kind: issue
 title: The box driver carries no part resolver, so no drive, and so no stackup, runs over an assembly
-status: parked
+status: open
 priority: P2
 cost: M
 design: true
 opened: 2026-10-03
 refs: [MSOLVE-14, a-box-independent-mate-fault-bisects-the-whole-leaf-budget]
-blocked_on: [intent-stage3-is-built]
+blocked_on: []
 ---
 
 ## Finding
@@ -45,3 +45,5 @@ question.
 ## Moved (2026-10-26, tracker sweep)
 
 From FLUXHOLD, which closed (`docs/doc-ledger/fluxhold-leaves-the-tracker.md`); this program claims the file the row is about.
+
+**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.
