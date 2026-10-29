@@ -158,7 +158,8 @@ pub enum ConicCrossingsCase {
     /// At a crossing the plane runs within the band of tangent to the
     /// face's wall (**`split_join_conic_heading`** Zero), so the
     /// crossing neither enters nor leaves the face definitely. No
-    /// shipped fixture reaches it.
+    /// shipped fixture reaches it; the same sine read Zero at a chord's
+    /// start is [`SplitJoinError::SectionDepartureGrazes`].
     Grazing,
     /// Taken along the conic, the crossings do not alternate between
     /// entering the face and leaving it. Crossings closer along the
@@ -596,6 +597,19 @@ pub enum SplitJoinError {
         /// The band the headings were decided against.
         band: Band,
     },
+    /// A section chord's start could not say which way the section runs
+    /// into the face: the plane lies within the band of tangent to the
+    /// wall there, read as the sine between them times the wall's
+    /// [`geom_brep::curvature_lever_arm`] (`chord_arc_leave_section`
+    /// Zero, its datum along the section). On a cone that lever is the
+    /// distance from the axis, so a cut a few band widths of radius from
+    /// the apex reaches it at any angle the band cannot resolve there.
+    SectionDepartureGrazes {
+        /// The curved face the chord divides.
+        face: FaceKey,
+        /// The band the departure was decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -903,6 +917,16 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "a curved face's crossings cannot be paired along the section: {case} \
                  ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
+                band.zero(),
+                band.escalate(),
+            ),
+            Self::SectionDepartureGrazes { band, .. } => write!(
+                f,
+                "a section chord's start reads the plane within the band of tangent to \
+                 the wall: its angle to the wall times the wall's radius of curvature \
+                 ('chord_arc_leave_section', band ({:e}, {:e})). Recourse: cut where the \
+                 wall curves less (on a cone, farther from its apex), or tighten the \
+                 tolerance",
                 band.zero(),
                 band.escalate(),
             ),
@@ -2041,13 +2065,23 @@ impl<T: Real> Leave<T> {
 /// semi-axis or an oval's own (`chord_arc_leave_germ`); the split's sine on the wall's
 /// [`geom_brep::curvature_lever_arm`] at `p1`
 /// (`chord_arc_leave_section`), the lever its conic walk decides the
-/// same sine on, so the two cannot disagree outside the band. A datum
-/// with no component along the section is malformed and refuses.
+/// same sine on, so the two cannot disagree outside the band.
+///
+/// **A split Zero has two readings**, told apart by the datum's own
+/// direction against the tangent (`chord_arc_leave_section_aligned`: the
+/// cosine levered by the conic's extent, as the germ's is). Along the
+/// section, the small product is the plane within the band of tangent to
+/// the wall at `p1` — the sine small, or the lever short, as near a
+/// cone's apex — and the chord refuses the graze. Across it, the datum
+/// is not the section's departure at all: `±(n_plane × n_out)` is the
+/// section's tangent wherever `p1` lies on the conic, so that is a
+/// broken invariant, as is a germ with no component along the section.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a datum normal to the
-/// section; [`SplitJoinError::Escalated`] in the band.
+/// [`SplitJoinError::SectionDepartureGrazes`] where the split's sine reads
+/// Zero along the section; [`SplitJoinError::SectionInvariant`] for a
+/// datum normal to the section; [`SplitJoinError::Escalated`] in the band.
 fn arc_leaving<T: Decide>(
     face: FaceKey,
     band: Band,
@@ -2056,6 +2090,12 @@ fn arc_leaving<T: Decide>(
     p1: Point3<T>,
     leave: Departure<T>,
 ) -> Result<bool, SplitJoinError> {
+    let escalated = |diag| SplitJoinError::Escalated { face, diag };
+    let off_section = SplitJoinError::SectionInvariant {
+        face,
+        what: "the section's direction of departure handed to a chord end has no \
+               component along the section there",
+    };
     let tangent = conic.tangent(conic.param(p1));
     let along = leave.dir.dot(tangent) / tangent.norm();
     let (name, margin) = match leave.datum {
@@ -2068,14 +2108,27 @@ fn arc_leaving<T: Decide>(
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
         ),
     };
-    match decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })? {
+    match decide(name, margin, band).map_err(escalated)? {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the section's direction of departure handed to a chord end has no \
-                   component along the section there",
-        }),
+        Sign::Zero => match leave.datum {
+            Datum::Section => {
+                let cosine = along / leave.dir.norm();
+                match decide(
+                    "chord_arc_leave_section_aligned",
+                    Margin::levered(cosine, conic.lever()),
+                    band,
+                )
+                .map_err(escalated)?
+                {
+                    Sign::Zero => Err(off_section),
+                    Sign::Positive | Sign::Negative => {
+                        Err(SplitJoinError::SectionDepartureGrazes { face, band })
+                    }
+                }
+            }
+            Datum::Germ => Err(off_section),
+        },
     }
 }
 
@@ -4017,9 +4070,10 @@ fn quadric_loop_arc<T: Decide>(
 /// contributes none, and an edge on a carrier the surface's loops do
 /// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
 /// ([`SplitJoinError::RingIslandUnread`]). A spline edge is read on a
-/// cylinder or a sphere face where it is the certified intersection of
-/// the face's surface with another ([`SplineArc::of_edge`]), and is
-/// unread everywhere else.
+/// cylinder, a sphere or a torus face where it is the certified
+/// intersection of the face's surface with another
+/// ([`SplineArc::of_edge`]), and is unread on a cone, whose pairs the
+/// section table does not carry.
 fn run_loop_arcs<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -4039,10 +4093,11 @@ fn run_loop_arcs<T: Decide>(
             continue;
         };
         let arc = match (quadric, curve.carrier()) {
-            (Quadric::Cylinder { .. } | Quadric::Sphere { .. }, geom::Curve3::Nurbs(_)) => {
-                SplineArc::of_edge(curve, own).map(LoopArc::Spline)
-            }
-            (_, geom::Curve3::Nurbs(_)) => None,
+            (
+                Quadric::Cylinder { .. } | Quadric::Sphere { .. } | Quadric::Torus { .. },
+                geom::Curve3::Nurbs(_),
+            ) => SplineArc::of_edge(curve, own).map(LoopArc::Spline),
+            (Quadric::Cone { .. }, geom::Curve3::Nurbs(_)) => None,
             _ => quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
                 .map_err(|diag| SplitJoinError::Escalated { face, diag })?,
         };
@@ -6741,22 +6796,35 @@ mod tests {
         }
     }
 
-    /// **A datum with no component along the section refuses**, typed,
-    /// and one whose component is in the band escalates naming
-    /// `chord_arc_leave_section`: the section's normal (the plane's own,
-    /// which no section tangent has a component along), and the tangent
-    /// scaled to put the levered margin `leave·Ĉ′ × r` at 5e-9 (the unit
-    /// cylinder's radius, the lever the split's walk reads).
+    /// **A split datum's Zero is a graze only along the section.** The
+    /// fixture's tangent at θ = 0 is `ŷ` and its lever the unit
+    /// cylinder's radius. `ŷ·5e-10` lies along the section and reads half
+    /// the zero band — the needle cone's shape, a short product, not a
+    /// crooked datum — so it grazes; `û_e = ŷ × n`, in the plane and
+    /// normal to the section, and `û_e + ŷ·5e-10`, nearly so, are no
+    /// departure along the section and name the invariant; `ŷ·5e-9`
+    /// escalates naming `chord_arc_leave_section`.
     #[test]
     fn a_datum_off_the_section_refuses() {
         let phi = 0.5f64;
         let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-        let err = spec_leaving(n).unwrap_err();
+        let u_e = Vec3::unit_y().cross(n);
+        let err = spec_leaving(Vec3::unit_y() * 5e-10).unwrap_err();
         assert!(
-            matches!(err, SplitJoinError::SectionInvariant { .. }),
-            "{err:?}"
+            matches!(err, SplitJoinError::SectionDepartureGrazes { .. }),
+            "along the section, inside the zero band: {err:?}"
         );
-        let err = spec_leaving(n + Vec3::unit_y() * 5e-9).unwrap_err();
+        for (what, leave) in [
+            ("normal to the section", u_e),
+            ("nearly normal to the section", u_e + Vec3::unit_y() * 5e-10),
+        ] {
+            let err = spec_leaving(leave).unwrap_err();
+            assert!(
+                matches!(err, SplitJoinError::SectionInvariant { .. }),
+                "{what}: {err:?}"
+            );
+        }
+        let err = spec_leaving(Vec3::unit_y() * 5e-9).unwrap_err();
         let SplitJoinError::Escalated { diag, .. } = err else {
             panic!("expected an escalation, got {err:?}");
         };

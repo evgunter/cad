@@ -2,11 +2,14 @@
 id: a-mirror-of-an-assemble-reports-its-findings-twice
 kind: issue
 title: A mirror of a ⊔ or of an instance reports the source's findings again, and a pick of a census-less piece drops its records
-status: dispatched
+status: closed
+pr: 5999
 opened: 2026-10-28
 priority: P2
 cost: M
 refs: [a-placement-carries-its-sources-at-rest-result, patterns-are-index-variables]
+branch: intent/one-copy-door
+closed: 2026-10-29
 ---
 
 Found by PR 5903's review (R1, head `38e6cdd3`; probes on
