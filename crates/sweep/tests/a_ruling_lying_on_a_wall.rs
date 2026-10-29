@@ -12,9 +12,8 @@
 //!   two-face tube is that shared stretch, and builds the same.
 //! - **In band of the wall but not on it**: the edge's ends in the
 //!   sliver band of the wall escalate, a lean in the sliver band of the
-//!   axis escalates, and a lean decided off the axis, whose two crossings
-//!   lie within the band of each other, escalates on them. None is taken
-//!   as ON.
+//!   axis escalates, and a lean decided off the axis keeps the crossing
+//!   layer's door. None is taken as ON.
 //! - **Across an ellipse**: on a tube whose bottom is cut obliquely, the
 //!   ruling meets the ellipse at its plane, and every op builds. A
 //!   coaxial rod's rim lying on that tube's walls meets the ellipse the
@@ -288,8 +287,8 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
 ///   whether the edge runs along the axis escalates;
 /// - **leaned** `±40·z`: the edge is decided off the axis, over its
 ///   whole span and over either half the rim splits it into: a chord
-///   whose two crossings lie within the band of each other, its
-///   discriminant decided zero, which escalates on that reading.
+///   whose two crossings the root door cannot separate, which keeps the
+///   door.
 #[test]
 fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     let tol = Tol::witness();
@@ -345,16 +344,8 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
             for (op, r) in six(&t, &b) {
                 let label = format!("z0 = {z0}, leaned {d}: {op}");
                 assert!(
-                    matches!(
-                        r,
-                        Err(BooleanError::Escalated {
-                            decision: topo::BooleanDecision::WallRoots(
-                                topo::WallRung::Discriminant
-                            ),
-                            ..
-                        })
-                    ),
-                    "{label}: a touch in band, on the discriminant: {r:?}"
+                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the crossing layer's door: {r:?}"
                 );
             }
         }
@@ -963,7 +954,7 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
 fn review_r1_two_rims_escalation_text() {
     let tol = Tol::witness();
     let rod = rod_of(0.01, -3.0, 6.0);
-    for k in [30.0, 200.0] {
+    for k in [30.0, 80.0, 200.0] {
         let d = k * tol.eps();
         let (a, b) = (
             cut_below(&rod, 100.0, 0.0),

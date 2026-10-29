@@ -4441,7 +4441,9 @@ fn meetings<T: Decide>(
     };
     let met = meet(&CarrierSpan::new(&along, (T::zero(), e.len)), &boundary, band).map_err(|r| {
         match r.fault {
-            MeetFault::Escalated(cause) => CrossRefusal::Escalated(vec![cause]),
+            MeetFault::Escalated(cause) | MeetFault::Touch(cause) => {
+                CrossRefusal::Escalated(vec![cause])
+            }
             MeetFault::Unsettled(_) => {
                 CrossRefusal::Unread("the meeting reading of a census edge and a face boundary edge could not settle a count")
             }

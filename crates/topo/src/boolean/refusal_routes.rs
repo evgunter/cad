@@ -138,6 +138,16 @@ macro_rules! corner_edges {
     };
 }
 
+/// [`BooleanDecision::CurveMeeting`]'s subject.
+const CURVE_MEETING: &str =
+    "where an edge on a curved face's carrier meets a curve of that face's boundary";
+
+/// [`BooleanDecision::CurveMeeting`]'s levers: the two curves come from
+/// two cuts of the carrier, which one construction makes one.
+const CURVE_MEETING_LEVER: &str = "make the two cuts of the curved face one construction, or \
+                                   move the parts so the edge clearly crosses that curve or \
+                                   clearly parts from it";
+
 /// Which decision a Boolean escalation came from, set at the site that
 /// wraps the escalation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -225,6 +235,10 @@ pub enum BooleanDecision {
     /// depth, contour residuals and sides, a coaxial tilt and offset, and
     /// the quartic's own rows.
     ArcTorusRoots,
+    /// Where an edge on a curved face's carrier meets a curve of that
+    /// face's boundary: the curve-pair reading, in the band's gap where
+    /// the two can meet (`carrier_cross`, a root finder's touch).
+    CurveMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
     /// `bool_ray_sphere_disc`).
@@ -1505,6 +1519,7 @@ impl BooleanDecision {
             Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
+            Self::CurveMeeting => CURVE_MEETING,
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
             Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
             Self::ArcCylinderRoots => {
@@ -1698,6 +1713,9 @@ impl BooleanDecision {
             Self::ArcTorusRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the torus or clearly misses it",
             ),
+            // The reading is a residual at the walk's cut, not a size the
+            // user drew, so no tolerance is offered.
+            Self::CurveMeeting => Ending::Lever(CURVE_MEETING_LEVER),
             // As the wall's discriminant: two roots pass, a miss passes
             // where both ends are off the sphere, and a zero is a
             // tangency, refused at the frontier.
@@ -2075,6 +2093,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
+                BooleanDecisionKind::CurveMeeting => vec![BooleanDecision::CurveMeeting],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
@@ -2406,6 +2425,13 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the torus or clearly \
                      misses it",
+                ),
+            ),
+            BooleanDecision::CurveMeeting => (
+                "where an edge on a curved face's carrier meets a curve of that face's boundary",
+                Ending::Lever(
+                    "Recourse: make the two cuts of the curved face one construction, or move \
+                     the parts so the edge clearly crosses that curve or clearly parts from it",
                 ),
             ),
             BooleanDecision::SphereRoots => (

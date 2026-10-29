@@ -130,8 +130,10 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
 /// about its own axis: A's two seams now definitely cross B's wall (the
 /// -0.25 bound above), so the A-side sweep no longer raises — but B's
 /// own seam rulings (x = +-1, z = 0 lines along y) are still TANGENT to
-/// A's wall at the section's singular points, so the pair still refuses:
-/// that touch escalates on the line × wall discriminant.
+/// A's wall at the section's singular points, so the pair still refuses
+/// at the pierce door, now naming an operand-B edge. Before this PR the
+/// refusal named operand A; the operand flip is the measurement that
+/// the A-side crossings were actually found and split.
 #[test]
 fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let spun = topo::transform_rigid(
@@ -151,15 +153,40 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let b = finished("B", turned(), Tol::witness());
     let err =
         topo::union(&spun, &b, Tol::witness()).expect_err("B's seam tangency still has no arm");
+    // MEASUREMENT (first run refuted the B prediction): print the whole
+    // payload plus the named edge's carrier and endpoints so the raiser
+    // is identifiable.
+    if let BooleanError::CurvedPierceUnsupported {
+        operand,
+        face,
+        edge,
+        ..
+    } = &err
+    {
+        let owner = match operand {
+            topo::Operand::A => &spun,
+            topo::Operand::B => &b,
+        };
+        let carrier = owner
+            .get_edge(*edge)
+            .and_then(|e| owner.get_curve_geom(e.curve));
+        let ends = owner.get_edge(*edge).map(|e| {
+            let pt = |he| {
+                owner
+                    .get_half_edge(he)
+                    .and_then(|h| owner.get_vertex(h.start))
+                    .and_then(|v| owner.get_point(v.point).copied())
+            };
+            (pt(e.he_plus), pt(e.he_minus))
+        });
+        eprintln!("spun steinmetz raiser: op={operand:?} face={face:?} edge={edge:?}");
+        eprintln!("  carrier: {carrier:?}");
+        eprintln!("  endpoints: {ends:?}");
+    }
+    eprintln!("spun steinmetz full error: {err:?}");
     assert!(
-        matches!(
-            err,
-            BooleanError::Escalated {
-                decision: topo::BooleanDecision::WallRoots(topo::WallRung::Discriminant),
-                ..
-            }
-        ),
-        "B's seam's touch of A's wall escalates on its discriminant: {err:?}"
+        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        "{err:?}"
     );
 }
 

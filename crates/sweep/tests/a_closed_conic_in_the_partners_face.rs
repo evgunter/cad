@@ -928,13 +928,11 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
 /// **Ellipse rims tangent outside, one segment**: both cylinders of
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
-/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. The
-/// coplanar ellipse reading finds the rims within the band of each other
-/// about the touch, and the crossing's landing escalates
-/// (`Crossing(OnEdge)`), with both vertices at the touch or the boss's
-/// there alone. (No join arm copies a closed ellipse: before that
-/// reading escalated, the unions refused the pair's carrier and the
-/// one-site loop.)
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. No
+/// join arm copies a closed ellipse, so the union refuses typed: with
+/// both vertices at the touch, the pair's carrier
+/// (`GermEdgeCarrierUnsupported`); with the boss's there alone, the
+/// one-site loop (`SingleSiteSectionLoop`)
 /// (`work/cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
 /// Both orders, at rest and turned.
 #[test]
@@ -948,8 +946,8 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
         brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
     );
     for (pose, hole_az, refused) in [
-        ("vertices there", PI, "Escalated"),
-        ("the boss's there", 0.0, "Escalated"),
+        ("vertices there", PI, "GermEdgeCarrierUnsupported"),
+        ("the boss's there", 0.0, "SingleSiteSectionLoop"),
     ] {
         let tall = fin(
             "the tall boss",
@@ -989,10 +987,6 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
                     Err(BooleanError::GermEdgeCarrierUnsupported { .. }) => {
                         "GermEdgeCarrierUnsupported"
                     }
-                    Err(BooleanError::Escalated {
-                        decision: topo::BooleanDecision::Crossing(topo::CrossingDecision::OnEdge),
-                        ..
-                    }) => "Escalated",
                     Err(BooleanError::Join(j))
                         if matches!(
                             j.error(),

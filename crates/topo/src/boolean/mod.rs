@@ -2874,6 +2874,23 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
+    /// An edge of `operand` meets a curved face of the other in the
+    /// band's gap where [`BooleanError::CurvedPierceUnsupported`] would
+    /// stand for a limit: a root door, or the curve-pair reading of the
+    /// edge against the face's boundary, read the pair in band where it
+    /// can meet. Its story is `decision`'s.
+    CurvedPierceEscalated {
+        /// The operand whose edge met the curved face.
+        operand: Operand,
+        /// The curved face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The decision that read the pair in band.
+        decision: BooleanDecision,
+        /// The reading.
+        diag: Indeterminate,
+    },
     /// An edge of `operand` meets a cone face of the other operand within
     /// the band of the cone's APEX, where the surface has no tangent
     /// plane and its quadric form's gradient vanishes: a root there has
@@ -2960,12 +2977,13 @@ pub enum BooleanError {
     /// ([`geom_brep::curve_face::composite::crossings`]), or the
     /// spline-face arm for any edge against a spline face
     /// ([`geom_brep::NurbsLane::chart_meetings`]). The edge comes
-    /// within the band of the face's carrier without a crossing the arm
-    /// can tell apart (it touches it, runs along it, or crosses it more
-    /// than once within the band), it meets it within the band of a crease
-    /// of the spline, where the spline has no tangent, or the point it
-    /// located does not evaluate onto it. The definite half: a decision
-    /// the arm needs that falls in the band's gap escalates as
+    /// within the zero band of the face's carrier without a crossing the
+    /// arm can tell apart (it touches it, runs along it, or crosses it
+    /// more than once within the band), a piece at the arm's floor is not
+    /// read past the band, it meets the face within the band of a crease
+    /// of the spline, where the spline has no tangent, or a crossing it
+    /// located cannot be placed to the band. The definite half: a
+    /// decision the arm needs that falls in the band's gap escalates as
     /// [`Self::Escalated`] instead.
     SplineCrossingUnsettled {
         /// The operand whose edge it is.
@@ -4202,6 +4220,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
+    /// [`BooleanError::CurvedPierceEscalated`].
+    CurvedPierceEscalated,
     /// [`BooleanError::CrossingAtConeApex`].
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
@@ -4495,6 +4515,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::CurvedPierceEscalated { .. } => BooleanErrorKind::CurvedPierceEscalated,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
@@ -4607,16 +4628,26 @@ pub(crate) const CONIC_EDGES_RECOURSE: &str =
 fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
     use geom_brep::roots::Unsettled as U;
     match why {
+        U::Tangency => {
+            "it comes within the tolerance of the face without a crossing the Boolean can \
+             tell apart: it touches the face, runs along it, or crosses it more than once \
+             within the tolerance"
+        }
         U::Floor => {
             "it comes too near the face for the Boolean to resolve whether or where it \
              crosses: it may touch the face, run along it, or cross it more than once"
         }
         U::Crease => "it meets the face at a corner of the spline",
         U::Meter => {
-            "the point it located as a crossing does not evaluate onto the face within the \
-             tolerance"
+            "a crossing it located cannot be placed on the face, or inside the edge, to \
+             within the tolerance"
         }
-        _ => "its crossings could not be counted",
+        U::Exhausted => "its crossings could not be counted within the walk's budget",
+        U::Resolvent | U::CountDisagrees { .. } => {
+            "the count of its crossings did not certify"
+        }
+        U::AtApex => "it meets the face within the tolerance of a cone's apex",
+        U::Degenerate => "it runs along a ruling of the face",
     }
 }
 
@@ -4705,6 +4736,17 @@ impl core::fmt::Display for BooleanError {
                  {}",
                 operand_word(*operand),
                 geom_core::COINCIDENCE_RECOURSE,
+            ),
+            Self::CurvedPierceEscalated {
+                operand,
+                decision,
+                diag,
+                ..
+            } => write!(
+                f,
+                "at an edge of the {} operand against a curved face of the other, {}",
+                operand_word(*operand),
+                decision.render(diag)
             ),
             Self::CrossingAtConeApex { operand, .. } => write!(
                 f,
@@ -9135,6 +9177,13 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::CurvedPierceEscalated {
+                operand: Operand::A,
+                face,
+                edge,
+                decision: BooleanDecision::CurveMeeting,
+                diag,
+            },
             BooleanError::CrossingAtConeApex {
                 operand: Operand::B,
                 face,
@@ -9170,7 +9219,7 @@ mod tests {
                 edge,
                 face,
                 face_of: Operand::B,
-                why: geom_brep::roots::Unsettled::Floor,
+                why: geom_brep::roots::Unsettled::Tangency,
             },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
@@ -9510,6 +9559,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::CurvedPierceEscalated => "CurvedPierceEscalated",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",

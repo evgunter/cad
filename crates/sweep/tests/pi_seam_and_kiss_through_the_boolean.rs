@@ -164,6 +164,10 @@ fn dome_on_the_cap() -> AtRestBody<f64> {
     ])
 }
 
+fn is_pierce(e: &BooleanError) -> bool {
+    matches!(e, BooleanError::CurvedPierceUnsupported { .. })
+}
+
 /// The tube and a cap, unioned both ways round.
 fn unions_both_ways(
     tube: &AtRestBody<f64>,
@@ -909,18 +913,7 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
         Tol::witness(),
     );
     for e in union_both_orders(&tube, &ball) {
-        assert!(
-            matches!(
-                e,
-                BooleanError::Escalated {
-                    decision: topo::BooleanDecision::SphereRoots
-                        | topo::BooleanDecision::ArcCylinderRoots,
-                    ..
-                }
-            ),
-            "tube ∪ ball: a ruling's touch of the ball, or a meridian's of the wall, \
-             escalates: {e:?}"
-        );
+        assert!(is_pierce(&e), "tube ∪ ball: {e:?}");
     }
 }
 
@@ -1187,17 +1180,18 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     );
     for e in union_both_orders(&bored, &ball) {
         // The ball's meridian circles touch the bore wall at their two
-        // equator points, and the bore's rulings the ball: a tangency,
-        // which each lane's roots escalate on their own decision.
+        // equator points: a tangency, which the circle × cylinder lane's
+        // ladder escalates on its own decision when its margin lands in
+        // the band's gap, and which keeps the pierce door otherwise.
         assert!(
-            matches!(
-                e,
-                BooleanError::Escalated {
-                    decision: topo::BooleanDecision::ArcCylinderRoots
-                        | topo::BooleanDecision::SphereRoots,
-                    ..
-                }
-            ),
+            is_pierce(&e)
+                || matches!(
+                    e,
+                    BooleanError::Escalated {
+                        decision: topo::BooleanDecision::ArcCylinderRoots,
+                        ..
+                    }
+                ),
             "the crossing layer's refusal: {e:?}"
         );
     }

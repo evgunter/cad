@@ -299,7 +299,7 @@ fn a_root_at_the_apex_refuses() {
         for (label, e) in [("through the apex", through), ("beside the apex", near)] {
             let got = conic_quadric_roots(&e, 0.0, TAU, &s, band);
             assert!(
-                matches!(got, Ok(Err(_)) | Err(BooleanError::Escalated { .. })),
+                matches!(got, Ok(Err(_))),
                 "ε {eps}, {label}: refused, got {got:?}"
             );
         }

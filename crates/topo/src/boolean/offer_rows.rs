@@ -2151,6 +2151,16 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
+        BooleanErrorKind::CurvedPierceEscalated => every_decision()
+            .into_iter()
+            .map(|decision| BooleanError::CurvedPierceEscalated {
+                operand,
+                face,
+                edge: crate::entity::EdgeKey::default(),
+                decision,
+                diag,
+            })
+            .collect(),
         BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
             faces: [face, face],

@@ -513,9 +513,9 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// ends at a frontier, the same at the three gated tolerances (1e-9,
 /// 1e-6, 1e-12; at 1e-5, 3e-5 and 1e-4 the tilt about `x` escalates
 /// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the germ
-/// frame has no arm for the skew walls (`GermFrameUnsupported`); about
-/// `y` a seam lies on the partner wall, a touch its line × wall roots
-/// read in band, and every op escalates on it.
+/// frame has no arm for the skew walls (`GermFrameUnsupported`), about
+/// `y` an edge pierces a curved face the Boolean cannot yet read
+/// (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     let tol = Tol::witness();
@@ -527,7 +527,7 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
     for (axis, frontier) in axes.into_iter().zip([
         BooleanErrorKind::GermFrameUnsupported,
-        BooleanErrorKind::Escalated,
+        BooleanErrorKind::CurvedPierceUnsupported,
     ]) {
         let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
         for (op, r, _) in tipped.runs() {

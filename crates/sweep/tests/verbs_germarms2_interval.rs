@@ -343,22 +343,16 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     );
 }
 
-/// The Steinmetz pose itself escalates its seams' touch at the
-/// certified scalar: its seams are ON the pinch points, a touch the line
-/// × wall discriminant reads in band.
+/// The Steinmetz pose itself keeps the crossing layer's tangency door
+/// at the certified scalar: its seams are ON the pinch points, and a
+/// tangency is not a crossing at any order this lane reads.
 #[test]
 fn the_steinmetz_pose_keeps_the_tangency_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let b = spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0);
     let err = union_err(&a, &b);
     assert!(
-        matches!(
-            err,
-            BooleanError::Escalated {
-                decision: topo::BooleanDecision::WallRoots(topo::WallRung::Discriminant),
-                ..
-            }
-        ),
+        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
         "{err:?}"
     );
     same_door_or_escalated(

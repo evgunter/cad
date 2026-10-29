@@ -572,7 +572,7 @@ fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
                 got,
                 Err(ref r) if matches!(
                     r.fault,
-                    MeetFault::Escalated(_)
+                    MeetFault::Touch(_)
                 )
             ),
             "{order}: the touch refuses typed: {got:?}"

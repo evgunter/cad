@@ -140,10 +140,13 @@ pub struct Meetings<T: geom_core::Real> {
 /// Why [`meet`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum MeetFault {
-    /// A decision stayed in the band: a sign in its gap, or a root
-    /// finder's cut, piece or extreme that reads in band wherever the
-    /// finder can read it.
+    /// A decision fell in the band's gap.
     Escalated(Indeterminate),
+    /// A root finder read the pair in the band's gap where they can meet
+    /// ([`RootRefusal::Touch`]): a meeting in band, which escalates where
+    /// the spans are the model's and is the probe's where the caller
+    /// chose one.
+    Touch(Indeterminate),
     /// A root finder, a meter or the walk's budget reached its limit
     /// before it could certify the candidates.
     Unsettled(Unsettled),
@@ -166,7 +169,8 @@ pub enum MeetFault {
 impl From<RootRefusal> for MeetFault {
     fn from(refusal: RootRefusal) -> Self {
         match refusal {
-            RootRefusal::Escalated(diag) | RootRefusal::Touch(diag) => Self::Escalated(diag),
+            RootRefusal::Escalated(diag) => Self::Escalated(diag),
+            RootRefusal::Touch(diag) => Self::Touch(diag),
             RootRefusal::Unsettled(why) => Self::Unsettled(why),
             RootRefusal::Fault(fault) => Self::Contradiction {
                 readings: fault.readings(),

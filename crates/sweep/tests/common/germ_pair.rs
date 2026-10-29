@@ -151,7 +151,7 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
                 decision: db,
                 diag: y,
             },
-        ) => {
+        ) if x.predicate == Some("carrier_unglued_coincidence") => {
             da == db
                 && x.predicate == y.predicate
                 && arm(x).is_some()

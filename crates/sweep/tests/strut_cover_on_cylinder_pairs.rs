@@ -509,15 +509,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
                 (
                     "into the half ball" | "over the half ball" | "from the joint",
                     _,
-                    Err(
-                        BooleanError::CurvedPierceUnsupported { .. }
-                        | BooleanError::Escalated {
-                            decision:
-                                topo::BooleanDecision::ArcCylinderRoots
-                                | topo::BooleanDecision::SphereRoots,
-                            ..
-                        },
-                    ),
+                    Err(BooleanError::CurvedPierceUnsupported { .. }),
                 ) => {}
                 _ => panic!("{pose}, {order}: {got:?}"),
             }

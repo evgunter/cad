@@ -35,14 +35,8 @@ fn circle<T: Real>(rho: f64) -> geom::Curve3<T> {
     }
 }
 
-fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
-    crate::boolean::circle_roots::door_answer(conic_quadric_roots(
-        &circle(1.0),
-        t0,
-        t1,
-        &sphere(c, r),
-        band(),
-    ))
+fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
+    conic_quadric_roots(&circle(1.0), t0, t1, &sphere(c, r), band()).unwrap()
 }
 
 fn on_circle(theta: f64) -> Point3<f64> {
@@ -586,7 +580,7 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
         ));
         assert!(matches!(
             line_sphere_roots(Point3::new(0.3, 0.0, 0.0), d, c, r, band()).unwrap(),
-            WallRoots::Tangent(_)
+            WallRoots::Tangent
         ));
     }
 }

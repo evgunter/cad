@@ -92,10 +92,12 @@ fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
 }
 
 /// **The Steinmetz pair dies at its seams, and the seams die ON the
-/// pinch points.** The refusal is a touch's escalation on the line ×
-/// wall discriminant, and a straight seam ruling of the first operand
-/// touches the partner wall exactly at `p ± r·n̂`, `n̂ = unit(â₁ × â₂)`
-/// — one of the two points where the section crosses itself.
+/// pinch points.** The row asserts three things together, because
+/// separately none of them says what happened: the refusal is the
+/// crossing layer's, the edge it names is a straight seam ruling, and
+/// that ruling touches the partner wall exactly at `p − r·n̂`,
+/// `n̂ = unit(â₁ × â₂)` —
+/// one of the two points where the section crosses itself.
 ///
 /// So the classic fixture is not a join question at all at this head.
 /// It is a tangency, and a tangency ties every first-order datum the
@@ -104,16 +106,19 @@ fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
 fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     let (a, b) = steinmetz(2.0);
     let err = union_err(&a, &b);
-    assert!(
-        matches!(
-            err,
-            BooleanError::Escalated {
-                decision: topo::BooleanDecision::WallRoots(topo::WallRung::Discriminant),
-                ..
-            }
-        ),
-        "a seam's touch of the partner wall escalates on its discriminant, got {err:?}"
-    );
+    let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
+        panic!("expected the crossing layer's door, got {err:?}");
+    };
+    assert_eq!(*operand, topo::Operand::A, "A's seam is the raiser");
+
+    let Some(topo::CurveGeom::Certified(c)) =
+        a.get_edge(*edge).and_then(|e| a.get_curve_geom(e.curve))
+    else {
+        panic!("the named edge has no certified curve");
+    };
+    let topo::Curve3::Line { origin, dir } = *c.carrier() else {
+        panic!("a seam ruling is a Line carrier; got {:?}", c.carrier());
+    };
 
     // The two pinch points, from the axes alone.
     let (_, a1, r) = wall(&a);
@@ -125,36 +130,26 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     let p = Point3::new(0.0, 0.0, 0.0);
     let pinches = [p + n * r, p - n * r];
 
-    // Each seam's closest approach to B's axis, in closed form: the
+    // The seam's closest approach to B's axis, in closed form: the
     // ruling is axis-parallel to A, so its residual against B's wall is
     // a parabola in the span parameter and its vertex is the foot.
+    let w = origin - o2;
     let perp = |v: Vec3<f64>| v - a2 * v.dot(a2);
-    let touches: Vec<(f64, f64)> = a
-        .edges()
-        .filter_map(|(_, e)| match a.get_curve_geom(e.curve) {
-            Some(topo::CurveGeom::Certified(c)) => match *c.carrier() {
-                topo::Curve3::Line { origin, dir } => Some((origin, dir)),
-                _ => None,
-            },
-            _ => None,
-        })
-        .map(|(origin, dir)| {
-            let (wp, dp) = (perp(origin - o2), perp(dir));
-            let touch = origin + dir * (-wp.dot(dp) / dp.norm_squared());
-            let gap = perp(touch - o2).norm() - r;
-            let d = pinches
-                .iter()
-                .map(|q| (touch - *q).norm())
-                .fold(f64::MAX, f64::min);
-            (gap, d)
-        })
-        .collect();
+    let (wp, dp) = (perp(w), perp(dir));
+    let t = -wp.dot(dp) / dp.norm_squared();
+    let touch = origin + dir * t;
+    let gap = perp(touch - o2).norm() - r;
     assert!(
-        touches
-            .iter()
-            .any(|&(gap, d)| gap.abs() < 1e-15 && d < 1e-15),
-        "a seam ruling is tangent to the partner wall at a pinch point p ± r·n̂, \
-         n̂ = unit(â₁ × â₂): {touches:?}"
+        gap.abs() < 1e-15,
+        "the seam is tangent to the partner wall, not crossing it: gap {gap}"
+    );
+    let d = pinches
+        .iter()
+        .map(|q| (touch - *q).norm())
+        .fold(f64::MAX, f64::min);
+    assert!(
+        d < 1e-15,
+        "the tangency sits at a pinch point p ± r·n̂, n̂ = unit(â₁ × â₂); it is {d} away"
     );
 }
 

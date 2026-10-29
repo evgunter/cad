@@ -154,9 +154,7 @@ use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use geom_brep::quartic::QuarticRows;
-use geom_brep::roots::{
-    OnCarrier, Passes, RootFault, RootRefusal, Roots, Unsettled, in_band, spread_in_band,
-};
+use geom_brep::roots::{OnCarrier, RootFault, RootRefusal, Roots, Unsettled};
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
@@ -313,14 +311,12 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 DECISION,
             ),
             // An in-band offset is a near-coaxial pose neither arm can
-            // stand behind; a negative length is not one.
+            // stand behind.
             Err(diag) => Err(BooleanError::Escalated {
                 decision: DECISION,
                 diag,
             }),
-            Ok(Sign::Negative) => Err(BooleanError::ClassificationInvariant {
-                what: "the circle × torus door read a carrier's axis offset negative",
-            }),
+            Ok(Sign::Negative) => unreachable!("a norm reads no negative offset"),
         };
     }
 
@@ -571,14 +567,7 @@ fn parallel_axes_roots<T: Decide>(
         (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
         (_, Sign::Negative) => return Ok(CircleRoots::Miss),
-        _ => {
-            return Err(RootRefusal::Touch(spread_in_band(
-                "bool_circle_torus_plane_height",
-                depth,
-                charge_h,
-                band,
-            )));
-        }
+        _ => return Err(Unsettled::Tangency.into()),
     }
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
@@ -591,29 +580,38 @@ fn parallel_axes_roots<T: Decide>(
     // `θ₀`: the carrier's farthest point from the torus axis, along
     // `+w_perp`.
     let theta0 = w_perp.dot(v_ref).atan2(w_perp.dot(u_ref));
-    // An extreme the band cannot place is a touch, on its reading.
-    let place = |theta: T, rho: T| -> Result<Result<Band3, Indeterminate>, Indeterminate> {
+    let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
         let (s, c) = theta.sin_cos();
         let res = geom_brep::implicit_residual(
             torus,
             center + u_ref * (radius * c) + v_ref * (radius * s),
         );
-        const RESIDUAL: &str = "bool_circle_torus_contour_residual";
-        match geom_brep::roots::spread_signs(RESIDUAL, res, charge, band)? {
-            (_, Sign::Negative) => return Ok(Ok(Band3::Tube)),
+        match geom_brep::roots::spread_signs(
+            "bool_circle_torus_contour_residual",
+            res,
+            charge,
+            band,
+        )? {
+            (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
             (Sign::Positive, _) => {}
-            _ => return Ok(Err(spread_in_band(RESIDUAL, res, charge, band))),
+            _ => return Ok(None),
         }
-        const SIDE: &str = "bool_circle_torus_contour_side";
-        let side = Margin::of(rho - major_radius);
-        Ok(match decide(SIDE, side, band)? {
-            Sign::Positive => Ok(Band3::Beyond),
-            Sign::Negative => Ok(Band3::Hole),
-            Sign::Zero => Err(in_band(SIDE, side, Passes::NonZero, band)),
-        })
+        Ok(
+            match decide(
+                "bool_circle_torus_contour_side",
+                Margin::of(rho - major_radius),
+                band,
+            )? {
+                Sign::Positive => Some(Band3::Beyond),
+                Sign::Negative => Some(Band3::Hole),
+                Sign::Zero => None,
+            },
+        )
     };
-    let far = place(theta0, rho_max)?.map_err(RootRefusal::Touch)?;
-    let near = place(theta0 + T::pi(), rho_min)?.map_err(RootRefusal::Touch)?;
+    let (Some(far), Some(near)) = (place(theta0, rho_max)?, place(theta0 + T::pi(), rho_min)?)
+    else {
+        return Err(Unsettled::Tangency.into());
+    };
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
     // hole and the far one is not; ρ+ iff the far one is beyond and the
@@ -793,10 +791,8 @@ mod tests {
         out
     }
 
-    /// The door's answer: its roots, or its refusal, a limit or `None`
-    /// for its decision's escalation (a touch in band).
-    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
-        match roots_of(
+    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
+        roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -805,14 +801,8 @@ mod tests {
             t1,
             &torus(),
             band(),
-        ) {
-            Ok(found) => found.map_err(Some),
-            Err(BooleanError::Escalated { decision, .. }) => {
-                assert_eq!(decision, DECISION, "the door's own decision");
-                Err(None)
-            }
-            Err(other) => panic!("the door refused outside its decision: {other:?}"),
-        }
+        )
+        .unwrap()
     }
 
     /// The door's roots that fall in `[t0, t1]`, sorted.

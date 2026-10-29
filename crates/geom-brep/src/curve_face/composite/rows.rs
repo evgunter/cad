@@ -255,7 +255,7 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
     };
     let got = read(&arc, &own);
     assert!(
-        matches!(got, Err(CompositeRefusal::Escalated(_))),
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Tangency))),
         "{got:?}"
     );
 }

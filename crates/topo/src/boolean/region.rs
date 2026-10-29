@@ -180,6 +180,7 @@ pub(crate) fn found<T: Decide>(
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
+        // A touch of the leg is the probe's, as a limit is.
         Ok(Roots::On(_))
         | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
             Err(RayFault::Graze)

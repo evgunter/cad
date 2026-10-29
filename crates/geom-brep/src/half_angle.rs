@@ -13,7 +13,7 @@
 //! [`certified_subdivision`], decided on the residual itself in the
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
-//! tangency refused as a touch, [`crate::roots::RootRefusal::Touch`]).
+//! tangency refused typed, [`crate::roots::RootRefusal`]).
 //!
 //! The subdivision is not bound to degree two: a residual of degree `N`
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
@@ -87,7 +87,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::{QuarticRows, depressed_quartic_roots};
-use crate::roots::{Passes, RootFault, RootRefusal, Roots, Unsettled, in_band};
+use crate::roots::{RootFault, RootRefusal, Roots, Unsettled};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
 /// torus ([`crate::ConicTorusHarmonics`]).
@@ -513,7 +513,7 @@ const BISECTIONS: u32 = 64;
 ///   piece holds at most one root, and holds one exactly when its ends'
 ///   signs differ; that root is bisected on the residual itself to the
 ///   scalar's resolution and must then read ON the surface (`side`,
-///   `Zero`): in the gap it escalates, and definitely off it refuses
+///   `Zero`): in the gap it is a touch, and definitely off it refuses
 ///   [`Unsettled::Meter`], the residual's step between two adjacent
 ///   scalars being past the band — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
@@ -521,16 +521,20 @@ const BISECTIONS: u32 = 64;
 ///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
-///   holds a double root — a tangency — and the walk escalates on its
-///   clear margin, never a certified `Miss`.
+///   holds a double root — a tangency — and the walk refuses it on its
+///   clear margin: a touch where that margin lies in the band's gap,
+///   [`Unsettled::Tangency`] where it is decided, never a certified
+///   `Miss`.
 ///
-/// A piece none of whose split shares reads a definite sign escalates on
-/// the first share's reading, as does a turn with no definite share at
-/// all: the walk has cut wherever it can, and the sign stays in band.
+/// A piece none of whose split shares reads a definite sign, and a turn
+/// with no definite share at all, refuse the same way: a touch on the
+/// first share read in the gap, or [`Unsettled::Tangency`] where every
+/// share read zero. The walk has cut wherever it can.
 ///
 /// # Errors
 ///
-/// [`RootRefusal::Touch`] and [`Unsettled::Meter`] as above,
+/// [`RootRefusal::Touch`], [`Unsettled::Tangency`] and
+/// [`Unsettled::Meter`] as above,
 /// [`Unsettled::Exhausted`] past the piece budget, and
 /// [`RootFault::ImpossibleCount`] for an odd count round the turn or more
 /// roots than the degree allows.
@@ -640,20 +644,22 @@ pub fn certified_subdivision<T: Decide>(
     };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
     let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
+    // The first reading in the band's gap at a cut the walk tried: what a
+    // walk that can cut nowhere definite refuses on.
+    let gap = core::cell::Cell::new(None);
     let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        Ok(Sign::Zero) | Err(_) => None,
+        Ok(Sign::Zero) => None,
+        Err(diag) => {
+            if gap.get().is_none() {
+                gap.set(Some(diag));
+            }
+            None
+        }
     };
-    // A cut whose every share reads in band, at the sign the walk needed
-    // definite there.
-    let in_band_at = |t: T| {
-        RootRefusal::Touch(in_band(
-            rows.side,
-            Margin::of(residual(t)),
-            Passes::NonZero,
-            band,
-        ))
-    };
+    // Every cut tried reads in band: a touch on the gap's reading where
+    // one read there, and a touch decided in the zero band where none did.
+    let uncut = || gap.get().map_or(Unsettled::Tangency.into(), RootRefusal::Touch);
     // The first cut: one end in each sixteenth of the turn, each moved
     // along its sixteenth until its sign is definite; a sixteenth with no
     // such share is re-cut by leaving it inside its neighbours' piece, so
@@ -672,7 +678,7 @@ pub fn certified_subdivision<T: Decide>(
         })
         .collect();
     let Some(&(first, first_side)) = ends.first() else {
-        return Err(in_band_at(base + piece * T::from_f64(SPLITS[0])));
+        return Err(uncut());
     };
     ends.push((first + T::tau(), first_side));
     // The pieces are walked left to right ([`geom_core::bisect`]), so the
@@ -697,7 +703,8 @@ pub fn certified_subdivision<T: Decide>(
             + fourth_hi * half.powi(4) / twenty_four;
         let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
-        if definitely(rows.clear, clear) {
+        let clear_read = decide(rows.clear, Margin::of(clear), band);
+        if matches!(clear_read, Ok(Sign::Positive)) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
@@ -792,18 +799,17 @@ pub fn certified_subdivision<T: Decide>(
             return Step::Settled;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(RootRefusal::Touch(in_band(
-                rows.clear,
-                Margin::of(clear),
-                Passes::Positive,
-                band,
-            )));
+            return Step::Stop(match clear_read {
+                Err(diag) => RootRefusal::Touch(diag),
+                Ok(_) => Unsettled::Tangency.into(),
+            });
         }
+        gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(in_band_at(l + (r - l) * T::from_f64(SPLITS[0])));
+            return Step::Stop(uncut());
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     });

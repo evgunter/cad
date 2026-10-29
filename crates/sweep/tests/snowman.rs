@@ -305,11 +305,14 @@ fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
     }
 }
 
-/// **The tangent pairs escalate.** Touching externally (`d = r1 + r2`)
-/// or internally (`d = r1 − r2`), the two balls meet at one pole, where
-/// a meridian of each touches the other sphere without crossing it. The
-/// circle × sphere roots read that touch in band, so every op escalates
-/// on their decision rather than guessing a contact.
+/// **The tangent pairs are the honest frontier.** Touching externally
+/// (`d = r1 + r2`) or internally (`d = r1 − r2`), the two balls meet at
+/// one pole, where a meridian of each touches the other sphere without
+/// crossing it. The circle × sphere roots read that as a tangency, which
+/// is not a crossing at any order the crossing layer sees, so every op
+/// refuses typed at the pierce door — naming a MERIDIAN (a circle edge)
+/// of one ball against a SPHERE face of the other — rather than
+/// guessing a contact.
 #[test]
 fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     let a = ball(R1, 0.0);
@@ -319,16 +322,28 @@ fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     ] {
         for op in OPS {
             let e = refusal(op, &a, &b);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Escalated {
-                        decision: topo::BooleanDecision::ArcSphereRoots,
-                        ..
-                    }
-                ),
-                "{label} tangency under {op:?}: the touch escalates on the circle × sphere \
-                 roots, got {e:?}"
+            let topo::BooleanError::CurvedPierceUnsupported {
+                operand,
+                edge,
+                face,
+                ..
+            } = e
+            else {
+                panic!("{label} tangency under {op:?}: expected the pierce door, got {e:?}");
+            };
+            let (edge_body, face_body) = match operand {
+                topo::Operand::A => (&a, &b),
+                topo::Operand::B => (&b, &a),
+            };
+            assert_eq!(
+                topo::query::edge_carrier_kind(edge_body, edge),
+                Some(topo::CurveKind::Circle),
+                "{label} under {op:?}: the edge is a meridian"
+            );
+            assert_eq!(
+                topo::query::face_surface_kind(face_body, face),
+                Some(geom::SurfaceKind::Sphere),
+                "{label} under {op:?}: the face is the other ball's sphere"
             );
         }
     }

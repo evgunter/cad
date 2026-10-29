@@ -34,8 +34,8 @@
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
 //!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
-//!   reads in the zero band and refuses as a touch (`RootRefusal::Touch`, which
-//!   the door escalates), where the
+//!   reads in the zero band and refuses `Unsettled::Tangency` (escalating only where
+//!   an end of that extreme's error interval lies in the gap), where the
 //!   ladder can certify a miss
 //!   (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!   Its poses:

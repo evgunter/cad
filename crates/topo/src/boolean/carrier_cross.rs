@@ -76,6 +76,10 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
     /// No reading answers: nothing is known about the interior (module
     /// docs).
     Unread,
+    /// The edge and a boundary curve read in the band's gap where they
+    /// can meet ([`BoundaryRefusal::Touch`]): the caller places the
+    /// escalation where its frontier door stands.
+    Touch(geom_core::Indeterminate),
 }
 
 /// A point strictly inside `carrier`'s span `(t0, t1)` where it meets
@@ -111,6 +115,7 @@ pub(super) fn boundary_crossing<T: Decide>(
     let t = match read_boundary(y, face, &swept, band)? {
         Some(Ok(Boundary::Meets { t, .. })) => t,
         Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
+        Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
         Some(Err(refusal)) => {
             return boundary_refusal(refusal).map(|()| BoundaryCrossing::Unread);
         }
@@ -187,17 +192,20 @@ fn boundary_spans<T: Decide>(
     Ok(Some(edges))
 }
 
-/// A boundary pass's refusal: an escalation is this module's, a reading
-/// that could not run is `Ok` (nothing is known), and a misread is a
-/// kernel fault.
+/// A boundary pass's refusal: an escalation is this module's, a meeting
+/// in band the meeting's, a reading that could not run is `Ok` (nothing
+/// is known), and a misread is a kernel fault, the readings that
+/// contradict named.
 pub(super) fn boundary_refusal(refusal: BoundaryRefusal) -> Result<(), BooleanError> {
     match refusal {
         BoundaryRefusal::Escalated(diag) => Err(escalated(diag)),
+        BoundaryRefusal::Meeting(diag) | BoundaryRefusal::Touch(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::CurveMeeting,
+            diag,
+        }),
         BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault(MeetFault::Contradiction { .. }) => {
-            Err(BooleanError::ClassificationInvariant {
-                what: "boundary pass: two readings of the meeting pose contradict",
-            })
+        BoundaryRefusal::Fault(MeetFault::Contradiction { readings }) => {
+            Err(BooleanError::ClassificationInvariant { what: readings })
         }
         BoundaryRefusal::Fault(_) => Err(BooleanError::ClassificationInvariant {
             what: "boundary pass: a carrier the meeting table misread",
@@ -309,7 +317,9 @@ mod crossing_rows {
                 Some(t)
             }
             BoundaryCrossing::Clear => None,
-            BoundaryCrossing::Unread => panic!("{span:?}: every carrier here is read"),
+            BoundaryCrossing::Unread | BoundaryCrossing::Touch(_) => {
+                panic!("{span:?}: every carrier here is read")
+            }
         };
         let at_ruling = crossing((1.0, 1.6)).expect("the ruling is crossed");
         assert!(

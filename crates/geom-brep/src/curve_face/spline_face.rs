@@ -80,7 +80,7 @@ use geom_core::{
 };
 
 use crate::krawczyk::{det3, image, inverse3, meet3, midpoints, norm, solution_reach};
-use crate::roots::{Passes, Unsettled, in_band};
+use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
 /// Why [`isolate`] or [`settle`] gave no answer.
@@ -95,9 +95,10 @@ pub enum SplineFaceRefusal {
     /// the band, a tangency, two meetings the band cannot part, or a
     /// meeting on the chart's domain edge), [`Unsettled::Crease`] (such a
     /// box within its floor reach of a crease among its block's sides, as
-    /// a meeting within the band of a crease leaves one), [`Unsettled::Meter`] (a
-    /// meeting does not resolve onto the chart, or inside the span, to the
-    /// band) or [`Unsettled::Exhausted`].
+    /// a meeting within the band of a crease leaves one),
+    /// [`Unsettled::Tangency`] (two meetings decided at one point),
+    /// [`Unsettled::Meter`] (a meeting does not resolve onto the chart, or
+    /// inside the span, to the band) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The arm could not read the pair: the carrier is a spiric, or a
     /// scalar, a knot or a speed of the carrier or the chart did not
@@ -938,12 +939,7 @@ pub fn settle<T: Decide>(
         if let Some(before) = out.last()
             && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero
         {
-            return Err(SplineFaceRefusal::Escalated(in_band(
-                "spline_face_roots_apart",
-                Margin::of((point - before.point).norm()),
-                Passes::NonZero,
-                band,
-            )));
+            return Err(Unsettled::Tangency.into());
         }
         out.push(ChartMeeting {
             t: T::from_computed(tm),
