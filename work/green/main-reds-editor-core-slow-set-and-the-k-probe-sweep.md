@@ -282,6 +282,9 @@ agreed, so the red predates LOOPS. The likely cause is SELFX's root arm
 "two scopes that meet are at distance 0": a face named in both scopes
 meets itself, so every `c > 0` is violated off topology, and the row's
 frontier has gone. The last nightly (`a1cfd1cfdb`) predates #5955 and
-does not show it. CLEAR owns the cause.
+does not show it. CLEAR owns the cause. **Fixed by PR #5979**, which
+re-fixtures the row to two scopes, {wall 7} against {wall 9}. Both
+halves hold unchanged: one cell pair at each broken bound, and the
+frontier at `c = 0.5` refused on a budget after 65 536 cells.
 `the_margin_thin_accounting_is_goldened_bit_exact` (above) is still red
 on the same tree.
