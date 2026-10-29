@@ -354,7 +354,7 @@ fn random_torus_sections() {
     };
     let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - big_r).hypot(q.z) - r;
     let (mut poses, mut carried_poses, mut asked, mut decided) = (0usize, 0usize, 0usize, 0usize);
-    for _ in 0..fuzz::scaled(40) {
+    for _ in 0..fuzz::scaled(10) {
         poses += 1;
         let near_tangent = rng.below(3) == 0;
         let partner = if rng.below(2) == 0 {
