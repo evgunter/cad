@@ -223,18 +223,23 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
     }
 }
 
-/// **The other spins, and the steeper tilts, refuse at their germs**
-/// before any body is built, on every op: a torus germ against the rod's
-/// end cap, which no frame arm reads (`GermFrameUnsupported`); or, where
-/// the wall's germs are matched first, past them: the join's segment
+/// **The other spins, and the steeper tilts, refuse typed** before any
+/// body is built, on every op: at a torus germ against the rod's end
+/// cap, which no frame arm reads (`GermFrameUnsupported`); or, where the
+/// wall's germs are matched first, past them: the join's segment
 /// dispatch, which has no torus lane for a segment it does not carry
-/// (`CurvedBooleanUnsupported`), or the edge join on the wall's closed
+/// (`CurvedBooleanUnsupported`), the edge join on the wall's closed
 /// spline chord (`JoinCarrierUnsupported`,
-/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`). Every
-/// wall germ takes its site's foot on the carried section.
+/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`), or the
+/// result gate's volume (`VolumeUncomputable`: a face the fitted chords
+/// bound, a conic trim, a spiric's lifted image, or a ring left on a
+/// curved face; SPIRICARM's
+/// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
+/// Every wall germ takes its site's foot on the carried section.
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
+    let mut off = Vec::new();
     for (beta, spin) in [
         (0.5, 0.0),
         (0.5, 0.5),
@@ -247,24 +252,30 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     ] {
         let c = rod(beta, spin);
         for (_, _, what, r) in every_op(&h, &c) {
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::GermFrameUnsupported { .. }
-                        | BooleanError::CurvedBooleanUnsupported {
-                            kind: SurfaceKind::Torus,
-                            ..
-                        }
-                        | BooleanError::JoinCarrierUnsupported {
-                            carrier: geom::CurveKind::Nurbs,
-                            ..
-                        })
+            let typed = match &r {
+                Err(
+                    BooleanError::GermFrameUnsupported { .. }
+                    | BooleanError::CurvedBooleanUnsupported {
+                        kind: SurfaceKind::Torus,
+                        ..
+                    }
+                    | BooleanError::JoinCarrierUnsupported {
+                        carrier: geom::CurveKind::Nurbs,
+                        ..
+                    },
+                ) => true,
+                Err(BooleanError::ResultInvalid { errors }) => matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable { .. }]
                 ),
-                "{what} at β {beta}, spin {spin}: {}",
-                outcome(&r)
-            );
+                _ => false,
+            };
+            if !typed {
+                off.push(format!("{what} at β {beta}, spin {spin}: {}", outcome(&r)));
+            }
         }
     }
+    assert!(off.is_empty(), "{off:#?}");
 }
 
 /// **The lens is real.** At the rod axis's closest approach to the

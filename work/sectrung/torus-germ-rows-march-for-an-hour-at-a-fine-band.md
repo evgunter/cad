@@ -26,7 +26,9 @@ locally on the branch:
   (2) 329 s. At the compiled ε the drum row takes 467 s.
 - `crates/sweep/tests/germ_tilted_rod.rs`
   `other_spins_and_steeper_tilts_refuse_at_their_germs` (32 runs) did not
-  finish in 3 420 s; on main it stopped at the mint without a march.
+  finish in 3 420 s; on main it stopped at the mint without a march. At
+  the compiled ε, after the torus ring path landed on main, it takes
+  1 560 s, every run now reaching the result gate's volume.
 
 The rows are in the slow set, so this is the nightly's cost. The PR 5972
 log measured the door rows at 230–865 s each at 1e-12, so most of the
