@@ -99,3 +99,5 @@ names is the lane that row's producer waits for. A blocker inherits the
 band of what waits on it (`work/README.md`, Priority), so this row,
 unbanded until now, carries P2. Its own blocker, the D10 hold, is P0.
 (band-rule triage)
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** kept on the hold, pending a decision. Its D10 ground is built (stages 4 and 5; `census::confirm_edge_face`, `crates/topo/src/census.rs:9608`, still refuses the curve touch typed, `census/point.rs:301`). What is left is the question this row names itself: what the lane certifies for an edge, which has no normal of its own. Opening it means flagging that `design` question or ruling on it, and that is the INTENT orchestrator's call, not this re-read's.
