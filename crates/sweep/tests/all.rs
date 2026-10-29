@@ -316,6 +316,8 @@ mod saddle_wall_offset_fit;
 mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "seam_region_cover_census.rs"]
 mod seam_region_cover_census;
+#[path = "self_intersection_proves_injectivity.rs"]
+mod self_intersection_proves_injectivity;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
