@@ -879,6 +879,12 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
+            // The quarter-turn that rotates a line edge's chart direction
+            // toward its face, in the plane's chart frame.
+            ("crates/topo/src/injective.rs", "1.0"),
+            // A face's side of an iso edge's line, as the sign of the held
+            // chart coordinate.
+            ("crates/topo/src/injective.rs", "side"),
             ("crates/topo/src/shell.rs", "thickness"),
         ]
         .into_iter()
