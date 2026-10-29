@@ -385,8 +385,8 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
 fn a_curved_junction_refuses_typed_naming_the_departure_arm() {
     use geom_core::Band;
     use topo::clearance::{
-        BoundVerdict, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal,
-        SharedCell, Side, Sweep,
+        BoundVerdict, Budgets, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
+        EngineRefusal, SharedCell, Side, Sweep,
     };
     let tol = Tol::witness();
     let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -397,8 +397,10 @@ fn a_curved_junction_refuses_typed_naming_the_departure_arm() {
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(tol).unwrap(),
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: 65_536,
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
     };
     let report = sweep.run(&windows, &windows, true, |_| {
         Err::<(), String>("no witness is offered".to_owned())
