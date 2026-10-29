@@ -329,6 +329,12 @@ fn run(solid: &Solid, apex: Point3<f64>, planes: &[(String, Vec3<f64>)]) -> Tall
             }
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
+                if std::env::var("R3_VERBOSE").is_ok() {
+                    eprintln!(
+                        "REFUSED {what}: {}",
+                        format!("{e:?}").chars().take(500).collect::<String>()
+                    );
+                }
                 *tally.refused.entry(variant(&e)).or_default() += 1;
                 continue;
             }
@@ -559,4 +565,133 @@ fn r1_one_pose_per_family_lands() {
             t.wrong
         );
     }
+}
+
+/// **Delta review (fix pass 86bdfc993e..382a6c4bc2): seeded random
+/// poses through the apex never panic and never ship a wrong side.**
+/// Half-angles in 5°–85°, apex up and down, full and `Partial` windows
+/// drawn over (0.2, 2π − 0.05), normals uniform on the sphere plus
+/// near-graze tilts at random azimuths (so both extrema fall inside a
+/// window over π at random places, and either one near a bound).
+#[test]
+fn r3_seeded_random_apex_poses_never_panic_or_mislead() {
+    let mut state: u64 = std::env::var("R3_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0x5956);
+    let mut rnd = move || {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let cones: usize = std::env::var("R3_CONES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(12);
+    let mut wrong = Vec::new();
+    let mut landed = 0;
+    let mut refused = std::collections::BTreeMap::<String, usize>::new();
+    for _ in 0..cones {
+        let deg = 5.0 + 80.0 * rnd();
+        let up = rnd() < 0.5;
+        let window = if rnd() < 0.25 {
+            TAU
+        } else {
+            0.2 + (TAU - 0.25) * rnd()
+        };
+        let (solid, apex, _) = cone_solid(deg, up, window);
+        let graze = FRAC_PI_2 - deg.to_radians();
+        let mut planes = Vec::new();
+        for i in 0..10 {
+            let (beta, gamma) = if i < 6 {
+                ((2.0 * rnd() - 1.0).acos(), TAU * rnd())
+            } else {
+                let tilt = [1e-2, 0.05, 0.2, -0.05][i - 6];
+                (graze + tilt, TAU * rnd())
+            };
+            let n = Vec3::new(
+                beta.sin() * gamma.cos(),
+                beta.cos(),
+                -beta.sin() * gamma.sin(),
+            );
+            let n = if up { n } else { Vec3::new(n.x, -n.y, n.z) };
+            planes.push((format!("β {beta:.4} γ {gamma:.4}"), n));
+        }
+        let t = run(&solid, apex, &planes);
+        report(&solid.name, &t);
+        landed += t.landed;
+        for (k, v) in t.refused {
+            *refused.entry(k).or_default() += v;
+        }
+        wrong.extend(t.wrong);
+    }
+    eprintln!(
+        "R3 total landed {landed}, refused {refused:?}, wrong {}",
+        wrong.len()
+    );
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    // A floor, so the row goes red where the reading degrades into
+    // refusals and not only where it ships a wrong side: at the frozen
+    // head the default seed lands all 120 poses at ε 1e-6, 1e-9 and
+    // 1e-12, and 300 cones land 2996 / 3000 at 1e-6 (4 `SliverSector`).
+    assert!(
+        landed * 100 >= cones * 10 * 98,
+        "landed {landed} of {}: refused {refused:?}",
+        cones * 10
+    );
+}
+
+/// **Delta review: an extremal ruling at or within the band of a window
+/// bound.** Partial cones whose plane through the apex takes its
+/// extremum (`φ = γ` or `γ + π`) a few band widths either side of the
+/// start bound (`φ = 0`) or the end bound (`φ = w`), at tilts that graze,
+/// cut and miss: every pose lands at its oracle or refuses typed.
+#[test]
+#[ignore = "delta-review measurement: run explicitly"]
+fn r3_an_extremum_at_a_window_bound_never_misleads() {
+    let eps = Tol::witness().eps();
+    let mut wrong = Vec::new();
+    let mut refused = std::collections::BTreeMap::<String, usize>::new();
+    let mut landed = 0;
+    for deg in [20.0, 45.0, 70.0] {
+        for window in [1.0, 2.0, PI, 4.0, 5.5] {
+            for up in [true, false] {
+                let (solid, apex, _) = cone_solid(deg, up, window);
+                let graze = FRAC_PI_2 - f64::to_radians(deg);
+                let mut planes = Vec::new();
+                for bound in [0.0, window] {
+                    for opposite in [0.0, PI] {
+                        for d in [0.0, eps, -eps, 10.0 * eps, -10.0 * eps, 1e-3, -1e-3] {
+                            for tilt in [0.0, 1e-3, -1e-3, 0.05, -0.05, 0.4] {
+                                let (beta, gamma) = (graze + tilt, bound + opposite + d);
+                                let n = Vec3::new(
+                                    beta.sin() * gamma.cos(),
+                                    beta.cos(),
+                                    -beta.sin() * gamma.sin(),
+                                );
+                                let n = if up { n } else { Vec3::new(n.x, -n.y, n.z) };
+                                planes.push((
+                                    format!("bound {bound:.3}+{opposite:.3} δ {d:e} tilt {tilt}"),
+                                    n,
+                                ));
+                            }
+                        }
+                    }
+                }
+                let t = run(&solid, apex, &planes);
+                report(&solid.name, &t);
+                landed += t.landed;
+                for (k, v) in t.refused {
+                    *refused.entry(k).or_default() += v;
+                }
+                wrong.extend(t.wrong);
+            }
+        }
+    }
+    eprintln!(
+        "R3B total landed {landed}, refused {refused:?}, wrong {}",
+        wrong.len()
+    );
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }
