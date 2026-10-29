@@ -36,8 +36,9 @@ measurement that started this refold: the klein loop's contact rims are
 | P1 | `the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier` | E | CLEAVE | `carrier_touch` and `carrier_cross` read no speed for a spiric or spline |
 | P1 | `carrier-walk-has-no-crossing-row-for-spline-edges` | M | CLEAVE | the in-plane carrier walk has no crossing row for a spline edge |
 | P1 | `a-touch-beside-a-spline-or-spiric-edge-is-not-certified-clear-of-it` | M | APEX | a carrier touch beside a spline or spiric boundary edge keeps the pierce door |
-| P1 | `a-unions-flush-reading-cannot-follow-a-nurbs-carrier` | M | SEAMRANK | a union's flush reading cannot follow a NURBS carrier |
-| P1 | `a-flush-reading-finds-no-point-on-a-nurbs-member-edge` | M | SEAMRANK | the flush rule finds no point on a NURBS member edge |
+| P3 | `a-unions-flush-reading-cannot-follow-a-nurbs-carrier` | M | SEAMRANK | a union's flush reading cannot follow a NURBS carrier |
+| P3 | `a-flush-reading-finds-no-point-on-a-nurbs-member-edge` | M | SEAMRANK | the flush rule finds no point on a NURBS member edge |
+| P1 | `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite` | M | SPLICEFACE | the curved crossing lane does not dispatch a spline span: lily wall 8's next stop (moved here 2026-10-29) |
 
 ## Order
 
@@ -70,7 +71,7 @@ the section object's rung-3 arm and SECT's to build
 (`work/sect/plan.md`). So, since 2026-10-29, does lily wall 8: the
 long leaf grown out of the stem, its NURBS walls through the lower
 stem's torus wall. It refuses first at the curved crossing lane's
-spline dispatch (SPLICEFACE's
+spline dispatch (SPLICE's
 `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`),
 and behind that needs a NURBS × torus section (SECTARMS'
 `a-nurbs-face-against-a-torus-has-no-section-arm`). The sheath grafted

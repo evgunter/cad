@@ -26,7 +26,7 @@ or lane beside it is a stopgap the design retires.
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | H +design | A NURBS face against a cone or sphere has no C5 section arm (klein wall 3, teapot wall 3) |
-| P1 | `a-nurbs-face-against-a-torus-has-no-section-arm` | H | A NURBS face against a torus has no C5 section arm (lily wall 8, behind SPLICEFACE's curved-crossing dispatch) |
+| P1 | `a-nurbs-face-against-a-torus-has-no-section-arm` | H | A NURBS face against a torus has no C5 section arm (lily wall 8, behind SPLICE's curved-crossing dispatch) |
 | P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | H +design | A cone wall against an oblique cylinder or another cone has no frame |
 | P1 | `skew-cylinder-germ-pair-has-no-section-frame` | M | Two cylinder walls with skew axes have no frame |
 | P1 | `the-walk-order-is-spelled-twice` | M | The order along a section conic is spelled twice |

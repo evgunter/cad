@@ -6,10 +6,14 @@
 //!
 //! A body comes back as a bracket when its gate certified the sign and
 //! a face's quadrature lane stops (its floor or its work wall) short of
-//! the reporting target `1024·ε`. At 1e-12 those are the long lofted
-//! leaf and the three sepals; the swept leaves `b` and `c` certify a
-//! number there. At 1e-9 and 1e-6 the long leaf alone is a bracket: its
-//! sheath's tight curl stops its walls' lane short of the target.
+//! the reporting target `1024·ε`. At 1e-9 and 1e-6 that is the long
+//! lofted leaf alone. At 1e-12 the sweep does not finish: `probe.rs`
+//! builds `lily::plant` without reading the lily's declared stem
+//! frontier, and the lower stem refuses at that row, so the 1e-12 test
+//! is red (`work/ciw/the-tours-k-probe-brackets-suite-runs-in-no-ci-row.md`).
+//! The set it pins there (the long leaf and the three sepals, with the
+//! swept leaves `b` and `c` certifying a number) cannot be re-read until
+//! that row runs.
 //!
 //! The sweep writes one stderr record per body (`probe.rs`'s module
 //! doc): `k_probe(demo)\tvolume\t<scene>\t<label>\t<kind>\t<lo>\t<hi>`.

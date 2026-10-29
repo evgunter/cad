@@ -91,4 +91,4 @@ question 3, approved). The finding stands in the sweep row
 the two-lofts graft as the witness that a rim tangent at two points
 refuses. Lily wall 8 is now the leaf grown out of the stem, which
 refuses at the curved crossing lane
-(`spliceface/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).
+(`splice/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).

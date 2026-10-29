@@ -32,7 +32,7 @@ points, stays witnessed by the sweep row `a_sheath_grafted_on_its_blade`.
 Wall 8 is now the leaf grown out of the stem: the leaf's NURBS walls
 through the lower stem's torus wall, crossing steeply. It refuses first
 at the curved crossing lane, a leaf seam against the torus
-(SPLICEFACE's
+(SPLICE's
 `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`),
 and behind that needs a NURBS × torus section, which is SECT's ground
 (SECTARMS' `a-nurbs-face-against-a-torus-has-no-section-arm`).

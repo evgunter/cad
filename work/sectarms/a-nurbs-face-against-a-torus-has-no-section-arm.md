@@ -26,7 +26,7 @@ numbers), and cuts the inner margin's two tip seams.
 Today the union refuses first at the curved crossing lane, a spline
 seam of the leaf against the torus wall:
 `EdgeCarrierUnsupported { operand: B, face_of: A, site: CurvedCrossing }`
-at ε 1e-9 and 1e-6 (SPLICEFACE's
+at ε 1e-9 and 1e-6 (SPLICE's
 `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).
 Behind it is this pair's face × face section. C5's table
 (`crates/geom-brep/README.md`, the rung list) has rung-3 arms for
@@ -36,7 +36,7 @@ and torus; NURBS×torus is among "every other pair", which refuses.
 ## Open
 
 Not yet measured, since the crossing lane refuses first: whether the
-section is what refuses once SPLICEFACE dispatches the spline span. How
+section is what refuses once SPLICE dispatches the spline span. How
 the section is certified is the same open design read as the cone and
 sphere row's (`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`);
 the torus certificate and the critical gap (`pair_section::gap`) are the
