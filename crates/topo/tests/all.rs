@@ -75,6 +75,8 @@ mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
 mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
+#[path = "a_slit_tip_at_a_cone_apex_reads_its_full_turn.rs"]
+mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
