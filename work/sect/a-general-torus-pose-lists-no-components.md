@@ -65,3 +65,41 @@ classification cannot tell apart (the square wall, parallel tori) refuse
 `Untold` at the same germ mint, and the radial hole
 (`germ_radial_hole.rs`) and the lily's tori (`mate7a_r1_probes.rs`)
 stop there.
+
+## Decided (2026-10-29)
+
+Two designers (one Opus, one Fable), dispatched blind on the problem
+rather than the three options above, reached one final state; the
+orchestrator took it (`docs/DESIGN-FORK-LOG.md` row 212). No `[ev]` PR:
+the contract it replaces ("classified, then carried" with a list at
+classification, and `component_of`) is agent-written (PR 5872), and fork
+row 100's "foot parameters replace frames" already reads this way.
+
+A correction to the statement above: the join matches germs by foot on
+the carried section (`section_table::germ_foot`); the branch the germ
+mint reads from the classification is only cross-checked against it
+(`carried_seats`). So the general poses and the `Untold` poses are one
+gap, a second naming of components beside the foot.
+
+- **The classification's list is optional:** `Counted(Vec<SectionComponent>)`
+  where a closed form counts the components, `Marched` where none does.
+  Classifying still costs no march and needs no lane; an empty `Counted`
+  is "disjoint", and `Marched` is never read as that.
+- **`carry` lists.** For `Marched` the components are the march's closed
+  branches, `winds` read off each fitted loop's chart image, the witness
+  `carrier(mid)`. For `Counted` the march's count must equal the arm's and
+  each branch foot on one listed component, else `Desync`: the arm is a
+  cross-check of the march's exhaustiveness receipt.
+- **One site reading.** `component_of`, `Sides` and the `Untold`/`Site`
+  refusals retire; a site's component is `CarriedSection::foot` at every
+  reader. The germ mint reads it, and `Branch` gives way to a component
+  index for the pairs the section table holds (the frame-era pairs keep
+  `Branch` until their own rows), so three or four loops are representable.
+- **The certificate** reads `Counted` as now and carries a `Marched`
+  pose, reading the march's components (W3's witness margin widened by
+  the tube radius); at a scalar with no lane it refuses typed by name. Its
+  wildcard `Err(_)` arm becomes an exhaustive match.
+
+Rejected: the classification marches (a lane enters classification);
+keep the refusal; a certified contour count beside the march (a second
+enumeration); keep `Sides` beside the foot. The build is its own unit.
