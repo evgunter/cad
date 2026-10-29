@@ -150,9 +150,9 @@ fn expand_split_uses(
 
 /// Splits `edge` at the interior carrier parameter `tm` (the caller
 /// guarantees `t0 < tm < t1`), minting the new vertex and the two
-/// halves. Answers `(first, second, new vertex)` — the
-/// [`split_at_midpoint`] contract at an arbitrary parameter (M7-5:
-/// the band mint splits rims at the seam azimuth, not the midpoint).
+/// halves. Answers `(first, second, new vertex)`, at an arbitrary
+/// parameter (M7-5: the band mint splits rims at the seam azimuth, not
+/// the midpoint).
 fn split_at_param(
     solid: &mut SolidSpec,
     edge: u64,
