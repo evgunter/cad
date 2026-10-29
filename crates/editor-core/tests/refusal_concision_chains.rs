@@ -965,7 +965,7 @@ mod kernel {
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
-            SectionCrossings,
+            SectionCrossings, SectionDepartureGrazes,
         ];
     }
 
@@ -2627,6 +2627,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     case: topo::ConicCrossingsCase::NotAlternating,
                     band: band(),
                 },
+            ),
+            (
+                "SectionDepartureGrazes",
+                J::SectionDepartureGrazes { face, band: band() },
             ),
         ]
     };

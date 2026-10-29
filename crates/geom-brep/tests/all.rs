@@ -341,6 +341,8 @@ mod span_reach_differential;
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]
 mod tangent_gap_hull_charges_both_sags;
+#[path = "tori_coincide.rs"]
+mod tori_coincide;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
 #[path = "torus_doors_ssi.rs"]
