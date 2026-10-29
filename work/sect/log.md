@@ -319,3 +319,15 @@ items, including one home for the identity walk (`geom_brep::identity_walk`,
 which topo's `identity_data` reads — the orchestrator checked its ranking and
 non-finite handling match main's) and the ring convention refused at the
 ladder.
+
+## 2026-10-29 — the cylinder-face re-homing dispatched beside PR 6011's fix pass
+
+- **`sect-rehome`** (branch `sect/rehome-by-path`):
+  `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`
+  (P1 M). Tier: **single FULL**. Dispatched now rather than after PR 6011:
+  its ground is `chord_join`'s re-homing functions (`rehome_rings`,
+  `chart_ring_side`, `path_ring_side`), which PR 6011 does not edit; the two
+  share only the file, and the lane announces the seam. It also measures
+  whether PR 6011's `RunImageNotYet` stops are this row's site.
+- PR 6011's dual review: both APPROVE-WITH-FIXES, no MAJOR (row written at
+  its state sync); fix pass running.

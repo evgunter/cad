@@ -2,7 +2,7 @@
 id: a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord
 kind: issue
 title: A cylinder face re-homes its rings on its chart (chart_ring_side), whose window walk reads no projected image: a chord cut from a fitted section, on a cylinder face holding a bystander ring, refuses RunImageNotYet
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
