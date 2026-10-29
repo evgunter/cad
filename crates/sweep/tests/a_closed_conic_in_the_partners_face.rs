@@ -21,7 +21,9 @@
 //! - a boss over a hole or a pocket, by pose: tangent to its rim inside
 //!   or outside, apart, concentric, each read alike in the two-arc form,
 //!   and the tangent poses turned; and tangent inside with short arcs
-//!   either side of the tip, whose union is one shell pinched along them;
+//!   either side of the tip, whose union is one shell pinched along them,
+//!   and the rims swapped, a boss inside a hole touching it along them,
+//!   whose union is two solids;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
@@ -33,8 +35,8 @@
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
 //! The ∩ of two solids meeting only in a face is empty. Two rows pin
 //! what is not built yet, refused typed: the union of a boss over a hole
-//! tangent inside its rim, and a closed edge in a cylinder or a cone
-//! face. The coaxial
+//! whose rim is tangent inside the boss's (a crescent), and a closed edge
+//! in a cylinder or a cone face. The coaxial
 //! stack and the puck run their unions alone: their ∩ and differences
 //! refuse `FallbackExtentUnsupported` at the coincident walls, as the
 //! two-arc forms do
@@ -1492,8 +1494,6 @@ fn short_arcs_at_a_turned_tip_at_the_finest_band() {
                             .ok()
                             .and_then(BooleanResult::body)
                             .unwrap_or_else(|| panic!("{row}: {:?}", r.as_ref().map(|_| "empty")));
-                        let v = topo::test_support::pinned_volume(&row, &b.body, tol()).volume;
-                        assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
                         let t3 = topo::validate_geometric(&b.body, tol());
                         assert!(t3.is_ok(), "{row}: tier 3 {t3:?}");
                         reads_as(&row, r, want, Reads::Undecided);

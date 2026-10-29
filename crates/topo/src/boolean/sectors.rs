@@ -37,7 +37,14 @@
 //! `±(n_a × n_b)` lies within both (convex) sectors — `within` =
 //! both boundary triples `(start × dir)·n`, `(dir × end)·n` not
 //! definitely negative (a Zero graze counts as within: boundary hits
-//! are exactly what must flow into the ON machinery). Coplanar pairs
+//! are exactly what must flow into the ON machinery) — and neither
+//! sector's two side codes read one definite side of the other's plane
+//! ([`one_side`]). `within` reads at the sector's arm and the codes at
+//! each bound's reach; where they disagree a crossing pair sides with
+//! the reach, because its codes are what the germ machinery consumes,
+//! while the coplanar test sides with the arm, because a coplanar pair
+//! never reads its codes and goes to the carrier ladder, which
+//! certifies the coincidence over the whole sector. Coplanar pairs
 //! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
@@ -2307,6 +2314,12 @@ pub(super) fn plane_side_code<T: Decide>(
 /// One sector's two side codes, `(start, end)`.
 type SidePair = (SideCode, SideCode);
 
+/// Whether a sector's two bounds lie definitely on one side of the
+/// other's plane: the sector meets that plane only at the vertex.
+pub(super) fn one_side(codes: SidePair) -> bool {
+    codes.0 == codes.1 && codes.0 != SideCode::On
+}
+
 /// The four side codes of a sector pair: each sector's bounds against
 /// the other's face.
 pub(super) fn pair_codes<T: Decide>(
@@ -2396,11 +2409,8 @@ pub(super) fn pair_search<T: Decide>(
             } else {
                 pair_codes(sa, sb, band)?
             };
-            // A convex sector whose two bounds lie definitely on one side
-            // of the other's plane meets that plane only at the vertex.
             // The codes read each bound at its own reach, which can decide
             // a ray `within` left in band at the shorter arm.
-            let one_side = |c: SidePair| c.0 == c.1 && c.0 != SideCode::On;
             if one_side(sa_codes) || one_side(sb_codes) {
                 continue;
             }

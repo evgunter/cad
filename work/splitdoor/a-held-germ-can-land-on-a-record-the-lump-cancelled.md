@@ -12,15 +12,17 @@ Found by the sweep of the fix for
 (branch `splitdoor/boss-in-hole-germ`). Unmeasured: no body is known to
 reach it.
 
-`crates/topo/src/boolean/recl.rs` `find_on_record` picks the germ host
+`crates/topo/src/boolean/recl.rs` `find_on_record` (`recl.rs:548`)
+picks the germ host
 for an edge-sector event (`resolve_edge_sector`'s `EdgeGerm::Held`) and
 for a bisector graze (`resolve_bisector_graze`): any record of the pair
 that still carries an `On` code, whether or not it still intersects. Its
 doc says "cancelled/rewritten records are never resurrected as germs",
 on the premise that a cancelled record carries no `On`. That premise
-does not hold: `cancel_uniform` cancels a record when EITHER side reads
+does not hold: `cancel_uniform` (`recl.rs:302`) cancels a record when EITHER side reads
 uniform, and the two neighbour rewrites in `recl_sectors` (the
-declared-`Tangent` per-bound propagation and the Eq. 15.3 lump's)
+declared-`Tangent` per-bound propagation, `recl.rs:393-436`, and the
+Eq. 15.3 lump's, `recl.rs:497-518`)
 rewrite one bound of one side, so a neighbour can leave 15.10 with one
 side uniform (`(Out, Out)`) and an `On` still on the other. Such a
 record is never a mention (`recl_edges` collects mentions from
@@ -39,3 +41,11 @@ bisector-graze event at one vertex pair, the neighbour's other side
 `On` along the event's ray) before changing `find_on_record`; requiring
 `r.intersect` there is the obvious repair, and what it changes for a
 germ that today lands on an event-cancelled record is the question.
+
+A note from the review of PR 6005: since that PR, `sectors::pair_search`
+drops at birth a non-coplanar record either of whose sides reads one
+definite side (`sectors::one_side`). A record the 15.10 lump propagation
+would have rewritten, born `(Out, Out)` on one side, is therefore no
+longer there to rewrite. That is unreachable today: `require_same`
+refuses a near-coplanar pair, and a declared pair's codes read `On`. If
+either door loosens, it becomes a lost crossing.
