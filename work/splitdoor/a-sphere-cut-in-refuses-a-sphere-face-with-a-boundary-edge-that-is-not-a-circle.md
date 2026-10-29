@@ -2,7 +2,7 @@
 id: a-sphere-cut-in-refuses-a-sphere-face-with-a-boundary-edge-that-is-not-a-circle
 kind: issue
 title: ops::apply_cut_ins refuses a sphere face whose boundary holds an edge that is not a circle, so a sphere cut by a cylinder or cone refuses its cut-in
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M

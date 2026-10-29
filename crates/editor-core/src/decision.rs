@@ -93,12 +93,6 @@ decisions! {
     DirectionNorm => crate::eval::EVAL_DIRECTION_NORM, LEVER;
     /// Whether a revolve makes a full turn: an angle.
     RevolveFullTurn => "revolve_full_vs_partial", LEVER;
-    /// Whether a linear pattern's spacing is positive: a length the user wrote.
-    PatternSpacing => crate::eval::PATTERN_SPACING, SIZED;
-    /// Whether a circular pattern's step is zero: an angle.
-    PatternStep => crate::eval::PATTERN_STEP, LEVER;
-    /// How many whole turns a circular pattern's step holds: an angle.
-    PatternStepTurn => crate::eval::PATTERN_STEP_TURN, LEVER;
     /// A point's place along a member edge: a distance in the result.
     OnMemberEdge => crate::names::ON_MEMBER_EDGE, SIZED;
     /// Whether a chord lies on its rim: a distance in the result.
@@ -196,23 +190,24 @@ mod undecided_text {
     }
 
     /// **An evaluation's undecided decision ends as its kind warrants**:
-    /// the pattern spacing is a size the user chose, and offers the
-    /// tolerance on a value, subdivision on a straddle and the inputs on
-    /// an unreadable margin; the circular step is an angle, and ends in
-    /// the lever alone, noted where the margin could not be read.
+    /// a point's place along an edge is a size in the result, and
+    /// offers the tolerance on a value, subdivision on a straddle and
+    /// the inputs on an unreadable margin; a revolve's full turn is an
+    /// angle, and ends in the lever alone, noted where the margin could
+    /// not be read.
     #[test]
     fn an_evaluations_undecided_decision_ends_by_its_kind() {
         check(
             "a sized decision",
-            |m| node(crate::eval::PATTERN_SPACING, m),
+            |m| node(crate::names::ON_MEMBER_EDGE, m),
             [
-                "whether the pattern spacing is positive is undecided: margin 5e-9 lies inside \
+                "a point's place along an edge is undecided: margin 5e-9 lies inside \
                  the ambiguity band (1e-9, 1e-8). Recourse: move the geometry, or, if this size \
                  is intended, tighten the tolerance below 5e-10 m",
-                "whether the pattern spacing is positive is undecided: enclosure [-2e-9, 5e-9] \
+                "a point's place along an edge is undecided: enclosure [-2e-9, 5e-9] \
                  cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: \
                  subdivide the parameter box for a tighter enclosure, or move the geometry",
-                "whether the pattern spacing is positive is undecided: margin is invalid (NaN or \
+                "a point's place along an edge is undecided: margin is invalid (NaN or \
                  a refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: check \
                  the operation's inputs upstream, then move the geometry; an unreadable margin \
                  may indicate a kernel bug worth reporting",
@@ -220,14 +215,14 @@ mod undecided_text {
         );
         check(
             "a lever-only decision",
-            |m| node(crate::eval::PATTERN_STEP, m),
+            |m| node("revolve_full_vs_partial", m),
             [
-                "whether the pattern step is zero is undecided: margin 5e-9 lies inside the \
+                "whether the revolve makes a full turn is undecided: margin 5e-9 lies inside the \
                  ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
-                "whether the pattern step is zero is undecided: enclosure [-2e-9, 5e-9] cannot \
-                 be classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
-                 geometry",
-                "whether the pattern step is zero is undecided: margin is invalid (NaN or a \
+                "whether the revolve makes a full turn is undecided: enclosure [-2e-9, 5e-9] \
+                 cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: move \
+                 the geometry",
+                "whether the revolve makes a full turn is undecided: margin is invalid (NaN or a \
                  refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
                  geometry; an unreadable margin may indicate a kernel bug worth reporting",
             ],

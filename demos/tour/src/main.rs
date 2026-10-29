@@ -1024,7 +1024,9 @@ fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol)
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
     visit(&projectbox::stop(tol));
 
-    println!("\n-- the impeller (the recipe layer's CIRCULAR rule: one parameter, two slots) --");
+    println!(
+        "\n-- the impeller (the recipe layer's ring: one parameter, its count and its step) --"
+    );
     for stop in impeller::stops(tol) {
         visit(&stop);
     }

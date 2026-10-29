@@ -47,8 +47,7 @@ from pncad import (
     Ray,
     Open,
     VarName,
-    PartSelect,
-    PatternKind,
+    VarDecl,
     SegPat,
     SegTag,
     Selector,
@@ -220,37 +219,26 @@ Open.at((0 * mm, 0 * mm)).arc_to(Sweep(1 * mm, ArcSide.Left, 90 * deg))  # ty: e
 _open_fillet = Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0)
 _open_fillet.fillet_arc(1 * mm, Bulge((5 * mm, 5 * mm), 0.5))  # ty: error
 
-# LIB-PYPU. A spacing is a `Formula`, not a bare number: the slot's own
-# type is the whole point of the boundary.
-PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
+# D10 `[repetition]`. A row's pitch is a length argument, not a bare
+# number, and its axis is one of the target's three words.
+Node.linear_pattern(VarName("k"), solid, solid, [("x", 0.5)])  # ty: error
+Node.linear_pattern(VarName("k"), solid, solid, [("w", 0.5 * m)])  # ty: error
 
-# A rule is a PatternKind; a Frame is a placement, not a rule.
-Node.placed_union(solid, Formula.count(5), Frame.translation((0 * m, 0 * m, 0 * m)))  # ty: error
+# An index names the variable by its `VarName`, never bare text.
+Node.linear_pattern("k", solid, solid, [("x", 0.5 * m)])  # ty: error
 
-# The explicit door lists FRAMES, never raw coordinate triples.
-Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
+# An index's count is a count, never a dimensioned quantity.
+VarDecl.index(2 * m)  # ty: error
 
 # A frame's translation reads back dimensioned, and it is READ-ONLY:
 # the value is frozen.
 Frame.translation((0 * m, 0 * m, 0 * m)).origin = (1 * m, 0 * m, 0 * m)  # ty: error
 
-# The count is the STRUCTURAL slot's own expression, not a Length.
-Node.placed_union(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.5, m)))  # ty: error
-
-# The narrowed count edit takes a VarName, never bare text.
-DocEdit.bind_count_param(solid, "fins")  # ty: error
-
-# An index is a count `Formula` — never a dimensioned quantity, and the
-# pattern's count is the same rule.
-PartSelect.instance(2 * m)  # ty: error
-Node.pattern(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.5, m)))  # ty: error
-
-# The instance edit is `bind_count_param`'s sibling, not its keyword
-# argument: the slot is named by the door, so there is no `slot=` to
-# pass. (`name` is whatever a caller has in hand; the keyword is the
-# error, and the second argument is deliberately not.)
+# The narrowed structural edit takes a VarName, never bare text, and
+# the slot is named by the door, so there is no `slot=` to pass.
+DocEdit.bind_v_degree_param(solid, "skin")  # ty: error
 name: VarName = VarName("which")
-DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
+DocEdit.bind_v_degree_param(solid, name, slot="v_degree")  # ty: error
 
 # LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and what a
 # slot takes (Q9): its dimension is the word's, which the type cannot

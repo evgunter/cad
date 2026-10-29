@@ -259,7 +259,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
             without_the_registry: Some(((709, 585), Some("Stalled { operand: Cylinder"))),
-            symbolic: [954, 954, 954],
+            symbolic: [962, 962, 962],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -284,7 +284,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1535, 1535, 1535],
+            symbolic: [1537, 1537, 1537],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

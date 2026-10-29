@@ -401,9 +401,9 @@ solved, else `MateFault::PosesOfAnotherDocument` before any frame is
 read.
 
 *The member walk.* A face selection resolves by walking from its
-operand down to a live placement, through any number of `Part` instance
-selections, `Pattern` levels (each of which the name
-qualifies `Instance`) and `Union`s (each of which the name qualifies
+operand down to a live placement, through any number of indexed reads,
+families (each of which the name qualifies `Member`, keyed by the
+family's indices) and `Union`s (each of which the name qualifies
 `From`). It decides what a crossing names (`mate::member_of`); the fold
 reads no walk, since every face is a value where it evaluates.
 

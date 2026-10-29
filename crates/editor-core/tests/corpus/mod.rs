@@ -37,9 +37,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult, PartSelect,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply,
-    evaluate,
+    BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -119,83 +118,6 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
             ),
         ])
         .collect()
-}
-
-/// **Each of a pattern's `count` copies placed in the world**, in
-/// instance order: a `Part` per instance, each placed at the identity.
-pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
-    for i in 0..count {
-        let copy = r.insert(Node::Part {
-            of: pattern.into(),
-            select: PartSelect::Instance(editor_core::Formula::count(i)),
-        });
-        r.place_part(copy);
-    }
-}
-
-/// **[`place_instances`] at `at`**: each instance placed in the world
-/// at the frame `at`.
-pub fn place_instances_at(
-    r: &mut Recorder,
-    pattern: RecipeNodeId,
-    count: i64,
-    at: &editor_core::Frame,
-) {
-    for i in 0..count {
-        let copy = r.insert(Node::Part {
-            of: pattern.into(),
-            select: PartSelect::Instance(editor_core::Formula::count(i)),
-        });
-        r.in_world(copy, at);
-    }
-}
-
-/// **`doc` with copies `0..count` of its one pattern placed**: the
-/// copies a placement already picks stay, and each further one is
-/// picked and placed where the document places the ones it picks (the
-/// first such placement's solved motion; the world's identity when it
-/// picks none). Driving a pattern's count moves no placement, so a
-/// document whose count was driven places the new copies this way.
-pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
-    let pattern = doc
-        .ids()
-        .into_iter()
-        .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
-        .expect("the document holds a pattern");
-    let placed: Vec<RecipeNodeId> = doc
-        .placements()
-        .into_iter()
-        .filter(|&p| match doc.node(p) {
-            Some(Node::Place { source, .. }) => doc
-                .operation_of(source.read)
-                .and_then(|picked| doc.node(picked))
-                .is_some_and(|picked| {
-                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                }),
-            _ => false,
-        })
-        .collect();
-    let at = placed.first().map_or(editor_core::Frame::IDENTITY, |&p| {
-        let ev = eval::<f64>(&doc);
-        let value = ev
-            .value(p)
-            .expect("the document's pattern copies are placed");
-        value.motion.map_or(editor_core::Frame::IDENTITY, |motion| {
-            editor_core::Frame::from_affine(motion.to_affine())
-        })
-    });
-    let mut doc = doc;
-    for i in i64::try_from(placed.len()).expect("a count")..count {
-        let (next, copy) = crate::fixture::insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: PartSelect::Instance(editor_core::Formula::count(i)),
-            },
-        );
-        doc = crate::fixture::in_world(next, copy, &at).0;
-    }
-    doc
 }
 
 /// **A split's two halves placed in the world**, above then below:
@@ -493,7 +415,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 24] = [
+pub const NODE_KINDS: [&str; 21] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -516,11 +438,6 @@ pub const NODE_KINDS: [&str; 24] = [
     // D′3's fourth operator — COVERED, by every document whose product
     // reads several world copies.
     "Assemble",
-    "Pattern",
-    // DOCM-2's projection node — COVERED, by `part_select`.
-    "Part",
-    // LIB-PLACEDUNION: the ratified A′ group boolean.
-    "PlacedUnion",
     // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
     // M6-3 (the loft body assembles; `loft_prism` is registered).
     // `Sweep` alone stays at zero: its NODE lane waits on the
@@ -612,29 +529,14 @@ pub const EDIT_KINDS: [&str; 22] = [
     "SetProduct",
 ];
 
-/// The node SUB-kinds the corpus must also cover in full: both pattern
-/// kinds and every tube window.
-pub const SUB_KINDS: [&str; 9] = [
-    "Pattern::Linear",
-    "Pattern::Circular",
-    // The projection node: `part_select` reads a pattern's middle
-    // instance.
-    "Part::Instance",
-    // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
-    // is deliberately NOT listed: no corpus document needs one, and a
-    // listed-but-uncovered sub-kind would fail the tally. The circular
-    // rule is exercised directly in `lib_placedunion.rs`, and it shares
-    // `stepped_map` with the pattern node that the corpus does cover.
-    "PlacedUnion::Linear",
-    "PlacedUnion::Explicit",
-    // LIB-TUBE's two-by-two, all four corners. The list carried the
-    // DIAGONAL only while the corpus did: `Tube::Arc` and
-    // `HollowTube::Full` were absent for the `PlacedUnion::Circular`
-    // reason — a listed-but-uncovered sub-kind fails the tally — and
-    // the registry now carries a document for each, so they are
-    // listed. `lib_tube_node.rs` still exercises both directly and
-    // keeps `HollowTube::Full`'s cavity closed-form row; what changed
-    // is that the registry battery reaches them too.
+/// The SUB-kinds the corpus must also cover in full: a document that
+/// repeats by an index, and every tube window.
+pub const SUB_KINDS: [&str; 5] = [
+    // An index declared (D10 `[repetition]`): the registry's families.
+    "Var::Index",
+    // LIB-TUBE's two-by-two, all four corners. `lib_tube_node.rs`
+    // still exercises each directly and keeps `HollowTube::Full`'s
+    // cavity closed-form row; the registry battery reaches them too.
     "Tube::Full",
     "Tube::Arc",
     "HollowTube::Arc",
@@ -648,27 +550,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Intersect { .. }
         | Node::Assemble { .. }
         | Node::Subtract { .. } => Vec::new(),
-        Node::Pattern { kind, .. } => vec![match kind {
-            PatternKind::Linear { .. } => "Pattern::Linear",
-            PatternKind::Circular { .. } => "Pattern::Circular",
-            // Refused at the edit door (a pattern's count is its slot),
-            // so no corpus document can carry one — named here only
-            // because the match is exhaustive on purpose.
-            PatternKind::Explicit(_) => "Pattern::Explicit",
-        }],
-        Node::PlacedUnion { kind, .. } => vec![match kind {
-            PatternKind::Linear { .. } => "PlacedUnion::Linear",
-            PatternKind::Circular { .. } => "PlacedUnion::Circular",
-            PatternKind::Explicit(_) => "PlacedUnion::Explicit",
-        }],
-        Node::Part {
-            select: PartSelect::Instance(_),
-            ..
-        } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
-        // new `Node` variant — or a new `PatternKind` flavour above — is a COMPILE error here rather
-        // than a silently uncovered sub-kind, matching the
-        // compile-time totality `node_kind`/`edit_kind` already have.
+        // new `Node` variant is a COMPILE error here rather than a
+        // silently uncovered sub-kind, matching the compile-time totality
+        // `node_kind`/`edit_kind` already have.
         // A tube's WINDOW is a sub-kind on the same footing as a
         // pattern's rule: it decides the body's whole topology (a
         // closed ring against a capped elbow, and for the hollow kind
@@ -728,9 +613,6 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Place { .. } => "Place",
         Node::World => "World",
         Node::Space => "Space",
-        Node::Pattern { .. } => "Pattern",
-        Node::Part { .. } => "Part",
-        Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Measure { .. } => "Measure",
@@ -810,6 +692,13 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             if let DocEdit::InsertNode { node, .. } = e {
                 seen_n.insert(node_kind(node));
                 seen_s.extend(sub_kinds(node));
+            }
+            if let DocEdit::DeclareVar {
+                def: editor_core::VarDecl::Index { .. },
+                ..
+            } = e
+            {
+                seen_s.insert("Var::Index");
             }
         }
         for k in seen_n {
