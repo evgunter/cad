@@ -3040,10 +3040,7 @@ fn extent_of(rows: impl Iterator<Item = (bool, [[Interval; 2]; 2])>) -> Option<[
 /// channel with no harmonic term (`c + l·t`). A free channel with one
 /// (`c + a·cos t + b·sin t + l·t`) can turn back, so it is not.
 fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
-    let zero = |x: T| {
-        let i = Interval::from_certified(x);
-        i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
-    };
+    let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
     let moves_monotone = |ch: &Channel<T>| match *ch {
         Channel::Angle { .. } => true,
         Channel::Free { a, b, .. } => zero(a) && zero(b),
@@ -3090,10 +3087,7 @@ fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic>
 /// harmonic channel's three coefficients, that lift to the point zero —
 /// so no zero is decided here.
 fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
-    let zero = |x: T| {
-        let i = Interval::from_certified(x);
-        i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
-    };
+    let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
     let lift = Interval::from_certified;
     let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
         if zero(d.x) {
