@@ -8,28 +8,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use demo_tour::booleans::at_rest;
+use demo_tour::bud::{ROLL, bud, rims_between};
 use demo_tour::scalar::axis_frame;
-use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
-use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
+use pncad::prelude::fillet_edges;
 
-use pncad::sweep::{
-    Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
-};
+use pncad::sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 /// P1 — TEETH of the cross-scene mesh pin. The scene asserts the
 /// hollow elbow's outer-wall triangle counts equal the solid tube's at
@@ -149,60 +137,6 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
          at unaligned constants — the scene's bit-equality was a fixture \
          coincidence"
     );
-}
-
-// ---- the bud, replicated from the scene's constants (the scene is a
-// bin module, so an integration test restates them; any drift from
-// demos/tour/src/bud.rs is a probe bug, not a finding). ----
-const BORE: f64 = 0.2;
-const MOUTH: (f64, f64) = (0.8, 0.6);
-const LIP_R: f64 = 0.35;
-const TOP: f64 = 0.75;
-const ROLL: f64 = 0.05;
-
-fn bud(tol: Tol) -> Body<f64> {
-    let meridian: ConstructedLoop<f64> = Open
-        .at(Point2::new(BORE, 0.0))
-        .line_to(Point2::new(1.0, 0.0), tol)
-        .expect("base")
-        .arc_to(
-            Center {
-                c: Point2::new(0.0, 0.0),
-                winding: ArcSweep::Ccw,
-                p: Point2::new(MOUTH.0, MOUTH.1),
-            },
-            tol,
-        )
-        .expect("belly")
-        .line_to(Point2::new(LIP_R, TOP), tol)
-        .expect("pucker")
-        .line_to(Point2::new(BORE, TOP), tol)
-        .expect("lip")
-        .line_to(Start, tol)
-        .expect("bore")
-        .into();
-    let profile =
-        validated(SketchPlane::xy(), vec![meridian], tol).expect("the bud's meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        tol,
-    )
-    .expect("revolves")
-    .body
-}
-
-fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    query::all_edges(body)
-        .into_iter()
-        .filter(|&e| {
-            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
-        })
-        .collect()
 }
 
 fn bore_base(body: &Body<f64>) -> EdgeKey {

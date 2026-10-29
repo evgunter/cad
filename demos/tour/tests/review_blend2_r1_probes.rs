@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use demo_tour::booleans::at_rest;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2};
@@ -17,16 +18,6 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, EdgeKey, SolidContainment};
 
 use crate::common::rim_select::{Seeds, rim_at};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 fn tol() -> Tol {
     Tol::witness()

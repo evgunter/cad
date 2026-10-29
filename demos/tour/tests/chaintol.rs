@@ -13,7 +13,7 @@ mod tests {
     /// between a certifying and a refusing σ, printing the bracket and
     /// the refusal just above it, and the first refusal at the study's
     /// σ. `#[ignore]`d, and why at the header's claim. Run from
-    /// `demos/tour`: `cargo test --release --bins
+    /// `demos/tour`: `cargo test --release --test all
     /// the_plain_lanes_reach_is_bisected -- --ignored --nocapture`
     /// (`CHAIN_REACH_LINKS=1,4` is the default).
     #[test]

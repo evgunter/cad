@@ -299,7 +299,7 @@ fn print_row(r: &Row) {
 /// them** ([`assert_row`], the drive's verdicts, and at the default ε
 /// the published box and pin enclosures), so `demo-tour certified`'s
 /// exit 0 in `tests/eps_regression.rs` carries those findings and no
-/// unit row re-computes them. The rows below are the MEASUREMENTS the
+/// unit row re-computes them. The rows in `tests/chaintol.rs` are the MEASUREMENTS the
 /// narration only reads back — the bisection behind
 /// [`CERTIFIABLE_FRACTION_BY_LINKS`], the wall just past it, and the
 /// tip ratio at every link count.

@@ -13,7 +13,7 @@
 //! circle and the band is an exact torus.
 //!
 //! **What this pose is, and the poses beside it.** Coaxial is what a
-//! snowman is, and it is the pose the scene draws; `tests` pins the
+//! snowman is, and it is the pose the scene draws; `tests/snowman.rs` pins the
 //! poses beside it, under all three ops. A head moved OFF the shared
 //! axis 0.05 along `x`, in the plane both semicircles are sketched in,
 //! tilts the radical plane against the spheres' polar axes. It BUILDS:

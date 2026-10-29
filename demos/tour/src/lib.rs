@@ -52,7 +52,7 @@ pub mod bool_bodies;
 pub mod booleans;
 mod bossplate;
 pub mod bracket;
-mod bud;
+pub mod bud;
 pub mod chain;
 pub mod chaintol;
 pub mod checks;
@@ -71,6 +71,7 @@ pub mod lily;
 mod mcchain;
 pub mod mcplate;
 mod oracles;
+pub mod patch_quadrature;
 pub mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -1067,6 +1068,7 @@ fn certified_cells(tol: Tol) {
     chaintol::narration(tol);
 }
 
+/// The `demo-tour` command line: `<outdir>`, or one of the named modes below.
 pub fn cli() {
     // The tour is an entry point: it mints the run's tolerance witness
     // once, here, and hands it to every scene it walks.

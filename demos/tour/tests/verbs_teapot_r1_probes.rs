@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use demo_tour::booleans::at_rest;
 use pncad::sweep::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
@@ -20,16 +21,6 @@ use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::AtRestBody;
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, LoopBoundary};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(

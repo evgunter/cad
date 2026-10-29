@@ -55,9 +55,11 @@ harness (`test = false`, `doctest = false`, `bench = false`). The 47
 unit tests moved to suites of `all` (`tests/<module>.rs`, one per
 source module, under their old names, so `snowman::tests::…` is still
 `snowman::tests::…`). The lib made public what they reach. The
-cfg(test) helpers moved into their suites, except lily's `Lance`
-closed forms, which are now `pub` methods. The scene code compiles
-once per build.
+cfg(test) helpers moved into their suites (lily's `Lance` closed
+forms as free functions in `tests/lily.rs`); `patch_quadrature`, a
+test oracle, is a `pub mod` of the lib, where
+`the-tour-carries-two-patch-quadratures` wants it. The scene code
+compiles once per build.
 
 **No test lost.** Listed from the built binaries before and after
 (`--features probe`, which adds the three `k_probe_brackets` rows):

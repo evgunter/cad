@@ -345,7 +345,7 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
 }
 
 /// The faces of the plane chart at station `y`.
-fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
+pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(_, f)| {
             matches!(body.get_surface(f.surface),

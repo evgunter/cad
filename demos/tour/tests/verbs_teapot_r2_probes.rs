@@ -23,6 +23,7 @@
 
 use crate::common::census::{genus, rings};
 use core::f64::consts::FRAC_PI_2;
+use demo_tour::booleans::at_rest;
 use demo_tour::scalar::axis_frame;
 use pncad::sweep::ExtrudeSide;
 
@@ -36,16 +37,6 @@ use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
 use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 /// `body` finished for the boolean doors, the panic naming `what` and
 /// the validator's findings where the gate refuses it.

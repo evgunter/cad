@@ -7,7 +7,7 @@ mod loop_volume_grid {
     //! across the world origin: tier 3 decides each one's sign, the
     //! continuation meets the printed precision, and the bracket holds
     //! the body's own volume from an independent quadrature of its
-    //! patches ([`crate::common::patch_quadrature`]). The lofts differ between
+    //! patches ([`demo_tour::patch_quadrature`]). The lofts differ between
     //! cells (a coarse skin differs from A·L by up to 1 %), so each
     //! cell is held to its own body's oracle, not to A·L.
 
@@ -80,8 +80,8 @@ mod loop_volume_grid {
                 Vec3::new(0.0, 0.0, 0.0)
             };
             let about = [[c.x, c.y, c.z], [RLOOP + c.x, c.y, ZTOP + c.z]];
-            let coarse = crate::common::patch_quadrature::measure(&body, 16, &about, |_, _| ring);
-            let oracle = crate::common::patch_quadrature::measure(&body, 24, &about, |_, _| ring);
+            let coarse = demo_tour::patch_quadrature::measure(&body, 16, &about, |_, _| ring);
+            let oracle = demo_tour::patch_quadrature::measure(&body, 24, &about, |_, _| ring);
             let [v0, v1] = oracle.volume[..] else {
                 unreachable!("two reference points")
             };

@@ -204,6 +204,43 @@ mod review_probes {
         );
     }
 
+    /// The section's area: two circular segments on one chord, each
+    /// `R²(θ − sin θ)/2` for its own radius `R` and turn `θ`.
+    fn lance_area(l: Lance) -> f64 {
+        segment_area(l, l.ridge) + segment_area(l, l.keel)
+    }
+
+    /// The section centroid's signed height above the chord (toward
+    /// the ridge). A circular segment's centroid sits
+    /// `4R·sin³(θ/2) / (3(θ − sin θ))` from its circle's centre, and
+    /// that centre is `R·cos(θ/2)` on the far side of the chord.
+    fn lance_centroid_rise(l: Lance) -> f64 {
+        let moment = |h: f64| {
+            let (r, th) = segment(l, h);
+            let rise =
+                4.0 * r * (0.5 * th).sin().powi(3) / (3.0 * (th - th.sin())) - r * (0.5 * th).cos();
+            segment_area(l, h) * rise
+        };
+        (moment(l.ridge) - moment(l.keel)) / lance_area(l)
+    }
+
+    /// The circular segment between the chord and the arc rising `h`:
+    /// `R²(θ − sin θ)/2`.
+    fn segment_area(l: Lance, h: f64) -> f64 {
+        let (r, th) = segment(l, h);
+        0.5 * r * r * (th - th.sin())
+    }
+
+    /// The radius and turn of the arc through both margins rising `h`
+    /// at the midrib.
+    fn segment(l: Lance, h: f64) -> (f64, f64) {
+        let c = l.width;
+        (
+            (0.25 * c * c + h * h) / (2.0 * h),
+            4.0 * (2.0 * h / c).atan(),
+        )
+    }
+
     /// Claim: G1-by-construction, read from STORED geometry — and the
     /// stored geometry IS the world-coordinate intent, not a
     /// reconstruction of it. Nothing on the tube door's path goes
@@ -214,6 +251,7 @@ mod review_probes {
     /// point, with the joint tangent as its normal) is windowed, and
     /// only because a cap frame is trigonometry away from the stored
     /// carrier.
+
     #[test]
     fn stem_joints_are_g1_in_the_stored_geometry() {
         let ps = pieces();
@@ -738,7 +776,7 @@ mod review_probes {
         // has PAPPUS. A rigid section carried in the path's normal
         // frame sweeps A·(centroid arc length). The lens's area and
         // centroid are its two circular segments' closed forms
-        // ([`Lance::area`], [`Lance::centroid_rise`]), and the centroid
+        // ([`lance_area`], [`lance_centroid_rise`]), and the centroid
         // sits that far above the chord, i.e. OUTSIDE the spine's
         // centre of curvature, so its arc is len + |curl|·rise.
         //
@@ -747,7 +785,7 @@ mod review_probes {
         // the arc, so the two differ by the fit. The kernel's certified
         // volume must therefore contain the skin's OWN volume,
         // integrated over its surfaces
-        // ([`crate::common::patch_quadrature`]), at every width: a
+        // ([`demo_tour::patch_quadrature`]), at every width: a
         // sound enclosure misses the true volume at none. Pappus is
         // held to the skin at the fit's scale: a cubic spline through
         // stations `Δ` apart in the arc's angle misses it by
@@ -768,19 +806,19 @@ mod review_probes {
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
         for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
-            let pappus = leaf.section.area()
+            let pappus = lance_area(leaf.section)
                 * leaf
                     .curl
                     .abs()
-                    .mul_add(leaf.section.centroid_rise(), leaf.len);
+                    .mul_add(lance_centroid_rise(leaf.section), leaf.len);
             let b = body(&ps, name);
             // The caps are the authored lens placed rigidly, and each
             // reading is taken about two points: a shell that does not
             // close reads two volumes.
-            let cap = |_o: [f64; 3], _n: [f64; 3]| leaf.section.area();
+            let cap = |_o: [f64; 3], _n: [f64; 3]| lance_area(leaf.section);
             let about = [[0.0; 3], [leaf.base.x, leaf.base.y, leaf.base.z]];
-            let coarse = crate::common::patch_quadrature::measure(b, 24, &about, cap);
-            let fine = crate::common::patch_quadrature::measure(b, 32, &about, cap);
+            let coarse = demo_tour::patch_quadrature::measure(b, 24, &about, cap);
+            let fine = demo_tour::patch_quadrature::measure(b, 32, &about, cap);
             let skin_v = fine.volume[0];
             let skin_err = (skin_v - coarse.volume[0])
                 .abs()

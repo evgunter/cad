@@ -57,7 +57,7 @@ that, keeping the closed form as a fit check.
 ## Closed (2026-10-24)
 
 Both sites now hold the certified enclosure to the built body's own
-volume, integrated over its surfaces by `demos/tour/tests/common/patch_quadrature.rs`.
+volume, integrated over its surfaces by `demos/tour/src/patch_quadrature.rs`.
 The closed forms are fit checks.
 
 - **Projectbox** is fixed by QUAD's PR 5640, which landed while this

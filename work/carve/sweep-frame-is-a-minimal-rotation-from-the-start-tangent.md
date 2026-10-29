@@ -61,7 +61,7 @@ is a design question (which frame a sweep follows), so it is
 
 The coil skins fall short of the ideal tube's Pappus volume `A·L` by
 far more than a cubic fit would explain. Each skin's own volume was
-integrated over its surfaces (`demos/tour/tests/common/patch_quadrature.rs`). The square wire falls short by 3.6e-3 of `A·L` and
+integrated over its surfaces (`demos/tour/src/patch_quadrature.rs`). The square wire falls short by 3.6e-3 of `A·L` and
 the round by 4.4e-3, at 32 stations a turn. A cubic spline through
 stations `Δ = 2π/32` apart misses by about `2·(5/384)·Δ⁴ = 3.9e-5`, so
 the coil's deficit is about 100× that. The lily's swept leaves never

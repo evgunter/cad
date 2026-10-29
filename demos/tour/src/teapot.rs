@@ -305,7 +305,7 @@ const R_FOOT: f64 = 4.0 / 64.0;
 /// The belly's sphere radius — the pot's widest wall, at `Y_BELLY_C`.
 const R_BELLY: f64 = 5.0 / 64.0;
 /// The mouth's radius, which the lid's rim reads.
-const R_NECK: f64 = 3.0 / 64.0;
+pub const R_NECK: f64 = 3.0 / 64.0;
 /// Where the foot ends and the belly's arc begins.
 const Y_FOOT: f64 = 1.0 / 64.0;
 /// The belly sphere's centre, on the axis. The two junction stations
@@ -313,7 +313,7 @@ const Y_FOOT: f64 = 1.0 / 64.0;
 /// `(3/64, 8/64)` at the mouth, both with an exactly zero residual.
 const Y_BELLY_C: f64 = 4.0 / 64.0;
 /// The mouth's plane.
-const Y_MOUTH: f64 = 8.0 / 64.0;
+pub const Y_MOUTH: f64 = 8.0 / 64.0;
 
 /// The wall thickness. A tenth of the belly's radius, and an eighth of
 /// the narrowest wall the shell has to survive (the neck's), so every
@@ -327,9 +327,9 @@ const WALL: f64 = 1.0 / 128.0;
 
 /// How far above the mouth the lid renders — the exploded-view gap.
 /// No mate is authored and none is implied; see the module docs.
-const LIFT: f64 = 1.0 / 32.0;
+pub const LIFT: f64 = 1.0 / 32.0;
 /// The lid's underside plane.
-const LID_BASE: f64 = Y_MOUTH + LIFT;
+pub const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// The flange's outer radius — the lid overhangs its mouth. With the
 /// dome's foot at [`R_NECK`], the skirt between them is a cone of
 /// `Δr = −2/256` over `Δy = +6/256`.
@@ -345,9 +345,9 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// the variant that keeps the dome's 5-12-13 junctions exact puts
 /// `DOME_C` at `LID_BASE − 1/256`, and against THIS centre it refuses
 /// one door earlier, at the arc's own equidistance check.)
-const R_FLANGE: f64 = 14.0 / 256.0;
+pub const R_FLANGE: f64 = 14.0 / 256.0;
 /// Where the conical flange ends and the dome's sphere begins.
-const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
+pub const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 /// The dome's sphere radius, and its centre's station: the 5-12-13
 /// triple. What that buys is not that any of these decimals is a
 /// binary-exact float — 3/64 and 13/256 are, 0.6 and 0.8 would not be
@@ -357,16 +357,16 @@ const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 const DOME_R: f64 = 13.0 / 256.0;
 /// The dome sphere's centre, one unit ABOVE the lid's underside —
 /// the flange lifts the dome's foot, and the centre with it.
-const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
+pub const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
 /// The knob's radius — the 5-12-13 point of the dome circle.
-const R_KNOB: f64 = 5.0 / 256.0;
+pub const R_KNOB: f64 = 5.0 / 256.0;
 /// Where the dome ends and the knob's wall begins.
-const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
+pub const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
 /// The knob's top.
-const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
+pub const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// The roll, one radius for all three of the lid's rims — per
 /// REQUEST rather than per edge, and the lid rolls in one request.
-const ROLL: f64 = 2.0 / 256.0;
+pub const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
 // The spout and the handle.
@@ -1581,7 +1581,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
-/// the wall-probe test below go through here, so the probes are pinned
+/// the wall-probe test (`tests/teapot.rs`) go through here, so the probes are pinned
 /// against the evaluation the scene actually draws from rather than a
 /// second one configured by hand.
 pub fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {

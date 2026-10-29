@@ -52,7 +52,7 @@ mod tests {
 
     /// The round-wire coil BODY's own volume and area, from an
     /// independent quadrature of its patches
-    /// ([`crate::common::patch_quadrature`]), against the [`ROUND_COIL_V`] and
+    /// ([`demo_tour::patch_quadrature`]), against the [`ROUND_COIL_V`] and
     /// [`ROUND_COIL_A`] that [`standing_spring`] holds the kernel's
     /// certified bracket to.
     #[test]
@@ -66,8 +66,8 @@ mod tests {
         let body = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
         let cap = |_o: [f64; 3], _n: [f64; 3]| PI * WIRE_H * WIRE_H;
         let about = [[0.0; 3], [SPRING_AXIS.0, SPRING_AXIS.1, 1.1]];
-        let coarse = crate::common::patch_quadrature::measure(&body, 24, &about, cap);
-        let fine = crate::common::patch_quadrature::measure(&body, 32, &about, cap);
+        let coarse = demo_tour::patch_quadrature::measure(&body, 24, &about, cap);
+        let fine = demo_tour::patch_quadrature::measure(&body, 32, &about, cap);
         println!("round coil oracle: coarse {coarse:?}, fine {fine:?}");
         let rel = |a: f64, b: f64| (a - b).abs() / b.abs();
         assert!(

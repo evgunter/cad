@@ -805,11 +805,11 @@ fn bud<S: Scalar>(
 #[derive(Clone, Copy, Debug)]
 pub struct Lance {
     /// Chord length, margin to margin — the blade's width.
-    width: f64,
+    pub width: f64,
     /// Rise of the upper arc above the chord.
-    ridge: f64,
+    pub ridge: f64,
     /// Drop of the lower arc below the chord.
-    keel: f64,
+    pub keel: f64,
 }
 
 impl Lance {
@@ -847,43 +847,6 @@ impl Lance {
             ridge: f(self.ridge, other.ridge),
             keel: f(self.keel, other.keel),
         }
-    }
-
-    /// The section's area: two circular segments on one chord, each
-    /// `R²(θ − sin θ)/2` for its own radius `R` and turn `θ`.
-    pub fn area(self) -> f64 {
-        self.segment_area(self.ridge) + self.segment_area(self.keel)
-    }
-
-    /// The section centroid's signed height above the chord (toward
-    /// the ridge). A circular segment's centroid sits
-    /// `4R·sin³(θ/2) / (3(θ − sin θ))` from its circle's centre, and
-    /// that centre is `R·cos(θ/2)` on the far side of the chord.
-    pub fn centroid_rise(self) -> f64 {
-        let moment = |h: f64| {
-            let (r, th) = self.segment(h);
-            let rise =
-                4.0 * r * (0.5 * th).sin().powi(3) / (3.0 * (th - th.sin())) - r * (0.5 * th).cos();
-            self.segment_area(h) * rise
-        };
-        (moment(self.ridge) - moment(self.keel)) / self.area()
-    }
-
-    /// The circular segment between the chord and the arc rising `h`:
-    /// `R²(θ − sin θ)/2`.
-    pub fn segment_area(self, h: f64) -> f64 {
-        let (r, th) = self.segment(h);
-        0.5 * r * r * (th - th.sin())
-    }
-
-    /// The radius and turn of the arc through both margins rising `h`
-    /// at the midrib.
-    pub fn segment(self, h: f64) -> (f64, f64) {
-        let c = self.width;
-        (
-            (0.25 * c * c + h * h) / (2.0 * h),
-            4.0 * (2.0 * h / c).atan(),
-        )
     }
 }
 
@@ -1334,10 +1297,7 @@ pub struct Piece<S: Scalar> {
     /// two joint frames its revolve recorded — read back from the
     /// operation rather than rediscovered in the finished body.
     /// `None` for the full revolves and extrusions, which have no
-    /// wedge caps.
-    // Read by the joint-frame test below, which is the point of
-    // carrying it: the render path wants the body alone.
-    #[allow(dead_code)]
+    /// wedge caps. The weld wall reads the arch's ([`wall_probes`]).
     pub caps: Option<WedgeFrames<S>>,
     /// For a piece that is a boolean RESULT (the rootstock), the
     /// contact records its op returned, which its tier-3′ gate consumes.

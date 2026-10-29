@@ -6042,7 +6042,7 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
 /// catch: a new scene module has to be picked up by the scan itself,
 /// with no edit here.
 ///
-/// `lib.rs` is excluded: it DEFINES `struct Stop` and builds none.
+/// `lib.rs` is excluded: it DEFINES `struct TourStop` and builds none.
 /// Files behind a cargo feature (`probe`, `tessbudget`) are read like
 /// any other — a text scan cannot see `cfg`, and reading them is the
 /// safe direction, since a stop the tour builds only sometimes is

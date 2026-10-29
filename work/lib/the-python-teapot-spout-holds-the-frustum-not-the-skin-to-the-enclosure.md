@@ -39,7 +39,7 @@ own.
 
 ## The binding has no door to the reference (ISO, 2026-10-24)
 
-The Rust scenes' reference is `demos/tour/tests/common/patch_quadrature.rs`.
+The Rust scenes' reference is `demos/tour/src/patch_quadrature.rs`.
 It reads each face's surface, and a NURBS patch's knots, weights and
 control net. `crates/pncad-py/src` exposes none of these to Python:
 there is no surface accessor on a face, and no control net, knot
