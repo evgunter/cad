@@ -4,6 +4,8 @@ kind: issue
 title: check 4's material arm gives no verdict to an edge whose samples mix transverse and smooth, or to a NURBS/Approx-adjacent seam, so a wedge end there passes unjudged
 status: open
 opened: 2026-09-28
+priority: P3
+cost: M
 ---
 
 

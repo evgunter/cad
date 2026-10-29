@@ -943,6 +943,8 @@ mod germ_sphere_no_crossings;
 mod germ_sphere_torus_placements;
 #[path = "germ_tilted_rod.rs"]
 mod germ_tilted_rod;
+#[path = "germ_torus_components.rs"]
+mod germ_torus_components;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]

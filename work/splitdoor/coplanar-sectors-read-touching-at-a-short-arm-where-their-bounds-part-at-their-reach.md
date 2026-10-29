@@ -2,7 +2,7 @@
 id: coplanar-sectors-read-touching-at-a-short-arm-where-their-bounds-part-at-their-reach
 kind: issue
 title: pair_search reads two coplanar sectors touching where their bounds part at their own reach, levered at a short arc's arm
-status: open
+status: dispatched
 priority: P2
 cost: M
 opened: 2026-10-28
