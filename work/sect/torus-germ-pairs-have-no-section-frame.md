@@ -119,3 +119,26 @@ listing no components for them
 (`a-general-torus-pose-lists-no-components`, a design fork). Placements
 whose union never reaches the section (`ArcCylinderRoots`,
 `CurvedPierceUnsupported`, a plane × torus spiric) are unchanged.
+
+## Components are the march's, a site's component its foot (SECT, 2026-10-29)
+
+`sect/components-by-foot` (`a-general-torus-pose-lists-no-components`)
+retired the classification's site reading: every torus germ inside both
+faces takes its component from its foot on the carried section, so no
+pose here refuses at the germ mint any more
+(`crates/sweep/tests/germ_torus_components.rs`). What each half reaches:
+
+- **sphere × torus**: ball × donut 5 (the sphere round the axis) passes
+  the mint and stops at the ring lane's island on the torus face
+  (`RingIslandUnread`, the torus face's spline arm, unbuilt); the other
+  placements are as before.
+- **cylinder × torus**: drum × donut 0 to 5 pass the mint; 0, 1 and 2
+  stop at the result gate's volume (a projected boundary, or a conic
+  trim on the torus chart), 3 at the cap plane's spiric, 4 and 5 at the
+  ring island. The radial hole stops at the volume.
+- **torus × torus**: donut × donut 2 and 3 stop at the ring island, 1 at
+  the join's segment dispatch (`CurvedBooleanUnsupported`); the lily's
+  long stem at the march's `CellBudget`.
+
+What this row owes now is the torus face's ring-lane arm for a spline
+island and the segment lane past the ring island.
