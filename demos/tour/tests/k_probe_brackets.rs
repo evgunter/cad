@@ -8,7 +8,8 @@
 //! a face's quadrature lane stops (its floor or its work wall) short of
 //! the reporting target `1024·ε`. At 1e-12 those are the long lofted
 //! leaf and the three sepals; the swept leaves `b` and `c` certify a
-//! number there.
+//! number there. At 1e-9 and 1e-6 the long leaf alone is a bracket: its
+//! sheath's tight curl stops its walls' lane short of the target.
 //!
 //! The sweep writes one stderr record per body (`probe.rs`'s module
 //! doc): `k_probe(demo)\tvolume\t<scene>\t<label>\t<kind>\t<lo>\t<hi>`.
@@ -167,13 +168,13 @@ fn k_probe_brackets_the_lofted_leaf_and_the_sepals_at_eps_1e_12() {
 }
 
 #[test]
-fn k_probe_measures_every_body_at_eps_1e_9() {
+fn k_probe_brackets_the_lofted_leaf_at_eps_1e_9() {
     let readings = sweep("1e-9");
-    check("1e-9", &readings, &[]);
+    check("1e-9", &readings, &["lily_leaf_a"]);
 }
 
 #[test]
-fn k_probe_measures_every_body_at_eps_1e_6() {
+fn k_probe_brackets_the_lofted_leaf_at_eps_1e_6() {
     let readings = sweep("1e-6");
-    check("1e-6", &readings, &[]);
+    check("1e-6", &readings, &["lily_leaf_a"]);
 }
