@@ -5,7 +5,8 @@ title: STEP import adopts an inverted same_sense on any face outside the cylinde
 status: open
 opened: 2026-09-20
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 

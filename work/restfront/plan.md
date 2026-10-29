@@ -13,7 +13,7 @@ trigger outside this program and does not count.
 
 | pri | item | cost | status |
 |---|---|---|---|
-| P0 | `validity-refuses-an-interior-chart-singularity` | H | **parked** on `work/exch/import-normalizes-the-rim-only-cap` |
+| P0 | `validity-refuses-an-interior-chart-singularity` | H | **parked** on `work/foreign/import-normalizes-the-rim-only-cap` |
 | P1 | `check-9-does-not-check-a-ring-nested-inside-another-ring` | D | open |
 | P1 | `validate-tier3-curved-boundary-containment` | H | open |
 | P2 | `check-6-planar-arm-skips-ellipse-and-nurbs-loops` (spiric and NURBS remain) | D | open |

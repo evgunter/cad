@@ -4,6 +4,8 @@ kind: issue
 title: step-import: the minted seam generator runs from the start rim vertex along the axis, so EndpointEnd can miss by up to 2 eps_in on a carrier the file never stored
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

@@ -5,6 +5,8 @@ title: step-import/export: the exchange refusals over 50 words (Ev's concision r
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+priority: P4
+cost: E
 ---
 
 

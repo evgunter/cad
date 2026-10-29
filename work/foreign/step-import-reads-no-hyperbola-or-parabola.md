@@ -4,6 +4,8 @@ kind: issue
 title: STEP import has no HYPERBOLA or PARABOLA reader: the window-taking conic arc needs the edge's ends, which the curve reader does not see
 status: open
 opened: 2026-10-25
+priority: P3
+cost: M
 ---
 
 

@@ -5,7 +5,8 @@ title: recognition promotes at eps_in while selection and certify run at ambient
 status: open
 opened: 2026-09-04
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 

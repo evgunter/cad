@@ -4,6 +4,8 @@ kind: issue
 title: step-import: the Adoption error names a lever in its header while each Transversality/TangentSecondOrder attempt inside it ends 'no way through'
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 
