@@ -173,7 +173,11 @@ fn review_r1_a_seam_touch_is_not_the_users_lever() {
     )
     .volume;
     let want = 8.0 * core::f64::consts::PI - 16.0 / 3.0;
-    assert!((v - want).abs() < 1e-6, "the spun union: {v} vs {want}");
+    // Within the band's reach over the walls: `1e-6` at the default ε.
+    assert!(
+        (v - want).abs() < 1e3 * tol.eps(),
+        "the spun union: {v} vs {want}"
+    );
     let seamed = topo::union(
         &finished("A", cyl_spun(0.0, false), tol),
         &finished("B", cyl_spun(0.0, true), tol),

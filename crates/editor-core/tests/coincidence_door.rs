@@ -2975,9 +2975,10 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 /// kind.
 ///
 /// - `cone_on_sphere`: a cone typed tangent to a sphere along a circle;
-///   `CurvedPierceUnsupported`, or at a tighter ε an escalation on the
-///   conic–quadric reading that comes before it (at `1e-12`,
-///   `bool_conic_quadric_disc`).
+///   `CurvedPierceUnsupported`, or an escalation on the conic–quadric
+///   reading that comes before it, at the edge and the face where the
+///   door reads the touch in the band's gap (at `1e-9`,
+///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
 /// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
 ///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
 ///   torus.
@@ -3005,7 +3006,7 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     };
     refused(crate::corpus::cone_on_sphere::document(), &|e| {
         matches!(e, B::CurvedPierceUnsupported { .. })
-            || matches!(e, B::Escalated { diag, .. }
+            || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
                 if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
     });
     refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {
