@@ -1736,7 +1736,7 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
 /// **The witness verification** (E7's witness clause), the verifier the
 /// engine's sweep asks about each candidate violation: rebuild the
 /// document at `f64` over the leaf's midpoint, search the two violating
-/// cells' on-face stations ([`Candidate::on_face_stations`]) for the
+/// cells' on-face stations ([`Candidate::on_face_stations`](topo::clearance::Candidate::on_face_stations)) for the
 /// closest pair of points it can find, and put THAT distance through
 /// the SAME funnel site at the `f64` lane.
 ///
