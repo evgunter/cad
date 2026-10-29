@@ -637,12 +637,7 @@ mod tests {
         // point: the certified row restricted at it is the pyramid's, and
         // the first output, read at that end alone, refuses. Red under a
         // shortcut that reads the end's bounds alone.
-        let refused_end =
-            Interval::from_bounds(-1.0, 1.0).sqrt() * Interval::point(0.0) + Interval::point(2.0);
-        assert!(
-            !refused_end.is_certified() && refused_end.lo() == 2.0 && refused_end.hi() == 2.0,
-            "the plant is a refused point bracket on the knot: {refused_end:?}"
-        );
+        let refused_end = crate::test_support::refused_point(2.0);
         let at_refused = span.restrict((refused_end, ends.1)).unwrap();
         let (closure, ratio) = span_ratio(span.span());
         let pyramid_at = pyramid(

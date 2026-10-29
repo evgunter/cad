@@ -459,19 +459,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/ssi/four.rs",
-        5,
+        4,
         2,
         "the 2 that ask are the Krawczyk image's preconditioner midpoint and image \
          reads, which refuse a piece unless every image row is certified; its \
-         containment and miss tests compare the image's certified sides. Of the 3 that \
+         containment and miss tests compare the image's certified sides. Of the 2 that \
          do not ask, `mean_value_excludes`' 1 is its column midpoints, \
          which select an exclusion direction: any fixed direction is sound, and the form \
          built along it is read only through `sign`, which refuses an uncertified \
          enclosure by name. `row_crossing`'s 1 reads the graph margin's sign only \
          after `tube_margin` has answered `Some`, which it does only for a margin \
-         that certifies. `along_side`'s 1 is a `T: Bounds` read of the pcurve's \
-         control points (blind spot 1) whose bool only names a refusal \
-         (`Shortfall::AlongSide` for `Undecided`; `bounds_census.rs` rosters it)",
+         that certifies",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
@@ -526,6 +524,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
+    ("crates/geom-core/src/test_support.rs", 1, 1, ""),
     (
         "crates/geom/src/curves/nurbs.rs",
         3,

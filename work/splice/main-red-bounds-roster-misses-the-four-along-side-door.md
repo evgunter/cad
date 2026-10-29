@@ -54,7 +54,13 @@ answer.
 ## Closed
 
 Closed 2026-10-29 by `splice/census-reds`. Main `0011f58a` also missed
-`edge_nurbs.rs`'s `impl<T: Bounds> FeetRefusal<T>`, from PR 5959. Both
-doors are now in the roster as `Payload`. `along_side`'s bool only
-renames a shortfall `Shortfall::AlongSide`, and an `Ok` never reads it.
-`FeetRefusal::lane` reads the reach's low end into the refusal's lever.
+`edge_nurbs.rs`'s `impl<T: Bounds> FeetRefusal<T>`, from PR 5959. It is
+rostered as `Payload`: `lane` reads the reach's low end into the
+refusal's lever.
+
+`along_side` is fixed rather than rostered. Its answer does more than
+rename: it moves a refusal from `Undecided` to the sign-certain
+`AlongSide`. It now takes `T: CertifiedBounds` and reads each control
+through `certified_bracket()`, so a control that does not certify is
+not along a side (`a_refused_control_is_not_along_a_side`). That leaves
+no sole bracket bound to roster.

@@ -758,7 +758,8 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
 /// chart at the cell's low corner plus its partials' enclosures over the
 /// cell's sides (mean value, componentwise), up to the rounding of that
 /// corner and those sums. The enclosure holds the cell, so a cell counts
-/// at no more than its distance.
+/// at no more than its distance. A cell whose partials do not certify, or
+/// whose distance reads NaN, bounds nothing and counts at distance `0`.
 ///
 /// The bound is a lower end only ([`crate::classify_seam`] brackets the
 /// arm between it and the reach), so its slack can cost an escalation and
@@ -775,7 +776,7 @@ pub(crate) fn chart_arm(
     p: geom_core::Point3<f64>,
     reach: f64,
 ) -> Option<f64> {
-    if reach.is_nan() {
+    if reach.is_nan() || !(p.x.is_finite() && p.y.is_finite() && p.z.is_finite()) {
         return None;
     }
     let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
@@ -795,7 +796,7 @@ pub(crate) fn chart_arm(
     let mut near = Vec::new();
     for cell in &cells {
         let d = cell_distance(net, cell, p);
-        if d.is_nan() || d > reach {
+        if d > reach {
             continue;
         }
         let on = |c: &[f64], (lo, hi): (f64, f64)| c.iter().any(|&k| k == lo || k == hi);
@@ -824,14 +825,14 @@ pub(crate) fn chart_arm(
 
 /// The distance from `p` to `cell`'s spatial enclosure ([`chart_arm`]):
 /// the chart at the cell's low corner, plus, per coordinate, the partials'
-/// enclosures times each side's extent, signed toward either end.
+/// enclosures times each side's extent, signed toward either end. `0`, the
+/// vacuous lower bound, where a partial does not certify or the distance
+/// reads NaN: either way no enclosure was read.
 fn cell_distance(
     net: &geom::surfaces::NurbsSurface<f64>,
     cell: &PatchCell,
     p: geom_core::Point3<f64>,
 ) -> f64 {
-    // A partial that does not certify bounds nothing, so the cell is read
-    // as touching `p`.
     if !cell.s_u.iter().chain(&cell.s_v).all(|c| c.is_certified()) {
         return 0.0;
     }
@@ -847,7 +848,8 @@ fn cell_distance(
         gap(corner.y, p.y, cell.s_u[1], cell.s_v[1]),
         gap(corner.z, p.z, cell.s_u[2], cell.s_v[2]),
     ];
-    (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt()
+    let d = (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt();
+    if d.is_nan() { 0.0 } else { d }
 }
 
 /// Meter 2, whole patch: the certified curvature range and the
@@ -1346,12 +1348,7 @@ mod tests {
         let at = geom_core::Point3::new(0.5, 0.5, 10.0);
         assert_eq!(cell_distance(&net, &cell, at), 10.0, "the certified cell");
         let mut refused = cell;
-        refused.s_u[2] = Interval::from_bounds(-1.0, 1.0).sqrt() * Interval::point(0.0);
-        assert!(
-            !refused.s_u[2].is_certified() && refused.s_u[2].lo() == 0.0,
-            "the plant is a refused point bracket: {:?}",
-            refused.s_u[2]
-        );
+        refused.s_u[2] = geom_core::test_support::refused_point(0.0);
         assert_eq!(cell_distance(&net, &refused, at), 0.0, "the refused cell");
     }
 

@@ -100,12 +100,16 @@ dispositioned. Fixed rather than rostered:
 - `spline/blossom.rs`: `whole_bezier_span` asks before it takes a refused
   end for an exact knot (`a_whole_span_restriction_refuses_as_the_pyramid_does`);
 - `ssi/enclose.rs`: `first_order_continuous_in` reads crease knots through
-  `certified_bracket()`.
+  `certified_bracket()` (`a_refused_crease_reads_as_not_continuous`);
+- `ssi/four.rs`: `along_side` reads controls through `certified_bracket()`,
+  since its answer moves a refusal from `Undecided` to the sign-certain
+  `AlongSide` (`a_refused_control_is_not_along_a_side`);
+- `offset_meters::chart_arm`: a NaN cell distance now counts as 0, not as
+  a skipped cell, and a non-finite `p` refuses as its doc said.
 
 Argued sound at the site:
 - `spline_face::end_state`, a seed;
 - `four::row_crossing`, read after `tube_margin` has asked;
-- `four::along_side`, which names a refusal;
 - `surfaces/nurbs.rs` and `curves/nurbs.rs`'s knot clip ends.
 
 CLEAR's `clearance.rs` and `injective.rs` are pinned at main's counts.

@@ -1741,6 +1741,20 @@ pub(super) mod tests {
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
     }
 
+    /// **A crease that does not certify is no proof of continuity.** The
+    /// quadratic patch's crease at `u = 0.5`, lifted as a refused point
+    /// bracket on the knot: a window clear of `0.5` by its ordinary ends
+    /// is not read as continuous. Red under a read of the crease's ends.
+    #[test]
+    fn a_refused_crease_reads_as_not_continuous() {
+        let refused = geom_core::test_support::refused_point;
+        let w = win((0.0, 0.3, 0.0, 1.0));
+        let certified = multiplicity_2_patch().map_scalar(geom_core::Interval::point);
+        assert!(NurbsBoxes::new(&certified).first_order_continuous_in(w));
+        let s = multiplicity_2_patch().map_scalar(refused);
+        assert!(!NurbsBoxes::new(&s).first_order_continuous_in(w));
+    }
+
     /// **A span cell's whole net is built once per [`NurbsBoxes`]**,
     /// however many reads touch it: the point box, both derivative
     /// boxes and a second pass all read the one build, and read it
