@@ -8341,3 +8341,46 @@ mod spline_face_rows {
         );
     }
 }
+
+#[cfg(test)]
+mod review_5993_rows {
+    //! Review rows (PR 5993, R2): the line × torus door on the span path,
+    //! at the near-perpendicular pose `r1_probes` pins
+    //! (`r1_the_near_perpendicular_ray_keeps_its_roots`), whose exact
+    //! Sturm count is 2 and whose roots are certified at ε = 1e-12.
+    use super::*;
+
+    fn torus() -> geom::Surface<f64> {
+        geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 1.0, 0.0),
+            major_radius: 1.0,
+            minor_radius: 0.9,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    #[ignore = "red on 6a6a2b68: the resolvent rung ends ClassificationInvariant on this legal line at ε 1e-9"]
+    fn review_5993_a_near_perpendicular_line_through_a_torus_is_no_kernel_fault() {
+        let o = Point3::new(
+            0.616_510_985_187_377_8,
+            -0.432_236_860_832_721_6,
+            -1.766_591_924_017_196_6,
+        );
+        let d = geom_core::Vec3::new(
+            -0.779_335_113_179_378_4,
+            3.340_316_168_992_811e-5,
+            -0.626_607_357_321_883_2,
+        );
+        for eps in [1e-12, 1e-9, 1e-6] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            let got = line_wall_roots_of(o, d, (-2.0, 0.0), &torus(), band);
+            println!("eps {eps:e}: {got:?}");
+            assert!(
+                !matches!(got, Err(BooleanError::ClassificationInvariant { .. })),
+                "a legal line with two certified-able roots ends as a kernel defect at ε {eps:e}: {got:?}"
+            );
+        }
+    }
+}
