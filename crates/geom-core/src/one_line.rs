@@ -56,19 +56,15 @@
 use crate::{Point2, Point3, Real, Vec2, Vec3};
 
 /// The overlap of two intervals on one line, and the rounding they
-/// carry (module docs).
+/// carry (module docs). The overlap's ends ([`Self::lo`], [`Self::hi`])
+/// are read off the two intervals, so they cannot disagree with them.
 #[derive(Clone, Copy, Debug)]
 pub struct OnOneLine<T> {
-    /// The overlap's lower end: the greater of the two intervals' lower
-    /// ends.
-    pub lo: T,
-    /// The overlap's upper end: the lesser of the two intervals' upper
-    /// ends.
-    pub hi: T,
     /// The rounding the ends carry ([`crate::rounding_charge`]).
     pub noise: T,
-    /// The second interval as read, its ends in the order given (`lo`
-    /// and `hi` are its overlap with the first): for
+    /// The first interval as read, its ends in the order given.
+    pub a: (T, T),
+    /// The second interval as read, its ends in the order given: for
     /// [`on_one_line`](fn@on_one_line), `b`'s ends' projections
     /// `((b0 − a0)·û, (b1 − a0)·û)`, which a caller deciding which end
     /// bounds the overlap reads on their own.
@@ -80,34 +76,62 @@ impl<T: Real> OnOneLine<T> {
     /// either order, read by value, carrying `noise`.
     #[must_use]
     pub fn of(a: (T, T), b: (T, T), noise: T) -> Self {
-        Self {
-            lo: a.0.min(a.1).max(b.0.min(b.1)),
-            hi: a.0.max(a.1).min(b.0.max(b.1)),
-            noise,
-            b,
-        }
+        Self { noise, a, b }
+    }
+
+    /// The overlap's lower end: the greater of the two intervals' lower
+    /// ends.
+    #[must_use]
+    pub fn lo(&self) -> T {
+        self.a.0.min(self.a.1).max(self.b.0.min(self.b.1))
+    }
+
+    /// The overlap's upper end: the lesser of the two intervals' upper
+    /// ends.
+    #[must_use]
+    pub fn hi(&self) -> T {
+        self.a.0.max(self.a.1).min(self.b.0.max(self.b.1))
     }
 
     /// The overlap's signed length: positive an overlap, negative the
     /// gap between the intervals, negated.
     #[must_use]
     pub fn extent(&self) -> T {
-        self.hi - self.lo
+        self.hi() - self.lo()
     }
 
     /// The overlap's middle (between the intervals where they are
     /// apart).
     #[must_use]
     pub fn mid(&self) -> T {
-        (self.lo + self.hi) * T::from_f64(0.5)
+        (self.lo() + self.hi()) * T::from_f64(0.5)
     }
 
     /// The gap past the charge: positive where the intervals lie apart
     /// by more than their rounding, so no point of one comes within it
     /// of the other (module docs). A caller decides it on its own row.
+    ///
+    /// Where they overlap it is negative by the overlap's DEPTH, the
+    /// lesser run from one interval's lower end to the other's upper
+    /// end, not by its length: an interval that is a point (a span
+    /// across the axis) inside the other reads how deep inside it lies,
+    /// where its overlap's length is zero at every depth. Where the
+    /// intervals are apart it is the overlap's negated length, bit for
+    /// bit; where they overlap it is never above it, so a `Positive`
+    /// reading never moves, but over an enclosure a value nearer the band
+    /// can read in band where the length read a definite `Zero`, and a
+    /// reader that keeps a screen's escalation sees the difference.
     #[must_use]
     pub fn apart(&self) -> T {
-        T::zero() - self.extent() - self.noise
+        self.gap() - self.noise
+    }
+
+    /// The signed gap between the intervals, before the charge
+    /// ([`Self::apart`]).
+    fn gap(&self) -> T {
+        let (a_lo, a_hi) = (self.a.0.min(self.a.1), self.a.0.max(self.a.1));
+        let (b_lo, b_hi) = (self.b.0.min(self.b.1), self.b.0.max(self.b.1));
+        (b_lo - a_hi).max(a_lo - b_hi)
     }
 }
 
@@ -212,15 +236,16 @@ mod rows {
         );
     }
 
-    /// Each of `lo`, `hi` and the extent of `got` lies within its charge
+    /// Each of `lo`, `hi`, the extent and the gap of `got` lies within its charge
     /// of the enclosure `real` of the same real quantity; returns the
     /// largest share of the charge any of them spends.
     fn holds(got: super::OnOneLine<f64>, real: super::OnOneLine<Interval>) -> f64 {
         let mut spent = 0.0_f64;
         for (what, v, e) in [
-            ("lo", got.lo, real.lo),
-            ("hi", got.hi, real.hi),
+            ("lo", got.lo(), real.lo()),
+            ("hi", got.hi(), real.hi()),
             ("extent", got.extent(), real.extent()),
+            ("gap", got.gap(), real.gap()),
         ] {
             assert!(
                 v - got.noise <= e.lo() && e.hi() <= v + got.noise,
@@ -233,15 +258,16 @@ mod rows {
         spent
     }
 
-    /// **The ends and the extent carry their rounding within the charge.**
-    /// Against the same reading at `Interval`, an enclosure of the real
-    /// projections of the same `f64` points, each of `lo`, `hi` and the
-    /// extent lies within `noise` of every real value it stands for, over
+    /// **The ends, the extent and the gap carry their rounding within the
+    /// charge.** Against the same reading at `Interval`, an enclosure of
+    /// the real projections of the same `f64` points, each of `lo`, `hi`,
+    /// the extent and the gap lies within `noise` of every real value it stands for, over
     /// segments drawn at every scale and offset from the origin, half of
     /// them near each other wherever they lie (the charge's tightest
     /// regime: it is at the spans' own scale, not the origin's). Red where
-    /// the charge is dropped, and where it is more than sixteen times
-    /// loose ([`tight`]).
+    /// the charge is dropped, where it is more than sixteen times loose
+    /// ([`tight`]), and where an overlap's gap reads shallower than its
+    /// depth.
     #[test]
     fn the_overlap_lies_within_its_charge_of_the_real_one() {
         let mut rng = fuzz::start("one-line-charge");
@@ -280,8 +306,57 @@ mod rows {
                 Interval::zero(),
             );
             worst = worst.max(holds(got, real));
+            // Overlapping, the gap reads at least the overlap's depth,
+            // the lesser run from one interval's lower end to the other's
+            // upper end; read by length, a span inside the other reads
+            // shallower than it lies.
+            let ((al, ah), (bl, bh)) = (
+                (got.a.0.min(got.a.1), got.a.0.max(got.a.1)),
+                (got.b.0.min(got.b.1), got.b.0.max(got.b.1)),
+            );
+            let depth = (ah - bl).min(bh - al);
+            if depth > 0.0 {
+                assert!(
+                    got.apart() <= -depth,
+                    "overlapping by {depth}, the gap reads {} — {}",
+                    got.apart(),
+                    fuzz::replay()
+                );
+            }
         }
         tight(worst);
+    }
+
+    /// **An overlap reads its depth, not its length.** A span across the
+    /// axis projects to a point; one metre inside a three-metre span its
+    /// overlap is zero long, and the gap reads it a metre deep, so the
+    /// pair reads definitely not apart rather than at the gap's zero.
+    #[test]
+    fn a_point_inside_the_other_span_reads_how_deep_it_lies() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let across = on_one_line(
+            x,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 0.0)),
+            (Point3::new(1.0, 1.5, 0.0), Point3::new(1.0, 3.0, 0.0)),
+            0.0,
+        );
+        assert_eq!(across.extent(), 0.0, "the overlap is a point");
+        assert_eq!(
+            across.apart(),
+            -1.0 - across.noise,
+            "the gap is the point's depth inside the span, past the charge"
+        );
+        let beyond = on_one_line(
+            x,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 0.0)),
+            (Point3::new(4.0, 1.5, 0.0), Point3::new(4.0, 3.0, 0.0)),
+            0.0,
+        );
+        assert_eq!(
+            beyond.apart(),
+            1.0 - beyond.noise,
+            "apart, the gap is the distance between the spans"
+        );
     }
 
     /// **The charge is at the spans' own scale, wherever they lie.** Two

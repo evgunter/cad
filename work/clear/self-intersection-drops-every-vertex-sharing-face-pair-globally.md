@@ -2,10 +2,13 @@
 id: self-intersection-drops-every-vertex-sharing-face-pair-globally
 kind: issue
 title: clearance's self-intersection drops every face pair that shares a vertex, and a face against itself, globally - vacuous on a cone's lateral faces or a triangle-section loft
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: H
+branch: clear/selfx
+pr: 5955
+closed: 2026-10-29
 ---
 
 
@@ -123,3 +126,25 @@ f : M → ℝ³ injective, with touching cells certified injective on their
 union and non-touching cells at positive distance, Ev wrote "ok great!",
 and asked that the clause lead with "it proves injectivity". The clause
 in `docs/ERROR-DESIGN.md` now does. The unit builds against that clause.
+
+## Closed (2026-10-29, #5955)
+
+**What landed.** `topo::injective` proves f : M → ℝ³ injective, per E7 as Ev ruled on #5866.
+- Every face pair is examined. An analytic face is discharged by kind, a torus only once R − r > 0 is decided.
+- Touching cells are decided only by a local certificate:
+  - *monotone*, within one face;
+  - *departure*, across a shared edge or vertex, on order-free face presentations.
+- Non-touching cells are decided by distance, with a verified coincidence witness.
+- The metric doors read 0 where scopes meet.
+
+**Left out, each on its own row or refusing typed:**
+- The second-order arm. A cusp refuses typed. Filed as `the-second-order-arm-certifies-a-declared-wedge-0-edge`.
+- The CONTACT-DESIGN handoff. A recorded contact refuses typed. Filed as `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`.
+- Curved shared edges. These refuse at depth 0. Filed as `departure-presents-no-curved-shared-edge`.
+- The by-kind premise. Filed as `an-analytic-face-may-cover-its-carrier-more-than-once`.
+- Exact zeros in an assertion. Filed as `an-assertion-over-scopes-that-meet-refuses-a-window-superset-for-an-exact-zero`.
+
+**Review.**
+- DUAL concurrent: R1 APPROVE-WITH-FIXES, R2 NOT-MERGEABLE-AS-IS. Blind-coded tally 1: R2's order-dependent presentation, a soundness MAJOR with a red probe.
+- Two fix passes. A focused review between them read APPROVE-WITH-FIXES.
+- The row is `docs/dual-review-log/rows/PR-5955.md`.

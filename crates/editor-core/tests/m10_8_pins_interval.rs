@@ -135,6 +135,11 @@ fn a0_alone() -> SymRules {
 /// residual. The counts are seven replays' (the root, two halves, four
 /// quarters), not one's. A0's yield is still the shipped tier's whole
 /// difference.
+///
+/// Each replay's simplicity pass no longer reads a gap on the
+/// profile's four corner pairs, which share a vertex: 8 numeric
+/// decisions fewer per replay in both tiers, 1668 → 1612 and
+/// 1612 → 1556.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -164,13 +169,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2898 numeric=1668 frozen=0",
+        "decisions symbolic=2898 numeric=1612 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2954 numeric=1612 frozen=0",
-        "56 of the 1668 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2954 numeric=1556 frozen=0",
+        "56 of the 1612 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

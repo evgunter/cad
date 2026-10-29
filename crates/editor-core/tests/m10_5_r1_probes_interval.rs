@@ -437,12 +437,17 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// rounded body got a budget refusal for its answer.
 ///
 /// **FLIPPED by deciding cells off the face.** The bump's window is
-/// still the whole turn, so the pair reaches the tree
-/// (`candidates == 1`); every cell of the phantom lower half meets no
-/// edge of the bump on its own carrier (the end circles read as their
-/// half arcs, not as whole circles) and its station is out of the face,
-/// so it drops (`outside > 0`) and the touching pair is never
-/// classified. The body's real minimum gap is 0.5.
+/// still the whole turn, so the pair reaches the tree; every cell of
+/// the phantom lower half meets no edge of the bump on its own carrier
+/// (the end circles read as their half arcs, not as whole circles) and
+/// its station is out of the face, so it drops (`outside > 0`) and the
+/// phantom contact is never classified. The body's real minimum gap is
+/// 0.5.
+///
+/// Since SELFX the question proves the boundary injective, so every
+/// face pair is examined, not just this one (`candidates > 1`), and the
+/// pairs that touch — the bump against the walls it stands on — are
+/// certified by a local certificate (`certified > 0`).
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -473,10 +478,10 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         r.candidates,
         report.decided()
     );
-    assert_eq!(
-        (r.candidates, r.outside > 0),
-        (1, true),
-        "the bump's whole-turn window reaches the bottom wall, and its phantom cells drop: {}",
+    assert!(
+        r.candidates > 1 && r.outside > 0 && r.certified > 0,
+        "every pair is examined, the bump's whole-turn window reaches the bottom wall and its \
+         phantom cells drop, and the touching pairs certify: {}",
         report.serialize()
     );
     assert_eq!(
