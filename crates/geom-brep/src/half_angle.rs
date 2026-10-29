@@ -297,8 +297,8 @@ const POLE_CANDIDATES: u32 = 32;
 ///
 /// # Errors
 ///
-/// [`RootRefusal::Escalated`], the ladder's in-band sign, and
-/// [`RootRefusal::Unsettled`], the subdivision's.
+/// [`RootRefusal::Escalated`], the ladder's in-band sign, and the
+/// subdivision's [`RootRefusal`]: a touch, a limit or a fault.
 pub fn half_angle_roots<T: Decide>(
     f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
@@ -308,14 +308,14 @@ pub fn half_angle_roots<T: Decide>(
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
     ladder_roots(f, &residual, &frame, rows, band)?;
-    Ok(certified_subdivision(
+    certified_subdivision(
         &f.poly(),
         &residual,
         &frame.walk,
         &rows.verify,
         Some(slack),
         band,
-    )?)
+    )
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
