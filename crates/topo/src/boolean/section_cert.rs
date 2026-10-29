@@ -34,7 +34,9 @@
 //!
 //! # The witnesses, per component
 //!
-//! - **W0, apart**: the classification returns no component.
+//! - **W0, apart**: the section has no component: a closed form counts
+//!   none, or the march, whose exhaustiveness receipt accounts every
+//!   cell of the pose's ball, finds no branch.
 //! - **W1, unbounded**: faces are compact, so `γ ⊄ F`.
 //! - **W2, essential**: `γ` is essential on the carrier of `X` (it winds
 //!   about the axis, or around the tube) and `X` reads [`Sheet::One`]:
@@ -49,9 +51,12 @@
 //!   loops that each wind, and loses W2. A face whose walk refuses
 //!   reads [`Sheet::Unread`], and a component nothing else clears
 //!   refuses R-unread rather than R-undec.
-//! - **W3, a witness point `Out`**: one closed-form point of `γ`,
-//!   certified outside `F` or outside `G` (by the face's region on a
-//!   curved face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
+//! - **W3, a witness point `Out`**: one point of `γ`, certified outside
+//!   `F` or outside `G` (by the face's region on a curved face, by
+//!   `contfp` on a plane), so `γ ⊄ F ∩ G`. A closed form names the point
+//!   on `γ`; a marched loop names its carrier's middle point, within the
+//!   loop's pad of `γ` ([`Component::pad`]), and is read out of a face
+//!   only past the band padded by twice that.
 //! - **W4, a lone evented component**: `Σ` has exactly one component and
 //!   the pair has an event. The event's vertex lies on `Σ` within the
 //!   band, hence on `γ`, and on an edge of `F` or `G`, so
@@ -65,8 +70,11 @@
 //! One witness point per component is complete on the arms below: a
 //! lone component is cleared by W4 or decided by its point, and a
 //! component essential or unbounded on a carrier is cleared by W1 or W2.
-//! A section with a null component beside others clears each null loop
-//! by its witness or, with an event on the pair, refuses R-undec, since
+//! A component's essentiality is the arm's claim, and an arm that does
+//! not read it claims none: such a component, like a null one, is
+//! cleared only by its witness. A section with a component no claim
+//! clears beside others clears each by its witness or, with an event on
+//! the pair, refuses R-undec, since
 //! the event may lie on another component: cone × sphere, where a ball
 //! beside the apex can meet each nappe in one null loop (with the apex
 //! outside the ball no nappe can carry essential curves while the other
@@ -381,9 +389,17 @@ pub(crate) struct Component<T: Real> {
     /// One point of the component, in closed form, or on a marched
     /// loop's carrier, within `pad` of the component.
     pub witness: Option<Point3<T>>,
-    /// How far the witness may stand from the component, in metres: the
-    /// marched loop's tube, zero for a closed form. W3 places it out of a
-    /// face by that much more than the band.
+    /// **How far the witness may stand from the component**, in metres:
+    /// a marched loop's uniqueness tube radius
+    /// ([`geom_brep::CarriedComponent::tube`]: the march's exhaustiveness
+    /// puts the component within it of the carrier), zero for a closed
+    /// form. W3 reads the witness against the band padded by twice it
+    /// (`ops::pair_verdict`): a face's placement margins are lengths read
+    /// at the point's foot on the face's surface, and the witness lies
+    /// within the carrier's limb-2 bound of that surface, far below the
+    /// surface's radius (every radius is guarded past the band), where
+    /// the foot moves by at most twice the point does; so a component
+    /// point's margin is within twice `pad` of the witness's.
     pub pad: f64,
 }
 
@@ -1871,10 +1887,12 @@ pub(super) fn of_pair_section<T: Decide>(
 
 /// **A section no closed form counts, read from its march** (W0 to W4
 /// on the march's components): no branch is W0, its receipt being the
-/// march's exhaustiveness; each loop winds as its chart image does (W2);
-/// its witness is its carrier's middle point, within its tube of the
-/// component, so W3 places it out of a face by that much more than the
-/// band; and the march's count is certified, so a lone loop is W4's. At
+/// march's exhaustiveness; each loop winds as its turns about each
+/// surface's axis and core read off the loop do (W2,
+/// `geom_brep::pair_section::winds`); its witness is its carrier's
+/// middle point, within its tube of the component, so W3 places it with
+/// that pad ([`Component::pad`]); and the march's count is certified, so
+/// a lone loop is W4's. At
 /// a scalar with no march it is R-lane; a march or loop reading that
 /// refused is R-march.
 pub(super) fn of_carried<T: Decide>(
@@ -1897,15 +1915,12 @@ pub(super) fn of_carried<T: Decide>(
     Section::Components {
         parts: components
             .iter()
-            .map(|c| {
-                let (lo, hi) = c.span;
-                Component {
-                    unbounded: false,
-                    essential_f: c.winds[0],
-                    essential_g: c.winds[1],
-                    witness: Some(c.carrier.eval((lo + hi) * T::from_f64(0.5))),
-                    pad: c.tube,
-                }
+            .map(|c| Component {
+                unbounded: false,
+                essential_f: c.winds[0],
+                essential_g: c.winds[1],
+                witness: Some(c.witness()),
+                pad: c.tube,
             })
             .collect(),
         single: components.len() == 1,
@@ -1916,8 +1931,10 @@ pub(super) fn of_carried<T: Decide>(
 ///
 /// `evented` says whether the reduction recorded an event on this pair;
 /// `describes` asks W2's question of a face (cached by the caller);
-/// `place` places a witness point in `[F, G]`, `None` for no verdict,
-/// out of a face only by more than the band widened by the given pad.
+/// `place` places a witness point in `[F, G]` against the band it is
+/// handed, `None` for no verdict: `band` itself for a closed-form point,
+/// and `band` padded by twice a marched witness's pad
+/// ([`Component::pad`]).
 ///
 /// # Errors
 ///
@@ -1925,15 +1942,16 @@ pub(super) fn of_carried<T: Decide>(
 pub(crate) fn certify<T: Decide>(
     section: &Section<T>,
     evented: bool,
+    band: Band,
     mut describes: impl FnMut(Side) -> Sheet,
-    mut place: impl FnMut(Point3<T>, f64) -> [Option<FaceContainment>; 2],
+    mut place: impl FnMut(Point3<T>, Band) -> [Option<FaceContainment>; 2],
 ) -> Result<Vec<Cleared>, Refusal> {
     let (parts, single) = match section {
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
         Section::Touch(t) if !evented => {
-            let placed = place(t.at, 0.0);
+            let placed = place(t.at, band);
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -1983,7 +2001,10 @@ pub(crate) fn certify<T: Decide>(
         let Some(p) = c.witness else {
             return Err(undecided);
         };
-        let [at_f, at_g] = place(p, c.pad);
+        let [at_f, at_g] = match band.padded(2.0 * c.pad) {
+            Ok(padded) => place(p, padded),
+            Err(_) => [None, None],
+        };
         if at_f == Some(FaceContainment::Out) {
             out.push(Cleared::Out(Side::F));
             continue;

@@ -354,7 +354,8 @@ fn p1_wall1_glues_the_stem_into_one_body() {
 /// seams cross the arch's tube, so the pair carries events, and the
 /// reduction's germ mint, carrying the two tube walls' section to read a
 /// site's foot, refuses it (`GermSectionUnbuilt`, torus × torus: the
-/// march's stop on the lily's tori,
+/// march's own stop on the lily's tori, `CellBudget` at the compiled ε
+/// and the tube's straddle at 1e-6,
 /// [`the_lilys_tori_exhaust_the_doors_cell_budget`]) before the
 /// interior-loop guard is asked. What this row pins is that refusal: it
 /// goes red when the op starts building this pair, or refuses it
@@ -388,16 +389,25 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
         ("long ∪ arch", topo::union(&long, &a, Tol::witness())),
         ("arch ∪ long", topo::union(&a, &long, Tol::witness())),
     ] {
+        // The door's own stop on the pair: its cell budget at the
+        // compiled ε, its tube at 1e-6, as the door row below pins it.
+        let coarse = Tol::witness().eps() == 1e-6;
         assert!(
-            matches!(
-                r,
+            match &r {
                 Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
-                    why: topo::SectionUnbuilt::March(_),
+                    why: topo::SectionUnbuilt::March(march),
                     ..
-                })
-            ),
+                }) => {
+                    if coarse {
+                        matches!(march, geom_brep::SsiError::TubeStraddles { .. })
+                    } else {
+                        matches!(march, geom_brep::SsiError::CellBudget { .. })
+                    }
+                }
+                _ => false,
+            },
             "{what}: the two tube walls refuse at their germs: {:?}",
             r.err()
         );

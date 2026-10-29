@@ -374,12 +374,30 @@ fn a_general_torus_pose_is_read_from_its_march() {
             panic!("{what}: {s:?}");
         };
         assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
-        for c in parts {
+        let Ok(geom_brep::SectionRead::Built(section)) =
+            geom_brep::pair_section(&donut(), &partner, band())
+        else {
+            panic!("{what}: the value builds the pair");
+        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .expect("the march carries");
+        for (c, k) in parts.iter().zip(carried.components()) {
             let w = c.witness.expect("a marched loop's witness");
-            assert!(c.pad > 0.0, "{what}: the witness's pad is its tube");
+            assert!(
+                (w - k.witness()).norm() == 0.0,
+                "{what}: the witness is the carrier's middle"
+            );
+            assert_eq!(c.pad, k.tube, "{what}: the witness's pad is its tube");
+            // Closeness: the witness lies on the carrier, within its
+            // certified limb-2 bound of each surface.
+            let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
             for surface in [&donut(), &partner] {
-                let r = geom_brep::implicit_residual(surface, w).abs();
-                assert!(r <= c.pad + 1e-12, "{what}: witness {w:?} is {r} off");
+                let d = metric_distance(surface, w);
+                assert!(
+                    d <= sup + 1e-15,
+                    "{what}: witness {w:?} is {d:e} off, past {sup:e}"
+                );
             }
         }
     }
@@ -398,7 +416,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         "no march: {unmarched:?}"
     );
     assert_eq!(
-        certify(&unmarched, false, |_| Sheet::Not, at(None, None)),
+        certify(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
         Err(Refusal::NoLane("f64"))
     );
     // About `(1, 0, 0)` the second core passes `(3, 0, 0)` and
@@ -408,6 +426,70 @@ fn a_general_torus_pose_is_read_from_its_march() {
         tangent(&classify(&donut(), &tilted(p(1.0, 0.0, 0.0)))),
         "tt_critical_gap"
     );
+}
+
+/// The distance in metres of `q` from a cylinder or a torus.
+fn metric_distance(s: &Surface<f64>, q: Point3<f64>) -> f64 {
+    match *s {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let w = q - origin;
+            ((w - axis * w.dot(axis)).norm() - radius).abs()
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let w = q - center;
+            let z = w.dot(axis);
+            (((w - axis * z).norm() - major_radius).hypot(z) - minor_radius).abs()
+        }
+        _ => unreachable!("a cylinder or a torus"),
+    }
+}
+
+/// **A marched witness is placed against the band padded by twice its
+/// pad**, a closed-form one against the band itself: the placement is
+/// handed the band it reads, so a certificate that dropped the pad reads
+/// the marched witness at the bare band and this row goes red.
+#[test]
+fn a_marched_witness_is_placed_padded() {
+    let pad = 1e-3;
+    for (what, pad, want) in [
+        ("marched", pad, band().zero() + 2.0 * pad),
+        ("closed form", 0.0, band().zero()),
+    ] {
+        let s = Section::Components {
+            parts: vec![Component {
+                unbounded: false,
+                essential_f: false,
+                essential_g: false,
+                witness: Some(p(0.0, 0.0, 0.0)),
+                pad,
+            }],
+            single: true,
+        };
+        let mut seen = Vec::new();
+        let got = certify(
+            &s,
+            false,
+            band(),
+            |_| Sheet::Not,
+            |_, b| {
+                seen.push(b.zero());
+                [OUT, IN]
+            },
+        );
+        assert_eq!(got, Ok(vec![Cleared::Out(Side::F)]), "{what}");
+        assert_eq!(seen, [want], "{what}: the band it is placed against");
+    }
 }
 
 /// **R-reach**: a cone against a non-coaxial torus and a spline. (A
@@ -1117,7 +1199,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, |_| Sheet::Not, |_, _| place)
+        certify(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1147,7 +1229,7 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
 pub(super) fn at(
     f: Option<FaceContainment>,
     g: Option<FaceContainment>,
-) -> impl FnMut(Point3<f64>, f64) -> [Option<FaceContainment>; 2] {
+) -> impl FnMut(Point3<f64>, Band) -> [Option<FaceContainment>; 2] {
     move |_, _| [f, g]
 }
 
@@ -1160,7 +1242,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, |_| Sheet::Not, r);
+    let ok = |r| certify(&s, false, band(), |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1184,7 +1266,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component {
@@ -1199,7 +1281,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1207,7 +1289,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
@@ -1223,15 +1305,21 @@ fn w2_clears_only_where_the_face_describes() {
     );
     let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, only(Side::F, Sheet::Not), at(None, None)),
+        certify(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, only(Side::G, Sheet::Not), at(None, None)),
+        certify(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
     );
     assert_eq!(
-        certify(&s, false, only(Side::G, Sheet::Unread), at(None, None)),
+        certify(
+            &s,
+            false,
+            band(),
+            only(Side::G, Sheet::Unread),
+            at(None, None)
+        ),
         Err(Refusal::Unread)
     );
     let witnessed = Section::Components {
@@ -1245,7 +1333,7 @@ fn w2_clears_only_where_the_face_describes() {
         single: false,
     };
     assert_eq!(
-        certify(&witnessed, false, |_| Sheet::Unread, at(None, OUT)),
+        certify(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
         Ok(vec![Cleared::Out(Side::G)]),
         "an unread face leaves W3 to clear the component"
     );

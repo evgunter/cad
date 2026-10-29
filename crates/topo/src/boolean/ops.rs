@@ -1932,6 +1932,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let verdict = certify(
         &section,
         evented,
+        band,
         |side| {
             let (operand, body, row) = match side {
                 Side::F => (Operand::A, a, fa),
@@ -1944,12 +1945,11 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Sheet::Unread
                 })
         },
-        |p, pad| match Band::new(band.zero() + pad, band.escalate() + pad) {
-            Ok(widened) => [
-                place_witness(a, fa.face, p, widened),
-                place_witness(b, fb.face, p, widened),
-            ],
-            Err(_) => [None, None],
+        |p, band| {
+            [
+                place_witness(a, fa.face, p, band),
+                place_witness(b, fb.face, p, band),
+            ]
         },
     );
     match torn {

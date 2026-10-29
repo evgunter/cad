@@ -3416,6 +3416,10 @@ impl<T: Decide> SectionLoops<T> {
             (Self::One(lp), super::Branch::Only) => Ok(*lp),
             (Self::Two { loops, .. }, super::Branch::Positive) => Ok(loops[0]),
             (Self::Two { loops, .. }, super::Branch::Negative) => Ok(loops[1]),
+            (_, super::Branch::Component(_)) => Err(BooleanError::JoinDesync {
+                what: "a germ riding a carried section's component was read against a frame's \
+                       loops",
+            }),
             _ => Err(BooleanError::JoinDesync {
                 what: "a germ's branch does not name a loop of its face pair's section",
             }),
@@ -4487,9 +4491,11 @@ enum Faced<T: geom_core::Real> {
 
 /// **Whether two germs face each other along their section's
 /// component** ([`super::section_table`]), each a germ and its site:
-/// each site's foot on the component it lies within
-/// the band of ([`geom_brep::CarriedSection::foot`]), the component its
-/// germ's branch was minted from; and the direction each germ leaves along
+/// each site's foot on the component it lies on
+/// ([`geom_brep::CarriedSection::foot`]), read here at the germ's
+/// half-edge's start, which must name the component its germ's branch
+/// was minted from (at the mint's own reading of the site,
+/// [`germ_branch`]); and the direction each germ leaves along
 /// its component, decided on the germ's direction against the carrier's
 /// tangent there (`bool_join_foot_heading`, the cosine levered by the
 /// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
@@ -4520,6 +4526,11 @@ fn along_facing<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
+        if germ.branch != super::Branch::Component(foot.component) {
+            return Err(FootRefusal::Desync(
+                "a germ's site has its foot on another component than its branch names",
+            ));
+        }
         let cos = germ.dir.dot(foot.tangent) / foot.tangent.norm();
         let heading = Margin::levered(cos, section.lever());
         match decide("bool_join_foot_heading", heading, band) {

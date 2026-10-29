@@ -628,6 +628,24 @@ impl Band {
     pub fn escalate(self) -> f64 {
         self.escalate
     }
+
+    /// **The band read about a point known only within `pad` metres** of
+    /// the one the reading is about: both thresholds moved out by `pad`,
+    /// so a length that moves by at most `pad` with the point decides
+    /// nothing the true point's reading would not.
+    ///
+    /// # Errors
+    ///
+    /// [`Band::new`]'s, for a `pad` that is negative or not finite.
+    pub fn padded(self, pad: f64) -> Result<Self, BandError> {
+        if !(pad.is_finite() && pad >= 0.0) {
+            return Err(BandError::InvalidValue {
+                field: BandField::Zero,
+                value: pad,
+            });
+        }
+        Self::new(self.zero + pad, self.escalate + pad)
+    }
 }
 
 /// A Margin is dimensionally a length, minted only through the blessed

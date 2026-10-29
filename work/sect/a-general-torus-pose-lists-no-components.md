@@ -116,7 +116,12 @@ winding as its fitted loop's chart image does (`pair_section::winds`,
 turns per channel off the carrier's interval hull, padded by its tube);
 a counted section's march must match the count (as many branches, each
 listed witness on exactly one branch within the band widened by its
-tube, each claimed winding held), else `Desync`. `component_of`, `Sides`,
+tube, each claimed winding held), else `Desync`. That winding check is
+a deviation from the decision's "winds agree": it is one-way (claimed ⇒
+marched), since the parallel-tori arm lists `false` unread; scheduled
+on `a-counted-sections-winding-is-a-claim-not-a-reading`. The march's
+branches must also be distinct (each branch's witness on it alone), so
+a loop found twice is a desync the count cannot see. `component_of`, `Sides`,
 `SiteRefusal::Untold`, `SectionUnbuilt::Untold` and `CarryError::Site`
 are gone: the germ mint carries the pair and takes the site's foot
 (`Branch::Component(k)` for the pairs the section table holds), and the

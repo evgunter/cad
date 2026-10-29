@@ -826,11 +826,14 @@ carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
 at `f64`, and lists the components: a counted section's, the march a
-cross-check of the count (as many branches, each listed witness on one
-branch, each claimed winding held, else a desync), and otherwise the
-march's own closed branches (`Components::Marched`), each winding
-about an operand as its fitted loop's chart image does
-(`pair_section::winds`). A reader that needs a list no closed form
+cross-check of the count (as many distinct branches, each listed
+witness on one branch, each claimed winding held, else a desync), and
+otherwise the march's own closed branches (`Components::Marched`), each
+winding about an operand as the fitted loop's turns about the
+operand's axis and core circle, read off the loop in ℝ³, say
+(`pair_section::winds`); a point is read on a carried loop within the
+band padded by the loop's uniqueness tube, which the march's
+exhaustiveness puts the section inside of. A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
 its one reading. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its

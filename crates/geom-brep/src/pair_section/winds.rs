@@ -1,8 +1,10 @@
-//! **How a fitted loop winds about a surface**: the integer turns of
-//! its chart image round each of the surface's essential periodic
-//! channels — about the axis on a cylinder; about the axis and about the
-//! core circle on a ring torus. A sphere has none: every loop on it is
-//! null.
+//! **How a fitted loop winds about a surface**: its integer turns about
+//! each of the surface's essential channels, read off the loop in ℝ³ —
+//! about the axis on a cylinder; about the axis and about the core
+//! circle on a ring torus. A sphere has none: every loop on it is null.
+//! On the surface these are the loop's turns in the chart's periodic
+//! parameters; they are read here on the loop itself, which lies off
+//! the surface, and stay defined off it.
 //!
 //! # The lever
 //!
@@ -15,16 +17,33 @@
 //! rectangle. Where that rectangle, padded by `pad`, misses the centre,
 //! it is a convex set missing it, so the angle turns by less than `π`
 //! along the piece, and the piece's turning is the principal difference
-//! of its ends' angles; a piece whose rectangle does not clear, or whose
-//! principal difference reads past `3π/4` (where an end's rounding could
-//! flip it by a turn), is halved. The pieces' turnings sum to the loop's,
-//! a whole number of turns where the loop closes.
+//! of its ends' angles. The pieces' turnings sum to the loop's, a whole
+//! number of turns where the loop closes.
 //!
-//! The pad is the region the section's certificate proved round the
-//! carrier (its tube): the section's component lies in it, a point of it
-//! within the pad of a point of the carrier, so the straight homotopy
-//! between them stays inside the padded rectangles and the component
-//! winds as the carrier does.
+//! **The ends are read at `f64`**, uncertified: a piece's end is
+//! `C(t)` evaluated, within its evaluation rounding of the true point,
+//! and the rectangle puts it at least `pad` from the centre, so its angle
+//! is off by at most that rounding over `pad`. The premise is that
+//! `pad` (a tube radius, `1e-4` m and up at the run's ε) is many orders
+//! above the rounding (`1e-15` of the loop's size). Then a principal
+//! difference read within `3π/4` of zero is the true turning to within
+//! far less than the `π/4` left before a wrong branch, and a piece read
+//! past it is halved rather than trusted. Neighbouring pieces share their
+//! end, evaluated once each side at the same parameter, so the ends'
+//! errors cancel along the loop and only the loop's own closing gap is
+//! left in the sum.
+//!
+//! # The pad
+//!
+//! `pad` is the fitted loop's uniqueness tube radius
+//! ([`super::CarriedComponent::tube`]): the march's exhaustiveness
+//! receipt accounts every point of the section to a branch's tube, so
+//! the section's component lies within `pad` of the carrier. The straight
+//! homotopy from a point of the component to its nearest carrier point
+//! stays within `pad` of the carrier, inside the padded rectangles, so
+//! the component winds as the carrier does. A tighter bound (limbs 1 and
+//! 2, the carrier's sup-norm distance over the crossing's sine) would
+//! only admit more pieces; the tube is the bound the certificate states.
 
 use geom::{Curve3, Surface};
 use geom_core::{Bounds as _, Interval, Point3, Vec3};
@@ -62,8 +81,25 @@ pub enum WindsRefusal {
     Open,
 }
 
-/// The pieces one reading may cut a loop into.
+/// **The halvings one reading may make**: a liveness bound, never a
+/// soundness one (running out refuses `Unseparated`). A loop whose
+/// rectangles clear at all needs pieces about as short as its distance
+/// from the centre less `pad`; `2¹⁴` covers a loop some ten thousand of
+/// those lengths long, far past any section a torus's ball holds at the
+/// tube radii the march proves.
 const PIECE_BUDGET: usize = 1 << 14;
+
+/// **The largest principal difference trusted as a piece's turning**:
+/// `3π/4`, leaving `π/4` before the branch cut, which an end's angle
+/// error (its rounding over `pad`, module docs) cannot cross.
+const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
+
+/// **How far the turns may miss a whole number and still close**, in
+/// radians: the loop's closing gap (its fitted ends one point to the
+/// fit's rounding) over its distance from the centre, at least `pad`,
+/// is many orders below `0.25`; a sum past it is a loop that does not
+/// close.
+const CLOSING_SLACK: f64 = 0.25;
 
 /// One channel: the angle of a point about its centre, and a piece's
 /// enclosure clearing the centre by `pad`.
@@ -85,12 +121,14 @@ enum Channel {
     },
 }
 
+/// A value lifted to its point interval: the scalar's own lift
+/// (`Real::from_f64`, exact on every finite value).
 fn lift(v: f64) -> Interval {
-    Interval::from_bounds(v, v)
+    <Interval as geom_core::Real>::from_f64(v)
 }
 
 fn lift3(v: Vec3<f64>) -> Vec3<Interval> {
-    Vec3::new(lift(v.x), lift(v.y), lift(v.z))
+    v.map(lift)
 }
 
 /// Whether the interval `x`, padded by `pad`, excludes zero.
@@ -227,7 +265,7 @@ pub fn winding(
             let read = lifted
                 .span_enclosure(a, b)
                 .is_some_and(|enc| chan.clear(enc, pad))
-                && delta.abs() <= 0.75 * core::f64::consts::PI;
+                && delta.abs() <= TRUSTED_TURN;
             if read {
                 total += delta;
                 continue;
@@ -241,7 +279,7 @@ pub fn winding(
             stack.push((a, mid));
         }
         let whole = (total / core::f64::consts::TAU).round();
-        if (total - whole * core::f64::consts::TAU).abs() > 0.25 {
+        if (total - whole * core::f64::consts::TAU).abs() > CLOSING_SLACK {
             return Err(WindsRefusal::Open);
         }
         #[allow(clippy::cast_possible_truncation)]

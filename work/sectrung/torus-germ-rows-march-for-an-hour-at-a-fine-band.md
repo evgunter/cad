@@ -30,12 +30,19 @@ locally on the branch:
   the compiled ε, after the torus ring path landed on main, it takes
   1 560 s, every run now reaching the result gate's volume.
 
+At the nightly's settings (opt-level 2), the dual review of PR 6011
+measured at 1e-12: the tilted-rod spins row 1 015–1 770 s, the drum row
+400–700 s, the two donuts 520–900 s, against the `full-suite` job's 180
+minutes.
+
 The rows are in the slow set, so this is the nightly's cost. The PR 5972
 log measured the door rows at 230–865 s each at 1e-12, so most of the
 cost is likely the march itself (`ssi::torus_torus_ssi`,
 `ssi::cylinder_torus_ssi`) at a fine band. A pair the mint marches is
-marched once per operation (`SectionTable::carried`), but four ops in
-two orders march it eight times.
+marched once per operation (`SectionTable::carried`): the germ mint now
+marches each held pair it mints a germ on, and the table is built per
+operation at the glue door, so no march is shared across operations.
+Four ops in two member orders march one pair eight times.
 
 ## What a fix has to supply
 
