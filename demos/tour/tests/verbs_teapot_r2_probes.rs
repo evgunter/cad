@@ -22,8 +22,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::census::{genus, rings};
-use crate::common::printed;
 use core::f64::consts::FRAC_PI_2;
+use demo_tour::scalar::axis_frame;
 use pncad::sweep::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
@@ -31,34 +31,6 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ConstructedLoop, SketchPlane};
-
-/// The spine frame the tube doors take: ring centre, spine axis, and
-/// the reference radial the window's angles start from. The axis is
-/// decided and KEPT; the reference yields its component along it.
-///
-/// One line over `RigidMotion::from_axis_and_reference`, spelled here
-/// because these probes are an integration test of the tour BINARY
-/// and cannot reach the tour's own `scalar::axis_frame`.
-///
-/// # Panics
-///
-/// If the band cannot be formed, the axis has no direction, or the
-/// reference lies along it.
-fn tube_frame(
-    center: Point3<f64>,
-    axis: Vec3<f64>,
-    u_ref: Vec3<f64>,
-    tol: Tol,
-) -> pncad::geom_core::RigidMotion<f64> {
-    pncad::geom_core::RigidMotion::from_axis_and_reference(
-        center,
-        axis,
-        u_ref,
-        "tour_probe_frame_axis",
-        pncad::geom_core::Band::linear(tol).expect("the witness band"),
-    )
-    .expect("the spine axis has a direction and the reference radial is off it")
-}
 
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
@@ -226,7 +198,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
         "[r2-1] tessellate = {:?}",
         mesh.map(|m| m.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed());
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed());
     println!(
         "[r2-1] props = {:?}",
         props.map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
@@ -458,7 +430,7 @@ fn r2_ring_anatomy_on_a_drum() {
     );
     println!(
         "[r2-4] props = {:?}",
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed()).map(|p| (
+        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed()).map(|p| (
             p.enclosure.volume,
             p.enclosure.volume_pad,
             p.enclosure.surface_area
@@ -520,8 +492,8 @@ fn r2_box_control_is_right() {
         "[r2-5] tessellate = {:?}",
         m.map(|x| x.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props =
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed()).expect("props");
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
+        .expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
     println!(
         "[r2-5] volume {} vs the cup's closed form {want} (pad {})",
@@ -768,7 +740,7 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     );
     let handle = tube_along_arc::<f64>(
-        tube_frame(
+        axis_frame(
             Point3 {
                 x: 0.5,
                 y: 0.5,
@@ -916,7 +888,7 @@ fn r2_annular_mouth_anatomy() {
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     println!(
         "[r2-10] props = {:?} vs a correct cup's {want}",
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed())
+        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
             .map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
     );
 }
@@ -1053,7 +1025,7 @@ fn r2_the_scene_numbers() {
     }
     // The handle and the spout, on the scene's own parameters.
     let handle = tube_along_arc::<f64>(
-        tube_frame(
+        axis_frame(
             Point3 {
                 x: rb,
                 y: (yf + ys) / 2.0,

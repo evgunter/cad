@@ -29,7 +29,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::printed;
 use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
@@ -415,9 +414,9 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, printed::printed())
+    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, demo_tour::printed())
         .expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, printed::printed())
+    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, demo_tour::printed())
         .expect("document props");
     assert!(
         ((p1.enclosure.volume - p2.enclosure.volume) / p1.enclosure.volume).abs() < 1e-14

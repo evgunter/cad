@@ -775,8 +775,8 @@ fn spout_turn() -> f64 {
 
 /// The scene's recipe: one document, and the node each body is read
 /// out of.
-struct Recipe {
-    doc: Doc<ProfileProgram>,
+pub struct Recipe {
+    pub doc: Doc<ProfileProgram>,
     /// The pot's revolve — the OPERAND both hollows are taken of, and
     /// the node whose bands name the mouth.
     bellied: RecipeNodeId,
@@ -1500,7 +1500,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// this one takes an evaluation where `torusvessel::wall_probes` takes
 /// only a tolerance and builds its own operands: nothing outside that
 /// scene's probe reads what it makes.
-fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
+pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // WALL 2 — the handle joined to the pot. The handle's torus is on
     // the union's KIND roster, so the gate has nothing to say about
     // it. The join used to stop one door on, at the maximal-faces
@@ -1584,7 +1584,7 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 /// the wall-probe test below go through here, so the probes are pinned
 /// against the evaluation the scene actually draws from rather than a
 /// second one configured by hand.
-fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
+pub fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
     let r = build_doc(tol);
     let ev = evaluate::<f64>(
         &r.doc,
@@ -2666,41 +2666,4 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle).named(&ev, r.handle),
         ],
     }]
-}
-
-#[cfg(test)]
-mod wall_probes_run_here {
-    //! The scene's wall pair, driven by the TEST SUITE.
-    //!
-    //! [`wall_probes`] is where the two unions are attempted for real;
-    //! until this test existed its only caller was [`stops`], whose
-    //! only caller is `main.rs`'s render walk. So the frontier the
-    //! scene pins was exercised when somebody RENDERED the tour and
-    //! never under `cd demos/tour && cargo test --release` — the
-    //! command the spec-level local acceptance runs and the one CI's
-    //! "demos tour suite" row names. A union could start succeeding,
-    //! or start refusing for a different reason, with the suite green.
-    //!
-    //! It has to be an in-bin test: `demo-tour` is bin-only (no
-    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `teapot::wall_probes` at all.
-    //!
-    //! There is nothing here to assert that the probes do not already
-    //! assert: `crate::walls::wall` panics on BOTH off-nominal
-    //! outcomes — a different refusal, and no refusal at all. Running
-    //! it IS the check, which is why the missing caller was the whole
-    //! defect.
-    //!
-    //! What it costs is the document and one evaluation of it —
-    //! [`evaluated`], the same pair `stops` opens with — and not the
-    //! stop list, whose census, mass properties and tessellations are
-    //! about the bodies rather than about the frontier.
-
-    use super::*;
-
-    #[test]
-    fn every_teapot_wall_is_attempted_by_the_suite() {
-        let (r, ev) = evaluated(Tol::witness());
-        wall_probes(&ev, &r);
-    }
 }

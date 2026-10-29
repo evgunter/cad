@@ -8,41 +8,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::printed;
+use demo_tour::scalar::axis_frame;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
-
-/// The spine frame the tube doors take: ring centre, spine axis, and
-/// the reference radial the window's angles start from. The axis is
-/// decided and KEPT; the reference yields its component along it.
-///
-/// One line over `RigidMotion::from_axis_and_reference`, spelled here
-/// because these probes are an integration test of the tour BINARY
-/// and cannot reach the tour's own `scalar::axis_frame`.
-///
-/// # Panics
-///
-/// If the band cannot be formed, the axis has no direction, or the
-/// reference lies along it.
-fn tube_frame(
-    center: Point3<f64>,
-    axis: Vec3<f64>,
-    u_ref: Vec3<f64>,
-    tol: Tol,
-) -> pncad::geom_core::RigidMotion<f64> {
-    pncad::geom_core::RigidMotion::from_axis_and_reference(
-        center,
-        axis,
-        u_ref,
-        "tour_probe_frame_axis",
-        pncad::geom_core::Band::linear(tol).expect("the witness band"),
-    )
-    .expect("the spine axis has a direction and the reference radial is off it")
-}
 
 use pncad::sweep::{
     Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
@@ -70,7 +42,7 @@ fn at_rest(
 fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     let tol = Tol::witness();
     let hollow = tube_along_arc_hollow::<f64>(
-        tube_frame(
+        axis_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_y(),
             Vec3::unit_x(),
@@ -84,7 +56,7 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     )
     .expect("hollow elbow");
     let solid = tube_along_arc::<f64>(
-        tube_frame(
+        axis_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_y(),
             Vec3::unit_x(),
@@ -141,7 +113,7 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
     let tol = Tol::witness();
     let (outer, wall) = (0.61, 0.17);
     let hollow = tube_along_arc_hollow::<f64>(
-        tube_frame(
+        axis_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_y(),
             Vec3::unit_x(),
@@ -303,7 +275,7 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     )
     .expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(&at_rest(b, tol), tol, printed::printed())
+        pncad::topo::mass_properties(&at_rest(b, tol), tol, demo_tour::printed())
             .expect("mass properties")
             .enclosure
             .volume

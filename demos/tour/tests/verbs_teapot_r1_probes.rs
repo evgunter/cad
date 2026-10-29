@@ -8,7 +8,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::printed;
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
@@ -364,7 +363,7 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
             "{what}: tier 3"
         );
         assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-        let props = pncad::topo::mass_properties(&at_rest(&hollow, tol), tol, printed::printed())
+        let props = pncad::topo::mass_properties(&at_rest(&hollow, tol), tol, demo_tour::printed())
             .expect("props");
         println!("{what}: hollows, wall volume {}", props.enclosure.volume);
         if let Some(want) = want {
@@ -509,7 +508,7 @@ fn p3_wall1_hollows_to_its_closed_form() {
         y_c - ((r_belly - t) * (r_belly - t) - (r_foot - t) * (r_foot - t)).sqrt()
     );
     let want = enclosed(0.0) - enclosed(t);
-    let got = pncad::topo::mass_properties(&at_rest(&pot, tol), tol, printed::printed())
+    let got = pncad::topo::mass_properties(&at_rest(&pot, tol), tol, demo_tour::printed())
         .expect("the pot's props")
         .enclosure
         .volume;
