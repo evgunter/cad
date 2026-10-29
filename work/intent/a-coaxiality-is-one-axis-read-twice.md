@@ -2,12 +2,12 @@
 id: a-coaxiality-is-one-axis-read-twice
 kind: unit
 title: INTENT stage 6 PR B: the door proves a coaxial row whose two cells' axes are one Axis construction read twice
-status: parked
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: H
 design: true
-blocked_on: [tangent-and-coaxial-scenes-are-in-the-corpus]
+blocked_on: []
 ---
 
 
