@@ -282,6 +282,56 @@ fn probe_w5_against_the_whole_reading_on_synthetic_walls() {
     );
 }
 
+#[test]
+#[ignore = "probe: SPLICE's W5 measurement, asserts nothing"]
+fn probe_w5_against_the_whole_reading_on_inflected_walls_at_the_origin() {
+    // 6d/6e. The S wall of 6b at the origin (50 m, then 1 m), to part
+    //     the far-from-origin cost from the inflection.
+    for (o2, s2) in [(pt(0.0, 0.0, 0.0), 50.0), (pt(0.0, 0.0, 0.0), 1.0)] {
+        let at2 = |x: f64, y: f64, z: f64| pt(o2.x + s2 * x, o2.y + s2 * y, o2.z + s2 * z);
+        let w = ruled(
+            &[
+                at2(0.0, 0.0, 0.0),
+                at2(0.33, 0.6, 0.0),
+                at2(0.66, -0.6, 0.0),
+                at2(1.0, 0.0, 0.0),
+            ],
+            &[
+                at2(0.0, 0.0, 1.0),
+                at2(0.33, 0.6, 1.0),
+                at2(0.66, -0.6, 1.0),
+                at2(1.0, 0.0, 1.0),
+            ],
+        );
+        run(
+            &format!("6d. inflected S wall, {s2} m at the origin, plane tilted"),
+            &plane(at2(0.5, 0.0, 0.5), Vec3::new(0.3, 0.0, 1.0)),
+            &w,
+            s2,
+        );
+        let w = ruled(
+            &[
+                at2(0.0, 0.0, 0.0),
+                at2(0.33, 0.6, 0.1),
+                at2(0.66, -0.6, -0.1),
+                at2(1.0, 0.0, 0.0),
+            ],
+            &[
+                at2(0.0, 0.0, 1.0),
+                at2(0.33, -0.6, 0.9),
+                at2(0.66, 0.6, 1.1),
+                at2(1.0, 0.0, 1.0),
+            ],
+        );
+        run(
+            &format!("6e. twisted wall, {s2} m at the origin, plane z = mid"),
+            &plane(at2(0.5, 0.0, 0.5), Vec3::unit_z()),
+            &w,
+            s2,
+        );
+    }
+}
+
 // ---- the lofted blade and lily's caps, as on splice/fork-interior-loop-fable ----
 
 fn lens([width, ridge, keel]: [f64; 3]) -> Vec<ProfileLoop<f64>> {
