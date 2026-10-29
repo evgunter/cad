@@ -120,6 +120,29 @@ listing no components for them
 whose union never reaches the section (`ArcCylinderRoots`,
 `CurvedPierceUnsupported`, a plane × torus spiric) are unchanged.
 
+## Components are the march's, a site's component its foot (SECT, 2026-10-29)
+
+`sect/components-by-foot` (`a-general-torus-pose-lists-no-components`)
+retired the classification's site reading: every torus germ inside both
+faces takes its component from its foot on the carried section, so no
+pose here refuses at the germ mint any more
+(`crates/sweep/tests/germ_torus_components.rs`). What each half reaches:
+
+- **sphere × torus**: ball × donut 5 (the sphere round the axis) passes
+  the mint and stops at the result gate's volume on a conic trim of the
+  torus chart, as `germ_sphere_torus_placements.rs` now pins it.
+- **cylinder × torus**: drum × donut 0 to 5 pass the mint; 0, 1, 2 and 4
+  stop at the result gate's volume (a projected boundary, or a conic
+  trim on the torus chart), 3 at the cap plane's spiric, 5 at a run's
+  image on the drum's wall chart (`RunImageNotYet`). The radial hole
+  stops at the volume.
+- **torus × torus**: donut × donut 1, 2 and 3 stop at the volume (a conic
+  trim, or a ring on a curved face); the lily's long stem at the march's
+  `CellBudget`.
+
+What is left past the mint is the volume doors (SPIRICARM's), the
+plane × torus spiric, and the wall run image.
+
 ## The sphere × torus half (2026-10-29)
 
 By `sect/teapot-wall-2`. Teapot wall 2 already passed the section, the
