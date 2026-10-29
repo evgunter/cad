@@ -56,3 +56,20 @@ reading reads the same `TorusDisplacement`. Rows:
 `tori_coincide::the_pose_reads_two_tori_one_where_the_decision_does`,
 the oracle search `tori_coincide::a_pair_decided_one_or_apart_stands_where_the_decision_says`,
 and `carrier_eq::tests::the_ladder_reads_two_tori_as_their_pose_does`.
+
+**What moved at the ladder, the corner sites included** (`carrier_eq`
+undeclared, read by `vtxfac`, `carrier_pair` and `recl`): main decided
+two tori one where each datum read within ε, the tilt levered at the
+caller's extent; the decision stands on the sum, the tilt levered at
+the larger major radius. Measured about `R = 2`, `r = 1` with 1 mm balls
+on the equators: `ΔR = Δz = 0.9ε` with a tilt of `1.5ε` at the ring
+(inner ball) reads `SameOriented` on main and `Undecided` now; a tilt of
+`8ε` (outer ball) `Distinct` → `Undecided`; `15ε` (inner ball)
+`Undecided` → `Distinct`. Every move is within the band of a datum or
+the sum. Row:
+`carrier_eq::tests::torus_data_in_zero_band_summing_past_it_is_undecided_at_every_reader`.
+A torus off its ring convention, for which the bound does not hold, is
+unreadable undeclared and unsettled declared
+(`a_spindle_torus_is_unreadable_at_the_ladder`); a body's validity
+refuses it (`ValidationError::DegenerateTorus`), but the ladder also
+reads unvalidated bodies.

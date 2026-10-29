@@ -6,12 +6,9 @@
 //! critical values against a core circle are its two meridian distances
 //! ([`super::torus`]).
 //!
-//! It decides whether the pair is tangent and where, not that a curve
-//! held on both surfaces runs along the tangency within ε: a rim an
-//! operation holds there is certified on its own samples
-//! (`topo::boolean::contact_verify::tangency_reading`), the reading every
-//! carrier owes however its pair was decided (C2, C7), so a rim of a pair
-//! whose gap reads tangent can still refuse.
+//! It decides whether the pair is tangent and where, and says nothing of
+//! whether a given curve on both surfaces runs along the tangency within
+//! ε.
 //!
 //! # Offset duality
 //!

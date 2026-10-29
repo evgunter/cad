@@ -98,3 +98,9 @@ spelling of the circle-pair margins whichever way is taken.
 Moved from `work/paths/` to PROFILEREST (`work/profilerest/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 **It waits on a ratification, not on an item.** The fix needs Ev's ruling on LB4, the squared-radius rule that `PATHS-DESIGN` §2b keeps ("Where to look" above), on an `[ev]` PR. No item can carry that trigger, so the row stays `open` with `design: true` rather than `parked`.
+
+2026-10-29 (SECT, `sect/circle-crossing-once`): `circle_circle`'s
+reach and internal clearances now read `geom_core::Circles` (`reach()`,
+`internal()`), bit for bit, so the margins are no longer a third
+spelling. The corner is untouched and its doc says why (LB4); the fork
+above is unchanged.

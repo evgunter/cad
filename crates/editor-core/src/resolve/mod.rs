@@ -223,7 +223,7 @@ impl ResolveError {
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
                      tie is never broken by picking. {}",
                     tie.width,
-                    crate::sentence::Recourse("refine the reference until one candidate remains")
+                    crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
             Self::ReadGone { name, read, edit } => {
@@ -458,6 +458,14 @@ pub enum Diagnosis {
         /// The structural slot.
         param: SlotId,
     },
+    /// The count of an index a node on the derivation path is repeated
+    /// over changed (D10 `[repetition]`): the family has other members.
+    IndexCount {
+        /// The node repeated over the index.
+        node: RecipeNodeId,
+        /// The index.
+        index: crate::VarId,
+    },
     /// A recipe edit touched the derivation path.
     RecipeEdit {
         /// The edit, by its structural effect.
@@ -644,6 +652,13 @@ pub enum UpstreamCause {
         /// The structural slot.
         param: SlotId,
     },
+    /// The count of an index a node is repeated over changed.
+    IndexCount {
+        /// The node repeated over the index.
+        node: RecipeNodeId,
+        /// The index.
+        index: crate::VarId,
+    },
     /// A recipe edit.
     RecipeEdit {
         /// The edit, by its structural effect.
@@ -692,6 +707,12 @@ impl crate::spoken::Say for UpstreamCause {
                 f,
                 "a structural parameter changed: slot {} of {}",
                 param.label(),
+                by.node(*node)
+            ),
+            Self::IndexCount { node, index } => write!(
+                f,
+                "the count of {}, an index {} is repeated over, changed",
+                by.read(*index),
                 by.node(*node)
             ),
             Self::RecipeEdit { edit } => write!(f, "the recipe changed ({})", Said(edit, by)),
@@ -777,6 +798,13 @@ impl crate::spoken::Say for Diagnosis {
                 param.label(),
                 by.node(*node)
             ),
+            Self::IndexCount { node, index } => write!(
+                f,
+                "the count of {}, an index {} on the derivation path is repeated over, \
+                 changed",
+                by.read(*index),
+                by.node(*node)
+            ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
             // never-edited document pair).
@@ -828,6 +856,7 @@ impl Diagnosis {
             | Self::BorderDelta { .. }
             | Self::GroupResized { .. }
             | Self::StructuralParam { .. }
+            | Self::IndexCount { .. }
             | Self::RecipeEdit { .. }
             | Self::Upstream { .. } => write!(f, ". {}", Recourse("rebind it")),
         }
@@ -1452,6 +1481,9 @@ impl<U: Decide> Prior<'_, U> {
         {
             return Some(Evidence::Param(node, param));
         }
+        if let Some((node, index)) = index_count_change(new.doc, &ddiff, nodes) {
+            return Some(Evidence::Index(node, index));
+        }
         recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
     }
 }
@@ -1488,6 +1520,7 @@ fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId,
 enum Evidence {
     Flip(RecipeNodeId, VerdictFlip),
     Param(RecipeNodeId, SlotId),
+    Index(RecipeNodeId, crate::VarId),
     Edit(RecipeEditRef),
 }
 
@@ -1532,6 +1565,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         Some(match self.lanes(new, &flips, path)? {
             Evidence::Flip(_, f) => flip(f),
             Evidence::Param(node, param) => Diagnosis::StructuralParam { node, param },
+            Evidence::Index(node, index) => Diagnosis::IndexCount { node, index },
             Evidence::Edit(edit) => Diagnosis::RecipeEdit { edit },
         })
     }
@@ -1555,6 +1589,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
                 to: f.to,
             },
             Evidence::Param(node, param) => UpstreamCause::StructuralParam { node, param },
+            Evidence::Index(node, index) => UpstreamCause::IndexCount { node, index },
             Evidence::Edit(edit) => UpstreamCause::RecipeEdit { edit },
         };
         Some(Diagnosis::Upstream {
@@ -2783,7 +2818,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::SectionEdge { face: n }
             | RoleSeg::SplitFragment { parent: n }
             | RoleSeg::OnToolVertex { of: n }
-            | RoleSeg::Instance { of: n, i: _ }
+            | RoleSeg::Member { of: n, at: _ }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
@@ -2928,6 +2963,30 @@ fn structural_param_change(
         }
     }
     None
+}
+
+/// The first node of `path`, in document order, repeated over an index
+/// whose definition changed, with that index (D10 `[repetition]`: a
+/// count is an index's, not a node's slot). The node's own payload is
+/// unchanged by it, so this is no recipe edit of the node.
+fn index_count_change(
+    new: &Doc<ProfileProgram>,
+    ddiff: &crate::diff::DocDiff,
+    path: &BTreeSet<RecipeNodeId>,
+) -> Option<(RecipeNodeId, crate::VarId)> {
+    new.ids()
+        .iter()
+        .copied()
+        .filter(|id| path.contains(id))
+        .find_map(|id| {
+            let reached = new.node_reach(id);
+            let index = reached
+                .chain()?
+                .iter()
+                .copied()
+                .find(|index| ddiff.vars.contains(index))?;
+            Some((id, index))
+        })
 }
 
 /// The first recipe edit touching the (optionally restricted) node

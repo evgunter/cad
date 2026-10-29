@@ -12,6 +12,7 @@ test_utils::gated_to![
 ];
 
 use crate::shared::tol::band;
+use geom_core::Band;
 use core::f64::consts::TAU;
 use geom::Surface;
 use geom_brep::{
@@ -142,14 +143,14 @@ fn unit_vector(g: &mut fuzz::Rng) -> Vec3<f64> {
     }
 }
 
-/// A perturbation's size: none, inside the zero band, across the
-/// ambiguity band, or past it.
+/// A perturbation's size: none, across the zero band's edge, across the
+/// escalation width's, or past it.
 fn size(g: &mut fuzz::Rng) -> f64 {
     let b = band();
-    match g.below(4) {
-        0 => 0.0,
-        1 => g.range(0.0, 0.5) * b.zero(),
-        2 => g.range(0.5, 1.5) * b.escalate(),
+    match g.below(5) {
+        0 | 1 => 0.0,
+        2 => g.range(0.0, 2.0) * b.zero(),
+        3 => g.range(0.5, 1.5) * b.escalate(),
         _ => g.range(2.0, 20.0) * b.escalate(),
     }
 }
@@ -226,4 +227,69 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
         );
     }
     eprintln!("[fuzz] tori_coincide::oracle: one/apart/undecided = {tally:?}");
+}
+
+/// **A small torus tangent inside the first's tube along a whole tube
+/// circle**: centred on the first's core at `(2, 0, 0)`, its axis the
+/// core's tangent there, with `R + r = 0.5`, so its outer equator is the
+/// first's tube circle there. The pose refuses on the gap in both orders,
+/// never on a coincidence.
+#[test]
+fn a_torus_tangent_inside_the_tube_along_a_tube_circle_refuses_at_the_gap() {
+    let b = band();
+    let first = surface(data(Point3::origin(), Vec3::unit_z(), 2.0, 0.5));
+    let small = surface(data(Point3::new(2.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 0.3, 0.2));
+    for (x, y) in [(&first, &small), (&small, &first)] {
+        assert!(matches!(
+            TorusTorusPose::decide(x, y, b).expect("tori"),
+            Err(TorusPoseRefusal::Undecided {
+                question: TorusQuestion::Gap,
+                ..
+            })
+        ));
+    }
+}
+
+/// **Every datum within the zero band beside a bound past the band
+/// straddles**, which only an escalation factor under four reaches (the
+/// bound is at most the four data, the tilt's chord within `√2` of its
+/// sine): at a band of `(ε, 2ε)` three data of `0.9ε` each decide `Zero`
+/// and sum to `2.7ε`. The band is pinned here, not the run's, because
+/// the run's factor never reaches the arm.
+#[test]
+fn data_each_zero_beside_a_bound_past_the_band_straddle() {
+    let b = Band::new(1e-9, 2e-9).unwrap();
+    let e = b.zero();
+    let ring = data(Point3::origin(), Vec3::unit_z(), 5.0, 0.5);
+    let other = data(Point3::new(0.0, 0.0, 0.9 * e), Vec3::unit_z(), 5.0 + 0.9 * e, 0.5 + 0.9 * e);
+    match tori_coincide(ring, other, b) {
+        TorusCoincidence::Undecided(diag) => {
+            assert_eq!(diag.predicate, Some("tt_coincident_straddle"));
+        }
+        other => panic!("the straddle: {other:?}"),
+    }
+}
+
+/// **A torus off its ring convention is refused before any datum**, and
+/// a datum that is not finite reads as unreadable: a spindle (`r > R`)
+/// refuses on `ring_torus_convention` at the decision and the pose
+/// alike; a NaN centre leaves the pair undecided on an invalid margin.
+#[test]
+fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
+    let b = band();
+    let ring = data(Point3::origin(), Vec3::unit_z(), 2.0, 0.5);
+    let spindle = data(Point3::origin(), Vec3::unit_z(), 1.0, 1.5);
+    assert!(matches!(
+        tori_coincide(ring, spindle, b),
+        TorusCoincidence::OffRing(_)
+    ));
+    assert!(matches!(
+        TorusTorusPose::decide(&surface(ring), &surface(spindle), b).expect("tori"),
+        Err(TorusPoseRefusal::Torus(_))
+    ));
+    let poisoned = data(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z(), 2.0, 0.5);
+    match tori_coincide(ring, poisoned, b) {
+        TorusCoincidence::Undecided(diag) => assert!(diag.margin.is_invalid(), "{diag:?}"),
+        other => panic!("the poisoned centre: {other:?}"),
+    }
 }

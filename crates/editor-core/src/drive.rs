@@ -2154,7 +2154,7 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalC
                 // Which faces are in scope, and whether the carrier has
                 // an implementation, are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                E::EmptyScope | E::Unsupported { .. } => {
+                E::EmptyScope { .. } | E::Unsupported { .. } => {
                     Some(MeasureRefusalClass::Clearance(r.clone()))
                 }
                 // An enclosure that did not evaluate over this box (NaI,
@@ -2195,10 +2195,13 @@ mod tests {
         use topo::clearance::MinSeparationRefusal as R;
         let refused = |r: R| NodeErrorKind::MeasureClearanceRefused(r);
         for r in [
-            R::EmptyScope,
+            R::EmptyScope {
+                side: topo::clearance::Which::First,
+            },
             R::Unsupported {
                 carrier: "an approximated face",
                 face: topo::FaceKey::default(),
+                side: topo::clearance::Which::First,
             },
         ] {
             let class = box_independent_measure_class(&refused(r.clone()));

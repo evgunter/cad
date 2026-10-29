@@ -273,3 +273,16 @@ off its axis-aligned arm (SECTSITE).
   each announces its seam, and the components unit merges first where
   they collide. The cylinder-face ring re-homing row waits for PR 5974 and
   the components unit's germ-mint change in `join.rs`.
+
+## 2026-10-29 — two circles cross is spelled once (PR 6001)
+
+`circle-pair-crossing-is-spelled-three-times` closed by PR 6001: the
+coaxial-tube, parallel-tori and square-wall rows and profile's two
+circle-pair sites read `geom_core::Circles` (`reach`, `secant` added).
+Tier: **orchestrator's read** — margins bit-identical (logged decisions
+equal across 952 tests, 800k seeded pairs at `f64` and `Interval`);
+crossings now placed by `Circles2::crossings`, within 3.2 ulps of both
+circles where the old form drifted up to 9.4e5 ulps, same order. The
+unclamped `half_chord` is read only past a decided secant, so its square
+is a product of decided-positive margins. Left as filed: the sphere ×
+tube-circle rows (a verdict would move at `Interval`), P3.

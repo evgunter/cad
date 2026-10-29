@@ -44,10 +44,12 @@ rad apart, tubes `0.5`), the second's tube `0.6ε` wider and moved
 `0.6ε`, the gap reads Zero and the rim stands `1.2ε` off the second
 torus on its far side, so the touch escalates (`contact_tangent_gap`);
 an exact distance from the rim's points to the torus measures the same
-`1.2ε`. The converse holds by construction (a touch within ε at every
-point of the rim puts both of the gap's readings within it). The argument
-is in `pair_section/gap.rs`'s module docs and `tangency_reading`'s; the
-row is `contact_verify::tests::a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim`.
+`1.2ε`. Neither reading is read as the other's, and no implication
+between them is claimed. The argument is in `tangency_reading`'s docs
+(the gap's module docs say only what the gap decides); the row is
+`contact_verify::tests::a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim`,
+and `tori_coincide::a_torus_tangent_inside_the_tube_along_a_tube_circle_refuses_at_the_gap`
+pins a tube-circle tangency the pose refuses on its gap.
 
 Off the band an operation does not see them disagree today: along a
 torus × torus tube circle each torus's transverse curvature is

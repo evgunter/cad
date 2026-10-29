@@ -775,7 +775,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     branch: Option<super::Branch>,
-    tips: &super::sectors::SlitTips,
+    tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -4102,7 +4102,7 @@ mod tests {
             &body,
             Operand::A,
             vertex,
-            &super::super::sectors::SlitTips::default(),
+            &crate::sector_shape::SlitTips::default(),
             band,
         )
         .unwrap();
@@ -4404,7 +4404,7 @@ mod tests {
                 &super::super::ReductionContacts::default(),
                 None,
                 None,
-                &super::super::sectors::SlitTips::default(),
+                &crate::sector_shape::SlitTips::default(),
                 band,
             )
             .unwrap();
