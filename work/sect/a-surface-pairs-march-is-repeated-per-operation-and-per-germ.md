@@ -4,7 +4,7 @@ kind: issue
 title: A surface pair's certified march is run again for every germ mint, operation and operand order: the torus rows march one pair about eight times
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P3
 cost: M
 ---
 
@@ -97,3 +97,14 @@ designers):
   saving at most 125 s of 1 170 s, 15 s of 460 s, 15 s of 609 s and
   nothing at 1e-12 (seats shared too would add 39 s, 10 s and 13 s).
   The cost the nightly feels is the chord edges' certificates above.
+
+## Re-banded P3 (SECT's orchestrator, 2026-10-29)
+
+The measurement refutes the row's premise: each operation already marches
+its pair once, and the march is 3–16 % of each row's time. What is left is
+sharing across operations and operand orders, worth at most about 11 % of
+the slowest row at 1e-12, and it waits on the canonical-order row first; it
+is not put to the designers while that is all it buys. The cost the nightly
+feels is the per-op certification of fitted chord edges, pcurves and the
+result gate (SECTRUNG's `torus-germ-rows-march-for-an-hour-at-a-fine-band`,
+"Where the time goes").
