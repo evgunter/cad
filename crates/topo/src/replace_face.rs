@@ -2763,6 +2763,8 @@ fn plan_edge<'s, T: Decide>(
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
+                | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
                     "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
@@ -3215,7 +3217,9 @@ fn derive_edge<'w, 's, T: Decide>(
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
-        | geom_brep::SectionError::Spiric(_)) => unreachable!(
+        | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
+                | geom_brep::SectionError::Spiric(_)) => unreachable!(
             "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),
@@ -4933,6 +4937,50 @@ mod pose_reach_rows {
     /// The refusal is the offset row's: the arm refuses the same way a
     /// cylinder EXACTLY parallel to the cone's axis and as far off the
     /// apex is refused, which only `coc_coaxial` can do.
+    /// **A general cylinder × torus pose is not served at the neighbour
+    /// gate.** The section value lists no components for it, so
+    /// `route_pose` answers the kind's arm unimplemented with the value's
+    /// note, and the face replacement refuses the edge
+    /// (`NeighborPoseUnroutable`) rather than reach the offset lane; a
+    /// square pose, whose components the value lists, is served.
+    #[test]
+    fn a_general_cylinder_torus_pose_is_not_served() {
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+            u_ref: Vec3::unit_x(),
+        };
+        let rod = |axis: Vec3<f64>| Surface::Cylinder {
+            origin: Point3::new(1.0, 0.05, 0.02),
+            axis,
+            radius: 0.1,
+            u_ref: axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
+        };
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.2),
+            dir: Vec3::unit_z(),
+        };
+        let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
+        for (label, a, b) in [
+            ("cyl, torus", &general, &torus),
+            ("torus, cyl", &torus, &general),
+        ] {
+            let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+            assert!(
+                matches!(got, Ok(ref r) if !r.implemented && r.note.contains("closed-form count")),
+                "({label}): the general pose is not served, got {got:?}"
+            );
+        }
+        let square = rod(Vec3::unit_x());
+        let got = pose_route(&square, &torus, &edge, 0.0, 0.1, band());
+        assert!(
+            matches!(got, Ok(ref r) if r.implemented),
+            "the square pose is served, got {got:?}"
+        );
+    }
+
     #[test]
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;

@@ -275,7 +275,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // gap rows on the fillet's contact edges added ten (47 → 57).
             // Pinned at what main measures: (1566, 1384) -> (1474, 1228),
             // unbisected between PR 5728 and PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
-            without_the_registry: Some(((1474, 1228), None)),
+            // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
+            // stopped reading a gap on a line pair that shares a vertex
+            // (PR 5952).
+            without_the_registry: Some(((1474, 1218), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the

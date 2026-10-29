@@ -91,7 +91,9 @@ fn route_inventory() {
         // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all
         // three C2 limbs, in-op exhaustiveness.
         (Cylinder, Sphere, Rung::General, true),
-        (Cylinder, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march past the pose's critical gap
+        // (`ssi::cylinder_torus_ssi`).
+        (Cylinder, Torus, Rung::General, true),
         (Cylinder, Nurbs, Rung::General, false),
         (Cone, Cone, Rung::General, false),
         (Cone, Sphere, Rung::General, false),
@@ -105,7 +107,9 @@ fn route_inventory() {
         // quartic (`ssi::sphere_torus_ssi`).
         (Sphere, Torus, Rung::General, true),
         (Sphere, Nurbs, Rung::General, false),
-        (Torus, Torus, Rung::General, false),
+        // The same, both tori read through their quartics
+        // (`ssi::torus_torus_ssi`).
+        (Torus, Torus, Rung::General, true),
         (Torus, Nurbs, Rung::General, false),
         (Nurbs, Nurbs, Rung::General, true),
     ];
@@ -925,7 +929,11 @@ fn a_coaxial_crossing_is_two_circles() {
         let s = cs_section(&cyl, &sph).unwrap();
         let circles = cs_circles(&s);
         assert_eq!(circles.len(), 2, "{label}: two circles");
-        let centre = s.pose().center();
+        let centre = s
+            .pose()
+            .cylinder_sphere()
+            .expect("a cylinder × sphere pose")
+            .center();
         for (c, axis, radius) in circles {
             assert_eq!(radius, 1.0, "{label}: the circles carry the CYLINDER's r");
             let station = (c - centre).dot(axis).abs();
@@ -978,7 +986,11 @@ fn a_coaxial_tangency_is_classification_data_at_both_doors() {
         };
         assert!(matches!(c.carrier, ClassCarrier::Unminted(_)), "{label}");
         // It IS the contact locus: zero residual against both.
-        let (centre, axis, (r, _)) = (s.pose().center(), s.pose().axis(), s.pose().radii());
+        let pose = s
+            .pose()
+            .cylinder_sphere()
+            .expect("a cylinder × sphere pose");
+        let (centre, axis, (r, _)) = (pose.center(), pose.axis(), pose.radii());
         for p in circle_samples(centre, axis, r, 0.0) {
             assert!(implicit_residual(&cyl, p).abs() < 1e-13, "{label}");
             assert!(implicit_residual(&sph, p).abs() < 1e-13, "{label}");
@@ -1049,11 +1061,10 @@ fn coaxiality_is_decided_by_the_measured_distance() {
     ] {
         let s = cs_section(&cyl, &sph).unwrap();
         assert_eq!(s.components().len(), 2, "{label}");
-        let zero = s.coincidence().expect("the coaxiality is recorded");
-        assert_eq!(zero.decision.name(), "cs_coaxial", "{label}");
-        let geom_core::ErrorTextReading::Value(d) = zero.margin.diagnostic_f64_for_error_text()
-        else {
-            panic!("{label}: the distance is a value: {zero:?}");
+        let (decided, margin) = s.coincidence().expect("the coaxiality is recorded");
+        assert_eq!(decided.name(), "cs_coaxial", "{label}");
+        let geom_core::ErrorTextReading::Value(d) = margin.diagnostic_f64_for_error_text() else {
+            panic!("{label}: the distance is a value: {margin:?}");
         };
         assert!(d.abs() < 1e-12, "{label}: the coaxial margin {d}");
     }

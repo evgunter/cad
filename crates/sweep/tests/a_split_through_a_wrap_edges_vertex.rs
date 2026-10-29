@@ -111,7 +111,7 @@ struct Plane {
 
 /// `∫∫ max(0, f) dA` over the unit disc for the linear
 /// `f(x, y) = f0 + px·x + py·y`.
-fn hoof(f0: f64, px: f64, py: f64) -> f64 {
+pub(crate) fn hoof(f0: f64, px: f64, py: f64) -> f64 {
     let s = px.hypot(py);
     if s == 0.0 {
         return PI * f0.max(0.0);
@@ -130,7 +130,7 @@ fn hoof(f0: f64, px: f64, py: f64) -> f64 {
 /// `∫∫ max(0, f) dA` over the square `[-2, 2]²` for the linear
 /// `f(x, y) = f0 + px·x + py·y`: the square clipped to `f ≥ 0`, whose
 /// integral is its area times `f` at its centroid.
-fn square_hoof(f0: f64, px: f64, py: f64) -> f64 {
+pub(crate) fn square_hoof(f0: f64, px: f64, py: f64) -> f64 {
     let f = |q: [f64; 2]| f0 + px * q[0] + py * q[1];
     let square = [[-2.0, -2.0], [2.0, -2.0], [2.0, 2.0], [-2.0, 2.0]];
     let mut kept: Vec<[f64; 2]> = Vec::new();
@@ -407,6 +407,23 @@ fn split_family(
                                         )
                                         .map_err(|e| format!("below: {e}"))
                                     })
+                                    .and_then(|()| {
+                                        // A plane touching the rim at the vertex: tier 3′.
+                                        if beta != 0.0 {
+                                            return Ok(());
+                                        }
+                                        [out.above.body(), out.below.body()]
+                                            .into_iter()
+                                            .flatten()
+                                            .try_for_each(|b| {
+                                                topo::validate_pseudomanifold(
+                                                    b,
+                                                    &topo::ContactRecords::default(),
+                                                    tol(),
+                                                )
+                                                .map_err(|e| format!("tier 3′: {e:?}"))
+                                            })
+                                    })
                             }
                             Err(e) if near && in_band(&e) => Ok(()),
                             Err(e) => Err(format!("the split: {e:?}")),
@@ -438,27 +455,190 @@ fn a_split_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
 
 /// **A hole's wall reads the same**: the circle as a hole through the
 /// block `[-2, 2]² × [0, 2]`, its wall concave to the material, split
-/// through either vertex of its strut by every pose of [`POSES`] that
-/// crosses the near rim (`β ≠ 0`). The volumes are the block's prism
-/// under the plane less the hole's.
+/// through either vertex of its strut by every pose of [`POSES`]. The
+/// volumes are the block's prism under the plane less the hole's.
 ///
-/// A plane touching the hole's rim at the vertex (`β = 0`) refuses
-/// `SectionGermsUnordered { fault: Coincident }`, the two-arc hole
-/// alike
-/// (`work/cleave/a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident.md`).
+/// A plane touching the hole's rim at the vertex (`β = 0`) has material
+/// on both sides of its trace there: the trace on the cap and the wall's
+/// section leave the vertex along one tangent and are ordered by how
+/// they curve off it, and where the section also touches the far rim
+/// (the pinched pose) the wall's crossings at each touch are paired
+/// exits first.
 #[test]
 fn a_split_through_a_hole_walls_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
-    let crossing: Vec<_> = POSES
-        .into_iter()
-        .filter(|&(_, beta, _)| beta != 0.0)
-        .collect();
     split_family(
         holed_block,
         true,
         [(0.0, -TAU), (FRAC_PI_2, TAU)],
-        &crossing,
+        &POSES,
         &[0.0],
     );
+}
+
+/// The square `[-2, 2]²` with a two-arc circle hole, its vertices at
+/// azimuth `phase` and its antipode, extruded.
+fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
+    let p = |x: f64, y: f64| Point2::new(x, y);
+    let square = RawLoop::polygon([p(-2.0, -2.0), p(2.0, -2.0), p(2.0, 2.0), p(-2.0, 2.0)]);
+    let arc = |at: f64| {
+        (
+            p(at.cos(), at.sin()),
+            Segment::Arc(Arc2 {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+                sweep: sweep / 2.0,
+            }),
+        )
+    };
+    extruded(vec![square, RawLoop::new([arc(phase), arc(phase + PI)])])
+}
+
+/// **The per-PR row of the tangent poses**: the two-arc hole split
+/// through its vertex at `(1, 0, 0)` by the round pose leaning onto it
+/// (`h = 0.4`), both senses, each side at all three tiers, tier 3′ and
+/// its closed-form volume. The order of the two germs leaving the vertex
+/// along one tangent decides this pose's corners; read the other way
+/// round, it does not build.
+#[test]
+fn a_plane_tangent_to_a_two_arc_holes_rim_splits_sound() {
+    let body = topo::test_support::finished("the body", two_arc_holed_block(0.0, TAU), tol());
+    let mut failures = Vec::new();
+    for sense in [1.0, -1.0] {
+        let n = [sense * 0.4, 0.0, sense];
+        let plane = Plane { n, d: n[0] };
+        let split = topo::test_support::split_plane(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(n[0], n[1], n[2]),
+            tol(),
+        );
+        let what = format!("sense {sense}");
+        match topo::split(&body, &split, tol()) {
+            Ok(out) => {
+                for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                    let (_, closed) = closed_form(plane, 0.0, positive, true, 0.0);
+                    if let Err(e) = tangent_side(
+                        side.body(),
+                        closed,
+                        (Point3::new(1.0, 0.0, 0.0), positive == (sense < 0.0)),
+                        &what,
+                    ) {
+                        failures.push(format!("{what}, positive {positive}: {e}"));
+                    }
+                }
+            }
+            Err(e) => failures.push(format!("{what}: the split: {e:?}")),
+        }
+    }
+    report(&failures, 2);
+}
+
+/// A body built from a vertex phase and a sweep.
+type Build = fn(f64, f64) -> Body<f64>;
+
+/// **A plane tangent to a hole's rim at a vertex**: the poses of
+/// [`POSES`] that touch the rim there (`β = 0`), through the bottom
+/// vertex and the top one, both senses of each normal, either winding,
+/// of the one-segment hole and the two-arc one. Each side holds at all
+/// three tiers and at tier 3′, and its volume is the closed form's: the
+/// block's prism under the plane less the hole's.
+#[test]
+fn a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound() {
+    let builds: [(Build, &str); 2] = [
+        (holed_block, "one segment"),
+        (two_arc_holed_block, "two arcs"),
+    ];
+    let (mut runs, mut failures) = (0, Vec::new());
+    for (build, form) in builds {
+        for (phase, sweep) in [(0.0, TAU), (FRAC_PI_2, -TAU)] {
+            let body = topo::test_support::finished("the body", build(phase, sweep), tol());
+            let (c, s) = (phase.cos(), phase.sin());
+            for (z, up) in [(0.0, 1.0), (HEIGHT, -1.0)] {
+                for &(h, _, pose) in POSES.iter().filter(|&&(_, beta, _)| beta == 0.0) {
+                    for sense in [1.0, -1.0] {
+                        let n = [sense * h * c, sense * h * s, sense * up];
+                        let plane = Plane {
+                            n,
+                            d: n[0] * c + n[1] * s + n[2] * z,
+                        };
+                        let split = topo::test_support::split_plane(
+                            Point3::new(c, s, z),
+                            Vec3::new(n[0], n[1], n[2]),
+                            tol(),
+                        );
+                        let what = format!(
+                            "{form}, phase {phase}, sweep {sweep}, vertex z = {z}: {pose}, sense \
+                             {sense}"
+                        );
+                        runs += 1;
+                        match topo::split(&body, &split, tol()) {
+                            Ok(out) => {
+                                for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                                    let (_, closed) =
+                                        closed_form(plane, phase, positive, true, 0.0);
+                                    if let Err(e) = tangent_side(
+                                        side.body(),
+                                        closed,
+                                        (Point3::new(c, s, z), positive == (sense < 0.0)),
+                                        &what,
+                                    ) {
+                                        failures.push(format!("{what}, positive {positive}: {e}"));
+                                    }
+                                }
+                            }
+                            Err(e) => failures.push(format!("{what}: the split: {e:?}")),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    report(&failures, runs);
+}
+
+/// One side of [`a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound`]:
+/// all three tiers, tier 3′, its volume against `closed`, and its
+/// vertices on the touch point: two on the side that keeps the horns
+/// between the trace and the rim (the hole's side of the trace), which
+/// meet there with its row, else one.
+fn tangent_side(
+    body: Option<&topo::AtRestBody<f64>>,
+    closed: f64,
+    (touch, horns): (Point3<f64>, bool),
+    what: &str,
+) -> Result<(), String> {
+    let Some(b) = body else {
+        return Err(format!("no body where {closed} is kept"));
+    };
+    let at_touch = b
+        .vertex_points()
+        .filter(|(_, p)| p.distance(touch) <= tol().eps())
+        .count();
+    if at_touch != 1 + usize::from(horns) {
+        return Err(format!("{at_touch} vertices on the touch point"));
+    }
+    sound(b, &topo::ContactRecords::default(), closed, what)
+}
+
+/// All three tiers of `b`, tier 3′ over its `contacts`, and its volume
+/// against `closed`.
+fn sound(
+    b: &topo::AtRestBody<f64>,
+    contacts: &topo::ContactRecords,
+    closed: f64,
+    what: &str,
+) -> Result<(), String> {
+    topo::validate(b).map_err(|e| format!("tier 1: {e:?}"))?;
+    topo::validate_closed(b).map_err(|e| format!("tier 2: {e:?}"))?;
+    topo::validate_geometric(b, tol()).map_err(|e| format!("tier 3: {e:?}"))?;
+    topo::validate_pseudomanifold(b, contacts, tol()).map_err(|e| format!("tier 3′: {e:?}"))?;
+    let m = topo::test_support::pinned_volume(what, b, tol());
+    if (m.volume - closed).abs() > m.volume_pad + 1e-9 * closed {
+        return Err(format!(
+            "volume {} ± {}, closed form {closed}",
+            m.volume, m.volume_pad
+        ));
+    }
+    Ok(())
 }
 
 /// **A boolean against a half-space through the bottom vertex**: the
@@ -577,4 +757,248 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
         }
     }
     report(&failures, runs);
+}
+
+/// The held rows' refusal: the join's ring role order (`join.rs`
+/// `ring_order`), its one site.
+const RING_ROLE_DESYNC: &str = "derived ring role order separates a loose scaffolding pair";
+
+/// One pose of [`a_boolean_tangent_to_a_holes_rim_at_a_vertex_builds_sound`]:
+/// the block `build(π/2, sweep)` turned about x by `t`, against the
+/// brick `z ≤ z₀` whose top face passes through the turned vertex. Each
+/// of A − B, A ∩ B and A ∪ B builds sound at its closed form, or, where
+/// `held`, refuses as it stands. Returns the failures.
+fn tangent_boolean(build: Build, sweep: f64, t: f64, held: bool, what: &str) -> Vec<String> {
+    let half = 5.0;
+    let phase = FRAC_PI_2;
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), t);
+    let lift = |p: [f64; 3]| turn.transform_point(Point3::new(p[0], p[1], p[2])).z;
+    let origin = lift([0.0; 3]);
+    let n = [
+        lift([1.0, 0.0, 0.0]) - origin,
+        lift([0.0, 1.0, 0.0]) - origin,
+        lift([0.0, 0.0, 1.0]) - origin,
+    ];
+    let z0 = lift([phase.cos(), phase.sin(), 0.0]);
+    let plane = Plane { n, d: z0 - origin };
+    let a = topo::test_support::finished(
+        "the turned block",
+        topo::transform_rigid(
+            &build(phase, sweep),
+            &geom_core::test_support::rigid(&turn, tol()),
+            tol(),
+        )
+        .unwrap(),
+        tol(),
+    );
+    let b = topo::test_support::finished(
+        "the half-space",
+        sweep::test_support::brick((-half, half), (-half, half), (-half, z0), tol()),
+        tol(),
+    );
+    let slab = 4.0 * half * half * (z0 + half);
+    let (_, above) = closed_form(plane, phase, true, true, 0.0);
+    let (_, below) = closed_form(plane, phase, false, true, 0.0);
+    let mut failures = Vec::new();
+    for (op, name, closed) in [
+        (BooleanOp::Subtract, "A − B", above),
+        (BooleanOp::Intersect, "A ∩ B", below),
+        (BooleanOp::Union, "A ∪ B", slab + above),
+    ] {
+        let what = format!("{what}: {name}");
+        let got = boolean_op_with(
+            op,
+            &a,
+            &b,
+            &topo::BooleanInputs::default(),
+            SweepStrategy::Realized,
+            tol(),
+        );
+        let got = match got {
+            Ok(_) if held => Err("builds: the held row's pin".into()),
+            Ok(out) => match out.body() {
+                Some(r) => sound(&r.body, &r.contacts, closed, &what),
+                None => Err(format!("no body where {closed} is kept")),
+            },
+            Err(BooleanError::JoinDesync { what }) if held && what == RING_ROLE_DESYNC => Ok(()),
+            Err(e) => Err(format!("the boolean: {e:?}")),
+        };
+        if let Err(e) = got {
+            failures.push(format!("{what}: {e}"));
+        }
+    }
+    failures
+}
+
+/// **A boolean whose face is tangent to a hole's rim at a vertex**: the
+/// block with the one-segment hole and the two-arc one, its vertex at
+/// azimuth π/2, either winding, turned about x by ±0.4 and ±0.9 against
+/// the brick whose top face passes through the turned vertex. The face's
+/// trace on the block's bottom face is tangent to the rim there: leaning
+/// onto the vertex (`t > 0`) the trace and the hole wall's section leave
+/// it along one tangent in the face, with material on both sides, and
+/// the ring orders them by how they curve off it. A − B, A ∩ B and
+/// A ∪ B each hold at all three tiers and at tier 3′, at the closed
+/// form.
+///
+/// Held as it stands: the one-segment hole at `t = 0.4`, one pose of a
+/// class. Wherever the wall's section stays one site (round, meeting
+/// the rim at the wrap edge's vertex alone), the one-segment form
+/// refuses `JoinDesync` at the join's ring role order
+/// ([`RING_ROLE_DESYNC`];
+/// `work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
+#[test]
+fn a_boolean_tangent_to_a_holes_rim_at_a_vertex_builds_sound() {
+    let builds: [(Build, &str); 2] = [
+        (holed_block, "one segment"),
+        (two_arc_holed_block, "two arcs"),
+    ];
+    let (mut runs, mut failures) = (0, Vec::new());
+    for (build, form) in builds {
+        for sweep in [TAU, -TAU] {
+            for t in [0.4, 0.9, -0.4, -0.9] {
+                let held = form == "one segment" && t == 0.4;
+                runs += 3;
+                failures.extend(tangent_boolean(
+                    build,
+                    sweep,
+                    t,
+                    held,
+                    &format!("{form}, sweep {sweep}, tilt {t}"),
+                ));
+            }
+        }
+    }
+    report(&failures, runs);
+}
+
+/// **The per-PR row of the boolean's tangent poses**: the two-arc hole
+/// leaning onto its vertex (`t = 0.4`), every op sound at its closed
+/// form ([`a_boolean_tangent_to_a_holes_rim_at_a_vertex_builds_sound`]).
+/// Read at first order alone, the ring refuses the two germs along one
+/// tangent.
+#[test]
+fn a_boolean_tangent_to_a_two_arc_holes_rim_builds_sound() {
+    let failures = tangent_boolean(two_arc_holed_block, TAU, 0.4, false, "two arcs, tilt 0.4");
+    report(&failures, 3);
+}
+
+/// **A curved face tangent to a hole's rim at a vertex**: the two-arc
+/// holed block turned 0.4 about x, against the ball of radius `R` whose
+/// sphere touches the world plane `z = z₀` from below at the turned
+/// vertex, its poles along x, off the vertex. The vertex pierces the
+/// sphere; the sphere's sections by the block's bottom face and by the
+/// hole wall leave it along the rim's tangent, and the ring orders them
+/// by how they curve in the sphere (`implicit_section_acceleration`'s
+/// curved-reference term). A − B, A ∩ B and A ∪ B each hold at all three
+/// tiers and at tier 3′, and their volumes agree with the operands':
+/// `|A − B| + |A ∩ B| = |A|` and `|A ∪ B| + |A ∩ B| = |A| + |B|`.
+///
+/// Held as it stands: the bottom rim's arc is tangent to the sphere at
+/// the vertex too, and the crossing layer refuses it
+/// `CurvedPierceUnsupported` before the ring reads anything
+/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`),
+/// all three ops alike. Where it builds, every check above binds.
+#[test]
+fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {
+    let radius = 3.0;
+    let t = 0.4;
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), t);
+    let v = turn.transform_point(Point3::new(0.0, 1.0, 0.0));
+    let a = topo::test_support::finished(
+        "the turned block",
+        topo::transform_rigid(
+            &two_arc_holed_block(FRAC_PI_2, TAU),
+            &geom_core::test_support::rigid(&turn, tol()),
+            tol(),
+        )
+        .unwrap(),
+        tol(),
+    );
+    let b = topo::test_support::finished(
+        "the ball",
+        sweep::test_support::ball_poled(
+            radius,
+            Vec3::new(v.x, v.y, v.z - radius),
+            Vec3::new(1.0, 0.0, 0.0),
+            tol(),
+        ),
+        tol(),
+    );
+    let block = (16.0 - PI) * HEIGHT;
+    let ball = 4.0 / 3.0 * PI * radius.powi(3);
+    let (mut failures, mut measured, mut held) = (Vec::new(), Vec::new(), 0);
+    for (op, name) in [
+        (BooleanOp::Subtract, "A − B"),
+        (BooleanOp::Intersect, "A ∩ B"),
+        (BooleanOp::Union, "A ∪ B"),
+    ] {
+        let got = boolean_op_with(
+            op,
+            &a,
+            &b,
+            &topo::BooleanInputs::default(),
+            SweepStrategy::Realized,
+            tol(),
+        );
+        let out = match got {
+            Ok(out) => out,
+            Err(BooleanError::CurvedPierceUnsupported {
+                operand: topo::boolean::Operand::A,
+                edge,
+                ..
+            }) if matches!(
+                topo::readback::edge_carrier_kind(&a, edge),
+                Ok(geom::CurveKind::Circle)
+            ) =>
+            {
+                held += 1;
+                continue;
+            }
+            Err(e) => {
+                failures.push(format!("{name}: the boolean: {e:?}"));
+                continue;
+            }
+        };
+        let Some(r) = out.body() else {
+            failures.push(format!("{name}: no body"));
+            continue;
+        };
+        let body = &r.body;
+        let tiers = topo::validate(body)
+            .map_err(|e| format!("tier 1: {e:?}"))
+            .and_then(|()| topo::validate_closed(body).map_err(|e| format!("tier 2: {e:?}")))
+            .and_then(|()| {
+                topo::validate_geometric(body, tol()).map_err(|e| format!("tier 3: {e:?}"))
+            })
+            .and_then(|()| {
+                topo::validate_pseudomanifold(body, &r.contacts, tol())
+                    .map_err(|e| format!("tier 3′: {e:?}"))
+            });
+        if let Err(e) = tiers {
+            failures.push(format!("{name}: {e}"));
+        }
+        let m = topo::test_support::pinned_volume(name, body, tol());
+        measured.push((m.volume, m.volume_pad));
+    }
+    if held != 0 && held != 3 {
+        failures.push(format!("{held} of 3 held: the row's pin is all or none"));
+    }
+    if let [(sub, sub_pad), (int, int_pad), (uni, uni_pad)] = measured[..] {
+        let slack = |pads: f64, of: f64| pads + 1e-9 * of;
+        if (sub + int - block).abs() > slack(sub_pad + int_pad, block) {
+            failures.push(format!(
+                "|A − B| + |A ∩ B| = {} against |A| = {block}",
+                sub + int
+            ));
+        }
+        if (uni + int - block - ball).abs() > slack(uni_pad + int_pad, block + ball) {
+            failures.push(format!(
+                "|A ∪ B| + |A ∩ B| = {} against |A| + |B| = {}",
+                uni + int,
+                block + ball
+            ));
+        }
+    }
+    report(&failures, 3);
 }

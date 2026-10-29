@@ -167,6 +167,8 @@ mod props_sphere_circle_loop;
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "section_acceleration_review.rs"]
+mod section_acceleration_review;
 #[path = "section_bounds.rs"]
 mod section_bounds;
 #[path = "section_reads_at_the_reach.rs"]
@@ -341,5 +343,9 @@ mod span_reach_hunt;
 mod tangent_gap_hull_charges_both_sags;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
+#[path = "torus_doors_ssi.rs"]
+mod torus_doors_ssi;
+#[path = "torus_gap.rs"]
+mod torus_gap;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;

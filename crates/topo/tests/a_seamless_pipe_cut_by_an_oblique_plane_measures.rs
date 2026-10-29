@@ -370,3 +370,51 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
         }
     }
 }
+
+/// **A curved junction the injectivity question cannot present refuses
+/// typed, naming the departure arm and the edge.** The pipe's wall meets
+/// its oblique roof along an ellipse: on the wall's chart that is no
+/// coordinate line, and on the roof's plane no straight one, so neither
+/// face is presented on the shared edge and no separator is read. The
+/// pair is refused `Uncertified { arm: Departure }` on that edge, never
+/// certified and never measured by distance — the arm that would present
+/// such an edge is its own row
+/// (`work/clear/` — the curved-junction departure arm, filed by the
+/// orchestrator), and this is the narrowing it lifts.
+#[test]
+fn a_curved_junction_refuses_typed_naming_the_departure_arm() {
+    use geom_core::Band;
+    use topo::clearance::{
+        BoundVerdict, Budgets, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
+        EngineRefusal, SharedCell, Side, Sweep,
+    };
+    let tol = Tol::witness();
+    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let body = pipe::<f64>(POSES[0], &f, tol);
+    let faces = body.faces().map(|(k, _)| k).collect();
+    let side = Side { body: &body, faces };
+    let windows = side.windows().expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: Band::linear(tol).unwrap(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
+    };
+    let report = sweep.run(&windows, &windows, true, |_| {
+        Err::<(), String>("no witness is offered".to_owned())
+    });
+    assert!(report.receipt.holds(), "{:?}", report.receipt);
+    match report.verdict {
+        BoundVerdict::Refused(EngineRefusal::Uncertified {
+            arm: CertificateArm::Departure,
+            shared: SharedCell::Edge(_),
+            ..
+        }) => {}
+        other => panic!(
+            "the wall and its roof meet on an ellipse: {other:?} {:?}",
+            report.receipt
+        ),
+    }
+}

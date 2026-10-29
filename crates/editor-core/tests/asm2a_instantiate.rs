@@ -425,14 +425,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // identity bundle, placed by no map, which decides nothing.
     // Each validation of the part's own box re-certifies its edges,
     // where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box
-    // edges × 2 operands: 826 → 850 on the part. The copy is validated by
-    // no one, so main's matching +24 on the placing op does not arise.
+    // edges × 2 operands: 826 → 850 on the part. Each of its profile's
+    // two validations no longer reads a gap on the box's four corner
+    // pairs, which share a vertex (`profile::seg`'s `line_line`):
+    // 850 → 834. The copy is validated by no one, so main's matching +24
+    // on the placing op does not arise.
     assert_eq!(
         first.len(),
         0,
         "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 850, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 834, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

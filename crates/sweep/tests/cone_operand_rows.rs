@@ -377,6 +377,23 @@ fn small_cone(r: f64, h: f64, tilt: f64, at: Vec3<f64>) -> (AtRestBody<f64>, Sol
 /// rad at `(0.8, 0.55, 0.2)`, clear.
 #[test]
 fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms() {
+    // Pinned red since the row landed (PR 4522): at ε = 1e-6 and 1e-12 the
+    // clear rod's union refuses `FallbackExtentUnsupported` on near-tangent
+    // carriers (`work/germ/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6, 1e-12],
+        "the oblique rod and tilted cone",
+        &[
+            "a rod clear, ∪: wanted Body(1.0511245420135849, 1.0511245420135848e-9), refused FallbackExtentUnsupported { operand: A, face: FaceKey(1v1)",
+            "tangent or near-tangent carriers and no crossing layer saw an event",
+        ],
+        an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms_row,
+    );
+}
+
+/// The row [`an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms`] runs, under its pin.
+fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms_row() {
     let v_cone = PI / 1500.0;
     let fixtures = [
         Builds {

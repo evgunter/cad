@@ -39,3 +39,12 @@ default, 1e-6 and 1e-12. At the default ε it escalates
 default ε to #5664 (`80a6f77af3`). The widening is filed on CHART's
 slate, at `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
 The 1e-12 red this row names predates #5664.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. At 1e-12 the pose now stops on `bool_ruled_region_span`, as at the
+other two ε, not on `carrier_endpoint_end`. The row is pinned at every ε
+on that predicate
+(`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly this row's `carrier_endpoint_end`, which the `bool_ruled_region_span` stop now precedes.

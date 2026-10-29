@@ -82,13 +82,13 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// renumbers nodes moves every row). The companion below tells the
 /// two apart only in part — it drops the entry keys, not the ids — and
 /// `m10_p_fence`'s ids-masked row pins the geometry beneath both.
-const DIE_TABLE_DIGEST: u64 = 0x6a1f_023d_9ba4_9421;
+const DIE_TABLE_DIGEST: u64 = 0x35eb_46e3_c6c9_38ab;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]): it moves with [`DIE_TABLE_DIGEST`] wherever a
 /// name's wording or an id it spells moves, and not where an entry key
 /// alone does.
-const DIE_NAMES_DIGEST: u64 = 0x858d_2d6e_f24c_3fdb;
+const DIE_NAMES_DIGEST: u64 = 0x2bcd_a7f2_f5d4_dffb;
 
 #[test]
 fn die_name_tables_are_golden() {

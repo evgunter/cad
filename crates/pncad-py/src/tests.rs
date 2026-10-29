@@ -559,11 +559,10 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("topo::ClearanceLane"));
 
-    // The four arms `topo::clearance::min_separation` refuses with
+    // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
     let empty = refused(MinSeparationRefusal::EmptyScope);
-    let unpaired = refused(MinSeparationRefusal::NoAdmittedPair);
     let unsupported = refused(MinSeparationRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
@@ -572,22 +571,20 @@ fn the_fourth_verbs_two_refusals_are_stable() {
         a: FaceKey::default(),
         b: FaceKey::default(),
     });
-    for e in [&empty, &unpaired, &unsupported, &poison] {
+    for e in [&empty, &unsupported, &poison] {
         assert_eq!(
             node_error_tag(e.class()),
             "measure_clearance_refused",
             "{e}"
         );
     }
-    // The prose is pinned on the two arms whose rendering is a
-    // sentence. `Unsupported` and `PoisonEnclosure` print their faces
-    // as `FaceKey` `Debug` — the defect
+    // The prose is pinned on the arm whose rendering is a sentence.
+    // `Unsupported` and `PoisonEnclosure` print their faces as `FaceKey`
+    // `Debug` — the defect
     // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
     // `reads_as_prose` does not look for an arena key, so a pin there
     // would pass and prove nothing.
-    for e in [&empty, &unpaired] {
-        assert!(crate::errors::reads_as_prose(&e.to_string()), "{e}");
-    }
+    assert!(crate::errors::reads_as_prose(&empty.to_string()), "{empty}");
 }
 
 /// LIB-B-MEASURES: an assertion's three relations, and the symbols a
@@ -4608,10 +4605,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "battery_turn",
             "carrier_ladder",
             "census_at_rest",
+            "coaxial_cylinder_torus",
             "coaxial_sphere",
+            "coaxial_tori",
             "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
+            "sphere_on_torus_axis",
             "split_on",
             "tangent_witness",
             "vertex_fusion",

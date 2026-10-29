@@ -18,7 +18,7 @@ sphere face is the row in ../../meridian_free_cap.rs.
 
 THESE FILES' DISPOSITION IS EXPECTED TO CHANGE, BY DESIGN.  A pole
 inside a face is a vertex of it, so the face stated here is not one the
-kernel keeps: work/exch/import-normalizes-the-rim-only-cap.md is the
+kernel keeps: work/foreign/import-normalizes-the-rim-only-cap.md is the
 unit that makes import re-mint it in the seamed form.  When it lands,
 the two corpus rows in ../../tier_gate.rs (their edge and vertex
 census) and the "adopted as stated" assertions in

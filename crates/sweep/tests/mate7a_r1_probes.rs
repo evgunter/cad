@@ -349,12 +349,13 @@ fn p1_wall1_glues_the_stem_into_one_body() {
 }
 
 /// **The same two tori with a stem window that reaches over a loop
-/// refuse at the join's germ frame.** Run to 30° instead of 22°, the
-/// stem's tube wall spans the loop on the arch's side of the weld plane,
-/// and its seams cross the arch's tube, so the pair carries events and
-/// the join's germ frame refuses the two tube walls
-/// (`GermFrameUnsupported`, torus × torus) before the interior-loop
-/// guard is asked. What this row pins is that refusal: it goes red when
+/// refuse at their germs.** Run to 30° instead of 22°, the stem's tube
+/// wall spans the loop on the arch's side of the weld plane, and its
+/// seams cross the arch's tube, so the pair carries events, and the
+/// reduction's germ mint refuses the two tube walls
+/// (`GermSectionUnbuilt`, torus × torus: the section value lists the
+/// parallel tori's components and tells no site's component apart among
+/// them) before the interior-loop guard is asked. What this row pins is that refusal: it goes red when
 /// the op starts building this pair, or refuses it somewhere else. It
 /// cannot see the certificate. The certificate-level degrade row is
 /// `section_cert_parallel_tori_rows`
@@ -389,13 +390,14 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
         assert!(
             matches!(
                 r,
-                Err(BooleanError::GermFrameUnsupported {
+                Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
+                    why: topo::SectionUnbuilt::Untold(_),
                     ..
                 })
             ),
-            "{what}: the two tube walls refuse at the germ frame: {:?}",
+            "{what}: the two tube walls refuse at their germs: {:?}",
             r.err()
         );
     }
@@ -445,4 +447,53 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
             );
         }
     }
+}
+
+/// **The lily's stem and arch tori exhaust the door's cell budget.** The
+/// two tube walls' whole tori (axes parallel and apart): the pose's gap
+/// is transverse and the value lists the parallel tori's components,
+/// but where the arch leaves the fork its core runs tangent to the
+/// stem's and its tube 8 mm inside the stem's, a near tube-circle
+/// tangency, and the accounting over the smaller torus's ball refuses
+/// `CellBudget` at the compiled ε, on the tube at 1e-6
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
+/// and on the thin stem's limb 2 at 1e-12 (the kernel limit [`stem`]
+/// names),
+/// as a cylinder × sphere pose near its node does
+/// (`work/sectrung/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
+/// This row pins that stop: it goes red the day the door carries the
+/// lily's pair.
+#[test]
+fn the_lilys_tori_exhaust_the_doors_cell_budget() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let ring = |center, big, small| geom::Surface::Torus {
+        center,
+        axis: Vec3::new(0.0, -1.0, 0.0),
+        major_radius: big,
+        minor_radius: small,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let stem = ring(Point3::new(-STEM_RING, 0.0, 0.0), STEM_RING, STEM_TUBE);
+    let arch = ring(arch_frame().center, ARCH_RING, ARCH_TUBE);
+    let geom_brep::SectionRead::Built(section) =
+        geom_brep::pair_section(&stem, &arch, band).expect("the pose decides")
+    else {
+        panic!("the value builds two tori");
+    };
+    assert!(
+        section.tangency().is_none() && !section.components().is_empty(),
+        "a transverse gap, its components listed"
+    );
+    let got = geom_brep::torus_torus_ssi(&stem, &arch, section.pose().domain(), band);
+    let eps = Tol::witness().eps();
+    assert!(
+        match &got {
+            Err(geom_brep::SsiError::TubeStraddles { .. }) => eps == 1e-6,
+            Err(geom_brep::SsiError::RefinementExhausted { .. }) => eps == 1e-12,
+            Err(geom_brep::SsiError::CellBudget { .. }) => eps != 1e-6 && eps != 1e-12,
+            _ => false,
+        },
+        "the door's stop on the lily's pair: {:?}",
+        got.map(|o| o.branches.len())
+    );
 }

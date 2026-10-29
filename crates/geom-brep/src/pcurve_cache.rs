@@ -4090,6 +4090,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::PairTangent { .. }
         | E::RadiusNotPositive { .. }
         | E::DegenerateTorus(_)
+        | E::CoincidentTori
         | E::OperandNotFinite { .. }
         | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }

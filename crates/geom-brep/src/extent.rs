@@ -165,6 +165,14 @@ impl<T: Real> ExtentBall<T> {
         Self::new(lo + half, half.norm())
     }
 
+    /// **The ball holding a ring torus** `(center, R, r)`: every point of
+    /// it stands at most `R + r` from its centre. The one spelling of a
+    /// torus's ball; a section of the torus with anything lies in it.
+    #[must_use]
+    pub fn of_torus(center: Point3<T>, major_radius: T, minor_radius: T) -> Self {
+        Self::new(center, major_radius + minor_radius)
+    }
+
     /// The ball a sphere or a torus fits in, which encloses every face
     /// on it whatever its trim: the sphere's own, the torus's of radius
     /// `R + r` about its centre. `None` for every other kind, whose
@@ -178,7 +186,7 @@ impl<T: Real> ExtentBall<T> {
                 major_radius,
                 minor_radius,
                 ..
-            } => Some(Self::new(*center, *major_radius + *minor_radius)),
+            } => Some(Self::of_torus(*center, *major_radius, *minor_radius)),
             Surface::Plane { .. }
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }

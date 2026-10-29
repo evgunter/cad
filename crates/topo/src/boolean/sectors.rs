@@ -62,7 +62,7 @@ use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
-use crate::sector_face::{SectorCarrier, SectorFaceError};
+use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
 use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
@@ -585,11 +585,13 @@ pub(super) fn orbit_corners<T: Decide>(
 /// pole of its chart, where it has no one normal.
 ///
 /// **A sector based at a cone's apex refuses**
-/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
-/// normal from its implicit gradient, which is `0/0` on the axis, and
-/// the apex is the axis point ON the cone: a vertex there has no
-/// tangent plane, and the poison would otherwise reach the first
-/// decision that reads it under that decision's name.
+/// ([`BooleanError::NormalAtConeApex`]): the shared walk reads the face
+/// there as its circle of rulings ([`VertexFace::Apex`]), each with a
+/// normal of its own, while this lane's sector pair algebra reads one
+/// normal per sector. What is missing is that algebra over a sector
+/// whose interior is a fan of rulings; the split's walk has its own
+/// (`splitting::neighborhood`). A vertex in the band of the axis refuses
+/// the same way.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -626,6 +628,11 @@ pub(super) fn sector_face<T: Decide>(
             face,
             kind,
         },
+        SectorFaceError::ApexUndecided { face, .. } => BooleanError::NormalAtConeApex {
+            operand,
+            face,
+            band,
+        },
     })?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
     // new carrier arm added to the shared walk must be a compile
@@ -636,25 +643,17 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus
+        | SectorCarrier::Cone
         | SectorCarrier::Spline(_) => {}
-        SectorCarrier::Cone => {
-            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
-                resolved.face,
-                proven(&body.faces, resolved.face, EntityId::Face),
-            ) else {
-                unreachable!("the shared walk's cone arm read a face that carries no cone")
-            };
-            let p = body.resolve_vertex_point(vertex, Proven);
-            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
-                BooleanError::NormalAtConeApex {
-                    operand,
-                    face: resolved.face,
-                    band,
-                }
-            })?;
-        }
     }
-    Ok((resolved.face, resolved.normal))
+    match resolved.at_vertex {
+        VertexFace::Tangent(normal) => Ok((resolved.face, normal)),
+        VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(BooleanError::NormalAtConeApex {
+            operand,
+            face: resolved.face,
+            band,
+        }),
+    }
 }
 
 /// The refusal for a bisector reading On between two bounds definitely
@@ -1199,13 +1198,10 @@ pub(super) fn tangent_lump<T: Decide>(
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —
-/// the relative graph-over-the-shared-tangent-plane acceleration
-/// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
-/// carriers (the implicit-function graph over the plane normal to
-/// `n̂_ref`, whose denominator carries the sign when a carrier's
-/// gradient opposes `n̂_ref`, and which is a graph only where that
-/// denominator is bounded away from zero — the declared tangency's
-/// first-order tie), classified through the existing second-order
+/// each carrier's graph acceleration over the shared tangent plane
+/// toward `n̂_ref` ([`geom_brep::implicit_graph_acceleration`]; a graph
+/// there by the declared tangency's first-order tie), differenced
+/// across the two carriers and classified through the existing second-order
 /// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
 /// exact-zero: the direction rides the tangency locus (a curve on
 /// either carrier along it separates at no order this kernel
@@ -1224,10 +1220,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
     let d_hat = d.normalize();
-    let graph_accel = |s: &geom::Surface<T>| {
-        let g = geom_brep::implicit_gradient(s, p);
-        T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
-    };
+    let graph_accel = |s| geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
     let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
     match geom_brep::enters_material_order2(
         n_ref * rel_accel,
@@ -6777,10 +6770,7 @@ mod tests {
             &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
             Tol::witness(),
         );
-        let accel = |s: &geom::Surface<f64>| {
-            -geom_brep::implicit_hessian_form(s, p, d)
-                / geom_brep::implicit_gradient(s, p).dot(n.vec())
-        };
+        let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
         let arm = (2.0 * mid / (accel(&ball) - accel(&floor)).abs()).sqrt();
         let err = tangent_relative_side(
             &ball,

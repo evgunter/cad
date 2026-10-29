@@ -87,6 +87,7 @@ pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
@@ -134,8 +135,9 @@ pub use edge_nurbs::{
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
-    ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
-    enters_material_order2, enters_material_reported, normal_alignment,
+    ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
+    enters_material, enters_material_order2, enters_material_reported, normal_alignment,
+    tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -153,17 +155,18 @@ pub use implicit::{
     conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
     conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
     conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
-    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
+    implicit_graph_acceleration, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
+    min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
     ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
     OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite,
     PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
     SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
-    cylinder_cylinder_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
+    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
+    route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -184,10 +187,12 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
-    CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
-    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, Seated,
-    SectionComponent, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict,
-    pair_section, square_part,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
+    ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
+    FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent,
+    SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane,
+    StStance, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind,
+    ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
@@ -215,8 +220,9 @@ pub use ssi::{
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
-    TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    idealized_trace_r3, march_cylinder_sphere, plane_nurbs_ssi, sphere_torus_ssi,
+    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
+    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_sphere, march_cylinder_torus,
+    march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
     trace_plane_nurbs_uncertified,
 };
 pub use tangent::{

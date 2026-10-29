@@ -54,11 +54,17 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 1557 -> 229). No dispute fired. Which change moved which column is
 /// `work/offset/main-red-three-m10-interval-pins-moved-at-5728`'s to
 /// read.
+///
+/// Then two numeric columns fell, both from the profile's simplicity
+/// pass: it no longer reads a gap on a line pair that shares a vertex
+/// (`profile::seg`'s `line_line`, PR 5952). The plate 832 -> 824 (its
+/// rectangle's four corners, on each one's axis) and the bracket's by
+/// ten.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1149, 832, 229]),
+    ("two_hole_plate", [1149, 824, 229]),
     ("r1_annulus", [654, 555, 212]),
     ("r2_link", [962, 805, 2241]),
-    ("r2_filleted_bracket", [1542, 1169, 914]),
+    ("r2_filleted_bracket", [1542, 1159, 914]),
     ("r2_rounded_pad", [1616, 1262, 2476]),
 ];
 

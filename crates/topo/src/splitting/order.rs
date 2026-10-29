@@ -96,6 +96,7 @@ use geom_core::{
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
 ///
@@ -298,29 +299,6 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     Ok(order)
 }
 
-/// **A decided insertion sort**: `xs` sorted by `after(a, b)`, whether
-/// `a` stands strictly after `b`, asked of each element against its
-/// predecessors until one does not. Stable: elements no verdict puts
-/// apart keep their insertion order. The first `Err` stops the sort and
-/// comes back.
-///
-/// # Errors
-///
-/// `after`'s first.
-pub(crate) fn insertion_sort_by<X, E>(
-    xs: &mut [X],
-    mut after: impl FnMut(&X, &X) -> Result<bool, E>,
-) -> Result<(), E> {
-    for i in 1..xs.len() {
-        let mut j = i;
-        while j > 0 && after(&xs[j - 1], &xs[j])? {
-            xs.swap(j - 1, j);
-            j -= 1;
-        }
-    }
-    Ok(())
-}
-
 /// One planar face's crossings ordered along its section line, from
 /// their along-line coordinates `keys` (metres, in the face's
 /// insertion order): [`sort_along`] with the gap `keys[a] − keys[b]`.
@@ -347,7 +325,7 @@ pub(super) fn sort_along_line<T: Decide>(
 /// second kind by rounding or, on the interval lane, escalate on it. An
 /// insertion sort that stops at the first predecessor not definitely
 /// after leaves coincident crossings in insertion order; then
-/// [`group_coincident`] puts every run of Zero gaps back in insertion
+/// [`coincident_runs`] puts every run of Zero gaps back in insertion
 /// order, so the result is a function of the verdicts.
 ///
 /// **Residual: a chain of sub-ε gaps.** The comparator is banded, so
@@ -369,39 +347,57 @@ pub(super) fn sort_along<T: Decide>(
     gap: impl Fn(usize, usize) -> T,
     band: Band,
 ) -> Result<Vec<usize>, Indeterminate> {
+    sort_along_runs(n, gap, band).map(|runs| runs.concat())
+}
+
+/// [`sort_along`], its crossings left in their runs at one point.
+///
+/// # Errors
+///
+/// [`sort_along`]'s.
+pub(super) fn sort_along_runs<T: Decide>(
+    n: usize,
+    gap: impl Fn(usize, usize) -> T,
+    band: Band,
+) -> Result<Vec<Vec<usize>>, Indeterminate> {
     let mut sorted: Vec<usize> = (0..n).collect();
     insertion_sort_by(&mut sorted, |&before, &at| {
         Ok(decide("split_join_line_order", Margin::of(gap(at, before)), band)? == Sign::Negative)
     })?;
-    group_coincident(sorted, gap, band)
+    coincident_runs(sorted, gap, band)
 }
 
-/// `sorted` with every run of successive crossings one point apart
-/// (**`split_join_line_gap`** Zero on `gap(next, previous)`) put back
-/// in insertion (index) order.
+/// `sorted` cut into its runs of successive crossings one point apart
+/// (**`split_join_line_gap`** Zero on `gap(next, previous)`), each in
+/// insertion (index) order.
 ///
 /// # Errors
 ///
 /// A gap in the band's ambiguity window.
-pub(super) fn group_coincident<T: Decide>(
+pub(super) fn coincident_runs<T: Decide>(
     sorted: Vec<usize>,
     gap: impl Fn(usize, usize) -> T,
     band: Band,
-) -> Result<Vec<usize>, Indeterminate> {
-    let mut order = Vec::with_capacity(sorted.len());
-    let mut run: Vec<usize> = Vec::new();
+) -> Result<Vec<Vec<usize>>, Indeterminate> {
+    let mut runs: Vec<Vec<usize>> = Vec::new();
     for i in sorted {
-        if let Some(&last) = run.last()
-            && decide("split_join_line_gap", Margin::of(gap(i, last)), band)? != Sign::Zero
-        {
-            run.sort_unstable();
-            order.append(&mut run);
+        match runs.last_mut() {
+            Some(run)
+                if decide(
+                    "split_join_line_gap",
+                    Margin::of(gap(i, run[run.len() - 1])),
+                    band,
+                )? == Sign::Zero =>
+            {
+                run.push(i);
+            }
+            _ => runs.push(vec![i]),
         }
-        run.push(i);
     }
-    run.sort_unstable();
-    order.append(&mut run);
-    Ok(order)
+    for run in &mut runs {
+        run.sort_unstable();
+    }
+    Ok(runs)
 }
 
 #[cfg(test)]

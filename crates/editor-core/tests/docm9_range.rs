@@ -128,12 +128,26 @@ fn notch(height: f64) -> ProfileDoc {
 /// neighbours.
 const THROUGH: f64 = 0.0;
 
-/// The notch's nominal height, a convex point below the square.
-const NOMINAL: f64 = -0.25;
+/// The heights below [`THROUGH`] at which two of [`notch`]'s lines
+/// stop or start lying apart along one's axis, each a `segment_gap`
+/// decision that changes sign (`profile::seg`'s `line_line` reads that
+/// gap before any side): `(1 − √2)/2`, where `(0.5, h)–(1, 0)`'s axis
+/// reads the left wall's top at its own start, and `−1/2`, where
+/// `(0, 0)–(0.5, h)`'s reads the top edge's start `(1, 1)` at its own
+/// start. The pair's contacts are none on either side of both.
+const GAP_ZEROS: [f64; 2] = [(1.0 - std::f64::consts::SQRT_2) / 2.0, -0.5];
 
-/// The notch's seed: from a deeper point to just past the crossing,
-/// at offset `THROUGH − NOMINAL`.
-const NOTCH_SEED: RangeSeed = RangeSeed { lo: -0.25, hi: 0.3 };
+/// The notch's nominal height, a convex point below the square, above
+/// both [`GAP_ZEROS`].
+const NOMINAL: f64 = -0.125;
+
+/// The notch's seed: from a deeper point still clear of the
+/// [`GAP_ZEROS`] to just past the crossing, at offset
+/// `THROUGH − NOMINAL`, so the crossing is the one boundary inside it.
+const NOTCH_SEED: RangeSeed = RangeSeed {
+    lo: -0.0625,
+    hi: 0.15,
+};
 
 /// The same document with the extrusion distance left as a bare
 /// LITERAL — a field with no name at all until the query derives one.
@@ -418,6 +432,46 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
     assert!(
         funded.hi().certified_to() > starved.hi().certified_to(),
         "more budget proves more ground"
+    );
+}
+
+/// **A line pair's gap is a boundary of its own.** From a nominal below
+/// the first of the [`GAP_ZEROS`], the walk up stops at it, which the
+/// seed holds short of the crossing, and names `segment_gap` leaving Negative: the two lines'
+/// projections go from overlapping to apart there (through the zero
+/// band, which a coarse ε reaches first), and nothing else about the
+/// notch changes.
+#[test]
+fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
+    let nominal = -0.25;
+    let doc = notch(nominal);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let RangeSide::DecisionFlip {
+        within, evidence, ..
+    } = r.hi()
+    else {
+        panic!("the gap's zero is a decision flip, got {:?}", r.hi());
+    };
+    // The bracket closes where the gap's margin enters the band, which
+    // at a coarse ε lies short of its exact zero by about ε.
+    let zero = GAP_ZEROS[0] - nominal;
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
+    assert!(
+        within.0 <= zero && zero - within.1 < 100.0 * resolution.max(tol().eps()),
+        "the gap's zero at offset {zero} closes {within:?}"
+    );
+    let named: Vec<_> = evidence
+        .verdicts
+        .nodes
+        .values()
+        .flat_map(|d| &d.flips)
+        .map(|f| (f.predicate, f.from, f.to))
+        .collect();
+    assert!(
+        named.iter().any(|(p, from, to)| *p == "segment_gap"
+            && *from == geom_core::Sign::Negative
+            && *to != geom_core::Sign::Negative),
+        "the gap's flip was not named: {named:?}"
     );
 }
 

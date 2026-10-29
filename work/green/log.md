@@ -104,3 +104,27 @@ the owning program. No kernel work in a GREEN lane. The slow-set lane
 and the gate-trust lane (for the `--all-features` reds) were told the
 same day. This also settles the band question above: the slow-set row
 stays P1, since greening main is this track's central job.
+
+## 2026-10-28/29 — the lanes land
+
+- **latency** (P0): #5941 split the per-PR `test` job into `app` and
+  `kernel` shards (full review; fixes before merge). At TIER=all it
+  takes `test` from 27.6 to about 19 min. Sharing the kernel libraries
+  between shards was measured and declined (#5957): the shards compile
+  them under different features, and the duplicate costs about 200
+  unit-seconds. Next: rebalance the shards and move the roster into
+  `scripts/ci-filter.py`, after a day of closure-tier data.
+- **gate trust**: #5939 (the pick guard is planted, and the eps-1e-6
+  red was the guard), #5944 (cert10 split onto a pinned draw), and
+  #5962 (nightly gate self-tests through a shared `scripts/run-gates.sh`,
+  plus a nightly `--all-features` suite, cacheless so it cannot evict the
+  PR gate's caches). All four rows closed.
+- **full-suite pins**: #5958 greened nightly 74's reds outside the
+  slow-set row: 20 pinned through the new `test_utils::pinned_red`, 2
+  disabled, 5 re-blessed, 2 rows filed (one a P1 wrong build on
+  SPLICESEAM).
+- **slow-set reds**: #5952 fixed #5542's two `segment_gap` defects
+  (full review), before the pin-not-fix rule reached the lane. The user
+  agreed to merging it rather than handing it off: the effort was
+  spent, and review covers the semantics. Its remaining reds are pinned
+  in #5966.

@@ -11,10 +11,10 @@
 //! loops about the rod, essential on its wall) and the ops answer in
 //! closed form.
 //!
-//! A rod that does cross the tube still stops, one wall later, at the
-//! join's germ frame: the certificate answers every pair, and the frame
-//! of a torus × cylinder germ has no arm
-//! (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
+//! A rod that does cross the tube still stops, at the reduction's germ
+//! mint: the certificate answers every pair, and the section value lists
+//! the square wall's components without telling a site's component apart
+//! among them (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -227,14 +227,17 @@ fn a_rod_threading_the_hole_answers_every_op() {
     );
 }
 
-/// **A radial hole through the tube stops at the germ frame, with every
+/// **A radial hole through the tube stops at the germ mint, with every
 /// certificate pair answered.** Through both walls, through the inner
 /// side only, through the outer side only, and off the axis: the section
-/// report holds no refusal (each torus × wall pair was R-reach before
-/// the arm), and ∖ refuses at the join, naming the torus and the rod's
-/// wall. Mutant: drop the arm, and the report carries `Err(Reach)`.
+/// pass's report holds no refusal (each torus × wall pair was R-reach
+/// before the square-wall arm), and ∖ refuses where the reduction mints
+/// its first germ inside the faces, naming the torus and the rod's wall:
+/// the section value classifies the square wall's components but tells
+/// no site's component apart among them. Mutant: drop the arm, and the
+/// report carries `Err(Reach)`.
 #[test]
-fn a_radial_hole_through_the_tube_stops_at_the_germ_frame() {
+fn a_radial_hole_through_the_tube_stops_at_the_germ_mint() {
     let d = donut();
     for (what, r) in [
         ("through both walls", rod((1.0, 3.0), (0.0, 0.0), 0.2)),
@@ -242,14 +245,19 @@ fn a_radial_hole_through_the_tube_stops_at_the_germ_frame() {
         ("through the outer side", rod((2.0, 3.0), (0.0, 0.0), 0.2)),
         ("off the axis", rod((1.0, 3.0), (0.1, 0.15), 0.2)),
     ] {
-        let report = topo::test_support::section_report(Op::Subtract, &d, &r, Tol::witness())
-            .expect("the reduction runs");
+        let report = topo::test_support::no_crossings_section_report(&d, &r, Tol::witness())
+            .expect("the section pass runs");
         assert!(!report.is_empty(), "{what}: the certificate is asked");
         for (_, _, v) in &report {
             assert!(v.starts_with("Ok("), "{what}: {v}");
         }
         match topo::subtract(&d, &r, Tol::witness()) {
-            Err(topo::BooleanError::GermFrameUnsupported { a_kind, b_kind, .. }) => {
+            Err(topo::BooleanError::GermSectionUnbuilt {
+                a_kind,
+                b_kind,
+                why: topo::SectionUnbuilt::Untold(_),
+                ..
+            }) => {
                 assert_eq!(
                     (a_kind, b_kind),
                     (geom::SurfaceKind::Torus, geom::SurfaceKind::Cylinder),

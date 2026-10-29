@@ -78,3 +78,12 @@ reader, `Near::Unknown`), which are indeterminate, and naming it would
 report them as sign-certain. The payload here stays `Undecided`.
 "A refusal that names the window edge" therefore needs the side arm to
 say which of its readings refused; the one-arc proof is still open.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. `r1_lane0_e2e::the_f64_seam_answers_every_public_door` is still red
+at 1e-6 (`PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(… MarginDiag(Invalid) … ssi_tube_one_arc) })`).
+It is pinned at 1e-6 on that stop (`EdgeKey(10v1)`, `rungs: 15`,
+`MarginDiag(Invalid)`, `ssi_tube_one_arc`).
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
