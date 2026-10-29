@@ -2,11 +2,11 @@
 id: an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane
 kind: issue
 title: The census refuses an edge-face curve touch typed, away from a conventional vertex: no lane reads an edge's carrier lying in a face (a circle in a plane, a line in a curved face)
-status: parked
+status: open
 opened: 2026-10-10
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 cost: M
 priority: P2
+design: true
 ---
 
 
@@ -100,4 +100,4 @@ band of what waits on it (`work/README.md`, Priority), so this row,
 unbanded until now, carries P2. Its own blocker, the D10 hold, is P0.
 (band-rule triage)
 
-**Re-read 2026-10-29 (INTENT, D10 hold):** kept on the hold, pending a decision. Its D10 ground is built (stages 4 and 5; `census::confirm_edge_face`, `crates/topo/src/census.rs:9608`, still refuses the curve touch typed, `census/point.rs:301`). What is left is the question this row names itself: what the lane certifies for an edge, which has no normal of its own. Opening it means flagging that `design` question or ruling on it, and that is the INTENT orchestrator's call, not this re-read's.
+**Re-read 2026-10-29 (INTENT, D10 hold):** released, flagged `design`. Its D10 ground is built: stages 4 and 5 are done, and `census::confirm_edge_face` (`crates/topo/src/census.rs:9608`) still refuses the curve touch typed (`census/point.rs:301`). The open question is the row's own: what the lane certifies for an edge, which has no normal of its own. It is weighed before a lane builds it (INTENT orchestrator, on #6051).
