@@ -121,6 +121,10 @@
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
 //! section conic in the partner's planar or spherical face. There the
 //! chord is the whole section conic, from the vertex round to itself.
+//! A chord between two copies of one site, which the null edges tie
+//! ([`same_site`]), runs round the same way: a section conic that meets
+//! a face's boundary at one site alone reaches it under whichever of
+//! the site's copies the split's null edges leave there.
 //! In the plane × plane
 //! lane, on a planar face the split divides, or on a ruling section, a
 //! self-loop is a lone site, and rides `mef`'s placeholder circle
@@ -1974,20 +1978,31 @@ fn chord_arc<T: Decide>(
 }
 
 /// **Where a chord from `u1` to `u2` ends on its closed section**:
-/// `u2`'s point, or `None`, back at its start a whole turn on, where
-/// `u2` is `u1` or a copy of its site ([`null_site`]). A chord leaves
-/// its start, and the null edges already tie a site's copies, so a
-/// chord between two copies of one site runs round the whole section.
+/// `u2`'s point, or `None`, back at its start a whole turn on, where the
+/// two are one site ([`same_site`]).
 fn far_end<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     (u1, u2): (VertexKey, VertexKey),
 ) -> Result<Option<Point3<T>>, SplitJoinError> {
+    Ok((!same_site(body, face, (u1, u2))?).then(|| vertex_point(body, u2)))
+}
+
+/// Whether a chord from `u1` to `u2` starts and ends at one site:
+/// `u2` is `u1` or a copy of it the null edges tie ([`null_site`]). A
+/// chord leaves its start, and the null edges already join a site's
+/// copies, so a chord between two of them runs round its whole closed
+/// section.
+fn same_site<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<bool, SplitJoinError> {
     let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
         face,
         what: StaleSite::WHAT,
     })?;
-    Ok((!tied.contains(&u2)).then(|| vertex_point(body, u2)))
+    Ok(tied.contains(&u2))
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -2845,7 +2860,7 @@ fn carried_chord_spec<T: Decide>(
     };
     let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
     let t1 = if seat1 { start } else { from };
-    let t2 = if u1 == u2 || at_seat(p2)? {
+    let t2 = if same_site(body, face, (u1, u2))? || at_seat(p2)? {
         stop
     } else {
         foot(p2)?
