@@ -338,6 +338,13 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
 /// crescent between the sheets may be void or shared: neither
 /// contradicts.
 ///
+/// The touch is read at every sample of the held locus, the residual
+/// every carrier owes however its pair decided its tangency: a pair's
+/// pose decides whether the surfaces are tangent and where
+/// (`geom_brep::pair_section::gap`), not that the held rim stands within
+/// ε of both all the way round, so a rim of a pair its pose decides
+/// tangent can still escalate here.
+///
 /// # Errors
 ///
 /// [`ContactRefusal`] — see [`tangent_pair_relation`].
@@ -1302,6 +1309,78 @@ mod tests {
                 assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
             }
             other => panic!("the whole circle osculates at the poles: {other:?}"),
+        }
+    }
+
+    /// **A rim the pair's pose reads tangent can still escalate along
+    /// the rim**, and both answers are right. Two pipe bends joined G1
+    /// along the tube circle at `(2, 0, 0)` (cores of `R = 2` and
+    /// `1.5` in planes `0.7` rad apart, tubes of `0.5`), the second's
+    /// tube `0.6ε` wider and moved `0.6ε` along `x`: the cores' least
+    /// distance and the tube level stand within the zero band of each
+    /// other, so the pose's critical gap decides the pair tangent; the
+    /// first bend's rim circle stands `1.2ε` off the second torus on its
+    /// outer side, which the oracle (the exact distance from the rim's
+    /// points to the second torus) measures too, so no edge certified at
+    /// ε runs along it and the touch escalates.
+    #[test]
+    fn a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim() {
+        let b = band();
+        let e = b.zero();
+        let torus = |c: Point3<f64>, a: Vec3<f64>, big: f64, r: f64| {
+            let a = a.normalize();
+            Surface::Torus {
+                center: c,
+                axis: a,
+                major_radius: big,
+                minor_radius: r,
+                u_ref: a.orthonormal_basis().0,
+            }
+        };
+        let first = torus(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 2.0, 0.5);
+        let alpha = 0.7f64;
+        let inward = Vec3::new(-alpha.cos(), 0.0, alpha.sin());
+        let (bend_center, bend_axis) = (
+            Point3::new(2.0 + 0.6 * e, 0.0, 0.0) + inward * 1.5,
+            inward.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
+        );
+        let bend = torus(bend_center, bend_axis, 1.5, 0.5 + 0.6 * e);
+        let rim = geom::Curve3::Circle {
+            center: Point3::new(2.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let pose = geom_brep::TorusTorusPose::decide(&first, &bend, b).expect("two tori");
+        assert!(
+            matches!(pose, Ok(ref p) if matches!(p.gap(), geom_brep::TorusGap::Tangent { .. })),
+            "the pose decides the pair tangent: {pose:?}"
+        );
+        let off = (0..360)
+            .map(|k| {
+                let q = rim.eval(core::f64::consts::TAU * f64::from(k) / 360.0);
+                let d = q - bend_center;
+                let h = d.dot(bend_axis);
+                ((d - bend_axis * h).norm() - 1.5).hypot(h) - (0.5 + 0.6 * e)
+            })
+            .fold(0.0f64, |far, d| far.max(d.abs()));
+        assert!(off > e, "the rim stands {off:e} off the second torus");
+        for sense in [true, false] {
+            match tangency_reading(
+                &first,
+                true,
+                &bend,
+                sense,
+                &rim,
+                0.0,
+                core::f64::consts::TAU,
+                b,
+            ) {
+                Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
+                    assert_eq!(diag.predicate, Some("contact_tangent_gap"));
+                }
+                other => panic!("the touch along the rim: {other:?}"),
+            }
         }
     }
 

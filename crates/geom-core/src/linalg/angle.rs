@@ -93,14 +93,12 @@ impl Turns {
             } else {
                 (s, false)
             };
+            let angle = T::tau() * T::from_f64(at as f64) / T::from_f64((4 * den) as f64);
             let (sin, cos) = if 3 * at == den {
                 // A twelfth of a turn: the sine is one half exactly.
-                (
-                    T::from_f64(0.5),
-                    (T::tau() * T::from_f64(at as f64) / T::from_f64((4 * den) as f64)).cos(),
-                )
+                (T::sin_of_a_twelfth(), angle.cos())
             } else {
-                (T::tau() * T::from_f64(at as f64) / T::from_f64((4 * den) as f64)).sin_cos()
+                angle.sin_cos()
             };
             if swapped { (cos, sin) } else { (sin, cos) }
         };

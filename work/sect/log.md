@@ -274,6 +274,20 @@ off its axis-aligned arm (SECTSITE).
   they collide. The cylinder-face ring re-homing row waits for PR 5974 and
   the components unit's germ-mint change in `join.rs`.
 
+## 2026-10-29 — teapot wall 2's sphere × torus half (PR 5974)
+
+PR 5974: a carried ring on a torus face reads its spline arcs (the torus
+`ring_path` arm), and `join::along_facing` refuses germs on two components
+up front as `facing` does. Wall 2 still stops at SPIRICARM's volume door
+(conic trim), now pinned by exact payload; the matcher fix moves its
+refused face (`6v1` → `1v5`) and ball × rod's on every op, which restores
+the mirror symmetry main broke (row
+`a_rod_through_a_ball_pairs_both_loops_alike`). Tier: **single FULL**
+(re-tiered from dual at the PR, the unit having shrunk): APPROVE-WITH-FIXES,
+no soundness defect (0 wrong of 2617 decided paths over 330 random poses);
+one fix pass took every item, with the reviewer's random search landed
+as `random_torus_sections`. The `Untold` placements wait on the components
+unit.
 ## 2026-10-29 — two circles cross is spelled once (PR 6001)
 
 `circle-pair-crossing-is-spelled-three-times` closed by PR 6001: the
@@ -286,3 +300,22 @@ circles where the old form drifted up to 9.4e5 ulps, same order. The
 unclamped `half_chord` is read only past a decided secant, so its square
 is a product of decided-positive margins. Left as filed: the sphere ×
 tube-circle rows (a verdict would move at `Interval`), P3.
+
+## 2026-10-29 — a torus pair's tangency and coincidence decided once (PR 5994)
+
+PR 5994 closes `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+(one decision, `geom_brep::tori_coincide`, read first by the pose in every
+stance and by the carrier ladder's undeclared arm; the declared reading is
+a different question and reads the same displacement) and
+`a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`
+(two questions, argued at `tangency_reading`, one pose pinned showing both
+answers right; no implication between them is claimed). Main read a nearly
+coincident tilted pair Tangent (a wrong definite answer); head reads it one
+surface at both readers. Disclosed moves: in-band pairs main built now refuse
+undecided; corner sites decide One on the bound's sum, not each datum.
+Tier: **single FULL**: APPROVE-WITH-FIXES, no MAJOR (the bound held against an
+exact-distance oracle and an adversarial search); one fix pass took all 11
+items, including one home for the identity walk (`geom_brep::identity_walk`,
+which topo's `identity_data` reads — the orchestrator checked its ranking and
+non-finite handling match main's) and the ring convention refused at the
+ladder.

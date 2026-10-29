@@ -22,7 +22,8 @@
 //! closed-form gap too, its centre's two meridian distances from the core
 //! ([`SphereTorusPose`]). Every other pose's gap is the sweep, on the
 //! operands as they stand, two tori's on either core ([`TorusTorusPose`]).
-//! A coincident torus pair is refused as a coincidence before any gap.
+//! Two tori decided one surface ([`super::torus_coincidence`]) are refused
+//! as a coincidence before any other question.
 //!
 //! # The components
 //!
@@ -48,6 +49,7 @@ use geom_core::{
 
 use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
 use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, SquareWall};
+use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, PairPose, PairSection, SectionComponent,
     SectionDecision, Sides, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
@@ -174,7 +176,8 @@ pub fn axis_pose<T: Decide>(
 /// **Which question of a torus pose was left undecided.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TorusQuestion {
-    /// The symmetry reading: a coaxiality, a tilt or an offset.
+    /// The symmetry reading: a coaxiality, a tilt or an offset, or
+    /// whether two tori are one surface.
     Symmetry,
     /// The critical gap, or a coaxial pose's tube rows.
     Gap,
@@ -277,6 +280,15 @@ impl<T: Real> Ring<T> {
     /// `[R, r]`.
     pub fn radii(&self) -> [T; 2] {
         [self.big_r, self.r]
+    }
+
+    fn data(self) -> TorusData<T> {
+        TorusData {
+            center: self.center,
+            axis: self.axis,
+            major_radius: self.big_r,
+            minor_radius: self.r,
+        }
     }
 
     fn core(self) -> Core<T> {
@@ -1128,10 +1140,10 @@ const TUBE_REACH: &str = "section_torus_coaxial_tube_reach";
 const TUBE_NEST: &str = "section_torus_coaxial_tube_nest";
 
 impl<T: Decide> TorusTorusPose<T> {
-    /// **Decides the pose of two tori**: both ring conventions; the axis
-    /// pose of the second over the smaller ball; a coaxial pair's
-    /// coincidence (`tt_coincident`) and its tube rows, or the critical
-    /// gap's sweep on either core.
+    /// **Decides the pose of two tori**: both ring conventions; whether
+    /// they are one surface ([`tori_coincide`]); the axis pose of the
+    /// second over the smaller ball; a coaxial pair's tube rows, or the
+    /// critical gap's sweep on either core.
     ///
     /// # Errors
     ///
@@ -1144,6 +1156,12 @@ impl<T: Decide> TorusTorusPose<T> {
         let (ra, rb) = (Ring::of(a, band)?, Ring::of(b, band)?);
         Some((|| {
             let (r1, r2) = (ra?, rb?);
+            match tori_coincide(r1.data(), r2.data(), band) {
+                TorusCoincidence::One(_) => return Err(TorusPoseRefusal::Coincident),
+                TorusCoincidence::Undecided(diag) => return Err(undecided_symmetry(diag)),
+                TorusCoincidence::OffRing(t) => return Err(TorusPoseRefusal::Torus(t)),
+                TorusCoincidence::Apart => {}
+            }
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
             // serves.
@@ -1163,18 +1181,6 @@ impl<T: Decide> TorusTorusPose<T> {
             let (stance, gap) = match axis_pose((r1.center, r1.axis), (c2, a2), turn, ball, band) {
                 AxisPose::Coaxial { slack, margin } => {
                     let z2 = (c2 - r1.center).dot(r1.axis);
-                    let same = (r1.big_r - r2.big_r).abs() + (r1.r - r2.r).abs() + z2.abs();
-                    match decide_across_reported(
-                        ["tt_coincident", "tt_coincident_floor"],
-                        same,
-                        slack,
-                        band,
-                    )
-                    .map_err(undecided_symmetry)?
-                    {
-                        (Sign::Zero, _) => return Err(TorusPoseRefusal::Coincident),
-                        (Sign::Positive | Sign::Negative, _) => {}
-                    }
                     let tubes = Circles::new(Vec2::new(r2.big_r - r1.big_r, z2).norm(), r1.r, r2.r);
                     let mut tube = None;
                     for (row, m) in [(TUBE_REACH, tubes.reach()), (TUBE_NEST, tubes.internal())] {
