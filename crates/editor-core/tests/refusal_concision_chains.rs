@@ -206,7 +206,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     },
     Admission {
         row: "MeasureClearanceRefused/PoisonEnclosure",
-        span: "FaceKey(null)/FaceKey(null)",
+        span: "first=FaceKey(null) second=FaceKey(null)",
         filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     // A smooth-join refusal names its edge by key.

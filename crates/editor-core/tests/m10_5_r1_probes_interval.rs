@@ -561,10 +561,10 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) => {
             println!("[r1] interval_lane_skipped_revolve_did_not_build: {s}");
         }
-        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
-            carrier,
-            face,
-        })) => {
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Unsupported { carrier, face },
+            ..
+        }) => {
             println!("[r1] interval_lane_skipped_unsupported: {carrier} at {face:?}");
         }
         ClearanceVerdict::Violated(v) => {
@@ -708,9 +708,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         assert!(
             matches!(
                 starved.verdict(),
-                ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(
-                    CellBudget::Pairs { .. }
-                ))) | ClearanceVerdict::Violated(_)
+                ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                    refusal: EngineRefusal::Budget(CellBudget::Pairs { .. }),
+                    ..
+                }) | ClearanceVerdict::Violated(_)
             ),
             "pairs = {pairs}: {}",
             starved.serialize()
@@ -765,7 +766,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     assert!(
         matches!(
             vacuous.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope))
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::EmptyScope,
+                ..
+            })
         ),
         "{}",
         vacuous.serialize()

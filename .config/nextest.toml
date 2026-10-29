@@ -152,6 +152,7 @@ not (
   (binary_id(geom-brep::all) & (test(=sphere_torus_ssi::the_teapots_handle_meets_each_belly_sphere_in_two_certified_loops) | test(=sphere_torus_ssi::a_thin_torus_and_a_sphere_crossing_its_tube_certify))) |
   (binary_id(sweep::all) & (test(=degree1_loft_slabs::every_square_loft_the_row_measured_meshes) | test(=degree1_loft_slabs::every_circle_loft_the_row_measured_meshes) | test(=degree1_loft_slabs::a_degree_one_loft_that_changes_scale_is_its_frusta) | test(=degree1_loft_slabs::the_output_stage_merge_keeps_every_slab_wall) | test(=degree1_loft_slabs::a_degree_one_path_sweep_is_one_wall_per_slab) | test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door))) |
   (binary_id(sweep::all) & (test(=self_intersection_proves_injectivity::a_full_torus_certifies_by_kind) | test(=self_intersection_proves_injectivity::a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget) | test(=self_intersection_proves_injectivity::a_long_helical_sweep_certifies_within_the_default_budget))) |
+  (binary_id(editor-core::all) & (test(=clearance_refusals_say_what_they_found::a_named_scope_asks_what_a_name_denotes_before_how_many_answer))) |
   (binary_id(geom::all) & (test(=surfaces_rect_enclosure::rect_jet_contains_every_sampled_partial_of_its_rectangle)))
 )
 """
