@@ -364,7 +364,7 @@ fn a_shared_row_is_symmetric_in_its_pair() {
     assert!(
         matches!(
             got,
-            Err(CertifyError::RowImage { .. } | CertifyError::Escalated { .. })
+            Err(CertifyError::RowImage { surface, .. }) if surface == pair.keys[0]
         ),
         "a row stated on the wrong wall refuses: {got:?}"
     );
@@ -612,7 +612,7 @@ fn a_rim_across_a_closed_charts_closure_is_no_shared_row() {
     assert!(
         matches!(
             got,
-            Err(CertifyError::RowImage { .. } | CertifyError::Escalated { .. })
+            Err(CertifyError::RowImage { surface, check: None }) if surface == pair.keys[0]
         ),
         "a period-shifted row refuses: {got:?}"
     );
@@ -630,10 +630,249 @@ fn a_shared_row_between_tangent_walls_refuses_as_not_transverse() {
     let images = [0, 1].map(|i| row(&carrier, params, pair.wall(i)));
     let got = pair.certify(shared(&pair, images), &carrier, params);
     assert!(
+        matches!(got, Err(CertifyError::NotTransverse { sample: 1, .. })),
+        "tangent walls are not definitely transverse along the row: {got:?}"
+    );
+}
+
+/// A degree-2 clamped knot vector on `[0, 1]` with no interior knot.
+fn k2() -> KnotVector {
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+}
+
+/// The floor `z = 0` over `[0, 1]²` (degree 2 along `y`), the line
+/// `x = 1` on it (its `u = 1` side), and an upright on that line whose top
+/// row is `(lean, y, h(y))`, `h(y) = (y - y*)²`: at `y*` the upright's
+/// ruling lies in `z = 0`, so the walls are tangent there.
+fn tangent_at(ys: f64, lean: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let floor = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            k2(),
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(|x| [0.0, 0.5, 1.0].map(|y| p(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let h = [ys * ys, ys * ys - ys, (1.0 - ys) * (1.0 - ys)];
+    let mut control = Vec::new();
+    for (j, y) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+        control.push(p(1.0, y, 0.0));
+        control.push(p(lean, y, h[j]));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            k2(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            k2(),
+            vec![p(1.0, 0.0, 0.0), p(1.0, 0.5, 0.0), p(1.0, 1.0, 0.0)],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(1.0, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    (Pair::of(floor, upright), line, images)
+}
+
+/// **A crossing angle that vanishes between the samples or at an end
+/// refuses.** The upright meets the floor along `x = 1` and leans
+/// `(y − y*)²` toward it, so the walls are tangent at `y*` alone: between
+/// the transversality samples (`y* = 0.19`), at either end, or on a sample
+/// (`y* = ½`); with `lean = 0` the upright folds back over the floor and
+/// its ruling at `y*` is a second branch crossing the rim. The cover of
+/// the row reads every one: where its least margin is definitely zero it
+/// refuses `NotTransverse`, where a piece cannot be read zero-free it
+/// escalates, and a sample on the tangency refuses there first.
+#[test]
+fn a_shared_row_whose_walls_touch_off_its_samples_refuses() {
+    for (ys, lean, escalates) in [
+        (0.19, 0.0, true),
+        (0.19, 2.0, true),
+        (0.0, 0.0, true),
+        (1.0, 0.0, false),
+        (0.5, 0.0, false),
+    ] {
+        let (pair, line, images) = tangent_at(ys, lean);
+        let got = pair.certify(shared(&pair, images), &line, (0.0, 1.0));
+        let read = match got {
+            Err(CertifyError::Escalated {
+                check: geom_brep::CertCheck::Transversality,
+                ..
+            }) => Some(true),
+            Err(CertifyError::NotTransverse { .. }) => Some(false),
+            _ => None,
+        };
+        assert_eq!(
+            read,
+            Some(escalates),
+            "y* = {ys}, lean {lean}: walls touching on the row refuse their crossing: {got:?}"
+        );
+    }
+}
+
+/// **An interior row refuses, whichever way a crease beside it folds.** A
+/// floor creased along its interior column `u = ½`, one sheet folded up to
+/// within `0.1 ε` of the upright `x = ½`, on either side: the shared row
+/// is built for boundary rows, so both mirror images refuse
+/// [`CertifyError::RowOffSide`] on the floor, before any reading that
+/// could tell the two sides apart.
+#[test]
+fn an_interior_row_refuses_whichever_way_its_crease_folds() {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let upright = bilinear([
+        p(0.5, 0.0, 0.0),
+        p(0.5, 0.0, 1.0),
+        p(0.5, 1.0, 0.0),
+        p(0.5, 1.0, 1.0),
+    ]);
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![p(0.5, 0.0, 0.0), p(0.5, 1.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.5, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    let s = 0.1 * eps();
+    for left_up in [false, true] {
+        let col = |x: f64, z: f64| [p(x, 0.0, z), p(x, 1.0, z)];
+        let rows = if left_up {
+            [col(0.5 - s, 1.0), col(0.5, 0.0), col(1.0, 0.0)]
+        } else {
+            [col(0.0, 0.0), col(0.5, 0.0), col(0.5 + s, 1.0)]
+        };
+        let creased = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                rows.iter().flatten().copied().collect(),
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ));
+        let pair = Pair::of(creased, upright.clone());
+        let got = pair.certify(shared(&pair, images.clone()), &line, (0.0, 1.0));
+        assert!(
+            matches!(got, Err(CertifyError::RowOffSide { surface }) if surface == pair.keys[0]),
+            "left up {left_up}: the floor's interior column is no side: {got:?}"
+        );
+    }
+}
+
+/// The flange rings' sub-arcs.
+const M: usize = 24;
+
+/// A ring about `z` through `TURN` in `M` rational quadratic sub-arcs:
+/// its `v = 0` row the unit circle, its `v = 1` row column `j`'s control
+/// point plus `offset(j)`.
+fn flange_ring(offset: impl Fn(usize, Vec3<f64>) -> Vec3<f64>) -> Surface<f64> {
+    let h = TURN / M as f64;
+    let mut ku = vec![0.0; 3];
+    for k in 1..M {
+        ku.extend([sub_arc_joint(k, M); 2]);
+    }
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=2 * M {
+        let theta = j as f64 * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        let a = Point3::new(reach * theta.cos(), reach * theta.sin(), 0.0);
+        let radial = Vec3::new(reach * theta.cos(), reach * theta.sin(), 0.0);
+        control.push(a);
+        control.push(a + offset(j, radial));
+        weights.extend([w, w]);
+    }
+    Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(ku, 2).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            weights,
+        )
+        .unwrap(),
+    ))
+}
+
+/// The cylinder `z ∈ [0, 1]` and a flange running outward in `z = 0`
+/// except on sub-arc 4 (carrier `t ∈ [0.2, 0.25]`), where its columns
+/// 8–10 turn straight down: there `∂S/∂v = −ẑ`, so the flange's normal is
+/// the cylinder's and the walls are tangent along the rim on that whole
+/// sub-span. The edge over the whole turn, its selector their shared row.
+fn tangent_along_a_sub_span() -> Result<EdgeCurve<f64>, CertifyError> {
+    let cylinder = flange_ring(|_, _| Vec3::new(0.0, 0.0, 1.0));
+    let flange = flange_ring(|j, radial| {
+        if (8..=10).contains(&j) {
+            Vec3::new(0.0, 0.0, -1.0)
+        } else {
+            radial
+        }
+    });
+    let Surface::Nurbs(f) = &flange else {
+        unreachable!("a ring is a spline wall")
+    };
+    let d = f.ders((sub_arc_joint(4, M) + sub_arc_joint(5, M)) / 2.0, 0.0);
+    let n = d.du.cross(d.dv);
+    assert!(
+        (n * (1.0 / n.norm())).z.abs() < 1e-12,
+        "the fixture's tangency: the flange's normal is horizontal on sub-arc 4"
+    );
+    let pair = Pair::of(cylinder, flange);
+    let (carrier, params) = (rim(1.0), (0.0, TURN));
+    let images = [0, 1].map(|i| row(&carrier, params, pair.wall(i)));
+    pair.certify(shared(&pair, images), &carrier, params)
+}
+
+/// **Walls tangent along a whole sub-span refuse.** The cylinder and a
+/// flange that turns straight down on one of its 24 sub-arcs, where the
+/// two walls are tangent along the rim; no certification sample falls on
+/// that sub-arc. The cover of the row cannot read it zero-free, and
+/// escalates.
+#[test]
+fn a_shared_row_tangent_along_a_sub_span_escalates() {
+    let got = tangent_along_a_sub_span();
+    assert!(
         matches!(
             got,
-            Err(CertifyError::NotTransverse { .. } | CertifyError::Escalated { .. })
+            Err(CertifyError::Escalated {
+                check: geom_brep::CertCheck::Transversality,
+                ..
+            })
         ),
-        "tangent walls are not definitely transverse along the row: {got:?}"
+        "walls tangent along t ∈ [0.2, 0.25] escalate their crossing: {:?}",
+        got.map(|e| e.certificate().max_residual)
     );
 }

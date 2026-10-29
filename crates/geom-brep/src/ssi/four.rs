@@ -720,6 +720,88 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     })
 }
 
+/// The pieces a row's span is first cut into ([`row_crossing`]).
+const ROW_PIECES: usize = 8;
+
+/// How many times [`row_crossing`] may halve a piece before it stops.
+const ROW_DEPTH: u32 = 10;
+
+/// Why [`row_crossing`] gave no bound.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum RowCrossing {
+    /// A wall's chart has no speeds to scale its Jacobian by.
+    Unreadable,
+    /// A piece `(lo, hi)` of the span, halved [`ROW_DEPTH`] times, still
+    /// holds a zero of its graph margin: the walls may touch there.
+    Straddles(f64, f64),
+}
+
+/// **Two walls' crossing along a shared row, bounded over the whole
+/// span**: the least zero-free [`graph_margin`] over a cover of
+/// `[t0, t1]`. `read(lo, hi)` gives a piece's state box (the two row
+/// images' chart boxes over it) and the images' chord across it, in
+/// state coordinates.
+///
+/// A zero-free graph margin over a box says the pair's Jacobian has rank
+/// three at every state in it: the two tangent planes differ everywhere
+/// the row's piece can be. A piece that straddles zero is halved, up to
+/// [`ROW_DEPTH`] times. This is limb 3's crossing reading, local to the
+/// row, without its one-arc count.
+///
+/// Each piece's box is read one ulp inside its moving coordinates, so a
+/// piece ending on a knot reads only its own span (cut at the knot
+/// itself, the adjacent span's enclosure widens the Jacobian past use).
+/// The margin is continuous on each closed span, so a crossing that
+/// vanished at a piece's end would read within a few ulps of zero just
+/// inside it: the least margin still bounds the ends, to that slack,
+/// which is far inside any band.
+pub(crate) fn row_crossing<T: CertifiedBounds>(
+    (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
+    (t0, t1): (f64, f64),
+    read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
+) -> Result<f64, RowCrossing> {
+    let (Ok(ca), Ok(cb)) = (super::ChartedNurbs::mint(a), super::ChartedNurbs::mint(b)) else {
+        return Err(RowCrossing::Unreadable);
+    };
+    let (sa, sb) = (ca.speeds(), cb.speeds());
+    let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
+    let mut least = f64::INFINITY;
+    #[allow(clippy::cast_precision_loss)]
+    let mut work: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
+        .map(|k| {
+            let at = |k: usize| t0 + (t1 - t0) * (k as f64 / ROW_PIECES as f64);
+            (at(k), at(k + 1), 0)
+        })
+        .collect();
+    while let Some((lo, hi, depth)) = work.pop() {
+        let (x, chord) = read(lo, hi);
+        // Each moving coordinate one ulp inside its piece, so the box
+        // reads one span's polynomial even where a piece ends on a knot.
+        let x = Box4(x.0.map(|(l, h)| {
+            if l < h {
+                (l.next_up(), h.next_down())
+            } else {
+                (l, h)
+            }
+        }));
+        let scaled: [f64; 4] = core::array::from_fn(|k| chord[k] * pair.speeds[k]);
+        let norm = scaled.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let e = scaled.map(|c| c / norm);
+        let margin = graph_margin(&pair, x, e);
+        let (m_lo, m_hi) = (margin.lo(), margin.hi());
+        if norm > 0.0 && (m_lo > 0.0 || m_hi < 0.0) {
+            least = least.min(m_lo.abs().min(m_hi.abs()));
+        } else if depth < ROW_DEPTH {
+            let half = lo * 0.5 + hi * 0.5;
+            work.push((lo, half, depth + 1));
+            work.push((half, hi, depth + 1));
+        } else {
+            return Err(RowCrossing::Straddles(lo, hi));
+        }
+    }
+    Ok(least)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {

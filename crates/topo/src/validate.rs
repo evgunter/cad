@@ -3256,6 +3256,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
+        | CertifyError::RowOffSide { .. }
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
@@ -3297,6 +3298,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
+            | CertifyError::RowOffSide { .. }
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(
                 P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
@@ -3404,7 +3406,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::PlaneNurbsHull
         | CertCheck::PlaneNurbsHullValue
         | CertCheck::AnalyticBreakResidual
-        | CertCheck::AnalyticHull => {
+        | CertCheck::AnalyticHull
+        | CertCheck::RowImage { .. } => {
             geom_core::undecided!("whether it lies where its description says")
         }
         CertCheck::PlaneNurbsReportedTransversality => {

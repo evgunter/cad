@@ -224,15 +224,40 @@ impl<T: Real> SharedRow<T> {
     }
 }
 
-/// Whether `image` runs along one chart coordinate: an iso line or an
-/// arc rim whose chart displacement has one coordinate exactly zero.
-fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
-    let along = |x: T, y: T| geom_core::is_exact_zero(x) || geom_core::is_exact_zero(y);
+/// A row image's reading: whether it moves along `u` (else along `v`),
+/// and its fixed coordinate. An iso line moves along exactly one chart
+/// coordinate; an arc rim moves along `u`, the only way an arc-rim image
+/// is stated or certified. `None` for anything else.
+fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
+    let zero = |x: T| geom_core::is_exact_zero(x);
     match image {
-        Pcurve::IsoLine { pl, .. } => along(pl.x, pl.y),
-        Pcurve::IsoArc { pd, .. } => along(pd.x, pd.y),
-        _ => false,
+        Pcurve::IsoLine { p0, pl } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),
+        Pcurve::IsoLine { p0, pl } if zero(pl.x) && !zero(pl.y) => Some((false, p0.x)),
+        Pcurve::IsoArc { p0, pd, .. } if zero(pd.y) && !zero(pd.x) => Some((true, p0.y)),
+        _ => None,
     }
+}
+
+/// Whether `image` is a row image at all ([`row_of`]).
+fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
+    row_of(image).is_some()
+}
+
+/// **Whether `image` is a row along a domain side of `chart`**: a row
+/// image ([`row_of`]) whose fixed coordinate is exactly one of that
+/// coordinate's domain ends. The shared row's one admission rule, read by
+/// the recovery and by the certificate alike. Exact, because a row image
+/// states its side as data: the rows the walls' picks offer are read off
+/// the domain ends themselves.
+pub(crate) fn on_domain_side<T: Real>(chart: &geom::NurbsSurface<T>, image: &Pcurve<T>) -> bool {
+    row_of(image).is_some_and(|(along_u, fixed)| {
+        let (lo, hi) = if along_u {
+            chart.knot_values_v().domain()
+        } else {
+            chart.knot_values_u().domain()
+        };
+        geom_core::is_exact_zero(fixed - lo) || geom_core::is_exact_zero(fixed - hi)
+    })
 }
 
 /// The canonical edge description (module docs): D2's two intrinsic

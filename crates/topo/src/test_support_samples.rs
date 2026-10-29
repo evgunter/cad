@@ -508,6 +508,7 @@ fn certify_errors() -> Vec<CertifyError> {
             surface: key,
             check: None,
         },
+        CertifyError::RowOffSide { surface: key },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
