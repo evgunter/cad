@@ -17,13 +17,13 @@
 //! No mass pin: every body is revolved, so its volume is `π`-valued.
 
 use editor_core::{
-    Coord, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, Operand, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, TargetAxis, VarDecl, VarName,
+    Coord, Dimension, DocEdit, Formula, FreeVar, Node, Operand, ProgramStep, ProgramTarget,
+    RecipeNodeId, TargetAxis, VarDecl, VarName,
 };
 
-use crate::fixture::{ang, axis, fname, len, revolve_about};
+use crate::fixture::{axis, len};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder, Revolved};
 
 /// The document variable the press fit's bore and shank both read.
 pub const BORE: &str = "bore";
@@ -56,47 +56,15 @@ fn at(rho: Formula, y: f64) -> [Formula; 2] {
     [rho, len(y)]
 }
 
-/// A meridian profile and its revolve.
-#[derive(Clone, Copy)]
-struct Revolved {
-    profile: RecipeNodeId,
-    revolve: RecipeNodeId,
-}
-
-impl Revolved {
-    /// **The wall the meridian's `k`-th step sweeps** (step 0 is the
-    /// start): its first half, whose axis is the wall's.
-    fn wall(self, r: &Recorder, k: usize) -> editor_core::StableName {
-        let Some(Node::Profile(program)) = r.doc.node(self.profile) else {
-            unreachable!("a meridian is a profile")
-        };
-        let leg = editor_core::ProfileEdgeRef::Piece {
-            step: program.ids[0][k],
-            role: editor_core::PieceRole::Leg,
-        };
-        fname(self.revolve, RoleSeg::Band(leg.into()))
-    }
-}
-
-/// The meridian `points` revolved a full turn about the profile's `y`.
+/// The meridian of straight legs through `points`, closed, revolved.
 fn revolved(r: &mut Recorder, points: Vec<[Formula; 2]>) -> Revolved {
-    let mut steps = points.into_iter();
-    let first = steps.next().expect("a meridian has a start");
+    let mut points = points.into_iter();
+    let first = points.next().expect("a meridian has a start");
     let chain = std::iter::once(ProgramStep::At(first))
-        .chain(steps.map(|p| ProgramStep::LineTo(ProgramTarget::Point(p))))
+        .chain(points.map(|p| ProgramStep::LineTo(ProgramTarget::Point(p))))
         .chain([ProgramStep::LineTo(ProgramTarget::Start)])
         .collect();
-    let profile = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Chain(chain)],
-        ids: Vec::new(),
-    }));
-    let revolve = r.insert(revolve_about(
-        profile,
-        (0.0, 0.0),
-        crate::fixture::along_y(),
-        ang(std::f64::consts::TAU),
-    ));
-    Revolved { profile, revolve }
+    super::revolved(r, chain)
 }
 
 /// A housing whose bore is `radius`: its meridian's step 4 sweeps the
@@ -137,16 +105,13 @@ fn pin(r: &mut Recorder, radius: Formula) -> Revolved {
 /// refuses as overconstrained; the slide is measured from the housing's
 /// origin, so `0` would stand the shoulder on the housing's base.)
 fn seated(r: &mut Recorder, pin: Revolved, housing: Revolved, seat: RecipeNodeId) -> RecipeNodeId {
-    let on = axis(Operand::select(
-        Operand::output(pin.revolve, 0),
-        vec![pin.wall(r, 2)],
-    ));
+    let on = axis(Operand::select(pin.body(), vec![pin.wall(r, 2)]));
     let to = axis(Operand::select(
         Operand::output(seat, 0),
         vec![housing.wall(r, 4)],
     ));
     let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
-        crate::fixture::body_read(&r.doc, Operand::output(pin.revolve, 0)),
+        crate::fixture::body_read(&r.doc, pin.body()),
     )));
     r.constrain(
         placement,
@@ -157,6 +122,31 @@ fn seated(r: &mut Recorder, pin: Revolved, housing: Revolved, seat: RecipeNodeId
         ],
     );
     placement
+}
+
+/// **Each fit's two walls, bore then shank**, each as its revolve and
+/// the step whose leg it sweeps, press fit first: what the census would
+/// read as the fit's contact.
+pub fn walls(doc: &editor_core::ProfileDoc) -> [[(RecipeNodeId, editor_core::StepId); 2]; 2] {
+    let revolves: Vec<RecipeNodeId> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Revolve { .. })))
+        .collect();
+    let wall = |revolve: RecipeNodeId, k: usize| {
+        let profile = doc.upstream(revolve)[0];
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            unreachable!("a meridian is a profile")
+        };
+        (revolve, program.ids[0][k])
+    };
+    let [press_housing, press_pin, loose_housing, loose_pin] = revolves[..] else {
+        unreachable!("two housings and two pins: {revolves:?}")
+    };
+    [
+        [wall(press_housing, 4), wall(press_pin, 2)],
+        [wall(loose_housing, 4), wall(loose_pin, 2)],
+    ]
 }
 
 /// The pin-in-bore corpus document.
@@ -206,7 +196,7 @@ fn scene((name, about): (&'static str, &'static str), shank: &'static str) -> Co
         &mut r,
         Formula::named(VarName::from_static(shank), Dimension::Length),
     );
-    let press_seat = r.place_part(Operand::output(press_housing.revolve, 0));
+    let press_seat = r.place_part(press_housing.body());
     seated(&mut r, press_pin, press_housing, press_seat);
 
     let loose_housing = housing(&mut r, len(BORE_R));
@@ -215,7 +205,7 @@ fn scene((name, about): (&'static str, &'static str), shank: &'static str) -> Co
         Formula::named(VarName::from_static(LOOSE), Dimension::Length),
     );
     let loose_seat = r.in_world(
-        Operand::output(loose_housing.revolve, 0),
+        loose_housing.body(),
         &editor_core::Frame::translation([LOOSE_AT, 0.0, 0.0]),
     );
     seated(&mut r, loose_pin, loose_housing, loose_seat);

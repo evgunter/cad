@@ -1816,60 +1816,81 @@ fn census_the_door_per_row_over_the_corpus() {
         let ev = run(&cd.doc);
         for (node, result) in &ev.nodes {
             if let editor_core::NodeResult::Failed(e) = result {
-                let kind = format!("{:?}", e.kind);
-                let kind: String = kind.chars().take_while(|c| *c != ' ').collect();
+                let kind = match &e.kind {
+                    editor_core::NodeErrorKind::Boolean(b) => {
+                        format!(
+                            "Boolean/{}",
+                            crate::fixture::variant_name(&format!("{b:?}"))
+                        )
+                    }
+                    kind => crate::fixture::variant_name(&format!("{kind:?}")),
+                };
                 println!("REFUSED {} {} {kind}", cd.name, node.0.ordinal());
             }
         }
-        let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
-            .order
-            .iter()
-            .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
-            .filter(|(_, rows)| !rows.is_empty())
-            .collect();
-        let proofs = coincide::prove(
-            &cd.doc,
-            &nodes,
-            None,
-            Tol::witness(),
-            &editor_core::CancelToken::new(),
-        )
-        .expect("an uncanceled door");
-        for ((node, rows), proofs) in nodes.iter().zip(&proofs) {
-            for (i, (row, proof)) in rows.iter().zip(proofs).enumerate() {
-                let how = match proof {
-                    Proof::Structural(rung) => format!("{rung:?}"),
-                    Proof::Unproven { residual, recourse } => {
-                        format!("unproven/{:?}/{recourse:?}", residual.replay)
-                    }
-                };
+        for (node, rows, proofs) in proved_rows(&cd.doc, &ev) {
+            for (i, (row, proof)) in rows.iter().zip(&proofs).enumerate() {
                 println!(
-                    "ROW {} {} {i} {:?} {:?} {how}",
+                    "ROW {} {} {i} {:?} {:?} {}",
                     cd.name,
                     node.0.ordinal(),
                     row.relation,
-                    row.site
+                    row.site,
+                    proof_words(proof)
                 );
             }
         }
         // The `⊔`s' at-rest rows, each under its first copy's placement,
         // as the `unproven-coincidence` check asks them.
         for (i, (node, row)) in at_rest_rows(&cd.doc, &ev).iter().enumerate() {
-            let how = match proof(&cd.doc, *node, row) {
-                Proof::Structural(rung) => format!("{rung:?}"),
-                Proof::Unproven { residual, recourse } => {
-                    format!("unproven/{:?}/{recourse:?}", residual.replay)
-                }
-            };
             println!(
-                "ROW {} {} at-rest/{i} {:?} {:?} {how}",
+                "ROW {} {} at-rest/{i} {:?} {:?} {}",
                 cd.name,
                 node.0.ordinal(),
                 row.relation,
-                row.site
+                row.site,
+                proof_words(&proof(&cd.doc, *node, row))
             );
         }
     }
+}
+
+/// **A proof in the census's words**: the rung that proved it, or
+/// `unproven/<replay>/<recourse>`.
+fn proof_words(proof: &Proof) -> String {
+    match proof {
+        Proof::Structural(rung) => format!("{rung:?}"),
+        Proof::Unproven { residual, recourse } => {
+            format!("unproven/{:?}/{recourse:?}", residual.replay)
+        }
+    }
+}
+
+/// **Every evaluated node's rows, each with the door's proof**, in
+/// evaluation then decision order, asked of the door at once.
+fn proved_rows(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+) -> Vec<(RecipeNodeId, Vec<NamedCoincidence>, Vec<Proof>)> {
+    let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
+        .order
+        .iter()
+        .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
+        .filter(|(_, rows)| !rows.is_empty())
+        .collect();
+    let proofs = coincide::prove(
+        doc,
+        &nodes,
+        None,
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door");
+    nodes
+        .into_iter()
+        .zip(proofs)
+        .map(|((node, rows), proofs)| (node, rows.to_vec(), proofs))
+        .collect()
 }
 
 /// **The at-rest rows of `doc`'s `⊔`s**: the world product's, then each
@@ -1946,13 +1967,9 @@ fn census_the_door_over_the_corpus() {
         let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
         for ((_, rows), proofs) in nodes.iter().zip(&proofs) {
             for (row, proof) in rows.iter().zip(proofs) {
-                let how = match proof {
-                    Proof::Structural(rung) => format!("{rung:?}"),
-                    Proof::Unproven { residual, recourse } => {
-                        format!("unproven/{:?}/{recourse:?}", residual.replay)
-                    }
-                };
-                *tally.entry(format!("{:?} {how}", row.site)).or_default() += 1;
+                *tally
+                    .entry(format!("{:?} {}", row.site, proof_words(proof)))
+                    .or_default() += 1;
             }
         }
         eprintln!(
@@ -2632,40 +2649,34 @@ fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<Stri
     );
     let mut all = Vec::new();
     let mut lines = Vec::new();
-    for &node in &ev.order {
-        let Some(value) = ev.value(node) else {
-            continue;
-        };
-        if value.coincidences.is_empty() {
-            continue;
-        }
-        let rows = value.coincidences.to_vec();
-        for (row, proof) in rows.iter().zip(proofs(&cd.doc, node, &rows)) {
-            let how = match proof {
-                Proof::Structural(rung) => format!("{rung:?}"),
-                Proof::Unproven { residual, recourse } => {
-                    format!("unproven/{:?}/{recourse:?}", residual.replay)
-                }
-            };
-            lines.push(format!("{:?} {:?} {how}", row.relation, row.site));
+    for (_, rows, proofs) in proved_rows(&cd.doc, &ev) {
+        for (row, proof) in rows.iter().zip(&proofs) {
+            lines.push(format!(
+                "{:?} {:?} {}",
+                row.relation,
+                row.site,
+                proof_words(proof)
+            ));
         }
         all.extend(rows);
     }
     (all, lines)
 }
 
-/// **`cd`'s union escalates at `Interval`**, so the scene stands beside
-/// the registry.
+/// **`cd`'s union escalates at `Interval` on the ruled region's span**
+/// (`bool_ruled_region_span`), so the scene stands beside the registry
+/// (`work/intent/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`).
 fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
     let union = cd.result.expect("the scene's head is its union");
     match ev.nodes.get(&union) {
         Some(editor_core::NodeResult::Failed(e)) => assert!(
             matches!(
-                e.kind,
-                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { .. })
+                &e.kind,
+                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { diag, .. })
+                    if diag.predicate == Some("bool_ruled_region_span")
             ),
-            "{}'s union escalates at Interval: {:?}",
+            "{}'s union escalates at Interval on the ruled region's span: {:?}",
             cd.name,
             e.kind
         ),
@@ -2696,13 +2707,16 @@ fn a_band(name: &StableName) -> bool {
 
 /// **A pin seated in a bore records no row, and the census says it
 /// cannot look** (INTENT stage 6, `pin_in_bore`). Each pin stands on
-/// its housing, its shoulder on the top and its shank in the bore; no
+/// its housing, its shoulder on the top and its shank in the bore. No
 /// node decides a coincidence, and the world's `⊔` records no at-rest
-/// row: the census meets curved faces of two parts within reach and
-/// says it cannot yet tell whether they touch, at the press fit (whose
-/// walls are one cylinder by value) and at the clearance fit alike, and
-/// alike where the press fit's shank reads a second variable typed equal
-/// to the bore (`pin_in_bore_two_variables`).
+/// row at all, neither the press fit's walls (one cylinder by value)
+/// nor either shoulder's rest on its housing's top. The census names
+/// the press fit's bore wall and shank wall as a pair it cannot clear
+/// (`CensusUndecidable`: it cannot yet tell whether curved faces of two
+/// parts touch), and does not pair the clearance fit's, which stand
+/// apart; the rest of what it reports is tallied. Alike where the press
+/// fit's shank reads a second variable typed equal to the bore
+/// (`pin_in_bore_two_variables`).
 ///
 /// Red if a pin stops seating, or once the census decides a curved
 /// contact (then the press fit's walls are a row to pin here).
@@ -2750,10 +2764,76 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
     );
     let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
     for finding in &product.census {
-        let kind = format!("{finding:?}");
-        let kind = kind.split([' ', '{', '(']).next().unwrap_or_default();
-        *tally.entry(kind.to_owned()).or_default() += 1;
+        *tally
+            .entry(crate::fixture::variant_name(&format!("{finding:?}")))
+            .or_default() += 1;
     }
+    // The pairs the census cannot clear, each face as its revolve and
+    // the step its wall sweeps.
+    let wall = |f| {
+        let mut name = product.names.name_of(&editor_core::EntityRef {
+            body: 0,
+            key: EntityKey::Face(f),
+        })?;
+        // A copy's face is said by the read it came in through.
+        while let [RoleSeg::From { of, .. }] = name.path.as_slice() {
+            name = of;
+        }
+        match name.path.as_slice() {
+            [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => run
+                .pieces()
+                .first()
+                .and_then(|p| p.step())
+                .map(|step| (name.node, step)),
+            _ => None,
+        }
+    };
+    let undecided: Vec<[(RecipeNodeId, editor_core::StepId); 2]> = product
+        .census
+        .iter()
+        .filter_map(|finding| match finding {
+            topo::ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
+                ..
+            } => Some([wall(*a)?, wall(*b)?]),
+            _ => None,
+        })
+        .collect();
+    for finding in &product.census {
+        if let topo::ValidationError::CensusUndecidable {
+            a: topo::EntityId::Face(a),
+            b: topo::EntityId::Face(b),
+            ..
+        } = finding
+        {
+            for f in [a, b] {
+                eprintln!(
+                    "DBG {f:?} {:?}",
+                    product.names.name_of(&editor_core::EntityRef {
+                        body: 0,
+                        key: EntityKey::Face(*f)
+                    })
+                );
+            }
+        }
+    }
+    eprintln!("DBG walls {:?}", crate::corpus::pin_in_bore::walls(&cd.doc));
+    let [press, loose] = crate::corpus::pin_in_bore::walls(&cd.doc);
+    let names = |[x, y]: [(RecipeNodeId, editor_core::StepId); 2]| {
+        undecided.contains(&[x, y]) || undecided.contains(&[y, x])
+    };
+    assert!(
+        names(press),
+        "{}: the census names the press fit's bore and shank walls as a pair it cannot \
+         clear: {undecided:?}",
+        cd.name
+    );
+    assert!(
+        !names(loose),
+        "{}: the clearance fit's walls are apart: {undecided:?}",
+        cd.name
+    );
     assert_eq!(
         tally,
         [
@@ -2790,11 +2870,13 @@ fn two_copies_on_one_axis_glue_their_walls_unproven() {
     let walls = "SameOpposite CarrierLadder unproven/Numeric/OneConstruction";
     let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
     let meet = "Meet VertexFusion unproven/Numeric/Budget";
-    let mut want = vec![walls, walls, on, on, meet, meet, meet, meet, walls, walls];
-    want.extend([meet; 4]);
-    want.extend([on, on]);
-    want.extend([meet; 8]);
-    assert_eq!(lines, want);
+    assert_eq!(
+        lines,
+        [
+            walls, walls, on, on, meet, meet, meet, meet, walls, walls, meet, meet, meet, meet, on,
+            on, meet, meet, meet, meet, meet, meet, meet, meet,
+        ]
+    );
     let wall_rows: Vec<&NamedCoincidence> = rows
         .iter()
         .filter(|row| row.site == DecisionSite::CarrierLadder)
@@ -2887,13 +2969,19 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 
 /// **Where a stage-6 scene's union refuses today** (INTENT stage 6):
 /// the scenes beside the corpus registry, each refused at its union, by
-/// kind. `cone_on_sphere` (a cone typed tangent to a sphere along a
-/// circle) meets no verdict for the cone's edge on the sphere;
-/// `shaft_and_bearing_rounded` (a shaft crossing a torus coaxial with
-/// it) and `shaft_and_bearing_ball` (a ball on a shaft, its centre on
-/// the axis) meet no boolean arm for a torus face and a cylinder face.
-/// So the section's `CylinderTorus` and `CylinderSphere` classifications
-/// record no row any document can reach.
+/// kind.
+///
+/// - `cone_on_sphere`: a cone typed tangent to a sphere along a circle;
+///   `CurvedPierceUnsupported`.
+/// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
+///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
+///   torus.
+/// - `shaft_and_bearing_ball`: a sphere on the shaft, its centre on the
+///   axis; `CurvedBooleanUnsupported` on the shaft's cylinder.
+///
+/// So no document reaches the sites `CoaxialCylinderTorus` or
+/// `CoaxialSphere`
+/// (`work/germ/coaxial-unions-with-a-torus-or-a-sphere-and-a-tangent-cone-refuse.md`).
 ///
 /// Red once a union passes: that scene then joins the registry and its
 /// rows are pinned like the others.
@@ -2969,13 +3057,12 @@ fn two_blocks_resting_on_one_floor_are_an_unproven_flush_pair() {
     let at_rest: Vec<String> = at_rest_rows(&cd.doc, &ev)
         .iter()
         .map(|(node, row)| {
-            let how = match proof(&cd.doc, *node, row) {
-                Proof::Structural(rung) => format!("{rung:?}"),
-                Proof::Unproven { residual, recourse } => {
-                    format!("unproven/{:?}/{recourse:?}", residual.replay)
-                }
-            };
-            format!("{:?} {:?} {how}", row.relation, row.site)
+            format!(
+                "{:?} {:?} {}",
+                row.relation,
+                row.site,
+                proof_words(&proof(&cd.doc, *node, row))
+            )
         })
         .collect();
     assert_eq!(

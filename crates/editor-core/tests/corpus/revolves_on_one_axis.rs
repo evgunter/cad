@@ -19,7 +19,7 @@ use editor_core::{
 
 use crate::fixture::{ang, len2};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder, placed_in};
 
 /// The axis's point in the profile plane, meters.
 pub const AXIS_AT: (f64, f64) = (0.5, 0.0);
@@ -64,16 +64,12 @@ pub fn document() -> CorpusDoc {
     }
     let first = ring(&mut r, (0.0, HEIGHTS.0));
     let second = ring(&mut r, (HEIGHTS.0, HEIGHTS.0 + HEIGHTS.1));
-    let space = r
-        .doc
-        .operand_space(&Operand::output(first, 0))
-        .expect("the first ring is in a space");
-    let read = crate::fixture::body_read(&r.doc, Operand::output(second, 0));
-    let stacked = r.insert(Node::place(
-        editor_core::BodyRead::plain(read),
-        Operand::Var(space),
-        editor_core::stand().bundle(),
-    ));
+    let stacked = placed_in(
+        &mut r,
+        &Operand::output(first, 0),
+        Operand::output(second, 0),
+        editor_core::stand(),
+    );
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
             editor_core::BodyRead::plain(Operand::output(first, 0)),

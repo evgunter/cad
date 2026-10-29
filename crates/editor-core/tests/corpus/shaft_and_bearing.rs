@@ -1,17 +1,17 @@
 //! Corpus document **shaft_and_bearing** — two copies made coaxial by
 //! reading one `Axis` twice.
 //!
-//! The housing is a ring `ρ ∈ [1/2, 1]`, `y ∈ [0, 1]` revolved a full
-//! turn about its own `y`. A shaft (a rectangle on the axis, revolved)
-//! and a collar (a ring `ρ ∈ [1/2, 3/4]` of height `1/2`, revolved) are
-//! each placed into the housing's space by one mate, its own revolve's
-//! `axis` output on the housing's and its slide and spin about that
-//! axis written; then all three are unioned. Every full revolve starts
-//! its seam at its own `+x`, so the shaft is spun a quarter turn, which
-//! keeps its seams off the housing's and the collar's. The shaft's radius is typed equal to the bore's
-//! and to the collar's, so the union glues the shaft's wall to the
-//! housing's bore and to the collar's, which stands on the shaft below
-//! the housing.
+//! The housing is a ring `ρ ∈ [1/2, 1]`, `y ∈ [0, 1]` revolved a full turn
+//! about its own `y`. A shaft (a rectangle on the axis, revolved) and a
+//! collar (a ring `ρ ∈ [1/2, 3/4]` of height `1/2`, revolved) are each
+//! placed into the housing's space by one mate, its own revolve's `axis`
+//! output on the housing's and its slide and spin about that axis written;
+//! then all three are unioned. Every full revolve starts its seam at its
+//! own `+x`, so the shaft is spun a quarter turn, which keeps its seams off
+//! the housing's and the collar's. The shaft's radius is typed equal to the
+//! bore's and to the collar's, so the union glues the shaft's wall to the
+//! housing's bore and to the collar's, which stands on the shaft below the
+//! housing.
 //!
 //! The scene stands beside the corpus registry
 //! ([`super::stage6_beside_the_registry`]): its union is green at `f64`
@@ -24,21 +24,21 @@
 //! - [`rounded_mouth`]: the mouth of the bore rounded by a profile
 //!   fillet, so the bore opens through a torus, and the shaft wider than
 //!   the bore and narrower than its mouth, its wall crossing the torus
-//!   on a circle (the section's `CylinderTorus`);
+//!   on a circle (the site `CoaxialCylinderTorus`);
 //! - [`with_a_ball`]: the collar a ball, its centre on the shaft's axis
-//!   (the section's `CylinderSphere`), turned so no edge of the ball
+//!   (the site `CoaxialSphere`), turned so no edge of the ball
 //!   crosses the shaft's wall.
 //!
 //! No mass pin: every body is revolved, so its volume is `π`-valued.
 
 use editor_core::{
-    Coord, Dimension, DocEdit, Formula, LoopProgram, Node, Operand, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, TargetAxis,
+    Coord, Dimension, DocEdit, Formula, Node, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
+    TargetAxis,
 };
 
-use crate::fixture::{ang, len, len2, revolve_about, scl};
+use crate::fixture::{len, len2, scl};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder, Revolved, placed_in, revolved};
 
 /// The bore's radius, meters, and the shaft's and the collar's bore.
 pub const BORE_R: f64 = 0.5;
@@ -71,20 +71,6 @@ enum Below {
     Ball,
 }
 
-/// `steps` as a one-loop profile revolved a full turn about its `y`.
-fn revolved(r: &mut Recorder, steps: Vec<ProgramStep<Formula>>) -> RecipeNodeId {
-    let profile = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Chain(steps)],
-        ids: Vec::new(),
-    }));
-    r.insert(revolve_about(
-        profile,
-        (0.0, 0.0),
-        crate::fixture::along_y(),
-        ang(std::f64::consts::TAU),
-    ))
-}
-
 /// A rectangle `ρ ∈ [inner, outer]`, `y ∈ [lo, hi]`, as a meridian.
 fn rectangle(inner: f64, outer: f64, (lo, hi): (f64, f64)) -> Vec<ProgramStep<Formula>> {
     let to = |x, y| ProgramTarget::Point(len2([x, y]));
@@ -97,42 +83,20 @@ fn rectangle(inner: f64, outer: f64, (lo, hi): (f64, f64)) -> Vec<ProgramStep<Fo
     ]
 }
 
-/// **A copy of `body` in `housing`'s space**, placed by `placed`.
-fn placed_by(
-    r: &mut Recorder,
-    housing: RecipeNodeId,
-    body: RecipeNodeId,
-    placed: editor_core::Placed,
-) -> RecipeNodeId {
-    let space = r
-        .doc
-        .operand_space(&Operand::output(housing, 0))
-        .expect("the housing is in a space");
-    let read = crate::fixture::body_read(&r.doc, Operand::output(body, 0));
-    r.insert(Node::place(
-        editor_core::BodyRead::plain(read),
-        Operand::Var(space),
-        placed.bundle(),
-    ))
-}
-
 /// **A copy of `body` on `housing`'s axis**: its own revolve's axis
 /// output equated with the housing's, slid `by` along it and spun
 /// `spin` about it.
 fn on_the_axis(
     r: &mut Recorder,
-    housing: RecipeNodeId,
-    body: RecipeNodeId,
+    housing: Revolved,
+    body: Revolved,
     (by, spin): (Formula, Formula),
 ) -> RecipeNodeId {
     let placed = editor_core::Placed {
-        mates: vec![crate::fixture::mate(
-            Operand::output(body, 1),
-            Operand::output(housing, 1),
-        )],
+        mates: vec![crate::fixture::mate(body.axis(), housing.axis())],
         values: vec![(Coord::Slide(TargetAxis::Y), by), (Coord::SPIN, spin)],
     };
-    placed_by(r, housing, body, placed)
+    placed_in(r, &housing.body(), body.body(), placed)
 }
 
 /// The shaft-and-bearing corpus document.
@@ -246,12 +210,15 @@ fn scene(
                     ),
                 ],
             };
-            (ball, placed_by(&mut r, housing, ball, across))
+            (
+                ball,
+                placed_in(&mut r, &housing.body(), ball.body(), across),
+            )
         }
     };
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
-            editor_core::BodyRead::plain(Operand::output(housing, 0)),
+            editor_core::BodyRead::plain(housing.body()),
             shaft_copy.into(),
             third_copy.into(),
         ]),
@@ -268,11 +235,11 @@ fn scene(
         // The third part's revolve turns its full turn again: the
         // housing and the shaft are reused.
         bump: DocEdit::SetParam {
-            node: third,
+            node: third.revolve,
             slot: SlotId::RevolveAngle,
             value: Formula::turn_over(1).expect("a full turn").into(),
             fresh: Vec::new(),
         },
-        bump_root: third,
+        bump_root: third.revolve,
     }
 }

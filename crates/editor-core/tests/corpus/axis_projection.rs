@@ -14,14 +14,11 @@
 //!
 //! No mass pin: the body is revolved, so its volume is `π`-valued.
 
-use editor_core::{
-    Coord, DocEdit, Formula, LoopProgram, Node, Operand, ProfileProgram, ProgramStep,
-    ProgramTarget, SlotId, TargetAxis,
-};
+use editor_core::{Coord, DocEdit, Formula, Node, ProgramStep, ProgramTarget, SlotId, TargetAxis};
 
-use crate::fixture::{ang, len, len2, revolve_about};
+use crate::fixture::{ang, len, len2};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder, placed_in, revolved};
 
 /// The through bore's radius, meters.
 pub const BORE_R: f64 = 0.25;
@@ -45,8 +42,9 @@ pub const SPIN: f64 = 0.3;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     let to = |x, y| ProgramTarget::Point(len2([x, y]));
-    let profile = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Chain(vec![
+    let bushing = revolved(
+        &mut r,
+        vec![
             ProgramStep::At(len2([BORE_R, 0.0])),
             ProgramStep::LineTo(to(SPIGOT_R, 0.0)),
             ProgramStep::LineTo(to(SPIGOT_R, SPIGOT_L)),
@@ -56,37 +54,19 @@ pub fn document() -> CorpusDoc {
             ProgramStep::LineTo(to(SPIGOT_R, HEIGHT - SPIGOT_L)),
             ProgramStep::LineTo(to(BORE_R, HEIGHT - SPIGOT_L)),
             ProgramStep::LineTo(ProgramTarget::Start),
-        ])],
-        ids: Vec::new(),
-    }));
-    let revolve = r.insert(revolve_about(
-        profile,
-        (0.0, 0.0),
-        crate::fixture::along_y(),
-        ang(std::f64::consts::TAU),
-    ));
-
-    let axis = || Operand::output(revolve, 1);
-    let space = r
-        .doc
-        .operand_space(&Operand::output(revolve, 0))
-        .expect("the revolve is in a space");
-    let read = crate::fixture::body_read(&r.doc, Operand::output(revolve, 0));
+        ],
+    );
     let placed = editor_core::Placed {
-        mates: vec![crate::fixture::mate(axis(), axis())],
+        mates: vec![crate::fixture::mate(bushing.axis(), bushing.axis())],
         values: vec![
             (Coord::Slide(TargetAxis::Y), len(SLIDE)),
             (Coord::SPIN, ang(SPIN)),
         ],
     };
-    let copy = r.insert(Node::place(
-        editor_core::BodyRead::plain(read),
-        Operand::Var(space),
-        placed.bundle(),
-    ));
+    let copy = placed_in(&mut r, &bushing.body(), bushing.body(), placed);
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
-            editor_core::BodyRead::plain(Operand::output(revolve, 0)),
+            editor_core::BodyRead::plain(bushing.body()),
             copy.into(),
         ]),
     });
@@ -101,11 +81,11 @@ pub fn document() -> CorpusDoc {
         pin: None, // revolved: π-valued
         // The revolve turns its full turn again: the profile is reused.
         bump: DocEdit::SetParam {
-            node: revolve,
+            node: bushing.revolve,
             slot: SlotId::RevolveAngle,
             value: Formula::turn_over(1).expect("a full turn").into(),
             fresh: Vec::new(),
         },
-        bump_root: revolve,
+        bump_root: bushing.revolve,
     }
 }

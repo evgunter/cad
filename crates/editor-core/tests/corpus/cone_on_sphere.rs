@@ -14,14 +14,11 @@
 //!
 //! Every number is dyadic. No mass pin: both volumes are `π`-valued.
 
-use editor_core::{
-    DocEdit, Formula, LoopProgram, Node, Operand, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId,
-};
+use editor_core::{DocEdit, Formula, Node, ProgramArcData, ProgramStep, ProgramTarget, SlotId};
 
-use crate::fixture::{ang, len2, revolve_about, scl};
+use crate::fixture::{len2, scl};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, PlacePart, Recorder, placed_in, revolved};
 
 /// The sphere's radius, meters.
 pub const SPHERE_R: f64 = 1.25;
@@ -29,20 +26,6 @@ pub const SPHERE_R: f64 = 1.25;
 pub const APEX: f64 = -1.5625;
 /// The tangent rim: its radius and height, meters.
 pub const RIM: (f64, f64) = (0.75, -1.0);
-
-/// `steps` as a one-loop profile revolved a full turn about its `y`.
-fn revolved(r: &mut Recorder, steps: Vec<ProgramStep<Formula>>) -> RecipeNodeId {
-    let profile = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Chain(steps)],
-        ids: Vec::new(),
-    }));
-    r.insert(revolve_about(
-        profile,
-        (0.0, 0.0),
-        crate::fixture::along_y(),
-        ang(std::f64::consts::TAU),
-    ))
-}
 
 /// The cone-on-sphere corpus document.
 pub fn document() -> CorpusDoc {
@@ -70,19 +53,10 @@ pub fn document() -> CorpusDoc {
     );
     // The cone stands where it is in the sphere's space: its numbers
     // are the sphere's coordinates.
-    let space = r
-        .doc
-        .operand_space(&Operand::output(sphere, 0))
-        .expect("the sphere is in a space");
-    let read = crate::fixture::body_read(&r.doc, Operand::output(cone, 0));
-    let placed = r.insert(Node::place(
-        editor_core::BodyRead::plain(read),
-        Operand::Var(space),
-        editor_core::stand().bundle(),
-    ));
+    let placed = placed_in(&mut r, &sphere.body(), cone.body(), editor_core::stand());
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
-            editor_core::BodyRead::plain(Operand::output(sphere, 0)),
+            editor_core::BodyRead::plain(sphere.body()),
             placed.into(),
         ]),
     });
@@ -97,11 +71,11 @@ pub fn document() -> CorpusDoc {
         pin: None, // revolved: π-valued
         // The cone turns its full turn again: the sphere is reused.
         bump: DocEdit::SetParam {
-            node: cone,
+            node: cone.revolve,
             slot: SlotId::RevolveAngle,
             value: Formula::turn_over(1).expect("a full turn").into(),
             fresh: Vec::new(),
         },
-        bump_root: cone,
+        bump_root: cone.revolve,
     }
 }

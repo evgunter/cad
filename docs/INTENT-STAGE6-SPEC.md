@@ -83,7 +83,7 @@ Each intermediate state is a whole representation: after A only tests change; af
 
 Adds corpus documents (`crates/editor-core/tests/corpus/`), each authored through `DocEdit`s like the rest, and registers them in `documents()`:
 
-1. **`pin_in_bore`.** A revolve's bore and a separately constructed pin (a revolve or an extrude of a circle), the pin placed by an `Axis`–`Axis` mate on the bore's wall axis, a plane mate on a shoulder and the spin value `0`. Two radii: one a shared `Length` variable (press fit), one apart (clearance). Combined by `⊔`.
+1. **`pin_in_bore`.** A revolve's bore and a separately constructed pin (a revolve), the pin placed by one `Axis`–`Axis` mate, its shank wall's axis on the bore wall's, the spin it leaves `0` and its slide the housing's height, where the shoulder meets the top. A plane mate on the shoulder beside the axis mate states the axis's direction twice, which the mate door refuses as `Overconstrained`; the slide is measured from the target space's origin. Two radii: one a shared `Length` variable (press fit), one apart (clearance). Combined by `⊔`.
 2. **`shaft_and_bearing`.** Two copies each mated by `Axis`–`Axis` to the housing revolve's `axis` output: one `Axis` variable read twice. Combined by `∪`, so the boolean's coaxial classifications record rows where a torus fillet and a cylinder meet.
 3. **`axis_projection`.** One revolve whose torus and cylinder faces a later boolean decides coaxial: the cells' axes are projections of one construction (the revolve's).
 4. **`boss_tangent_by_value`.** A boss extruded from a profile whose straight edge is typed tangent to a cylinder (its offset written equal to the radius), unioned with the cylinder: one `SurfaceTangent` row at `TangentWitness` (plane × cylinder, in the closed-form lane).
@@ -204,6 +204,8 @@ The viewer's sketch tool (`crates/viewer/src/sketch.rs`, `pane/profile.rs`): wit
 - `docs/DESIGN.md` State of the build still lists "the rest of placement (stage 3 …)" under **Not built**, and stage 3 closed with G (#5954).
 - `docs/GERM-CONE-SECTOR-SPEC.md` and `docs/GERM-TORUS-PLANE-FRAME-SPEC.md` hold `sectors::tangent_lump` as running "only for a declared-`Tangent` pair (`BooleanCoincidence::TANGENT`)". `BooleanCoincidence` is gone (stage 4 F), and `tangent_lump` is called from `boolean/recl.rs`. Those are GERM's specs, cited here only because they name stage 6 as the seat's retirement.
 - The **Constructing a coincidence** paragraph of `[coincidence]` has no clause id, so code cannot cite it the way it cites the rest of D10.
+- §2's first scene as first written, an `Axis`–`Axis` mate and a plane mate on the shoulder in one bundle, is refused as `Overconstrained`: the two state the axis's direction twice. PR A seats the pin by the axis mate and its slide.
+- The at-rest census records no row for a press fit's walls, nor for the shoulders' rests: the press fit's census holds `CensusUndecidable` ("cannot yet tell whether curved faces of two parts touch") and unrecorded contacts, so the press fit's at-rest row this section expects does not exist on main.
 
 ## 8. What retires
 
