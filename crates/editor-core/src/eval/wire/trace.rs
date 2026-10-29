@@ -3,20 +3,17 @@
 //! coordinates, and each traced face's carrier, with the maps between
 //! the sketch's coordinates and its body's.
 //!
-//! The profile's first pass resolves at `f64`, where its structure is
-//! chosen. A trace is read off the lane's bodies, so at a lane whose
-//! values are enclosures the first pass reads each carrier at its
-//! bracket's midpoint: it only proposes the structure there, and the
-//! lane's own pass, guided by it, re-decides every choice at the lane
-//! and refuses one it cannot reproduce (`profile::replay_guided`). At a
-//! point lane the midpoint is the value.
+//! The profile's first pass resolves at `f64` over the nominal, where
+//! its structure is chosen, so it reads its traces off the nominal
+//! document's bodies ([`super::LaneEnv::nominal_results`]); the lane's
+//! own pass reads them off this run's and replays guided by the first.
 
 use std::sync::Arc;
 
 use geom::Surface;
-use geom_core::{Affine3, Bounds, Decide, Mat3, Point3, RigidMotion, Tol, Vec3};
+use geom_core::{Decide, RigidMotion, Tol};
 
-use super::{Results, band, read_named_body, select_one};
+use super::{Results, read_named_body, select_one};
 use crate::eval::{Frame, NodeErrorKind};
 use crate::expr::VarEnv;
 use crate::names;
@@ -103,122 +100,10 @@ pub(crate) fn drawn<T: crate::mate::SolveScalar>(
     Ok(Some(Drawn { frame, faces }))
 }
 
-impl<T: Decide + Bounds> Drawn<T> {
-    /// **The traced faces as the first pass reads them**, at `f64`:
-    /// each value its bracket's midpoint (module docs).
-    ///
-    /// # Errors
-    ///
-    /// A map whose midpoints are not rigid within the band.
-    pub(crate) fn nominal(&self, tol: Tol) -> Result<Vec<TracedFace<f64>>, NodeErrorKind> {
-        let band = band(tol)?;
-        let motion = |m: &RigidMotion<T>| {
-            let a = m.to_affine();
-            let map = Affine3 {
-                linear: Mat3 {
-                    c0: vec(a.linear.c0),
-                    c1: vec(a.linear.c1),
-                    c2: vec(a.linear.c2),
-                },
-                translation: vec(a.translation),
-            };
-            RigidMotion::check_rigid(&map, band).map_err(NodeErrorKind::Motion)
-        };
-        self.faces
-            .iter()
-            .map(|face| {
-                Ok(TracedFace {
-                    surface: face.surface.as_ref().map(surface).map_err(|&kind| kind),
-                    sense: face.sense,
-                    sketch_to_body: motion(&face.sketch_to_body)?,
-                    body_to_sketch: motion(&face.body_to_sketch)?,
-                })
-            })
-            .collect()
-    }
-}
-
-/// A value's bracket's midpoint: the value itself at a point scalar.
-fn mid<T: Bounds>(x: T) -> f64 {
-    0.5 * (x.lo() + x.hi())
-}
-
-fn vec<T: Bounds>(v: Vec3<T>) -> Vec3<f64> {
-    Vec3::new(mid(v.x), mid(v.y), mid(v.z))
-}
-
-fn point<T: Bounds>(p: Point3<T>) -> Point3<f64> {
-    Point3::new(mid(p.x), mid(p.y), mid(p.z))
-}
-
 /// A carrier with a closed form, or the kind of one without.
 fn closed<T: Decide>(s: Surface<T>) -> Result<Surface<T>, geom::SurfaceKind> {
     match s {
         Surface::Nurbs(_) | Surface::Approx(_) => Err(s.kind()),
         closed => Ok(closed),
-    }
-}
-
-/// `s`, a carrier with a closed form, at its midpoints.
-fn surface<T: Decide + Bounds>(s: &Surface<T>) -> Surface<f64> {
-    match *s {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: point(origin),
-            normal: vec(normal),
-            u_ref: vec(u_ref),
-        },
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: point(origin),
-            axis: vec(axis),
-            radius: mid(radius),
-            u_ref: vec(u_ref),
-        },
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: point(apex),
-            axis: vec(axis),
-            half_angle: mid(half_angle),
-            u_ref: vec(u_ref),
-        },
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center: point(center),
-            radius: mid(radius),
-            axis: vec(axis),
-            u_ref: vec(u_ref),
-        },
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => Surface::Torus {
-            center: point(center),
-            axis: vec(axis),
-            major_radius: mid(major_radius),
-            minor_radius: mid(minor_radius),
-            u_ref: vec(u_ref),
-        },
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            unreachable!("a traced carrier with no closed form is held as its kind")
-        }
     }
 }

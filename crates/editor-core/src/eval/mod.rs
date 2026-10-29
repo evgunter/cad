@@ -3163,6 +3163,23 @@ pub trait ProfileLane: profile_lane::Sealed {
     ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
+
+    /// **This lane's results as the nominal document's**, where this
+    /// lane is the first pass ([`Self::pass_one`]'s condition): what a
+    /// profile reading a trace resolves its first pass off
+    /// (`wire::trace`). `None` on every other scalar, which reads an
+    /// `f64` evaluation of the nominal built beside it
+    /// ([`wire::LaneEnv::nominal_results`]).
+    fn nominal_results<'r>(
+        _results: &'r BTreeMap<RecipeNodeId, NodeResult<Self>>,
+        _params: &crate::expr::VarEnv<Self>,
+        _nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>>
+    where
+        Self: Decide,
+    {
+        None
+    }
 }
 
 mod profile_lane {
@@ -3183,6 +3200,20 @@ impl ProfileLane for f64 {
         params: &crate::expr::VarEnv<f64>,
         nominal: &crate::expr::VarEnv<f64>,
     ) -> Option<&'p profile::ValidatedProfile<f64>> {
+        binds_nominal(params, nominal).then_some(validated)
+    }
+
+    fn nominal_results<'r>(
+        results: &'r BTreeMap<RecipeNodeId, NodeResult<f64>>,
+        params: &crate::expr::VarEnv<f64>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>> {
+        binds_nominal(params, nominal).then_some(results)
+    }
+}
+
+/// Whether `params` binds every variable to `nominal`'s bits.
+fn binds_nominal(params: &crate::expr::VarEnv<f64>, nominal: &crate::expr::VarEnv<f64>) -> bool {
         use crate::expr::ParamValue;
         let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
             (
@@ -3195,16 +3226,14 @@ impl ProfileLane for f64 {
             (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
             _ => false,
         };
-        let binds_nominal = params.bindings.len() == nominal.bindings.len()
+        params.bindings.len() == nominal.bindings.len()
             && params
                 .bindings
                 .iter()
                 .zip(&nominal.bindings)
                 .all(|((v, a), (w, b))| v == w && same(a, b))
             && params.refused == nominal.refused
-            && params.written == nominal.written;
-        binds_nominal.then_some(validated)
-    }
+            && params.written == nominal.written
 }
 
 /// `f64` wearing a counter, and a lane of its own: its second pass
@@ -3623,6 +3652,33 @@ where
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
     let nominal_env = doc.var_env::<f64>();
+    // A profile reading a face's trace resolves its first pass off the
+    // nominal document's bodies (`wire::trace`), as every program
+    // expression resolves off the nominal environment: a lane that is
+    // not the nominal `f64` one reads them from an evaluation of it,
+    // built once here, its decisions its own and not this run's.
+    let nominal_ev = (doc_reads_a_trace(doc) && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
+        .then(|| {
+            let nominal_opts = EvalOptions {
+                param_box: None,
+                seed: None,
+                symbols: false,
+                pin: false,
+                ..opts.clone()
+            };
+            geom_core::k_stats::detached(|| {
+                evaluate_at_descent::<f64>(
+                    doc,
+                    None,
+                    cancel,
+                    &nominal_opts,
+                    None,
+                    PassTwo::SkippedAtF64,
+                    tol,
+                )
+            })
+            .0
+        });
     // The parts, entered before anything below reads one: handed down
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
@@ -3649,6 +3705,7 @@ where
         lane: wire::LaneEnv {
             params: &env,
             nominal: &nominal_env,
+            nominal_results: nominal_ev.as_ref().map(|ev| &ev.nodes),
             pass_two,
         },
     };
@@ -3889,6 +3946,14 @@ where
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
+}
+
+/// **Whether a profile of `doc` reads a face's trace**: what needs the
+/// nominal document's bodies at a lane that is not its evaluation.
+fn doc_reads_a_trace(doc: &Doc<ProfileProgram>) -> bool {
+    doc.ids()
+        .into_iter()
+        .any(|id| matches!(doc.node(id), Some(crate::node::Node::Profile(p)) if p.reads_a_trace()))
 }
 
 /// A program's resolution refusal as the node's.
@@ -4187,12 +4252,19 @@ where
                 Ok(band) => band,
                 Err(kind) => return fail(bracket, kind),
             };
-            let nominal_faces = match drawn.as_ref().map(|d| d.nominal(tol)).transpose() {
-                Ok(faces) => faces,
-                Err(kind) => return fail(bracket, kind),
+            // The first pass reads the nominal document's bodies: this
+            // lane's own where it is that evaluation.
+            let nominal_drawn = match op_env.lane.nominal_results(results) {
+                Some(nominal) if program.reads_a_trace() => {
+                    match wire::trace::drawn(doc, nominal, program, op_env.lane.nominal, tol) {
+                        Ok(drawn) => drawn,
+                        Err(kind) => return fail(bracket, kind),
+                    }
+                }
+                _ => None,
             };
-            let nominal_traces = nominal_faces.as_deref().map(|faces| crate::trace::Traces {
-                faces,
+            let nominal_traces = nominal_drawn.as_ref().map(|d| crate::trace::Traces {
+                faces: &d.faces,
                 records: None,
                 tol,
                 band,

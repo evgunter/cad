@@ -170,12 +170,29 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
+    /// **The nominal document's results**, where this lane is not its
+    /// evaluation and a profile reads a face's trace: an `f64`
+    /// evaluation of the nominal, built beside this one
+    /// ([`Self::nominal_results`]).
+    pub nominal_results: Option<&'a Results<f64>>,
     /// Whether an `f64` lane over the nominal takes the first pass's
     /// form ([`super::PassTwo`]).
     pub pass_two: super::PassTwo,
 }
 
-impl<T: super::ProfileLane> LaneEnv<'_, T> {
+impl<'a, T: super::ProfileLane> LaneEnv<'a, T> {
+    /// **The nominal document's results**, which a profile reading a
+    /// trace resolves its first pass off: `results` where this lane is
+    /// the nominal `f64` evaluation, the evaluation built beside it
+    /// otherwise.
+    pub(crate) fn nominal_results<'r>(&self, results: &'r Results<T>) -> Option<&'r Results<f64>>
+    where
+        'a: 'r,
+        T: Decide,
+    {
+        T::nominal_results(results, self.params, self.nominal).or(self.nominal_results)
+    }
+
     /// **The first pass's validated form as this lane's value**, where
     /// this lane IS the first pass: an `f64` lane whose environment
     /// binds the nominal ([`super::ProfileLane`]). `None` wherever the
