@@ -769,7 +769,7 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
@@ -1427,7 +1427,7 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: frame.at((u0 + u1) * 0.5, v),
+                selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v)),
             },
             carrier,
             param_start: T::from_f64(t0),
@@ -1849,7 +1849,7 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: carrier.eval(0.5 * tau),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * tau)),
             },
             carrier,
             param_start: 0.0,
@@ -1905,7 +1905,9 @@ pub fn arc_cap(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
-                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                    selector: geom_brep::CurveSelector::Witness(
+                        carrier.eval(0.5 * (span.0 + span.1)),
+                    ),
                 },
                 carrier,
                 param_start: span.0,

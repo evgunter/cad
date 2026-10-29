@@ -80,7 +80,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Margin, Point3, Sign, Tol};
+use geom_core::{Band, BandError, Margin, Point3, Sign, Tol};
 use topo::Body;
 use topo::clearance::{BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
@@ -89,7 +89,7 @@ use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts};
 use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
-use crate::names::{EntityKey, Entry, StableName};
+use crate::names::{EntityKey, EntityKind, EntityRef, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 use crate::var::VarId;
@@ -100,7 +100,7 @@ use crate::var::VarId;
 pub use topo::clearance::{
     Budgets, CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
     DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, MinSeparationRefusal,
-    SELF_INTERSECTION_GAP, SharedCell,
+    SELF_INTERSECTION_GAP, SharedCell, Which,
 };
 
 /// The whole-query cell-pair budget: how many cell pairs one clearance
@@ -457,7 +457,7 @@ impl PartialEq for GeometryWitness {
 /// Why a clearance query has no verdict. Typed and named, never a
 /// silent partial.
 ///
-/// The engine's own refusals ride [`Self::Engine`]; the other four are
+/// The engine's own refusals ride [`Self::Engine`]; the other five are
 /// this door's, raised before the engine is asked or around it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClearanceRefusal {
@@ -465,7 +465,14 @@ pub enum ClearanceRefusal {
     /// carrier with no admitted window, an enclosure that did not
     /// evaluate, a scope naming no face, a witness the `f64` rebuild
     /// would not confirm, or one of the injectivity question's own.
-    Engine(EngineRefusal),
+    Engine {
+        /// The engine's refusal.
+        refusal: EngineRefusal,
+        /// Each selection's node and output-body index: the engine's
+        /// first side, then its second, which the refusal's words name
+        /// a face of a pair by.
+        sides: [(RecipeNodeId, u32); 2],
+    },
     /// The selection itself could not be read.
     Selection(SelectionRefusal),
     /// The drive certified no leaf at all, so there is no leaf for the
@@ -489,7 +496,10 @@ pub enum ClearanceRefusal {
     },
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
-    ToleranceHasNoBand,
+    ToleranceHasNoBand(
+        /// Why: a threshold that overflowed, or a band that collapsed.
+        BandError,
+    ),
     /// The injectivity question over a body that carries a contact
     /// record between two cells of the scope: the record says the two
     /// cells' interiors meet, so the boundary is not injective there by
@@ -503,12 +513,6 @@ pub enum ClearanceRefusal {
     },
 }
 
-impl From<EngineRefusal> for ClearanceRefusal {
-    fn from(refusal: EngineRefusal) -> Self {
-        Self::Engine(refusal)
-    }
-}
-
 impl ClearanceRefusal {
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
@@ -516,21 +520,12 @@ impl ClearanceRefusal {
     /// node id prints in full ([`SelectionRefusal::payload`]).
     pub fn payload(&self) -> String {
         match self {
-            Self::Engine(r) => r.payload(),
+            Self::Engine { refusal, .. } => refusal.payload(),
             Self::Selection(r) => r.payload(),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
-            Self::ToleranceHasNoBand => String::new(),
+            Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
-        }
-    }
-
-    /// The payload a sentence quotes: [`Self::payload`], but a
-    /// selection's refusal in words, its nodes said by their tags.
-    pub(crate) fn said_payload(&self) -> String {
-        match self {
-            Self::Selection(r) => crate::spoken::Said(r, crate::spoken::Speaker::TAG).to_string(),
-            _ => self.payload(),
         }
     }
 
@@ -538,15 +533,65 @@ impl ClearanceRefusal {
     /// form: an engine refusal's own.
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Engine(r) => r.name(),
+            Self::Engine { refusal, .. } => refusal.name(),
             Self::Selection(_) => "selection",
             Self::NothingCertified { .. } => "nothing_certified",
             Self::NotADistance { .. } => "not_a_distance",
-            Self::ToleranceHasNoBand => "tolerance_has_no_band",
+            Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
         }
     }
 }
+
+// It holds ids, said by whichever speaker renders it; an engine
+// refusal's pair is named by the selection each face is of.
+impl crate::spoken::Say for ClearanceRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Engine {
+                refusal,
+                sides: [(first, i), (second, j)],
+            } => refusal.say(
+                f,
+                [
+                    &format_args!("body {i} of {}", by.node(*first)),
+                    &format_args!("body {j} of {}", by.node(*second)),
+                ],
+            ),
+            Self::Selection(r) => r.say(f, by),
+            Self::NothingCertified { refused_leaves } => write!(
+                f,
+                "the drive certified no leaf ({refused_leaves} refused), so there is no leaf to \
+                 answer the clearance over"
+            ),
+            Self::NotADistance { c } => write!(
+                f,
+                "the bound {c} is not a distance: a clearance bound is finite and non-negative"
+            ),
+            Self::ToleranceHasNoBand(error) => {
+                write!(f, "the run's tolerance admits no linear band: {error}")
+            }
+            Self::RecordedContact { a, b } => write!(
+                f,
+                "the body records a contact between {a:?} and {b:?}, so its boundary meets \
+                 itself there by declaration and the injectivity question is not asked"
+            ),
+        }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for ClearanceRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl core::error::Error for ClearanceRefusal {}
 
 /// How a selection could not be read.
 #[derive(Debug, Clone, PartialEq)]
@@ -556,23 +601,59 @@ pub enum SelectionRefusal {
         /// The node's standing in that replay.
         NodeStanding,
     ),
-    /// The node's payload carries no body at that index.
+    /// The node's payload carries bodies, but none at that index.
     NoSuchBody {
         /// The node.
         node: RecipeNodeId,
         /// The index asked for.
         index: u32,
     },
-    /// A name in the scope does not resolve uniquely in the node's own
-    /// table.
+    /// The node's payload carries no bodies at all, so no index of it
+    /// is one.
+    NoBodies {
+        /// The node.
+        node: RecipeNodeId,
+        /// The payload family.
+        payload: &'static str,
+    },
+    /// No row of the node's name table answers to a name in the scope.
     Unresolved {
         /// The name.
         name: Box<StableName>,
     },
-    /// A name resolves, but not to a face of the selected body.
+    /// A name in the scope denotes another kind of entity than a face.
     NotAFace {
         /// The name.
         name: Box<StableName>,
+        /// The kind it denotes.
+        found: EntityKind,
+    },
+    /// A face name in the scope is an N2 tie: several faces answer to
+    /// it, and a tie is never broken by picking.
+    Tied {
+        /// The name.
+        name: Box<StableName>,
+        /// The faces that answer to it, each body by the node's output
+        /// index, the index a [`Selection`] names it by.
+        candidates: Vec<EntityRef>,
+    },
+    /// A name in the scope denotes a face of another output body of
+    /// the node than the selected one.
+    OtherBody {
+        /// The name.
+        name: Box<StableName>,
+        /// The node's output body its face is on, as a [`Selection`]
+        /// names it.
+        body: u32,
+    },
+    /// A face name whose table row holds a key of another kind: the
+    /// name table seated a row against its name's kind, which every
+    /// door that seats one refuses. A kernel defect.
+    KeyOfAnotherKind {
+        /// The name.
+        name: Box<StableName>,
+        /// The kind of the key its row holds.
+        found: EntityKind,
     },
     /// The two selections live in different spaces (D10, Spaces), and
     /// nothing in one is compared with the other.
@@ -615,15 +696,58 @@ impl crate::spoken::Say for SelectionRefusal {
                     by.node(*node)
                 )
             }
+            Self::NoBodies { node, payload } => write!(
+                f,
+                "{}'s value {}, so there is no face to measure a clearance between. {}",
+                by.node(*node),
+                crate::sentence::CarriesNoBodies(payload),
+                crate::sentence::Recourse("select a node whose value is a body")
+            ),
             Self::Unresolved { name } => write!(
                 f,
-                "{} does not resolve to a unique entity in the selected node's name table",
+                "nothing in the selected node's name table answers to {}",
                 by.name(name)
             ),
-            Self::NotAFace { name } => write!(
+            Self::NotAFace { name, found } => write!(
                 f,
-                "{} resolves, but not to a face of the selected body",
+                "{} denotes {} {}, and a clearance is measured between faces",
+                by.name(name),
+                found.article(),
+                found.noun()
+            ),
+            Self::Tied { name, candidates } => {
+                write!(
+                    f,
+                    "{} faces answer to {} equally well (",
+                    candidates.len(),
+                    by.name(name)
+                )?;
+                for (n, c) in candidates.iter().enumerate() {
+                    let sep = if n == 0 { "" } else { ", " };
+                    match c.key.face() {
+                        Some(k) => write!(f, "{sep}face {k:?} of body {}", c.body)?,
+                        None => write!(f, "{sep}{:?} of body {}", c.key, c.body)?,
+                    }
+                }
+                write!(
+                    f,
+                    "), and a tie is never broken by picking. {}",
+                    crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
+                )
+            }
+            Self::OtherBody { name, body } => write!(
+                f,
+                "{} denotes a face of body {body}, not of the selected body",
                 by.name(name)
+            ),
+            Self::KeyOfAnotherKind { name, found } => write!(
+                f,
+                "{} names a face, and its row in the name table holds {} {} — the table seated a \
+                 row against its name's kind. {}",
+                by.name(name),
+                found.article(),
+                found.noun(),
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::AcrossSpaces { a, b } => write!(
                 f,
@@ -651,6 +775,24 @@ impl core::fmt::Display for SelectionRefusal {
 }
 
 impl SelectionRefusal {
+    /// Why `sel`'s node has no body at its index, as
+    /// `interrogate::output_body` answered: an index its value does not
+    /// have, or a value with no bodies at all.
+    fn no_body(sel: &Selection, error: crate::names::InterrogateError) -> Self {
+        use crate::names::InterrogateError as E;
+        match error {
+            E::NoBodies { payload } => Self::NoBodies {
+                node: sel.at,
+                payload,
+            },
+            E::NoSuchBody { .. } => Self::NoSuchBody {
+                node: sel.at,
+                index: sel.body,
+            },
+            other => unreachable!("`output_body` refuses only a missing body, not {other:?}"),
+        }
+    }
+
     /// **The refusal for the goldening form**: its class word and its
     /// fields, each node id in full ([`RecipeNodeId::full`]) — a machine
     /// channel, where two ids must never print alike.
@@ -672,8 +814,16 @@ impl SelectionRefusal {
             Self::NoSuchBody { node, index } => {
                 format!("no_such_body node={} index={index}", node.full())
             }
+            Self::NoBodies { node, payload } => {
+                format!("no_bodies node={} payload={payload}", node.full())
+            }
             Self::Unresolved { name } => format!("unresolved {name:?}"),
-            Self::NotAFace { name } => format!("not_a_face {name:?}"),
+            Self::NotAFace { name, found } => format!("not_a_face {name:?} found={found:?}"),
+            Self::Tied { name, candidates } => format!("tied {name:?} candidates={candidates:?}"),
+            Self::OtherBody { name, body } => format!("other_body {name:?} body={body}"),
+            Self::KeyOfAnotherKind { name, found } => {
+                format!("key_of_another_kind {name:?} found={found:?}")
+            }
             Self::AcrossSpaces { a, b } => {
                 let space = |s: &crate::VarId| match *s {
                     crate::VarId::WORLD => "world".to_owned(),
@@ -829,7 +979,7 @@ impl ClearanceReport {
                 }
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.said_payload());
+                let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
             }
         }
         let r = self.receipt;
@@ -956,11 +1106,17 @@ fn clearance_on(
         // comes back `Budget`, which is the wrong name for it.
         return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
     }
-    if a.is_empty_scope() || b.is_empty_scope() {
-        return ClearanceReport::refused(EngineRefusal::EmptyScope.into());
+    for (sel, side) in [(a, Which::First), (b, Which::Second)] {
+        if sel.is_empty_scope() {
+            return ClearanceReport::refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::EmptyScope { side },
+                sides: [(a.at, a.body), (b.at, b.body)],
+            });
+        }
     }
-    let Ok(band) = Band::linear(query.tol) else {
-        return ClearanceReport::refused(ClearanceRefusal::ToleranceHasNoBand);
+    let band = match Band::linear(query.tol) {
+        Ok(band) => band,
+        Err(error) => return ClearanceReport::refused(ClearanceRefusal::ToleranceHasNoBand(error)),
     };
     // The accelerator, before anything is evaluated: a facet is a
     // sub-box of the leaf, so restricting to one restricts the geometry
@@ -1040,32 +1196,56 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             (Ok(ba), Ok(bb)) => (ba, bb),
             (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
         };
+        let refused = |refusal| ClearanceRefusal::Engine {
+            refusal,
+            sides: [(a.at, a.body), (b.at, b.body)],
+        };
         // Each selection's names resolve, then its faces are read into
         // windows, the first selection whole before the second.
-        let windows = |sel: &Selection, body| {
-            let faces = faces_of(ev, sel, body)?;
-            Ok::<_, ClearanceRefusal>(engine.windows(&Side { body, faces })?)
-        };
-        let windows_a = match windows(a, &body_a) {
-            Ok(w) => w,
+        let faces_a = match faces_of(ev, a, &body_a) {
+            Ok(faces) => faces,
             Err(r) => return ClearanceReport::refused(r),
+        };
+        let windows_a = match engine.windows(
+            &Side {
+                body: &body_a,
+                faces: faces_a.clone(),
+            },
+            Which::First,
+        ) {
+            Ok(w) => w,
+            Err(r) => return ClearanceReport::refused(refused(r)),
+        };
+        let faces_b = if a == b {
+            faces_a.clone()
+        } else {
+            match faces_of(ev, b, &body_b) {
+                Ok(faces) => faces,
+                Err(r) => return ClearanceReport::refused(r),
+            }
         };
         // The SAME-BODY rule, not the same-selection one: two scopes of
         // one body can name one face twice, and a face is never at a
         // distance from itself.
         let same_body = a.at == b.at && a.body == b.body;
-        if same_body && query.bound == ClearanceBound::StrictlyPositive {
-            let scope = |sel: &Selection| faces_of(ev, sel, &body_a).unwrap_or_default();
-            if let Some((x, y)) = recorded_contact(ev, a, &body_a, &scope(a), &scope(b)) {
-                return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
-            }
+        if same_body
+            && query.bound == ClearanceBound::StrictlyPositive
+            && let Some((x, y)) = recorded_contact(ev, a, &body_a, &faces_a, &faces_b)
+        {
+            return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
         }
         let windows_b = if a == b {
             windows_a.clone()
         } else {
-            match windows(b, &body_b) {
+            match engine.windows(
+                &Side {
+                    body: &body_b,
+                    faces: faces_b,
+                },
+                Which::Second,
+            ) {
                 Ok(w) => w,
-                Err(r) => return ClearanceReport::refused(r),
+                Err(r) => return ClearanceReport::refused(refused(r)),
             }
         };
 
@@ -1092,7 +1272,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 param: witness_point(queried),
                 geometry,
             })),
-            BoundVerdict::Refused(r) => ClearanceVerdict::Refused(r.into()),
+            BoundVerdict::Refused(r) => ClearanceVerdict::Refused(refused(r)),
         };
         ClearanceReport {
             verdict,
@@ -1409,12 +1589,8 @@ fn framed_of<'e, T: geom_core::Decide>(
     let value = ev
         .usable(sel.at)
         .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
-    crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
-        refuse(SelectionRefusal::NoSuchBody {
-            node: sel.at,
-            index: sel.body,
-        })
-    })
+    crate::names::interrogate::output_body(&value.payload, sel.body)
+        .map_err(|e| refuse(SelectionRefusal::no_body(sel, e)))
 }
 
 /// The faces a selection names in `body`, the selection's body in the
@@ -1431,17 +1607,61 @@ fn faces_of<T: geom_core::Decide>(
         FaceScope::All => body.faces().map(|(k, _)| k).collect(),
         FaceScope::Named(names) => {
             let mut out = Vec::new();
+            // What the name denotes before how many answer to it: a
+            // name of another kind is not a face however narrowly it is
+            // referenced, and every candidate of a tie carries the
+            // name's kind.
             for name in names {
                 let named = || Box::new(name.clone());
                 let found = ev
                     .body_read_of(sel.at, sel.body)
-                    .and_then(|(var, index)| Some((ev.table(var)?.lookup(name), index)));
-                let Some((Some(Entry::Unique(ent)), index)) = found else {
+                    .and_then(|(var, index)| Some((ev.table(var)?.lookup(name)?, index)));
+                let Some((entry, index)) = found else {
                     return Err(refuse(SelectionRefusal::Unresolved { name: named() }));
+                };
+                if name.kind != EntityKind::Face {
+                    return Err(refuse(SelectionRefusal::NotAFace {
+                        name: named(),
+                        found: name.kind,
+                    }));
+                }
+                // A row's body is its table's index: a split's half reads
+                // its one body as 0. A refusal says the selection's.
+                let output = |body: u32| if body == index { sel.body } else { body };
+                let ent = match entry {
+                    Entry::Unique(ent) => ent,
+                    Entry::Tied(candidates) => {
+                        return Err(refuse(SelectionRefusal::Tied {
+                            name: named(),
+                            candidates: candidates
+                                .iter()
+                                .map(|c| EntityRef {
+                                    body: output(c.body),
+                                    key: c.key,
+                                })
+                                .collect(),
+                        }));
+                    }
                 };
                 match ent.key {
                     EntityKey::Face(k) if ent.body == index => out.push(k),
-                    _ => return Err(refuse(SelectionRefusal::NotAFace { name: named() })),
+                    EntityKey::Face(_) => {
+                        return Err(refuse(SelectionRefusal::OtherBody {
+                            name: named(),
+                            body: output(ent.body),
+                        }));
+                    }
+                    other => {
+                        debug_assert!(
+                            false,
+                            "a face name's row holds {other:?}: every `NameTable` door that \
+                             seats a row admits it only at its name's kind"
+                        );
+                        return Err(refuse(SelectionRefusal::KeyOfAnotherKind {
+                            name: named(),
+                            found: other.kind(),
+                        }));
+                    }
                 }
             }
             out.sort_unstable();
@@ -1453,9 +1673,8 @@ fn faces_of<T: geom_core::Decide>(
 
 /// **A contact record between the two scopes**: the first record of the
 /// selection's body whose one cell bounds a face of one scope and whose
-/// other bounds a face of the other. The records are a body 0's
-/// (`crate::product::sources_of`'s reconciliation: a boolean's ride its
-/// payload, every other op's the value's channel).
+/// other bounds a face of the other. The records are a body 0's, as its
+/// value's carry holds them.
 fn recorded_contact<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     sel: &Selection,
@@ -1463,15 +1682,11 @@ fn recorded_contact<T: geom_core::Decide>(
     fa: &[FaceKey],
     fb: &[FaceKey],
 ) -> Option<(topo::Cell, topo::Cell)> {
-    use crate::eval::{BooleanValue, ValuePayload};
     if sel.body != 0 {
         return None;
     }
     let value = ev.value(sel.at)?;
-    let records = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
-        _ => Arc::clone(&value.carry.contacts),
-    };
+    let records = Arc::clone(&value.carry.contacts);
     let loop_face = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
@@ -1521,7 +1736,7 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
 /// **The witness verification** (E7's witness clause), the verifier the
 /// engine's sweep asks about each candidate violation: rebuild the
 /// document at `f64` over the leaf's midpoint, search the two violating
-/// cells' on-face stations ([`Candidate::on_face_stations`]) for the
+/// cells' on-face stations ([`Candidate::on_face_stations`](topo::clearance::Candidate::on_face_stations)) for the
 /// closest pair of points it can find, and put THAT distance through
 /// the SAME funnel site at the `f64` lane.
 ///
@@ -1568,44 +1783,37 @@ fn verify_witness(
     // A witness's `(u, v)` are coordinates in that chart, and the `f64`
     // replay of the same node mints the same frame, so reading them
     // needs nothing carried across from the interval pass.
-    for sel in [sel_a, sel_b] {
-        if let Err(standing) = ev.usable(sel.at) {
-            return Err(format!(
-                "the f64 rebuild has no value for a face of the violating pair: {standing}"
-            ));
-        }
-    }
-    let framed_at = |sel: &Selection| -> Option<&crate::eval::Framed<f64>> {
-        let value = ev.value(sel.at)?;
-        crate::names::interrogate::output_body(&value.payload, sel.body).ok()
+    let framed_at = |sel: &Selection| -> Result<&crate::eval::Framed<f64>, String> {
+        let value = ev.usable(sel.at).map_err(|standing| {
+            format!("the f64 rebuild has no value for a face of the violating pair: {standing}")
+        })?;
+        crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|e| {
+            format!(
+                "the f64 rebuild has no body for a face of the violating pair: {}",
+                SelectionRefusal::no_body(sel, e)
+            )
+        })
     };
+    let (fx, fy) = (framed_at(sel_a)?, framed_at(sel_b)?);
     // In the frame the interval pass asked it in: the same structural
     // choice over the same two operands (`Framed::computing_among`).
-    let in_frame = match framed_at(sel_a).zip(framed_at(sel_b)) {
-        None => None,
-        Some((fx, fy)) => {
-            let computing = crate::eval::Framed::computing_among([fx, fy])
-                .unwrap_or_else(|| unreachable!("two operands"));
-            match (computing.read_in(fx, tol), computing.read_in(fy, tol)) {
-                (Ok(bx), Ok(by)) => Some((bx, by)),
-                (Err(kind), _) | (_, Err(kind)) => {
-                    return Err(format!(
-                        "the f64 rebuild could not read a face of the violating pair into the \
-                         frame the pair is decided in: {}",
-                        crate::NodeRefusal::from(kind)
-                    ));
-                }
-            }
+    let computing = crate::eval::Framed::computing_among([fx, fy])
+        .unwrap_or_else(|| unreachable!("two operands"));
+    let (bx, by) = match (computing.read_in(fx, tol), computing.read_in(fy, tol)) {
+        (Ok(bx), Ok(by)) => (bx, by),
+        (Err(kind), _) | (_, Err(kind)) => {
+            return Err(format!(
+                "the f64 rebuild could not read a face of the violating pair into the frame the \
+                 pair is decided in: {}",
+                crate::NodeRefusal::from(kind)
+            ));
         }
     };
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
         let f = body.get_face(face)?;
         Some(body.get_surface(f.surface)?.clone())
     };
-    let (Some(sa), Some(sb)) = (
-        in_frame.as_ref().and_then(|(bx, _)| surface_at(bx, face_a)),
-        in_frame.as_ref().and_then(|(_, by)| surface_at(by, face_b)),
-    ) else {
+    let (Some(sa), Some(sb)) = (surface_at(&bx, face_a), surface_at(&by, face_b)) else {
         return Err(
             "the f64 rebuild does not carry both faces of the violating pair — the leaf's \
              key identity did not survive the replay"

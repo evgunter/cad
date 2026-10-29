@@ -113,6 +113,13 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     )
 }
 
+/// **A cell's centre station**: the midpoint of each parameter range,
+/// the one station both a cell's region verdict and the minimum walk's
+/// witness are read at.
+pub(crate) fn centre(u: (f64, f64), v: (f64, f64)) -> (f64, f64) {
+    (geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1))
+}
+
 /// [`cell_region`] with the face's stored carrier, its lift and its
 /// lifted boundary ([`lift_boundary`]) in hand, for a caller that asks
 /// many cells of one face.
@@ -130,10 +137,10 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     band: Band,
 ) -> CellRegion {
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
-    let mid = |(lo, hi): (f64, f64)| geom::mid_param(lo, hi);
+    let (mu, mv) = centre(u, v);
     let station = surface.eval(
-        <Interval as geom_core::Real>::from_computed(mid(u)),
-        <Interval as geom_core::Real>::from_computed(mid(v)),
+        <Interval as geom_core::Real>::from_computed(mu),
+        <Interval as geom_core::Real>::from_computed(mv),
     );
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear = |row: &'static str, distance: Interval| {
@@ -147,7 +154,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     {
         return CellRegion::Undecided;
     }
-    let at = stored.eval(T::from_computed(mid(u)), T::from_computed(mid(v)));
+    let at = stored.eval(T::from_computed(mu), T::from_computed(mv));
     match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,

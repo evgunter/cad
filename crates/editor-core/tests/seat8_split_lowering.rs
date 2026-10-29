@@ -401,13 +401,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// main's merge at `1f851964`). Re-taken over main's merge at
 /// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
 /// rebuilt at `place` as before E, this branch reads main's word.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
-        ("part_select", 0x514d_7654_599b_f253),
-        ("kitchen_sink", 0xf54a_ee28_c755_eb70),
+        ("cut_cylinder", 0x863c_8c78_7943_b812_u64),
+        ("part_select", 0xbca1_dc45_d456_c7a7),
+        ("kitchen_sink", 0xd8b7_373c_ad55_7d3c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -546,6 +552,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape the digest reproduces main's value at all three ε rows,
+/// so nothing else moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -566,7 +578,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x95b6_b099_d57e_e9be,
+        got, 0x883a_4673_251b_8566,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

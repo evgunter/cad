@@ -5,34 +5,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-
-fn needle(deg: f64, window: Option<f64>, tol: Tol) -> topo::AtRestBody<f64> {
-    let r = deg.to_radians().tan();
-    let lp = bulge_loop(
-        [(0.0, 0.0), (r, 0.0), (0.0, 1.0)]
-            .iter()
-            .map(|&(x, y)| (Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    let rev = window.map_or(sweep::Revolution::Full, sweep::Revolution::Partial);
-    let body = sweep::revolve(
-        &vp,
-        sweep::RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        rev,
-        tol,
-    )
-    .unwrap()
-    .body;
-    sweep::test_support::finished("needle", body, tol)
-}
+use crate::revolve_common::needle;
+use geom_core::{Point3, Tol, Vec3};
 
 fn head(s: String) -> String {
     let cut = s.find([' ', '{', '(']).map_or(s.len(), |i| i);

@@ -229,7 +229,7 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: T::zero(),
@@ -386,14 +386,14 @@ fn a_curved_junction_refuses_typed_naming_the_departure_arm() {
     use geom_core::Band;
     use topo::clearance::{
         BoundVerdict, Budgets, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
-        EngineRefusal, SharedCell, Side, Sweep,
+        EngineRefusal, SharedCell, Side, Sweep, Which,
     };
     let tol = Tol::witness();
     let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let body = pipe::<f64>(POSES[0], &f, tol);
     let faces = body.faces().map(|(k, _)| k).collect();
     let side = Side { body: &body, faces };
-    let windows = side.windows().expect("every face has a window");
+    let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(tol).unwrap(),

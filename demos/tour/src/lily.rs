@@ -145,6 +145,7 @@
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
+use pncad::geom_brep::{CertCheck, CertifyError};
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
@@ -2396,14 +2397,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    other's NURBS walls by the spline-face arm, a seam's end at a tip
     //    being its end vertex's meeting. At the result, the shared rim,
     //    a seam between the two bodies' NURBS walls, reads transverse off
-    //    each wall's chart. It still refuses where that seam is described
-    //    as the walls' intersection: limbs 1 and 2 read the rim through
-    //    each wall's exact boundary-row image. Limb 3's two-chart tube is
-    //    cut to the walls' domains, and the rim ends at a corner of each
-    //    and runs along a boundary row of each, so no one arc is proved
-    //    (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
-    //    The flush reading along the two bodies' NURBS edges is behind
-    //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
+    //    each wall's chart. The rim is the boundary row of both walls, a
+    //    curve known in advance, so it is described as their shared row
+    //    and certified through each wall's row certificate. The union
+    //    then stops at the interior-loop guard, which has no arm for a
+    //    spline wall's pair. The flush reading along the two bodies'
+    //    NURBS edges is behind that
+    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
@@ -2433,23 +2433,49 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The SITE is the claim: the result's seam, described as the
-        // walls' `Intersection`, whose certification refuses. The cause
-        // moves with ε. Measured 2026-10-28: at 1e-9 the tube's crossing
-        // bound straddles zero (`PlaneNurbs(TubeStraddles)`); at 1e-6 the
-        // pair's transversality reads in band at a sample; at 1e-12 the
-        // tour stands the lily walls down before this one. If this ever refuses
-        // elsewhere, the sentence above is wrong and must be re-derived
-        // before it is believed.
+        // The rim's crossing refuses at every ε that reaches it; the
+        // reading that refuses is keyed by ε (measured 2026-10-29). At
+        // 1e-9 the rim's certificate reads the walls' crossing over the
+        // whole row, and on the rim where they are tangent at two points,
+        // symmetric about its middle, the cover reads the crossing change
+        // sign across each: a definite exact zero, at no sample. At 1e-6 a
+        // sample's crossing reads in band first, an escalation there
+        // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`).
+        // At 1e-12 the lower stem's declared frontier stands the lily walls
+        // down before this one. If this ever refuses elsewhere, the
+        // sentence above is wrong and must be re-derived before it is
+        // believed.
         |e| {
-            matches!(
-                e,
-                BooleanError::EdgeUndescribed {
-                    failure: EdgeDescribeFailure::Intersection,
-                    cause: Some(cause),
-                    ..
-                } if matches!(**cause, EulerOpError::Certification { .. })
-            )
+            let BooleanError::EdgeUndescribed {
+                failure: EdgeDescribeFailure::Intersection,
+                cause: Some(cause),
+                ..
+            } = e
+            else {
+                return false;
+            };
+            let EulerOpError::Certification { error } = &**cause else {
+                return false;
+            };
+            if tol.eps() == 1e-6 {
+                matches!(
+                    error,
+                    CertifyError::Escalated {
+                        check: CertCheck::Transversality,
+                        sample,
+                        ..
+                    } if *sample != pncad::geom_brep::certify::NOT_A_SAMPLE
+                )
+            } else {
+                matches!(
+                    error,
+                    CertifyError::NotTransverse {
+                        sample: pncad::geom_brep::certify::NOT_A_SAMPLE,
+                        lever: None,
+                        verdict: pncad::geom_brep::recourse::Refused::Zero(_),
+                    }
+                )
+            }
         },
         "grow the leaves out of the stem instead of standing them beside it",
     );

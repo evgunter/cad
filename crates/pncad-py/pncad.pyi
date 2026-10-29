@@ -606,6 +606,7 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `singularity_undecided`,
     `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
@@ -1102,9 +1103,12 @@ class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
     scalar is a point.
 
-    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
-    the scalar this build ran at, and `door` the one that CAN answer —
-    the recourse rides in the refusal rather than in a reader's memory.
+    `variant` is `needs_enclosure`, or `no_upper_bound` where the
+    engine's bracket has a lower end only (reached only at a certified
+    scalar, which this binding does not evaluate at); `verb` is the
+    primitive, `scalar` the scalar this build ran at, and `door` the one
+    that CAN answer — the recourse rides in the refusal rather than in a
+    reader's memory.
 
     NOT MeasureUnavailable, whose name is one word away and whose
     question is a different one: that is the analysis lane refusing to
@@ -1114,10 +1118,11 @@ class MeasureUnavailableAt(PncadError):
     A typed ABSENCE rather than a failure. The measure node evaluated
     fine and has no value, which is why an assertion over it reports
     `Unevaluated` carrying this same reason instead of being poisoned.
-    A `min_clearance` at `f64` is the whole of it today: a station pair
-    found by a point-scalar search is an upper bound on the minimum
-    rather than the minimum, and reporting one would be a degradation
-    ERROR-DESIGN E7 forbids by name."""
+    At `f64`, the only scalar this binding evaluates at, it is always
+    `needs_enclosure` on a `min_clearance`: a station pair found by a
+    point-scalar search is an upper bound on the minimum rather than
+    the minimum, and reporting one would be a degradation ERROR-DESIGN
+    E7 forbids by name."""
 
     variant: str
     verb: str
@@ -4826,9 +4831,11 @@ class StructureNormalization:
     Volume and validity are exact either way; what changed is only the
     cut, and the two censuses are that change counted.
 
-    `promoted_to` and `residual` are the one arm's payload, `None` on
-    the other four — present on every row, so a read never raises and
-    a caller never has to branch on `kind` first."""
+    `promoted_to` and `residual` are `surface_promotion`'s payload and
+    `singularity` is `chart_singularity_vertex`'s (`interior`,
+    `inside_edge` or `valence_one_vertex`), each `None` on the other
+    arms — present on every row, so a read never raises and a caller
+    never has to branch on `kind` first."""
 
     @property
     def face(self) -> int: ...
@@ -4838,6 +4845,8 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def singularity(self) -> Optional[str]: ...
     @property
     def file_census(self) -> FaceCensus: ...
     @property

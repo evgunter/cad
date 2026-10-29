@@ -67,7 +67,7 @@ impl Steep {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: self.pair,
-                witness: e.eval(0.5 * (t0 + t1)),
+                selector: geom_brep::CurveSelector::Witness(e.eval(0.5 * (t0 + t1))),
             },
             carrier: e.clone(),
             param_start: t0,
@@ -280,7 +280,7 @@ fn r1_spiric_whole_ovals_certify_whole() {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(plane, torus),
-                    witness: carrier.eval(0.5 * (t0 + t1)),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * (t0 + t1))),
                 },
                 carrier: carrier.clone(),
                 param_start: t0,

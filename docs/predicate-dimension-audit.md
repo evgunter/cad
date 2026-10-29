@@ -255,8 +255,9 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # `decide` keeping the verdict for the refusal's words, so their sites
 # are rows of this table like any other; `gate_measured` is deliberately
 # absent — it classifies no margin and has no comparand to dimension.
-# The `_reported` doors and `check_unlogged` (the F18–F25 door) are
-# the same decisions keeping their verdict or leaving the log.
+# The `_reported` doors and `check_unlogged` (the F18–F25 door, the
+# one-margin case of `unlogged`, F28's) are the same decisions keeping
+# their verdict or leaving the log.
 grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
@@ -589,9 +590,10 @@ which is what actually moves the number.
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
 | boolean/plane_eq.rs:203/265 | bool_plane_offset | signed-offset difference | m | OK |
-| boolean/carrier_eq.rs (`at_consumed_extent`, the undeclared posture through `rest::carrier_pair_verdict`) | bool_plane_parallel / bool_plane_orient / carrier_cyl_axis_parallel / carrier_torus_axis_parallel at the carrier-pair door | sin (cos) of the two normals or axes × the farthest reach of a ball enclosing both faces from the pivot the kind's position datum is read at, re-anchored nearest the ball's centre: the centre itself (plane, offsets read there), the foot of the centre on the second axis (cylinder), the second torus centre | m | FIXED (TANG; was a 1 m `T::one()` arm) |
-| boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach / carrier_sphere_reach / carrier_cyl_reach / carrier_torus_reach | the declared pair's displacement over its consumed extent, bounded above at every point of the ball: the position datum read at the pivot + the axes' or normals' chord `\|a₁ − σa₂\|` × the reach from it (a levered value, through `Margin::levered`) + the radius differences, summed; a sum of lengths | m | OK (TANG; replaces deciding each datum on its own, which bridged nearly twice the band) |
-| boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach_floor / carrier_*_reach_floor | the larger of the radius difference less the rest of the upper bound (a bound across the whole ball) and each face vertex's distance from the other carrier less its own; floored at zero | m | OK (TANG) |
+| boolean/carrier_eq.rs (`at_consumed_extent`, the undeclared posture through `rest::carrier_pair_verdict`) | bool_plane_parallel / bool_plane_orient / carrier_cyl_axis_parallel at the carrier-pair door | sin (cos) of the two normals or axes × the farthest reach of a ball enclosing both faces from the pivot the kind's position datum is read at, re-anchored nearest the ball's centre: the centre itself (plane, offsets read there), the foot of the centre on the second axis (cylinder) | m | FIXED (TANG; was a 1 m `T::one()` arm) |
+| boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach / carrier_sphere_reach / carrier_cyl_reach / tt_coincident (the torus pair's bound, `geom_brep::TorusDisplacement`) | the declared pair's displacement over its consumed extent, bounded above at every point of the ball: the position datum read at the pivot + the axes' or normals' chord `\|a₁ − σa₂\|` × the reach from it (a levered value, through `Margin::levered`) + the radius differences, summed; a sum of lengths | m | OK (TANG; replaces deciding each datum on its own, which bridged nearly twice the band) |
+| boolean/carrier_eq.rs (`declared_reading`) | bool_plane_reach_floor / carrier_*_reach_floor / tt_coincident_floor | the larger of the radius difference less the rest of the upper bound (a bound across the whole ball) and each face vertex's distance from the other carrier less its own; floored at zero | m | OK (TANG) |
+| geom-brep/src/pair_section/torus_coincidence.rs (`tori_coincide`) | tt_coincident / carrier_torus_axis_parallel / carrier_torus_center / carrier_torus_major_radius / carrier_torus_minor_radius / tt_coincident_straddle | the bound on two ring tori's distance (centre separation + major-radius difference + the axes' chord × the larger major radius + minor-radius difference), and each datum alone (the tilt as `\|a₁ × a₂\|` × the larger major radius), read by the torus pose and the carrier ladder | m | OK |
 | boolean/recl.rs:224–748 | side_code / bool_dir_same / bool_ee_collinear | side_code as in the sectors.rs row (`flank_key`, edge-edge membership); cos/sin × sector arms for the rest | m | OK |
 | boolean/recl.rs (`wedge_is_reflex`) | bool_wedge_reflex | `n̂₀·r̂₁`: the sine of an edge-edge site's dihedral wedge angle (the second flanker's projected representative against the first flanker's outward normal), × min sector arm — the second face's distance at that arm from the first face's plane; asked only when a representative splits the two planes' verdicts, and a decided zero refuses (`decide_nonzero`) | m | OK (JOIN reflex wedge) |
 | boolean/recl.rs (`flank_rep`) | bool_flank_offset | `\|v̂ − â(v̂·â)\|`: a flanking bound's component perpendicular to the edge-edge site's common line (the sine of its angle off the line), × the bound's own reach (`Reach::length`: a line edge's chord, a curved edge's extent, a bisector's arm) — the bound's far end's distance off the line, where `side_code` reads it; a decided zero refuses (`decide_positive`) | m | OK (CLEAVE flanker representative) |
@@ -727,6 +729,7 @@ which is what actually moves the number.
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_germ | a boolean germ's unit direction against the conic's unit tangent at the chord's start, `dir·Ĉ′(θ₁)` (the cosine between them), levered by the semi-major axis | m | OK (REACH) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_section | the split's `±(n_plane × n_out)` against the same unit tangent (the sine between plane and wall times that cosine), levered by the wall's `curvature_lever_arm` at the chord's start: the quantity and the lever `split_join_conic_heading` decides it on | m | OK (REACH) |
+| chord_join.rs (`arc_leaving`) | chord_arc_leave_section_aligned | where `chord_arc_leave_section` reads Zero: the split datum's unit direction against the unit tangent (the cosine between them), levered by the semi-major axis, as `chord_arc_leave_germ` is; Zero names the broken invariant, a sign the graze | m | OK (REACH) |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
@@ -1414,6 +1417,49 @@ Flagged, NOT fixed here (dispositions):
   the reach the margin over-reads by `ρ/reach`, and every root there
   is outside the face. Filed as
   `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
+- **F28** (added by CLEAR's TIGHTEN unit) `topo/src/clearance.rs`
+  `min_separation`, the region readings its walk takes
+  (`Bracket::outside`, `Bracket::witness`): a cell's region
+  (`cell_region`, the `cell_region_*` rows above) and a centre station's
+  place on its face (the face's point door, the `bool_contact_*` and
+  point-in-face rows). Every row keeps its own dimension; what this row
+  argues is why their outcomes stay out of the verdict log.
+  - Every outcome of every reading leaves a bracket true to the band.
+    A cell read `Outside` holds no point of its face, so the pair drops
+    out of the lower end; a cell the door cannot decide (`Zero`, in
+    band, poison) stays in it. A station placed `In` is a point of its
+    face; one placed `OnEdge` or `OnVertex` is an in-band decision and
+    may lie up to the band outside the face, and either bounds the upper
+    end; a station the door does not place stays out of it. So the upper
+    end bounds the faces' separation up to the band, and an `AtLeast c`
+    over faces within the band above `c` can read `Violated`: the
+    kernel's ε model, not a defect. The readings choose which pairs feed
+    the bracket and decide nothing a census must see.
+  - `min_separation` runs inside an evaluation, under the
+    `min_clearance` measure, at the interval lane only: the `f64`
+    witness answers `MeasureUnavailable`. Logged, its readings would be
+    rows in the leaf's vector that the witness's cannot have, and every
+    leaf would refuse `flip_crossing`; its in-band escalations would
+    hand the driver a cue to bisect that no smaller parameter box
+    answers (measured on M10-6's neck and notch fixtures: every call
+    carries 137–186 of them).
+  - What the scope does not hide. The symbolic tier's decision counts
+    (`SymCounts`) still count the in-scope decisions, and they reach
+    the drive verdict's `content_key` through its serialized receipt,
+    which is where a receipt belongs. And the readings' K samples keep their names, which
+    is vacuous at this site today: `Probe` never runs `min_separation`,
+    since only a certifying scalar holds the engine's door. If a
+    `min_clearance` document enters the driver's K population at a
+    certifying scalar, its 137–186 in-band samples per call would fire
+    k-lint rule 1; that is a finding to re-derive then, per the K-REPORT
+    runbook, not a reason to log them.
+
+  **Carried as `k_stats::unlogged("F28", ..)`**, the scoped door whose
+  one-margin case is `check_unlogged`: its verdicts and escalations are
+  discarded. `MinSeparation::decided` counts the readings as a receipt
+  line. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not
+  move. `geom-core/tests/flagged_census.rs` checks that every
+  `unlogged` and `check_unlogged` site cites a row this ledger has.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

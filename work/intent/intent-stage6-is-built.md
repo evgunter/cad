@@ -1,14 +1,23 @@
 ---
 id: intent-stage6-is-built
 kind: issue
-title: INTENT stage 6 (tangency constructions) is built: a surface's trace in a sketch plane, continuation tangent to it, coaxiality through one axis variable
-status: dispatched
+title: INTENT stage 6 (tangency constructions) is built: coaxiality through one axis read twice, a sketch continuing tangent to a surface's trace, both proven at the door
+status: parked
 opened: 2026-10-29
 priority: P0
 cost: H
+blocked_on: [tangent-and-coaxial-scenes-are-in-the-corpus, a-coaxiality-is-one-axis-read-twice, a-sketch-continues-tangent-to-a-surfaces-trace, the-door-proves-a-constructed-tangency, the-sketch-tool-authors-a-tangent-continuation]
 ---
 
 
-Stage 6 of `work/intent/plan.md`: a surface's trace in a sketch plane, a continuation tangent to it, and coaxiality through one axis variable (DESIGN D10). Stages 1–5 have merged (stage 3 closed 2026-10-29 with G, #5954; stages 4 I and 5 C closed under ATREST). This stage was never sliced. The first unit is a spec lane that restates stage 6 against main and slices it into PRs, as `docs/INTENT-STAGE3-SPEC.md` did for stage 3; designers are called only where the ratified text leaves a fork.
+The release trigger for INTENT stage 6 (`work/intent/plan.md`, stage 6; `docs/INTENT-STAGE6-SPEC.md`): a surface's trace in a sketch plane and continuation tangent to it; coaxiality through one axis variable. Stage 6 is the plan's last stage, so when this row closes the program's exit walk is what remains (`plan.md`, "Exit criteria").
 
-Done when every unit it slices has merged.
+The stage is these units:
+
+- A `tangent-and-coaxial-scenes-are-in-the-corpus`;
+- B `a-coaxiality-is-one-axis-read-twice` (FORK-S6-1);
+- C `a-sketch-continues-tangent-to-a-surfaces-trace` (FORK-S6-2, S6-3);
+- D `the-door-proves-a-constructed-tangency` (FORK-S6-4; folds into C under its option (c));
+- E `the-sketch-tool-authors-a-tangent-continuation`.
+
+This row closes when all five have.
