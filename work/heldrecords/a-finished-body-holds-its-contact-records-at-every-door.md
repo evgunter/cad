@@ -22,7 +22,6 @@ Ratified by Ev on PR 5967 (2026-10-28), decision 1. The text is in `crates/topo/
 What retires:
 - Caller-side `carry_contacts`: `SplitResult::carry_contacts`, `Shelled::carry_contacts`, `MergeCoplanarOutcome::carry_contacts`, and replace-face's and blend's carries.
 - `BooleanInputs` and `BooleanBody::contacts`, which fold into the operands and the result.
-- editor-core keeping a value's records in two places (`BooleanValue::Body.contacts` and `Carry.contacts`, with `records_of` choosing between them).
 - Record drops that become unrepresentable:
   - the shorthand `union`/`subtract`/`intersect(a, b, tol)`, which today passes default inputs;
   - `wire_split`'s empty `Carry.contacts` (WIRE's `a-split-in-the-document-drops-its-operands-contact-records`).

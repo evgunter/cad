@@ -168,7 +168,7 @@ pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 /// (the kiss row's 213) rather than by budget exhaustion. A deeper dial
 /// reaches smaller violations beside a cusp at an exponential cost in
 /// pairs; the second-order arm
-/// (`work/clear/the-second-order-arm-certifies-a-declared-wedge-0-edge.md`)
+/// (`work/cleartail/the-second-order-arm-certifies-a-declared-wedge-0-edge.md`)
 /// retires the dial. A recorded run dial.
 pub const CUSP_DEPTH: u32 = 10;
 

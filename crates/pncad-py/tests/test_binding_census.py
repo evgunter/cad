@@ -2101,14 +2101,13 @@ FAMILIES: dict[str, str] = {
 #: `ContactRecords` accordingly stays `INTERIOR` — the same
 #: disposition, now with a second reason under it.
 #:
-#: **The capture reconciles the kernel's two homes for a record set,
-#: and does it where the kernel does.** `NodeValue::contacts` is what
-#: `instantiate` carried in (D-1); a boolean's records ride
-#: `BooleanValue::Body` instead; `editor_core::product::sources_of`
-#: is where the two meet, and `Value.body` / `Value.bodies` now make
-#: the same reconciliation so a body read off a value and the same
-#: body read by the gather cannot disagree about what was declared
-#: over it. An instance of an assembly is the second source (the
+#: **The capture reads a body's records where the kernel does.** A
+#: value's carry holds them (`Carry::contacts`): what `instantiate`
+#: carried in (D-1), or a boolean's own;
+#: `editor_core::product::sources_of` reads them there, and
+#: `Value.body` / `Value.bodies` read them alike so a body read off a
+#: value and the same body read by the gather cannot disagree about
+#: what was declared over it. An instance of an assembly is the second source (the
 #: records its document's census minted, carried across the seam),
 #: and `product` is deliberately the third case: it gathers and
 #: declares NOTHING, so its body is plain. Those two are

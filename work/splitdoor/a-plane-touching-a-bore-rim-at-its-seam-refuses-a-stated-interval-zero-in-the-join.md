@@ -2,7 +2,7 @@
 id: a-plane-touching-a-bore-rim-at-its-seam-refuses-a-stated-interval-zero-in-the-join
 kind: issue
 title: A plane touching a tube's bore rim at the seam azimuth refuses Join(Euler(Certification { StatedInterval Zero })) under the downward normal
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
