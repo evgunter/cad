@@ -127,7 +127,7 @@ const DELTA: f64 = 5e-3;
 /// which the door takes per REQUEST rather than per edge. It fits every
 /// wall it touches with room to spare: the lip disk is `LIP_R - BORE` =
 /// 0.15 m wide and the sphere zone spans `asin(0.6)` of arc.
-const ROLL: f64 = 0.05;
+pub const ROLL: f64 = 0.05;
 
 /// The bud's **meridian**, said through the paths lattice: the base
 /// annulus, the sphere's own arc about the globe centre, the conical
@@ -169,7 +169,7 @@ fn meridian(tol: Tol) -> ConstructedLoop<f64> {
 }
 
 /// The bud, in one `revolve` call.
-fn bud(tol: Tol) -> Body<f64> {
+pub fn bud(tol: Tol) -> Body<f64> {
     let profile = validated(SketchPlane::xy(), vec![meridian(tol)], tol)
         .expect("the bud's meridian validates");
     revolve(
@@ -189,7 +189,7 @@ fn bud(tol: Tol) -> Body<f64> {
 /// kinds `a` and `b`, in either order — the selection said BY
 /// DESCRIPTION through the kernel query seat (finding 2;
 /// `klein::corner_edges` is the same call).
-fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
+pub fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|&e| {

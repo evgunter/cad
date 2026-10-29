@@ -5,15 +5,13 @@
 //! geometry and assert only what the reviewer independently confirms.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![cfg(test)]
-
 use pncad::geom_core::{Point3, Tol};
 use pncad::topo::{Body, FaceKey};
 
-use crate::booleans::finished;
-use crate::lily::plant;
+use demo_tour::booleans::finished;
+use demo_tour::lily::plant;
 
-fn body_of<'a>(pieces: &'a [crate::lily::Piece<f64>], name: &str) -> &'a Body<f64> {
+fn body_of<'a>(pieces: &'a [demo_tour::lily::Piece<f64>], name: &str) -> &'a Body<f64> {
     &pieces
         .iter()
         .find(|p| p.name == name)
