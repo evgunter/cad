@@ -1966,7 +1966,7 @@ impl SymRules {
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
     /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.5024 / 0.7267 / 0.7271 of its REAL study** at ε = 1e-6 / 1e-9 / 1e-12, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls; it trades the split spelling `sqrt(N)/sqrt(D)` of a re-keyed root (no measured document moves on it) | one whole-box leaf, release, best of 3, off → on: plate 0.339 → 0.349 s, plate at its real study 0.342 → 0.346, annulus 0.364 → 0.364, bracket 3.81 → 3.82, link 19.4 → 19.3, pad 144.5 → 145.7, boss 0.245 → 0.250; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
     /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles; it answers at its node, and a zero through its arm is a zero (its differential is [`Self::without_the_reads`]; on the tilted derived-frame family the end cap refuses at `newell_plane_residual` with the read off) | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
-    /// | H, angle sums (`angle_sum`, G) | a ring stepped by an exact `turn/N` proves every side seat at the door's 256 terms, `N ∈ {4, 5, 6, 8, 9, 12, 16, 24}`, the members at a rational cosine included (0/12 at `N = 12` shut); at the nominal, `carrier_matches_mapped_source` gains 2 on the bracket (339 → 341), 8 on the link (174 → 182) and 4 on the literal D-tab (188 → 192), every other split on the eight documents unmoved; no ceiling moves | one whole-box leaf, release, best of 3, off → on (`without_angle_sum`): plate 0.104 → 0.110 s, bracket 1.149 → 1.161, annulus 0.089 → 0.097, pad 0.521 → 0.547, link 0.231 → 0.234, boss 0.115 → 0.123; M10-4's stackup hulls certify in one leaf as before | **yes** |
+    /// | H, angle sums (`angle_sum`, G) | a ring stepped by an exact `turn/N` proves every side seat at the door's 256 terms, `N ∈ {4, 5, 6, 8, 9, 12, 16, 24}`, the members at a rational cosine included (0/12 at `N = 12` shut); at the nominal, `carrier_matches_mapped_source` gains 2 on the bracket (339 → 341), 8 on the link (174 → 182) and 4 on the literal D-tab (188 → 192), every other split on the eight documents unmoved; no ceiling moves | one whole-box leaf, release, best of 3, off → on (`without_angle_sum`), on a faster machine than the other rows' timings: plate 0.104 → 0.110 s, bracket 1.149 → 1.161, annulus 0.089 → 0.097, pad 0.521 → 0.547, link 0.231 → 0.234, boss 0.115 → 0.123; M10-4's stackup hulls certify in one leaf as before | **yes** |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -3430,7 +3430,9 @@ fn trig_at_rational_pi(op: SymOp, a: &Form) -> Option<Form> {
 fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) -> Option<Form> {
     // Rule H's deferred fold reaches every argument but a ring op's
     // (`turn::settle`), so an atom, a reciprocal and a decision read
-    // the value.
+    // the value. A reciprocal's is the first line: a zero it settles to
+    // is refused where it is made, and the output's settle (`turn::over`)
+    // stands behind it.
     let held: [Option<Form>; 3];
     let kids = if early && sess.rules.angle_sum {
         let settles = |i: usize| match node.op {
@@ -5298,10 +5300,10 @@ impl<T: Real> Real for Sym<T> {
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
     }
 
-    /// The `Sin` node, valued `1/2`: the tier folds a constant angle
-    /// itself (`trig_at_rational_pi`, rule H's settle).
-    fn sin_exactly_half(self) -> Self {
-        self.unary(self.value.sin_exactly_half(), SymOp::Sin, 0)
+    /// The `Sin` node over `τ/12`, valued `1/2`: the tier folds a
+    /// constant angle itself (`trig_at_rational_pi`, rule H's settle).
+    fn sin_of_a_twelfth() -> Self {
+        (Self::tau() / Self::from_f64(12.0)).unary(T::sin_of_a_twelfth(), SymOp::Sin, 0)
     }
 
     fn tan(self) -> Self {
@@ -6457,10 +6459,8 @@ mod tests {
                 ),
                 decides_zero(c6 * c6 - lit(0.75)),
                 // `sin(π/6)` is an atom until the walk ends, and folds
-                // where it is read: at the output, and in an atom's
-                // argument.
+                // at its output.
                 decides_zero(turned(1, 12).0 - lit(0.5)),
-                decides_zero((lit(1.0) + turned(1, 3).1).sqrt() - lit(0.5).sqrt()),
                 // A rational-radian angle is symbolic, so its product with a
                 // constant atom is the split, left as it is.
                 decides_zero(
@@ -6470,7 +6470,91 @@ mod tests {
                 ),
             ]
         });
-        assert_eq!((out, counts.symbolic), ([true; 6], 6), "{counts:?}");
+        assert_eq!((out, counts.symbolic), ([true; 5], 5), "{counts:?}");
+    }
+
+    /// **Rule H's deferred fold, at each place it is read**
+    /// ([`turn::settle`]): `sin(π/6)` is an atom of the early walk, so
+    /// each row below is red where its place leaves the atom standing.
+    /// An atom's argument (`sqrt(s·s)`, `min(s, ½)`) and a decision
+    /// (`select(s − ½)`) read `1/2` and prove; a reciprocal of the zero
+    /// it settles to, `1/(s − ½)` or `(s − ½)⁻¹`, is refused, so its
+    /// product with `s − ½` is not the theorem `1` a cancellation of
+    /// the unsettled atom would make of it.
+    #[test]
+    fn rule_hs_deferred_fold_is_read_where_the_walk_reads_a_value() {
+        let (rows, _) = with_session_rules(budget(), SymRules::shipped(), || {
+            let (x, y) = (p("x", 0.7), p("y", 0.3));
+            let (s, _) = turned(1, 12);
+            let half = Sym::from_f64(0.5);
+            let one = Sym::from_f64(1.0);
+            let proved = |m: Sym<f64>| {
+                let before = session_counts().map_or(0, |c| c.symbolic);
+                decides_zero(m) && session_counts().map_or(0, |c| c.symbolic) > before
+            };
+            [
+                ("sqrt(s·s) − s", proved((s * s).sqrt() - s)),
+                ("min(s, ½) − ½", proved(s.min(half) - half)),
+                (
+                    "select(s − ½, x, y) − x",
+                    proved((s - half).select_le_zero(x, y) - x),
+                ),
+                (
+                    "(s − ½)/(s − ½) − 1",
+                    proved((s - half) * (one / (s - half)) - one),
+                ),
+                (
+                    "(s − ½)·(s − ½)⁻¹ − 1",
+                    proved((s - half) * (s - half).powi(-1) - one),
+                ),
+            ]
+        });
+        assert_eq!(
+            rows,
+            [
+                ("sqrt(s·s) − s", true),
+                ("min(s, ½) − ½", true),
+                ("select(s − ½, x, y) − x", true),
+                ("(s − ½)/(s − ½) − 1", false),
+                ("(s − ½)·(s − ½)⁻¹ − 1", false),
+            ]
+        );
+    }
+
+    /// **A denominator shown to vanish is poison**, the one answer of
+    /// rule H's two rewrites ([`turn::settle`], [`turn::linearise`]):
+    /// `1/(1 − 2·sin(π/6))` settled, and `1/((1 − 2·sin(π/6))·(1 +
+    /// sin(π/6)))` linearised, whose denominator is the zero form over
+    /// the angles (`cos(2π/3) = cos(4π/3)`). No document reaches either
+    /// through the walk, which settles a reciprocal's argument first.
+    #[test]
+    fn a_denominator_rule_h_shows_to_vanish_is_poison() {
+        let ((settled, linearised), _) = with_session_rules(budget(), SymRules::shipped(), || {
+            SESSION.with(|slot| {
+                let mut slot = slot.borrow_mut();
+                let sess = slot.as_mut().expect("a session");
+                let sixth = Form::poly(Poly::term(vec![(INDET_PI, 1)], Rat::new(1, 6, 0).unwrap()));
+                let s = turn::mint(SymOp::Sin, &sixth, sess).expect("the atom");
+                let lin = |c: i128, k: i128| {
+                    Form::poly(Poly::constant(Rat::new(c, 1, 0).unwrap()))
+                        .add(
+                            &s.mul(
+                                &Form::poly(Poly::constant(Rat::new(k, 1, 0).unwrap())),
+                                sess.budget,
+                            )
+                            .unwrap(),
+                            sess.budget,
+                        )
+                        .unwrap()
+                };
+                let (a, b) = (lin(1, -2), lin(1, 1));
+                let den = a.mul(&b, sess.budget).unwrap();
+                let settled = turn::settle(&Form::quotient(Poly::one(), a.num.clone()), sess);
+                let linearised = turn::linearise(&Form::quotient(Poly::one(), den.num), sess);
+                (settled.map(|f| f.poisoned), linearised.map(|f| f.poisoned))
+            })
+        });
+        assert_eq!((settled, linearised), (Some(true), Some(true)));
     }
 
     /// **Rule H proves no false angle sum**: `cos a cos b − sin a sin b`

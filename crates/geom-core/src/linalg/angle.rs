@@ -96,7 +96,7 @@ impl Turns {
             let angle = T::tau() * T::from_f64(at as f64) / T::from_f64((4 * den) as f64);
             let (sin, cos) = if 3 * at == den {
                 // A twelfth of a turn: the sine is one half exactly.
-                (angle.sin_exactly_half(), angle.cos())
+                (T::sin_of_a_twelfth(), angle.cos())
             } else {
                 angle.sin_cos()
             };

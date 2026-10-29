@@ -87,7 +87,7 @@
 //! `½ cos(8π/9) + ½ cos(4π/9)` its neighbour's product meets, and a
 //! ring of 9 would leave the steps beside its members at a third of a
 //! turn. So `sin(π/6)` stays an atom, [`Turns`](crate::Turns) reads a
-//! twelfth's sine as that atom (`Real::sin_exactly_half`), and [`settle`]
+//! twelfth's sine as that atom (`Real::sin_of_a_twelfth`), and [`settle`]
 //! folds it to `1/2` where the walk's form is read: its output, and
 //! every argument but a ring op's (an atom's, a reciprocal's, a
 //! decision's), so a value read there is the value the fold gives.
@@ -104,7 +104,7 @@ use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly, mono_mul};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom};
+use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom, unary_at_zero};
 
 /// The most pair rewrites one node's form takes before it is left as it
 /// was.
@@ -187,17 +187,12 @@ fn atom(sess: &mut Session, op: SymOp, arg: Form) -> Form {
     Form::poly(Poly::indet(id))
 }
 
-/// `sin`/`cos` at the angle `0`.
-fn at_zero(op: SymOp) -> Option<Form> {
-    Rat::new(i128::from(op == SymOp::Cos), 1, 0).map(|c| Form::poly(Poly::constant(c)))
-}
-
 /// `sin`/`cos` of the constant angle `(p/s)·π`: `0` or `1` at the
 /// angle `0`, else `±` its atom, `sin(π/6)` among them (module docs).
 fn constant(sess: &mut Session, op: SymOp, p: i128, s: i128) -> Option<Form> {
     let (op, p, s, neg) = first_octant(op, p, s)?;
     let f = if p == 0 {
-        at_zero(op)?
+        unary_at_zero(op)?
     } else {
         atom(sess, op, times(Rat::new(p, s, 0)?, INDET_PI))
     };
@@ -207,8 +202,24 @@ fn constant(sess: &mut Session, op: SymOp, p: i128, s: i128) -> Option<Form> {
 /// The key of the atom `sin(π/6)`, the one constant atom whose value is
 /// rational.
 fn sixth() -> Option<u128> {
-    let arg = times(Rat::new(1, 6, 0)?, INDET_PI);
-    Some(indet_atom(SymOp::Sin.tag(), 0, &[arg.digest()]))
+    static KEY: std::sync::OnceLock<Option<u128>> = std::sync::OnceLock::new();
+    *KEY.get_or_init(|| {
+        let arg = times(Rat::new(1, 6, 0)?, INDET_PI);
+        Some(indet_atom(SymOp::Sin.tag(), 0, &[arg.digest()]))
+    })
+}
+
+/// `num / den`, or poison where `den` is the zero polynomial: a
+/// denominator the rewrite or the fold shows to vanish is a real zero,
+/// and the form has no value. The walk settles a reciprocal's argument
+/// where it is made, so no document is known to reach this zero; it is
+/// the backstop behind that settle.
+fn over(num: Poly, den: Poly) -> Form {
+    if den.is_zero() {
+        Form::poison()
+    } else {
+        Form::quotient(num, den)
+    }
 }
 
 /// `p` with `sin(π/6)` read as `1/2`.
@@ -228,9 +239,8 @@ fn settle_poly(p: &Poly, id: u128) -> Option<Poly> {
 }
 
 /// **The fold rule H defers** (module docs): `f` with `sin(π/6)` read
-/// as its value `1/2`, `None` where `f` does not carry it or the fold
-/// does not fit the ring, and `f` stands. A denominator the fold sends
-/// to zero is poison: the form has no value.
+/// as its value `1/2` ([`over`]), `None` where `f` does not carry it
+/// or the fold does not fit the ring, and `f` stands.
 pub(super) fn settle(f: &Form, sess: &Session) -> Option<Form> {
     let id = sixth()?;
     if f.poisoned || !sess.atoms.contains_key(&id) {
@@ -240,18 +250,14 @@ pub(super) fn settle(f: &Form, sess: &Session) -> Option<Form> {
     if !carries(&f.num) && !carries(&f.den) {
         return None;
     }
-    let (num, den) = (settle_poly(&f.num, id)?, settle_poly(&f.den, id)?);
-    if den.is_zero() {
-        return Some(Form::poison());
-    }
-    Some(Form::quotient(num, den))
+    Some(over(settle_poly(&f.num, id)?, settle_poly(&f.den, id)?))
 }
 
 /// `sin`/`cos` of a symbolic angle `ω` (no rational-turn part), its
 /// sign normalised, rule D's closed form asked first.
 fn symbolic(sess: &mut Session, op: SymOp, omega: &Form) -> Option<Form> {
     if omega.is_zero() {
-        return at_zero(op);
+        return unary_at_zero(op);
     }
     let flipped = omega.neg()?;
     let (arg, neg) = if flipped.digest() < omega.digest() {
@@ -442,8 +448,9 @@ fn linear_poly(
 }
 
 /// **The product rewrite over one form** (module docs): `Some` of the
-/// rewritten form, the form itself where no term has a pair, `None`
-/// where the rewrite does not fit and the caller keeps the form.
+/// rewritten form ([`over`]), the form itself where no term has a
+/// pair, `None` where the rewrite does not fit and the caller keeps the
+/// form.
 pub(super) fn linearise(f: &Form, sess: &mut Session) -> Option<Form> {
     if f.poisoned {
         return Some(f.clone());
@@ -456,8 +463,5 @@ pub(super) fn linearise(f: &Form, sess: &mut Session) -> Option<Form> {
     let mut steps = 0;
     let num = linear_poly(&f.num, sess, &mut memo, &mut steps)?;
     let den = linear_poly(&f.den, sess, &mut memo, &mut steps)?;
-    if den.is_zero() {
-        return None;
-    }
-    Some(Form::quotient(num, den))
+    Some(over(num, den))
 }
