@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "a_shared_row_is_certified_per_wall.rs"]
+mod a_shared_row_is_certified_per_wall;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]

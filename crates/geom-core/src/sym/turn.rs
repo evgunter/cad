@@ -87,7 +87,7 @@
 //! `½ cos(8π/9) + ½ cos(4π/9)` its neighbour's product meets, and a
 //! ring of 9 would leave the steps beside its members at a third of a
 //! turn. So `sin(π/6)` stays an atom, [`Turns`](crate::Turns) reads a
-//! twelfth's sine as that atom (`Real::sin_of_a_twelfth`), and [`settle`]
+//! twelfth's sine as that atom (`Real::sin_of_a_twelfth`), and [`settle`](crate::sym::turn::settle)
 //! folds it to `1/2` where the walk's form is read: its output, and
 //! every argument but a ring op's (an atom's, a reciprocal's, a
 //! decision's), so a value read there is the value the fold gives.

@@ -2940,6 +2940,13 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 impl<T: Real> PcurveCertificate<T> {
+    /// The edge's limbs 1 and 2 on this chart, as an edge certificate
+    /// reads them off a row image's certificate: the residual at the
+    /// samples, and the envelope between them.
+    pub fn limbs(&self) -> (T, T) {
+        (self.max_residual, self.envelope)
+    }
+
     /// A certificate whose envelope is its own statement's bound.
     pub(crate) fn closed(
         samples: u32,

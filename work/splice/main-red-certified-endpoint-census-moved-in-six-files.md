@@ -77,3 +77,5 @@ carries a "pinned red at main's count since PR …" note naming this row.
 Whoever argues a read safe (or makes it ask) replaces that note with the
 argument; the census checks the counts, not the notes, so a stale note
 does not go red by itself.
+
+**2026-10-29, nightly triage** (run 40823227622, main `5648e577eb`): four files moved past the pinned roster since this row's pin, at every ε. `ssi/four.rs` (3, 2) → (4, 2), from PR 5938 (`splice/tube-side-tripwire`). `geom/src/curves/nurbs.rs` is new at (3, 3), from PR 5955 (`clear/selfx`). `geom/src/surfaces/nurbs.rs` (4, 1) → (8, 2) and `topo/src/clearance.rs` (20, 3) → (28, 8), from PRs 5955 and 5976 (`clear/loops`). Seven of the new reads sit outside a function that asks: `four.rs` +1 (SPLICE), `surfaces/nurbs.rs` +3 and `clearance.rs` +3 (CLEAR). All three of `curves/nurbs.rs`'s reads sit in functions that ask.

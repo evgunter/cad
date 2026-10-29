@@ -2513,7 +2513,7 @@ fn chord_spec<T: Decide>(
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(wall_key, plane_key),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -2773,7 +2773,7 @@ fn bool_planar_chord_spec<T: Decide>(
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane_key, wall_aux),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -2937,7 +2937,7 @@ fn carried_chord_spec<T: Decide>(
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(own, partner),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -6001,7 +6001,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(cyl, plane),
-                        witness: carrier.mid_point(t0, t1),
+                        selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
                     },
                     carrier,
                     param_start: t0,
@@ -6553,7 +6553,7 @@ mod tests {
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, rim_plane),
-                    witness: carrier.mid_point(0.0, quarter),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, quarter)),
                 },
                 carrier,
                 param_start: 0.0,

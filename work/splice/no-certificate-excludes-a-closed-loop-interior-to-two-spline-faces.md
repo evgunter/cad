@@ -32,7 +32,7 @@ any loft or sweep body against another.
 
 ## Measured (2026-10-28)
 
-Lily's sweep row (`a_sheath_on_its_blade_unions_past_the_shared_rim`),
+Lily's sweep row (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`),
 blade ∪ sheath, with limb 3 temporarily stubbed to pass (not committed),
 reaches this guard at ε 1e-9, 1e-6 and 1e-12. Every pair the guard reads
 is evented and every one refuses `Reach`: the plane cap of each body
