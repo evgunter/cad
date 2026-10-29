@@ -763,14 +763,14 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// planes' common plane at `(0, ±0.01, 0)` and stay within the band's
 /// escalation of each other over `|cos θ| < 10/k` of their angle: the
 /// level of one on the other has no definite sign across that stretch,
-/// and the coplanar ellipse reading refuses it
-/// (`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`, the
-/// touch). That meeting is in band, so every op owes `Escalated` there
-/// (`work/splitdoor/roots-unsettled-folds-band-precision-and-fault-into-one-frontier.md`).
-/// Today every op refuses `CurvedPierceUnsupported` there, but for the
-/// three with the first rod first at 80, which escalate on the sector
-/// reading's `conic_bend` before reaching that frontier. None reads the
-/// rims' crossings away.
+/// and the coplanar ellipse reading's walk can cut it nowhere definite.
+/// That meeting is in band, and every op escalates where the crossing
+/// lands on its edge (`Crossing(OnEdge)`), on the walk's side or clear
+/// reading, but for the three with the first rod first at 80, which
+/// escalate on the sector reading's `conic_bend` first. At 200 the ops
+/// escalate in band too, the first rod first on a vertex's side of a
+/// face, the second on the transverse arm's swing. None reads the rims'
+/// crossings away.
 ///
 /// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
 /// first.** A seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`,
@@ -782,14 +782,15 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
 /// reading refuses `Unsettled::Meter`
 /// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
-/// the pierce is unread. There the three ops with the first rod first
-/// at 80 refuse `CurvedPierceUnsupported` too, before the sector
-/// reading, on the same meter: the seam ruling lies on the other rod's
+/// the pierce is unread. There every op at 30 and past refuses
+/// `CurvedPierceUnsupported` too, a precision limit and not a reading in
+/// band, and the three with the first rod first at 80 do so before the
+/// sector reading, on the same meter: the seam ruling lies on the other rod's
 /// wall, the interior question reads its meetings with that wall's rim
 /// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
 /// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
-/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
-/// pierce refusals here is that meter. The rest of the table holds at
+/// and the pierce keeps the frontier. Every one of the coarse ε's pierce
+/// refusals here is that meter. The rest of the table holds at
 /// every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
@@ -797,7 +798,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let rod = rod_of(0.01, -3.0, 6.0);
     let e = geom_core::Band::linear(tol).unwrap().escalate();
     let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
-    for k in [0.0, 0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
+    for k in [0.0, 0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0, 200.0] {
         let d = k * tol.eps();
         let (a, b) = (
             cut_below(&rod, 100.0, 0.0),
@@ -821,21 +822,27 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     Some("curve_carrier_gap"),
                     "{label}: on the end's reading"
                 );
+            } else if meter_refuses {
+                assert!(
+                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the basin meter refuses at this ε: {res:?}"
+                );
             } else {
-                // Exactly the ops with the first rod first, at 80, reach the
-                // sector reading first.
-                let sector = k > 50.0 && op.starts_with('t') && !meter_refuses;
-                if sector {
-                    let Err(BooleanError::Escalated { diag, .. }) = &res else {
-                        panic!("{label}: escalates on the sector reading: {res:?}");
-                    };
-                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
-                } else {
-                    assert!(
-                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                        "{label}: two curves touching in band: {res:?}"
-                    );
-                }
+                let Err(BooleanError::Escalated { decision, diag }) = &res else {
+                    panic!("{label}: two curves touching in band escalate: {res:?}");
+                };
+                let first = op.starts_with('t');
+                let want = match (k > 100.0, k > 50.0 && first) {
+                    (true, _) if first => ("bool_vertex_face_side", "Coincidence"),
+                    (true, _) => ("curve_pair_pose_swing", "Crossing"),
+                    (false, true) => ("conic_bend", "Coincidence"),
+                    (false, false) => ("curve_pair_coplanar_sub", "Crossing"),
+                };
+                let read = diag.predicate.unwrap_or_default();
+                assert!(
+                    read.starts_with(want.0) && format!("{decision:?}").starts_with(want.1),
+                    "{label}: escalates on {want:?}: {decision:?} on {read}"
+                );
             }
         }
     }
@@ -939,3 +946,4 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
         }
     }
 }
+
