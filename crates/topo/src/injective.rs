@@ -42,7 +42,9 @@
 //! the cell written as the image of a rectangle on whose sides the shared
 //! cell lies, or which a curved shared edge's chart curve crosses as a
 //! graph over one chart axis ([`present_curved`]), and a derivative
-//! across those sides or that curve.
+//! across those sides or that curve. At a corner where a curved edge
+//! meets another, the shared one is read alone, through the vertex
+//! ([`present_corner`]).
 //!
 //! # The ε concessions
 //!
@@ -460,7 +462,8 @@ pub(crate) struct Piece<'a> {
 #[derive(Debug)]
 pub(crate) enum Outcome {
     /// A local certificate holds: the pair's union is injective.
-    Certified,
+    /// `corner`: it read a face at a corner ([`present_corner`]).
+    Certified { corner: bool },
     /// No arm held here; a smaller pair may.
     Split {
         arm: CertificateArm,
@@ -823,6 +826,8 @@ struct Presented<'a> {
     x: (f64, f64),
     y: (f64, f64),
     zero: Zero,
+    /// Read through a corner ([`present_corner`]).
+    corner: bool,
     /// The rectangle's jet and image, read once.
     cache: Cache,
 }
@@ -1586,6 +1591,7 @@ fn present_chart<'a>(
         x,
         y,
         zero,
+        corner: false,
         cache: Cache::default(),
     })))
 }
@@ -1785,6 +1791,7 @@ fn present_plane<'a>(
             x: piece.u,
             y: piece.v,
             zero,
+            corner: false,
             cache: Cache::default(),
         })));
     }
@@ -1856,6 +1863,7 @@ fn present_plane<'a>(
                 x: (x.lo(), x.hi()),
                 y: (0.0, y.hi()),
                 zero,
+                corner: false,
                 cache: Cache::default(),
             })))
         }
@@ -1932,6 +1940,7 @@ fn present_plane<'a>(
                 x: (0.0, x.hi()),
                 y: (0.0, y.hi()),
                 zero,
+                corner: false,
                 cache: Cache::default(),
             })))
         }
@@ -2369,6 +2378,11 @@ fn beside_curve(
 /// an ε concession**: a span stored as the rounded `τ` stops short of
 /// the period by the rounding of `τ` itself, a gap of ulps in the
 /// curve's parameter, which reads as the edge.
+///
+/// Through a `corner` the curve is continued past the vertex by its
+/// closed form in the same way, `R` is widened to hold the vertex, and
+/// the corner's other edge is admitted in reach where it leaves the
+/// vertex onto the face's side ([`present_corner`] argues the region).
 fn present_curved<'a>(
     piece: &Piece<'a>,
     ei: usize,
@@ -2415,14 +2429,18 @@ fn present_curved<'a>(
                 return Err(Unpresented::Local);
             }
             let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
-            if !(ext > 0.0) {
+            if ext.is_nan() || ext <= 0.0 {
                 return Err(Unpresented::Local);
             }
             let start = e.ends[0] == c.vertex;
             Some(Through {
                 corner: c,
                 t: if start { t0 } else { t1 },
-                span: if start { (t0 - ext, t1) } else { (t0, t1 + ext) },
+                span: if start {
+                    (t0 - ext, t1)
+                } else {
+                    (t0, t1 + ext)
+                },
             })
         }
         None => None,
@@ -2455,6 +2473,7 @@ fn present_curved<'a>(
             x,
             y,
             zero,
+            corner: through.is_some(),
             cache: Cache::default(),
         })));
     }
@@ -2496,7 +2515,11 @@ struct Through {
 
 /// **The corner a cell's two walls make**: two open edges with exactly
 /// one end in common, one of them on the shared cell. `None` for
-/// anything else — two edges meeting at both ends among them.
+/// anything else — two edges meeting at both ends among them. Neither
+/// restriction is needed for soundness: a lens's other end in reach is a
+/// vertex its reading refuses, and a shared `other` would only be left
+/// off the zero, which costs a certificate, never a wrong one. They keep
+/// such cells to the readings they had.
 fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corner> {
     let &[e, f] = walls else {
         return None;
@@ -2589,7 +2612,12 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     if curved(e) {
         (reads_curve(s, e) && straight(s, o, c.vertex).is_some()).then_some(Reading::Curve)
     } else {
-        let chart = !matches!(s, Surface::Plane { .. }) && !piece.whole;
+        // The argument is made on charts that never collapse, a
+        // cylinder's and a torus's. A sphere's images are its parallels
+        // and meridians, coordinate lines, so none reaches this; a cone's
+        // apex collapses a line of its chart, and is not read past here,
+        // conservatively: an apex in reach is a vertex the reading refuses.
+        let chart = matches!(s, Surface::Cylinder { .. } | Surface::Torus { .. }) && !piece.whole;
         let line = matches!(e.uses.as_slice(), [u] if u.iso.is_some_and(|i| !i.full));
         let harmonic = matches!(o.uses.as_slice(), [u] if u.harmonic.is_some());
         (chart && line && curved(o) && harmonic).then_some(Reading::Line)
@@ -2635,10 +2663,14 @@ fn straight(
         let [p, q] = u.image?;
         let s = at(forward(u, iso)?);
         let zero = at(0.0);
-        (p, q, match iso.held {
-            Axis::U => [zero, s],
-            Axis::V => [s, zero],
-        })
+        (
+            p,
+            q,
+            match iso.held {
+                Axis::U => [zero, s],
+                Axis::V => [s, zero],
+            },
+        )
     };
     Some(if from_start {
         (d, [p, q])
@@ -2666,21 +2698,45 @@ fn meets_rect(b: [Interval; 2], r: ((f64, f64), (f64, f64))) -> bool {
     o(b[0], r.0) && o(b[1], r.1)
 }
 
-/// The copies of a chart box by whole turns a rectangle less than a
-/// turn wide can meet, `[u, v]` turn counts about `k`.
-fn copies(surface: &Surface<Interval>, k: [f64; 2]) -> Vec<[f64; 2]> {
-    let near = |i: usize, axis: Axis| -> Vec<f64> {
-        if periodic(surface, axis) {
-            (-2..=2).map(|j| k[i] + f64::from(j)).collect()
-        } else {
-            vec![k[i]]
+/// **The copies by whole turns of a chart path that can meet `r`**,
+/// `[u, v]` turn counts, the path's own reach being `reach`: on each
+/// periodic axis every count from `r`'s low end against the reach's
+/// high one to its high end against the reach's low one, as [`runs`]
+/// tries them; only `0` on an axis that is not periodic. `None` where a
+/// reach is not finite or an axis needs more than 16.
+fn copies(
+    surface: &Surface<Interval>,
+    reach: [(f64, f64); 2],
+    r: ((f64, f64), (f64, f64)),
+) -> Option<Vec<[f64; 2]>> {
+    let counts = |axis: Axis| -> Option<Vec<f64>> {
+        if !periodic(surface, axis) {
+            return Some(vec![0.0]);
         }
+        let ((lo, hi), (a0, a1)) = (reach[axis.index()], axis.of(r));
+        let (k0, k1) = (
+            ((a0 - hi) / TURN).floor() - 1.0,
+            ((a1 - lo) / TURN).ceil() + 1.0,
+        );
+        (k0.is_finite() && k1.is_finite() && k1 - k0 < 16.0).then(|| {
+            core::iter::successors(Some(k0), |k| Some(k + 1.0))
+                .take_while(|&k| k <= k1)
+                .collect()
+        })
     };
-    let us = near(0, Axis::U);
-    let vs = near(1, Axis::V);
-    us.iter()
-        .flat_map(|&a| vs.iter().map(move |&b| [a, b]))
-        .collect()
+    let (us, vs) = (counts(Axis::U)?, counts(Axis::V)?);
+    Some(
+        us.iter()
+            .flat_map(|&a| vs.iter().map(move |&b| [a, b]))
+            .collect(),
+    )
+}
+
+/// The hull of chart boxes `[u, v]`, per axis.
+fn reach_of(boxes: impl Iterator<Item = [Interval; 2]>) -> [(f64, f64); 2] {
+    boxes.fold([(f64::INFINITY, f64::NEG_INFINITY); 2], |acc, b| {
+        core::array::from_fn(|i| (acc[i].0.min(b[i].lo()), acc[i].1.max(b[i].hi())))
+    })
 }
 
 /// **The corner's other edge leaves the curve read through it toward
@@ -2709,7 +2765,12 @@ fn leaves_graph(
     let o = piece.boundary.edges.get(th.corner.other)?;
     let (d, [near, far]) = straight(surface, o, th.corner.vertex)?;
     let k = turns_to(surface, [near.x, near.y], vertex);
-    for c in copies(surface, k) {
+    let reach = reach_of([[near.x, near.y], [far.x, far.y]].into_iter());
+    // Another copy meets `R` only where the edge, a segment from the
+    // vertex, comes round by a turn to a range of `R` that holds the
+    // vertex's: its far end then lies in `R`, a vertex [`alone`] refuses.
+    // Defence for the reading; not load-bearing on it.
+    for c in copies(surface, reach, r)? {
         if c == k {
             continue;
         }
@@ -2792,6 +2853,8 @@ fn present_line_corner<'a>(
         Axis::U => ((across, along), [line, vm]),
         Axis::V => ((along, across), [vm, line]),
     };
+    // A copy of the line's edge a turn on lies in `R` only where its far
+    // end does, a vertex refused below; this is defence.
     if [Axis::U, Axis::V].into_iter().any(|axis| {
         let (lo, hi) = axis.of((x, y));
         periodic(surface, axis) && whole_turn(lo, hi)
@@ -2834,6 +2897,7 @@ fn present_line_corner<'a>(
         x,
         y,
         zero: Zero::Side(Side::of(held, sigma > 0.0)),
+        corner: true,
         cache: Cache::default(),
     })))
 }
@@ -2868,13 +2932,26 @@ fn leaves_line(
         return Err(Unpresented::Local);
     }
     #[allow(clippy::cast_precision_loss)]
-    let bound = |i: usize| t0 + width * (i as f64) / (PIECES as f64);
-    for c in copies(surface, k) {
+    let bound = |i: usize| {
+        if i == PIECES {
+            t1
+        } else {
+            t0 + width * (i as f64) / (PIECES as f64)
+        }
+    };
+    let reach =
+        reach_of((0..PIECES).map(|i| h.over(Interval::from_bounds(bound(i), bound(i + 1)))));
+    // On a cylinder, the one chart read here with a harmonic edge, the
+    // curve's `u` is `φ ± t` over less than a turn: no other copy, and no
+    // piece past the run's exit on the held `u`, reaches `R`, and one
+    // past it on the held `v` comes back down at a rate that is refused.
+    // The copies and the exit stay as the step's definition, for charts
+    // whose curves turn on both axes.
+    for c in copies(surface, reach, r).ok_or(Unpresented::Local)? {
         let through = c == k;
         // The pieces in order from the vertex, each with its depth.
-        let mut todo: Vec<((f64, f64), u32)> = (0..PIECES)
-            .map(|i| ((bound(i), if i + 1 == PIECES { t1 } else { bound(i + 1) }), 0))
-            .collect();
+        let mut todo: Vec<((f64, f64), u32)> =
+            (0..PIECES).map(|i| ((bound(i), bound(i + 1)), 0)).collect();
         if from_start {
             todo.reverse();
         }
@@ -2892,7 +2969,11 @@ fn leaves_line(
                     return false;
                 }
                 // The half nearer the vertex is read first.
-                let (near, far) = if from_start { ((a, m), (m, z)) } else { ((m, z), (a, m)) };
+                let (near, far) = if from_start {
+                    ((a, m), (m, z))
+                } else {
+                    ((m, z), (a, m))
+                };
                 todo.push((far, depth + 1));
                 todo.push((near, depth + 1));
                 true
@@ -3125,7 +3206,10 @@ fn graph_read(
     let above = left_is_above(rising == plus, column) == piece.boundary.sense;
     if let Some(th) = through {
         // The vertex is in `R`, on the run read: its parameter in the
-        // run's, and its point on the run's copy.
+        // run's, and its point on the run's copy. The cell was widened to
+        // the vertex, so the vertex's own run meets it; a run read that is
+        // not that one has it among `others`, which `apart` refused above.
+        // So this is not load-bearing; it states step 3's premise.
         let ends = Ends::of(p, &run, rising, (a0, a1));
         let (ts, te) = (p.params(run.first()?).lo(), p.params(run.last()?).hi());
         let within = |x: Interval, (lo, hi): (f64, f64)| lo <= x.lo() && x.hi() <= hi;
@@ -3707,7 +3791,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         }
     }
     if matches!(px, Ok(Presentation::Vacuous)) || matches!(py, Ok(Presentation::Vacuous)) {
-        return Outcome::Certified;
+        return Outcome::Certified { corner: false };
     }
     // One face's carrier, the other departing it. Not between two faces
     // of one face: the face is its own carrier.
@@ -3716,7 +3800,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             if let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other)
                 && sign_on(&Psi::Carrier(imp), p, None, band).is_some()
             {
-                return Outcome::Certified;
+                return Outcome::Certified { corner: p.corner };
             }
         }
     }
@@ -3739,15 +3823,16 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    let corner = qx.corner || qy.corner;
     if let Some(psi) = plane_through(x, near, qx, qy)
         && opposite(&psi)
     {
-        return Outcome::Certified;
+        return Outcome::Certified { corner };
     }
     if let Some(psi) = graph_of(x, near, qx, qy, band)
         && opposite(&psi)
     {
-        return Outcome::Certified;
+        return Outcome::Certified { corner };
     }
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
@@ -4777,91 +4862,487 @@ mod presentation_rows {
         );
         let annulus = pair(&disk(0.7, x, false, true));
         assert!(
-            matches!(annulus, Outcome::Certified),
+            matches!(annulus, Outcome::Certified { .. }),
             "across the rim the pair certifies: {annulus:?}"
         );
     }
 
-    /// **A corner of a curved shared edge is read by no presentation**:
-    /// a plane face bounded by a line and a circular arc meeting at a
-    /// shared vertex refuses structurally in a cell holding the vertex,
-    /// and a cell holding only the arc may be read once smaller.
-    #[test]
-    fn a_corner_of_a_curved_shared_edge_is_structural() {
-        let s = floor();
+    /// A line edge of a face on [`floor`], from `from` to `to`, run
+    /// forward.
+    fn segment(n: u64, ends: [u64; 2], from: (f64, f64), to: (f64, f64)) -> Rim {
+        let p = |(x, y): (f64, f64)| Point3::new(iv0(x), iv0(y), iv0(0.0));
+        Rim {
+            key: edge(n),
+            arc: Some((
+                Curve3::Line {
+                    origin: p(from),
+                    dir: Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0)),
+                },
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+            }],
+        }
+    }
+
+    /// **A corner of the unit circle's arc on [`floor`]**: the arc from
+    /// `(1, 0)` (vertex 1) counter-clockwise to `(0, 1)` (vertex 2), its
+    /// face inside the circle, and `other` the edge the loop reaches
+    /// `(1, 0)` along, plus `extra` edges. The arc is edge 0, `other`
+    /// edge 1.
+    fn quarter(other: Rim, extra: Vec<Rim>) -> Boundary {
         let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
-        let b = Boundary {
+        let arc = Rim {
+            key: edge(10),
+            arc: Some((
+                Curve3::Circle {
+                    center: origin(),
+                    axis: z,
+                    radius: iv0(1.0),
+                    u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                },
+                (iv0(0.0), iv0(core::f64::consts::FRAC_PI_2)),
+            )),
+            ends: [vertex(1), vertex(2)],
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+            }],
+        };
+        let p = |x: f64, y: f64| Point3::new(iv0(x), iv0(y), iv0(0.0));
+        let mut vertices = BTreeMap::from([(vertex(1), p(1.0, 0.0)), (vertex(2), p(0.0, 1.0))]);
+        for e in core::iter::once(&other).chain(&extra) {
+            if let Some((Curve3::Line { origin, dir }, _)) = &e.arc {
+                vertices.entry(e.ends[0]).or_insert(*origin);
+                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+            }
+        }
+        Boundary {
             sense: true,
-            edges: vec![
-                Rim {
-                    key: edge(1),
-                    arc: Some((
-                        Curve3::Circle {
-                            center: origin(),
-                            axis: z,
-                            radius: iv0(1.0),
-                            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                        },
-                        (iv0(0.0), iv0(core::f64::consts::FRAC_PI_2)),
-                    )),
-                    ends: [vertex(1), vertex(2)],
-                    uses: vec![Use {
-                        plus: true,
-                        image: None,
-                        iso: None,
-                        harmonic: None,
-                    }],
-                },
-                Rim {
-                    key: edge(2),
-                    arc: Some((
-                        Curve3::Line {
-                            origin: origin(),
-                            dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                        },
-                        (iv0(0.0), iv0(1.0)),
-                    )),
-                    ends: [vertex(3), vertex(1)],
-                    uses: vec![Use {
-                        plus: true,
-                        image: None,
-                        iso: None,
-                        harmonic: None,
-                    }],
-                },
-            ],
-            vertices: BTreeMap::from([
-                (vertex(1), Point3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
-                (vertex(2), Point3::new(iv0(0.0), iv0(1.0), iv0(0.0))),
-                (vertex(3), origin()),
-            ]),
+            edges: [arc, other].into_iter().chain(extra).collect(),
+            vertices,
             extent: None,
+        }
+    }
+
+    /// [`present_plane`] of `b` in the cell `u × v`, its local edges
+    /// `edges` and vertices `vertices`, the arc (edge 0) shared.
+    fn on_floor(
+        b: &Boundary,
+        edges: Vec<usize>,
+        vertices: Vec<VertexKey>,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Read {
+        let s = floor();
+        let local = Local { edges, vertices };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
         };
-        let read_at = |edges: Vec<usize>, vertices: Vec<VertexKey>, u, v| {
-            let local = Local { edges, vertices };
-            let piece = Piece {
-                face: FaceKey::default(),
-                surface: &s,
-                whole: false,
-                boundary: &b,
-                u,
-                v,
-                local: &local,
-                ball: Ball::holding(origin(), origin()),
-            };
-            read(present_plane(&piece, &[0], &[], band()))
-        };
-        assert_eq!(
-            read_at(vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
-            Read::Structural,
-            "the corner at (1, 0)"
+        read(present_plane(&piece, &[0], &[], band()))
+    }
+
+    /// **A convex corner of a curved shared edge is read through its
+    /// vertex** ([`present_corner`]): the quarter disc's arc meets the
+    /// line from the origin at `(1, 0)`, which leaves the vertex into
+    /// the circle, so a cell holding the vertex is presented by the
+    /// region inside the circle's closed form continued past it. A cell
+    /// holding only the arc is read by the arc alone.
+    #[test]
+    fn a_convex_corner_of_a_curved_shared_edge_is_read_through_its_vertex() {
+        let b = quarter(segment(20, [3, 1], (0.0, 0.0), (1.0, 0.0)), Vec::new());
+        assert!(
+            matches!(
+                on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+                Read::Of(..)
+            ),
+            "the corner at (1, 0) is presented"
         );
         assert!(
             matches!(
-                read_at(vec![0], Vec::new(), (0.69, 0.72), (0.69, 0.72)),
+                on_floor(&b, vec![0], Vec::new(), (0.69, 0.72), (0.69, 0.72)),
                 Read::Of(..)
             ),
             "the arc alone, at 45°"
+        );
+    }
+
+    /// **A reflex corner is read by no presentation**: the line reaches
+    /// `(1, 0)` from `(2, 0)`, so it leaves the vertex outside the
+    /// circle, on the arc's other side, and the face is the three
+    /// quarters about the vertex the region inside the circle does not
+    /// hold. Red if [`leaves_graph`] admits a decided `Negative`.
+    #[test]
+    fn a_reflex_corner_of_a_curved_shared_edge_is_structural() {
+        let b = quarter(segment(20, [3, 1], (2.0, 0.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+            Read::Structural,
+            "the reflex corner at (1, 0)"
+        );
+    }
+
+    /// **A line tangent to the arc at its end is not read through the
+    /// corner**: it leaves `(1, 0)` along the circle's tangent, against
+    /// the arc's run, so it stands outside the circle, by second order,
+    /// while the face beside it is inside the line — not the circle.
+    /// Red if [`leaves_graph`] admits an undecided sign.
+    #[test]
+    fn a_line_tangent_to_the_arc_at_the_corner_is_not_read_through_it() {
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+            Read::Local,
+            "the tangent join at (1, 0)"
+        );
+    }
+
+    /// **An edge or a vertex in reach of the corner's rectangle but not
+    /// of the cell is read**: the cell `(0.96, 0.995) × (−0.02, 0.02)`
+    /// stops short of the vertex, so the rectangle is widened to hold
+    /// it, and the line `x = 1.0065` past the vertex, whose ends are far
+    /// off, lies in the widened rectangle's reach though clear of the
+    /// cell's; so does a ring's lone vertex on it. Red if the widened
+    /// rectangle reads the cell's local boundary, or [`alone`] admits
+    /// any edge but the corner's two, or a vertex off the curve.
+    #[test]
+    fn an_edge_in_reach_of_the_widened_corner_refuses() {
+        let line = || segment(20, [3, 1], (0.0, 0.0), (1.0, 0.0));
+        let cell = ((0.96, 0.995), (-0.02, 0.02));
+        let clear = quarter(line(), Vec::new());
+        assert!(
+            matches!(
+                on_floor(&clear, vec![0, 1], vec![vertex(1)], cell.0, cell.1),
+                Read::Of(..)
+            ),
+            "the corner alone is presented from the cell short of it"
+        );
+        let crowded = quarter(
+            line(),
+            vec![segment(21, [5, 6], (1.0065, -0.5), (1.0065, 0.5))],
+        );
+        assert_eq!(
+            on_floor(&crowded, vec![0, 1], vec![vertex(1)], cell.0, cell.1),
+            Read::Local,
+            "a third edge in reach of the widened rectangle"
+        );
+        let mut ringed = quarter(line(), Vec::new());
+        ringed
+            .vertices
+            .insert(vertex(7), Point3::new(iv0(1.0065), iv0(0.0), iv0(0.0)));
+        assert_eq!(
+            on_floor(&ringed, vec![0, 1], vec![vertex(1)], cell.0, cell.1),
+            Read::Local,
+            "a lone vertex in reach of the widened rectangle"
+        );
+    }
+
+    /// **A curved corner folded on itself is a cusp**: [`certify_pair`]
+    /// on the quarter disc's corner cell and the same cell of a twin
+    /// lying on the same side of the arc, its loop reversed and its
+    /// sense flipped — wedge 0 along the arc. Both are presented through
+    /// the corner, no separator departs, and the pair is
+    /// [`Outcome::Cusp`], which the sweep types `SecondOrder`.
+    #[test]
+    fn a_curved_corner_folded_on_itself_is_a_cusp() {
+        let s = floor();
+        let b = quarter(segment(20, [3, 1], (0.0, 0.0), (1.0, 0.0)), Vec::new());
+        let mut twin = b.clone();
+        twin.sense = false;
+        for e in &mut twin.edges {
+            for u in &mut e.uses {
+                u.plus = !u.plus;
+            }
+        }
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let [a, c] = [(&b, face(1)), (&twin, face(2))].map(|(boundary, face)| Piece {
+            face,
+            surface: &s,
+            whole: false,
+            boundary,
+            u: (0.98, 1.02),
+            v: (-0.02, 0.02),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        });
+        let got = certify_pair(&a, &c, &near, band());
+        assert!(
+            matches!(got, Outcome::Cusp { shared: SharedCell::Edge(e) } if e == edge(10)),
+            "the folded corner is a cusp: {got:?}"
+        );
+    }
+
+    /// A cylinder face's edge of one use whose chart image is the
+    /// harmonic `h` over `t`, from vertex `ends[0]` to `ends[1]`.
+    fn harmonic_rim(n: u64, ends: [u64; 2], h: Harmonic, t: (f64, f64)) -> Rim {
+        Rim {
+            key: edge(n),
+            arc: Some((
+                Curve3::Line {
+                    origin: Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                },
+                (iv0(t.0), iv0(t.1)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: Some(h),
+            }],
+        }
+    }
+
+    /// `u = p0u + lu·t`, `v = p0v + av·cos t + bv·sin t + lv·t`.
+    fn harmonic(p0: [f64; 2], lu: f64, (av, bv, lv): (f64, f64, f64)) -> Harmonic {
+        Harmonic {
+            p0: p0.map(iv0),
+            pa: [iv0(0.0), iv0(av)],
+            pb: [iv0(0.0), iv0(bv)],
+            pl: [iv0(lu), iv0(lv)],
+        }
+    }
+
+    /// A vertex of [`cylinder`] at the chart point `(u, v)`.
+    fn on_cyl(u: f64, v: f64) -> Point3<Interval> {
+        Point3::new(iv0(u.cos()), iv0(u.sin()), iv0(v))
+    }
+
+    /// **A corner of a cylinder face at `(1, ½)`**: the ruling `u = 1`
+    /// (edge 0, vertex 1 to 2) run up from it, the face at `u < 1`, and
+    /// the harmonic `other` (edge 1) reaching it; `extra` edges after.
+    fn ruling_corner(other: Rim, extra: Vec<Rim>, far: (f64, f64)) -> Boundary {
+        let ruling = Rim {
+            key: edge(10),
+            arc: Some((
+                Curve3::Line {
+                    origin: on_cyl(1.0, 0.5),
+                    dir: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                },
+                (iv0(0.0), iv0(0.5)),
+            )),
+            ends: [vertex(1), vertex(2)],
+            uses: vec![Use {
+                plus: true,
+                image: Some([p2((1.0, 0.5)), p2((1.0, 1.0))]),
+                iso: Some(Iso {
+                    held: Axis::U,
+                    at: iv0(1.0),
+                    full: false,
+                }),
+                harmonic: None,
+            }],
+        };
+        let mut vertices = BTreeMap::from([
+            (vertex(1), on_cyl(1.0, 0.5)),
+            (vertex(2), on_cyl(1.0, 1.0)),
+            (vertex(3), on_cyl(far.0, far.1)),
+        ]);
+        for e in &extra {
+            if let Some((Curve3::Line { origin, dir }, _)) = &e.arc {
+                vertices.entry(e.ends[0]).or_insert(*origin);
+                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+            }
+        }
+        Boundary {
+            sense: true,
+            edges: [ruling, other].into_iter().chain(extra).collect(),
+            vertices,
+            extent: Some([(0.0, 1.0), (0.0, 1.0)]),
+        }
+    }
+
+    /// [`present_chart`] of a [`ruling_corner`] in the cell `u × v`, the
+    /// ruling shared.
+    fn on_cylinder(b: &Boundary, u: (f64, f64), v: (f64, f64)) -> Read {
+        let s = cylinder();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        read(present_chart(&piece, &[0], &[vertex(1)], band()))
+    }
+
+    /// **A coordinate line's corner is read by the line when the curve
+    /// leaves into its face side** ([`present_line_corner`]): the curve
+    /// `u = t`, `v = 1.5 − t` reaches `(1, ½)` at `t = 1` from `u < 1`,
+    /// the face's side of the ruling; run the other way, `u = 2 − t`, it
+    /// leaves into `u > 1` and the reflex corner is read by none. Red if
+    /// [`leaves_line`] admits a decided `Negative`.
+    #[test]
+    fn a_rulings_corner_is_read_by_the_line_only_where_the_curve_leaves_into_the_face() {
+        let cell = ((0.95, 1.0), (0.45, 0.55));
+        let convex = ruling_corner(
+            harmonic_rim(
+                11,
+                [3, 1],
+                harmonic([0.0, 1.5], 1.0, (0.0, 0.0, -1.0)),
+                (0.5, 1.0),
+            ),
+            Vec::new(),
+            (0.5, 1.0),
+        );
+        assert!(
+            matches!(on_cylinder(&convex, cell.0, cell.1), Read::Of(..)),
+            "the convex corner is presented"
+        );
+        let reflex = ruling_corner(
+            harmonic_rim(
+                11,
+                [3, 1],
+                harmonic([2.0, 1.5], -1.0, (0.0, 0.0, -1.0)),
+                (0.5, 1.0),
+            ),
+            Vec::new(),
+            (1.5, 1.0),
+        );
+        assert_eq!(
+            on_cylinder(&reflex, cell.0, cell.1),
+            Read::Structural,
+            "the reflex corner is read by none"
+        );
+    }
+
+    /// **A curve tangent to a rim at the corner is not read by the
+    /// line**: the rim `v = ½` runs from `(1, ½)` toward `u = ½` with
+    /// the face below it, and the curve `u = 2 − t`,
+    /// `v = ½ + a − a·cos(t − 1)` reaches the vertex at `t = 1` level
+    /// with the rim, standing above it — on the rim's other side — by
+    /// second order. Its height's rate at the vertex is zero, so no piece
+    /// there is told. Red if [`leaves_line`] admits an undecided rate.
+    #[test]
+    fn a_curve_tangent_to_a_rim_at_the_corner_is_not_read_by_the_line() {
+        let a = 0.2;
+        let (s1, c1) = 1.0f64.sin_cos();
+        let rim_line = Rim {
+            key: edge(10),
+            arc: Some((
+                Curve3::Circle {
+                    center: Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
+                    axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    radius: iv0(1.0),
+                    u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                },
+                (iv0(0.5), iv0(1.0)),
+            )),
+            ends: [vertex(2), vertex(1)],
+            uses: vec![Use {
+                plus: false,
+                image: Some([p2((0.5, 0.5)), p2((1.0, 0.5))]),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.5),
+                    full: false,
+                }),
+                harmonic: None,
+            }],
+        };
+        let curve = harmonic_rim(
+            11,
+            [3, 1],
+            harmonic([2.0, 0.5 + a], -1.0, (-a * c1, -a * s1, 0.0)),
+            (0.5, 1.0),
+        );
+        let far_v = 0.5 + a - a * 0.5f64.cos();
+        let b = Boundary {
+            sense: true,
+            edges: vec![rim_line, curve],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cyl(1.0, 0.5)),
+                (vertex(2), on_cyl(0.5, 0.5)),
+                (vertex(3), on_cyl(1.5, far_v)),
+            ]),
+            extent: Some([(0.0, 1.6), (0.0, 1.0)]),
+        };
+        assert_eq!(
+            on_cylinder(&b, (0.95, 1.05), (0.45, 0.5)),
+            Read::Local,
+            "the tangent join at (1, ½)"
+        );
+    }
+
+    /// **An edge or a vertex in reach of a line corner's rectangle but
+    /// not of the cell is read**: the cell `(0.9, 0.98) × (0.45, 0.55)`
+    /// stops short of the ruling, so the rectangle is widened to the
+    /// vertex, and the ruling `u = 1.015`, whose ends are far off, lies
+    /// in its reach though clear of the cell's; so does a ring's lone
+    /// vertex on it. Red if [`present_line_corner`] admits any edge but
+    /// the corner's two, or any vertex but the corner's.
+    #[test]
+    fn an_edge_in_reach_of_a_widened_line_corner_refuses() {
+        let cell = ((0.9, 0.98), (0.45, 0.55));
+        let other = || {
+            harmonic_rim(
+                11,
+                [3, 1],
+                harmonic([0.0, 1.5], 1.0, (0.0, 0.0, -1.0)),
+                (0.5, 1.0),
+            )
+        };
+        let clear = ruling_corner(other(), Vec::new(), (0.5, 1.0));
+        assert!(
+            matches!(on_cylinder(&clear, cell.0, cell.1), Read::Of(..)),
+            "the corner alone is presented from the cell short of it"
+        );
+        let crowded = ruling_corner(
+            other(),
+            vec![Rim {
+                key: edge(12),
+                arc: Some((
+                    Curve3::Line {
+                        origin: on_cyl(1.015, -0.5),
+                        dir: Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0)),
+                    },
+                    (iv0(0.0), iv0(1.0)),
+                )),
+                ends: [vertex(5), vertex(6)],
+                uses: Vec::new(),
+            }],
+            (0.5, 1.0),
+        );
+        assert_eq!(
+            on_cylinder(&crowded, cell.0, cell.1),
+            Read::Local,
+            "a third edge in reach of the widened rectangle"
+        );
+        let mut ringed = ruling_corner(other(), Vec::new(), (0.5, 1.0));
+        ringed.vertices.insert(vertex(7), on_cyl(1.015, 0.5));
+        assert_eq!(
+            on_cylinder(&ringed, cell.0, cell.1),
+            Read::Local,
+            "a lone vertex in reach of the widened rectangle"
         );
     }
 
@@ -5205,6 +5686,7 @@ mod presentation_rows {
             x: (0.1, 0.2),
             y: (0.0, 0.1),
             zero,
+            corner: false,
             cache: Cache::default(),
         };
         let p = past(Zero::Past(Side::YLo));

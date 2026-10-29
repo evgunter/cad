@@ -894,6 +894,11 @@ pub struct BoundReport<W> {
     /// stops examining any one such pair, which neither the monotone
     /// self-pairs nor another pair's certificates can hide.
     pub across: BTreeMap<(FaceKey, FaceKey), usize>,
+    /// **The certified cell pairs across faces whose certificate read a
+    /// face at a corner** of its boundary, through the vertex where a
+    /// curved edge meets another ([`injective`]'s corner presentation).
+    /// A sub-count of the [`BoundReport::across`] counts' sum.
+    pub cornered: usize,
     /// **How many readings of the faces' regions the answer rests on**:
     /// distinct (window, cell) pairs [`crate::cell_region`] read as
     /// `Inside` or `Outside`, whichever partner they were paired with,
@@ -1160,6 +1165,7 @@ impl Sweep {
             region: RegionMemo::at(self.band),
             locals: LocalMemo::default(),
             across: BTreeMap::new(),
+            cornered: 0,
             widths: DischargeWidths::empty(),
             first_refusal: None,
             violation: None,
@@ -1267,6 +1273,7 @@ impl Sweep {
         let Bound {
             region,
             across,
+            cornered,
             mut widths,
             first_refusal,
             violation,
@@ -1289,6 +1296,7 @@ impl Sweep {
             receipt,
             widths,
             across,
+            cornered,
             decided,
         }
     }
@@ -1430,6 +1438,7 @@ struct Bound<'q, W, F> {
     region: RegionMemo,
     locals: LocalMemo,
     across: BTreeMap<(FaceKey, FaceKey), usize>,
+    cornered: usize,
     widths: DischargeWidths,
     first_refusal: Option<EngineRefusal>,
     violation: Option<W>,
@@ -1513,7 +1522,7 @@ where
                         (pair.a.v.0.min(pair.b.v.0), pair.a.v.1.max(pair.b.v.1)),
                     );
                     if injective::monotone(&x.surface, hull.0, hull.1, band) {
-                        Outcome::Certified
+                        Outcome::Certified { corner: false }
                     } else {
                         Outcome::Split {
                             arm: CertificateArm::Monotone,
@@ -1546,10 +1555,11 @@ where
                     other => other,
                 };
                 match outcome {
-                    Outcome::Certified => {
+                    Outcome::Certified { corner } => {
                         discharge(&mut walk.receipt, &mut self.widths);
                         walk.receipt.certified += 1;
                         if x.face != y.face {
+                            self.cornered += usize::from(corner);
                             *self
                                 .across
                                 .entry((x.face.min(y.face), x.face.max(y.face)))
@@ -2990,22 +3000,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
                 if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
                     if lk == f.outer {
-                        out.extent = extent_of(rows.iter().map(|row| {
-                            let (t0, t1) = row.row.params();
-                            if !monotone_line(&row.pcurve) {
-                                let h = harmonic_of(&row.pcurve)?;
-                                let t = Interval::from_bounds(
-                                    Interval::from_certified(t0).lo(),
-                                    Interval::from_certified(t1).hi(),
-                                );
-                                return Some(Row::Bulging(h.over(t)));
-                            }
-                            let end = |t: T| {
-                                let q = row.pcurve.eval(t);
-                                [Interval::from_certified(q.x), Interval::from_certified(q.y)]
-                            };
-                            Some(Row::Ends([end(t0), end(t1)]))
-                        }));
+                        out.extent =
+                            extent_of(rows.iter().map(|row| row_of(&row.pcurve, row.row.params())));
                     }
                     for row in rows {
                         let (t0, t1) = row.row.params();
@@ -3080,6 +3076,25 @@ enum Row {
     /// A harmonic image that may bulge past its ends: its enclosure over
     /// its whole span, `[u, v]`, which holds it.
     Bulging([Interval; 2]),
+}
+
+/// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
+/// coordinate line by its ends, a harmonic image by its enclosure over
+/// its whole span `(t0, t1)`; `None` for any other image.
+fn row_of<T: Decide + CertifiedBounds>(pcurve: &Pcurve<T>, (t0, t1): (T, T)) -> Option<Row> {
+    if !monotone_line(pcurve) {
+        let h = harmonic_of(pcurve)?;
+        let t = Interval::from_bounds(
+            Interval::from_certified(t0).lo(),
+            Interval::from_certified(t1).hi(),
+        );
+        return Some(Row::Bulging(h.over(t)));
+    }
+    let end = |t: T| {
+        let q = pcurve.eval(t);
+        [Interval::from_certified(q.x), Interval::from_certified(q.y)]
+    };
+    Some(Row::Ends([end(t0), end(t1)]))
 }
 
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
@@ -3585,6 +3600,7 @@ impl<T: Decide> ClearanceLane<T> {
             receipt: report.receipt,
             widths: report.widths,
             across: report.across,
+            cornered: report.cornered,
             decided: report.decided,
         }
     }
@@ -3735,6 +3751,61 @@ mod wiring_rows {
             holds_the_certified_clearance_lane::<geom_core::interval::Interval>(),
             Ok(()),
             "`ClearanceLane::<Interval>::certified()` holds something other than the engine"
+        );
+    }
+}
+
+#[cfg(test)]
+mod extent_rows {
+    use super::{Row, extent_of, row_of};
+    use core::f64::consts::{PI, TAU};
+    use geom_brep::{Channel, Pcurve};
+    use geom_core::Bounds;
+
+    /// The harmonic image `u = t`, `v = sin t`, which bulges to `v = 1`
+    /// between its ends over `[0, π]`.
+    fn arch() -> Pcurve<f64> {
+        Pcurve::Harmonic {
+            u: Channel::Angle {
+                phase: 0.0,
+                winding: 1,
+            },
+            v: Channel::Free {
+                c: 0.0,
+                a: 0.0,
+                b: 1.0,
+                l: 0.0,
+            },
+        }
+    }
+
+    /// **A harmonic row's extent holds its bulge, not its ends alone.**
+    /// `v = sin t` is `0` at both ends of `[0, π]` and `1` between, so a
+    /// hull of its ends misses the face's points over the bulge. Red if
+    /// a row that is no monotone line is read by its ends.
+    #[test]
+    fn a_harmonic_rows_extent_holds_its_bulge() {
+        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI)) else {
+            panic!("the arch is read by its enclosure");
+        };
+        assert!(
+            u.lo() <= 0.0 && PI <= u.hi() && v.hi() >= 1.0,
+            "the enclosure holds the arch: {u:?} {v:?}"
+        );
+        let [(_, _), (_, top)] =
+            extent_of([row_of(&arch(), (0.0, PI))].into_iter()).expect("an extent");
+        assert!(top >= 1.0, "the extent reaches the bulge: {top}");
+    }
+
+    /// **A superset extent a whole turn wide is not taken**: it would
+    /// read as a loop that wraps its periodic axis, which bounds
+    /// nothing. Red if the whole-turn check on a bulging hull is
+    /// dropped.
+    #[test]
+    fn a_bulging_extent_a_whole_turn_wide_is_unknown() {
+        assert!(
+            extent_of([row_of(&arch(), (0.0, TAU))].into_iter()).is_none(),
+            "a turn-wide superset reads unknown"
         );
     }
 }
