@@ -60,3 +60,17 @@ carrier, which the arm refuses as a tangency.
   the point is moot. (Orchestrator, reading PR 5789's fix pass.)
 
 Moved from SPLICE to SPLICEFACE on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## Moved to SPLICE (2026-10-29)
+
+Moved from SPLICEFACE by `git mv`, by the SPLICE orchestrator's
+sequencing call: this is lily wall 8's next stop. Wall 8 is now the long
+leaf grown out of the lower stem (PR 6042, after `[ev]` PR 5990's
+question 3), and the union refuses here first, a spline seam of the leaf
+against the stem's torus wall.
+
+**Witness:** `demos/tour/src/lily.rs` `wall_probes`, wall 8, pinned on
+`EdgeCarrierUnsupported { operand: B, face_of: A, site: CurvedCrossing }`
+with the edge a NURBS carrier of `lily_leaf_a` and the face the
+`lily_stem` torus, at ε 1e-9 and 1e-6 (at 1e-12 the stem's declared
+frontier stands the lily walls down first).

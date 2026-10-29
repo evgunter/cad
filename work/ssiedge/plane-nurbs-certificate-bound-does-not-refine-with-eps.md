@@ -228,6 +228,8 @@ This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` and 
 
 ## Measured on two spline charts: lily wall 8 (SPLICE, 2026-10-27)
 
+That wall 8 was the leaf's sheath grafted on its blade; since 2026-10-29 the scene builds the leaf as one loft, and the sweep row `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs` builds the same graft.
+
 From `work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`.
 
 Once the result's seam between two spline walls reads its dihedral
