@@ -1,9 +1,11 @@
 ---
 id: turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling
 kind: issue
-title: r2_turn_probes' turn-defect fuzz: at the ceiling |a| the speed's sup bound reads exactly |a| while an Interval sample's upper end sits one ulp above it (seed 0xcc21d29c318a7479, ε 1e-6)
+title: turn_defect_speed_hi's sup bound sits below an Interval sample of the speed at the ceiling, by 1 ulp at 1e-6 and about 11 ulps at 1e-12: an enclosure that does not enclose, found by r2_turn_probes' varying-seed fuzz
 status: open
 opened: 2026-10-29
+priority: P2
+cost: M
 ---
 
 
@@ -46,3 +48,20 @@ fix named above covers this seed.
 
 Reproduce: `CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0x85193fcde51a223a`
 with the same command.
+
+## Re-homed and banded (2026-10-29, GREEN)
+
+Moved from TINT to GERMCERT. The defect is in the bound,
+`geom::carrier_speed::turn_defect_speed_hi`
+(`crates/geom/src/carrier_speed.rs`), not in the test. The second seed's
+11-ulp miss rules out a test-side slack as the fix, and no program
+claims the file; GERMCERT's charter (certificate margins read at their
+whole width) is the nearest. Banded P2, as interval and error
+propagation: the sup bound is a certified enclosure that a sample
+escapes.
+
+The fuzz keeps running (the user, in chat, 2026-10-29, agreeing not to
+disable it): while this row is open it will red an unrelated PR on
+some seeds, about twice a day on 2026-10-29. That cost is the reason to
+take it soon. When it is fixed, pin both seeds as deterministic rows
+beside the fix.

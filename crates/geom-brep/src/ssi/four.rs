@@ -714,7 +714,11 @@ fn sides_at<T: CertifiedBounds>(
 /// are positive, so the image lies in its control points' hull, that
 /// near the side. `within` is [`end_reach`] on each axis. This places
 /// the IMAGE, not the locus.
-pub(crate) fn along_side<T: Bounds>(
+///
+/// A control whose bracket does not certify is not along any side: the
+/// answer moves a refusal from `Undecided` to the sign-certain
+/// `AlongSide`, so it rests only on certified controls.
+pub(crate) fn along_side<T: CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     domain: UvRect,
     within: (f64, f64),
@@ -722,8 +726,9 @@ pub(crate) fn along_side<T: Bounds>(
     let on = |read: fn(&Point2<T>) -> T, (lo, hi): (f64, f64), h: f64| {
         [lo, hi].into_iter().any(|side| {
             pcurve.control().iter().all(|p| {
-                let c = read(p);
-                (c.lo() - side).abs() <= h && (c.hi() - side).abs() <= h
+                read(p)
+                    .certified_bracket()
+                    .is_some_and(|(lo, hi)| (lo - side).abs() <= h && (hi - side).abs() <= h)
             })
         })
     };
@@ -1103,6 +1108,47 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A control that does not certify places no image along a side.**
+    /// The polyline at `v = 0` lifted to intervals: along the side with
+    /// point controls, not with a refused point bracket on the side for
+    /// one control's `v`. Red under a read of the bracket's ends, which
+    /// would move an `Undecided` refusal to the sign-certain `AlongSide`.
+    #[test]
+    fn a_refused_control_is_not_along_a_side() {
+        use geom::NurbsCurve2;
+        use geom_core::{Interval, Point2};
+        let domain = super::UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        // The second control's `v` is marked by a value no other datum
+        // takes, and lifted to `v`; every other datum to its point.
+        const MARK: f64 = 0.5;
+        let line = NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point2::new(0.2, 0.0), Point2::new(0.8, MARK)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let at = |v: Interval| {
+            line.map_scalar(|x| {
+                if x == MARK {
+                    v
+                } else {
+                    Interval::from_bounds(x, x)
+                }
+            })
+        };
+        let within = (super::end_reach(1e-9, 1.0), super::end_reach(1e-9, 1.0));
+        assert!(super::along_side(
+            &at(Interval::from_bounds(0.0, 0.0)),
+            domain,
+            within
+        ));
+        let refused = geom_core::test_support::refused_point(0.0);
+        assert!(!super::along_side(&at(refused), domain, within));
     }
 
     /// **A carrier along a chart's side refuses by name, and only where

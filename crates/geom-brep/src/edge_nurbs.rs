@@ -2937,6 +2937,30 @@ mod tests {
 
     use super::*;
 
+    /// **A refused bound stalls limb 2.** At an enclosure scalar the
+    /// reading's upper end is decided as `[floor, upper]`: a certified
+    /// bound at zero passes, and the same ends under a refused
+    /// decoration stall, where a read of its ordinary ends would pass.
+    #[test]
+    fn a_refused_offset_bound_stalls_limb_two() {
+        use crate::pcurve_cache::projected::Offset;
+        use geom_core::Interval;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let decide = |b: Interval| {
+            let upper = Offset::Bound(b).upper();
+            limb2_enclosure::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
+        };
+        assert!(
+            decide(Interval::from_bounds(0.0, 0.0)).is_ok(),
+            "a certified zero passes"
+        );
+        let refused = decide(geom_core::test_support::refused_point(0.0));
+        assert!(
+            matches!(refused, Err(AnalyticRung3Refusal::Stalled { .. })),
+            "a refused zero stalls: {refused:?}"
+        );
+    }
+
     /// **A silent tube says why it is silent.** Where a transversality
     /// enclosure was refused at some rung the edge says so; where no rung
     /// built a chain it says that. Neither reads as the generic
