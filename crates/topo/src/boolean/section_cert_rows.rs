@@ -1088,14 +1088,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
 
 fn lone_at(w: Point3<f64>) -> Section<f64> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: false,
-            essential_g: false,
-            witness: Some(w),
-            reaches: None,
-            residual: 0.0,
-        }],
+        parts: vec![Component::closed_form(false, [false, false], Some(w))],
         single: true,
     }
 }
@@ -1143,14 +1136,7 @@ fn w4_clears_only_a_certified_single_component() {
         certify(&s, true, |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
-    let c = Component {
-        unbounded: false,
-        essential_f: false,
-        essential_g: false,
-        witness: Some(p(0.0, 0.0, 0.0)),
-        reaches: None,
-        residual: 0.0,
-    };
+    let c = Component::closed_form(false, [false, false], Some(p(0.0, 0.0, 0.0)));
     let two = Section::Components {
         parts: vec![c, c],
         single: false,
@@ -1192,14 +1178,11 @@ fn w2_clears_only_where_the_face_describes() {
         Err(Refusal::Unread)
     );
     let witnessed = Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: Some(p(1.0, 0.0, 0.5)),
-            reaches: None,
-            residual: 0.0,
-        }],
+        parts: vec![Component::closed_form(
+            false,
+            [true, false],
+            Some(p(1.0, 0.0, 0.5)),
+        )],
         single: false,
     };
     assert_eq!(

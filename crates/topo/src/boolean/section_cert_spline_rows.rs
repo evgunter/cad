@@ -12,6 +12,7 @@ use super::search_kit::band;
 use super::section_cert_rows::{IN, OUT, at, p, plane, v};
 use super::*;
 use geom::Surface;
+use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
 /// The section through the march door, over a reach the spline arm
@@ -56,46 +57,54 @@ fn level(h: f64) -> Surface<f64> {
     plane(p(0.5, 0.5, h), v(0.0, 0.0, 1.0))
 }
 
-/// The one component of a lone section.
+/// The one component of a section of one.
 fn lone(s: &Section<f64>) -> Component<f64> {
     match s {
-        Section::Components { parts, single } if parts.len() == 1 => {
-            assert!(*single, "a lone component is certified single: {s:?}");
-            parts[0]
-        }
+        Section::Components { parts, .. } if parts.len() == 1 => parts[0],
         other => panic!("not one component: {other:?}"),
     }
+}
+
+/// The witness's distance from the dome's section at height `h`, the
+/// circle of radius `√−h` about `(½, ½, h)`.
+fn off_the_circle(w: Point3<f64>, h: f64) -> f64 {
+    let r = ((w.x - 0.5).powi(2) + (w.y - 0.5).powi(2)).sqrt();
+    ((r - (-h).sqrt()).powi(2) + (w.z - h).powi(2)).sqrt()
 }
 
 /// **A loop inside a plane and a wall is never cleared, and its witness
 /// is placed on the band widened by its residual.** The dome cut at
 /// `z = −0.1` meets the plane in the circle of radius `√0.1` about the
 /// centre, inside the wall's rectangle: one closed component, reaching
-/// no chart boundary, with a witness `residual` off it. With no event
-/// its witness decides it: `In` both faces is R-loop, no verdict is
-/// R-undec, and it clears only `Out` of a face (W3); with an event it is
-/// the lone evented component (W4). Against a face whose edge stands `d`
-/// from the witness, past the band but inside the band widened by the
-/// residual, the placement reads the witness on the edge, so it does
-/// not clear. Red against the boundary clause read true for a closed
-/// loop (every verdict clears as `Reaches`), against the whole reading
-/// dropped (R-reach), and against the residual dropped anywhere between
-/// the certificate and the placement (the component's, the rule's
-/// hand-off, or the widening), where the face would place the witness
-/// `Out` and clear a loop the section may still hold inside it. One
-/// reading serves every assertion: a loop's accounting is the
-/// expensive one.
+/// no chart boundary, its witness within its residual of the circle and
+/// that residual a few bands, not the wall's size. With no event its
+/// witness decides it: `In` both faces is R-loop, no verdict is R-undec,
+/// and it clears only `Out` of a face (W3); with an event it is the lone
+/// evented component (W4). Against a face whose edge stands `d` from the
+/// witness, past the band but inside the band widened by the residual,
+/// the placement reads the witness on the edge, so it does not clear.
+/// The same plane stored with its origin a kilometre off reads the same
+/// loop. Red against the boundary clause read true for a closed loop
+/// (every verdict clears as `Reaches`), against the residual dropped
+/// between the section and the placement (the component's or the rule's
+/// hand-off; the boolean's own widening is
+/// `nurbs_plane_guard::a_spline_witness_by_an_edge_is_placed_on_the_widened_band`),
+/// against a residual that does not scale with the band (a tube's rung),
+/// and against the plane read at its stored origin rather than its
+/// pivot (at ε 1e-12, where the kilometre's reach no longer settles). One reading of each plane serves every assertion: a loop's
+/// accounting is the expensive one.
 #[test]
 fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
     let s = read(&level(-0.1), &dome());
     let c = lone(&s);
     assert!(c.reaches.is_none(), "a loop reaches no side: {c:?}");
-    assert!(c.residual > 0.0, "a settled witness: {c:?}");
     let w = c.witness.expect("a loop carries a witness");
-    let r = ((w.x - 0.5).powi(2) + (w.y - 0.5).powi(2)).sqrt();
+    let off = off_the_circle(w, -0.1);
     assert!(
-        (r - 0.1_f64.sqrt()).abs() < 1e-6 && (w.z + 0.1).abs() < 1e-6,
-        "the witness lies on the circle: {w:?}"
+        off <= c.residual && c.residual <= 1e3 * band().zero(),
+        "the witness stands {off:e} off the circle, within its residual {:e}, a few bands of {:e}",
+        c.residual,
+        band().zero()
     );
     let rule = |evented, place| certify(&s, evented, |_| Sheet::Not, place);
     assert_eq!(rule(false, at(IN, IN)), Err(Refusal::Loop), "in both");
@@ -124,6 +133,151 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
         Err(Refusal::Undecided),
         "a witness inside its residual of an edge does not clear"
     );
+    let far = read(&plane(p(1000.0, 1000.0, -0.1), v(0.0, 0.0, 1.0)), &dome());
+    assert_eq!(
+        certify(&far, false, |_| Sheet::Not, at(IN, IN)),
+        Err(Refusal::Loop),
+        "the plane stored a kilometre off reads the same loop: {far:?}"
+    );
+}
+
+/// **A spline witness stands within its residual of the section**, at
+/// other heights of the dome's cut: a wider and a narrower circle. Red
+/// against a residual that under-states the bracket (the certificate's
+/// sup bound alone).
+#[test]
+fn a_spline_witness_stands_within_its_residual_of_the_section() {
+    for h in [-0.2, -0.03] {
+        let c = lone(&read(&level(h), &dome()));
+        let off = off_the_circle(c.witness.expect("a loop carries a witness"), h);
+        assert!(
+            off <= c.residual,
+            "h {h}: the witness stands {off:e} off, past its residual {:e}",
+            c.residual
+        );
+    }
+}
+
+/// **A loop hugging the wall's sides is a loop.** The dome cut just
+/// above its rim's lowest points, `d` inside all four sides: one closed
+/// component, reaching no side. Red against a loop read as reaching the
+/// boundary because it comes near it.
+#[test]
+fn a_loop_hugging_the_walls_sides_is_a_loop() {
+    for d in [1e-3, 1e-5, 1e-7] {
+        let s = read(&level(-(0.5 - d) * (0.5 - d)), &dome());
+        let c = lone(&s);
+        assert!(
+            c.reaches.is_none(),
+            "d {d:e}: a loop reads as reaching: {s:?}"
+        );
+        assert_eq!(
+            certify(&s, false, |_| Sheet::Not, at(None, None)),
+            Err(Refusal::Undecided),
+            "d {d:e}: a loop placed nowhere is not cleared"
+        );
+    }
+}
+
+/// A hill near `u = 0.2` (control columns 1, 2, rows 2–4 at height 1)
+/// and the wall's `u = 1` column raised to 1, everything else 0: at
+/// `z = ½` the plane meets it in one closed loop round the hill and one
+/// open branch near the raised side, on disjoint supports.
+fn hill_and_ramp() -> Surface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = (0..49)
+        .map(|n| {
+            let (i, j) = (n / 7, n % 7);
+            let hill = (1..=2).contains(&i) && (2..=4).contains(&j);
+            let z = if hill || i == 6 { 1.0 } else { 0.0 };
+            #[allow(clippy::cast_precision_loss)]
+            p(i as f64 / 6.0, j as f64 / 6.0, z)
+        })
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 49]).unwrap(),
+    ))
+}
+
+/// **A loop beside an open branch is not cleared by an event on the
+/// pair.** The event may lie on the open branch, so W4 must not read the
+/// loop as the lone component: the count holds the open branch. Red
+/// against `single` counting closed components alone (the loop clears
+/// `LoneEvented`).
+#[test]
+fn a_loop_beside_an_open_branch_is_not_cleared_by_an_event() {
+    let s = read(&level(0.5), &hill_and_ramp());
+    let Section::Components { parts, single } = &s else {
+        panic!("components: {s:?}")
+    };
+    let loops = parts.iter().filter(|c| c.reaches.is_none()).count();
+    let open = parts.iter().filter(|c| c.reaches == Some(Side::G)).count();
+    assert_eq!((loops, open, *single), (1, 1, false), "{s:?}");
+    assert_eq!(
+        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        Err(Refusal::Undecided),
+        "an evented pair with a loop beside an open branch"
+    );
+}
+
+/// A tube about the `z` axis, `z ∈ [0, 1]`: its `u` row a quadratic
+/// closed on itself at the corner `(1, −1)` where `closed`, or stopping
+/// short of it, linear in `v` along the axis.
+fn tube(closed: bool) -> Surface<f64> {
+    let ku =
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let last = if closed { (1.0, -1.0) } else { (1.0, -0.5) };
+    let ring = [(1.0, -1.0), (1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), last];
+    let control = ring
+        .iter()
+        .flat_map(|&(x, y)| [p(x, y, 0.0), p(x, y, 1.0)])
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap(),
+    ))
+}
+
+/// **A branch across a closed channel's seam is not cleared by reaching
+/// it.** A plane square to the tube's axis meets it in one branch from
+/// one `u` side of its chart to the other. Where the `u` row closes on
+/// itself those sides are a seam a face may lie across with no edge on
+/// it, so W1′ does not clear the branch and, placed nowhere, it refuses
+/// undecided; where the row stops short they are the wall's boundary,
+/// and it clears. Red against W1′ read of the kind (the seam's branch
+/// clears).
+#[test]
+fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
+    for (closed, want) in [
+        (true, Err(Refusal::Undecided)),
+        (false, Ok(vec![Cleared::Reaches(Side::G)])),
+    ] {
+        let s = read(&level(0.5), &tube(closed));
+        let built = geom_brep::pair_section_with(
+            &level(0.5),
+            &tube(closed),
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        let Ok(geom_brep::SectionRead::Built(built)) = built else {
+            panic!("closed {closed}: the section is read: {built:?}")
+        };
+        assert!(
+            matches!(
+                built.components(),
+                [c] if matches!(
+                    c.shape,
+                    geom_brep::ComponentShape::Open { reaches: [_, r] } if r.u_side && !r.v_side
+                )
+            ),
+            "closed {closed}: one branch from one u side to the other: {built:?}"
+        );
+        assert_eq!(
+            certify(&s, false, |_| Sheet::Not, at(None, None)),
+            want,
+            "closed {closed}: {s:?}"
+        );
+    }
 }
 
 /// **A plane cutting a wall in one open branch is cleared.** The ramp

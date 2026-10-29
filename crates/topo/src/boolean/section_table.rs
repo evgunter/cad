@@ -129,7 +129,10 @@ impl<T: geom_core::Decide> SectionReader<T> {
     /// Reads surface `ka` of A against `kb` of B at the reader's band,
     /// the band the pair is classified and carried at: the section on the
     /// pair's first read, the held one after, at the same band. `None`
-    /// where the value does not build the kind pair.
+    /// where the value does not build the kind pair. The glue door's
+    /// filter (`pair_section::serves`) keeps a plane and a spline out:
+    /// read here, with no march door, their section would hold
+    /// `SectionError::NoMarch`, which the guard reads as R-reach.
     pub(crate) fn read(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),

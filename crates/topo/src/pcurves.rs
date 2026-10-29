@@ -1672,6 +1672,18 @@ fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<VPeriod
     net_closes(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
 }
 
+/// **Which channels of `surface`'s chart close on themselves**, `[u, v]`,
+/// as the loop walk reads them ([`chart_u_period`], [`chart_v_period`]): a
+/// side of the chart's rectangle in a closed channel is a seam the face
+/// may lie across, and one in an open channel is the surface's own
+/// boundary.
+pub(crate) fn chart_closed_channels<T: Decide>(surface: &Surface<T>, band: Band) -> [bool; 2] {
+    [
+        chart_u_period(surface, band).is_some(),
+        chart_v_period(surface, band).is_some(),
+    ]
+}
+
 /// A spline net's channel, for the closure question [`net_closes`] asks.
 #[derive(Clone, Copy)]
 enum NetChannel {

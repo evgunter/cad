@@ -37,11 +37,21 @@
 //! - **W0, apart**: the classification returns no component.
 //! - **W1, unbounded**: faces are compact, so `γ ⊄ F`.
 //! - **W1′, reaching a chart's boundary**: `γ` reaches a side of the
-//!   parameter rectangle of `X`'s surface. `X` is a region of its one
-//!   rectangle chart bounded by its loops' pcurves (C4), so a point of
-//!   that side lying in `X` lies on a pcurve, an edge of `X`, and one
-//!   lying outside `X` puts `γ` partly outside it. Either way
-//!   `γ ⊄ int X`.
+//!   parameter rectangle of `X`'s surface in a channel the chart does
+//!   not close. `X` is a region of its one rectangle chart bounded by its
+//!   loops' pcurves (C4), and in an open channel no pcurve wraps past the
+//!   side, so a point of that side lying in `X` lies on a pcurve, an edge
+//!   of `X`, and one lying outside `X` puts `γ` partly outside it. Either
+//!   way `γ ⊄ int X`. A side in a closed channel is a seam the face may
+//!   lie across with no edge on it (a seamless band, or a patch across
+//!   the seam whose loops lift closed), so reaching it clears nothing:
+//!   this is read per surface from the chart the loop walk reads
+//!   (`pcurves::chart_closed_channels`), never assumed of a kind. A
+//!   `Side` region is certified only to lie within its reach of the
+//!   side; it is reported where the side lies within the band of the
+//!   other face's plane, so the side's points in `X` lie on an edge of
+//!   `X` within the band of that face, a contact the sweep records or
+//!   refuses (S).
 //! - **W2, essential**: `γ` is essential on the carrier of `X` (it winds
 //!   about the axis, or around the tube) and `X` reads [`Sheet::One`]:
 //!   every closed curve in `int X` lifts to a closed curve with zero
@@ -163,9 +173,11 @@
 //!   own distance from each carrier's anchor, not of a form that squares
 //!   it — and enclosures of it on the interval lane; containment is
 //!   decided on the band, and a point it cannot decide is not a witness.
-//!   A spline section's witness is a settled sample, within its
-//!   certificate's reach of `Σ` rather than within rounding, and is
-//!   placed on the band widened by that reach.
+//!   A spline section's witness is the wall's point at the middle of
+//!   the branch's pcurve, with a point of the section bracketed within a
+//!   certified metre bound of it inside the branch's own tube window
+//!   (`geom_brep::pair_section::plane_spline`), so the bracketed point
+//!   is `γ`'s; it is placed on the band widened by that bound.
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the
@@ -390,14 +402,36 @@ pub(crate) struct Component<T: Real> {
     pub essential_f: bool,
     /// The same for `G`.
     pub essential_g: bool,
-    /// One point of the component: in closed form, or a settled sample
-    /// of a spline section within `residual` of it.
+    /// One point of the component: in closed form, or a spline section's
+    /// point with a point of the component within `residual` of it.
     pub witness: Option<Point3<T>>,
-    /// It reaches the boundary of the named face's chart rectangle.
+    /// It reaches a side of the named face's chart rectangle in a
+    /// channel that chart does not close (W1′); `F` where it reaches both
+    /// faces' (one is enough).
     pub reaches: Option<Side>,
     /// How far, in metres past rounding, the witness may stand from the
     /// component: zero for a closed form.
     pub residual: f64,
+}
+
+impl<T: Real> Component<T> {
+    /// A component a closed form reads: unbounded or not, essential on
+    /// `[F, G]` or not, its witness within rounding of it, reaching no
+    /// chart boundary.
+    pub(crate) fn closed_form(
+        unbounded: bool,
+        [essential_f, essential_g]: [bool; 2],
+        witness: Option<Point3<T>>,
+    ) -> Self {
+        Self {
+            unbounded,
+            essential_f,
+            essential_g,
+            witness,
+            reaches: None,
+            residual: 0.0,
+        }
+    }
 }
 
 /// A pair's section, classified.
@@ -596,27 +630,13 @@ fn none<T: Real>() -> Section<T> {
 
 fn lone<T: Real>(witness: Point3<T>) -> Section<T> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: false,
-            essential_g: false,
-            witness: Some(witness),
-            reaches: None,
-            residual: 0.0,
-        }],
+        parts: vec![Component::closed_form(false, [false, false], Some(witness))],
         single: true,
     }
 }
 
 fn essential_pair<T: Real>(on_f: bool, on_g: bool) -> Section<T> {
-    let c = Component {
-        unbounded: false,
-        essential_f: on_f,
-        essential_g: on_g,
-        witness: None,
-        reaches: None,
-        residual: 0.0,
-    };
+    let c = Component::closed_form(false, [on_f, on_g], None);
     Section::Components {
         parts: vec![c, c],
         single: false,
@@ -671,9 +691,9 @@ pub(crate) fn classify_with<T: Decide>(
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. }, S::Cylinder { .. })
         | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, band) {
-            Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section)),
+            Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band),
             Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-            Err(e) => of_pair_section(&Err(e)),
+            Err(e) => of_pair_section(&Err(e), band),
         },
         (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
         (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
@@ -768,9 +788,9 @@ fn spline_plane<T: Decide>(
         return Section::Intractable;
     }
     match geom_brep::pair_section_with(f, g, lane, band) {
-        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section)),
+        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-        Err(e) => of_pair_section(&Err(e)),
+        Err(e) => of_pair_section(&Err(e), band),
     }
 }
 
@@ -1150,25 +1170,11 @@ fn charted<T: Real>(
     if first.bounded.len() != second.bounded.len() || first.unbounded != second.unbounded {
         return Section::Tangent(row);
     }
-    let line = Component {
-        unbounded: true,
-        essential_f: false,
-        essential_g: false,
-        witness: None,
-        reaches: None,
-        residual: 0.0,
-    };
+    let line = Component::closed_form(true, [false, false], None);
     let parts: Vec<_> = first
         .bounded
         .iter()
-        .map(|&w| Component {
-            unbounded: false,
-            essential_f: first.essential,
-            essential_g: second.essential,
-            witness: Some(w),
-            reaches: None,
-            residual: 0.0,
-        })
+        .map(|&w| Component::closed_form(false, [first.essential, second.essential], Some(w)))
         .chain(core::iter::repeat_n(line, first.unbounded))
         .collect();
     let single = parts.len() == 1;
@@ -1369,28 +1375,14 @@ fn cone_plane<T: Decide>(
         band,
     ) {
         Some(Sign::Negative) => {
-            let c = Component {
-                unbounded: true,
-                essential_f: false,
-                essential_g: false,
-                witness: None,
-                reaches: None,
-                residual: 0.0,
-            };
+            let c = Component::closed_form(true, [false, false], None);
             Section::Components {
                 parts: vec![c, c],
                 single: false,
             }
         }
         Some(Sign::Zero) => Section::Components {
-            parts: vec![Component {
-                unbounded: false,
-                essential_f: true,
-                essential_g: false,
-                witness: None,
-                reaches: None,
-                residual: 0.0,
-            }],
+            parts: vec![Component::closed_form(false, [true, false], None)],
             single: false,
         },
         None => Section::Tangent("section_cone_plane_aperture"),
@@ -1425,14 +1417,11 @@ fn cone_plane<T: Decide>(
             let g = cone.generator(r);
             let t = (p0 - cone.apex).dot(facing) / g.dot(facing);
             Section::Components {
-                parts: vec![Component {
-                    unbounded: false,
-                    essential_f: true,
-                    essential_g: false,
-                    witness: Some(cone.apex + g * t),
-                    reaches: None,
-                    residual: 0.0,
-                }],
+                parts: vec![Component::closed_form(
+                    false,
+                    [true, false],
+                    Some(cone.apex + g * t),
+                )],
                 single: true,
             }
         }
@@ -1480,13 +1469,8 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         let half = ((rho - d) * (rho + d)).sqrt();
         (b, d, [-b - half, -b + half])
     };
-    let part = |w: Vec3<T>, t: T, essential: bool| Component {
-        unbounded: false,
-        essential_f: essential,
-        essential_g: false,
-        witness: Some(cone.apex + w * t),
-        reaches: None,
-        residual: 0.0,
+    let part = |w: Vec3<T>, t: T, essential: bool| {
+        Component::closed_form(false, [essential, false], Some(cone.apex + w * t))
     };
     let (b_hi, d_hi, t_hi) = roots(hi);
     let (b_lo, d_lo, t_lo) = roots(lo);
@@ -1568,14 +1552,7 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component {
-        unbounded: false,
-        essential_f: !outside,
-        essential_g: true,
-        witness: Some(foot + cone.a * h),
-        reaches: None,
-        residual: 0.0,
-    };
+    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,
@@ -1623,14 +1600,7 @@ fn cylinder_cylinder<T: Decide>(
                 band,
             ) {
                 Ok(Sign::Positive) => Section::Components {
-                    parts: vec![Component {
-                        unbounded: true,
-                        essential_f: false,
-                        essential_g: false,
-                        witness: None,
-                        reaches: None,
-                        residual: 0.0,
-                    }],
+                    parts: vec![Component::closed_form(true, [false, false], None)],
                     single: false,
                 },
                 Ok(Sign::Zero) => Section::Tangent(COINCIDENT),
@@ -1724,14 +1694,11 @@ fn equal_crossing_axes<T: Decide>(
     }
     let p = axis_foot((o1, d1), (o2, d2), d1.cross(d2).norm_squared());
     Some(Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: true,
-            witness: Some(p + m * r1.abs()),
-            reaches: None,
-            residual: 0.0,
-        }],
+        parts: vec![Component::closed_form(
+            false,
+            [true, true],
+            Some(p + m * r1.abs()),
+        )],
         single: true,
     })
 }
@@ -1754,14 +1721,7 @@ fn axis_foot<T: geom_core::Real>(
 /// certified, so W4 is never read.
 fn cylinder_plane<T: Real>() -> Section<T> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: None,
-            reaches: None,
-            residual: 0.0,
-        }],
+        parts: vec![Component::closed_form(false, [true, false], None)],
         single: false,
     }
 }
@@ -1836,9 +1796,12 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// R-reach: an operand's size is no
 /// tangency, and the pair has no arm for it. Every other section is its
 /// components, each with whether it winds about each carrier and its
-/// witness, certified single when there is one.
+/// witness, certified single when there is one, and the face whose
+/// chart boundary it reaches in a channel the chart does not close
+/// (W1′), read at `band` as the loop walk reads it.
 pub(super) fn of_pair_section<T: Decide>(
     read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
+    band: Band,
 ) -> Section<T> {
     use geom_brep::{ComponentShape, SectionError};
     let section = match read {
@@ -1871,6 +1834,11 @@ pub(super) fn of_pair_section<T: Decide>(
             _ => Section::Tangent(zero.decision.name()),
         };
     }
+    let (f, g) = section.pose().operands();
+    let bounds = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| {
+        let [u_closed, v_closed] = crate::pcurves::chart_closed_channels(surface, band);
+        (reach.u_side && !u_closed) || (reach.v_side && !v_closed)
+    };
     Section::Components {
         parts: components
             .iter()
@@ -1880,13 +1848,18 @@ pub(super) fn of_pair_section<T: Decide>(
                 essential_g: c.winds[1],
                 witness: c.witness,
                 reaches: match c.shape {
-                    ComponentShape::Open { reaches: [true, _] } => Some(Side::F),
                     ComponentShape::Open {
-                        reaches: [false, true],
-                    } => Some(Side::G),
-                    ComponentShape::Open { .. } | ComponentShape::Loop | ComponentShape::Point => {
-                        None
+                        reaches: [on_f, on_g],
+                    } => {
+                        if bounds(on_f, f) {
+                            Some(Side::F)
+                        } else if bounds(on_g, g) {
+                            Some(Side::G)
+                        } else {
+                            None
+                        }
                     }
+                    ComponentShape::Loop | ComponentShape::Point => None,
                 },
                 residual: c.residual,
             })
@@ -1899,9 +1872,6 @@ pub(super) fn of_pair_section<T: Decide>(
 /// the run's band widened by it, so a placement that decides clears
 /// both (module docs, premises). `None` where no band is that wide.
 pub(crate) fn witness_band(band: Band, residual: f64) -> Option<Band> {
-    if residual == 0.0 {
-        return Some(band);
-    }
     Band::new(band.zero() + residual, band.escalate() + residual).ok()
 }
 

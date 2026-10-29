@@ -163,8 +163,8 @@ not (
   (binary_id(editor-core::all) & (test(=clearance_refusals_say_what_they_found::a_named_scope_asks_what_a_name_denotes_before_how_many_answer))) |
   (binary_id(geom::all) & (test(=surfaces_rect_enclosure::rect_jet_contains_every_sampled_partial_of_its_rectangle))) |
   (binary_id(sweep::all) & test(=a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms)) |
-  (binary_id(sweep::all) & (test(=germ_interior_oval::a_nurbs_graze_behind_crossings_is_refused_on_every_op) | test(=nurbs_plane_guard::lilys_four_cap_pairs_clear_through_the_whole_reading) | test(=nurbs_plane_guard::a_plane_cutting_the_blades_loft_clears))) |
-  (binary_id(topo) & test(=boolean::section_cert::section_cert_spline_rows::a_loop_inside_a_plane_and_a_wall_is_never_cleared))
+  (binary_id(sweep::all) & (test(=germ_interior_oval::a_nurbs_graze_behind_crossings_is_refused_on_every_op) | test(=nurbs_plane_guard::lilys_four_cap_pairs_clear_through_the_whole_reading) | test(=nurbs_plane_guard::a_plane_cutting_the_blades_loft_clears) | test(=nurbs_plane_guard::a_spline_witness_by_an_edge_is_placed_on_the_widened_band))) |
+  (binary_id(topo) & (test(=boolean::section_cert::section_cert_spline_rows::a_loop_inside_a_plane_and_a_wall_is_never_cleared) | test(=boolean::section_cert::section_cert_spline_rows::a_spline_witness_stands_within_its_residual_of_the_section) | test(=boolean::section_cert::section_cert_spline_rows::a_loop_hugging_the_walls_sides_is_a_loop) | test(=boolean::section_cert::section_cert_spline_rows::a_loop_beside_an_open_branch_is_not_cleared_by_an_event) | test(=boolean::section_cert::section_cert_spline_rows::a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it)))
 )
 """
 

@@ -1305,6 +1305,25 @@ impl core::fmt::Display for SsiError {
 impl std::error::Error for SsiError {}
 
 impl SsiError {
+    /// **The tangency this refusal reports**, by the decision that
+    /// refused it: the march's transversality, a graze of a side, or a
+    /// side held tangent, each toward the C7 regime. The predicate is the
+    /// escalation's own where it carries one, else the decision's row.
+    /// `None` for every other refusal.
+    #[must_use]
+    pub fn tangency(&self) -> Option<&'static str> {
+        let named = |verdict: &BandVerdict, row: &'static str| match verdict {
+            BandVerdict::Undecided(cause) => cause.predicate.unwrap_or(row),
+            BandVerdict::Refused(_) => row,
+        };
+        match self {
+            Self::TransversalityBand { .. } => Some("ssi_transversality"),
+            Self::BoundaryGraze { verdict, .. } => Some(named(verdict, "ssi_boundary_crossing")),
+            Self::BoundaryTangent { verdict, .. } => Some(named(verdict, "ssi_boundary_strip")),
+            _ => None,
+        }
+    }
+
     /// The march's refusal of a torus `pair`'s pose that was not
     /// decided: the partner's radius decided not positive, a torus
     /// outside its ring convention, two tori decided one, or a pose

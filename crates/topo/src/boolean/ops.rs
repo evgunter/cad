@@ -1910,7 +1910,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => of_pair_section(held),
+        Some(held) => of_pair_section(held, band),
         None => classify_with(
             &fa.surface,
             &fb.surface,

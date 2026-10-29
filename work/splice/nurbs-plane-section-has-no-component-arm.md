@@ -65,10 +65,12 @@ plane × `Approx` as its fit) from C3's whole reading
 the guard reads it after W0 (`section_cert.rs` `spline_plane`): a
 closed branch is a loop read by W3, W4 or the no-event decision; an
 open branch, a `Side` region and a `Corner` region reach the wall's
-chart boundary and clear (W1′, by C4); a refusal maps by name. A
-spline witness is placed on the band widened by its certificate's
-reach (`witness_band`). The witnesses are
+chart boundary in a channel the chart does not close and clear (W1′,
+by C4); a refusal maps by name. A spline witness is the wall's point
+at the middle of the branch's pcurve, with a point of the branch's own
+arc bracketed within a metre bound of it inside its tube window, and
+it is placed on the band widened by that bound (`witness_band`). The witnesses are
 `crates/topo/src/boolean/section_cert_spline_rows.rs`,
-`crates/sweep/tests/nurbs_plane_guard.rs` (lily's four cap pairs and
-a plane cutting the blade), and the bump × clamp row, re-pinned to
+`crates/sweep/tests/nurbs_plane_guard.rs` (lily's four cap pairs, a
+plane cutting the blade, and a witness by a box's edge), and the bump × clamp row, re-pinned to
 the loop's undecided refusal.

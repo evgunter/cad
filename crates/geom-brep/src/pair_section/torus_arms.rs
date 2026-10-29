@@ -117,13 +117,12 @@ fn arm_loop<T: Real>(
     witness: Option<Point3<T>>,
     carrier: &ClassCarrier<T>,
 ) -> SectionComponent<T> {
-    SectionComponent {
-        shape: ComponentShape::Loop,
-        winds: [torus, partner],
+    SectionComponent::closed_form(
+        ComponentShape::Loop,
+        [torus, partner],
         witness,
-        residual: 0.0,
-        carrier: carrier.clone(),
-    }
+        carrier.clone(),
+    )
 }
 
 /// One inessential loop through `witness`.

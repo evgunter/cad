@@ -176,3 +176,115 @@ fn a_plane_cutting_the_blades_loft_clears() {
         }
     }
 }
+
+/// Lily's leaf with its spine raised 0.15 rad: curling down 0.3 rad
+/// along its length, its ridge peaks near the middle, so a plane `z = h`
+/// just below that peak meets the ridge wall in one oval inside it.
+fn raised_leaf(tol: Tol) -> topo::AtRestBody<f64> {
+    let (sa, ca) = 0.15_f64.sin_cos();
+    let base = [0.170, 0.028, 0.020];
+    blade(
+        Vec3::new(ca, 0.0, sa),
+        Vec3::new(-sa, 0.0, ca),
+        (1.2, -0.3),
+        |s| [0, 1, 2].map(|i| base[i] + ([0.300, 0.034, 0.016][i] - base[i]) * s),
+        tol,
+    )
+}
+
+/// **A spline witness by a face's edge is placed on the band widened by
+/// its residual, through the boolean's own placement.** The plane
+/// a little below the raised leaf's ridge peak meets its ridge wall in one oval, read as
+/// one loop with a witness `r` off it. A box whose bottom face lies in
+/// that plane, its edge `d` from the witness on the side the oval runs
+/// on, is read against the wall by the section pass on real faces:
+/// - `d` = the band's escalation plus `r/2`: past the band, inside the
+///   band widened by `r`, so the placement does not read the witness
+///   out of the box and the pair is not cleared;
+/// - `d` ten escalations: the witness is out of the box (W3).
+///
+/// Red against the boolean placing a spline witness on the run's band
+/// (the first box clears `Out`).
+#[test]
+fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("band");
+    let blade = raised_leaf(tol);
+    let (ridge_face, ridge) = blade
+        .faces()
+        .filter_map(|(k, f)| match blade.get_surface(f.surface) {
+            Some(s @ Surface::Nurbs(n)) => {
+                let top = n.control().iter().map(|p| p.z).fold(f64::MIN, f64::max);
+                Some((k, s.clone(), top))
+            }
+            _ => None,
+        })
+        .max_by(|a, b| a.2.total_cmp(&b.2))
+        .map(|(k, s, _)| (k, s))
+        .expect("the blade has spline walls");
+    // The ridge's peak, sampled; the plane stands a little below it.
+    let Surface::Nurbs(net) = &ridge else {
+        unreachable!("a spline wall")
+    };
+    let ((u0, u1), (v0, v1)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+    let peak = (0..=64)
+        .flat_map(|i| (0..=64).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            let (a, b) = (f64::from(i) / 64.0, f64::from(j) / 64.0);
+            net.eval(u0 + (u1 - u0) * a, v0 + (v1 - v0) * b)
+        })
+        .max_by(|a, b| a.z.total_cmp(&b.z))
+        .expect("samples");
+    let h = peak.z - 2e-3;
+    let plane = Surface::Plane {
+        origin: Point3::new(peak.x, 0.0, h),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let Ok(geom_brep::SectionRead::Built(section)) =
+        geom_brep::pair_section_with(&plane, &ridge, Some(geom_brep::SsiLane::marched()), band)
+    else {
+        panic!("the ridge's section is read")
+    };
+    let [c] = section.components() else {
+        panic!("one oval: {section:?}")
+    };
+    assert_eq!(c.shape, geom_brep::ComponentShape::Loop, "{c:?}");
+    let w = c.witness.expect("the oval carries a witness");
+    for (d, want) in [
+        (band.escalate() + c.residual / 2.0, "Err(Undecided)"),
+        (10.0 * band.escalate(), "Ok([Out(G)])"),
+    ] {
+        // The box's edge stands `d` from the witness toward the ridge's
+        // peak, the oval's middle, so the box holds part of the oval and
+        // not the witness.
+        let x = if w.x < peak.x {
+            (w.x + d, peak.x + 0.3)
+        } else {
+            (peak.x - 0.3, w.x - d)
+        };
+        let block = topo::test_support::finished(
+            "a box on the plane",
+            sweep::test_support::brick::<f64>(x, (-1.0, 1.0), (h, h + 0.5), tol),
+            tol,
+        );
+        let bottom = |f: topo::FaceKey| {
+            matches!(
+                block.get_face(f).and_then(|fd| block.get_surface(fd.surface)),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12
+            )
+        };
+        let got: Vec<String> = topo::test_support::no_crossings_section_report(&blade, &block, tol)
+            .expect("the section pass reads every pair")
+            .into_iter()
+            .filter(|&(fa, fb, _)| fa == ridge_face && bottom(fb))
+            .map(|(_, _, v)| v)
+            .collect();
+        assert_eq!(
+            got,
+            vec![want.to_string()],
+            "the box's edge {d:e} from the witness"
+        );
+    }
+}

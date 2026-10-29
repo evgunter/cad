@@ -191,7 +191,7 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
-    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, ChartReach, ClassCarrier, Coincident,
     ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
     FittedCarrier, Gap, PairPose, PairSection, PlaneSplinePose, PoseRefusal, Ring, Seated,
     SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
