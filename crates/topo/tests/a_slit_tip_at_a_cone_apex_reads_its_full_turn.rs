@@ -303,3 +303,44 @@ fn a_split_through_the_apex_at_the_slits_tip_builds() {
         }
     }
 }
+
+/// **Review: the split through the apex with each normal reversed**, the
+/// slit's edges and the cavity below the plane, and through planes
+/// holding or nearly holding the slit's ruling, the cavity above.
+#[test]
+fn review_a_split_through_the_apex_reversed_or_near_the_slit_builds() {
+    let body = topo::test_support::finished("the notched cone", notched_cone(), tol());
+    for n in [
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(-1.0, -0.5, 0.0),
+        Vec3::new(-0.3, -1.0, 0.2),
+        // Through a cavity face's plane, tilted 1e-3 and not: the slit's
+        // ruling a hair above the plane, or in it.
+        Vec3::new(-0.3, -0.1, 0.101),
+        Vec3::new(0.3, -0.1, 0.101),
+        Vec3::new(-0.3, -0.1, 0.1),
+        Vec3::new(0.3, -0.1, 0.1),
+    ] {
+        let what = format!("the split along {n:?}");
+        let plane =
+            topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.0), n / n.norm(), tol());
+        let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let cavity_above = n.dot(Vec3::new(0.0, 0.3, 0.6)) > 0.0;
+        let below = cone_below(n) - if cavity_above { 0.0 } else { CAVITY };
+        let above = core::f64::consts::PI / 3.0 - CAVITY - below;
+        for (side, part, want) in [("above", &r.above, above), ("below", &r.below, below)] {
+            let what = format!("{what}, {side}");
+            let SplitPart::Body(b) = part else {
+                panic!("{what}: empty");
+            };
+            let v = topo::test_support::pinned_volume(&what, b, tol()).volume;
+            assert!((v - want).abs() < 1e-12, "{what}: holds {v}, not {want}");
+            assert_eq!(validate_geometric(b, tol()), Ok(()), "{what}: tier 3");
+            assert_eq!(
+                validate_pseudomanifold(b, &ContactRecords::default(), tol()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
+        }
+    }
+}
