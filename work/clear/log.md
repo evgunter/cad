@@ -157,3 +157,9 @@ Signed: (CARVE orchestrator)
   - style: a broken invariant read as a caller fault, side-less one-face arms, two renderings of one refusal, and duplicated wording.
 
   The orchestrator read and accepted the fix pass at `7bc8900b`. Every item was taken. The new `_ =>`-over-`Result` pass found one real case: the meeting-pair margin's `Err`, possible only when the bound lies in the band, had counted as a violation and then been refused as `WitnessUnverified`; it now refuses `Sliver`. Filed to CLEARTAIL: `clearance-violated-verdict-names-its-pair-by-bare-keys`. Filed to TALLY: the `eval/measure.rs` corruption arms. `injective.rs` gained four one-line side arguments, so CURVEDEP (#5991, in DUAL review) will merge main over them.
+- 2026-10-29 — **Cut to CLEARTAIL**, at load 47/30. These rows move by `git mv`, with ids and bodies unchanged:
+  - P2: `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`, `an-analytic-face-may-cover-its-carrier-more-than-once`, `the-second-order-arm-certifies-a-declared-wedge-0-edge`;
+  - P3: `comb-rows-ask-a-scope-against-itself-since-the-metric-doors-dropped-pairing`;
+  - unpriced: `boundary-of-evaluates-a-spline-edge-over-its-whole-span`, `iso-bounded-domain-has-two-refusals-no-valid-body-reaches`, `restricted-net-hull-has-four-spellings`.
+
+  `an-assertion-over-scopes-that-meet-refuses-a-window-superset-for-an-exact-zero` stays, because TIGHTEN (#5998) closes it. Rows that open units in flight file into CLEARTAIL directly, unless they are P1. Queued: `main-red-injective-rs-folds-the-face-sense-by-hand` (P1/E), after CURVEDEP merges, since both are in `injective.rs`.
