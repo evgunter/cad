@@ -277,6 +277,27 @@ fn zz_wraptip_probe() {
         let h = 0.3;
         boolean_row("slab∖pip", &slab, ball, 16.0 - PI * h * h * (1.5 - h) / 3.0)
     });
+    for (pose, z) in [("z>0", (0.0, 2.0)), ("z<0", (-2.0, 0.0)), ("both", (-2.0, 2.0))] {
+        let capv = PI * 0.25 * (3.0 - 0.5) / 3.0;
+        let shared = if pose == "both" { capv } else { capv / 2.0 };
+        let boxv = 2.5 * 4.0 * (z.1 - z.0);
+        let ballv = 4.0 * PI / 3.0;
+        for (op, want) in [("union", boxv + ballv - shared), ("intersect", shared), ("subtract", boxv - shared)] {
+            row(&format!("tilted_sphere_pair box x>0.5 {pose} {op} ball"), || {
+                let bx = finished("box", brick((0.5, 3.0), (-2.0, 2.0), z, tol()), tol());
+                let ball = finished("ball", topo::transform_rigid(&try_revolved_about_y_at(ball(), Revolution::Full, tol()).unwrap(), &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.0)).unwrap(), tol()).unwrap(), tol());
+                let r = match op {
+                    "union" => topo::union(&bx, &ball, tol()),
+                    "intersect" => topo::intersect(&bx, &ball, tol()),
+                    _ => topo::subtract(&bx, &ball, tol()),
+                };
+                match r {
+                    Ok(BooleanResult::Body(b)) => format!("{} {:?} {}", vol_check(op, &b.body, want), counts(&b.body), tiers(&b.body)),
+                    other => format!("{other:?}"),
+                }
+            });
+        }
+    }
     row("boolean box minus a ball inside it (a one-face sphere void, sense false)", || {
         let bx = finished("box", brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol()), tol());
         let ball = sweep::test_support::ball_poled_y(0.5, Vec3::new(0.1, 0.2, 0.3), tol());

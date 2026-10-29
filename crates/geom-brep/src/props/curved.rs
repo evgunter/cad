@@ -3534,19 +3534,47 @@ fn sphere_loop<T: Decide>(
                 .atan2(arc.arrive.dot(next.depart)),
         ));
     }
-    // A tip's turn is the whole turn round it less the turns into and
-    // out of its slit (its face side, read off the loop); a slit with
-    // no regular junction at either end (the one-face ball) reads −π,
-    // the side a sense-true face claims: its loop encodes no side.
+    // A tip's turn closes its slit: the loop's turns from the arc that
+    // enters the slit to the arc that leaves it sum to the principal
+    // turn between those two arcs at the slit's base (the slit has no
+    // area), so the tip takes that less the slit's other junctions. A
+    // slit with no base (every arc in it, the one-face ball) reads −π:
+    // its loop encodes no side, and `sphere_face` reads it by the bit.
+    let same_reversed = |a: usize, b: usize| {
+        let (ea, eb) = (&edges[a % n_arcs], &edges[b % n_arcs]);
+        matches!((ea.carrier_id, eb.carrier_id), (Some(x), Some(y)) if x == y)
+            && ea.forward != eb.forward
+    };
     let mut corners = T::zero();
     for i in 0..n_arcs {
         corners = corners
             + match turns[i] {
                 Some(t) => t,
-                None => match (turns[(i + n_arcs - 1) % n_arcs], turns[(i + 1) % n_arcs]) {
-                    (Some(a), Some(b)) => -(a + b),
-                    _ => -T::pi(),
-                },
+                None => {
+                    // Arcs i+1-m ..= i and i+1 ..= i+m are the slit.
+                    let mut m = 1;
+                    while 2 * m < n_arcs && same_reversed(i + n_arcs - m, i + 1 + m) {
+                        m += 1;
+                    }
+                    if 2 * m >= n_arcs {
+                        -T::pi()
+                    } else {
+                        let into = (i + n_arcs - m) % n_arcs;
+                        let out = (i + m) % n_arcs;
+                        let (arc_in, arc_out) = (&arcs[into], &arcs[(out + 1) % n_arcs]);
+                        let base = normal(arc_in.at)
+                            .dot(arc_in.arrive.cross(arc_out.depart))
+                            .atan2(arc_in.arrive.dot(arc_out.depart));
+                        let mut others = T::zero();
+                        for k in 0..=(2 * m) {
+                            let j = (into + k) % n_arcs;
+                            if j != i {
+                                others = others + turns[j].unwrap_or_else(T::zero);
+                            }
+                        }
+                        base - others
+                    }
+                }
             };
     }
     Ok(SphereLoop {
