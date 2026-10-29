@@ -20,11 +20,19 @@ client over the API), functional style, fail-loud.
   `docs/prompts/reviewer-style-lane.md` and
   `docs/prompts/designer.md` — the standing discipline handed
   to every implementer, reviewer and designer lane by path.
-  **Orchestrators read all three in full, and again after every
-  compaction**: they are the rules the orchestrator adjudicates
-  against, and they bind the orchestrator's own judgement too (e.g. a
-  golden or stored bit that changes is never a cost to weigh against a
-  change that makes the code right — re-baseline and say what moved).
+  Orchestrators read all three in full: they are the rules the
+  orchestrator adjudicates against, and they bind the orchestrator's
+  own judgement too (e.g. a golden or stored bit that changes is never
+  a cost to weigh against a change that makes the code right —
+  re-baseline and say what moved).
+
+**After every compaction, an orchestrator re-reads all the orchestrator
+docs**, not only the three prompts: `work/README.md`, the three
+prompts above, `memories/MEMORY.md` and the memories it points an
+orchestrator to (`memories/orchestration-model.md` first), and the
+protocol of any experiment it has in flight (`docs/DUAL-REVIEW-PROTOCOL.md`,
+`docs/DESIGN-FORK-PROTOCOL.md`). A summary carries pending tasks, not
+standing rules, so the rules have to be read again.
 
 ## Memory convention (important)
 
