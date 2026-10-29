@@ -128,8 +128,10 @@ fn next_fusion<T: Decide>(
             continue;
         };
         for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|l| l.boundary) else {
-                continue;
+            let first = match body.get_loop(l).ok_or(SplitFinishError::Corrupt)?.boundary {
+                LoopBoundary::Cycle { first } => first,
+                // A lone vertex has no corner to read.
+                LoopBoundary::Empty { .. } => continue,
             };
             let cycle = body.loop_cycle(first).ok_or(SplitFinishError::Corrupt)?;
             let mut keyed: Vec<_> = cycle
