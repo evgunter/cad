@@ -2,10 +2,11 @@
 id: a-split-through-a-union-pinch-corner-crosses-the-pinch-at-rest
 kind: issue
 title: A split through the corner where a union pinches leaves a half that tier 3 refuses PinchCornerCrossed
-status: open
+status: dispatched
 priority: P1
 cost: M
 opened: 2026-10-20
+branch: splitdoor/pinch-corner-split
 ---
 
 
