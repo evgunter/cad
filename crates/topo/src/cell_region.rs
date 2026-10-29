@@ -190,6 +190,63 @@ fn place<T: Decide>(
     }
 }
 
+/// **A cell's ball**: a station of the cell's patch, and a radius about
+/// it that holds the patch's enclosure. Both are interval arithmetic, so
+/// a feature this decides clear of the ball meets no point of the patch.
+///
+/// It reads features already lifted to [`Interval`], on the same rows
+/// [`cell_region`] clears them on, so the two readings of "this cell
+/// meets no point of that edge" are one reading.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Ball {
+    centre: Point3<Interval>,
+    reach: Interval,
+}
+
+impl Ball {
+    /// The ball about `centre` that holds the box `patch`.
+    pub(crate) fn holding(centre: Point3<Interval>, patch: Point3<Interval>) -> Self {
+        Self {
+            centre,
+            reach: (patch - centre).norm(),
+        }
+    }
+
+    /// The radius, in metres.
+    pub(crate) fn reach(self) -> Interval {
+        self.reach
+    }
+
+    fn clear(self, row: &'static str, distance: Interval, band: Band) -> bool {
+        matches!(
+            decide(row, Margin::of(distance - self.reach), band),
+            Ok(Sign::Positive)
+        )
+    }
+
+    /// Is the point decided clear of the ball?
+    pub(crate) fn clear_of_point(self, p: Point3<Interval>, band: Band) -> bool {
+        self.clear(VERTEX, (p - self.centre).norm(), band)
+    }
+
+    /// Is the arc of `carrier` over `params` decided clear of the ball?
+    pub(crate) fn clear_of_arc(
+        self,
+        carrier: &geom::Curve3<Interval>,
+        params: (Interval, Interval),
+        band: Band,
+    ) -> bool {
+        arc_distance_floor(carrier, params, self.centre).is_some_and(|floor| {
+            let row = match floor {
+                ArcFloor::Segment(_) => SEGMENT,
+                ArcFloor::Conic { .. } => CONIC,
+                ArcFloor::Ball { .. } => BALL,
+            };
+            floor.clears(|d| self.clear(row, d, band))
+        })
+    }
+}
+
 /// Is the carrier's singular set decided clear of the ball: a cone's
 /// apex, and a torus's axis, which holds every point where a spindle or
 /// horn torus meets itself (a ring torus never comes near it). The

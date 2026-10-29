@@ -239,3 +239,16 @@ closed-form margin where the pose has one, otherwise its certified critical
 gap, never a root formula; NURBS and `Approx` pairs stay the C2
 certificate's. It binds the cone pairs next (SECTARMS) and plane × torus
 off its axis-aligned arm (SECTSITE).
+## 2026-10-29 — the torus doors merge (PR 5972)
+
+- PR 5972 closes `cylinder-torus-rung-three-arm-is-unretired` and
+  `torus-torus-rung-three-arm-is-unretired`: both doors march a transverse
+  pose over a certified ball holding the whole section; a general pose is
+  `implemented: false` until the components unit lands. Dual concurrent
+  review (row `docs/dual-review-log/rows/PR-5972.md`): both
+  APPROVE-WITH-FIXES, no MAJOR; one fix pass on the union; the
+  orchestrator read the `winds` fix. Cost noted: at ε 1e-12 the new
+  `torus_doors_join` rows take 230–865 s each in debug, on the nightly.
+- The components fork is decided and recorded on its row
+  (`a-general-torus-pose-lists-no-components`, `## Decided`) and as fork
+  row 212; its build is dispatched next as its own unit.

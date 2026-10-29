@@ -102,3 +102,20 @@ the lily's `mate7a_r1_probes.rs`
 for these pairs owes now is a site reading that tells their components
 apart, and the door rows' carriers.
 
+
+## The doors march every transverse pose (SECT, 2026-10-28)
+
+`sect/torus-doors` built `ssi::cylinder_torus_ssi` and
+`ssi::torus_torus_ssi`. Re-measured on this row's placements: every
+transverse pose of both pairs certifies at the door (drum × donut and
+donut × drum at all six placements, donut × donut at five, the sixth a
+tangency), and the joins answer as before but for the note. The
+symmetric poses (placement 0's square wall and parallel donuts,
+placement 4's square wall) carry the general rung's carrier and stop at
+the germ mint `Untold`, as do the radial hole and the lily; the general
+poses (drum × donut 1, 2, 3, 5; donut × donut 1, 2, 3) refuse
+`Refused(RoutesToGeneralRung)` at the germ mint, the section value
+listing no components for them
+(`a-general-torus-pose-lists-no-components`, a design fork). Placements
+whose union never reaches the section (`ArcCylinderRoots`,
+`CurvedPierceUnsupported`, a plane × torus spiric) are unchanged.

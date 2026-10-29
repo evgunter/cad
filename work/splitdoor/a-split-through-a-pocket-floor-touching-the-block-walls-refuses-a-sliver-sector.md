@@ -2,11 +2,12 @@
 id: a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector
 kind: issue
 title: A split along a pocket floor whose diamond outline touches the block's walls at its corners refuses SliverSector (sector_straight indeterminate)
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P1
 cost: M
 refs: [a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission, a-pinch-carried-through-a-later-fold-step-refuses-naming]
+branch: splitdoor/pocket-floor-sliver
 ---
 
 

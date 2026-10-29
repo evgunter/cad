@@ -326,7 +326,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
             BooleanDecision::PierceOnFace.subject()
         }
-        "bool_cone_off_axis" => "whether a point of a cone face stands clear of the cone's apex",
+        "cone_off_axis" => "whether a point of a cone face stands clear of the cone's axis",
+        "cone_at_apex" => "whether a point of a cone face near its axis is the cone's apex",
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -2720,8 +2721,6 @@ pub enum SectionUnbuilt {
     },
     /// The march refused.
     March(geom_brep::SsiError),
-    /// The pair's general-rung door is unbuilt, as the note says.
-    Unbuilt(&'static str),
     /// The classification does not tell the section's components apart
     /// at the germ's site, as the note says.
     Untold(&'static str),
@@ -2744,7 +2743,6 @@ impl core::fmt::Display for SectionUnbuilt {
                  {scalar}. Recourse: run the operation at f64"
             ),
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Unbuilt(why) => write!(f, "{why}"),
             Self::Untold(why) => write!(
                 f,
                 "{why}, so the germ's component is not named. Recourse: none in this \
@@ -2891,11 +2889,13 @@ pub enum BooleanError {
     /// A vertex the boolean classifies sits within the band of the APEX
     /// of a cone face of `operand`: the cone's own apex vertex as the
     /// corner of one of its sectors, or another operand's vertex landing
-    /// on the cone there. The face has no tangent plane at its apex, so
-    /// there is no normal to read a material side by, and the sector and
-    /// pierce lanes refuse rather than read one. The definite half: an
-    /// in-band distance off the axis refuses the same way, with no
-    /// tolerance named.
+    /// on the cone there. The face has no tangent plane at its apex:
+    /// each ruling out of it has a normal of its own, and what the
+    /// Boolean lacks is the sector pair algebra that reads a material
+    /// side over that fan of rulings, so the sector and pierce lanes
+    /// refuse rather than read one normal. The definite half: an in-band
+    /// distance off the axis refuses the same way, with no tolerance
+    /// named.
     NormalAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
