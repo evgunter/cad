@@ -42,21 +42,23 @@ lands half of a representation change.
 6. **Tangency constructions.** A surface's trace in a sketch plane and
    continuation tangent to it; coaxiality through one axis variable.
 
-Stages 2–6 are not yet sliced into rows. Each is sliced, and split into
-its own program where it outgrows this one's budget, when the stage
-before it is in review.
+**State (2026-10-29):**
+- **Stages 1–5 are built.** Stage 3 closed 2026-10-29 with G (#5954). Stage 4 I and stage 5 C were built and closed under ATREST.
+- **Stage 6 is sliced** in `docs/INTENT-STAGE6-SPEC.md` and ruled on #6004 and #6006. Its umbrella is `intent-stage6-is-built`.
+  - Merged: A (#6023), B (#6041).
+  - In flight: C (#6043), then D.
+  - E is the viewer's tool.
+- **The exit walk ran on 2026-10-29** (#5997). What remains is listed on `d10-one-way-to-say-intent-is-unbuilt`.
 
 ## Successors (2026-10-11)
 
 At 124 budget points against 45, INTENT split along its dependency
 seam (Ev approved the division in chat, 2026-10-11). The rows moved by
 `git mv`, keeping ids and bodies. INTENT keeps the D10 stage chain and
-every row that waits on it:
-- stage 3 B → C → D/E/F and patterns;
-- stage 4 H and I (and J, in flight);
-- stage 5 C;
-- the stage umbrellas, `d10-one-way-to-say-intent-is-unbuilt`, the
-  exit walk and the refactor hold.
+every row that waits on it: the stage umbrellas,
+`d10-one-way-to-say-intent-is-unbuilt`, the exit walk and the refactor
+hold. (Stage 4 I and stage 5 C later moved to ATREST, and were built
+there.)
 
 The rest went to programs that start now:
 - **COINCIDE** (P1): the door and its lint as stage 4 left them.
@@ -65,9 +67,6 @@ The rest went to programs that start now:
   this track below INTENT's.
 - **FLUSH** (existing): six topo glue rows, under its charter of
   declared contact at the join.
-
-In-flight units keep reporting to the INTENT orchestrator until they
-merge: the skin (INLANE) and DM4 unit 2 (REFS).
 
 ## Review posture
 

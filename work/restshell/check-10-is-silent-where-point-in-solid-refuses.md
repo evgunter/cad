@@ -5,7 +5,7 @@ title: tier 3's shell-winding check is silent on a shell whose sign or point-in-
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
 refs: [3301, 3179, 3204, 3755]
 ---
 
