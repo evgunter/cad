@@ -30,7 +30,7 @@ use geom_brep::EdgeDescription;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, corners, finished, prism_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanDecision, BooleanError, BooleanResult, Coincide, DeclarationRead};
 
 /// The tube's radius and height.
 const R: f64 = 1.0;
@@ -284,7 +284,8 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
 ///   sliver band of the wall, and the vertex placement escalates;
 /// - **leaned** about the wall's normal through its lower end, so the
 ///   upper end slides `±3·z` along the wall: both ends are on it, and
-///   whether the edge runs along the axis escalates;
+///   whether the edge runs along the axis escalates, at the edge and the
+///   wall (`CurvedPierceEscalated`);
 /// - **leaned** `±40·z`: the edge is decided off the axis, over its
 ///   whole span and over either half the rim splits it into: a chord
 ///   whose two crossings the root door cannot separate, which keeps the
@@ -317,8 +318,16 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                 );
                 for (op, r) in six(&t, &b) {
                     let label = format!("z0 = {z0}, {how} {d}: {op}");
-                    let Err(BooleanError::Escalated { decision, .. }) = r else {
-                        panic!("{label}: escalates: {r:?}");
+                    // The span's door reads the lean in band, located at
+                    // the edge and the wall; the shift, elsewhere.
+                    let decision = match r {
+                        Err(BooleanError::CurvedPierceEscalated { decision, .. })
+                            if how == "leaned" =>
+                        {
+                            decision
+                        }
+                        Err(BooleanError::Escalated { decision, .. }) => decision,
+                        r => panic!("{label}: escalates: {r:?}"),
                     };
                     if how == "leaned" {
                         assert_eq!(
@@ -756,21 +765,26 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// body, and every op builds it ([`a_cut_rod_and_its_band_copy_are_one_body`]):
 /// `∪` and `∩` the cut rod, `3π·0.01²` within its pad, `∖` nothing. At 2
 /// and 5 a seam ruling's crossing with the other rim's plane lies `k·ε`
-/// from the ruling's end, and every op refuses `Escalated`: the ruling's
-/// end, read against the rim first, lies in the band's gap of its
-/// carrier (`curve_carrier_gap`). At 30 and 80 the band decides the two
+/// from the ruling's end, and every op refuses `CurvedPierceEscalated`
+/// on the meeting (`CurveMeeting`): the ruling's end, read against the
+/// rim first, lies in the band's gap of its carrier (`curve_carrier_gap`). At 30 and 80 the band decides the two
 /// cut planes one carrier and the rims two curves, which touch in the
 /// planes' common plane at `(0, ±0.01, 0)` and stay within the band's
 /// escalation of each other over `|cos θ| < 10/k` of their angle: the
 /// level of one on the other has no definite sign across that stretch,
 /// and the coplanar ellipse reading's walk can cut it nowhere definite.
-/// That meeting is in band, and every op escalates where the crossing
-/// lands on its edge (`Crossing(OnEdge)`), on the walk's side or clear
-/// reading, but for the three with the first rod first at 80, which
-/// escalate on the sector reading's `conic_bend` first. At 200 the ops
-/// escalate in band too, the first rod first on a vertex's side of a
-/// face, the second on the transverse arm's swing. None reads the rims'
-/// crossings away.
+/// At 30 that meeting is in band: the walk's side reading lands in the
+/// gap (`curve_pair_coplanar_sub_side`), and every op refuses
+/// `CurvedPierceEscalated` on the meeting, at the ruling and the face,
+/// its text naming the meeting and its lever. At 80 the three with the
+/// first rod first escalate on the sector reading's `conic_bend` first,
+/// and the other three keep the `CurvedPierceUnsupported` frontier: the
+/// walk's clear reading decides zero there, a decided reading the band
+/// does not cut, which is the frontier's and not an escalation. At 200
+/// the ops escalate in band too, the first rod first on a vertex's side
+/// of a face (`bool_vertex_face_side`), the second on the meeting, the
+/// transverse arm's swing (`curve_pair_pose_swing`). None reads the
+/// rims' crossings away.
 ///
 /// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
 /// first.** A seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`,
@@ -814,9 +828,10 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
             } else if k < 1.0 {
                 one_body(&label, op, res);
             } else if k < 10.0 {
-                let Err(BooleanError::Escalated { diag, .. }) = &res else {
-                    panic!("{label}: escalates: {res:?}");
+                let Err(BooleanError::CurvedPierceEscalated { decision, diag, .. }) = &res else {
+                    panic!("{label}: escalates, located: {res:?}");
                 };
+                assert_eq!(*decision, BooleanDecision::CurveMeeting, "{label}");
                 assert_eq!(
                     diag.predicate,
                     Some("curve_carrier_gap"),
@@ -828,21 +843,45 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     "{label}: the basin meter refuses at this ε: {res:?}"
                 );
             } else {
-                let Err(BooleanError::Escalated { decision, diag }) = &res else {
-                    panic!("{label}: two curves touching in band escalate: {res:?}");
-                };
                 let first = op.starts_with('t');
-                let want = match (k > 100.0, k > 50.0 && first) {
-                    (true, _) if first => ("bool_vertex_face_side", "Coincidence"),
-                    (true, _) => ("curve_pair_pose_swing", "Crossing"),
-                    (false, true) => ("conic_bend", "Coincidence"),
-                    (false, false) => ("curve_pair_coplanar_sub", "Crossing"),
+                let meeting = |res: &Result<_, BooleanError>, predicate: &str| {
+                    let Err(e @ BooleanError::CurvedPierceEscalated { decision, diag, .. }) = res
+                    else {
+                        panic!("{label}: the meeting escalates, located: {res:?}");
+                    };
+                    assert_eq!(*decision, BooleanDecision::CurveMeeting, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                    let text = e.to_string();
+                    assert!(
+                        text.contains("meets a curve of that face's boundary is undecided")
+                            && text
+                                .contains("make the two cuts of the curved face one construction"),
+                        "{label}: the text names the meeting and its lever: {text}"
+                    );
                 };
-                let read = diag.predicate.unwrap_or_default();
-                assert!(
-                    read.starts_with(want.0) && format!("{decision:?}").starts_with(want.1),
-                    "{label}: escalates on {want:?}: {decision:?} on {read}"
-                );
+                let escalated = |res: &Result<_, BooleanError>, want, predicate| {
+                    let Err(BooleanError::Escalated { decision, diag }) = res else {
+                        panic!("{label}: escalates on {predicate}: {res:?}");
+                    };
+                    assert_eq!(*decision, want, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                };
+                let coincidence = |c| BooleanDecision::Coincidence(c, DeclarationRead::Moot);
+                match (k as u32, first) {
+                    (80, true) => escalated(&res, coincidence(Coincide::SectorSide), "conic_bend"),
+                    // The walk's clear reading decides zero there: main's frontier.
+                    (80, false) => assert!(
+                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                        "{label}: a decided zero keeps the frontier: {res:?}"
+                    ),
+                    (200, true) => escalated(
+                        &res,
+                        coincidence(Coincide::VertexOnFace),
+                        "bool_vertex_face_side",
+                    ),
+                    (200, false) => meeting(&res, "curve_pair_pose_swing"),
+                    _ => meeting(&res, "curve_pair_coplanar_sub_side"),
+                }
             }
         }
     }

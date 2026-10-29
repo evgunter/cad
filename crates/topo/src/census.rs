@@ -10940,8 +10940,13 @@ fn arc_interiors_meet<T: Decide>(
                 }
                 Err(refusal) => note(
                     match refusal.fault {
-                        MeetFault::Escalated(_) => InteriorsUnread::Undecided,
-                        _ => InteriorsUnread::Unbuilt,
+                        MeetFault::Escalated(_) | MeetFault::Touch(_) => InteriorsUnread::Undecided,
+                        // A fault folds in with the limits
+                        // (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
+                        MeetFault::Unsettled(_)
+                        | MeetFault::Unsupported { .. }
+                        | MeetFault::Desync
+                        | MeetFault::Contradiction { .. } => InteriorsUnread::Unbuilt,
                     },
                     &mut unread,
                 ),

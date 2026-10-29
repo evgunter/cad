@@ -4,6 +4,8 @@ kind: issue
 title: section_cert ruling: the walk's touch, limit and fault all refuse as the certificate's row
 status: open
 opened: 2026-10-29
+priority: P3
+cost: E
 ---
 
 

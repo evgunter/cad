@@ -164,13 +164,17 @@ fn an_end_on_the_rim_and_a_far_span_are_clear() {
 
 /// **A boundary vertex in the band's gap escalates, and never prunes**:
 /// a line through the corner `(0, 1)` but for three zero bands, outside
-/// the disc either way.
+/// the disc either way. The meeting reading of the edge arriving there
+/// reads its end in the gap of the line first (`curve_carrier_gap`), a
+/// decision of the meeting.
 #[test]
 fn a_corner_in_the_gap_escalates() {
     let off = 3.0 * ZERO * FRAC_1_SQRT_2;
     let grazing = line([-off, 1.0 + off, 0.0], [1.0, 1.0, 0.0]);
     match read(&grazing, (-1.0, 1.0)) {
-        Err(BoundaryRefusal::Escalated(_)) => {}
+        Err(BoundaryRefusal::Meeting(diag)) => {
+            assert_eq!(diag.predicate, Some("curve_carrier_gap"));
+        }
         other => panic!("a corner in the gap: {other:?}"),
     }
 }

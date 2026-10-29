@@ -2526,6 +2526,12 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
+        "boundary_refusal",
+        "BooleanDecision::CurveMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
         "escalated",
         "BooleanDecision::Crossing",
         1,
@@ -2840,6 +2846,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
         "line_cone_roots",
@@ -2850,7 +2858,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
-        2,
+        1,
     ),
     (
         "reduce.rs",
@@ -2862,7 +2870,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::WallRoots",
-        2,
+        1,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (

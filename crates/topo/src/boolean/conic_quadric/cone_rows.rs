@@ -287,7 +287,9 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
 /// the apex, at each of the three ε rows: neither a root nor a miss is
 /// answered, and the refusal is refused `Unsettled` — the subdivision cannot read
 /// a definite side beside the apex, or the slack meter refuses the root
-/// it isolates there, before the apex rung reads it
+/// it isolates there, before the apex rung reads it, or the
+/// subdivision reads that side in the band's gap and the door
+/// escalates
 /// ([`off_the_apex`]'s docs; the rung's own row is below).
 #[test]
 fn a_root_at_the_apex_refuses() {
@@ -298,8 +300,16 @@ fn a_root_at_the_apex_refuses() {
         let near = circle([0.5, 0.0, 3.0 * eps], [0.0, 1.0, 0.0], 0.5);
         for (label, e) in [("through the apex", through), ("beside the apex", near)] {
             let got = conic_quadric_roots(&e, 0.0, TAU, &s, band);
+            // A side beside the apex the subdivision reads in the band's
+            // gap is a touch, escalated on the door's decision.
             assert!(
-                matches!(got, Ok(Err(_))),
+                match &got {
+                    Ok(Err(_)) => true,
+                    Err(BooleanError::Escalated { diag, .. }) => {
+                        diag.predicate == Some("bool_conic_quadric_sub_side")
+                    }
+                    Ok(Ok(_)) | Err(_) => false,
+                },
                 "ε {eps}, {label}: refused, got {got:?}"
             );
         }

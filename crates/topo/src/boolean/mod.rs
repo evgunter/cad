@@ -2874,11 +2874,12 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// An edge of `operand` meets a curved face of the other in the
-    /// band's gap where [`BooleanError::CurvedPierceUnsupported`] would
-    /// stand for a limit: a root door, or the curve-pair reading of the
-    /// edge against the face's boundary, read the pair in band where it
-    /// can meet. Its story is `decision`'s.
+    /// An edge of `operand` meets a curved face of the other in band:
+    /// a root door reads a touch in the band's gap where
+    /// [`BooleanError::CurvedPierceUnsupported`] would stand for a limit,
+    /// or the curve-pair reading of the edge against the face's boundary
+    /// falls in band ([`BooleanDecision::CurveMeeting`]). Its story is
+    /// `decision`'s.
     CurvedPierceEscalated {
         /// The operand whose edge met the curved face.
         operand: Operand,
@@ -4643,9 +4644,7 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
              within the tolerance"
         }
         U::Exhausted => "its crossings could not be counted within the walk's budget",
-        U::Resolvent | U::CountDisagrees { .. } => {
-            "the count of its crossings did not certify"
-        }
+        U::Resolvent | U::CountDisagrees { .. } => "the count of its crossings did not certify",
         U::AtApex => "it meets the face within the tolerance of a cone's apex",
         U::Degenerate => "it runs along a ruling of the face",
     }

@@ -1021,6 +1021,9 @@ enum Tip {
     Unprofiled,
     /// `Escalated { decision: Crossing(OnEdge) }`.
     OnEdge,
+    /// `CurvedPierceEscalated { decision: CurveMeeting }`: the edge's
+    /// meeting with the face's boundary, read in band.
+    Meeting,
     /// `Escalated { decision: Coincidence(Sectors, _) }`.
     Sectors,
     /// `CurvedPierceUnsupported`.
@@ -1038,6 +1041,10 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             decision: Crossing(topo::CrossingDecision::OnEdge),
             ..
         } => Tip::OnEdge,
+        BooleanError::CurvedPierceEscalated {
+            decision: topo::BooleanDecision::CurveMeeting,
+            ..
+        } => Tip::Meeting,
         BooleanError::Escalated {
             decision: Coincidence(topo::Coincide::Sectors, _),
             ..
@@ -1134,7 +1141,7 @@ fn united_at_the_run(
 /// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, OnEdge, Pierce, Sectors, Unprofiled};
+    use Tip::{Backstop, Built, Crescent, Meeting, OnEdge, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1198,13 +1205,13 @@ fn short_arcs_at_a_crescents_tip() {
             "the boss's only",
             tip(1e-5),
             [0.0, p, f64::NAN, f64::NAN],
-            [[OnEdge; 2], [Unprofiled; 2], [Unprofiled; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Unprofiled; 2]],
         ),
         (
             "the hole's only",
             [0.0, p, f64::NAN, f64::NAN],
             tip(3e-5),
-            [[OnEdge; 2], [Unprofiled; 2], [Pierce; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Pierce; 2]],
         ),
     ];
     let row_at = match tol().eps() {

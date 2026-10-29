@@ -659,7 +659,10 @@ pub fn certified_subdivision<T: Decide>(
     };
     // Every cut tried reads in band: a touch on the gap's reading where
     // one read there, and a touch decided in the zero band where none did.
-    let uncut = || gap.get().map_or(Unsettled::Tangency.into(), RootRefusal::Touch);
+    let uncut = || {
+        gap.get()
+            .map_or(Unsettled::Tangency.into(), RootRefusal::Touch)
+    };
     // The first cut: one end in each sixteenth of the turn, each moved
     // along its sixteenth until its sign is definite; a sixteenth with no
     // such share is re-cut by leaving it inside its neighbours' piece, so

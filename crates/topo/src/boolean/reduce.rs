@@ -2301,7 +2301,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Ok(Sign::Zero) if covered => {
                     let inside = interior(
                         on_carrier,
-                        (x, edge),
+                        (x, edge_key, edge),
                         y,
                         x_is,
                         face,
@@ -2491,7 +2491,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
             let inside = interior(
                 on_carrier,
-                (x, edge),
+                (x, edge_key, edge),
                 y,
                 x_is,
                 face,
@@ -3057,7 +3057,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
             Ok(CurvedEvent::Along { recorded: true })
         }
         Some(Ok(Boundary::Clear)) => {
-            if !twin_edge(y, face, &swept, ends, band)? {
+            if !twin_edge(y, (x_is, face, edge_key), &swept, ends, band)? {
                 return spline_interior(
                     (x, x_is, edge_key),
                     y,
@@ -3092,7 +3092,9 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
                 CurvedEvent::None
             })
         }
-        Some(Err(refusal)) => boundary_refusal(refusal).and_then(|()| Err(unbuilt())),
+        Some(Err(refusal)) => {
+            boundary_refusal(refusal, (x_is, face, edge_key)).and_then(|()| Err(unbuilt()))
+        }
         None => Err(unbuilt()),
     }
 }
@@ -3278,14 +3280,15 @@ fn disagree() -> BooleanError {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] where an end's coincidence with a vertex,
-/// or the meeting reading, falls in the band;
+/// [`BooleanError::Escalated`] where an end's coincidence with a vertex
+/// falls in the band, [`BooleanError::CurvedPierceEscalated`] at the
+/// edge `edge_key` of `x_is` where the meeting reading does;
 /// [`BooleanError::ClassificationInvariant`] where the meeting reading
 /// faults, a vertex's edges do not resolve, or the edge found bounds
 /// `face`.
 fn twin_edge<T: Decide>(
     y: &Body<T>,
-    face: FaceKey,
+    (x_is, face, edge_key): (Operand, FaceKey, EdgeKey),
     swept: &geom_brep::curve_pair::Span<'_, T>,
     [(_, pu), (_, pv)]: [End<T>; 2],
     band: Band,
@@ -3323,7 +3326,7 @@ fn twin_edge<T: Decide>(
             Err(refusal) => match BoundaryRefusal::of(refusal.fault) {
                 BoundaryRefusal::Unread(_) => continue,
                 refused => {
-                    super::carrier_cross::boundary_refusal(refused)?;
+                    super::carrier_cross::boundary_refusal(refused, (x_is, face, edge_key))?;
                     continue;
                 }
             },
@@ -3423,7 +3426,7 @@ impl<T: geom_core::Real> Interior<T> {
 #[allow(clippy::too_many_arguments)]
 fn interior<T: Decide>(
     on_carrier: bool,
-    (x, edge): (&Body<T>, &crate::entity::Edge),
+    (x, edge_key, edge): (&Body<T>, EdgeKey, &crate::entity::Edge),
     y: &Body<T>,
     x_is: Operand,
     face: FaceKey,
@@ -3445,7 +3448,14 @@ fn interior<T: Decide>(
             branch: None,
         })
     };
-    let read = boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)?;
+    let read = boundary_crossing(
+        y,
+        (x_is.other(), edge_key),
+        face,
+        curve.carrier(),
+        curve.params(),
+        band,
+    )?;
     match (read, on_carrier) {
         (BoundaryCrossing::At { t, p, at, margin }, true) => Ok(pierce(t, p, at, margin)),
         (BoundaryCrossing::At { t, p, at, margin }, false) => Ok(
@@ -3738,7 +3748,14 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     }
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
     Ok(
-        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+        match boundary_crossing(
+            y,
+            (x_is.other(), edge_key),
+            face,
+            curve.carrier(),
+            curve.params(),
+            band,
+        )? {
             BoundaryCrossing::At { t, p, at, margin } => Some(CurvedEvent::Pierce {
                 t,
                 p,
@@ -6299,9 +6316,17 @@ mod declaration_order_rows {
         )
         .map(|_: CurvedEvent<f64>| ())
         .expect_err("the arc over the tube's top escalates");
-        let BooleanError::Escalated { decision, diag } = &got else {
-            panic!("an escalation: {got:?}");
+        let BooleanError::CurvedPierceEscalated {
+            operand: Operand::A,
+            face,
+            edge: at,
+            decision,
+            diag,
+        } = &got
+        else {
+            panic!("an escalation, located: {got:?}");
         };
+        assert_eq!((*face, *at), (yw, edge_key), "at the arc and the tube");
         assert_eq!(
             *decision,
             BooleanDecision::ArcTorusRoots,
@@ -6310,11 +6335,13 @@ mod declaration_order_rows {
         assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
         let text = got.to_string();
         assert!(
-            text.starts_with("how many times an arc crosses a torus is undecided: ")
-                && text.ends_with(
-                    "Recourse: move the parts so the arc clearly crosses the torus or clearly \
+            text.starts_with(
+                "at an edge of the first operand against a curved face of the other, how \
+                 many times an arc crosses a torus is undecided: "
+            ) && text.ends_with(
+                "Recourse: move the parts so the arc clearly crosses the torus or clearly \
                      misses it"
-                ),
+            ),
             "{text}"
         );
     }
@@ -6487,7 +6514,16 @@ mod edge_span_tests {
                 origin: Point3::new(2.0, 0.0, 0.0),
                 dir: Vec3::new(delta, 0.0, 1.0),
             };
-            wall_crossing(&y, FaceKey::default(), &wall, &line, t0, t1, band, &super::touch_escalates)
+            wall_crossing(
+                &y,
+                FaceKey::default(),
+                &wall,
+                &line,
+                t0,
+                t1,
+                band,
+                &super::touch_escalates,
+            )
         };
         let long = crossing(0.4 * band.escalate(), (-2.0, 2.0));
         assert!(
@@ -6596,7 +6632,16 @@ mod edge_span_tests {
             )
             .expect("a quadratic Bézier"),
         ));
-        let got = wall_crossing(&y, face, &frame.surface(), &spline, 0.0, 1.0, band, &super::touch_escalates);
+        let got = wall_crossing(
+            &y,
+            face,
+            &frame.surface(),
+            &spline,
+            0.0,
+            1.0,
+            band,
+            &super::touch_escalates,
+        );
         assert!(
             matches!(got, Ok(SpanVerdict::OffFace)),
             "the touch lies past the sheet: {got:?}"
@@ -7520,7 +7565,6 @@ mod line_cone_rows {
         door(origin, dir, span).unwrap()
     }
 
-
     /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
     fn form(origin: [f64; 3], dir: [f64; 3], t: f64) -> f64 {
         let p: Vec<f64> = (0..3).map(|i| origin[i] + dir[i] * t).collect();
@@ -7809,7 +7853,16 @@ mod arc_end_rows {
             origin: geom_core::Point3::origin(),
             dir: (q - geom_core::Point3::origin()) / reach,
         };
-        let got = wall_crossing(&body, cap, &sphere, &line, 0.5 * reach, 1.5 * reach, narrow, &super::touch_escalates);
+        let got = wall_crossing(
+            &body,
+            cap,
+            &sphere,
+            &line,
+            0.5 * reach,
+            1.5 * reach,
+            narrow,
+            &super::touch_escalates,
+        );
         assert!(
             matches!(&got, Err(crate::boolean::BooleanError::Escalated { diag, .. })
                 if diag.predicate == Some("curve_pair_span_end_straddle")),
@@ -8322,13 +8375,27 @@ mod spline_face_rows {
         let edge = line(a, b);
         let span = Span::new(&edge, (0.0, (b - a).norm()));
         assert!(
-            twin_edge(&p.body, p.top_face, &span, ends(a, b), band()).unwrap(),
+            twin_edge(
+                &p.body,
+                (Operand::A, p.top_face, EdgeKey::default()),
+                &span,
+                ends(a, b),
+                band()
+            )
+            .unwrap(),
             "the bottom edge"
         );
         let diagonal = line(a, c);
         let span = Span::new(&diagonal, (0.0, (c - a).norm()));
         assert!(
-            !twin_edge(&p.body, p.top_face, &span, ends(a, c), band()).unwrap(),
+            !twin_edge(
+                &p.body,
+                (Operand::A, p.top_face, EdgeKey::default()),
+                &span,
+                ends(a, c),
+                band()
+            )
+            .unwrap(),
             "the diagonal"
         );
         let (y, face) = spline_sheet((0.2, 1.4));
@@ -8342,7 +8409,14 @@ mod spline_face_rows {
         let (q, r) = (curve.carrier().eval(t1), curve.carrier().eval(t0));
         let ends = [(p.bottom[0], q), (p.bottom[0], r)];
         assert!(
-            !twin_edge(&y, face, &rest, ends, band()).unwrap(),
+            !twin_edge(
+                &y,
+                (Operand::A, face, EdgeKey::default()),
+                &rest,
+                ends,
+                band()
+            )
+            .unwrap(),
             "the rest of the rim's circle"
         );
     }
@@ -8367,7 +8441,6 @@ mod review_5993_rows {
     }
 
     #[test]
-    #[ignore = "red on 6a6a2b68: the resolvent rung ends ClassificationInvariant on this legal line at ε 1e-9"]
     fn review_5993_a_near_perpendicular_line_through_a_torus_is_no_kernel_fault() {
         let o = Point3::new(
             0.616_510_985_187_377_8,

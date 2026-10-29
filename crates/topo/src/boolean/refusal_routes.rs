@@ -236,8 +236,8 @@ pub enum BooleanDecision {
     /// the quartic's own rows.
     ArcTorusRoots,
     /// Where an edge on a curved face's carrier meets a curve of that
-    /// face's boundary: the curve-pair reading, in the band's gap where
-    /// the two can meet (`carrier_cross`, a root finder's touch).
+    /// face's boundary: the curve-pair reading in band (`carrier_cross`),
+    /// an escalation of the meeting table or a root finder's touch.
     CurveMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
@@ -1713,8 +1713,9 @@ impl BooleanDecision {
             Self::ArcTorusRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the torus or clearly misses it",
             ),
-            // The reading is a residual at the walk's cut, not a size the
-            // user drew, so no tolerance is offered.
+            // The readings are the meeting table's (a residual at a walk's
+            // cut, a pose's swing, an end's gap off a carrier), no size
+            // the user drew, so no tolerance is offered.
             Self::CurveMeeting => Ending::Lever(CURVE_MEETING_LEVER),
             // As the wall's discriminant: two roots pass, a miss passes
             // where both ends are off the sphere, and a zero is a
