@@ -16,7 +16,7 @@ An indexed family's member is evaluated with `nominal_results: None`
 (`crates/editor-core/src/eval/members.rs:227`). The nominal results hold
 the family, not the member, so no trace of the member can be read off
 them. A traced profile inside a member therefore resolves
-`TraceStepFault::Undrawn` (`crates/editor-core/src/trace.rs:292`) at the
+`TraceStepFault::Undrawn` (`crates/editor-core/src/trace.rs:327`) at the
 Dual, Interval and symbolic lanes. At f64 it builds.
 
 No scene writes such a family today; C's scenes are all outside one.

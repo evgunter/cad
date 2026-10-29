@@ -12,12 +12,12 @@ Found by INTENT stage 6 PR C (`work/intent/a-sketch-continues-tangent-to-a-surfa
 A `SetProgram` on a profile drawn on a frame works out which named
 pieces of its kept steps the new program stops drawing. It does that in
 `undrawn_kept_pieces` (`crates/editor-core/src/edit.rs:5229`), through
-`ProfilePayload::drawn_pieces` (`crates/editor-core/src/program.rs:2722`).
+`ProfilePayload::drawn_pieces` (`crates/editor-core/src/program.rs:2743`).
 
 `drawn_pieces` resolves the program on its own, through
 `ProfileProgram::pieces` → `validated` → `replay_records`
-(`program.rs:2302`, `:2359`), and passes no traces. A traced step
-therefore resolves `TraceStepFault::Undrawn`. The new program's refusal
+(`program.rs:2323`, `:2380`), and passes no traces. A step that runs from the pen (a trace, or a written coordinate)
+therefore resolves `TraceStepFault::Unevaluated`. The new program's refusal
 is mapped to `EditError::ProfileProgramRefused` (`edit.rs:5263`), so the
 edit refuses. The old program's refusal is dropped (`.ok()`, `:5260`).
 

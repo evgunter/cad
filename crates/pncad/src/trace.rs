@@ -10,6 +10,12 @@
 //! traced chain is written as the program it is, and the document
 //! replays it at every evaluation, against the traces it reads then.
 //!
+//! What a binding hands this module is words and formulas: a crossing's
+//! passage and a heading's sense as words ([`passage`], [`sense`]), and
+//! each argument as the formula it was written. [`drawn_profile`]
+//! checks each argument against its slot's dimension, at its loop and
+//! step, as the insert door would.
+//!
 //! ```
 //! use pncad::document::{
 //!     Dimension, Formula, ProgramTarget, TraceCrossing, TracePassage, TraceSense,
@@ -34,14 +40,77 @@
 //! ```
 
 use editor_core::{
-    AuthoredNode, DrawnOn, Formula, LoopProgram, Node, Operand, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, TraceSense,
+    AuthoredNode, DrawnOn, EditError, Formula, LoopProgram, Node, Operand, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, SlotId, SlotPayload, TracePassage, TraceSense,
 };
+
+/// **A word that names no passage or sense** ([`passage`], [`sense`]):
+/// the word, and the words that would.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceWordError {
+    /// The word written.
+    pub word: String,
+    /// What it was read as.
+    pub reads: &'static str,
+    /// The words it may be.
+    pub words: &'static [&'static str],
+}
+
+impl core::fmt::Display for TraceWordError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} is ", self.reads)?;
+        for (i, word) in self.words.iter().enumerate() {
+            if i > 0 {
+                f.write_str(" or ")?;
+            }
+            write!(f, "{word:?}")?;
+        }
+        write!(f, ", not {:?}", self.word)
+    }
+}
+
+impl core::error::Error for TraceWordError {}
+
+/// **The passage `word` names**: `"enter"` or `"leave"` the face's
+/// material.
+///
+/// # Errors
+///
+/// [`TraceWordError`] for any other word.
+pub fn passage(word: &str) -> Result<TracePassage, TraceWordError> {
+    match word {
+        "enter" => Ok(TracePassage::Enter),
+        "leave" => Ok(TracePassage::Leave),
+        other => Err(TraceWordError {
+            word: other.to_owned(),
+            reads: "a crossing's passage",
+            words: &["enter", "leave"],
+        }),
+    }
+}
+
+/// **The sense `word` names**: a heading `"with"` the trace (the face's
+/// material on the left) or `"against"` it.
+///
+/// # Errors
+///
+/// [`TraceWordError`] for any other word.
+pub fn sense(word: &str) -> Result<TraceSense, TraceWordError> {
+    match word {
+        "with" => Ok(TraceSense::With),
+        "against" => Ok(TraceSense::Against),
+        other => Err(TraceWordError {
+            word: other.to_owned(),
+            reads: "a heading along a trace",
+            words: &["with", "against"],
+        }),
+    }
+}
 
 /// **A chain program, written step by step** in the document's
 /// vocabulary ([`ProgramStep`]): each method appends the step it names
-/// and nothing else, and the document's replay is what checks the
-/// chain.
+/// and nothing else. [`drawn_profile`] checks each argument's
+/// dimension, and the document's replay checks the chain.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chain {
     steps: Vec<ProgramStep<Formula>>,
@@ -133,11 +202,40 @@ impl Chain {
 /// **A profile drawn on `frame`, tracing `faces`**: its loops, outer
 /// first, read the traces of `faces` (by place) in the frame's `xy`.
 /// The profile, and every sweep of it, is in the frame's space.
-#[must_use]
-pub fn drawn_profile(frame: Operand, faces: Vec<Operand>, loops: Vec<Chain>) -> AuthoredNode {
-    Node::Profile(ProfileProgram {
+///
+/// Each argument is checked against its slot's dimension, at its loop
+/// and step, as the insert door checks it; a lone zero is the zero of
+/// the slot's dimension (VR6).
+///
+/// # Errors
+///
+/// [`EditError::SlotDimensionMismatch`] naming the first argument whose
+/// dimension is not its slot's.
+pub fn drawn_profile(
+    frame: Operand,
+    faces: Vec<Operand>,
+    loops: Vec<Chain>,
+) -> Result<AuthoredNode, EditError> {
+    let mut program = ProfileProgram {
         loops: loops.into_iter().map(Chain::into_loop).collect(),
         ids: Vec::new(),
         on: Some(DrawnOn { frame, faces }),
-    })
+    };
+    for ((loop_, step, arg), formula) in program.rows_mut() {
+        let slot = SlotId::Profile { loop_, step, arg };
+        let expected = slot.expr_dimension();
+        let found = formula.dim();
+        if found == expected {
+            continue;
+        }
+        if !formula.is_zero() {
+            return Err(EditError::SlotDimensionMismatch {
+                slot,
+                expected: slot.kind(),
+                found,
+            });
+        }
+        *formula = Formula::zero(expected);
+    }
+    Ok(Node::Profile(program))
 }

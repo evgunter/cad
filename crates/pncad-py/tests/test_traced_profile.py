@@ -13,6 +13,7 @@ import unittest
 from pncad import (
     Chain,
     Doc,
+    EditError,
     EvaluationError,
     Node,
     PoseDef,
@@ -20,6 +21,7 @@ from pncad import (
     SurfaceKind,
     TraceTarget,
     circle,
+    deg,
     evaluate,
     m,
 )
@@ -81,6 +83,22 @@ class TracedProfileTest(unittest.TestCase):
             evaluate(doc).value(sketch)
         self.assertEqual(caught.exception.kind, "trace")
         self.assertEqual(caught.exception.inner_kind, "no_such_crossing")
+
+    def test_an_argument_of_the_wrong_dimension_names_its_loop(self):
+        """The façade checks each argument at its slot, at its loop and
+        step: an angle written for the second loop's start refuses as the
+        insert door would, naming loop 1."""
+        doc = Doc()
+        cyl = cylinder(doc)
+        frame, wall = frame_and_wall(doc, cyl)
+        hole = Chain.at(0 * m, 1 * deg).line_to(Start)
+        with self.assertRaises(EditError) as caught:
+            Node.drawn_profile(frame, [(cyl, wall)], [footprint(), hole])
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+        self.assertEqual(refusal.expected, "length")
+        self.assertEqual(refusal.found, "angle")
+        self.assertIn("loop 1", str(refusal))
 
     def test_the_words_a_chain_takes(self):
         with self.assertRaises(ValueError):

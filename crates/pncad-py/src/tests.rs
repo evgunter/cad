@@ -5996,7 +5996,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "trace_step_fault_tag",
         values: &[
-            "carrier",
+            "apex",
+            "escalated",
+            "grazing",
             "no_heading",
             "no_pen",
             "no_such_crossing",
@@ -6005,8 +6007,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_trace",
             "not_a_run",
             "off_trace",
+            "on_carrier",
             "undrawn",
+            "unevaluated",
             "unreached",
+            "unsettled",
+            "unsupported_carrier",
         ],
         delegates: &[],
     },
@@ -6298,7 +6304,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
@@ -6349,6 +6355,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_direction", 2),
     ("not_a_body", 2),
     ("null_scaffold_edge", 3),
+    // A coincidence: a coincidence record's relation of a point lying
+    // on a carrier, and a sketch piece lying on the carrier it would
+    // cross (`trace_step_fault_tag`).
+    ("on_carrier", 2),
     ("op", 3),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.

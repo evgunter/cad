@@ -4243,8 +4243,10 @@ where
         // the op's own replay and validation at every other scalar.
         crate::node::Node::Profile(program) => {
             // A profile drawn on a frame reads its frame and its traced
-            // faces at the lane, and its first pass reads the faces at
-            // their midpoints (`wire::trace`).
+            // faces at the lane (`wire::trace`), and its first pass reads
+            // the faces off the nominal document's evaluation. A step
+            // lowering against the pen (`crate::trace`) reads the run's
+            // tolerance and band whether the profile is drawn or not.
             let drawn = match wire::trace::drawn(doc, results, program, env, tol) {
                 Ok(drawn) => drawn,
                 Err(kind) => return fail(bracket, kind),
@@ -4264,12 +4266,13 @@ where
                 }
                 _ => None,
             };
-            let nominal_traces = nominal_drawn.as_ref().map(|d| crate::trace::Traces {
-                faces: &d.faces,
+            let nominal_traces = crate::trace::Traces {
+                faces: nominal_drawn.as_ref().map(|d| d.faces.as_slice()),
                 records: None,
                 tol,
                 band,
-            });
+            };
+            let nominal_traces = program.runs_from_the_pen().then_some(nominal_traces);
             let resolved = match program.resolve_with(op_env.lane.nominal, nominal_traces.as_ref())
             {
                 Ok(r) => r,
@@ -4290,12 +4293,13 @@ where
             let form = match op_env.lane.pass_one(&pre) {
                 Some(first) => wire::ProfileForm::FirstPass(first.clone()),
                 None => {
-                    let lane_traces = drawn.as_ref().map(|d| crate::trace::Traces {
-                        faces: &d.faces,
+                    let lane_traces = crate::trace::Traces {
+                        faces: drawn.as_ref().map(|d| d.faces.as_slice()),
                         records: Some(&pre.structure.replay),
                         tol,
                         band,
-                    });
+                    };
+                    let lane_traces = program.runs_from_the_pen().then_some(lane_traces);
                     match program.resolve_with(env, lane_traces.as_ref()) {
                         Ok(r) => wire::ProfileForm::Lane(r),
                         Err(fault) => return fail(bracket, resolve_refusal(fault)),

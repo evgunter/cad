@@ -24,6 +24,11 @@
 //! the step is replayed ([`profile::pen`]), guided by the first pass's
 //! record on a lane's second pass. A prefix that refuses is left to the
 //! program's own replay, which refuses at the same step.
+//!
+//! A written coordinate reads no trace, so a free profile reaches one
+//! too; what every such step reads is an evaluation's replay of its
+//! prefix ([`Traces`]), and a resolution outside one refuses it
+//! ([`TraceStepFault::Unevaluated`]).
 
 use geom_core::{Band, Decide, Margin, Point2, Point3, RigidMotion, Sign, Tol, Vec2, Vec3};
 use profile::{ArcSweep, Step};
@@ -56,13 +61,15 @@ pub struct TracedFace<T: geom_core::Real> {
     pub body_to_sketch: RigidMotion<T>,
 }
 
-/// **What a drawn profile's resolution reads**: its traced faces, by
-/// place ([`crate::DrawnOn::faces`]), each loop's replay record where a
-/// lane's second pass replays guided, and the run's tolerance.
+/// **What an evaluation's resolution of a profile reads** for the steps
+/// that lower against the pen: its traced faces, by place
+/// ([`crate::DrawnOn::faces`]), where it is drawn on a frame; each
+/// loop's replay record where a lane's second pass replays guided; and
+/// the run's tolerance.
 #[derive(Debug, Clone, Copy)]
 pub struct Traces<'a, T: geom_core::Real> {
-    /// The traced faces.
-    pub faces: &'a [TracedFace<T>],
+    /// The traced faces, or none for a profile drawn on no frame.
+    pub faces: Option<&'a [TracedFace<T>]>,
     /// Each loop's record, on a guided pass.
     pub records: Option<&'a [profile::ReplayStructure]>,
     /// The run's tolerance, and its linear band.
@@ -88,9 +95,13 @@ pub struct TraceRefusal {
 /// What [`TraceRefusal`] refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TraceStepFault {
-    /// The profile is drawn on no frame, or was resolved with no trace
-    /// to read (a preview with no evaluation).
+    /// The step reads a trace, and the profile is drawn on no frame.
     Undrawn,
+    /// The step lowers against the pen its prefix leaves (a trace, or a
+    /// written coordinate along a heading), and was resolved outside an
+    /// evaluation, which is the only resolution that replays the prefix
+    /// (a form's preview, the pieces an edit door reads).
+    Unevaluated,
     /// The step reads a face the profile does not trace.
     NoSuchFace {
         /// How many faces it traces.
@@ -144,6 +155,10 @@ impl core::fmt::Display for TraceRefusal {
             TraceStepFault::Undrawn => {
                 f.write_str("reads a trace, and the profile is drawn on no frame")?;
                 "draw the profile on a frame of the traced face's space"
+            }
+            TraceStepFault::Unevaluated => {
+                f.write_str("lowers against the pen, which only an evaluation replays")?;
+                "evaluate the document to read the step"
             }
             TraceStepFault::NoSuchFace { traced } => {
                 write!(
@@ -211,28 +226,51 @@ impl core::fmt::Display for TraceRefusal {
 
 impl core::error::Error for TraceRefusal {}
 
-/// Whether `t` is a target only a trace-reading resolution reads.
-fn reads_a_trace<S>(t: &ProgramTarget<S>) -> bool {
-    matches!(
-        t,
-        ProgramTarget::OnTrace { .. } | ProgramTarget::AtX(_) | ProgramTarget::AtY(_)
-    )
+/// Whether `t` is a target that reads a face's trace.
+fn on_trace<S>(t: &ProgramTarget<S>) -> bool {
+    matches!(t, ProgramTarget::OnTrace { .. })
 }
 
-/// **Whether `step` reads anything only a trace-reading resolution
-/// reads**: a trace, or a written coordinate along a heading.
+/// Whether `t` is a target found from the pen: a trace's crossing, or a
+/// written coordinate along a heading.
+fn from_the_pen<S>(t: &ProgramTarget<S>) -> bool {
+    on_trace(t) || matches!(t, ProgramTarget::AtX(_) | ProgramTarget::AtY(_))
+}
+
+/// **Whether `step` reads a face's trace**: only a profile drawn on a
+/// frame has one to read.
 pub(crate) fn step_reads_a_trace<S>(step: &ProgramStep<S>) -> bool {
+    matches!(step, ProgramStep::AlongTrace { .. }) || step_targets(step, on_trace)
+}
+
+/// **Whether `step` lowers against the pen its prefix leaves**: a trace,
+/// or a written coordinate along a heading. Only an evaluation's
+/// resolution replays the prefix ([`Traces`]).
+pub(crate) fn step_runs_from_the_pen<S>(step: &ProgramStep<S>) -> bool {
+    matches!(step, ProgramStep::AlongTrace { .. }) || step_targets(step, from_the_pen)
+}
+
+/// Whether a target of `step` is one `is` names.
+fn step_targets<S>(step: &ProgramStep<S>, is: fn(&ProgramTarget<S>) -> bool) -> bool {
+    let spec_reads = |spec: &ProgramArcData<S>| match spec {
+        ProgramArcData::Bulge { target, .. }
+        | ProgramArcData::Via { target, .. }
+        | ProgramArcData::Center { target, .. } => is(target),
+        ProgramArcData::Radius { .. }
+        | ProgramArcData::Sweep { .. }
+        | ProgramArcData::ArcLen { .. } => false,
+    };
     match step {
-        ProgramStep::AlongTrace { .. } => true,
         ProgramStep::LineTo(t)
         | ProgramStep::ContinueTo(t)
         | ProgramStep::TangentArcTo(t)
-        | ProgramStep::ArcOnto(t) => reads_a_trace(t),
+        | ProgramStep::ArcOnto(t) => is(t),
         ProgramStep::ArcTo(spec)
         | ProgramStep::FilletArc { spec, .. }
         | ProgramStep::ArcFillet { spec, .. } => spec_reads(spec),
         ProgramStep::ArcFilletArc { spec, spec2, .. } => spec_reads(spec) || spec_reads(spec2),
-        ProgramStep::At(_)
+        ProgramStep::AlongTrace { .. }
+        | ProgramStep::At(_)
         | ProgramStep::Angle(_)
         | ProgramStep::Toward { .. }
         | ProgramStep::Tangent
@@ -242,17 +280,6 @@ pub(crate) fn step_reads_a_trace<S>(step: &ProgramStep<S>) -> bool {
         | ProgramStep::Fillet(_)
         | ProgramStep::FarEndTo(_)
         | ProgramStep::CloseTo => false,
-    }
-}
-
-fn spec_reads<S>(spec: &ProgramArcData<S>) -> bool {
-    match spec {
-        ProgramArcData::Bulge { target, .. }
-        | ProgramArcData::Via { target, .. }
-        | ProgramArcData::Center { target, .. } => reads_a_trace(target),
-        ProgramArcData::Radius { .. }
-        | ProgramArcData::Sweep { .. }
-        | ProgramArcData::ArcLen { .. } => false,
     }
 }
 
@@ -271,12 +298,13 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
     traces: Option<&Traces<'_, T>>,
 ) -> Result<Vec<Step<T>>, ProgramResolveFault> {
     let mut out: Vec<Step<T>> = Vec::with_capacity(steps.len());
-    // The crossing the previous piece ran onto: its face, and the point.
-    let mut reached: Option<(u32, Point2<T>)> = None;
+    // The crossing the previous piece ran onto: its face, and the face's
+    // outward gradient there, in the body's coordinates.
+    let mut reached: Option<(u32, Vec3<T>)> = None;
     for (i, s) in steps.iter().enumerate() {
         let step = program_index(i);
         let ran_onto = reached.take();
-        if !step_reads_a_trace(s) {
+        if !step_runs_from_the_pen(s) {
             out.push(crate::program::res_chain_step(s, env, loop_, step)?);
             continue;
         }
@@ -289,21 +317,31 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
             })
         };
         let Some(traces) = traces else {
-            return Err(refuse(None, TraceStepFault::Undrawn));
+            return Err(refuse(None, TraceStepFault::Unevaluated));
         };
         let band = traces.band;
         let face = |at: u32| {
-            traces.faces.get(at as usize).ok_or_else(|| {
+            let faces = traces
+                .faces
+                .ok_or_else(|| refuse(Some(at), TraceStepFault::Undrawn))?;
+            faces.get(at as usize).ok_or_else(|| {
                 refuse(
                     Some(at),
                     TraceStepFault::NoSuchFace {
-                        traced: u32::try_from(traces.faces.len()).unwrap_or(u32::MAX),
+                        traced: u32::try_from(faces.len()).unwrap_or(u32::MAX),
                     },
                 )
             })
         };
-        // The pen after the prefix; a prefix that refuses is the
-        // replay's to report, at the step it refuses.
+        // The pen after the prefix. A prefix that refuses is returned
+        // as the resolution: `pen` replays exactly `out` under the same
+        // record and tolerance the program's own replay runs (`replay`
+        // or `replay_guided`), and the replay is sequential, so that
+        // replay refuses at the same step with the same `ReplayError`,
+        // typed as every profile's replay refusal is. Refusing here
+        // instead would be a second, differently typed report of one
+        // refusal (`ReplayError<T>` is the lane's, and this fault is
+        // the document's).
         let record = traces.records.and_then(|r| r.get(loop_ as usize));
         let pen = match profile::pen(&out, record, traces.tol) {
             Ok(pen) => pen,
@@ -322,11 +360,10 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
         };
         let lowered = match s {
             ProgramStep::AlongTrace { sense } => {
-                let Some((at, point)) = ran_onto else {
+                let Some((at, outward)) = ran_onto else {
                     return Err(refuse(None, TraceStepFault::OffTrace));
                 };
-                let tangent =
-                    tangent(face(at)?, point, *sense).map_err(|fault| refuse(Some(at), fault))?;
+                let tangent = tangent(face(at)?, outward, *sense);
                 Step::Toward {
                     dx: tangent.x,
                     dy: tangent.y,
@@ -342,10 +379,10 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                 };
                 let len = match target {
                     ProgramTarget::OnTrace { face: at, crossing } => {
-                        let (len, point) = ray_to(face(*at)?, pen.at, heading, *crossing, band)
+                        let hit = ray_to(face(*at)?, pen.at, heading, *crossing, band)
                             .map_err(|fault| refuse(Some(*at), fault))?;
-                        reached = Some((*at, point));
-                        len
+                        reached = Some((*at, hit.outward));
+                        hit.along
                     }
                     ProgramTarget::AtX(x) => {
                         let x = res(x, crate::StepArg::TargetX)?;
@@ -372,9 +409,10 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                     res(&c[0], crate::StepArg::CenterX)?,
                     res(&c[1], crate::StepArg::CenterY)?,
                 );
-                let point = arc_to(face(*at)?, pen.at, centre, *winding, *crossing, band)
-                    .map_err(|fault| refuse(Some(*at), fault))?;
-                reached = Some((*at, point));
+                let (point, outward) =
+                    arc_to(face(*at)?, pen.at, centre, *winding, *crossing, band)
+                        .map_err(|fault| refuse(Some(*at), fault))?;
+                reached = Some((*at, outward));
                 Step::ArcTo(profile::ArcData::Center {
                     c: centre,
                     winding: *winding,
@@ -408,20 +446,9 @@ fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
 /// A length the size of what a piece from `from` runs through: the lever
 /// its decisions about `face` are read over.
 fn reach_of<T: Decide>(face: &TracedFace<T>, surface: &geom::Surface<T>, from: Point3<T>) -> T {
-    use geom::Surface as S;
-    let (anchor, size) = match *surface {
-        S::Plane { origin, .. } => (origin, T::zero()),
-        S::Cylinder { origin, radius, .. } => (origin, radius),
-        S::Cone { apex, .. } => (apex, T::zero()),
-        S::Sphere { center, radius, .. } => (center, radius),
-        S::Torus {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => (center, major_radius + minor_radius),
-        S::Nurbs(_) | S::Approx(_) => (from, T::zero()),
-    };
+    // A carrier with no closed form refused before any piece runs
+    // through it (`traced`).
+    let (anchor, size) = kernel::carrier_extent(surface, None).unwrap_or((from, T::zero()));
     (anchor - from).norm() + size + (from - plane_in_body(face).0).norm()
 }
 
@@ -476,15 +503,16 @@ fn pick<T: geom_core::Real>(
         .ok_or(TraceStepFault::NoSuchCrossing { crossing, found })
 }
 
-/// The length along `heading` from `pen` to the written crossing, and
-/// the crossing, in sketch coordinates.
+/// The written crossing along `heading` from `pen`: its length along the
+/// heading, and the face's outward gradient there, in the body's
+/// coordinates.
 fn ray_to<T: Decide>(
     face: &TracedFace<T>,
     pen: Point2<T>,
     heading: Vec2<T>,
     crossing: TraceCrossing,
     band: Band,
-) -> Result<(T, Point2<T>), TraceStepFault> {
+) -> Result<kernel::Crossing<T>, TraceStepFault> {
     let surface = traced(face, band)?;
     let origin = face.sketch_to_body.transform_point(lift(pen));
     let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
@@ -497,13 +525,11 @@ fn ray_to<T: Decide>(
         band,
     )
     .map_err(carrier_fault)?;
-    let hit = pick(crossings, crossing)?;
-    let at = face.body_to_sketch.transform_point(hit.point);
-    Ok((hit.along, Point2::new(at.x, at.y)))
+    pick(crossings, crossing)
 }
 
 /// The written crossing of the arc about `centre` from `pen`, in sketch
-/// coordinates.
+/// coordinates, and the face's outward gradient there, in the body's.
 fn arc_to<T: Decide>(
     face: &TracedFace<T>,
     pen: Point2<T>,
@@ -511,7 +537,7 @@ fn arc_to<T: Decide>(
     winding: ArcSweep,
     crossing: TraceCrossing,
     band: Band,
-) -> Result<Point2<T>, TraceStepFault> {
+) -> Result<(Point2<T>, Vec3<T>), TraceStepFault> {
     let surface = traced(face, band)?;
     let radial = pen - centre;
     let radius = radial.norm();
@@ -530,33 +556,25 @@ fn arc_to<T: Decide>(
         kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;
     let hit = pick(crossings, crossing)?;
     let at = face.body_to_sketch.transform_point(hit.point);
-    Ok(Point2::new(at.x, at.y))
+    Ok((Point2::new(at.x, at.y), hit.outward))
 }
 
-/// The trace's tangent at `point`, in `sense`: the face's outward
-/// normal there, in the sketch's plane, turned a quarter turn the
-/// sketch's way (material on the left), or against it. The crossing was
-/// decided transverse to a piece in the plane, so the normal's part in
-/// the plane is not zero: a point of the trace with no tangent (a node,
-/// a cone's apex, the plane tangent to the carrier) refused as the
-/// piece ran onto it.
-fn tangent<T: Decide>(
-    face: &TracedFace<T>,
-    point: Point2<T>,
-    sense: TraceSense,
-) -> Result<Vec2<T>, TraceStepFault> {
-    let surface = carrier(face)?;
-    let at = face.sketch_to_body.transform_point(lift(point));
-    // The gradient, unnormalized: `toward` reads the components' ratio
-    // and normalizes once.
-    let gradient = geom_brep::implicit_gradient(surface, at);
-    let outward = geom_brep::OutwardNormal::from_chart(gradient, face.sense).vec();
+/// The trace's tangent at a crossing, in `sense`: the face's outward
+/// gradient there (the crossing's own, [`kernel::Crossing::outward`]),
+/// in the sketch's plane, turned a quarter turn the sketch's way
+/// (material on the left), or against it. It is not normalized:
+/// `toward` reads the components' ratio and normalizes once. The
+/// crossing was decided transverse to a piece in the plane, so the
+/// gradient's part in the plane is not zero: a point of the trace with
+/// no tangent (a node, a cone's apex, the plane tangent to the carrier)
+/// refused as the piece ran onto it.
+fn tangent<T: Decide>(face: &TracedFace<T>, outward: Vec3<T>, sense: TraceSense) -> Vec2<T> {
     let normal = face.body_to_sketch.transform_vec(outward);
     let with = Vec2::new(T::zero() - normal.y, normal.x);
-    Ok(match sense {
+    match sense {
         TraceSense::With => with,
         TraceSense::Against => Vec2::new(T::zero() - with.x, T::zero() - with.y),
-    })
+    }
 }
 
 /// The length along a heading whose component across a coordinate's

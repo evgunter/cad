@@ -1843,11 +1843,16 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 }
 
 /// The stable tag for why a profile step reading a face's trace
-/// refused — the inner arm of a `trace` node refusal.
+/// refused — the inner arm of a `trace` node refusal. A carrier that
+/// could not be read along the piece says how
+/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// on-carrier piece, a sign in the band, an uncertified root count.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
+    use pncad::topo::boolean::trace::TraceFault as C;
     match fault {
         F::Undrawn => "undrawn",
+        F::Unevaluated => "unevaluated",
         F::NoSuchFace { .. } => "no_such_face",
         F::NoPen => "no_pen",
         F::NoHeading => "no_heading",
@@ -1857,7 +1862,12 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::NoSuchCrossing { .. } => "no_such_crossing",
         F::NoTangent => "no_tangent",
         F::Unreached => "unreached",
-        F::Carrier(_) => "carrier",
+        F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Grazing) => "grazing",
+        F::Carrier(C::Apex) => "apex",
+        F::Carrier(C::OnCarrier) => "on_carrier",
+        F::Carrier(C::Escalated(_)) => "escalated",
+        F::Carrier(C::Unsettled(_)) => "unsettled",
     }
 }
 

@@ -98,10 +98,10 @@ binding, and every constructed tangency is re-verified by `validate`,
 never trusted.
 
 A profile drawn on a frame may hold steps that read a face's trace in
-the frame's `xy` (`editor_core::trace`). The profile itself reads no
-surface. Before the replay, the document lowers each such step to the
-kernel step it lands on, from the pen its prefix leaves
-(`profile::pen`):
+the frame's `xy` (`editor_core::trace`), and any profile may run a leg
+to a written `x` or `y`. The profile itself reads no surface. Before
+the replay, an evaluation lowers each such step to the kernel step it
+lands on, from the pen its prefix leaves (`profile::pen`):
 
 - a leg to a crossing, or to a written `x` or `y`, becomes its length;
 - an arc to a crossing becomes the crossing's point;

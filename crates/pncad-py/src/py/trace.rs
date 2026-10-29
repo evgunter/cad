@@ -1,8 +1,11 @@
 //! **A profile drawn on a frame, tracing faces** (`pncad::trace`): a
 //! chain written in the document's own vocabulary, and the profile node
 //! drawn on a frame of a body's space that reads it. Every method
-//! appends the step `pncad::trace::Chain` names; the checks are the
-//! document's, at `evaluate`.
+//! appends the step `pncad::trace::Chain` names; the words are read by
+//! `pncad::trace::passage` and `sense`, each argument's dimension is
+//! checked by `pncad::trace::drawn_profile`, and the chain by the
+//! document, at `evaluate`. This module only turns Python values into
+//! the façade's.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -10,7 +13,7 @@ use pyo3::prelude::*;
 use pncad::document as d;
 use pncad::trace as t;
 
-use super::doc::{Node, OperandArg, name_from_text, slot_expr};
+use super::doc::{Node, OperandArg, edit_err, name_from_text};
 use super::expr::SlotArg;
 use super::path::{ArcSweep, StartToken};
 
@@ -33,25 +36,15 @@ pub(crate) enum ChainTarget {
     Point((SlotArg, SlotArg)),
 }
 
-/// The passage a word names.
-fn passage(word: &str) -> PyResult<d::TracePassage> {
-    match word {
-        "enter" => Ok(d::TracePassage::Enter),
-        "leave" => Ok(d::TracePassage::Leave),
-        other => Err(PyValueError::new_err(format!(
-            "a crossing enters or leaves the face's material: \"enter\" or \"leave\", not {other:?}"
-        ))),
-    }
+/// A word the façade could not read, raised as Python's.
+fn word_err(err: &t::TraceWordError) -> PyErr {
+    PyValueError::new_err(err.to_string())
 }
 
-/// The argument `arg` of the step at `step`, at its slot's dimension.
-fn at(py: Python<'_>, step: usize, arg: d::StepArg, value: &SlotArg) -> PyResult<d::Formula> {
-    let slot = d::SlotId::Profile {
-        loop_: 0,
-        step: u32::try_from(step).unwrap_or(u32::MAX),
-        arg,
-    };
-    slot_expr(py, slot, value)
+/// The value written for an argument `arg`, as a formula of its
+/// dimension; `pncad::trace::drawn_profile` checks it at its slot.
+fn at(py: Python<'_>, arg: d::StepArg, value: &SlotArg) -> PyResult<d::Formula> {
+    value.formula(py, arg.dimension())
 }
 
 #[pymethods]
@@ -65,7 +58,7 @@ impl TraceTarget {
         Ok(Self(d::ProgramTarget::OnTrace {
             face,
             crossing: d::TraceCrossing {
-                passage: self::passage(passage)?,
+                passage: t::passage(passage).map_err(|e| word_err(&e))?,
                 nth,
             },
         }))
@@ -99,10 +92,6 @@ impl TraceTarget {
 pub(crate) struct Chain(pub(crate) t::Chain);
 
 impl Chain {
-    fn next(&self) -> usize {
-        self.0.steps().len()
-    }
-
     fn target(
         &self,
         py: Python<'_>,
@@ -112,8 +101,8 @@ impl Chain {
             ChainTarget::Trace(trace) => trace.0,
             ChainTarget::Start(_) => d::ProgramTarget::Start,
             ChainTarget::Point((x, y)) => d::ProgramTarget::Point([
-                at(py, self.next(), d::StepArg::TargetX, &x)?,
-                at(py, self.next(), d::StepArg::TargetY, &y)?,
+                at(py, d::StepArg::TargetX, &x)?,
+                at(py, d::StepArg::TargetY, &y)?,
             ]),
         })
     }
@@ -125,27 +114,27 @@ impl Chain {
     #[staticmethod]
     fn at(py: Python<'_>, x: SlotArg, y: SlotArg) -> PyResult<Self> {
         Ok(Self(t::Chain::at(
-            at(py, 0, d::StepArg::PointX, &x)?,
-            at(py, 0, d::StepArg::PointY, &y)?,
+            at(py, d::StepArg::PointX, &x)?,
+            at(py, d::StepArg::PointY, &y)?,
         )))
     }
 
     /// The departure as an angle from the sketch's `x`.
     fn angle(&self, py: Python<'_>, theta: SlotArg) -> PyResult<Self> {
-        let theta = at(py, self.next(), d::StepArg::AngleVal, &theta)?;
+        let theta = at(py, d::StepArg::AngleVal, &theta)?;
         Ok(Self(self.0.clone().angle(theta)))
     }
 
     /// The departure as components, their ratio read.
     fn toward(&self, py: Python<'_>, dx: SlotArg, dy: SlotArg) -> PyResult<Self> {
-        let dx = at(py, self.next(), d::StepArg::DirX, &dx)?;
-        let dy = at(py, self.next(), d::StepArg::DirY, &dy)?;
+        let dx = at(py, d::StepArg::DirX, &dx)?;
+        let dy = at(py, d::StepArg::DirY, &dy)?;
         Ok(Self(self.0.clone().toward(dx, dy)))
     }
 
     /// A straight leg of `length` along the heading.
     fn line(&self, py: Python<'_>, length: SlotArg) -> PyResult<Self> {
-        let length = at(py, self.next(), d::StepArg::Length, &length)?;
+        let length = at(py, d::StepArg::Length, &length)?;
         Ok(Self(self.0.clone().line(length)))
     }
 
@@ -173,8 +162,8 @@ impl Chain {
         target: ChainTarget,
     ) -> PyResult<Self> {
         let centre = [
-            at(py, self.next(), d::StepArg::CenterX, &centre.0)?,
-            at(py, self.next(), d::StepArg::CenterY, &centre.1)?,
+            at(py, d::StepArg::CenterX, &centre.0)?,
+            at(py, d::StepArg::CenterY, &centre.1)?,
         ];
         let target = self.target(py, target)?;
         Ok(Self(self.0.clone().arc_about(
@@ -187,15 +176,7 @@ impl Chain {
     /// The heading along the trace the previous piece ran onto:
     /// `"with"` it (the face's material on the left) or `"against"` it.
     fn along_trace(&self, sense: &str) -> PyResult<Self> {
-        let sense = match sense {
-            "with" => d::TraceSense::With,
-            "against" => d::TraceSense::Against,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "a heading runs \"with\" the trace or \"against\" it, not {other:?}"
-                )));
-            }
-        };
+        let sense = t::sense(sense).map_err(|e| word_err(&e))?;
         Ok(Self(self.0.clone().along_trace(sense)))
     }
 
@@ -220,6 +201,7 @@ pub(crate) enum Outline {
 
 /// **A profile drawn on `frame`, tracing `faces`** (`Node.drawn_profile`).
 pub(crate) fn drawn_profile(
+    py: Python<'_>,
     frame: OperandArg,
     faces: Vec<(OperandArg, String)>,
     outline: Outline,
@@ -238,7 +220,7 @@ pub(crate) fn drawn_profile(
         Outline::Many(chains) => chains.into_iter().map(|c| c.0).collect(),
     };
     Ok(Node {
-        inner: t::drawn_profile(frame.read(), faces, loops),
+        inner: t::drawn_profile(frame.read(), faces, loops).map_err(|e| edit_err(py, &e))?,
     })
 }
 

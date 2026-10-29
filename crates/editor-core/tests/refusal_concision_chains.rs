@@ -938,7 +938,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceStepFault`'s arms, for the `Trace/` rows.
         pub(super) const TRACE_STEP_FAULT: TraceStepFault = [
-            Undrawn, NoSuchFace, NoPen, NoHeading, NotARun, OffTrace, NoTrace, NoSuchCrossing,
+            Undrawn, Unevaluated, NoSuchFace, NoPen, NoHeading, NotARun, OffTrace, NoTrace, NoSuchCrossing,
             NoTangent, Unreached, Carrier,
         ];
     }
@@ -4389,6 +4389,7 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
     let diag = || payloads::named(topo::boolean::trace::TRACE_CROSSING_SENSE);
     let faults = vec![
         ("Undrawn", F::Undrawn),
+        ("Unevaluated", F::Unevaluated),
         ("NoSuchFace", F::NoSuchFace { traced: 1 }),
         ("NoPen", F::NoPen),
         ("NoHeading", F::NoHeading),

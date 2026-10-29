@@ -2998,16 +2998,18 @@ impl Node {
     /// onto a crossing (`TraceTarget.on_trace`), a heading along the
     /// trace (`Chain.along_trace`). `frame` is a frame pose of a body's
     /// space and each face a `(body, name)` of that space; the profile,
-    /// and every sweep of it, is in that space. A step whose trace
-    /// refuses refuses at `evaluate` (`trace`), naming the step and the
-    /// face.
+    /// and every sweep of it, is in that space. An argument whose
+    /// dimension is not its slot's raises here, naming its loop, step
+    /// and argument; a step whose trace refuses refuses at `evaluate`
+    /// (`trace`), naming the step and the face.
     #[staticmethod]
     fn drawn_profile(
+        py: Python<'_>,
         frame: OperandArg,
         faces: Vec<(OperandArg, String)>,
         outline: super::trace::Outline,
     ) -> PyResult<Self> {
-        super::trace::drawn_profile(frame, faces, outline)
+        super::trace::drawn_profile(py, frame, faces, outline)
     }
 
     /// The mirror image of a body: `body` reflected across `plane` (a

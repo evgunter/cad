@@ -63,7 +63,11 @@ pub struct Crossing<T: Real> {
     pub point: Point3<T>,
     /// Its sense.
     pub passage: Passage,
-    /// The carrier's outward normal there, unit.
+    /// The face's outward gradient there: the carrier's implicit
+    /// gradient with the face's sense folded in, the outward normal's
+    /// direction, unnormalized. The trace's tangent there is it turned a
+    /// quarter turn in the sketch's plane, and its ratio is all a
+    /// heading reads, so no reader divides by its length.
     pub outward: Vec3<T>,
 }
 
@@ -85,7 +89,13 @@ pub enum TraceFault {
     OnCarrier,
     /// A sign the band cannot call: the sliver band.
     Escalated(Indeterminate),
-    /// A root count the door cannot certify.
+    /// A root count the door cannot certify: a root door's own
+    /// `Unsettled`, past the two this door names itself (a double root
+    /// is [`Self::Grazing`], a root at a cone's apex [`Self::Apex`]).
+    /// No document row reaches it: those doors' suites exercise each
+    /// cause on the pairs that raise it (a meter or a budget refused, a
+    /// count the residual cannot have), and no line or circle in a
+    /// sketch plane against a closed-form carrier lands on one.
     Unsettled(Unsettled),
 }
 
@@ -341,7 +351,9 @@ fn roots_of<T: Real>(found: Result<CircleRoots<T>, Unsettled>) -> Result<Vec<T>,
 }
 
 /// One crossing at `point`, `along` the piece, its sense read off the
-/// piece's unit `velocity` against the outward normal.
+/// piece's unit `velocity` against the outward normal: the cosine
+/// between them, the outward gradient's component along the velocity
+/// over its length.
 fn crossing<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
@@ -351,10 +363,12 @@ fn crossing<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
-    let outward = geom_brep::implicit_outward_normal(surface, sense, point).vec();
+    let outward =
+        geom_brep::OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, point), sense)
+            .vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
-        Margin::levered(outward.dot(velocity), lever),
+        Margin::levered(outward.dot(velocity) / outward.norm(), lever),
         band,
     )? {
         Sign::Negative => Passage::Enter,
@@ -400,6 +414,41 @@ fn order<T: Decide>(
 /// across it.
 pub const TRACE_PLANE_MISSES: &str = "trace_plane_misses";
 
+/// **Where a carrier stands and how far it reaches from there**: its
+/// anchor, and its extent from the anchor across a plane of unit normal
+/// `across`, or in every direction where `across` is `None`. A plane
+/// and a cone reach nowhere from their anchor (a point of the plane, the
+/// apex), a cylinder its radius off its axis, a sphere its radius, a
+/// torus its tube about its spine circle. `None` for a carrier with no
+/// closed form.
+///
+/// The one table both readers of a carrier's size read: whether a
+/// plane misses the carrier ([`plane_misses`]), and how far a piece
+/// runs through it, the lever its decisions are read over.
+pub fn carrier_extent<T: Real>(
+    surface: &Surface<T>,
+    across: Option<Vec3<T>>,
+) -> Option<(Point3<T>, T)> {
+    Some(match *surface {
+        Surface::Plane { origin, .. } => (origin, T::zero()),
+        Surface::Cylinder { origin, radius, .. } => (origin, radius),
+        Surface::Cone { apex, .. } => (apex, T::zero()),
+        Surface::Sphere { center, radius, .. } => (center, radius),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            // The spine circle's shadow across the plane, and the tube.
+            let spine = across.map_or(major_radius, |n| major_radius * axis.cross(n).norm());
+            (center, spine + minor_radius)
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => return None,
+    })
+}
+
 /// **Whether the plane through `point` with unit `normal` misses
 /// `surface`**: its trace is empty. A plane misses a parallel plane off
 /// it, a sphere or a torus it passes beyond, and a cylinder whose axis
@@ -416,9 +465,14 @@ pub fn plane_misses<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<bool, TraceFault> {
-    // The plane's distance from `anchor`, less how far the carrier
+    let Some((anchor, extent)) = carrier_extent(surface, Some(normal)) else {
+        return Err(TraceFault::Unsupported {
+            carrier: surface.kind(),
+        });
+    };
+    // The plane's distance from the anchor, less how far the carrier
     // reaches from it along the normal: positive is a miss.
-    let beyond = |anchor: Point3<T>, extent: T| {
+    let beyond = || {
         let gap = (anchor - point).dot(normal).abs() - extent;
         sign(TRACE_PLANE_MISSES, Margin::of(gap), band).map(|s| s == Sign::Positive)
     };
@@ -433,37 +487,24 @@ pub fn plane_misses<T: Decide>(
                 Margin::levered(tilt, (origin - point).norm()),
                 band,
             )? {
-                Sign::Zero => beyond(origin, T::zero()),
+                Sign::Zero => beyond(),
                 Sign::Positive | Sign::Negative => Ok(false),
             }
         }
-        Surface::Sphere { center, radius, .. } => beyond(center, radius),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match sign(
+        Surface::Sphere { .. } | Surface::Torus { .. } => beyond(),
+        // A tilted cylinder runs across the plane; one parallel to it
+        // misses it beyond its radius.
+        Surface::Cylinder { axis, radius, .. } => match sign(
             TRACE_PLANE_LEAD,
             Margin::levered(axis.dot(normal), radius),
             band,
         )? {
-            Sign::Zero => beyond(origin, radius),
+            Sign::Zero => beyond(),
             Sign::Positive | Sign::Negative => Ok(false),
         },
         Surface::Cone { .. } => Ok(false),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => beyond(
-            center,
-            major_radius * axis.cross(normal).norm() + minor_radius,
-        ),
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(TraceFault::Unsupported {
-            carrier: surface.kind(),
-        }),
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("a carrier with no closed form has no extent, refused above")
+        }
     }
 }

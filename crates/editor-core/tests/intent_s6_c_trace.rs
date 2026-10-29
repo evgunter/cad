@@ -266,7 +266,7 @@ fn moving_the_cylinders_radius_moves_the_boss_with_it() {
 /// a box on the radius its height encloses the box. The value-typed
 /// boss's wall (stage 6 A) has derivative zero.
 #[test]
-fn the_traced_wall_moves_with_the_radius_at_every_lane() {
+fn the_traced_wall_moves_with_the_radius_at_dual_and_interval() {
     use geom_core::{Bounds, Dual, Interval};
     // A box narrow enough that every decision the boss's validation
     // makes across it lands inside the band: the trace's root and its
@@ -339,6 +339,222 @@ fn the_traced_wall_moves_with_the_radius_at_every_lane() {
     assert!(
         wall.hi() - wall.lo() < Tol::witness().eps(),
         "and inside the band: {wall:?}"
+    );
+}
+
+/// **The wall is the radius at `Sym` too**: over a box on the radius,
+/// the boss's wall's symbolic form reads the radius's own atom (the
+/// cylinder's wall, `1/2 + ?r`), so the trace is read in the shape's
+/// algebra at the symbolic tier, not frozen at the nominal; and its
+/// interval encloses the box.
+#[test]
+fn the_traced_wall_reads_the_radius_atom_at_sym() {
+    use geom_core::{Bounds, Interval, Sym};
+    let width = Tol::witness().eps() / 4096.0;
+    let scene = traced_boss(RADIUS, Some(width), boss_steps());
+    let boxed = EvalOptions {
+        param_box: Some(std::sync::Arc::new(editor_core::analysis::ParamBox::of(
+            &editor_core::analysis::analyzed_box(
+                &scene.doc,
+                &editor_core::analysis::AnalysisPolicy::default(),
+            ),
+        ))),
+        ..EvalOptions::default()
+    };
+    let budget = geom_core::SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (forms, _) = geom_core::sym::with_session(budget, || {
+        let ev = evaluate::<Sym<Interval>>(
+            &scene.doc,
+            None,
+            &CancelToken::new(),
+            &boxed,
+            Tol::witness(),
+        );
+        assert!(
+            ev.node_error(scene.boss).is_none(),
+            "the boss builds at Sym: {:?}",
+            ev.node_error(scene.boss).map(|e| e.kind.to_string())
+        );
+        let highest = |node, axis: usize| {
+            vertices(&ev, node)
+                .into_iter()
+                .map(|p| p[axis])
+                .max_by(|a, b| a.value.hi().total_cmp(&b.value.hi()))
+                .expect("vertices")
+        };
+        let wall = highest(scene.boss, 1);
+        let rim = highest(scene.cylinder, 0);
+        (
+            wall.value,
+            geom_core::sym::report::render_of(wall.node()).expect("the wall's form"),
+            geom_core::sym::report::render_of(rim.node()).expect("the rim's form"),
+        )
+    });
+    let (wall, wall_form, rim_form) = forms;
+    assert!(
+        wall.lo() <= RADIUS - width * 0.99 && wall.hi() >= RADIUS + width * 0.99,
+        "the wall encloses the radius's box: {wall:?}"
+    );
+    let atoms = |form: &str| -> std::collections::BTreeSet<String> {
+        form.split("?#")
+            .skip(1)
+            .map(|rest| rest.chars().take_while(char::is_ascii_hexdigit).collect())
+            .collect()
+    };
+    let radius = atoms(&rim_form);
+    assert_eq!(
+        radius.len(),
+        1,
+        "the rim reads the radius alone: {rim_form}"
+    );
+    assert_eq!(
+        atoms(&wall_form),
+        radius,
+        "the wall reads the radius's atom: {wall_form}"
+    );
+}
+
+/// **A written coordinate reads no trace**: a free profile runs
+/// `line_to(AtX(1))` along its director and builds, its leg ending at
+/// `x = 1`.
+#[test]
+fn a_free_profile_runs_to_a_written_coordinate() {
+    let doc = ProfileDoc::empty_derived("s6c_free_at_x", Tol::witness());
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At(len2([0.0, 0.0])),
+                ProgramStep::Toward {
+                    dx: scl(1.0),
+                    dy: scl(1.0),
+                },
+                ProgramStep::LineTo(ProgramTarget::AtX(len(1.0))),
+                ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let ev = eval(&doc);
+    assert!(
+        ev.node_error(profile).is_none(),
+        "a free profile reaches a written x: {:?}",
+        ev.node_error(profile).map(|e| e.kind.to_string())
+    );
+    near(
+        swept_max(doc.clone(), profile, 0),
+        1.0,
+        "the leg ends at x = 1",
+    );
+    near(
+        swept_max(doc, profile, 1),
+        1.0,
+        "and at y = 1, along (1, 1)",
+    );
+
+    // Outside an evaluation nothing replays the prefix the leg runs
+    // from: a form previewing the loop refuses it, typed.
+    let written = vec![LoopProgram::Chain(vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(1.0),
+        },
+        ProgramStep::LineTo(ProgramTarget::AtX(len(1.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])];
+    match editor_core::resolve_written_loops(&written, Tol::witness()) {
+        Err(editor_core::WrittenLoopFault::Trace(refusal)) => assert_eq!(
+            (refusal.step, &refusal.fault),
+            (2, &TraceStepFault::Unevaluated),
+            "{refusal}"
+        ),
+        other => panic!("a preview refuses the leg: {other:?}"),
+    }
+}
+
+/// **A loft's first section may be drawn; a later one may not**: a
+/// loft from a boss drawn on the cylinder's top, its frame turned so
+/// sketch `x` runs along world `y` and sketch `y` along world `-x`,
+/// stands in the frame — from the top up one, its far side at the
+/// wall's trace `x = -1/2` — and in the cylinder's space. One whose
+/// later section is drawn refuses typed: a later section stands where
+/// the loft's station carries the first's plane, which a frame of its
+/// own would contradict.
+#[test]
+fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let ev = eval(&doc);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let top =
+        editor_core::test_support::axes_at([0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]);
+    let (doc, drawn) = drawn_on(doc, cylinder, &top, wall, boss_steps());
+    let (doc, quad) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![
+                LoopProgram::polygon([(0.0, -0.25), (0.0, 0.25), (0.5, 0.25), (0.5, -0.25)])
+                    .expect("a quad"),
+            ],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let loft = |first: RecipeNodeId, then: RecipeNodeId| Node::Loft {
+        first: first.into(),
+        then: vec![editor_core::LoftSection {
+            profile: then.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(1.0),
+            }],
+        }],
+        v_degree: Formula::count(1),
+    };
+    let (framed, lofted) = fixture::insert(doc.clone(), loft(drawn, quad));
+    let ev = eval(&framed);
+    assert!(
+        ev.node_error(lofted).is_none(),
+        "the loft builds: {:?}",
+        ev.node_error(lofted).map(|e| e.kind.to_string())
+    );
+    let points = vertices(&ev, lofted);
+    let span = |axis: usize| {
+        points
+            .iter()
+            .map(|p| p[axis])
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+                (lo.min(v), hi.max(v))
+            })
+    };
+    let (z_lo, z_hi) = span(2);
+    near(z_lo, HEIGHT, "the loft starts on the top");
+    near(z_hi, HEIGHT + 1.0, "and runs one up");
+    near(span(0).0, -RADIUS, "its far side is the wall's trace");
+    assert_eq!(
+        framed.node_space(lofted),
+        framed.node_space(cylinder),
+        "the loft is in the cylinder's space"
+    );
+
+    let (later, lofted) = fixture::insert(doc, loft(quad, drawn));
+    let ev = eval(&later);
+    assert!(
+        matches!(
+            ev.node_error(lofted).map(|e| &e.kind),
+            Some(&NodeErrorKind::WrongOperand {
+                input,
+                expected: "free profile",
+                found: "drawn profile",
+            }) if input == drawn
+        ),
+        "a later section may not be drawn: {:?}",
+        ev.node_error(lofted).map(|e| e.kind.to_string())
     );
 }
 
@@ -678,6 +894,158 @@ fn a_step_reading_a_trace_refuses_typed() {
     }
 }
 
+/// **The refusals a document reaches beyond the table's**, each at its
+/// step and face: a pen with no position (the chain binds a direction
+/// first), a piece lying on the carrier (a frame in the cylinder's own
+/// base, tracing that base), a heading whose reach of a written `x` the
+/// band cannot call, and a face with no closed-form carrier (a twisted
+/// loft's spline wall).
+#[test]
+fn the_pen_the_carrier_and_the_band_refuse_typed() {
+    use topo::boolean::trace::TraceFault;
+    let toward = |dx, dy| ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    };
+    let leave = || {
+        ProgramStep::LineTo(ProgramTarget::OnTrace {
+            face: 0,
+            crossing: TraceCrossing::first(TracePassage::Leave),
+        })
+    };
+    let home = |mut steps: Vec<ProgramStep<Formula>>| {
+        steps.extend([
+            ProgramStep::LineTo(ProgramTarget::Point(len2([REACH, BACK]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]);
+        steps
+    };
+
+    // No pen: a direction bound first.
+    let scene = traced_boss(RADIUS, None, home(vec![toward(0.0, 1.0), leave()]));
+    let refusal = trace_refusal(&eval(&scene.doc), scene.footprint);
+    assert_eq!(
+        (refusal.step, refusal.face, &refusal.fault),
+        (1, None, &TraceStepFault::NoPen),
+        "{refusal}"
+    );
+
+    // On the carrier: the frame stands in the base's plane, so a piece
+    // in it lies on the base; the top, parallel and off it, has no trace.
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let ev = eval(&doc);
+    let mut caps: Vec<(u32, Option<u32>, TraceStepFault)> = all_faces(&ev, cylinder)
+        .into_iter()
+        .filter(|n| face_carrier_kind(&ev, cylinder, n) == Ok(SurfaceKind::Plane))
+        .map(|cap| {
+            let (doc, profile) = drawn_on(
+                doc.clone(),
+                cylinder,
+                &editor_core::Frame::IDENTITY,
+                cap,
+                boss_steps(),
+            );
+            let refusal = trace_refusal(&eval(&doc), profile);
+            (refusal.step, refusal.face, refusal.fault)
+        })
+        .collect();
+    caps.sort_by_key(|(_, _, fault)| matches!(fault, TraceStepFault::NoTrace));
+    assert_eq!(
+        caps,
+        vec![
+            (2, Some(0), TraceStepFault::Carrier(TraceFault::OnCarrier)),
+            (2, Some(0), TraceStepFault::NoTrace),
+        ],
+        "the base is under the piece, the top off its plane"
+    );
+
+    // The band: a heading whose `x` part, over the reach, lands between
+    // ε and K·ε.
+    let tol = Tol::witness();
+    let lean = tol.eps() * (1.0 + tol.k()) / 2.0;
+    let scene = traced_boss(
+        RADIUS,
+        None,
+        home(vec![
+            ProgramStep::At(len2([0.0, BACK])),
+            toward(lean, 1.0),
+            ProgramStep::LineTo(ProgramTarget::AtX(len(REACH))),
+        ]),
+    );
+    let refusal = trace_refusal(&eval(&scene.doc), scene.footprint);
+    assert!(
+        matches!(
+            (refusal.step, refusal.face, &refusal.fault),
+            (2, None, TraceStepFault::Carrier(TraceFault::Escalated(_)))
+        ),
+        "{refusal}"
+    );
+
+    // No closed form: a loft twisted a half radian has spline walls.
+    let doc = ProfileDoc::empty_derived("s6c_twisted", Tol::witness());
+    let square = || {
+        Node::Profile(ProfileProgram {
+            loops: vec![
+                LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)])
+                    .expect("a square"),
+            ],
+            ids: Vec::new(),
+            on: None,
+        })
+    };
+    let (doc, first) = fixture::insert(doc, square());
+    let (doc, then) = fixture::insert(doc, square());
+    let (doc, twisted) = fixture::insert(
+        doc,
+        Node::Loft {
+            first: first.into(),
+            then: vec![editor_core::LoftSection {
+                profile: then.into(),
+                station: vec![
+                    editor_core::StationMove::Spin {
+                        about: editor_core::Axis3::Z,
+                        by: fixture::ang(0.5),
+                    },
+                    editor_core::StationMove::Slide {
+                        along: editor_core::Axis3::Z,
+                        by: len(1.0),
+                    },
+                ],
+            }],
+            v_degree: Formula::count(1),
+        },
+    );
+    let ev = eval(&doc);
+    let spline = face(&ev, twisted, SurfaceKind::Nurbs);
+    let half_up =
+        editor_core::test_support::axes_at([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let (doc, profile) = drawn_on(
+        doc,
+        twisted,
+        &half_up,
+        spline,
+        vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            toward(1.0, 0.0),
+            leave(),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ],
+    );
+    let refusal = trace_refusal(&eval(&doc), profile);
+    assert_eq!(
+        (refusal.step, refusal.face, &refusal.fault),
+        (
+            2,
+            Some(0),
+            &TraceStepFault::Carrier(TraceFault::Unsupported {
+                carrier: SurfaceKind::Nurbs
+            })
+        ),
+        "{refusal}"
+    );
+}
+
 /// **A frame whose plane misses the face has no trace**, and a profile
 /// with a trace step drawn on no frame has none to read.
 #[test]
@@ -869,11 +1237,10 @@ fn an_arc_about_a_centre_runs_onto_the_trace() {
     near(corner[1], (0.25_f64 - 1.0 / 64.0).sqrt(), "the arc's end y");
 }
 
-/// **A line runs onto a planar face's trace** — the cylinder's top cap,
-/// cut by a plane through its axis — **and across a torus's**, whose
-/// trace in its midplane is two circles, to the second entry.
+/// **A line runs onto a planar face's trace**: the cylinder's top cap,
+/// cut by a plane through its axis.
 #[test]
-fn a_line_runs_onto_a_plane_and_across_a_torus() {
+fn a_line_runs_onto_a_planes_trace() {
     let (doc, cylinder) = cylinder(RADIUS, None);
     let ev = eval(&doc);
     let caps: Vec<StableName> = all_faces(&ev, cylinder)
@@ -919,7 +1286,18 @@ fn a_line_runs_onto_a_plane_and_across_a_torus() {
     }
     assert_eq!(tops.len(), 1, "one cap is left: {tops:?}");
     near(tops[0], HEIGHT, "the line leaves the top cap at its height");
+}
 
+/// **A line across a torus finds each crossing by its passage and its
+/// place**, in the torus's midplane (its trace two circles about the
+/// axis, of radii 3/2 and 5/2) and in a plane through its axis (Ev's:
+/// two circles of radius 1/2 about `(±2, 0)`). From `(−3, 0)` along `+x`
+/// the line enters at `−5/2`, leaves at `−3/2`, enters at `3/2` and
+/// leaves at `5/2` in both, and enters no third time. The chain closes
+/// behind the pen, at `(−3, 1)`, so the crossing alone is the profile's
+/// largest `x`.
+#[test]
+fn a_line_across_a_torus_finds_each_crossing_in_either_plane() {
     let doc = ProfileDoc::empty_derived("s6c_torus", Tol::witness());
     let (doc, ring) = fixture::insert(
         doc,
@@ -931,28 +1309,47 @@ fn a_line_runs_onto_a_plane_and_across_a_torus() {
     );
     let ev = eval(&doc);
     let tube = face(&ev, ring, SurfaceKind::Torus);
-    let across = vec![
-        ProgramStep::At(len2([-3.0, 0.0])),
-        ProgramStep::Toward {
-            dx: scl(1.0),
-            dy: scl(0.0),
-        },
-        ProgramStep::LineTo(ProgramTarget::OnTrace {
-            face: 0,
-            crossing: TraceCrossing {
-                passage: TracePassage::Enter,
-                nth: 2,
+    let axial =
+        editor_core::test_support::axes_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let across = |crossing| {
+        vec![
+            ProgramStep::At(len2([-3.0, 0.0])),
+            ProgramStep::Toward {
+                dx: scl(1.0),
+                dy: scl(0.0),
             },
-        }),
-        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ];
-    let (doc, profile) = drawn_on(doc, ring, &editor_core::Frame::IDENTITY, tube, across);
-    near(
-        swept_max(doc, profile, 0),
-        1.5,
-        "the second entry is the inner circle beyond the hole",
-    );
+            ProgramStep::LineTo(ProgramTarget::OnTrace { face: 0, crossing }),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([-3.0, 1.0]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let nth = |passage, nth| TraceCrossing { passage, nth };
+    for (plane, frame) in [("midplane", editor_core::Frame::IDENTITY), ("axial", axial)] {
+        for (crossing, x) in [
+            (nth(TracePassage::Enter, 1), -2.5),
+            (nth(TracePassage::Leave, 1), -1.5),
+            (nth(TracePassage::Enter, 2), 1.5),
+            (nth(TracePassage::Leave, 2), 2.5),
+        ] {
+            let (doc, profile) =
+                drawn_on(doc.clone(), ring, &frame, tube.clone(), across(crossing));
+            near(
+                swept_max(doc, profile, 0),
+                x,
+                &format!("{plane}: {crossing:?}"),
+            );
+        }
+        let third = nth(TracePassage::Enter, 3);
+        let (doc, profile) = drawn_on(doc.clone(), ring, &frame, tube.clone(), across(third));
+        assert_eq!(
+            trace_refusal(&eval(&doc), profile).fault,
+            TraceStepFault::NoSuchCrossing {
+                crossing: third,
+                found: 2
+            },
+            "{plane}: the line enters twice"
+        );
+    }
 }
 
 /// **A traced face that vanishes is unresolved, typed**: the cylinder

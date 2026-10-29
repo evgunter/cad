@@ -817,8 +817,8 @@ pub enum ProgramRefusal {
     /// [`StepIdFault::Shape`]), so they name no step reliably.
     /// Answered only by [`ProfileProgram::pieces`].
     StepIds(StepIdFault),
-    /// A step reading a trace refused: with no evaluation to read one,
-    /// [`crate::trace::TraceStepFault::Undrawn`].
+    /// A step lowering against the pen refused: outside an evaluation,
+    /// [`crate::trace::TraceStepFault::Unevaluated`].
     Trace(crate::trace::TraceRefusal),
 }
 
@@ -1819,8 +1819,9 @@ impl core::fmt::Display for ProgramResolveFault {
 impl core::error::Error for ProgramResolveFault {}
 
 impl LoopProgram {
-    /// Resolves this loop's program, reading no trace: a step that
-    /// reads one refuses ([`crate::trace::TraceStepFault::Undrawn`]).
+    /// Resolves this loop's program outside an evaluation: a step that
+    /// lowers against the pen refuses
+    /// ([`crate::trace::TraceStepFault::Unevaluated`]).
     ///
     /// # Errors
     ///
@@ -1837,8 +1838,19 @@ impl LoopProgram {
     /// ([`ProfileProgram::reads_a_trace`]).
     #[must_use]
     pub fn reads_a_trace(&self) -> bool {
+        self.any_step(crate::trace::step_reads_a_trace)
+    }
+
+    /// **Whether a step of this loop lowers against the pen**
+    /// ([`ProfileProgram::runs_from_the_pen`]).
+    #[must_use]
+    pub fn runs_from_the_pen(&self) -> bool {
+        self.any_step(crate::trace::step_runs_from_the_pen)
+    }
+
+    fn any_step(&self, is: fn(&ProgramStep) -> bool) -> bool {
         match self {
-            LoopProgram::Chain(steps) => steps.iter().any(crate::trace::step_reads_a_trace),
+            LoopProgram::Chain(steps) => steps.iter().any(is),
             LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => false,
         }
     }
@@ -1860,7 +1872,7 @@ impl LoopProgram {
         traces: Option<&crate::trace::Traces<'_, T>>,
     ) -> Result<Vec<Step<T>>, ProgramResolveFault> {
         match self {
-            LoopProgram::Chain(steps) if steps.iter().any(crate::trace::step_reads_a_trace) => {
+            LoopProgram::Chain(steps) if self.runs_from_the_pen() => {
                 crate::trace::resolve_chain(steps, env, loop_, traces)
             }
             LoopProgram::Chain(steps) => Ok(steps
@@ -2014,14 +2026,23 @@ impl ProfileProgram {
             .collect()
     }
 
-    /// **Whether a step of this program reads a trace** (or a written
-    /// coordinate along a heading): such a program resolves only
-    /// against an evaluation's traces, so the doors that resolve with
-    /// none — the authoring check, the pieces a program draws — leave it
-    /// to evaluation.
+    /// **Whether a step of this program reads a face's trace**: such a
+    /// program reads the faces it traces at evaluation, and its first
+    /// pass reads them off the nominal document's.
     #[must_use]
     pub fn reads_a_trace(&self) -> bool {
         self.loops.iter().any(LoopProgram::reads_a_trace)
+    }
+
+    /// **Whether a step of this program lowers against the pen**: a
+    /// trace, or a written coordinate along a heading
+    /// ([`crate::trace`]). Such a program resolves only in an
+    /// evaluation, which replays the prefix, so the doors that resolve
+    /// outside one — the authoring check, the pieces a program draws —
+    /// leave it to evaluation.
+    #[must_use]
+    pub fn runs_from_the_pen(&self) -> bool {
+        self.loops.iter().any(LoopProgram::runs_from_the_pen)
     }
 
     /// **Which profile edges one authored step became** (DM8).
@@ -2247,16 +2268,16 @@ impl ProfileProgram {
     /// replay every loop, validate the assembled profile — all under
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
-    /// ladder per binding with full typed errors. A program that reads
-    /// a trace ([`Self::reads_a_trace`]) is checked where its traces
-    /// are, at evaluation.
+    /// ladder per binding with full typed errors. A program that lowers
+    /// against the pen ([`Self::runs_from_the_pen`]) is checked where
+    /// the pen is, at evaluation.
     ///
     /// # Errors
     ///
     /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
     /// [`ProgramRefusal::Geometry`] or [`ProgramRefusal::Validate`].
     pub fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        if self.reads_a_trace() {
+        if self.runs_from_the_pen() {
             return Ok(());
         }
         self.validated(env, tol).map(|_| ())
