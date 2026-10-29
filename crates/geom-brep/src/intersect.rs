@@ -85,24 +85,24 @@
 //!    per nappe at `±R·cot α`, admitted by the station's own reach;
 //!    tilted and parallel-but-offset refuse typed.
 //!
-//! # What M5 PR 7 added (rung 3 becomes real)
+//! # Rung 3
 //!
-//! Two arms retired their refusals — per-arm, never wholesale (C12.1),
+//! These arms retired their refusals — per-arm, never wholesale (C12.1),
 //! each with its trace shape as a **compile-time** decision documented
 //! at the arm (C5: no runtime fallback, so an arm's shape is not
 //! something a caller can influence):
 //!
 //! - **plane × NURBS** — the ℝ⁴ parametric×parametric trace (3×4 SVD).
-//! - **cylinder × sphere** and **sphere × torus** — the ℝ³ implicit-pair
-//!   march (2×3 SVD).
+//! - **cylinder × sphere** and the three torus pairs (**sphere × torus**,
+//!   **cylinder × torus**, **torus × torus**) — the ℝ³ implicit-pair
+//!   march (2×3 SVD), each past its pose's own tangency decision.
 //!
 //! Each goes through `geom_brep::ssi`, which marches (untrusted), fits
 //! (PR 4), certifies all three C2 limbs, and proves the domain
 //! exhausted or refuses typed. Every other rung-3 arm keeps its typed
 //! refusal and **cites the trace shape it would use** and what is
 //! actually missing: for the cone pairs, the meters conversion of the
-//! cone's composite; for the other torus pairs, the arm's own
-//! retirement.
+//! cone's composite.
 //!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
@@ -307,15 +307,6 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         // ---- Rung 3: quartic-and-worse loci. The general rung is
         // implemented, but it retires per arm (C12.1), so these still
         // refuse typed, naming the routing AND what each one lacks.
-        (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
-            rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), whose cylinder×torus arm has \
-                   not retired (arms retire one at a time, each with its proof), as \
-                   plane×torus's tilted residue has not (that pair's exact-degenerate \
-                   half closed in VERBS-C5ARMS)",
-        },
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -338,7 +329,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    trace shape (the general-rung marcher), blocked on the cone's exact \
                    meters conversion",
         },
-        // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, the
+        // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
         (Sphere, Torus) | (Torus, Sphere) => PairRoute {
             rung: Rung::General,
@@ -348,12 +339,24 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    (geom_brep::ssi::sphere_torus_ssi), the torus read through its \
                    quartic; a torus outside its ring convention is refused as a shape",
         },
+        (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
+            rung: Rung::General,
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::cylinder_torus_ssi), the torus read through its \
+                   quartic, past the pose's critical gap; a torus outside its ring \
+                   convention is refused as a shape",
+        },
         (Torus, Torus) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), whose torus×torus arm has not \
-                   retired (arms retire one at a time, each with its proof)",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::torus_torus_ssi), both tori read through their \
+                   quartics, past the pose's critical gap; two tori decided one are a \
+                   coincidence, and a torus outside its ring convention is refused as a \
+                   shape",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ⁴ trace. The
         // plane and the wall are both charts, so the state is
@@ -477,9 +480,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// arms that march (cylinder×sphere and sphere×torus on their decided
 /// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
 /// with every Approx pairing over its fits). Cylinder×torus and
-/// torus×torus are unimplemented and read their poses too, so a pose in
-/// the band escalates rather than answering the kind's routing. Every
-/// other unimplemented pair answers [`route`] unchanged. The match is
+/// torus×torus read the section value ([`crate::pair_section()`]): a
+/// general pose, whose components it does not list, is not served,
+/// though its door marches it. Every unimplemented pair answers
+/// [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
@@ -534,10 +538,12 @@ pub fn route_pose<T: Decide>(
         (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
-        (Cylinder, Torus) | (Torus, Cylinder) => {
-            torus_pose(crate::CylinderTorusPose::decide(a, b, band))
+        // A general pose's section lists no components the operation
+        // could take (`pair_section`'s refusal), so the pose is not
+        // served though the general rung's door marches it.
+        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
+            crate::pair_section(a, b, band).map(drop)
         }
-        (Torus, Torus) => torus_pose(crate::TorusTorusPose::decide(a, b, band)),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
@@ -2065,6 +2071,77 @@ pub enum PlaneConeSection<T: Real> {
     OpenConic(OpenConicSection<T>),
 }
 
+/// A cone's rulings out of its apex, by azimuth about its squared axis
+/// from its seam: the apex lane's one frame ([`plane_cone_section`],
+/// [`plane_cone_apex_extrema`]).
+struct ApexFan<T: Real> {
+    a: Vec3<T>,
+    u: Vec3<T>,
+    v: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+}
+
+impl<T: Real> ApexFan<T> {
+    /// The fan of `cone`'s rulings on the nappe of its axis.
+    fn of(axis: Vec3<T>, u_ref: Vec3<T>, half_angle: T) -> Self {
+        let SquareFrame {
+            axis: a, u_ref: u, ..
+        } = square_frame(axis, u_ref);
+        let (sin_a, cos_a) = half_angle.sin_cos();
+        Self {
+            a,
+            u,
+            v: a.cross(u),
+            sin_a,
+            cos_a,
+        }
+    }
+
+    /// The azimuth of `n`'s part square to the axis: the ruling there
+    /// reads `g·n` greatest round the fan.
+    fn azimuth(&self, n: Vec3<T>) -> T {
+        self.v.dot(n).atan2(self.u.dot(n))
+    }
+
+    /// The ruling at azimuth `phi`.
+    fn ruling(&self, phi: T) -> Vec3<T> {
+        let (s, c) = phi.sin_cos();
+        self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a
+    }
+}
+
+/// **The rulings a plane through a cone's apex reads its extremes
+/// along**: `[g(φ), g(φ + π)]`, the rulings (on the nappe of the cone's
+/// axis) at the azimuth `φ` of `normal`'s part square to the axis and
+/// opposite it, where `g·normal` is greatest and least round the fan.
+/// [`plane_cone_section`]'s apex lane builds its section from the same
+/// `φ`: a tangent generator is one of these two, and a line pair stands
+/// at `φ ± δ`, symmetric about the first. So a reader that subdivides
+/// the cone's apex at these rulings and reads the lane's section between
+/// them reads one trace. A normal along the axis has no `φ`: every
+/// ruling reads it alike, and the caller decides that before asking.
+///
+/// `None` for a surface that is not a cone.
+#[must_use]
+pub fn plane_cone_apex_extrema<T: Real>(
+    cone: &Surface<T>,
+    normal: Vec3<T>,
+) -> Option<[Vec3<T>; 2]> {
+    let &Surface::Cone {
+        axis,
+        half_angle,
+        u_ref,
+        ..
+    } = cone
+    else {
+        return None;
+    };
+    let fan = ApexFan::of(axis, u_ref, half_angle);
+    let phi = fan.azimuth(normal);
+    Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
+}
+
 /// Classifies and constructs the plane×cone section (spec §3.3): the
 /// apex-through degenerates, the axis-normal circle, the tilted ellipse,
 /// and the parabola or hyperbola in closed form.
@@ -2279,14 +2356,18 @@ pub fn plane_cone_section<T: Decide>(
             if verdict == Sign::Negative {
                 return Ok(PlaneConeSection::ApexPoint(apex));
             }
-            let v_ref = a.cross(cone_u);
-            let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
-            let phi = nv.atan2(nu);
+            let fan = ApexFan {
+                a,
+                u: cone_u,
+                v: a.cross(cone_u),
+                sin_a,
+                cos_a,
+            };
+            let phi = fan.azimuth(n);
             let gen_at = |u: T| -> Curve3<T> {
-                let (su, cu) = u.sin_cos();
                 Curve3::Line {
                     origin: apex,
-                    dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
+                    dir: fan.ruling(u),
                 }
             };
             return Ok(if verdict == Sign::Zero {

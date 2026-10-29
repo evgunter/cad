@@ -136,6 +136,7 @@ pub mod chart_iso;
 pub mod chart_region;
 pub mod clearance;
 pub mod construction;
+pub(crate) mod injective;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
 // `splitting/` for the reason its own docs give. Non-doc comment for
@@ -371,8 +372,8 @@ pub mod test_support {
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
         every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
         identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
-        wedge_on_a_block_top,
+        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, set_sheet_sense, split_plane,
+        straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -1207,7 +1208,7 @@ pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
-    AimedPair, AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
+    AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
@@ -1227,8 +1228,8 @@ pub use boolean::{
     WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
     decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
-    subtract, tangent_pair_relation, union,
+    nary_boolean_apart, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1334,19 +1335,19 @@ pub use replace_face::{
     offset_edge_specs_for_tests,
 };
 pub use revert::RevertError;
-pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
+pub use separation::{Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
-    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
-    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry,
-    SectorEntryKind, SectorReading, SplitContacts, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    ApexSectionReading, ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation,
+    KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane,
+    OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionEndReading,
+    SectionError, SectionGermFault, SectionGermReading, SectionPinMiss, SectionPolygon,
+    SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

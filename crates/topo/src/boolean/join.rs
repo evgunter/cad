@@ -3631,7 +3631,6 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
         Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
-        Uncarried::Carry(CarryError::Unbuilt(why)) => unbuilt(SectionUnbuilt::Unbuilt(why)),
         Uncarried::Carry(CarryError::Site(SiteRefusal::Untold(why))) => {
             unbuilt(SectionUnbuilt::Untold(why))
         }
@@ -5129,7 +5128,7 @@ fn run_spline_edge<T: Decide>(
 /// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
 /// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
 /// naming that ring's face; one that passes the tip of a slit or ring
-/// of either operand's ([`super::sectors::SlitTips`]): `side`'s own, or
+/// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
@@ -5190,7 +5189,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
 }
 
 /// The slit or ring whose tip one of `side`'s `vertices` is
-/// ([`super::sectors::SlitTips`]), as its operand and carrying face:
+/// ([`crate::sector_shape::SlitTips`]), as its operand and carrying face:
 /// `side`'s own at the vertex, else the other's at a vertex the other
 /// holds there, a vertex pair's partner or a pierce the vertex's ring
 /// serves. A null edge's copy of a vertex reads as the vertex.

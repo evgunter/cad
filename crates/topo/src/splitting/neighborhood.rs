@@ -19,7 +19,8 @@
 //!
 //! # Why convex subdivision (the wide/reflex fork, decided)
 //!
-//! Every face is planar (F5 gate), so a sector's interior is exactly
+//! A face with a tangent plane at the vertex is planar there to first
+//! order, so a sector's interior is exactly
 //! the positive cone of its two bounding directions **iff the sector's
 //! angle is < 180°** — then the bounding-edge verdicts determine every
 //! interior direction's side (a positive combination of two same-side
@@ -51,8 +52,29 @@
 //! sector would merely be redundant), so Zero and in-band verdicts
 //! both take the duplicate path — the deliberate, documented posture
 //! for this one predicate (the decisive side verdicts stay strict).
+//!
+//! # At a cone's apex
+//!
+//! A cone face has no tangent plane at its apex
+//! ([`crate::sector_face::VertexFace::Apex`]). Its sector's interior
+//! directions are the rulings between its bounds, round the axis, not
+//! positive combinations of them, so a plane through the apex can cross
+//! such a sector twice at any width and the convex argument above does
+//! not hold. The plane's side along the rulings is monotone between its
+//! two extremal rulings, so the sector is subdivided at each extremal
+//! ruling strictly inside it instead ([`crate::sector_shape::apex_shape`]):
+//! between consecutive entries the side then changes at most once, which
+//! is what the run scan reads. Those entries are the walk's
+//! `WideBisector` duplicates, up to two in one sector (a window over a
+//! half-turn holds both extrema), where a tangent plane's wide sector
+//! holds one and a slit tip's full turn three, at its quarters
+//! ([`crate::sector_shape::FullTurn`]). Every reader of the array takes
+//! several in a sector (rule (b)'s duplicate rows); the plane's side
+//! changes sign at most twice in a sector (a plane through the vertex
+//! meets a full turn along one line, two rays), so at most one stretch of
+//! duplicates alone lies apart from its bounds (`insert`'s dangling
+//! strut).
 
-use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
@@ -61,8 +83,11 @@ use super::{PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane, 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
-use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
+use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
+use crate::sector_shape::{
+    ApexShape, CornerBounds, CornerShape, SectorFault, SectorShape, SlitTips, TurnOrder,
+    apex_shape, corner_shape,
+};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -107,18 +132,21 @@ pub(super) fn sector_face<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
     band: Band,
-) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
+) -> Result<(FaceKey, VertexFace<T>, bool), SplitReduceError> {
     let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind }
         | SectorFaceError::Crease { face, kind }
         | SectorFaceError::Unplaced { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
+        SectorFaceError::ApexUndecided { face, diag } => {
+            SplitReduceError::ApexUndecided { vertex, face, diag }
+        }
     })?;
     match resolved.carrier {
-        SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
+        SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),
         SectorCarrier::Cylinder | SectorCarrier::Cone => {
-            Ok((resolved.face, resolved.normal, false))
+            Ok((resolved.face, resolved.at_vertex, false))
         }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
@@ -245,51 +273,77 @@ pub(crate) fn entry_side<T: Decide, E>(
     Ok((dir, side))
 }
 
-/// **A wide sector's subdivision entry**: the sector after an orbit
-/// half-edge, bounded by the rays `(dir_a, dir_b)` in `face`, whose
-/// outward normal there is `n_face`, read by the three
-/// [`sector_shape`] rungs. Where it is wide, its subdivision direction,
-/// arm, and the side of the plane along `normal` that direction points
-/// to, levered at the arm (`split_bisector_side`); `None` for a convex
-/// sector. The walk's duplicate entry, and [`crate::vertex_section`]'s
-/// reading of the same sector. Faults and escalations are the split's
-/// refusals at `(vertex, face)`.
-pub(crate) fn wide_entry<T: Decide>(
+/// **A sector's subdivision entries**: the sector after an orbit
+/// half-edge, bounded by the rays `(dir_a, dir_b)` in `face`, which is
+/// `at_vertex` there, its bounds as `bounds` says. With a tangent plane,
+/// [`corner_shape`] reads it: a wide sector gets one entry at its
+/// subdivision direction, and a slit tip's full turn three, at its
+/// quarters. At a cone's apex, [`apex_shape`] reads it against the
+/// plane, and it gets one at each extremal ruling inside it (module
+/// docs). Each entry is its direction, the sector's arm, and the side of
+/// the plane along `normal` that direction points to, levered at the arm
+/// (`split_bisector_side`), in orbit order; none for a convex sector or
+/// an apex sector the plane's side is monotone across. The walk's
+/// duplicate entries, and [`crate::vertex_section`]'s reading of the
+/// same sector. Faults and escalations are the split's refusals at
+/// `(vertex, face)`.
+pub(crate) fn wide_entries<T: Decide>(
     (vertex, face): (VertexKey, FaceKey),
     (dir_a, dir_b): (Vec3<T>, Vec3<T>),
-    n_face: OutwardNormal<T>,
-    one_edge: bool,
+    at_vertex: VertexFace<T>,
+    bounds: CornerBounds,
     normal: Vec3<T>,
     band: Band,
-) -> Result<Option<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
+) -> Result<Vec<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face,
         reading: SectorReading::Escalated(diag),
     };
-    let SectorShape { arm, bisector, .. } = sector_shape(dir_a, dir_b, n_face, one_edge, band)
-        .map_err(|fault| match fault {
-            SectorFault::NonFiniteChord => SplitReduceError::NonFiniteSectorChord { vertex, face },
-            SectorFault::UnderflowedChord => {
-                SplitReduceError::UnderflowedSectorChord { vertex, face }
+    let fault = |fault| match fault {
+        SectorFault::NonFiniteChord => SplitReduceError::NonFiniteSectorChord { vertex, face },
+        SectorFault::UnderflowedChord => SplitReduceError::UnderflowedSectorChord { vertex, face },
+        SectorFault::Rung { diag, .. } => sliver(diag),
+    };
+    let (arm, directions) = match at_vertex {
+        VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => {
+            match corner_shape(dir_a, dir_b, n_face, bounds, band).map_err(fault)? {
+                CornerShape::Sector(SectorShape { arm, bisector, .. }) => {
+                    (arm, bisector.into_iter().collect())
+                }
+                CornerShape::FullTurn(turn) => (turn.arm, turn.quarters(TurnOrder::FromOwn).into()),
             }
-            SectorFault::Rung { diag, .. } => sliver(diag),
-        })?;
-    let Some(bisector) = bisector else {
-        return Ok(None);
+        }
+        VertexFace::Apex(apex) => {
+            let ApexShape { arm, rulings } = apex_shape(
+                dir_a,
+                dir_b,
+                &apex,
+                bounds == CornerBounds::OneEdge,
+                normal,
+                band,
+            )
+            .map_err(fault)?;
+            (arm, rulings)
+        }
     };
-    let side = match decide(
-        "split_bisector_side",
-        Margin::levered(bisector.dot(normal), arm),
-        band,
-    )
-    .map_err(sliver)?
-    {
-        Sign::Negative => PlaneSide::Below,
-        Sign::Positive => PlaneSide::Above,
-        Sign::Zero => PlaneSide::On,
-    };
-    Ok(Some((bisector, arm, side)))
+    directions
+        .into_iter()
+        .map(|d: Vec3<T>| {
+            let side = match decide(
+                "split_bisector_side",
+                Margin::levered(d.dot(normal), arm),
+                band,
+            )
+            .map_err(sliver)?
+            {
+                Sign::Negative => PlaneSide::Below,
+                Sign::Positive => PlaneSide::Above,
+                Sign::Zero => PlaneSide::On,
+            };
+            Ok((d, arm, side))
+        })
+        .collect()
 }
 
 /// Builds and fully classifies the typed sector array of ON vertex
@@ -311,25 +365,30 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    classify_neighborhood_rays(body, plane, sides, vertex, band).map(|(entries, _)| entries)
+    classify_neighborhood_rays(body, plane, sides, vertex, &SlitTips::of(body), band)
+        .map(|(entries, _)| entries)
 }
 
 /// One entry's ray out of the vertex: its direction scaled to its
 /// reach (an edge entry's [`chord`], a duplicate's bisector at its
 /// sector's arm), and whether the plane holds it (its side read On,
-/// before rules (a) and (b) send it to one).
+/// before rules (a) and (b) send it to one), and the cone apex the
+/// sector after it is read at, where its face is one there.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct EntryRay<T: geom_core::Real> {
     pub dir: Vec3<T>,
     pub in_plane: bool,
+    pub apex: Option<crate::sector_face::ConeApex<T>>,
 }
 
-/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it.
+/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it,
+/// `tips` the body's slit tips.
 pub(super) fn classify_neighborhood_rays<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     vertex: VertexKey,
+    tips: &SlitTips,
     band: Band,
 ) -> Result<(Vec<SectorEntry>, Vec<EntryRay<T>>), SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
@@ -342,6 +401,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
 
     let mut entries = Vec::with_capacity(orbit.len());
     let mut dirs = Vec::with_capacity(orbit.len());
+    let mut apexes = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
         let (dir_a, class) = entry_side(
             body,
@@ -379,8 +439,8 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
         // next orbit edge), and the subdivision direction it implies:
-        // the three rungs are [`crate::sector_shape`] — ONE
-        // implementation, called from here and from the boolean lane's
+        // the three rungs and a slit tip's full turn are
+        // [`corner_shape`] — ONE implementation, called from here and from the boolean lane's
         // sector walk, under the one pooled set of K names (pooled in
         // #652). This is a call, not a copy. The derivation the
         // module docs above carry — why convex subdivision, why the
@@ -388,34 +448,42 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         // shared body implements.
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
-        let (face, n_face, _) = sector_face(body, vertex, he, band)?;
-        let wide = wide_entry(
+        let (face, at_vertex, _) = sector_face(body, vertex, he, band)?;
+        let apex = match at_vertex {
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_) => None,
+            VertexFace::Apex(apex) => Some(apex),
+        };
+        apexes.push(apex);
+        let wide = wide_entries(
             (vertex, face),
             (dir_a, dir_b),
-            n_face,
-            he == next_he,
+            at_vertex,
+            tips.bounds(vertex, face, he == next_he),
             plane.normal.get(),
             band,
         )?;
-        if let Some((bisector, arm, class)) = wide {
+        for (bisector, arm, class) in wide {
             entries.push(SectorEntry {
                 he,
                 kind: SectorEntryKind::WideBisector,
                 class,
             });
             dirs.push(bisector * arm);
+            apexes.push(apex);
         }
     }
 
-    let rays = dirs
-        .into_iter()
+    let rays: Vec<EntryRay<T>> = dirs
+        .iter()
         .zip(&entries)
-        .map(|(dir, e)| EntryRay {
+        .zip(apexes)
+        .map(|((&dir, e), apex)| EntryRay {
             dir,
             in_plane: e.class == PlaneSide::On,
+            apex,
         })
         .collect();
-    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, &dirs, band)?;
     rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
     Ok((entries, rays))
 }

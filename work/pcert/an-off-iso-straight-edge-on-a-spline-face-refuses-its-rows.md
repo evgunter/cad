@@ -50,7 +50,7 @@ probing its exact candidates. The `Chart`/`Scaffold` arm has neither
 the probe nor the fallback. Step import's conventional rung lands
 exactly here: a line on a plane × B-spline pair adopts as an image in
 the plane's chart (`adopt.rs`, `nurbs_rim`), and on the wall it
-reaches this arm (`work/exch/an-imported-off-iso-line-on-a-bspline-face-takes-no-general-row.md`).
+reaches this arm (`work/reimport/an-imported-off-iso-line-on-a-bspline-face-takes-no-general-row.md`).
 
 ## Fix
 

@@ -1329,6 +1329,29 @@ pub fn variable_edit(var: VarId, value: SlotValue) -> DocEdit<ProfileProgram> {
     }
 }
 
+/// **The edit that gives the index `var` the count `count`** (D10
+/// `[repetition]`), keeping what it is declared within — `None` where
+/// `doc` holds no index `var`. An index is not a free variable, so its
+/// count is redefined (`DocEdit::DefineVar`) where a free variable's
+/// value is written.
+pub fn index_count_edit(
+    doc: &pncad::document::Doc<ProfileProgram>,
+    var: VarId,
+    count: Formula,
+) -> Option<DocEdit<ProfileProgram>> {
+    let index = doc.var(var)?.def().index()?;
+    Some(DocEdit::DefineVar {
+        var: var.into(),
+        def: pncad::document::VarDecl::Index {
+            count,
+            within: index
+                .within
+                .map(|w| Formula::var(w, pncad::document::Dimension::Count)),
+        },
+        fresh: Vec::new(),
+    })
+}
+
 /// One ROW OF THE PANEL: either a slot on its own, or the three
 /// components of a 3-vector shown together.
 ///

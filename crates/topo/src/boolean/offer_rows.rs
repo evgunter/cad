@@ -329,8 +329,9 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::recl::parallel_same_dir(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0, band()
+        super::super::sectors::parallel_same(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0,
+            super::RAY_COLLINEAR, band()
         ).map(|_| ());
     direction_along_a_short_arm: "DirectionSense", D, CORNER_SITE, Valued =>
         super::super::sectors::direction_sense(
@@ -2332,7 +2333,8 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
 
 /// **Every decision a Boolean site names, keyed per site**: each mention
 /// of a `Coincide`, `BooleanDecision`, `LeverArm`, `SphereQuestion` or
-/// `SelfCheck` variant in the Boolean's production code, by file and
+/// `SelfCheck` variant in the Boolean's production code, and each
+/// [`Parallelism`] reading passed, as its coincidence, by file and
 /// enclosing function, with its count. The executed census above is keyed
 /// per decision, so a site that raises one decision under another
 /// decision's key (MY5: the declared-`Tangent` witness's `TangentLocus`
@@ -2358,6 +2360,28 @@ fn every_site_names_the_decision_it_raises() {
         for line in source.lines() {
             if let Some(name) = top_level_fn(line) {
                 function = name;
+            }
+            // A site that passes a parallelism reading raises its
+            // coincidence: `sectors::parallel_same` names none of its own.
+            if !line.trim_start().starts_with("use ") {
+                for (name, reading) in PARALLEL_READINGS {
+                    let passed = line
+                        .match_indices(name)
+                        .filter(|&(at, _)| {
+                            let ident = |c: char| c.is_alphanumeric() || c == '_';
+                            !line[..at].ends_with(ident)
+                                && !line[at + name.len()..].starts_with(ident)
+                        })
+                        .count();
+                    if passed > 0 {
+                        *got.entry((
+                            file.clone(),
+                            function.clone(),
+                            format!("Coincide::{:?}", reading.coincide),
+                        ))
+                        .or_default() += passed;
+                    }
+                }
             }
             for (at, _) in line.match_indices("::") {
                 let head = &line[..at];
@@ -2396,6 +2420,27 @@ fn every_site_names_the_decision_it_raises() {
         "sites whose decision moved:\n{}",
         moved.join("\n")
     );
+}
+
+/// The [`Parallelism`] readings by the names a site passes them under.
+const PARALLEL_READINGS: [(&str, Parallelism); 2] = [
+    ("BOUNDS_PARALLEL", BOUNDS_PARALLEL),
+    ("RAY_COLLINEAR", RAY_COLLINEAR),
+];
+
+/// **The census sees every parallelism reading**: each of
+/// [`PARALLELISMS`] is named in [`PARALLEL_READINGS`], so a site that
+/// passes one is credited with its coincidence.
+#[test]
+fn the_census_names_every_parallelism_reading() {
+    for reading in PARALLELISMS {
+        assert!(
+            PARALLEL_READINGS
+                .iter()
+                .any(|(_, named)| named.predicate == reading.predicate),
+            "{reading:?} is passed under no name the census reads"
+        );
+    }
 }
 
 /// The decision types a site names.
@@ -2625,7 +2670,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
-    ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     (
         "mod.rs",
@@ -2736,7 +2780,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
-    ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
+    ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
         "recl.rs",
@@ -2869,9 +2913,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
-    ("sectors.rs", "crescent", "Coincide::Sectors", 1),
+    ("sectors.rs", "crescent", "Coincide::Sectors", 3),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2881,7 +2926,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "on_planar_face", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
-    ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "read_side",
@@ -2890,7 +2934,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
-    ("sectors.rs", "runs_into", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
+    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 4),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -2988,6 +3033,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
+    ("vtxfac.rs", "ring_struts", "Coincide::Sectors", 1),
     (
         "zip.rs",
         "one_vertex_sense",

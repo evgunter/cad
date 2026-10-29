@@ -54,6 +54,7 @@ use geom_brep::{
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
+use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
     UnreadNeighbourhood,
@@ -62,8 +63,10 @@ use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
-use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
+use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
+use crate::sector_shape::{
+    CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder, corner_shape,
+};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
@@ -274,76 +277,12 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
 }
 
-/// **The tips of an operand's slits and zero-area rings**, read from
-/// the operand at rest: each `(vertex, face)` where two distinct line
-/// edges on one segment by structure ([`crate::census::shared_segments`],
-/// the same two point keys) both end at `vertex` and both bound `face`.
-/// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
-/// and `face` carries them as a slit of one of its loops or as a ring:
-/// it wraps round the tip, so its corner there between the two edges is
-/// a full turn ([`build_sectors`]). The reduction may split the two
-/// edges apart from the tip, each at its own vertex, so the reading is
-/// taken before it.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
-
-impl SlitTips {
-    /// The tips of `body` at rest.
-    pub(super) fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
-        let mut tips = std::collections::BTreeSet::new();
-        for pair in crate::census::shared_segments(body) {
-            let [a, b] = pair.edges;
-            let (ea, eb) = (
-                crate::query::edge_ends(body, a),
-                crate::query::edge_ends(body, b),
-            );
-            let faces = |e: EdgeKey| -> Vec<FaceKey> {
-                let plus = proven(&body.edges, e, EntityId::Edge).he_plus;
-                [Some(plus), body.mate(plus)]
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|h| body.face_of_half_edge(h))
-                    .collect()
-            };
-            let (fa, fb) = (faces(a), faces(b));
-            for v in [ea.0, ea.1] {
-                if v != eb.0 && v != eb.1 {
-                    continue;
-                }
-                for &f in fa.iter().filter(|f| fb.contains(f)) {
-                    tips.insert((v, f));
-                }
-            }
-        }
-        Self(tips)
-    }
-
-    /// Whether `face`'s corner at `vertex` lies between a slit's two
-    /// edges.
-    fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
-        self.0.contains(&(vertex, face))
-    }
-
-    /// Tips named outright, for a unit row that has no body to read.
-    #[cfg(test)]
-    pub(super) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
-        Self(pairs.into_iter().collect())
-    }
-
-    /// The face carrying a slit `vertex` is the tip of, if it is one.
-    pub(super) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
-        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
-    }
-}
-
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 ///
 /// A corner between a slit's or ring's two coincident edges at its tip
 /// ([`SlitTips`], read off the operand at rest) is the carrying face's
-/// full turn round the tip: [`sector_shape`] decides its two bounds
-/// leave along one ray, which between two distinct edges it rejects as
-/// a spike, and here the structure says which of 0 and a full turn it
-/// is. The full turn is pushed as four quarter sectors, each convex.
+/// full turn round the tip ([`corner_shape`]), pushed as four quarter
+/// sectors, each convex.
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -367,28 +306,24 @@ pub(super) fn build_sectors<T: Decide>(
         } = corner?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
-        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
-        // implementation, called from here and from the splitting
-        // lane's neighborhood walk, under the one pooled set of K names
-        // (pooled in #652). This is a call, not a copy.
+        // argument needs < 180°), and a slit tip's full turn, are
+        // [`corner_shape`]: ONE implementation, called from here and from
+        // the splitting lane's neighborhood walk, under the one pooled
+        // set of K names (pooled in #652). This is a call, not a copy.
         //
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
         // The value arrives typed, so it cannot be the wrong one.
-        let shape = match sector_shape(dir_end, dir_start, normal, alone, band) {
-            Ok(shape) => shape,
-            Err(SectorFault::Rung {
-                rung: SectorRung::Straight { .. },
-                diag,
-            }) if diag.margin.rejected_sign() == Some(Sign::Positive)
-                && tips.holds(vertex, face) =>
-            {
+        let bounds = tips.bounds(vertex, face, alone);
+        let shape = match corner_shape(dir_end, dir_start, normal, bounds, band) {
+            Ok(CornerShape::Sector(shape)) => shape,
+            Ok(CornerShape::FullTurn(turn)) => {
                 push_full_turn(
                     &mut sectors,
                     he,
-                    (dir_start, reach_start),
-                    (dir_end, reach_end),
+                    &turn,
+                    (reach_start, reach_end),
                     face,
                     normal,
                 );
@@ -455,26 +390,22 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// Pushes the full turn of `face` round a slit's tip ([`SlitTips`]),
-/// from the next orbit chord `start` CCW round to the corner's own
-/// chord `end` (the two leave along one ray), as four convex quarter
-/// sectors in the chained order [`build_sectors`] pushes a subdivided
-/// corner in: the end-sharing quarter first. The quarter bounds are
-/// `start` turned a quarter, a half and three quarters about the
-/// face's outward normal, bisectors levered at the shorter chord.
+/// Pushes the full turn of `face` round a slit's tip ([`FullTurn`]) as
+/// four convex quarter sectors in the chained order [`build_sectors`]
+/// pushes a subdivided corner in: the end-sharing quarter first. The
+/// quarter bounds are levered at the turn's arm; `start_reach` and
+/// `end_reach` stand behind the next chord and the corner's own.
 fn push_full_turn<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     he: HalfEdgeKey,
-    (start, start_reach): (Vec3<T>, Reach<T>),
-    (end, end_reach): (Vec3<T>, Reach<T>),
+    turn: &FullTurn<T>,
+    (start_reach, end_reach): (Reach<T>, Reach<T>),
     face: FaceKey,
     normal: OutwardNormal<T>,
 ) {
-    let arm = start.norm().min(end.norm());
-    let (u_start, u_end) = (start.normalize(), end.normalize());
-    let quarter = normal.vec().cross(u_start);
-    let bounds = [u_start, quarter, -u_start, -quarter, u_end];
-    let inner = Reach::Bisector(arm);
+    let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
+    let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
+    let inner = Reach::Bisector(turn.arm);
     let reaches = [start_reach, inner, inner, inner, end_reach];
     for k in (0..4).rev() {
         sectors.push(BoolSector {
@@ -485,7 +416,7 @@ fn push_full_turn<T: Decide>(
             end_reach: reaches[k + 1],
             face,
             normal,
-            arm,
+            arm: turn.arm,
         });
     }
 }
@@ -585,11 +516,13 @@ pub(super) fn orbit_corners<T: Decide>(
 /// pole of its chart, where it has no one normal.
 ///
 /// **A sector based at a cone's apex refuses**
-/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
-/// normal from its implicit gradient, which is `0/0` on the axis, and
-/// the apex is the axis point ON the cone: a vertex there has no
-/// tangent plane, and the poison would otherwise reach the first
-/// decision that reads it under that decision's name.
+/// ([`BooleanError::NormalAtConeApex`]): the shared walk reads the face
+/// there as its circle of rulings ([`VertexFace::Apex`]), each with a
+/// normal of its own, while this lane's sector pair algebra reads one
+/// normal per sector. What is missing is that algebra over a sector
+/// whose interior is a fan of rulings; the split's walk has its own
+/// (`splitting::neighborhood`). A vertex in the band of the axis refuses
+/// the same way.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -626,6 +559,11 @@ pub(super) fn sector_face<T: Decide>(
             face,
             kind,
         },
+        SectorFaceError::ApexUndecided { face, .. } => BooleanError::NormalAtConeApex {
+            operand,
+            face,
+            band,
+        },
     })?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
     // new carrier arm added to the shared walk must be a compile
@@ -636,25 +574,17 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus
+        | SectorCarrier::Cone
         | SectorCarrier::Spline(_) => {}
-        SectorCarrier::Cone => {
-            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
-                resolved.face,
-                proven(&body.faces, resolved.face, EntityId::Face),
-            ) else {
-                unreachable!("the shared walk's cone arm read a face that carries no cone")
-            };
-            let p = body.resolve_vertex_point(vertex, Proven);
-            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
-                BooleanError::NormalAtConeApex {
-                    operand,
-                    face: resolved.face,
-                    band,
-                }
-            })?;
-        }
     }
-    Ok((resolved.face, resolved.normal))
+    match resolved.at_vertex {
+        VertexFace::Tangent(normal) => Ok((resolved.face, normal)),
+        VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(BooleanError::NormalAtConeApex {
+            operand,
+            face: resolved.face,
+            band,
+        }),
+    }
 }
 
 /// The refusal for a bisector reading On between two bounds definitely
@@ -1983,7 +1913,7 @@ pub(super) fn runs_into<T: Decide>(
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        if !(is_edge && parallel_same(dir, bound, arm, band)?) {
+        if !(is_edge && parallel_same(dir, bound, arm, BOUNDS_PARALLEL, band)?) {
             continue;
         }
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
@@ -2012,20 +1942,30 @@ pub(super) fn runs_into<T: Decide>(
     Ok(true)
 }
 
-/// Same-direction parallelism of two bound directions (unit-ish).
-fn parallel_same<T: Decide>(
+/// **Whether two directions are parallel and point the same way**: the
+/// sine of their angle levered at `arm`, decided Zero, then their sense
+/// ([`direction_sense`]). Both are read off the directions normalized,
+/// so a margin is a length whatever the directions' norms. The caller's
+/// `reading` names the parallelism margin and the coincidence an in-band
+/// reading refuses as.
+pub(super) fn parallel_same<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
+    reading: Parallelism,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let cross_margin = Margin::levered(u.cross(v).norm(), arm);
-    match decide("bool_dir_parallel", cross_margin, band) {
+    let (u, v) = (u.normalize(), v.normalize());
+    match decide(
+        reading.predicate,
+        Margin::levered(u.cross(v).norm(), arm),
+        band,
+    ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
         Err(diag) => {
             return Err(BooleanError::coincidence(
-                Coincide::Sectors,
+                reading.coincide,
                 DeclarationRead::Moot,
                 diag,
             ));
@@ -2068,10 +2008,10 @@ fn sector_overlap<T: Decide>(
     }
     let arm = a.arm.min(b.arm);
     // Identical region (same or crossed bound pairing).
-    let straight =
-        parallel_same(a.start, b.start, arm, band)? && parallel_same(a.end, b.end, arm, band)?;
-    let crossed =
-        parallel_same(a.start, b.end, arm, band)? && parallel_same(a.end, b.start, arm, band)?;
+    let straight = parallel_same(a.start, b.start, arm, BOUNDS_PARALLEL, band)?
+        && parallel_same(a.end, b.end, arm, BOUNDS_PARALLEL, band)?;
+    let crossed = parallel_same(a.start, b.end, arm, BOUNDS_PARALLEL, band)?
+        && parallel_same(a.end, b.start, arm, BOUNDS_PARALLEL, band)?;
     Ok(straight || crossed)
 }
 
@@ -2180,7 +2120,7 @@ fn crescent<T: Decide>(
             if !matches!(ra, Reach::Conic { .. }) && !matches!(rb, Reach::Conic { .. }) {
                 continue;
             }
-            if !parallel_same(da, db, arm, band)? {
+            if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
                 continue;
             }
             for reach in [ra, rb] {
@@ -2215,7 +2155,7 @@ fn crescent<T: Decide>(
             }
             let l = la.min(lb);
             if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-                && !parallel_same(da, db, l, band)?
+                && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
             {
                 continue;
             }
@@ -2267,7 +2207,7 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), band)?)
+        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), BOUNDS_PARALLEL, band)?)
 }
 
 /// A corner [`crescent`] reads: one operand's body, its sectors at the
@@ -6085,6 +6025,95 @@ mod tests {
                 && !text.contains("declare"),
             "{text}"
         );
+    }
+
+    /// **A direction's norm does not move its parallelism or its sense**:
+    /// two directions `θ` apart read one verdict at any norms, and an
+    /// in-band reading refuses as the caller's coincidence under the
+    /// caller's predicate. At a millimetre norm, `sin θ` clear of the band
+    /// read raw is in its zero band, and at a kilometre one, `sin θ` in
+    /// the zero band read raw is clear of it; a cosine just clear at its
+    /// arm read raw at a millimetre norm is in its zero band.
+    #[test]
+    fn parallelism_reads_the_directions_and_not_their_norms() {
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let apart = |sin: f64| {
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+            )
+        };
+        for (sin, want) in [(2.0 * e, false), (0.5 * z, true)] {
+            let (u, v) = apart(sin);
+            for norm in [1e-3, 1.0, 1e3] {
+                assert_eq!(
+                    parallel_same(u * norm, v * norm, 1.0, BOUNDS_PARALLEL, b).unwrap(),
+                    want,
+                    "sin θ {sin:e} at norm {norm:e}"
+                );
+            }
+        }
+        // The sense, levered at an arm its cosine only just clears: read
+        // raw at a millimetre norm it would be in its zero band.
+        let (u, v) = apart(0.5 * z);
+        for norm in [1e-3, 1.0, 1e3] {
+            for (w, want) in [(v, true), (-v, false)] {
+                assert_eq!(
+                    parallel_same(u * norm, w * norm, 2.0 * e, BOUNDS_PARALLEL, b).unwrap(),
+                    want,
+                    "the sense of {w:?} at norm {norm:e}"
+                );
+            }
+        }
+        let (u, v) = apart((z + e) / 2.0);
+        for (reading, which) in [
+            (BOUNDS_PARALLEL, Coincide::Sectors),
+            (
+                super::super::refusal_routes::RAY_COLLINEAR,
+                Coincide::EdgeOnEdge,
+            ),
+        ] {
+            let err = parallel_same(u * 1e3, v * 1e3, 1.0, reading, b).expect_err("in band");
+            let BooleanError::Escalated { decision, diag } = &err else {
+                panic!("{which:?}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                *decision,
+                BooleanDecision::Coincidence(which, DeclarationRead::Moot),
+                "the caller's coincidence"
+            );
+            assert_eq!(
+                diag.predicate,
+                Some(reading.predicate),
+                "the caller's predicate"
+            );
+        }
+    }
+
+    /// **A degenerate direction refuses, never decides** (PR 5983's
+    /// review): normalizing a zero direction is NaN in every component,
+    /// so the one check must not read it as parallel or apart. Before
+    /// the normalization a zero bound's cross-norm was an exact zero and
+    /// read parallel on to the sense; now it must come back an error.
+    #[test]
+    fn a_zero_direction_refuses_rather_than_reading_parallel_or_apart() {
+        let b = band();
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        for (p, q) in [
+            (Vec3::zero(), u),
+            (u, Vec3::zero()),
+            (Vec3::zero(), Vec3::zero()),
+            (Vec3::new(f64::NAN, 0.0, 0.0), u),
+        ] {
+            let got = parallel_same(p, q, 1.0, BOUNDS_PARALLEL, b);
+            assert!(got.is_err(), "{p:?} against {q:?} decided {got:?}");
+        }
+        // A direction far below the squares' underflow band is still a
+        // direction: normalize prescales it.
+        let tiny = Vec3::new(1e-300, 0.0, 0.0);
+        assert!(parallel_same(tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
+        assert!(!parallel_same(-tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
     }
 
     /// **Two parallel directions' sense is its own decision, and its

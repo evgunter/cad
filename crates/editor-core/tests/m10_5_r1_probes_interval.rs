@@ -24,9 +24,9 @@ use bvh::Aabb;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, clearance, clearance_over,
-    clearance_with, self_intersection,
+    Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, clearance,
+    clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -228,7 +228,10 @@ fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
     let strict = query(
         ClearanceBound::StrictlyPositive,
         ClearanceConfig {
-            max_cell_pairs: 4_096,
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -437,12 +440,17 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// rounded body got a budget refusal for its answer.
 ///
 /// **FLIPPED by deciding cells off the face.** The bump's window is
-/// still the whole turn, so the pair reaches the tree
-/// (`candidates == 1`); every cell of the phantom lower half meets no
-/// edge of the bump on its own carrier (the end circles read as their
-/// half arcs, not as whole circles) and its station is out of the face,
-/// so it drops (`outside > 0`) and the touching pair is never
-/// classified. The body's real minimum gap is 0.5.
+/// still the whole turn, so the pair reaches the tree; every cell of
+/// the phantom lower half meets no edge of the bump on its own carrier
+/// (the end circles read as their half arcs, not as whole circles) and
+/// its station is out of the face, so it drops (`outside > 0`) and the
+/// phantom contact is never classified. The body's real minimum gap is
+/// 0.5.
+///
+/// Since SELFX the question proves the boundary injective, so every
+/// face pair is examined, not just this one (`candidates > 1`), and the
+/// pairs that touch — the bump against the walls it stands on — are
+/// certified by a local certificate (`certified > 0`).
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -451,7 +459,10 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         bound: ClearanceBound::StrictlyPositive,
         tol: Tol::witness(),
         config: ClearanceConfig {
-            max_cell_pairs: 8_192,
+            budgets: Budgets {
+                max_cell_pairs: 8_192,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
         oracle: &NoTangents,
@@ -473,10 +484,10 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         r.candidates,
         report.decided()
     );
-    assert_eq!(
-        (r.candidates, r.outside > 0),
-        (1, true),
-        "the bump's whole-turn window reaches the bottom wall, and its phantom cells drop: {}",
+    assert!(
+        r.candidates > 1 && r.outside > 0 && r.certified > 0,
+        "every pair is examined, the bump's whole-turn window reaches the bottom wall and its \
+         phantom cells drop, and the touching pairs certify: {}",
         report.serialize()
     );
     assert_eq!(
@@ -676,8 +687,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let leaf = box_of(&doc, "gap");
     let cfg = |pairs: usize, depth: u32| ClearanceConfig {
-        max_cell_pairs: pairs,
-        max_cell_depth: depth,
+        budgets: Budgets {
+            max_cell_pairs: pairs,
+            max_cell_depth: depth,
+        },
         ..ClearanceConfig::default()
     };
     let run = |c: f64, config: ClearanceConfig| {
@@ -733,7 +746,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     let infinite = run(
         f64::INFINITY,
         ClearanceConfig {
-            max_cell_pairs: 1_024,
+            budgets: Budgets {
+                max_cell_pairs: 1_024,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -781,7 +797,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         faces: FaceScope::Named(vec![wall]),
     };
     let cfg_small = ClearanceConfig {
-        max_cell_pairs: 256,
+        budgets: Budgets {
+            max_cell_pairs: 256,
+            ..ClearanceConfig::default().budgets
+        },
         ..ClearanceConfig::default()
     };
     let doubled = clearance_with(
@@ -819,7 +838,10 @@ fn a_nan_bound_is_not_refused_at_the_door() {
         &query(
             ClearanceBound::AtLeast(f64::NAN),
             ClearanceConfig {
-                max_cell_pairs: 4_096,
+                budgets: Budgets {
+                    max_cell_pairs: 4_096,
+                    ..ClearanceConfig::default().budgets
+                },
                 ..ClearanceConfig::default()
             },
         ),
@@ -856,7 +878,10 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
     let q = query(
         ClearanceBound::AtLeast(0.4),
         ClearanceConfig {
-            max_cell_pairs: 16_384,
+            budgets: Budgets {
+                max_cell_pairs: 16_384,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -1116,7 +1141,10 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
         &query(
             ClearanceBound::AtLeast(0.5),
             ClearanceConfig {
-                max_cell_pairs: 4,
+                budgets: Budgets {
+                    max_cell_pairs: 4,
+                    ..ClearanceConfig::default().budgets
+                },
                 ..ClearanceConfig::default()
             },
         ),

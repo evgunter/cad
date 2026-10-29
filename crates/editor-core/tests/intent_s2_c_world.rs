@@ -84,6 +84,15 @@ const FILES: [&str; 5] = [
 /// `0.49999999999999994`) and 2 of its 68 carriers (a sphere's and a
 /// torus's centres, the same `z`), because the pips' union computes in
 /// its first pip's frame and reads every other pip through `relative`.
+///
+/// Three rows moved when patterns became index variables (D10
+/// `[repetition]`), each the same body, solid for solid, its word count
+/// kept. `kitchen_sink`'s ring is spun by an exact half turn, so its
+/// eight turned corners land on `y = 0` and `y = −1` where `sin π`'s
+/// residue left them up to `3.7e-16` off; `die_tool` and its saved file
+/// place their pips by values, so three pip-floor points stand 4 ulps
+/// (`2.8e-17`) nearer the faces they are cut from. Every other point of
+/// both is the merge base's (`a195f777`) bit for bit.
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -93,7 +102,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
-    ("kitchen_sink", "34a5423649535fd1/196"),
+    ("kitchen_sink", "fddfb7f84e02cfcd/196"),
     ("cut_cylinder", "d2acb2b37c5273db/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
@@ -101,7 +110,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("die_chamfer", "934f10b8156f9396/76"),
     ("die_pips", "2859880c273d7b35/37"),
     ("heat_sink_fins", "8a57c326dc5f71aa/124"),
-    ("die_tool", "e426662d8439569d/82"),
+    ("die_tool", "f4d9c34d5c3d1451/82"),
     ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
     ("symmetric_plate", "4988a8ebeaf80d66/52"),
@@ -116,7 +125,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
-    (FILES[1], "e426662d8439569d/82"),
+    (FILES[1], "f4d9c34d5c3d1451/82"),
     (FILES[2], "b70c1bbdaed3e0e1/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
@@ -832,29 +841,16 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     );
 }
 
-/// **An empty world names a pattern among the unplaced.** A block and a
-/// pattern of it, nothing placed: `EmptyProduct` lists both outputs,
-/// the pattern's `Bodies` included, and the recourse says how a list of
-/// bodies is placed.
+/// **An empty world holds a family placed in its block's own space.** A
+/// block and a row of it in the block's space, nothing in the world:
+/// the product is empty, and says it reads nothing.
 ///
-/// Red if `Doc::unplaced` lists `Body` outputs only (the pattern is
-/// missing), or the recourse does not name the `Part` pick.
+/// Red if a family placed outside the world reaches the product.
 #[test]
-fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
+fn an_empty_world_holds_no_family_placed_beside_its_block() {
     let doc = ProfileDoc::empty_derived("intent-c-unplaced-pattern", Tol::witness());
     let (doc, a) = block(doc, 0.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: a.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(crate::fixture::scl),
-                spacing: len(2.0),
-            },
-        },
-    );
-    let _ = pattern;
+    let (doc, _, _) = crate::fixture::linear(doc, a, [1.0, 0.0, 0.0], 2.0, 2);
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
         matches!(&refused, ProductError::EmptyProduct),

@@ -2353,7 +2353,7 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     assert!(r.implemented, "Nurbs×Nurbs is implemented");
     assert!(r.note.contains("TWO-CHART"), "{}", r.note);
     for (a, b) in [
-        (SurfaceKind::Cylinder, SurfaceKind::Torus),
+        (SurfaceKind::Cone, SurfaceKind::Torus),
         (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {
