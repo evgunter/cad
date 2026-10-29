@@ -273,3 +273,18 @@ off its axis-aligned arm (SECTSITE).
   each announces its seam, and the components unit merges first where
   they collide. The cylinder-face ring re-homing row waits for PR 5974 and
   the components unit's germ-mint change in `join.rs`.
+
+## 2026-10-29 — teapot wall 2's sphere × torus half (PR 5974)
+
+PR 5974: a carried ring on a torus face reads its spline arcs (the torus
+`ring_path` arm), and `join::along_facing` refuses germs on two components
+up front as `facing` does. Wall 2 still stops at SPIRICARM's volume door
+(conic trim), now pinned by exact payload; the matcher fix moves its
+refused face (`6v1` → `1v5`) and ball × rod's on every op, which restores
+the mirror symmetry main broke (row
+`a_rod_through_a_ball_pairs_both_loops_alike`). Tier: **single FULL**
+(re-tiered from dual at the PR, the unit having shrunk): APPROVE-WITH-FIXES,
+no soundness defect (0 wrong of 2617 decided paths over 330 random poses);
+one fix pass took every item, with the reviewer's random search landed
+as `random_torus_sections`. The `Untold` placements wait on the components
+unit.
