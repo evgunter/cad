@@ -137,7 +137,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
     ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
-    NoTangents, Pruning, Selection, clearance, clearance_over, clearance_with, self_intersection,
+    NoTangents, Pruning, Selection, Which, clearance, clearance_over, clearance_with,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -1256,7 +1257,7 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     };
     match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::EmptyScope,
+            refusal: EngineRefusal::EmptyScope { side: Which::First },
             ..
         }) => {}
         other => panic!("expected EmptyScope, got {other:?}"),

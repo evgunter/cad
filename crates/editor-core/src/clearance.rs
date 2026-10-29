@@ -100,7 +100,7 @@ use crate::var::VarId;
 pub use topo::clearance::{
     Budgets, CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
     DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, MinSeparationRefusal,
-    SELF_INTERSECTION_GAP, SharedCell,
+    SELF_INTERSECTION_GAP, SharedCell, Which,
 };
 
 /// The whole-query cell-pair budget: how many cell pairs one clearance
@@ -633,7 +633,8 @@ pub enum SelectionRefusal {
     Tied {
         /// The name.
         name: Box<StableName>,
-        /// The faces that answer to it.
+        /// The faces that answer to it, each body by the node's output
+        /// index, the index a [`Selection`] names it by.
         candidates: Vec<EntityRef>,
     },
     /// A name in the scope denotes a face of another output body of
@@ -641,8 +642,18 @@ pub enum SelectionRefusal {
     OtherBody {
         /// The name.
         name: Box<StableName>,
-        /// The output body its face is on.
+        /// The node's output body its face is on, as a [`Selection`]
+        /// names it.
         body: u32,
+    },
+    /// A face name whose table row holds a key of another kind: the
+    /// name table seated a row against its name's kind, which every
+    /// door that seats one refuses. A kernel defect.
+    KeyOfAnotherKind {
+        /// The name.
+        name: Box<StableName>,
+        /// The kind of the key its row holds.
+        found: EntityKind,
     },
     /// The two selections live in different spaces (D10, Spaces), and
     /// nothing in one is compared with the other.
@@ -687,10 +698,9 @@ impl crate::spoken::Say for SelectionRefusal {
             }
             Self::NoBodies { node, payload } => write!(
                 f,
-                "{}'s value is {} {payload} value and carries no bodies at all, so there is no \
-                 face to measure a clearance between. {}",
+                "{}'s value {}, so there is no face to measure a clearance between. {}",
                 by.node(*node),
-                crate::sentence::article(payload),
+                crate::sentence::CarriesNoBodies(payload),
                 crate::sentence::Recourse("select a node whose value is a body")
             ),
             Self::Unresolved { name } => write!(
@@ -722,13 +732,22 @@ impl crate::spoken::Say for SelectionRefusal {
                 write!(
                     f,
                     "), and a tie is never broken by picking. {}",
-                    crate::sentence::Recourse("refine the reference until one candidate remains")
+                    crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
             Self::OtherBody { name, body } => write!(
                 f,
                 "{} denotes a face of body {body}, not of the selected body",
                 by.name(name)
+            ),
+            Self::KeyOfAnotherKind { name, found } => write!(
+                f,
+                "{} names a face, and its row in the name table holds {} {} — the table seated a \
+                 row against its name's kind. {}",
+                by.name(name),
+                found.article(),
+                found.noun(),
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::AcrossSpaces { a, b } => write!(
                 f,
@@ -802,6 +821,9 @@ impl SelectionRefusal {
             Self::NotAFace { name, found } => format!("not_a_face {name:?} found={found:?}"),
             Self::Tied { name, candidates } => format!("tied {name:?} candidates={candidates:?}"),
             Self::OtherBody { name, body } => format!("other_body {name:?} body={body}"),
+            Self::KeyOfAnotherKind { name, found } => {
+                format!("key_of_another_kind {name:?} found={found:?}")
+            }
             Self::AcrossSpaces { a, b } => {
                 let space = |s: &crate::VarId| match *s {
                     crate::VarId::WORLD => "world".to_owned(),
@@ -1084,11 +1106,13 @@ fn clearance_on(
         // comes back `Budget`, which is the wrong name for it.
         return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
     }
-    if a.is_empty_scope() || b.is_empty_scope() {
-        return ClearanceReport::refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::EmptyScope,
-            sides: [(a.at, a.body), (b.at, b.body)],
-        });
+    for (sel, side) in [(a, Which::First), (b, Which::Second)] {
+        if sel.is_empty_scope() {
+            return ClearanceReport::refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::EmptyScope { side },
+                sides: [(a.at, a.body), (b.at, b.body)],
+            });
+        }
     }
     let band = match Band::linear(query.tol) {
         Ok(band) => band,
@@ -1182,10 +1206,13 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             Ok(faces) => faces,
             Err(r) => return ClearanceReport::refused(r),
         };
-        let windows_a = match engine.windows(&Side {
-            body: &body_a,
-            faces: faces_a.clone(),
-        }) {
+        let windows_a = match engine.windows(
+            &Side {
+                body: &body_a,
+                faces: faces_a.clone(),
+            },
+            Which::First,
+        ) {
             Ok(w) => w,
             Err(r) => return ClearanceReport::refused(refused(r)),
         };
@@ -1210,10 +1237,13 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let windows_b = if a == b {
             windows_a.clone()
         } else {
-            match engine.windows(&Side {
-                body: &body_b,
-                faces: faces_b,
-            }) {
+            match engine.windows(
+                &Side {
+                    body: &body_b,
+                    faces: faces_b,
+                },
+                Which::Second,
+            ) {
                 Ok(w) => w,
                 Err(r) => return ClearanceReport::refused(refused(r)),
             }
@@ -1595,12 +1625,21 @@ fn faces_of<T: geom_core::Decide>(
                         found: name.kind,
                     }));
                 }
+                // A row's body is its table's index: a split's half reads
+                // its one body as 0. A refusal says the selection's.
+                let output = |body: u32| if body == index { sel.body } else { body };
                 let ent = match entry {
                     Entry::Unique(ent) => ent,
                     Entry::Tied(candidates) => {
                         return Err(refuse(SelectionRefusal::Tied {
                             name: named(),
-                            candidates: candidates.clone(),
+                            candidates: candidates
+                                .iter()
+                                .map(|c| EntityRef {
+                                    body: output(c.body),
+                                    key: c.key,
+                                })
+                                .collect(),
                         }));
                     }
                 };
@@ -1609,11 +1648,16 @@ fn faces_of<T: geom_core::Decide>(
                     EntityKey::Face(_) => {
                         return Err(refuse(SelectionRefusal::OtherBody {
                             name: named(),
-                            body: ent.body,
+                            body: output(ent.body),
                         }));
                     }
                     other => {
-                        return Err(refuse(SelectionRefusal::NotAFace {
+                        debug_assert!(
+                            false,
+                            "a face name's row holds {other:?}: every `NameTable` door that \
+                             seats a row admits it only at its name's kind"
+                        );
+                        return Err(refuse(SelectionRefusal::KeyOfAnotherKind {
                             name: named(),
                             found: other.kind(),
                         }));

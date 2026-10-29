@@ -150,7 +150,7 @@ impl crate::spoken::Say for InterrogateError {
                 f,
                 "{candidates} entities answer to that name equally well, so there is no single \
                  geometry to report — a tie is recorded, never broken silently. {}",
-                Recourse("refine the reference until one candidate remains")
+                Recourse(crate::sentence::REFINE_THE_TIE)
             ),
             Self::WrongKind { wanted, found } => write!(
                 f,
@@ -171,9 +171,8 @@ impl crate::spoken::Say for InterrogateError {
             ),
             Self::NoBodies { payload } => write!(
                 f,
-                "this node's value is {} {payload} value and carries no bodies at all, \
-                 so there is no geometry to read. {}",
-                crate::sentence::article(payload),
+                "this node's value {}, so there is no geometry to read. {}",
+                crate::sentence::CarriesNoBodies(payload),
                 Recourse("name an entity of a node whose value is a body")
             ),
             Self::NoSuchBody { index } => write!(

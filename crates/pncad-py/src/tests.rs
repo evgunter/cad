@@ -545,7 +545,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind};
+    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind, Which};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -562,10 +562,11 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(MinSeparationRefusal::EmptyScope);
+    let empty = refused(MinSeparationRefusal::EmptyScope { side: Which::First });
     let unsupported = refused(MinSeparationRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
+        side: Which::First,
     });
     let poison = refused(MinSeparationRefusal::PoisonEnclosure {
         a: FaceKey::default(),

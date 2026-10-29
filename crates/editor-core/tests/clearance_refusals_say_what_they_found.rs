@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
-    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, clearance,
+    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which, clearance,
 };
 use editor_core::{EntityKind, Entry, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName};
 use geom_core::{BandError, Tol};
@@ -120,24 +120,105 @@ fn the_band_refusal_says_which_band_failed() {
 }
 
 /// **The report's human form says the refusal in words**, not its
-/// goldening payload: a scope naming no face refuses before anything is
-/// evaluated, and the line says so.
+/// goldening payload: a second scope naming no face refuses before
+/// anything is evaluated, and the line names that scope's body.
 #[test]
 fn a_refused_report_renders_the_refusal_in_words() {
-    let node = tagged();
     let nothing = Selection {
-        at: node,
+        at: tagged(),
         body: 0,
         faces: FaceScope::Named(Vec::new()),
     };
+    let whole = Selection::body_of(RecipeNodeId::new(0, 7));
     let doc = ProfileDoc::empty_derived("cleartext_render", Tol::witness());
     let leaf = ParamBox::from_axes(BTreeMap::new());
-    let report = clearance(&doc, &leaf, &nothing, &nothing, 0.1, Tol::witness());
+    let report = clearance(&doc, &leaf, &whole, &nothing, 0.1, Tol::witness());
     let rendered = report.render();
     assert_eq!(
         rendered.lines().next(),
-        Some("REFUSED (empty_scope): a scope names no face, so there is nothing to measure"),
-        "the refused line: {rendered}"
+        Some(
+            "REFUSED (empty_scope): the scope of body 0 of node 3fa9c1d2a0b1 names no face, so \
+             there is nothing to measure"
+        ),
+        "the refused line names the second scope: {rendered}"
+    );
+}
+
+/// **A refusal about one face names its side too**: two bodies'
+/// arenas carry the same key values, so a bare key locates nothing in
+/// a question over two of them. The measure door says the engine's
+/// words with its operands as the sides, and a face name whose row
+/// holds another kind of key reads as the kernel defect it is.
+#[test]
+fn a_one_face_refusal_names_its_side() {
+    let k = FaceKey::default();
+    let unsupported = EngineRefusal::Unsupported {
+        carrier: "a free-form face, which no carrier kind makes injective",
+        face: k,
+        side: Which::Second,
+    };
+    assert_eq!(
+        unsupported.to_string(),
+        "the clearance engine cannot answer for face FaceKey(null) of the second side: it is a \
+         free-form face, which no carrier kind makes injective",
+        "the words claim no missing window and name the side"
+    );
+    assert_eq!(
+        unsupported.payload(),
+        "a free-form face, which no carrier kind makes injective second=FaceKey(null)",
+        "the payload names the side"
+    );
+    assert_eq!(
+        EngineRefusal::TorusNotRing {
+            face: k,
+            side: Which::First,
+        }
+        .to_string(),
+        "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r), so its \
+         carrier meets itself",
+        "the torus names its side"
+    );
+    let collapsed = EngineRefusal::CollapsedChart {
+        face: k,
+        side: Which::Second,
+        vertex: topo::VertexKey::default(),
+    };
+    assert_eq!(
+        collapsed.to_string(),
+        "the chart of face FaceKey(null) of the second side collapses an edge to its vertex \
+         VertexKey(null) near a touching pair, and the monotone certificate reads no collapsed \
+         chart",
+        "the collapsed chart names its side"
+    );
+    assert_eq!(
+        collapsed.payload(),
+        "second=FaceKey(null) VertexKey(null)",
+        "the collapsed chart's payload names its side"
+    );
+    let measured = editor_core::NodeErrorKind::MeasureClearanceRefused(
+        MinSeparationRefusal::PoisonEnclosure { a: k, b: k },
+    );
+    assert_eq!(
+        measured.to_string(),
+        "the clearance engine refused: the enclosure between face FaceKey(null) of the first \
+         operand and face FaceKey(null) of the second operand did not evaluate, which is \
+         geometry, not a budget",
+        "the measure door says the engine's words, its operands the sides"
+    );
+    let name = StableName {
+        kind: EntityKind::Face,
+        node: tagged(),
+        path: Vec::new(),
+    };
+    let defect = SelectionRefusal::KeyOfAnotherKind {
+        name: Box::new(name),
+        found: EntityKind::Edge,
+    }
+    .to_string();
+    assert!(
+        defect.contains(" names a face, and its row in the name table holds an edge")
+            && defect.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+        "a row against its name's kind is the kernel's defect: {defect}"
     );
 }
 
@@ -224,6 +305,16 @@ fn a_named_scope_asks_what_a_name_denotes_before_how_many_answer() {
             && said.contains("refine the reference until one candidate remains"),
         "the tie's words give the count and a tie's recourse: {said}"
     );
+    for c in candidates {
+        let editor_core::EntityKey::Face(k) = c.key else {
+            panic!("a tied face name's candidates are faces: {c:?}");
+        };
+        let listed = format!("face {k:?} of body 0");
+        assert!(
+            said.contains(&listed),
+            "the tie's words list {listed}: {said}"
+        );
+    }
 
     let refusal = refused_selection(&doc, &scoped(&edge), &whole);
     assert_eq!(
