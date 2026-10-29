@@ -891,6 +891,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         });
         let mut m = Mint::empty();
         let id = m.insert(&node);

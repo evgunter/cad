@@ -170,6 +170,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -383,6 +384,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -489,6 +491,7 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
             phase: ang(phase),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -707,6 +710,7 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     let quarter = r.insert(fixture::revolve_about(
         profile,
@@ -802,6 +806,7 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
     let disc = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a literal circle")],
         ids: Vec::new(),
+        on: None,
     }));
     let cylinder = r.insert(Node::Extrude {
         profile: disc.into(),

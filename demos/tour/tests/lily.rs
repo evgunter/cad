@@ -892,7 +892,9 @@ mod review_probes {
         let ps = pieces();
         let b = body(&ps, "lily_leaf_a");
         let caps = cap_frames(b);
-        // The BASE cap is the wide one; the TIP cap the narrow one.
+        // The wide cap is the root's, where the sheath carries the
+        // blade's base section into the stem unchanged, so it reads
+        // the base lens; the TIP cap is the narrow one.
         let (base, tip) = if caps[0].width > caps[1].width {
             (&caps[0], &caps[1])
         } else {
@@ -920,17 +922,11 @@ mod review_probes {
         // identical spine, identical stations, identical sections, so
         // the two tip caps are coplanar and their frames differ by the
         // roll and nothing else.
-        let untwisted = lofted_blade::<f64>(
-            LEAF_A_BASE,
-            LEAF_A_DIR,
-            LEAF_A_UP,
-            LEAF_A_LEN,
-            LEAF_A_CURL,
+        let untwisted = leaf_a::<f64>(
             Plan {
                 twist: 0.0,
                 ..leaf_a_plan()
             },
-            LOFT_STATIONS,
             Tol::witness(),
         );
         let flat = cap_frames(&untwisted);
@@ -955,6 +951,42 @@ mod review_probes {
             (turn - want).abs() < 1e-9,
             "blade roll {turn} rad, wanted {want} (the authored twist, SIGN included)"
         );
+    }
+
+    /// The long leaf grows from the middle of the lower stem, read off
+    /// both stored bodies: the chord midpoint of its root cap, the
+    /// spine's first point, lies on the stem tube's core circle, and its
+    /// two margins stand outside the tube, so the base clasps the stem
+    /// with a margin showing either side. Wall 8 unions the two as they
+    /// stand.
+    #[test]
+    fn the_long_leaf_grows_from_the_middle_of_the_stem() {
+        let ps = pieces();
+        let caps = cap_frames(body(&ps, "lily_leaf_a"));
+        let root = if caps[0].width > caps[1].width {
+            &caps[0]
+        } else {
+            &caps[1]
+        };
+        let (c, axis, ring, tube, _) = torus(body(&ps, "lily_stem"));
+        let off_core = |p: Point3<f64>| {
+            let w = p - c;
+            let h = w.dot(axis);
+            ((w - axis * h).norm() - ring).hypot(h)
+        };
+        let mid = root.margins[0] + (root.margins[1] - root.margins[0]) * 0.5;
+        assert!(
+            off_core(mid) < 1e-9,
+            "the leaf's root is {:e} off the stem's axis",
+            off_core(mid)
+        );
+        for m in root.margins {
+            assert!(
+                off_core(m) > tube,
+                "a root margin {} from the stem's axis is inside its {tube} tube",
+                off_core(m)
+            );
+        }
     }
 
     /// The sepals' TANGENCY claim, checked against the globe the
@@ -1295,6 +1327,8 @@ mod review_probes {
         /// points from the chord toward the RIDGE (the deeper of the
         /// section's two rises).
         v: Vec3<f64>,
+        /// The two margins.
+        margins: [Point3<f64>; 2],
     }
 
     /// Both caps of a lofted blade, each reduced to a [`Cap`].
@@ -1367,6 +1401,7 @@ mod review_probes {
                 n: normal,
                 width,
                 v,
+                margins: [on[0], on[1]],
             });
         }
         assert_eq!(
@@ -1401,11 +1436,17 @@ mod review_probes {
     /// refusal NAMES the slab that walls. At [`LOFT_STATIONS`] the
     /// blade coils past two full turns and still builds, so the
     /// refusal side is pinned at four stations instead.
+    ///
+    /// The wall is [`lofted_blade`]'s, the door the sepals are built
+    /// through, so it is measured on the long leaf's blade alone: its
+    /// base, direction, length and plan, without the sheath the scene's
+    /// [`leaf_a`] lofts in front of it.
     #[test]
     fn the_spine_curl_wall_re_measured() {
+        let (_, _, base, _) = leaf_a_spine(Tol::witness());
         let blade = |curl: f64, stations: usize| {
             try_lofted_blade::<f64>(
-                LEAF_A_BASE,
+                base,
                 LEAF_A_DIR,
                 LEAF_A_UP,
                 LEAF_A_LEN,

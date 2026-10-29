@@ -69,7 +69,10 @@
 //!   there is no argument in which either could be asked for
 //!   (findings entry 9).
 //! - the long basal **leaf** and the three **sepals** are the same
-//!   blade said as a LOFT, and they do both. `loft_body` takes the
+//!   blade said as a LOFT, and they do both. The long leaf is one
+//!   loft from sheath to tip: the sheath curls down and out of the
+//!   middle of the stem, and the blade arches over the other way, along
+//!   the ground. `loft_body` takes the
 //!   sections and the placements as two lists, so the section may
 //!   change station to station — the swept leaves' lens, narrow at
 //!   the stem, wide and flat at the belly, small at the tip — and the frame
@@ -145,11 +148,10 @@
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
-use pncad::geom_brep::{CertCheck, CertifyError};
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
-use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
+use pncad::prelude::{CurveKind, Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
 use pncad::sweep::{
@@ -157,8 +159,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeDescribeFailure, EdgeKey,
-    EulerOpError, Operand, PairRefusalSite,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeCarrierSite, EdgeKey, Operand,
+    PairRefusalSite,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -903,18 +905,19 @@ pub const LEAF_C: SweptLeaf = SweptLeaf {
     curl: -0.35,
 };
 
-/// The long basal leaf's placement and spine, named rather than
-/// inlined because
+/// The long basal leaf's blade direction at its base, and its spine,
+/// named rather than inlined because
 /// `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`
-/// builds a SECOND blade from the very same numbers with the twist set
+/// builds a SECOND leaf from the very same numbers with the twist set
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the
 /// measurement would quietly stop meaning anything.
-pub const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
-/// See [`LEAF_A_BASE`].
 pub const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
-/// See [`LEAF_A_BASE`].
+/// See [`LEAF_A_DIR`].
 pub const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+/// How high on the lower stem's axis the long leaf grows from
+/// ([`leaf_a_root`]).
+pub const LEAF_A_ROOT_Z: f64 = 0.11;
 /// Wall 7's carving ball, the one that cuts a tepal seam into the
 /// lantern's zone sphere off its chart's polar axis: its centre, and
 /// [`WALL7_BALL_RADIUS`]. The wall carves with it at the walls' scalar
@@ -923,11 +926,17 @@ pub const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
 pub const WALL7_BALL_CENTER: Point3<f64> = Point3::new(-2.80, 0.0, 0.90);
 /// See [`WALL7_BALL_CENTER`].
 pub const WALL7_BALL_RADIUS: f64 = 0.16;
-/// See [`LEAF_A_BASE`].
+/// See [`LEAF_A_DIR`].
 pub const LEAF_A_LEN: f64 = 5.10;
-/// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
+/// See [`LEAF_A_DIR`]. Negative: the blade arches OVER, which is what
 /// a basal leaf lying along the ground does.
 pub const LEAF_A_CURL: f64 = -0.62;
+/// The long basal leaf's sheath ([`leaf_a`]): its length from the root
+/// to the blade's base, and its curl, positive because it turns the
+/// other way from the blade.
+pub const LEAF_A_SHEATH_LEN: f64 = 0.34;
+/// See [`LEAF_A_SHEATH_LEN`].
+pub const LEAF_A_SHEATH_CURL: f64 = 0.85;
 
 /// The long basal leaf's section plan: a narrow lens where it meets
 /// the stem, a wide flat one at the belly a fifth of the way out, and
@@ -970,6 +979,8 @@ const BLADE_V_DEGREE: usize = 3;
 /// chords between them, so a roll of half a turn wants stations dense
 /// enough that no chord cuts a visible corner.
 pub const LOFT_STATIONS: usize = 17;
+/// Stations along the long leaf's sheath, its base section included.
+const SHEATH_STATIONS: usize = 9;
 /// Stations along a sepal — shorter blades, gentler roll.
 const SEPAL_STATIONS: usize = 13;
 
@@ -1138,45 +1149,143 @@ pub fn try_lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
-    let (d, v, u) = blade_frame(dir, up, tol);
-    let r = len / curl;
-    let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
-    let mut places: Vec<SketchPlane<S>> = Vec::with_capacity(stations);
-    for k in 0..stations {
+    let (sections, places): (Vec<_>, Vec<_>) = blade_stations(
+        base,
+        blade_frame(dir, up, tol),
+        len,
+        curl,
+        plan,
+        stations,
+        tol,
+    )
+    .unzip();
+    loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
+}
+
+/// A lofted blade's stations, base to tip: section `k` is `plan.at(s_k)`
+/// at fraction `s_k` of the arc, rolled `roll0 + twist * s_k^twist_ease`.
+fn blade_stations<S: Scalar>(
+    base: Point3<f64>,
+    frame: BladeFrame,
+    len: f64,
+    curl: f64,
+    plan: Plan,
+    stations: usize,
+    tol: Tol,
+) -> impl Iterator<Item = (Vec<ConstructedLoop<S>>, SketchPlane<S>)> {
+    (0..stations).map(move |k| {
         #[allow(clippy::cast_precision_loss)]
         let s = (k as f64) / ((stations - 1) as f64);
-        let a = curl * s;
-        let (sa, ca) = (a.sin(), a.cos());
-        // The spine point, and the (tangent, up) pair carried round
-        // with it — the arc turns in the (d, v) plane about u, so u
-        // itself is fixed and the roll below is the only other motion.
-        let p = base + d * (r * sa) + v * (r * (1.0 - ca));
-        let vk = v * ca - d * sa;
-        // The roll: turn (u, vk) about the tangent by the eased angle.
-        let th = plan.roll0 + plan.twist * s.powf(plan.twist_ease);
-        let (st, ct) = (th.sin(), th.cos());
-        let uu = u * ct + vk * st;
-        let vv = vk * ct - u * st;
-        sections.push(plan.at(s).outline(tol));
-        places.push(sketch_frame::<S>(
+        let roll = plan.roll0 + plan.twist * s.powf(plan.twist_ease);
+        blade_station(base, frame, len / curl, curl * s, roll, plan.at(s), tol)
+    })
+}
+
+/// One station of a lofted blade whose spine is a circular arc of
+/// signed radius `r` leaving `base` along the frame's `d` and turning
+/// toward its `v`: the point `a` radians round that arc, the section
+/// placed normal to the arc there and rolled `roll` about its tangent.
+/// The arc turns in the `(d, v)` plane about `u`, so `u` itself is
+/// fixed and the roll is the only other motion.
+fn blade_station<S: Scalar>(
+    base: Point3<f64>,
+    (d, v, u): BladeFrame,
+    r: f64,
+    a: f64,
+    roll: f64,
+    section: Lance,
+    tol: Tol,
+) -> (Vec<ConstructedLoop<S>>, SketchPlane<S>) {
+    let (sa, ca) = (a.sin(), a.cos());
+    let p = base + d * (r * sa) + v * (r * (1.0 - ca));
+    let vk = v * ca - d * sa;
+    let (st, ct) = (roll.sin(), roll.cos());
+    let uu = u * ct + vk * st;
+    let vv = vk * ct - u * st;
+    // Built in `f64`, so they enter `S` as the computed values they are.
+    (
+        section
+            .outline(tol)
+            .iter()
+            .map(|lp| lp.lift_computed())
+            .collect(),
+        sketch_frame::<S>(
             p.map(S::from_computed),
             uu.map(S::from_computed),
             vv.map(S::from_computed),
             tol,
-        ));
-    }
-    // Built in `f64`, so they enter `S` as the computed values they are.
-    let sections: Vec<Vec<_>> = sections
-        .iter()
-        .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
-        .collect();
+        ),
+    )
+}
+
+/// Where the long leaf grows from: the point on the lower stem's axis
+/// [`LEAF_A_ROOT_Z`] above the ground, so the leaf's lower end sits in
+/// the middle of the stem's tube. The stem's walk starts at the origin
+/// heading up, so the axis there is its ring at the angle whose rise is
+/// that height.
+fn leaf_a_root() -> Point3<f64> {
+    let (lower, _) = lower_stem();
+    let th = (LEAF_A_ROOT_Z / lower.ring).asin();
+    lower.center + (lower.radial * th.cos() + Vec3::unit_z() * th.sin()) * lower.ring
+}
+
+/// The long leaf's spine as `(root, sheath frame, base, blade frame)`.
+/// The sheath leaves [`leaf_a_root`] in the blade's frame turned back
+/// through [`LEAF_A_SHEATH_CURL`], so after [`LEAF_A_SHEATH_LEN`] it
+/// arrives at the blade's base along `LEAF_A_DIR`: two circular arcs in
+/// one plane, meeting G1 there.
+pub fn leaf_a_spine(tol: Tol) -> (Point3<f64>, BladeFrame, Point3<f64>, BladeFrame) {
+    let (d, v, u) = blade_frame(LEAF_A_DIR, LEAF_A_UP, tol);
+    let (sc, cc) = LEAF_A_SHEATH_CURL.sin_cos();
+    let (ds, vs) = (d * cc - v * sc, v * cc + d * sc);
+    let root = leaf_a_root();
+    let r = LEAF_A_SHEATH_LEN / LEAF_A_SHEATH_CURL;
+    let base = root + ds * (r * sc) + vs * (r * (1.0 - cc));
+    (root, (ds, vs, u), base, (d, v, u))
+}
+
+/// The long basal leaf, sheath and blade in ONE loft, the blade's base
+/// section an interior station. The sheath carries the base section
+/// unchanged out of the stem, curling down and out of it; the blade
+/// then arches over the other way, along the ground.
+pub fn leaf_a<S: Scalar>(plan: Plan, tol: Tol) -> Body<S> {
+    let (root, sheath_frame, base, frame) = leaf_a_spine(tol);
+    let sheath_plan = Plan {
+        belly: plan.base,
+        tip: plan.base,
+        twist: 0.0,
+        ..plan
+    };
+    // The sheath's last station is the blade's first.
+    let sheath = blade_stations(
+        root,
+        sheath_frame,
+        LEAF_A_SHEATH_LEN,
+        LEAF_A_SHEATH_CURL,
+        sheath_plan,
+        SHEATH_STATIONS,
+        tol,
+    )
+    .take(SHEATH_STATIONS - 1);
+    let blade = blade_stations(
+        base,
+        frame,
+        LEAF_A_LEN,
+        LEAF_A_CURL,
+        plan,
+        LOFT_STATIONS,
+        tol,
+    );
+    let (sections, places): (Vec<_>, Vec<_>) = sheath.chain(blade).unzip();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
+        .expect("the long leaf skins its sheath and blade as one loft")
+        .body
 }
 
 /// The three **sepals**, the feature that reads as *pulchellus*
 /// rather than *albus*: long pointed blades that spread from high on
 /// the globe and project past it instead of being hidden by it. They
-/// are [`lofted_blade`]s for the reason the long leaf is — a sepal
+/// are lofted for the reason the long leaf is — a sepal
 /// TAPERS, and a sepal that did not taper would read as a strap.
 ///
 /// # They meet the globe TANGENTIALLY, and provably never re-enter it
@@ -1380,14 +1489,10 @@ const BROWN_ROOTSTOCK: [f64; 3] = [0.55, 0.44, 0.30];
 /// the flower hangs along the stem's own direction rather than along
 /// a hand-chosen vector.
 pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
-    let root = Turtle {
-        p: Point3::origin(),
-        t: Vec3::unit_z(),
-    };
     // The long, nearly straight rise, then the tight turn-over that
-    // makes the arch. 22 degrees on a 5 m ring reads as "leaning";
-    // 170 degrees on a 1.1 m ring turns the stem right over.
-    let (lower, at_fork) = root.arc(STEM_RING, deg(22.0));
+    // makes the arch. 170 degrees on a 1.1 m ring turns the stem right
+    // over.
+    let (lower, at_fork) = lower_stem();
     let (upper, at_flower) = at_fork.arc(1.1, deg(170.0));
     // The side pedicel leaves the fork heading up and out, then
     // curls 130 degrees over so its lantern hangs nearly plumb.
@@ -1543,16 +1648,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             // at edge-on you end up looking at face-on. Neither motion
             // is expressible as a sweep (probe 9): the sweep carries
             // ONE profile along a frame it derives itself.
-            body: lofted_blade(
-                LEAF_A_BASE,
-                LEAF_A_DIR,
-                LEAF_A_UP,
-                LEAF_A_LEN,
-                LEAF_A_CURL,
-                leaf_a_plan(),
-                LOFT_STATIONS,
-                tol,
-            ),
+            body: leaf_a(leaf_a_plan(), tol),
             caps: None,
             contacts: None,
         },
@@ -1603,6 +1699,16 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     pieces
 }
 
+/// The lower stem's arc, the walk's first leg: from the origin heading
+/// up, 22 degrees on a 5 m ring, which reads as "leaning".
+fn lower_stem() -> (ArcSpec, Turtle) {
+    Turtle {
+        p: Point3::origin(),
+        t: Vec3::unit_z(),
+    }
+    .arc(STEM_RING, deg(22.0))
+}
+
 /// The lower stem's tube: a 5 m ring at the authored 0.06 m pipe, so its
 /// ring is about 83 times its pipe.
 const STEM_RING: f64 = 5.0;
@@ -1627,11 +1733,7 @@ const STEM_TUBE: f64 = 0.060;
 /// row, when it refuses at all.
 pub fn stem_frontier(tol: Tol) -> Option<String> {
     let at_row = (tol.eps() / 1.0e-12 - 1.0).abs() < 1.0e-3;
-    let root = Turtle {
-        p: Point3::origin(),
-        t: Vec3::unit_z(),
-    };
-    let (lower, _) = root.arc(STEM_RING, deg(22.0));
+    let (lower, _) = lower_stem();
     let sense = if lower.turn >= 0.0 { -1.0 } else { 1.0 };
     let got = tube_along_arc(
         axis_frame(lower.center, v3(0.0, sense, 0.0), lower.radial, tol),
@@ -1683,15 +1785,16 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
          at the margins — carried along an arching NURBS spine), and \
          4 LOFTED ones — the long basal leaf and the three sepals — which taper AND roll, the two things a \
          sweep cannot be asked for, on the same lanceolate section. \
-         The long leaf runs narrow at the stem to wide to small, turning 160 \
+         The long leaf is one loft: its sheath curls down out of the middle \
+         of the stem, then the blade runs narrow to wide to small, turning 160 \
          degrees about its own spine on the way, eased toward the tip. \
          The sepals stand TANGENT to the globe: the stand-off is the \
          section's own keel, and no point of any sepal's section rims \
          is inside the sphere. The eight analytic bodies approximate nothing — torus, \
          sphere, cylinder, cone and plane exactly, parameters included; \
          the blades are fitted skins, the price of leaving the plane. \
-         Nothing above ground is JOINED — the leaf to its own sheath \
-         least of all: see the wall probes.",
+         Nothing above ground is JOINED — the long leaf to the stem it \
+         grows from least of all: see the wall probes.",
         pieces.len()
     );
     vec![TourStop {
@@ -2336,107 +2439,48 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         },
         "give the lanterns their three tepal seams",
     );
-    // 8. The leaf wants to GROW OUT OF the stem, not merely start
-    //    beside it: a sheath of the blade's base section leaving the stem
-    //    and turning into the blade's own base angle, then joined
-    //    there. That contact is as clean as a contact gets — the two
-    //    bodies are authored on the SAME section in the same plane,
-    //    so the mate is exact rather than tolerated, and the union
-    //    decides it on its zero.
+    // 8. The leaf GROWS OUT OF the stem. The scene roots the long leaf
+    //    in the middle of the lower stem: its lower cap's chord midpoint
+    //    lies on the tube's axis, and its margins stand outside the tube
+    //    either side, a clasping base (both pinned off the stored bodies
+    //    by `review_probes::the_long_leaf_grows_from_the_middle_of_the_stem`).
+    //    So the join is the two pieces as authored, unioned, with no
+    //    placement of its own. The tube's wall crosses the lens's ridge
+    //    and keel walls in one loop about the sheath's lower end, and its
+    //    cap in two chords; the margin seams pass outside it. The walls
+    //    cross steeply all round: sampled off the authored numbers, the
+    //    sine of their angle is 0.81 or more on the walls and 1 at the
+    //    cap. That reading is not asserted: nothing in the kernel reads
+    //    this crossing yet, and the refusal below comes before any.
     //
-    //    The contact itself reads: the blade's base rim lies along the
-    //    sheath's rim, a run of one circle the curve-pair reading
-    //    decides, and against the sheath's other wall it is that rim
-    //    edge of the sheath, meeting the wall at the lens's two tips
-    //    only. The blade's NURBS seams rise from the tips, and the sweep
-    //    reads each against the sheath's base cap, in the blade's own cap
-    //    plane, through the ring composite of the cap's plane along the
-    //    seam: no crossing inside it, its start on the cap being its end
-    //    vertex's meeting. Each NURBS seam of one body is read against the
-    //    other's NURBS walls by the spline-face arm, a seam's end at a tip
-    //    being its end vertex's meeting. At the result, the shared rim,
-    //    a seam between the two bodies' NURBS walls, reads transverse off
-    //    each wall's chart. The rim is the boundary row of both walls, a
-    //    curve known in advance, so it is described as their shared row
-    //    and certified through each wall's row certificate. The union
-    //    then stops at the interior-loop guard, which has no arm for a
-    //    spline wall's pair. The flush reading along the two bodies'
-    //    NURBS edges is behind that
-    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
-    let sheath = {
-        let base_section = leaf_a_plan().base;
-        // Runs back out of the leaf's base along -dir, so its bottom
-        // cap IS the leaf's bottom cap: same plane, same section,
-        // opposite outward normals.
-        let sheath = lofted_blade::<S>(
-            LEAF_A_BASE,
-            -LEAF_A_DIR,
-            LEAF_A_UP,
-            0.34,
-            0.85,
-            Plan {
-                base: base_section,
-                belly: base_section,
-                belly_at: 0.5,
-                tip: base_section,
-                roll0: 0.0,
-                twist: 0.0,
-                twist_ease: 1.0,
-            },
-            9,
-            tol,
-        );
-        finished("the leaf's sheath", sheath, tol)
-    };
+    //    What refuses is the first thing the union reads: a spline seam
+    //    of the leaf, operand B, against the tube's torus wall. The
+    //    curved crossing lane has rows for a line, a circle and an
+    //    ellipse and none for a spline span, so it cannot say whether the
+    //    seam crosses the wall, at 1e-9 and 1e-6 alike
+    //    (`work/splice/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).
+    //    Behind it is the section of the leaf's NURBS walls against the
+    //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
+    //    declared frontier stands the lily walls down before this one.
     wall(
         8,
-        "graft the leaf's sheath onto its blade at their shared section",
-        crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The rim's crossing refuses at every ε that reaches it; the
-        // reading that refuses is keyed by ε (measured 2026-10-29). At
-        // 1e-9 the rim's certificate reads the walls' crossing over the
-        // whole row, and on the rim where they are tangent at two points,
-        // symmetric about its middle, the cover reads the crossing change
-        // sign across each: a definite exact zero, at no sample. At 1e-6 a
-        // sample's crossing reads in band first, an escalation there
-        // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`).
-        // At 1e-12 the lower stem's declared frontier stands the lily walls
-        // down before this one. If this ever refuses elsewhere, the
-        // sentence above is wrong and must be re-derived before it is
-        // believed.
+        "grow the long leaf out of the stem (its NURBS walls through the \
+         lower stem's torus wall)",
+        crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            let BooleanError::EdgeUndescribed {
-                failure: EdgeDescribeFailure::Intersection,
-                cause: Some(cause),
-                ..
-            } = e
-            else {
-                return false;
-            };
-            let EulerOpError::Certification { error } = &**cause else {
-                return false;
-            };
-            if tol.eps() == 1e-6 {
-                matches!(
-                    error,
-                    CertifyError::Escalated {
-                        check: CertCheck::Transversality,
-                        sample,
-                        ..
-                    } if *sample != pncad::geom_brep::certify::NOT_A_SAMPLE
-                )
-            } else {
-                matches!(
-                    error,
-                    CertifyError::NotTransverse {
-                        sample: pncad::geom_brep::certify::NOT_A_SAMPLE,
-                        lever: None,
-                        verdict: pncad::geom_brep::recourse::Refused::Zero(_),
-                    }
-                )
-            }
+            matches!(
+                e,
+                BooleanError::EdgeCarrierUnsupported {
+                    operand: Operand::B,
+                    edge,
+                    face,
+                    face_of: Operand::A,
+                    site: EdgeCarrierSite::CurvedCrossing,
+                } if query::edge_carrier_kind(leaf_a, *edge) == Some(CurveKind::Nurbs)
+                    && query::face_surface_kind(stem, *face) == Some(SurfaceKind::Torus)
+            )
         },
-        "grow the leaves out of the stem instead of standing them beside it",
+        "join the long leaf to the stem it grows from",
     );
 
     // 13 — RETIRED. It pinned the merge door SHUT on a full revolve's

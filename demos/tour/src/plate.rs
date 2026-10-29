@@ -207,6 +207,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
                 .expect("finite plate corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -228,6 +229,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
                     radius: param(radius),
                 }],
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );

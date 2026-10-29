@@ -329,6 +329,7 @@ fn carry_unmoved(
     let mut new = Node::Profile(ProfileProgram {
         loops,
         ids: Vec::new(),
+        on: None,
     });
     for slot in old.slots() {
         let SlotId::Profile { loop_, step, arg } = slot else {
@@ -2743,6 +2744,7 @@ impl DocSession {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         })
@@ -2783,6 +2785,7 @@ impl DocSession {
                 ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 },
                 distance,
                 spin,
@@ -2880,6 +2883,7 @@ impl DocSession {
         let authored = ProfileProgram {
             loops: current.loops.iter().map(LoopProgram::authored).collect(),
             ids: current.ids.clone(),
+            on: None,
         };
         let unchanged = sketch::is_committed(&authored, &loops, &ids);
         Ok((!unchanged).then_some(DocEdit::SetProgram {
@@ -4612,6 +4616,7 @@ mod tests {
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: Vec::new(),
                 ids: Vec::new(),
+                on: None,
             }));
             let _ = run.insert(square());
             Ok(())

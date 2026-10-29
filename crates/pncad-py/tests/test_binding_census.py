@@ -979,6 +979,21 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # A profile drawn on a frame, tracing faces: Python writes it with
+    # `Node.drawn_profile(frame, faces, outline)`, the crossing as
+    # `TraceTarget.on_trace(face, passage, nth)` and the heading along
+    # the trace as `Chain.along_trace(sense)`. A trace step's refusal
+    # crosses as the `trace` class, its fault at the inner kind.
+    "DrawnOn": "Node.drawn_profile",
+    "TraceCrossing": "TraceTarget.on_trace",
+    "TracePassage": "TraceTarget.on_trace",
+    "TraceSense": "Chain.along_trace",
+    "TraceRefusal": "EvaluationError.inner_kind",
+    "TraceStepFault": "EvaluationError.inner_kind",
+    # Resolving a program refuses where its evaluation does: Python
+    # resolves no program apart from a document's evaluation, and its
+    # two arms cross there as `expr` and `trace`.
+    "ProgramResolveFault": "EvaluationError.kind",
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",

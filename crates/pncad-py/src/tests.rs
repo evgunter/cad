@@ -57,6 +57,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -1233,6 +1234,7 @@ fn resolution_status_tags_are_stable() {
                     .expect("finite corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, extrude) = insert(
@@ -1740,6 +1742,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         })),
         fresh: Vec::new(),
     };
@@ -2057,6 +2060,7 @@ fn node_error_tags_are_the_published_words() {
         Expr => "expr",
         Profile => "profile",
         ProfileReplay => "profile_replay",
+        Trace => "trace",
         ProfileLaneReplay => "profile_lane_replay",
         Extrude => "extrude",
         Revolve => "revolve",
@@ -4041,8 +4045,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, and an indexed read's index by its seat, none of
-            // which the word carries.
+            // side, an indexed read's index by its seat, and a drawn
+            // profile's traced face by its place among the faces it
+            // reads, none of which the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4056,6 +4061,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "index"
                         | "measured"
                         | "side"
+                        | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5222,6 +5228,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "split",
             "tolerance_conflict",
+            "trace",
             "transform",
             "tube",
             "underflowed_direction",
@@ -5265,6 +5272,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin_error_tag",
             "split_op_error_tag",
             "structure_refusal_tag",
+            "trace_step_fault_tag",
             "transform_error_tag",
             "tube_error_tag",
         ],
@@ -5315,6 +5323,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "target",
             "target_space",
             "tool",
+            "traced",
         ],
         delegates: &[],
     },
@@ -5495,6 +5504,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "geometry",
             "resolve",
             "step_ids",
+            "trace",
             "transition",
             "unminted",
             "validate",
@@ -5985,6 +5995,29 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "trace_step_fault_tag",
+        values: &[
+            "apex",
+            "escalated",
+            "grazing",
+            "no_heading",
+            "no_pen",
+            "no_such_crossing",
+            "no_such_face",
+            "no_tangent",
+            "no_trace",
+            "not_a_run",
+            "off_trace",
+            "on_carrier",
+            "undrawn",
+            "unevaluated",
+            "unreached",
+            "unsettled",
+            "unsupported_carrier",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "transform_error_tag",
         values: &[
             "approx_lane_unsupported",
@@ -6272,7 +6305,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
@@ -6323,6 +6356,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_direction", 2),
     ("not_a_body", 2),
     ("null_scaffold_edge", 3),
+    // A coincidence: a coincidence record's relation of a point lying
+    // on a carrier, and a sketch piece lying on the carrier it would
+    // cross (`trace_step_fault_tag`).
+    ("on_carrier", 2),
     ("op", 3),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
@@ -6396,6 +6433,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // One fact at two doors: a step reading a face's trace refused
+    // (`TraceRefusal`), carried by the evaluation's node error and by
+    // the program's own check alike.
+    ("trace", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.

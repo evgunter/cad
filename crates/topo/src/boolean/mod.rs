@@ -149,6 +149,7 @@ mod torn_hop_rows;
 #[cfg(test)]
 mod torus_frame_rows;
 pub(crate) mod torus_region;
+pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;

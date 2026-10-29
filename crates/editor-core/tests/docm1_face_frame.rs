@@ -82,6 +82,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(
