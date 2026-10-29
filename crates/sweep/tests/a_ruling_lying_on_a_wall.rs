@@ -751,15 +751,23 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// `100(1 + d)`: their ellipse rims cross at `(0, ±0.01, 0)`. With
 /// `d = k·ε` the planes' tilt carries `0.01·k·ε` across the ellipses, so
 /// the band reads them parallel and through one point at every `k`
-/// here, while the rims' far ends lie `k·ε` apart. At `k` = 0.1, 0.5
-/// and 0.9 the rims are one curve within the band, and every op
-/// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
-/// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated`: the ruling's end,
-/// read against the rim first, lies in the band's gap of its carrier
-/// (`curve_carrier_gap`). At 30 and
-/// 80 the rims are definitely two curves, which no closed form here
-/// places, and every op refuses `CurvedPierceUnsupported`, but for the
+/// here, while the rims' far ends lie `k·ε` apart. At `k` = 0, 0.1, 0.5
+/// and 0.9 the rims are one curve within the band, the two operands one
+/// body, and every op builds it ([`a_cut_rod_and_its_band_copy_are_one_body`]):
+/// `∪` and `∩` the cut rod, `3π·0.01²` within its pad, `∖` nothing. At 2
+/// and 5 a seam ruling's crossing with the other rim's plane lies `k·ε`
+/// from the ruling's end, and every op refuses `Escalated`: the ruling's
+/// end, read against the rim first, lies in the band's gap of its
+/// carrier (`curve_carrier_gap`). At 30 and 80 the band decides the two
+/// cut planes one carrier and the rims two curves, which touch in the
+/// planes' common plane at `(0, ±0.01, 0)` and stay within the band's
+/// escalation of each other over `|cos θ| < 10/k` of their angle: the
+/// level of one on the other has no definite sign across that stretch,
+/// and the coplanar ellipse reading refuses it
+/// (`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`, the
+/// touch). That meeting is in band, so every op owes `Escalated` there
+/// (`work/splitdoor/roots-unsettled-folds-band-precision-and-fault-into-one-frontier.md`).
+/// Today every op refuses `CurvedPierceUnsupported` there, but for the
 /// three with the first rod first at 80, which escalate on the sector
 /// reading's `conic_bend` before reaching that frontier. None reads the
 /// rims' crossings away.
@@ -789,7 +797,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let rod = rod_of(0.01, -3.0, 6.0);
     let e = geom_core::Band::linear(tol).unwrap().escalate();
     let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
-    for k in [0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
+    for k in [0.0, 0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
         let d = k * tol.eps();
         let (a, b) = (
             cut_below(&rod, 100.0, 0.0),
@@ -803,10 +811,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     "{label}: the basin meter refuses at this ε: {res:?}"
                 );
             } else if k < 1.0 {
-                assert!(
-                    matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                    "{label}: one curve, refused past it: {res:?}"
-                );
+                one_body(&label, op, res);
             } else if k < 10.0 {
                 let Err(BooleanError::Escalated { diag, .. }) = &res else {
                     panic!("{label}: escalates: {res:?}");
@@ -828,10 +833,67 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                 } else {
                     assert!(
                         matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                        "{label}: two curves unplaced: {res:?}"
+                        "{label}: two curves touching in band: {res:?}"
                     );
                 }
             }
+        }
+    }
+}
+
+/// What `op` on two operands that are one body yields: `∪` and `∩` that
+/// body, the cut rod of [`two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`],
+/// at `3π·0.01²` within its pad and tier 3 and 3′; `∖` nothing.
+fn one_body(label: &str, op: &str, res: Result<BooleanResult<f64>, BooleanError>) {
+    let tol = Tol::witness();
+    if op.contains('∖') {
+        assert!(
+            matches!(res, Ok(BooleanResult::Empty)),
+            "{label}: one body less itself is nothing: {res:?}"
+        );
+        return;
+    }
+    let Ok(BooleanResult::Body(bb)) = res else {
+        panic!("{label}: one body: {res:?}");
+    };
+    topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+        .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+    let m = topo::test_support::pinned_volume(label, &bb.body, tol);
+    let want = 3.0 * PI * 0.01 * 0.01;
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+        "{label}: the closed form: {} ± {} vs {want}",
+        m.volume,
+        m.volume_pad
+    );
+}
+
+/// **A cut rod and its copy within the band are one body.** The rod of
+/// [`two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`] cut
+/// below the plane of slope `100`, against its cut at `100(1 + ε/2)`,
+/// whose rim lies `ε/2` from the first's: every face pair is one
+/// carrier, nothing crosses, and each operand's shell lies on the
+/// other's. `∪` and `∩` build that body and `∖` nothing, in both orders.
+/// At a coarse ε the basin meter refuses first, as in that row. Red where
+/// the coincident wall pair's section refuses the no-crossings path.
+#[test]
+fn a_cut_rod_and_its_band_copy_are_one_body() {
+    let tol = Tol::witness();
+    let e = geom_core::Band::linear(tol).unwrap().escalate();
+    let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
+    let rod = rod_of(0.01, -3.0, 6.0);
+    let a = cut_below(&rod, 100.0, 0.0);
+    let b = cut_below(&rod, 100.0 * (1.0 + 0.5 * tol.eps()), 0.0);
+    for (op, res) in six(&a, &b) {
+        let label = format!("against its band copy: {op}");
+        if meter_refuses {
+            assert!(
+                matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                "{label}: the basin meter refuses at this ε: {res:?}"
+            );
+        } else {
+            one_body(&label, op, res);
         }
     }
 }

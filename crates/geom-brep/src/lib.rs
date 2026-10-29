@@ -135,8 +135,9 @@ pub use edge_nurbs::{
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
-    ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
-    enters_material_order2, enters_material_reported, normal_alignment,
+    ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
+    enters_material, enters_material_order2, enters_material_reported, normal_alignment,
+    tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -155,8 +156,8 @@ pub use implicit::{
     conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
     conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
     implicit_graph_acceleration, implicit_hessian_form, implicit_max_normal_curvature,
-    implicit_outward_normal, implicit_residual, min_radius_of_curvature,
-    min_radius_of_curvature_toward,
+    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
+    min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
     ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,

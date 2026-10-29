@@ -134,6 +134,23 @@ The order:
 
 - Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
 
+## Evidence for E (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+A Boolean instance of E at ε = 1e-9, from PR 5968's review sweep
+(`crates/sweep/tests/boolean_tangent_rim_review.rs`, run by name).
+
+- The shape: a circle boss over `z ∈ [1, 2]` on the plate
+  `[-2, 2]² × [0, 1]`, of radius 0.5, 1 or 1.7, one or two arcs, turned
+  `t > 0` about x.
+- The cut: A − B against the brick whose top face is tangent to the
+  boss's foot rim at its vertex.
+- The result: 48 bodies build at their closed-form volume and pass
+  tiers 1–3, then fail tier 3′ over their own records with
+  `CensusUndecidable { what: "a curved face of one is within reach of
+  the other, …" }` (`census.rs` `CurvedWithinReach`). Which solids'
+  faces those are was not read.
+- Not seen in A ∩ B or A ∪ B, nor at `t < 0`.
+
 ## Evidence: a plane along a union pinch's face (2026-10-29, SPLITDOOR, branch `splitdoor/pinch-corner-split`)
 
 Cause B, an operand pinch vertex on the section face. The L-prism ∪ the

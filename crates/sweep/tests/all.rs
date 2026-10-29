@@ -204,6 +204,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "boolean_tangent_rim_review.rs"]
+mod boolean_tangent_rim_review;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]
@@ -368,6 +370,8 @@ mod transform_nurbs_walls;
 mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
+#[path = "two_rims_review_probes.rs"]
+mod two_rims_review_probes;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
 #[path = "two_wedge_ends_on_one_line.rs"]
