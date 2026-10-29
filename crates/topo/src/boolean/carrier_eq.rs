@@ -1671,6 +1671,100 @@ mod tests {
         }
     }
 
+    /// **Two torus faces read undeclared are one carrier exactly where
+    /// their pair's pose decides them one surface**
+    /// ([`geom_brep::tori_coincide`]), whatever extent the faces are read
+    /// over. The poses are the ring of `R = 5`, `r = 0.06` tilted so its
+    /// far side swings `0.74ε` (which the pose's gap read tangent beside
+    /// the ladder's one carrier), slid `0.6ε` along and across its axis
+    /// (which the pose escalated), its tube in the band, and its tube a
+    /// thousand escalation widths wider.
+    #[test]
+    fn the_ladder_reads_two_tori_as_their_pose_does() {
+        let b = band();
+        let e = b.zero();
+        let surface = |c: &CarrierDesc<f64>| match *c {
+            CarrierDesc::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => geom::Surface::Torus {
+                center,
+                axis: axis.normalize(),
+                major_radius,
+                minor_radius,
+                u_ref: axis.normalize().orthonormal_basis().0,
+            },
+            _ => unreachable!("tori"),
+        };
+        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let over = [
+            at(1.0),
+            ConsumedExtent::unwitnessed(geom_brep::ExtentBall::of_torus(
+                Point3::origin(),
+                5.0,
+                0.06,
+            )),
+        ];
+        for (what, other, one) in [
+            (
+                "tilted",
+                torus([0.0; 3], [0.148 * e, 0.0, 1.0], 5.0, 0.06, false),
+                Some(true),
+            ),
+            (
+                "slid",
+                torus([0.6 * e, 0.0, 0.6 * e], [0.0, 0.0, 1.0], 5.0, 0.06, false),
+                Some(true),
+            ),
+            (
+                "in band",
+                torus(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    5.0,
+                    0.06 + 0.5 * (e + b.escalate()),
+                    false,
+                ),
+                None,
+            ),
+            (
+                "apart",
+                torus(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    5.0,
+                    0.06 + 1000.0 * b.escalate(),
+                    false,
+                ),
+                Some(false),
+            ),
+        ] {
+            let pose = match geom_brep::TorusTorusPose::decide(&surface(&ring), &surface(&other), b)
+                .expect("two tori")
+            {
+                Err(geom_brep::TorusPoseRefusal::Coincident) => Some(true),
+                Err(geom_brep::TorusPoseRefusal::Undecided { .. }) => None,
+                Ok(_) => Some(false),
+                Err(refusal) => panic!("{what}: the pose refused {refusal:?}"),
+            };
+            assert_eq!(pose, one, "{what}: the pose");
+            for extent in &over {
+                let read = match pair_door_reading(&ring, &other, PlaneIdentity::NONE, extent, b) {
+                    Ok((CarrierRelation::SameOpposite, ContactVerdict::Definite, Some(_))) => {
+                        Some(true)
+                    }
+                    Ok((CarrierRelation::Distinct, ..)) => Some(false),
+                    Err(CarrierEqError::Undecided { .. }) => None,
+                    other => panic!("{what}: the ladder read {other:?}"),
+                };
+                assert_eq!(read, pose, "{what}: the ladder over {:?}", extent.reach);
+            }
+        }
+    }
+
     /// Aligned coincidence is the carrier ladder's honest
     /// `SameOriented`, on the torus arm as on every other: two
     /// same-carrier walls facing the SAME way are declarable as a
