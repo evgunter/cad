@@ -9,8 +9,7 @@
 //! of the number; this is the same number for the edit chain).
 //!
 //! The forwarding arms are rendered over what they forward: every
-//! `MateFault` arm inside `MateRefused`, every `CountMismatch` inside
-//! `PlacementRuleMismatch`, every
+//! `MateFault` arm inside `MateRefused`, every
 //! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
@@ -20,10 +19,9 @@
 
 use editor_core::program::ProgramRefusal;
 use editor_core::{
-    AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
-    DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName,
-    StepIdFault, VarName,
+    AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
+    DocumentId, EditError, EntityKind, EvalError, Label, MateFault, MetaVersionError,
+    NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName, StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -258,7 +256,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "StructuralSlotNeedsStructuralEdit",
             EditError::StructuralSlotNeedsStructuralEdit {
-                slot: SlotId::Count,
+                slot: SlotId::Stations,
             },
         ),
         (
@@ -640,6 +638,17 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
+            "IndicesUnrelated",
+            EditError::IndicesUnrelated {
+                node: s(5, "Place"),
+                a: Box::new(spoken_var()),
+                b: Box::new(pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    Some(VarName::new("j").expect("a name")),
+                )),
+            },
+        ),
+        (
             "UnknownConstraint",
             EditError::UnknownConstraint {
                 node: s(5, "Place"),
@@ -652,29 +661,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 node: s(5, "Union"),
                 slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Member(0)),
                 at: Some(1),
-            },
-        ),
-        // `PlacementRuleMismatch`: every shape, each spoken with the
-        // node kind that raises it, in `forwarded_edit_refusals`.
-        (
-            "EmptyPlacementList",
-            EditError::EmptyPlacementList {
-                node: s(5, "PlacedUnion"),
-            },
-        ),
-        (
-            "NonFinitePlacement",
-            EditError::NonFinitePlacement {
-                node: s(5, "InstantiatePart"),
-                at: FrameSite::Listed { index: 0 },
-            },
-        ),
-        (
-            "NonRigidPlacement",
-            EditError::NonRigidPlacement {
-                node: s(5, "InstantiatePart"),
-                at: FrameSite::Listed { index: 2 },
-                check: "transform_rigid_col01_orth",
             },
         ),
         (
@@ -741,15 +727,6 @@ fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFaul
         // routes a non-finite offset to `NonFiniteVar`, which has
         // its own.
         DistributionFault::NonFinite { .. } => None,
-    }
-}
-
-/// The count mismatch after `shape`, every arm in turn.
-fn next_count_mismatch(shape: &CountMismatch) -> Option<CountMismatch> {
-    match shape {
-        CountMismatch::ListedOnPattern => Some(CountMismatch::ListedWithCount),
-        CountMismatch::ListedWithCount => Some(CountMismatch::SteppedWithoutCount),
-        CountMismatch::SteppedWithoutCount => None,
     }
 }
 
@@ -914,19 +891,6 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     // Each states its own recourse, so each is rendered, not only the
     // representative row's — every arm, from the witness chains below.
-    for shape in witnesses(CountMismatch::ListedOnPattern, next_count_mismatch) {
-        let kind = match shape {
-            CountMismatch::ListedOnPattern => "Pattern",
-            CountMismatch::ListedWithCount | CountMismatch::SteppedWithoutCount => "PlacedUnion",
-        };
-        rows.push((
-            format!("PlacementRuleMismatch({})", variant(&shape)),
-            EditError::PlacementRuleMismatch {
-                node: s(5, kind),
-                shape,
-            },
-        ));
-    }
     for fault in witnesses(StepIdFault::Preminted, next_step_id_fault) {
         rows.push((
             format!("StepIdsRefused({})", variant(&fault)),
@@ -965,19 +929,6 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    (
-        "Edit/PlacementRuleMismatch(ListedOnPattern)",
-        "Pattern \"base plate\"",
-    ),
-    (
-        "Edit/PlacementRuleMismatch(ListedWithCount)",
-        "PlacedUnion \"base plate\"",
-    ),
-    (
-        "Edit/PlacementRuleMismatch(SteppedWithoutCount)",
-        "PlacedUnion \"base plate\"",
-    ),
-    ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

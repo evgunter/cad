@@ -8,14 +8,13 @@
 
 use crate::blocks::{block, block_on, failure, run};
 use crate::emit_shared_rim_several::{construction, own_name};
-use crate::fixture::{fname, insert, len, len2, on_frame, out, scl, table};
+use crate::fixture::{fname, insert, len, len2, on_frame, out, table};
 
 use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
-    Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
-    coincide,
+    Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -391,37 +390,20 @@ fn a_unions_rows_follow_its_member_order() {
     );
 }
 
-/// **A pattern's instances are placed apart.** The walk reads each
-/// instance's placement off its `Instance` segment, so instance 1's top
-/// and instance 2's are two constructions even though one extrude
-/// minted both, while one instance's top read through two parts of it
-/// is one.
+/// **A family's members are placed apart.** The walk reads each
+/// member's placement off its `Member` segment, so member 1's top and
+/// member 2's are two constructions even though one extrude minted
+/// both, while one member's top read twice is one.
 #[test]
-fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
+fn a_familys_members_are_two_constructions_of_one_minted_face() {
     let doc = ProfileDoc::empty_derived("coincide-pattern", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: the_box.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    let part = |doc: ProfileDoc, i: i64| {
-        insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: PartSelect::Instance(editor_core::Formula::count(i)),
-            },
-        )
-    };
+    let (doc, _, pattern) = crate::fixture::linear(doc, the_box, [1.0, 0.0, 0.0], 3.0, 3);
+    let part = |doc: ProfileDoc, i: i64| crate::fixture::member(doc, pattern, i);
     let (doc, first) = part(doc, 1);
-    let (doc, again) = part(doc, 1);
+    // One member, read twice at one copy of it: two copies of a member
+    // are two placements.
+    let again = first;
     let (doc, second) = part(doc, 2);
     let ev = run(&doc);
     let top_at = |node, x: f64| face_on(&ev, node, [x, 0.5, 1.0], [0.0, 0.0, 1.0]);
@@ -440,20 +422,20 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     assert_eq!(
         proof(&doc, again, &one),
         Proof::Structural(Rung::SameConstruction),
-        "one instance read twice"
+        "one member read twice"
     );
     let two = row([
         entity(out(&doc, first), &top_at(first, 3.5)),
         entity(out(&doc, second), &top_at(second, 6.5)),
     ]);
     let Proof::Unproven { residual, .. } = proof(&doc, second, &two) else {
-        panic!("two instances are two placements")
+        panic!("two members are two placements")
     };
     let [Ok(a), Ok(b)] = residual.constructions.as_slice() else {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
-    assert_ne!(a.maps, b.maps, "placed by two instances");
+    assert_ne!(a.maps, b.maps, "placed by two members");
     assert_eq!(
         residual.to_string(),
         "the two cells are one construction placed or reflected apart; the replay with every variable a \

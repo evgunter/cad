@@ -19,10 +19,10 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions,
     Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeErrorKind,
-    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName, apply, evaluate,
+    NodeResult, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef,
+    SlotId, SplitHalf, StableName, ValuePayload, VarName, apply, evaluate,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len};
 use geom_core::{Point3, Tol};
 
 /// The plate's hole radius, as a document parameter — the thing the
@@ -1319,45 +1319,29 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     );
 }
 
-/// A PATTERN of the cusp extrude gathers: three copies, each placed and
+/// A FAMILY of the cusp extrude gathers: three members, each placed and
 /// each carrying its own legal strut.
 #[test]
-fn a_pattern_of_a_cusp_extrude_gathers() {
+fn a_family_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-pattern");
-    let (doc, pattern) = mint(
-        &doc,
-        Node::Pattern {
-            input: ex.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(5.0),
-            },
-        },
-    );
+    let (doc, _, pattern) = fixture::linear(doc, ex, [1.0, 0.0, 0.0], 5.0, 3);
     let mut doc = doc;
     let mut copies = Vec::new();
     for k in 0..3 {
-        let (d, copy) = mint(
-            &doc,
-            Node::Part {
-                of: pattern.into(),
-                select: PartSelect::Instance(Formula::count(k)),
-            },
-        );
+        let (d, copy) = fixture::member(doc, pattern, k);
         doc = d;
         copies.push(copy);
     }
     let body = gathers_placing(&doc, pattern, &copies);
     assert_eq!(body.solids().count(), 3);
-    // Copy k's kiss line is x = 5k, y = 0.
+    // Member k's kiss line is x = 5k, y = 0.
     let on_a_copys_kiss = |p: &Point3<f64>| {
         p.y.abs() < 1e-9 && [0.0, 5.0, 10.0].iter().any(|x| (p.x - x).abs() < 1e-9)
     };
     assert_eq!(
         tangent_marks(&body, on_a_copys_kiss),
         (3, 0),
-        "one legal strut per copy"
+        "one legal strut per member"
     );
 }
 

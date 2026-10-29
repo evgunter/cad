@@ -2,12 +2,12 @@
 id: a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it
 kind: issue
 title: wire_pattern guards n < 1 and then loops 1..n, and the cancel token is checked between nodes
-status: parked
+status: open
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [need-count-spells-every-failure-as-a-pattern-count]
-blocked_on: [patterns-are-index-variables]
+blocked_on: []
 ---
 
 
@@ -103,3 +103,5 @@ the viewer consumes is a hand-off and never a diff from VGEOM.
 Read against the tree at `fd218851f9`. `wire_pattern` still loops `1..n` with no ceiling and no cancel check. `Node::Pattern` and `PlacedUnion` retire into `index(N)`; the bound and cancel question carry over to `N`, so re-read it there rather than closing it. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.

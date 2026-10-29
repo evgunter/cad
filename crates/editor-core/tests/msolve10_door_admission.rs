@@ -33,7 +33,7 @@ use editor_core::{
     PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, at_the_door_of, insert, insert_pinned, len, on_frame, step};
+use fixture::{ang, at_the_door_of, insert, insert_pinned, len, on_frame};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -548,20 +548,10 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-value", doc, opts)
     });
     rows.push({
-        // A target stranded past a pattern's count, after insert: the
-        // copy the name says no longer exists.
+        // A target stranded past a family's count, after insert: the
+        // member the name says no longer exists.
         let (doc, ids, opts, body) = instances("msolve10-corpus-stranded", 2);
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: ids[0].into(),
-                count: editor_core::Formula::count(3),
-                kind: editor_core::PatternKind::Linear {
-                    direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                    spacing: len(3.0),
-                },
-            },
-        );
+        let (doc, k, pattern) = crate::fixture::linear(doc, ids[0], [1.0, 0.0, 0.0], 3.0, 3);
         let (doc, _) = fixture::constrain_at(
             doc,
             ids[1],
@@ -569,20 +559,13 @@ fn corpus() -> Vec<Row> {
                 cap(ids[1], body, CapEnd::Start),
                 fixture::head(fixture::in_copy(
                     pattern,
+                    k,
                     2,
                     in_part(ids[0], body, CapEnd::End),
                 )),
             ),
         );
-        let (doc, _) = step(
-            doc,
-            DocEdit::SetStructuralParam {
-                node: pattern,
-                slot: editor_core::SlotId::Count,
-                expr: editor_core::Formula::count(2),
-                fresh: Vec::new(),
-            },
-        );
+        let doc = fixture::recount(doc, k, editor_core::Formula::count(2));
         ("msolve10-corpus-stranded", doc, opts)
     });
     rows

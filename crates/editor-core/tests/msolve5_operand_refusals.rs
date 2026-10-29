@@ -24,11 +24,11 @@ use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula, MateFault,
-    MateRef, MateSide, Node, NodeErrorKind, NodeResult, NodeStanding, PartFault, PatternKind,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis,
+    MateRef, MateSide, Node, NodeErrorKind, NodeResult, NodeStanding, PartFault, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, scl};
+use fixture::{insert, len, on_frame, run};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -260,8 +260,8 @@ fn a_tied_face_refuses_at_its_placement() {
 /// **A part that does not resolve refuses at its instance, and what
 /// reads it is poisoned.** The top part lives in another store: the
 /// block's instance fails in the resolver's own voice, a placed copy
-/// of it and a pattern over that are poisoned, and every copy of the
-/// pattern a placement copies is poisoned too. The gather refuses the
+/// of it and a family over that are poisoned, and every copy of a
+/// member a placement copies is poisoned too. The gather refuses the
 /// document at the first failed placement — the block — before any
 /// mate is read.
 ///
@@ -298,37 +298,15 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         &editor_core::Frame::translation([0.0, 0.0, 10.0]),
         &opts,
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: xf.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(SPACING),
-            },
-        },
-    );
-    // The pattern's copies, each copied by a placement of its own: a
-    // copy that does not evaluate cannot be pinned over its geometry,
-    // so each is a loose copy, which is still a placement the gather
-    // reads.
+    let (doc, _, pattern) = crate::fixture::linear(doc, xf, [1.0, 0.0, 0.0], SPACING, 2);
+    // The family's members, each copied by a placement of its own
+    // reading `pattern[i]`: a copy that does not evaluate cannot be
+    // pinned over its geometry, so each is a loose copy, which is still
+    // a placement the gather reads.
     let mut doc = doc;
     let mut copies = Vec::new();
     for i in 0..2 {
-        let (next, part) = insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: editor_core::PartSelect::Instance(Formula::count(i)),
-            },
-        );
-        let (next, placed) = insert(
-            next,
-            crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Node(
-                part,
-            ))),
-        );
+        let (next, placed) = fixture::member(doc, pattern, i);
         doc = next;
         copies.push(placed);
     }
@@ -354,7 +332,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         "the instance fails in the resolver's own voice: {:?}",
         ev.result(top)
     );
-    for (node, what) in [(xf, "the lifted copy"), (pattern, "the pattern")]
+    for (node, what) in [(xf, "the lifted copy"), (pattern, "the family")]
         .into_iter()
         .chain(copies.iter().map(|&c| (c, "a placed copy")))
     {
