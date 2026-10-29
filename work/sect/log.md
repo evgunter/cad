@@ -229,3 +229,13 @@ row) in the same PR, and re-measures what each row runs after the stop.
   two gate widenings, one comparison and tests, where one review reads the
   whole change; dual was set at dispatch for an H join-side build that did
   not happen.
+
+## 2026-10-29 — C5's critical-gap rule ratified (PR 5975)
+
+Ev agreed in chat, then approved the wording on `[ev]` PR 5975 ("looks
+good"), merged: every analytic surface pair decides its tangency and
+coincidence once, on its pose, before any rung, read by every reader — a
+closed-form margin where the pose has one, otherwise its certified critical
+gap, never a root formula; NURBS and `Approx` pairs stay the C2
+certificate's. It binds the cone pairs next (SECTARMS) and plane × torus
+off its axis-aligned arm (SECTSITE).
