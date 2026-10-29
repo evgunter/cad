@@ -3990,15 +3990,15 @@ enum SpanVerdict<T: geom_core::Real> {
     LiesOn,
     /// The line definitely misses the wall entirely.
     Miss,
-    /// The roots did not settle, and every touch of the span with the
-    /// carrier is certified off this face
+    /// The roots did not settle, or read in band, and every touch of the
+    /// span with the carrier is certified off this face
     /// ([`super::carrier_touch::off_face`]): the span meets the carrier,
     /// if at all, outside the trim. Like [`Self::Miss`] it accounts for no
     /// crossing of THIS face; unlike it, an endpoint the band puts ON the
     /// carrier is no contradiction.
     OffFace,
-    /// The roots did not settle the span and the caller keeps its own
-    /// typed frontier door.
+    /// The root door reached a limit ([`Unsettled`]), or has no lane for
+    /// the pair, and the caller keeps its own typed frontier door.
     Unsettled,
     /// A root within the band of a cone's apex
     /// ([`Unsettled::AtApex`]): the caller refuses
@@ -4272,7 +4272,18 @@ fn wall_crossing<T: Decide + Bounds>(
                 Ok(Sign::Zero) => {}
                 // Below the face's own nappe is off the double cone the
                 // root was certified on: the certificate contradicted.
-                Ok(Sign::Negative) | Err(_) => return Ok(SpanVerdict::Unsettled),
+                Ok(Sign::Negative) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a wall root certified on the double cone reads below the cone \
+                               face's own nappe",
+                    });
+                }
+                Err(diag) => {
+                    return Err(BooleanError::Escalated {
+                        decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                        diag,
+                    });
+                }
             }
         }
         match landing(y, face, p, band)? {

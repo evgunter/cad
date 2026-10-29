@@ -39,3 +39,14 @@ schedule retries another ray. The doc's rung-3 story is wrong about
 which rays reach it. Decide on `α = √z` (a length) instead, or widen
 the biquadratic arm to meet the resolvent's own threshold. Either
 choice moves k-lint margins and wants re-baselining.
+
+## The rung is a fault since the root-refusal split (2026-10-29, SPLITDOOR)
+
+`geom_brep::roots` now types this rung `RootFault::Resolvent`, a kernel
+fault (`work/splitdoor/roots-unsettled-folds-band-precision-and-fault-into-one-frontier.md`).
+On the boolean's line × torus span path (`reduce::line_wall_roots_of`,
+through `circle_roots::door_refusal`) it therefore ends as
+`BooleanError::ClassificationInvariant`, the kernel-defect ending, where
+it was the `CurvedPierceUnsupported` frontier. The ray lanes still graze
+on it (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`). A
+legitimate small root reaching the rung is now told as the defect it is.
