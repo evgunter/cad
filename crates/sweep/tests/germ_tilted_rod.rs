@@ -273,22 +273,78 @@ fn other_spins_want(eps: f64) -> [[&'static str; 5]; 8] {
         .map_or(OTHER_SPINS_STOPS[0].1, |(_, w)| *w)
 }
 
-/// `(ε, stops)`, the compiled ε first.
-const OTHER_SPINS_STOPS: &[(f64, [[&str; 5]; 8])] = &[(1e-9, [["?"; 5]; 8])];
+/// `(ε, stops)`, the compiled ε first; measured alike at 1e-6 and 1e-12.
+const OTHER_SPINS_STOPS: &[(f64, [[&str; 5]; 8])] = &[(
+    1e-9,
+    [
+        [
+            "spline join",
+            "projected volume",
+            "conic trim volume",
+            "ring volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "conic trim volume",
+            "ring volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "conic trim volume",
+            "ring volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "projected volume",
+            "ring volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "projected volume",
+            "spiric image volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "projected volume",
+            "spiric image volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "projected volume",
+            "spiric image volume",
+            "spline join",
+        ],
+        [
+            "spline join",
+            "projected volume",
+            "spiric image volume",
+            "spiric image volume",
+            "spline join",
+        ],
+    ],
+)];
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
-/// body is built, on every op, each at its pinned door: a torus germ
-/// against the rod's end cap, which no frame arm reads
-/// (`GermFrameUnsupported`); or, where the wall's germs are matched
-/// first, past them: the join's segment dispatch, which has no torus
-/// lane for a segment it does not carry (`CurvedBooleanUnsupported`),
-/// the edge join on the wall's closed spline chord
-/// (`JoinCarrierUnsupported`,
-/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`), or the
+/// body is built, on every op, each at its pinned door
+/// ([`OTHER_SPINS_STOPS`]): each wall germ takes its site's foot on the
+/// carried section, and the run passes the join to the edge join on the
+/// wall's closed spline chord (`JoinCarrierUnsupported`,
+/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
 /// result gate's volume (a face the fitted chords bound, a conic trim, a
 /// spiric's lifted image, or a ring left on a curved face; SPIRICARM's
 /// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
-/// Every wall germ takes its site's foot on the carried section.
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
