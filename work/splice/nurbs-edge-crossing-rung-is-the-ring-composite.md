@@ -117,7 +117,7 @@ shared rim, lily wall 8 refuses
 a NURBS tip seam of the blade, rising from the shared section, against
 the sheath's base cap in that plane. The plane case of this arm is what
 it needs next. `sweep`'s
-`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
 pins the refusal in miniature and reds when this arm lands.
 
 ## Closed
@@ -145,7 +145,7 @@ Witness rows:
   That is a blade edge against a sheath wall at the spline-face door
   (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`). The
   miniature, `sweep`'s
-  `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`,
+  `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`,
   pins the same refusal in both operand orders, and pins the arm
   reading every blade seam against every sheath cap without a crossing.
 - The end-to-end row: the boolean's sweep splits each wavy corner at

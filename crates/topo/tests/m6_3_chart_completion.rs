@@ -113,7 +113,7 @@ where
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(sph_key, pl_key),
-                    witness: carrier.eval(mid),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval(mid)),
                 },
                 carrier: carrier.clone(),
                 param_start: t0,

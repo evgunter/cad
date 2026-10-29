@@ -5541,7 +5541,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         let witness = curve.mid_point(t0, t1);
         EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         }
     } else {
         // The band meets its support tangentially along the contact

@@ -1760,10 +1760,16 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
                     let carrier = draft.span().0.kind();
+                    let drafted = crate::pcurves::seam_intersection(
+                        body,
+                        draft,
+                        [(he, s_self, surf_self), (mate, s_other, surf_other)],
+                        band,
+                    );
                     body.describe_intersection(
                         crate::policy_lane::KernelSite::SectionIntersection,
                         edge,
-                        draft.into_intersection(geom_brep::SurfacePair::new(s_self, s_other)),
+                        drafted,
                         tol,
                     )
                     .map_err(|e| of_attachment(edge, carrier, e))?;
