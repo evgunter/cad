@@ -2,7 +2,7 @@
 id: a-mirror-of-an-assemble-reports-its-findings-twice
 kind: issue
 title: A mirror of a ⊔ or of an instance reports the source's findings again, and a pick of a census-less piece drops its records
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P2
 cost: M
