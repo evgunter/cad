@@ -79,7 +79,11 @@ fn a_rim_only_cap_holds_the_pole_on_its_side() {
         (false, false, [(N, In), (S, Out)]),
     ] {
         assert_eq!(
-            placed(&lies(&unit_sphere(), &[closed(rim.clone(), forward)], sense)),
+            placed(&lies(
+                &unit_sphere(),
+                &[closed(rim.clone(), forward)],
+                sense
+            )),
             want,
             "rim forward {forward}, sense {sense}"
         );
@@ -92,7 +96,11 @@ fn a_rim_only_cap_holds_the_pole_on_its_side() {
 #[test]
 fn a_tilted_cap_holds_a_pole_by_its_region_not_its_meridians() {
     let tilted = |a: f64| Vec3::new(a.sin(), 0.0, a.cos());
-    let near = placed(&lies(&unit_sphere(), &[closed(section(tilted(0.3), 0.5), true)], true));
+    let near = placed(&lies(
+        &unit_sphere(),
+        &[closed(section(tilted(0.3), 0.5), true)],
+        true,
+    ));
     assert_eq!(
         near,
         [
@@ -101,7 +109,11 @@ fn a_tilted_cap_holds_a_pole_by_its_region_not_its_meridians() {
         ],
         "tilted 0.3 rad"
     );
-    let far = placed(&lies(&unit_sphere(), &[closed(section(tilted(1.3), 0.5), true)], true));
+    let far = placed(&lies(
+        &unit_sphere(),
+        &[closed(section(tilted(1.3), 0.5), true)],
+        true,
+    ));
     assert_eq!(
         far,
         [
@@ -154,20 +166,8 @@ fn poles_at_a_vertex_and_inside_an_edge() {
     assert_eq!(
         placed(&lies(&unit_sphere(), &[lune], true)),
         [
-            (
-                Singularity::North,
-                Lies::AtVertex {
-                    r#loop: 0,
-                    edge: 1
-                }
-            ),
-            (
-                Singularity::South,
-                Lies::AtVertex {
-                    r#loop: 0,
-                    edge: 0
-                }
-            ),
+            (Singularity::North, Lies::AtVertex { r#loop: 0, edge: 1 }),
+            (Singularity::South, Lies::AtVertex { r#loop: 0, edge: 0 }),
         ]
     );
     let great = placed(&lies(&unit_sphere(), &[closed(meridian_xz(), true)], true));
@@ -201,7 +201,10 @@ fn a_distance_in_band_is_undecided() {
     let Err(Unread::Boundary { distance, .. }) = &located[0].lies else {
         panic!("{:?}", located[0].lies)
     };
-    assert!((distance - d).abs() < 1e-12, "the distance carried: {distance}");
+    assert!(
+        (distance - d).abs() < 1e-12,
+        "the distance carried: {distance}"
+    );
 }
 
 /// **A carrier read by samples places a point off it, never on it**: an
@@ -285,13 +288,7 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
     ];
     assert_eq!(
         placed(&lies(&cone, &[sector], true)),
-        [(
-            Singularity::Apex,
-            Lies::AtVertex {
-                r#loop: 0,
-                edge: 0
-            }
-        )]
+        [(Singularity::Apex, Lies::AtVertex { r#loop: 0, edge: 0 })]
     );
 }
 
@@ -316,14 +313,7 @@ fn the_cap_reads_alike_at_interval() {
         radius: i((1.0 - z * z).sqrt()),
         u_ref: vlift(Vec3::new(1.0, 0.0, 0.0)),
     };
-    let edges = [LoopEdge::hand_built(
-        rim,
-        i(0.0),
-        i(TAU),
-        true,
-        0,
-        0,
-    )];
+    let edges = [LoopEdge::hand_built(rim, i(0.0), i(TAU), true, 0, 0)];
     let located = locate(&sphere, &[&edges[..]], true, band());
     let got: Vec<_> = located
         .iter()

@@ -195,7 +195,16 @@ pub fn locate<T: Decide>(
         .map(|&(singularity, x)| Located {
             singularity,
             point: x,
-            lies: locate_one(&chart, &points, loops, sense, singularity, x, band, &mut walks),
+            lies: locate_one(
+                &chart,
+                &points,
+                loops,
+                sense,
+                singularity,
+                x,
+                band,
+                &mut walks,
+            ),
         })
         .collect()
 }
@@ -308,7 +317,13 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
                 step = step.max((p - prev).norm());
                 prev = p;
             }
-            let clear = best.map(|b| decide("chart_singularity_sampled_clear", Margin::of(b - step), band));
+            let clear = best.map(|b| {
+                decide(
+                    "chart_singularity_sampled_clear",
+                    Margin::of(b - step),
+                    band,
+                )
+            });
             return match clear {
                 Some(Ok(Sign::Positive)) => Near::Off,
                 _ => Near::Unread,
@@ -319,7 +334,11 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     // edge's vertices, read before).
     let inside = |m: T| {
         matches!(
-            decide("chart_singularity_in_span", Margin::of(m * speed), Band::least()),
+            decide(
+                "chart_singularity_in_span",
+                Margin::of(m * speed),
+                Band::least()
+            ),
             Ok(Sign::Positive)
         )
     };
@@ -385,7 +404,11 @@ pub fn walk_loop<T: Decide>(
     let arm = |p: Point3<T>| (p - chart.anchor()).norm();
     let mut charted: Vec<(Point3<T>, Point2<T>)> = Vec::new();
     for e in edges {
-        let (a, b) = if e.forward { (e.t0, e.t1) } else { (e.t1, e.t0) };
+        let (a, b) = if e.forward {
+            (e.t0, e.t1)
+        } else {
+            (e.t1, e.t0)
+        };
         let at = |t: T| -> Result<(Point3<T>, Option<Point2<T>>), ()> {
             let p = e.carrier.eval(t);
             let read = chart.point(p, band);
@@ -402,7 +425,12 @@ pub fn walk_loop<T: Decide>(
         };
         let n = 16_u32;
         let mut ts: Vec<(T, u32)> = (0..=n)
-            .map(|i| (a + (b - a) * T::from_f64(f64::from(i)) / T::from_f64(f64::from(n)), 0))
+            .map(|i| {
+                (
+                    a + (b - a) * T::from_f64(f64::from(i)) / T::from_f64(f64::from(n)),
+                    0,
+                )
+            })
             .collect();
         let mut read: Vec<(Point3<T>, Option<Point2<T>>)> = ts
             .iter()
@@ -443,7 +471,11 @@ pub fn walk_loop<T: Decide>(
             }
         }
         // The end is the next edge's start.
-        charted.extend(read[..read.len() - 1].iter().filter_map(|&(p, uv)| uv.map(|uv| (p, uv))));
+        charted.extend(
+            read[..read.len() - 1]
+                .iter()
+                .filter_map(|&(p, uv)| uv.map(|uv| (p, uv))),
+        );
     }
     let m = charted.len();
     if m < 3 {
@@ -597,11 +629,12 @@ fn holds_with<T: Decide>(
     let mut unread: Option<Unread<T>> = None;
     for (l, edges) in loops.iter().enumerate() {
         let walk = walks[l]
-            .get_or_insert_with(|| walk_loop(chart, points, edges, band).ok_or(Unread::Loop { r#loop: l }))
+            .get_or_insert_with(|| {
+                walk_loop(chart, points, edges, band).ok_or(Unread::Loop { r#loop: l })
+            })
             .clone();
-        let left = walk.and_then(|w| {
-            loop_holds_on_left(&w, singularity, band).map_err(Unread::Side)
-        });
+        let left =
+            walk.and_then(|w| loop_holds_on_left(&w, singularity, band).map_err(Unread::Side));
         match left {
             Ok(left) if left != sense => return Ok(false),
             Ok(_) => {}
