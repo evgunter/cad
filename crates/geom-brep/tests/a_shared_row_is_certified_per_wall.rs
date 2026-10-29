@@ -24,7 +24,7 @@ use geom_brep::keys::SurfaceKey;
 use geom_brep::pcurve_cache::{Pcurve, PcurveCache};
 use geom_brep::{
     CertifyError, CurveSelector, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    IntersectionDraft, NurbsLane, SharedRow, Structural, SurfacePair,
+    IntersectionDraft, NurbsLane, RowRefusal, SharedRow, Structural, SurfacePair,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
@@ -364,7 +364,7 @@ fn a_shared_row_is_symmetric_in_its_pair() {
     assert!(
         matches!(
             got,
-            Err(CertifyError::RowImage { surface, .. }) if surface == pair.keys[0]
+            Err(CertifyError::Row { surface, refusal: RowRefusal::Image(_) }) if surface == pair.keys[0]
         ),
         "a row stated on the wrong wall refuses: {got:?}"
     );
@@ -389,7 +389,7 @@ fn a_carrier_past_one_walls_row_refuses_on_that_wall() {
     );
     let got = pair.certify(shared(&pair, images), &carrier, past);
     assert!(
-        matches!(got, Err(CertifyError::RowImage { surface, .. }) if surface == pair.keys[1]),
+        matches!(got, Err(CertifyError::Row { surface, refusal: RowRefusal::Image(_) }) if surface == pair.keys[1]),
         "the annulus refuses the span past its row, definitely: {got:?}"
     );
 }
@@ -463,7 +463,7 @@ fn a_rim_off_the_row_is_no_shared_row() {
     );
     let got = pair.certify(shared(&pair, images), &off, params);
     assert!(
-        matches!(got, Err(CertifyError::RowImage { surface, .. }) if surface == pair.keys[0]),
+        matches!(got, Err(CertifyError::Row { surface, refusal: RowRefusal::Image(_) }) if surface == pair.keys[0]),
         "the cylinder refuses the off rim, definitely: {got:?}"
     );
 }
@@ -612,7 +612,7 @@ fn a_rim_across_a_closed_charts_closure_is_no_shared_row() {
     assert!(
         matches!(
             got,
-            Err(CertifyError::RowImage { surface, check: None }) if surface == pair.keys[0]
+            Err(CertifyError::Row { surface, refusal: RowRefusal::Image(None) }) if surface == pair.keys[0]
         ),
         "a period-shifted row refuses: {got:?}"
     );
@@ -709,7 +709,7 @@ fn a_shared_row_whose_walls_touch_off_its_samples_refuses() {
         (0.19, 0.0, true),
         (0.19, 2.0, true),
         (0.0, 0.0, true),
-        (1.0, 0.0, false),
+        (1.0, 0.0, true),
         (0.5, 0.0, false),
     ] {
         let (pair, line, images) = tangent_at(ys, lean);
@@ -727,6 +727,127 @@ fn a_shared_row_whose_walls_touch_off_its_samples_refuses() {
             Some(escalates),
             "y* = {ys}, lean {lean}: walls touching on the row refuse their crossing: {got:?}"
         );
+    }
+}
+
+/// A degree-2 clamped knot vector on `[s, s + 1]` with no interior knot.
+fn k2_at(s: f64) -> KnotVector {
+    KnotVector::clamped(vec![s, s, s, s + 1.0, s + 1.0, s + 1.0], 2).unwrap()
+}
+
+/// The floor `z = 0` over `x, y ∈ [0, 1]` and an upright on its `x = 1`
+/// side whose `v` direction is `(1, 0, y − y*)`: the walls are tangent at
+/// `y*` alone, and the upright crosses the floor's plane there (its
+/// crossing angle linear in `y − y*`, as on lily's edge 9). Both walls'
+/// `y` coordinate, and the line's parameter, run over `[s, s + 1]`: the
+/// same geometry, its charts read away from 0.
+fn swapping_at(ys: f64, s: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let floor = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            k2_at(s),
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(|x| [0.0, 0.5, 1.0].map(|y| p(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let mut control = Vec::new();
+    for y in [0.0, 0.5, 1.0] {
+        control.push(p(1.0, y, 0.0));
+        control.push(p(2.0, y, y - ys));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            k2_at(s),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            k2_at(s),
+            vec![p(1.0, 0.0, 0.0), p(1.0, 0.5, 0.0), p(1.0, 1.0, 0.0)],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(1.0, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    (Pair::of(floor, upright), line, images)
+}
+
+/// **A crossing that vanishes where a one-ulp nudge would skip is still
+/// read** (the PR 5959 re-review's row). Walls tangent at the row's start,
+/// at its end, and at a halving join (`y* = 3/16`, no sample), with both
+/// charts' row coordinate on `[s, s + 1]`: the same geometry as at `s = 0`
+/// (where every case refuses), but one ulp of the chart coordinate is now
+/// `s·2⁻⁵²`, wide enough that the margin one ulp inside an end clears the
+/// band. `s` is the least power of two whose ulp is `1000 ε`.
+#[test]
+fn rr_a_tangency_the_ulp_nudge_skips_refuses() {
+    let s = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    for ys in [0.0, 1.0, 0.1875] {
+        let at_zero = {
+            let (pair, line, images) = swapping_at(ys, 0.0);
+            pair.certify(shared(&pair, images), &line, (0.0, 1.0))
+        };
+        assert!(at_zero.is_err(), "y* = {ys}, s = 0: refuses");
+        let (pair, line, images) = swapping_at(ys, s);
+        let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+        assert!(
+            got.is_err(),
+            "y* = {ys}, s = {s}: walls tangent on the row certify as transverse"
+        );
+    }
+}
+
+/// **The cover reads the same verdict wherever the charts sit.** The
+/// swapping walls, their row coordinate on `[s, s + 1]` for `s` from 0 to
+/// the least power of two whose ulp is `1000 ε`: tangent inside the row,
+/// at a halving join (`y* = 3/16`) or between joins (`y* = 0.3`), the
+/// walls swap sides and the cover reads the turn, definitely; tangent at
+/// an end, the crossing's lower bound reaches the band with no sign change
+/// to read, and escalates; tangent off the row (`y* = −1`, `y* = 2`), the
+/// walls cross along all of it and the row certifies.
+#[test]
+fn a_shared_row_reads_one_verdict_wherever_its_charts_sit() {
+    let far = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    for s in [0.0, 1.0, 1024.0, 2f64.powi(30), far] {
+        for (ys, want) in [
+            (0.1875, "NotTransverse"),
+            (0.3, "NotTransverse"),
+            (0.0, "Escalated"),
+            (1.0, "Escalated"),
+            (-1.0, "Ok"),
+            (2.0, "Ok"),
+        ] {
+            let (pair, line, images) = swapping_at(ys, s);
+            let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+            let read = match &got {
+                Ok(_) => "Ok",
+                Err(CertifyError::NotTransverse { .. }) => "NotTransverse",
+                Err(CertifyError::Escalated {
+                    check: geom_brep::CertCheck::Transversality,
+                    ..
+                }) => "Escalated",
+                Err(_) => "other",
+            };
+            assert_eq!(read, want, "y* = {ys}, s = {s}: {got:?}");
+        }
     }
 }
 
@@ -783,7 +904,7 @@ fn an_interior_row_refuses_whichever_way_its_crease_folds() {
         let pair = Pair::of(creased, upright.clone());
         let got = pair.certify(shared(&pair, images.clone()), &line, (0.0, 1.0));
         assert!(
-            matches!(got, Err(CertifyError::RowOffSide { surface }) if surface == pair.keys[0]),
+            matches!(got, Err(CertifyError::Row { surface, refusal: RowRefusal::OffSide }) if surface == pair.keys[0]),
             "left up {left_up}: the floor's interior column is no side: {got:?}"
         );
     }

@@ -3147,8 +3147,23 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
-        | CertifyError::RowImage { .. }
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::Image(_),
+            ..
+        }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        // A row image's escalation reads as its decision's check, routed
+        // as an arc rim's is (`RowRefusal::decision`).
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ImageEscalated { .. },
+            ..
+        } => e
+            .decision()
+            .map_or(KIND, |(check, _)| certify_undecided(check)),
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ChartSpeed(r),
+            ..
+        } => chart_speed_reason(*r),
         // An incidence refusal, decided or escalated, reads its reason
         // off the one table, by what was read.
         _ if let Some(read) = e.incidence_read() => incidence_reason(read),
@@ -3256,7 +3271,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
-        | CertifyError::RowOffSide { .. }
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::OffSide,
+            ..
+        }
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
@@ -3298,7 +3316,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
-            | CertifyError::RowOffSide { .. }
+            | CertifyError::Row {
+                refusal: geom_brep::RowRefusal::OffSide,
+                ..
+            }
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(
                 P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
@@ -3323,7 +3344,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
-            | CertifyError::RowImage { .. }
+            | CertifyError::Row {
+                refusal:
+                    geom_brep::RowRefusal::Image(_)
+                    | geom_brep::RowRefusal::ImageEscalated { .. }
+                    | geom_brep::RowRefusal::ChartSpeed(_),
+                ..
+            }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -3406,8 +3433,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::PlaneNurbsHull
         | CertCheck::PlaneNurbsHullValue
         | CertCheck::AnalyticBreakResidual
-        | CertCheck::AnalyticHull
-        | CertCheck::RowImage { .. } => {
+        | CertCheck::AnalyticHull => {
             geom_core::undecided!("whether it lies where its description says")
         }
         CertCheck::PlaneNurbsReportedTransversality => {

@@ -82,6 +82,13 @@ impl Box4 {
         Some(Self(s))
     }
 
+    /// The least box holding both.
+    fn hull(self, o: Self) -> Self {
+        Self(core::array::from_fn(|k| {
+            (self.0[k].0.min(o.0[k].0), self.0[k].1.max(o.0[k].1))
+        }))
+    }
+
     /// Whether `self` lies inside `o`, sides included.
     pub(crate) fn contained_in(self, o: Self) -> bool {
         (0..4).all(|k| o.0[k].0 <= self.0[k].0 && self.0[k].1 <= o.0[k].1)
@@ -150,6 +157,38 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// rows the three components.
     pub(crate) fn jacobian(&self, x: Box4) -> [[Interval; 4]; 3] {
         self.jacobian_read(x, true)
+    }
+
+    /// The Jacobian over the closed box `x`, read only through the span
+    /// cells `x` has width in ([`NurbsBoxes::deriv_box_closed`]).
+    pub(crate) fn jacobian_closed(&self, x: Box4) -> [[Interval; 4]; 3] {
+        let col = |b: Box3, s: f64| {
+            [
+                b.x * Interval::point(s),
+                b.y * Interval::point(s),
+                b.z * Interval::point(s),
+            ]
+        };
+        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
+            w.map_or_else(refused_box, |w| n.deriv_box_closed(w, u))
+        };
+        let (wa, wb) = (x.window_a(), x.window_b());
+        let cols = [
+            col(read(&self.a, wa, true), 1.0),
+            col(read(&self.a, wa, false), 1.0),
+            col(read(&self.b, wb, true), -1.0),
+            col(read(&self.b, wb, false), -1.0),
+        ];
+        core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
+    }
+
+    /// Whether both walls' first partials are continuous inside `x`
+    /// ([`NurbsBoxes::first_order_continuous_in`]).
+    pub(crate) fn first_order_continuous_in(&self, x: Box4) -> bool {
+        x.window_a()
+            .is_some_and(|w| self.a.first_order_continuous_in(w))
+            && x.window_b()
+                .is_some_and(|w| self.b.first_order_continuous_in(w))
     }
 
     /// The Jacobian, each net cut to `x` or read whole.
@@ -708,7 +747,15 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     x: Box4,
     e: [f64; 4],
 ) -> Interval {
-    let mut j = pair.jacobian(x);
+    margin_of(pair, pair.jacobian(x), e)
+}
+
+/// [`graph_margin`] of a Jacobian `j` read over a box.
+fn margin_of<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    mut j: [[Interval; 4]; 3],
+    e: [f64; 4],
+) -> Interval {
     for row in &mut j {
         for (c, v) in row.iter_mut().enumerate() {
             *v = *v * Interval::point(1.0 / pair.speeds[c]);
@@ -730,93 +777,148 @@ const ROW_DEPTH: u32 = 10;
 /// ([`row_crossing`]).
 const ROW_SLIVER: f64 = 1.0 / (1u64 << 40) as f64;
 
-/// Why [`row_crossing`] gave no bound.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum RowCrossing {
-    /// A wall's chart has no speeds to scale its Jacobian by.
-    Unreadable,
-    /// A piece `(lo, hi)` of the span, halved [`ROW_DEPTH`] times, still
-    /// holds a zero of its graph margin: the walls may touch there.
-    Straddles(f64, f64),
+/// `raw`, a direction in the state's chart coordinates, scaled to metres
+/// by each coordinate's chart `speeds` and made a unit vector: the axis a
+/// [`graph_margin`] is read across. `None` for a zero or non-finite one.
+pub(crate) fn scaled_unit(raw: [f64; 4], speeds: [f64; 4]) -> Option<[f64; 4]> {
+    let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
+    let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
+    (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
 }
 
-/// **Two walls' crossing along a shared row, bounded over the whole
-/// span**: the least zero-free [`graph_margin`] over a cover of
-/// `[t0, t1]`. `read(lo, hi)` gives a piece's state box (the two row
-/// images' chart boxes over it) and the images' chord across it, in
-/// state coordinates.
+/// Why [`row_crossing`] gave no reading: wall `0` or `1` has no chart
+/// speeds to scale its Jacobian by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RowUnreadable(pub(crate) usize, pub(crate) super::ChartSpeedRefusal);
+
+/// What [`row_crossing`] read over a row's cover.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RowCrossing {
+    /// The least zero-free graph margin over the cover, `NaN` where a
+    /// piece, halved [`ROW_DEPTH`] times, still read no sign.
+    pub(crate) least: f64,
+    /// Whether two zero-free pieces read opposite signs with both walls'
+    /// first partials continuous over the stretch between them: the
+    /// walls' tangent planes coincide at a state of the row there.
+    pub(crate) turns: bool,
+}
+
+/// **Two walls' crossing along a shared row, over its whole span**: the
+/// [`graph_margin`] read over a cover of `[t0, t1]`, ends and joins
+/// included. `read(lo, hi)` gives a piece's state box (holding both row
+/// images over `[lo, hi]`) and the images' chord across it, in chart
+/// coordinates.
 ///
 /// A zero-free graph margin over a box says the pair's Jacobian has rank
-/// three at every state in it: the two tangent planes differ everywhere
-/// the row's piece can be. A piece that straddles zero is halved, up to
-/// [`ROW_DEPTH`] times. This is limb 3's crossing reading, local to the
-/// row, without its one-arc count.
+/// three at every state in it: the two tangent planes differ there. A
+/// piece that is not zero-free is halved, up to [`ROW_DEPTH`] times. Each
+/// piece is read over its closed box through each wall's spans that the
+/// box has width in ([`PairBoxes::jacobian_closed`]), so a piece ending
+/// on a knot reads that knot through its own span's polynomial, and the
+/// pieces' boxes meet: every state of the row is read, at no precision
+/// below the boxes' own.
 ///
-/// Each piece's box is read one ulp inside its moving coordinates, so a
-/// piece ending on a knot reads only its own span (cut at the knot
-/// itself, the adjacent span's enclosure widens the Jacobian past use).
-/// The margin is continuous on each closed span, so a crossing that
-/// vanished at a piece's end would read within a few ulps of zero just
-/// inside it: the least margin still bounds the ends, to that slack,
-/// which is far inside any band.
+/// **Opposite signs.** Along the row `F` vanishes, so the row's tangent
+/// `d` lies in the Jacobian's kernel. Write `n` for the Jacobian's
+/// generalized cross product (scaled as the margin's): continuous wherever
+/// the first partials are, zero exactly where the rank drops, and along
+/// the kernel otherwise, so `n = λ·d`. The margin at a row state is `n·e`.
+/// The caller states that each image moves along one chart coordinate,
+/// strictly monotonically with nonzero speed, and that a chord component
+/// is zero or of its coordinate's sign; so with `σ` the coordinates' sign
+/// pattern, `d·σ > 0` and `d·e > 0` on every piece, and the margin's sign
+/// there is `λ`'s, and `n·σ`'s. Two zero-free pieces of opposite signs,
+/// with both walls' first partials continuous inside the hull of the boxes
+/// from one to the other ([`PairBoxes::first_order_continuous_in`]), give
+/// the continuous `n·σ` both signs between them: it is zero at a state of
+/// the row there, where `λ`, and so the rank, drops and the tangent
+/// planes coincide. Across a knot of full multiplicity the partials jump,
+/// and a sign change there says nothing.
+///
+/// A box with no width across the row is widened into the domain when its
+/// fixed coordinate is a domain end, so no net is cut to a point (a box
+/// of no width would read its whole cell); elsewhere it is read as it
+/// stands, a sound and looser reading.
 pub(crate) fn row_crossing<T: CertifiedBounds>(
     (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
     (t0, t1): (f64, f64),
     read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
-) -> Result<f64, RowCrossing> {
-    let (Ok(ca), Ok(cb)) = (super::ChartedNurbs::mint(a), super::ChartedNurbs::mint(b)) else {
-        return Err(RowCrossing::Unreadable);
-    };
+) -> Result<RowCrossing, RowUnreadable> {
+    let ca = super::ChartedNurbs::mint(a).map_err(|e| unreadable(0, e))?;
+    let cb = super::ChartedNurbs::mint(b).map_err(|e| unreadable(1, e))?;
     let (sa, sb) = (ca.speeds(), cb.speeds());
     let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
     let domain = Box4::of_charts(a, b);
-    let mut least = f64::INFINITY;
     #[allow(clippy::cast_precision_loss)]
-    let mut work: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
+    let mut work: std::collections::VecDeque<(f64, f64, u32)> = (0..ROW_PIECES)
         .map(|k| {
             let at = |k: usize| t0 + (t1 - t0) * (k as f64 / ROW_PIECES as f64);
             (at(k), at(k + 1), 0)
         })
         .collect();
-    while let Some((lo, hi, depth)) = work.pop() {
+    // Each read piece: its start, its box, and its margin's sign where it
+    // is zero-free (`None` for a piece read at depth with no sign).
+    let mut pieces: Vec<(f64, Box4, Option<bool>)> = Vec::new();
+    let mut least = f64::INFINITY;
+    while let Some((lo, hi, depth)) = work.pop_front() {
         let (x, chord) = read(lo, hi);
-        // A row's fixed coordinate is a point, which no net is cut to:
-        // widen it into the domain, so the box (still holding the row)
-        // reads the cell beside the row, not the whole cell.
         let x = Box4(core::array::from_fn(|k| {
             let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
+            let w = (d1 - d0) * ROW_SLIVER;
             if l < h {
                 (l, h)
-            } else {
-                let w = (d1 - d0) * ROW_SLIVER;
-                if l + w <= d1 { (l, l + w) } else { (l - w, l) }
-            }
-        }));
-        // Each moving coordinate one ulp inside its piece, so the box
-        // reads one span's polynomial even where a piece ends on a knot.
-        let x = Box4(x.0.map(|(l, h)| {
-            if l < h {
-                (l.next_up(), h.next_down())
+            } else if l == d0 {
+                (l, (l + w).max(l.next_up()))
+            } else if l == d1 {
+                ((l - w).min(l.next_down()), l)
             } else {
                 (l, h)
             }
         }));
-        let scaled: [f64; 4] = core::array::from_fn(|k| chord[k] * pair.speeds[k]);
-        let norm = scaled.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
-        let e = scaled.map(|c| c / norm);
-        let margin = graph_margin(&pair, x, e);
-        let (m_lo, m_hi) = (margin.lo(), margin.hi());
-        if norm > 0.0 && (m_lo > 0.0 || m_hi < 0.0) {
-            least = least.min(m_lo.abs().min(m_hi.abs()));
-        } else if depth < ROW_DEPTH {
-            let half = lo * 0.5 + hi * 0.5;
-            work.push((lo, half, depth + 1));
-            work.push((half, hi, depth + 1));
-        } else {
-            return Err(RowCrossing::Straddles(lo, hi));
+        let margin = scaled_unit(chord, pair.speeds)
+            .map(|e| margin_of(&pair, pair.jacobian_closed(x), e))
+            .and_then(|i| {
+                let m = super::enclose::tube_margin(i)?;
+                (m > 0.0).then_some((m, i.lo() > 0.0))
+            });
+        match margin {
+            Some((m, positive)) => {
+                least = least.min(m);
+                pieces.push((lo, x, Some(positive)));
+            }
+            None if depth < ROW_DEPTH => {
+                let half = lo * 0.5 + hi * 0.5;
+                work.push_back((lo, half, depth + 1));
+                work.push_back((half, hi, depth + 1));
+            }
+            None => pieces.push((lo, x, None)),
         }
     }
-    Ok(least)
+    // A min over the pieces would drop a `NaN`, so an unread piece is
+    // marked once the cover is done.
+    if pieces.iter().any(|p| p.2.is_none()) {
+        least = f64::NAN;
+    }
+    pieces.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let signed: Vec<usize> = (0..pieces.len())
+        .filter(|&k| pieces[k].2.is_some())
+        .collect();
+    let turns = signed.windows(2).any(|w| {
+        let (i, j) = (w[0], w[1]);
+        pieces[i].2 != pieces[j].2
+            && pair.first_order_continuous_in(
+                pieces[i..=j].iter().fold(pieces[i].1, |h, p| h.hull(p.1)),
+            )
+    });
+    Ok(RowCrossing { least, turns })
+}
+
+/// Wall `wall`'s chart speeds refused.
+fn unreadable(wall: usize, e: super::SsiError) -> RowUnreadable {
+    match e {
+        super::SsiError::ChartSpeed(r) => RowUnreadable(wall, r),
+        other => unreachable!("a chart's mint refuses only its speeds: {other:?}"),
+    }
 }
 
 #[cfg(test)]

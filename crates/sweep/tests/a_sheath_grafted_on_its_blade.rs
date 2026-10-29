@@ -22,9 +22,10 @@
 //! a curve known in advance, so it is described by that shared row (D2's
 //! structural selector), certified per wall with no uniqueness tube. Its
 //! certificate then bounds the walls' crossing over the whole rim, and on
-//! one of the lens's two rims the walls are tangent at a point: their
-//! crossing reading changes sign across it. The union refuses there. This
-//! row is that site's tripwire: it reds when the rim certifies.
+//! one of the lens's two rims the walls are tangent at two points,
+//! symmetric about the rim's middle: their crossing reading changes sign
+//! across each. The union refuses there. This row is that site's
+//! tripwire: it reds when the rim certifies.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
@@ -79,14 +80,18 @@ fn blade(
 
 /// **Both orders stop where the walls touch on the rim.** Each rim is
 /// each wall's `v = 0` row, recovered as the walls' shared row. On one of
-/// them the walls' crossing reading changes sign mid-rim (measured
-/// 2026-10-29 near `t = 0.6477` of `[0, 0.924]`: the reading is
-/// definitely negative just before, definitely positive just after), so
-/// the walls are tangent there and the rim's certificate escalates its
-/// crossing (`Escalated { Transversality }`, `shared_row_crossing`) at ε
-/// 1e-9, 1e-6 and 1e-12. A certificate that read the crossing at its
-/// samples alone stepped over that point and passed the rim; before the
-/// shared row, the rim's witness refused at limb 3 (`TubeNotOneArc`).
+/// them (rim 1) the walls are tangent at two points symmetric about
+/// `u = ½`, near `u ≈ 0.3024` and `u ≈ 0.6977` (the PR 5959 re-review's
+/// reading off the walls' own derivatives), and the crossing reading
+/// changes sign across each. The rim's certificate reads the whole row's
+/// cover, where zero-free pieces of opposite signs with the walls' first
+/// partials continuous between them hold a tangency, and refuses it
+/// definitely: `NotTransverse` with no sample (`NOT_A_SAMPLE`, the
+/// whole-row reading's verdict, where a sample's would name its index) and
+/// an exact zero, at ε 1e-9, 1e-6 and 1e-12. A certificate that read the
+/// crossing at its samples alone stepped over both points and passed the
+/// rim; before the shared row, the rim's witness refused at limb 3
+/// (`TubeNotOneArc`).
 /// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
 /// miss; before the seam's spline entry, the seam's dihedral arm
 /// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
@@ -122,9 +127,10 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 } if matches!(
                     **cause,
                     EulerOpError::Certification {
-                        error: geom_brep::CertifyError::Escalated {
-                            check: geom_brep::CertCheck::Transversality,
-                            ..
+                        error: geom_brep::CertifyError::NotTransverse {
+                            sample: geom_brep::certify::NOT_A_SAMPLE,
+                            lever: None,
+                            verdict: geom_brep::recourse::Refused::Zero(_),
                         },
                     }
                 )

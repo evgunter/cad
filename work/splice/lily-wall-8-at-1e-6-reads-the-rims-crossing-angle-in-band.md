@@ -1,7 +1,7 @@
 ---
 id: lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band
 kind: issue
-title: Lily wall 8's sheath and blade walls are tangent at a point on their shared rim, so the rim's crossing cannot certify at any ε (first seen at 1e-6 as an in-band sample)
+title: Lily wall 8's sheath and blade walls are tangent at two points on their shared rim, so the rim's crossing cannot certify at any ε (first seen at 1e-6 as an in-band sample)
 status: open
 opened: 2026-10-28
 priority: P1
@@ -56,6 +56,21 @@ So this is lily wall 8's blocker at every ε. The sweep row
 (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`) stops at
 it at 1e-9, 1e-6 and 1e-12; the tour's wall 8 at 1e-9 (the cover, no
 sample) and 1e-6 (sample 3, levered margin 8.313e-6).
+
+## 2026-10-29 (re-review): two points, read definitely
+
+The tangency is two points, not one: on rim 1 the walls are tangent at
+`u ≈ 0.3024` and `u ≈ 0.6977`, symmetric about `u = ½` (the PR 5959
+re-review's reading off the walls' own derivatives); the `t = 0.6477`
+sign change above is the second. The cover now reads the walls' crossing
+over every state of the row (each piece through its own spans, no
+precision assumption), and two zero-free pieces of opposite signs with
+both walls' first partials continuous between them are a tangency, read
+as a definite exact zero. A lower bound in band, with no sign change to
+read, escalates instead. The sweep row refuses `NotTransverse` with no
+sample (the whole-row reading's verdict) at 1e-9, 1e-6 and 1e-12; the
+tour's wall 8 refuses the same at 1e-9, and at 1e-6 a sample's crossing
+still escalates first.
 
 ## What would close it
 

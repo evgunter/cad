@@ -178,13 +178,6 @@ pub enum CertCheck {
         /// The surface the residual is measured against.
         surface: SurfaceKey,
     },
-    /// Intersection under a shared row: `surface`'s certificate of its own
-    /// row image (its residual at the samples and its envelope between
-    /// them, and the edge's span inside the row).
-    RowImage {
-        /// The wall whose row image is certified.
-        surface: SurfaceKey,
-    },
     /// Intersection: the witness point's residual against `surface`,
     /// one of the pair.
     WitnessSurfaceResidual {
@@ -372,7 +365,6 @@ impl core::fmt::Display for CertCheck {
         // names what it is about without an arena key.
         f.write_str(match self {
             Self::SurfaceResidual { .. } => "the residual against one of the edge's surfaces",
-            Self::RowImage { .. } => "the shared row's image on one of the edge's walls",
             Self::WitnessSurfaceResidual { .. } => {
                 "the witness point's residual against one of the edge's surfaces"
             }
@@ -707,71 +699,119 @@ pub enum CertifyError {
     /// the uniqueness tube, for a spline carrier) refused, carrying
     /// their own verdict ([`crate::analytic_edge_limbs`]).
     AnalyticRung3(crate::edge_nurbs::AnalyticRung3Refusal),
-    /// `Intersection` under a shared row: `surface`'s certificate of its
-    /// own row image refused definitely, at `check` (`None` where the
-    /// refusal was no check's). The row is not the edge on that wall.
-    RowImage {
-        /// The wall whose row refused.
+    /// `Intersection` under a shared row: the row refused on `surface`,
+    /// one of the edge's walls ([`RowRefusal`]).
+    Row {
+        /// The wall the row refused on.
         surface: SurfaceKey,
-        /// The row certificate's refusing check.
-        check: Option<crate::pcurve_cache::PcurveCheck>,
-    },
-    /// `Intersection` under a shared row: `surface`'s row is not on a side
-    /// of its chart's domain. The shared row is built for boundary rows; a
-    /// structural selector for any other row or column known in advance
-    /// (D2) has no certificate yet.
-    RowOffSide {
-        /// The wall whose row lies inside its chart's domain.
-        surface: SurfaceKey,
+        /// What refused.
+        refusal: RowRefusal,
     },
 }
 
-/// **The walls cross along the whole row**: `least`, the least crossing
-/// reading over a cover of it ([`crate::ssi::row_crossing`], `NaN` where a
-/// piece could not be read zero-free), levered over the edge's extent as
-/// the tube's is, decided positive clear of the band.
-fn row_crossing_verdict<T: Decide>(least: f64, extent: T, band: Band) -> Result<(), CertifyError> {
-    let margin = Margin::levered(T::from_computed(least), extent);
-    match crate::dihedral::decide_reported("shared_row_crossing", margin, band) {
-        Ok(decided) => match Refused::of(decided, band) {
+/// Why a shared row refused on one of its walls
+/// ([`CertifyError::Row`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RowRefusal {
+    /// The wall's certificate of its own row image refused definitely, at
+    /// its check (`None` where the refusal was no check's): the row is not
+    /// the edge on that wall.
+    Image(Option<crate::pcurve_cache::PcurveCheck>),
+    /// The wall's certificate of its own row image escalated, at its
+    /// check.
+    ImageEscalated {
+        /// The row certificate's check that escalated.
+        check: crate::pcurve_cache::PcurveCheck,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// The row is not on a side of the wall's chart domain. The shared
+    /// row is built for boundary rows; a structural selector for any
+    /// other row or column known in advance (D2) has no certificate yet.
+    OffSide,
+    /// The wall's chart has no speeds to read the walls' crossing along
+    /// the row in ([`crate::ssi::ChartSpeedRefusal`]).
+    ChartSpeed(crate::ssi::ChartSpeedRefusal),
+}
+
+impl RowRefusal {
+    /// The decision this refusal is a refused arm of, `None` for the
+    /// structural [`RowRefusal::OffSide`]. The row image is an `IsoArc`'s
+    /// or an `IsoLine`'s certificate, so its check reads as an arc rim's
+    /// does ([`arc_rim_check`]): definite on the incidence limb it names
+    /// (the hull bound for one that names none), undecided at the same
+    /// routing; a chart speed reads as the spline lanes' does.
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::Image(check) => (
+                check.map_or(CertCheck::PlaneNurbsHull, arc_rim_check),
+                RefusedArm::SignCertain(None),
+            ),
+            Self::ImageEscalated { check, cause } => {
+                (arc_rim_check(*check), RefusedArm::Undecided(cause))
+            }
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain(None)),
+            Self::OffSide => return None,
+        })
+    }
+}
+
+/// **The walls cross along the whole row**, read over a cover of it
+/// ([`crate::ssi::row_crossing`]). Where the reading turns, the walls'
+/// tangent planes coincide at a state of the row: a zero crossing, decided
+/// as the exact zero it is, definite. Otherwise its least margin (`NaN`
+/// where a piece could not be read zero-free), levered over the edge's
+/// extent as the tube's is, is a lower bound only: it passes clear of the
+/// band, and in the band, or unread, escalates, since a lower bound there
+/// tells no tangency from a crossing too shallow to read.
+fn row_crossing_verdict<T: Decide>(
+    crossing: crate::ssi::RowCrossing,
+    extent: T,
+    band: Band,
+) -> Result<(), CertifyError> {
+    let escalated = |cause| CertifyError::Escalated {
+        check: CertCheck::Transversality,
+        sample: NOT_A_SAMPLE,
+        cause,
+    };
+    if crossing.turns {
+        let zero = Margin::levered(T::from_computed(0.0), extent);
+        let decided = crate::dihedral::decide_reported("shared_row_crossing", zero, band)
+            .map_err(escalated)?;
+        return match Refused::of(decided, band) {
             Some(verdict) => Err(CertifyError::NotTransverse {
                 sample: NOT_A_SAMPLE,
                 lever: None,
                 verdict,
             }),
-            None => Ok(()),
-        },
-        Err(cause) => Err(CertifyError::Escalated {
-            check: CertCheck::Transversality,
-            sample: NOT_A_SAMPLE,
-            cause,
-        }),
+            None => unreachable!("an exact zero is decided no positive sign"),
+        };
     }
+    let margin = Margin::levered(T::from_computed(crossing.least), extent);
+    crate::dihedral::decide_positive("shared_row_crossing", margin, band).map_err(escalated)
 }
 
 /// A shared row's certificate on `surface` refused: escalated or definite,
 /// named as that wall's row check.
 fn row_image_refusal(surface: SurfaceKey, refusal: PcurveCertifyError) -> CertifyError {
-    match refusal {
-        PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
-            check: CertCheck::RowImage { surface },
-            sample: NOT_A_SAMPLE,
-            cause,
-        },
-        refused => CertifyError::RowImage {
-            surface,
-            check: refused.refused_check(),
-        },
-    }
+    let refusal = match refusal {
+        PcurveCertifyError::Escalated { check, cause, .. } => {
+            RowRefusal::ImageEscalated { check, cause }
+        }
+        refused => RowRefusal::Image(refused.refused_check()),
+    };
+    CertifyError::Row { surface, refusal }
 }
 
-/// The certification check an arc rim's exact image's `check` restates
-/// where it escalated ([`CertifyError::Escalated`]): its incidence limb's
-/// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), and the
-/// image's span decision for the span check ([`CertCheck::ImageSpan`]),
-/// not the edge's, whose interval it does not decide. A check no
-/// `IsoArc` certificate runs
-/// reads as the hull bound it would feed.
+/// The certification check a chart image's `check` restates where an
+/// exact image on a spline chart is refused at it: an arc rim's exact
+/// image escalated ([`CertifyError::Escalated`]), or a shared row's image
+/// on one of its walls refused ([`RowRefusal::decision`]). Its incidence
+/// limb's ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), and
+/// the image's span decision for the span check ([`CertCheck::ImageSpan`]),
+/// not the edge's, whose interval it does not decide. A check no `IsoArc`
+/// or `IsoLine` certificate runs reads as the hull bound it would feed.
 pub(crate) fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     match check {
         crate::pcurve_cache::PcurveCheck::ParamSpan => CertCheck::ImageSpan,
@@ -918,24 +958,48 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
             ),
-            Self::RowOffSide { surface } => write!(
+            Self::Row {
+                surface,
+                refusal: RowRefusal::OffSide,
+            } => write!(
                 f,
                 "the shared row on surface {surface:?} is not on a side of its chart's domain: \
                  the shared row is built for boundary rows, and D2's structural selector for \
                  any other row or column known in advance has no certificate yet"
             ),
-            Self::RowImage { surface, check } => match check {
-                Some(check) => write!(
-                    f,
-                    "the shared row's image on surface {surface:?} is not the edge: its \
-                     certificate refused at its {check:?} check"
-                ),
-                None => write!(
-                    f,
-                    "the shared row's image on surface {surface:?} is not the edge: its \
-                     certificate refused"
-                ),
-            },
+            Self::Row {
+                surface,
+                refusal: RowRefusal::Image(Some(check)),
+            } => write!(
+                f,
+                "the shared row's image on surface {surface:?} is not the edge: its \
+                 certificate refused at its {check:?} check"
+            ),
+            Self::Row {
+                surface,
+                refusal: RowRefusal::Image(None),
+            } => write!(
+                f,
+                "the shared row's image on surface {surface:?} is not the edge: its \
+                 certificate refused"
+            ),
+            Self::Row {
+                surface,
+                refusal: RowRefusal::ImageEscalated { check, cause },
+            } => write!(
+                f,
+                "the shared row's image on surface {surface:?} could not be certified: its \
+                 {check:?} check was undecided — {cause}"
+            ),
+            Self::Row {
+                surface,
+                refusal: RowRefusal::ChartSpeed(r),
+            } => write!(
+                f,
+                "the walls' crossing along the shared row could not be read on surface \
+                 {surface:?}: {}",
+                r.what()
+            ),
             Self::NotTransverse {
                 sample,
                 lever,
@@ -1050,17 +1114,13 @@ impl CertifyError {
             ),
             Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::AnalyticRung3(refusal) => return refusal.decision(),
-            Self::RowImage { surface, .. } => (
-                CertCheck::RowImage { surface: *surface },
-                RefusedArm::SignCertain(None),
-            ),
+            Self::Row { refusal, .. } => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
-            | Self::RowOffSide { .. }
             | Self::Band(_) => return None,
         })
     }
@@ -1551,8 +1611,7 @@ impl CertCheck {
             Self::TangentHull
             | Self::PlaneNurbsHull
             | Self::PlaneNurbsHullValue
-            | Self::AnalyticHull
-            | Self::RowImage { .. } => Ending::Residual(Unsized::Bound),
+            | Self::AnalyticHull => Ending::Residual(Unsized::Bound),
         }
     }
 }
@@ -3587,7 +3646,10 @@ fn resolve_spec<T: Decide>(
                     return Err(CertifyError::Unimplemented);
                 };
                 if !crate::description::on_domain_side(chart, image) {
-                    return Err(CertifyError::RowOffSide { surface: k });
+                    return Err(CertifyError::Row {
+                        surface: k,
+                        refusal: RowRefusal::OffSide,
+                    });
                 }
                 Ok((k, s, image.clone()))
             };
@@ -4512,9 +4574,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
             .map_err(|e| from_plane_nurbs(e.lane()))?;
         let span = (t0.lo(), t1.hi());
-        // A row image runs monotonically along its row (an `IsoLine` is
-        // affine in `t`, an `IsoArc` traverses its segment monotonically), so
-        // over a piece it lies in the hull of its two ends' images.
+        // A row image moves monotonically along one coordinate
+        // (`description::row_of`, the admission guard), so over a piece it
+        // lies in the hull of its two ends' images.
         let read = |lo: f64, hi: f64| {
             let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
             let ends = |image: &Pcurve<T>| (image.eval(lo_t), image.eval(hi_t));
@@ -4527,20 +4589,31 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                 hull(b0.x, b1.x),
                 hull(b0.y, b1.y),
             ];
+            // A component is the step between its ends' brackets where
+            // they are apart, so of its coordinate's sign, and zero
+            // otherwise ([`crate::ssi::row_crossing`]'s turn reads that).
+            let step = |p: T, q: T| {
+                if p.hi() < q.lo() || q.hi() < p.lo() {
+                    mid(q) - mid(p)
+                } else {
+                    0.0
+                }
+            };
             let chord = [
-                mid(a1.x) - mid(a0.x),
-                mid(a1.y) - mid(a0.y),
-                mid(b1.x) - mid(b0.x),
-                mid(b1.y) - mid(b0.y),
+                step(a0.x, a1.x),
+                step(a0.y, a1.y),
+                step(b0.x, b1.x),
+                step(b0.y, b1.y),
             ];
             (crate::ssi::RowBox(state), chord)
         };
-        let least = match crate::ssi::row_crossing((a, b), span, read) {
-            Ok(least) => least,
-            Err(crate::ssi::RowCrossing::Unreadable) => return Err(CertifyError::Unimplemented),
-            Err(crate::ssi::RowCrossing::Straddles(..)) => f64::NAN,
-        };
-        row_crossing_verdict(least, extent, band)?;
+        let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
+            |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
+                surface: walls[wall].0,
+                refusal: RowRefusal::ChartSpeed(refusal),
+            },
+        )?;
+        row_crossing_verdict(crossing, extent, band)?;
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
@@ -5063,7 +5136,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 33] {
+    fn all_checks() -> [CertCheck; 32] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -5073,7 +5146,6 @@ mod tests {
             CertCheck::EndpointStart,
             CertCheck::EndpointEnd,
             CertCheck::SurfaceResidual { surface },
-            CertCheck::RowImage { surface },
             CertCheck::WitnessSurfaceResidual { surface },
             CertCheck::WitnessMidpoint,
             CertCheck::Transversality,
@@ -5117,39 +5189,38 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 33,
-            CertCheck::ParamSpanMeter => 33,
-            CertCheck::ParamWinding => 33,
-            CertCheck::ImageSpan => 33,
-            CertCheck::EndpointStart => 33,
-            CertCheck::EndpointEnd => 33,
-            CertCheck::SurfaceResidual { .. } => 33,
-            CertCheck::RowImage { .. } => 33,
-            CertCheck::WitnessSurfaceResidual { .. } => 33,
-            CertCheck::WitnessMidpoint => 33,
-            CertCheck::Transversality => 33,
-            CertCheck::TransversalityTube => 33,
-            CertCheck::TransversalityArm => 33,
-            CertCheck::TangentPlanes => 33,
-            CertCheck::TangentParallel => 33,
-            CertCheck::TangentGap => 33,
-            CertCheck::TangentSecondOrder => 33,
-            CertCheck::TangentHull => 33,
-            CertCheck::TangentTube => 33,
-            CertCheck::MappedSource => 33,
-            CertCheck::ChartImage => 33,
-            CertCheck::ChartClass => 33,
-            CertCheck::ChartIncidence => 33,
-            CertCheck::GeneralLane => 33,
-            CertCheck::ChartResidual => 33,
-            CertCheck::PlaneNurbsOnLocus => 33,
-            CertCheck::PlaneNurbsHull => 33,
-            CertCheck::PlaneNurbsHullValue => 33,
-            CertCheck::AnalyticBreakResidual => 33,
-            CertCheck::AnalyticHull => 33,
-            CertCheck::PlaneNurbsReportedTransversality => 33,
-            CertCheck::PlaneNurbsChartSpeed => 33,
-            CertCheck::PlaneNurbsChartSpeedBound => 33,
+            CertCheck::ParamSpan => 32,
+            CertCheck::ParamSpanMeter => 32,
+            CertCheck::ParamWinding => 32,
+            CertCheck::ImageSpan => 32,
+            CertCheck::EndpointStart => 32,
+            CertCheck::EndpointEnd => 32,
+            CertCheck::SurfaceResidual { .. } => 32,
+            CertCheck::WitnessSurfaceResidual { .. } => 32,
+            CertCheck::WitnessMidpoint => 32,
+            CertCheck::Transversality => 32,
+            CertCheck::TransversalityTube => 32,
+            CertCheck::TransversalityArm => 32,
+            CertCheck::TangentPlanes => 32,
+            CertCheck::TangentParallel => 32,
+            CertCheck::TangentGap => 32,
+            CertCheck::TangentSecondOrder => 32,
+            CertCheck::TangentHull => 32,
+            CertCheck::TangentTube => 32,
+            CertCheck::MappedSource => 32,
+            CertCheck::ChartImage => 32,
+            CertCheck::ChartClass => 32,
+            CertCheck::ChartIncidence => 32,
+            CertCheck::GeneralLane => 32,
+            CertCheck::ChartResidual => 32,
+            CertCheck::PlaneNurbsOnLocus => 32,
+            CertCheck::PlaneNurbsHull => 32,
+            CertCheck::PlaneNurbsHullValue => 32,
+            CertCheck::AnalyticBreakResidual => 32,
+            CertCheck::AnalyticHull => 32,
+            CertCheck::PlaneNurbsReportedTransversality => 32,
+            CertCheck::PlaneNurbsChartSpeed => 32,
+            CertCheck::PlaneNurbsChartSpeedBound => 32,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -9399,12 +9470,6 @@ mod tests {
             (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
             (CertCheck::AnalyticBreakResidual, Miss(Unsized::Fit)),
             (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
-            (
-                CertCheck::RowImage {
-                    surface: SurfaceKey::default(),
-                },
-                Miss(Unsized::Bound),
-            ),
             (
                 CertCheck::PlaneNurbsReportedTransversality,
                 NoSize(Unsized::Defect),

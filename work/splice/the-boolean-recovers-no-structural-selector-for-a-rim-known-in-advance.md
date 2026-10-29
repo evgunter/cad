@@ -86,10 +86,11 @@ boolean's `Scaffold`, not a stated image; each side's `pcurve_of` derives
 the exact `IsoArc` on the `v = 0` row.
 
 Lily wall 8's rims are recovered as shared rows, and on one of them the
-walls are tangent at a point: their crossing reading changes sign mid-rim
+walls are tangent at two points, symmetric about its middle: their
+crossing reading changes sign across each
 (`lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`, which now
 holds that blocker). Her sweep row stops there at every ε
 (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`).
 
-Rows: `geom-brep` `a_shared_row_is_certified_per_wall`, eleven rows at ε
+Rows: `geom-brep` `a_shared_row_is_certified_per_wall`, fifteen rows at ε
 1e-9, 1e-6 and 1e-12, each guarded by a mutant of the gate it pins.

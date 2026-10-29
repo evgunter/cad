@@ -2435,10 +2435,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         crate::booleans::try_union(leaf_a, &sheath, tol),
         // The rim's crossing refuses at every ε that reaches it; the
         // reading that refuses is keyed by ε (measured 2026-10-29). At
-        // 1e-9 the rim's certificate bounds the walls' crossing over the
-        // whole row, and on a rim where they touch at a point no cover of
-        // it reads clear of zero: an escalation at no sample. At 1e-6 a
-        // sample's crossing reads in band first
+        // 1e-9 the rim's certificate reads the walls' crossing over the
+        // whole row, and on the rim where they are tangent at two points,
+        // symmetric about its middle, the cover reads the crossing change
+        // sign across each: a definite exact zero, at no sample. At 1e-6 a
+        // sample's crossing reads in band first, an escalation there
         // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`).
         // At 1e-12 the lower stem's declared frontier stands the lily walls
         // down before this one. If this ever refuses elsewhere, the
@@ -2453,18 +2454,28 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             else {
                 return false;
             };
-            let EulerOpError::Certification {
-                error:
+            let EulerOpError::Certification { error } = &**cause else {
+                return false;
+            };
+            if tol.eps() == 1e-6 {
+                matches!(
+                    error,
                     CertifyError::Escalated {
                         check: CertCheck::Transversality,
                         sample,
                         ..
-                    },
-            } = **cause
-            else {
-                return false;
-            };
-            (sample == pncad::geom_brep::certify::NOT_A_SAMPLE) == (tol.eps() != 1e-6)
+                    } if *sample != pncad::geom_brep::certify::NOT_A_SAMPLE
+                )
+            } else {
+                matches!(
+                    error,
+                    CertifyError::NotTransverse {
+                        sample: pncad::geom_brep::certify::NOT_A_SAMPLE,
+                        lever: None,
+                        verdict: pncad::geom_brep::recourse::Refused::Zero(_),
+                    }
+                )
+            }
         },
         "grow the leaves out of the stem instead of standing them beside it",
     );

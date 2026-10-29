@@ -234,9 +234,15 @@ impl<T: Real> SharedRow<T> {
 }
 
 /// A row image's reading: whether it moves along `u` (else along `v`),
-/// and its fixed coordinate. An iso line moves along exactly one chart
-/// coordinate; an arc rim moves along `u`, the only way an arc-rim image
-/// is stated or certified. `None` for anything else.
+/// and its fixed coordinate. `None` for anything else. **The guard the
+/// shared row's crossing reading stands on**: each image it admits moves
+/// along exactly one chart coordinate, strictly monotonically and with
+/// nonzero speed, so over a piece it lies in the hull of its two ends'
+/// images and its tangent has its coordinate's sign. An iso line is affine
+/// with a nonzero velocity along one axis; an arc rim moves along `u`
+/// (the only way an arc-rim image is stated or certified), its chart
+/// parameter increasing with the carrier's with a positive derivative on
+/// every sub-arc ([`Pcurve::IsoArc`]'s map).
 fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     let zero = |x: T| geom_core::is_exact_zero(x);
     match image {
