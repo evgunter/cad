@@ -2,11 +2,12 @@
 id: departure-presents-no-curved-shared-edge
 kind: issue
 title: The injectivity check's departure arm refuses at depth 0 where a shared edge is neither a chart iso nor a straight line, so a cylinder cut obliquely or a cylinder-cylinder T cannot be certified embedded
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: H
 refs: [self-intersection-drops-every-vertex-sharing-face-pair-globally, SHELL-4]
+branch: clear/curvedep
 ---
 
 
