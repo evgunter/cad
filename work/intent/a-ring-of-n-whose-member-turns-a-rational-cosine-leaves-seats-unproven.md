@@ -2,7 +2,7 @@
 id: a-ring-of-n-whose-member-turns-a-rational-cosine-leaves-seats-unproven
 kind: issue
 title: A ring of N whose step's cosine is rational at some member (N = 9, 24) leaves seats unproven: the exact-turn lane folds cos(turn/3) to −½ before the symbolic tier, so a constant angle has two canonical forms
-status: open
+status: dispatched
 priority: P1
 refs: [patterns-are-index-variables]
 opened: 2026-10-28

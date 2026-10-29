@@ -2,7 +2,7 @@
 id: patterns-are-index-variables
 kind: issue
 title: Patterns are index variables: PatternKind, Node::Pattern, Node::PlacedUnion and Instance(i) retire into index(N), families and Member names; mirror is a construction; presets are the façade's
-status: review
+status: closed
 pr: 5954
 opened: 2026-10-08
 priority: P0
@@ -10,6 +10,7 @@ cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
 branch: intent/g-patterns-are-index-variables
 design: true
+closed: 2026-10-29
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §8, restated against main at `4a4bb23608`; where this body and §8 differ, §8 governs. G waits on D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`): a pattern is a placement over an index into the target space it names, its copy a `Bodies` family there, combined by `⊔` (members kept as pieces, each its own arrival) or `∪` (fused). It waits on E's core (`an-operation-computes-in-a-frame-of-its-reads`) too: a member is `Framed` over its source's one body (the copies ruling), so §6 Q1, once shared with E, is answered. Its `Mirror` (§8 (c)) waits on nothing. Riders: `placed-union-places-and-fuses-in-one-node`, `explicit-placement-frames-hold-floats`, `a-map-over-a-patterns-bodies-asserts-once-per-member`. One design question stays open, measured first: whether a ring closes structurally (§8 Q1); PR 5555's mate rung does not reach it, since neighbouring members touch where no mate states it.
