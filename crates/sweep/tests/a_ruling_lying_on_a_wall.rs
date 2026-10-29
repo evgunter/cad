@@ -955,3 +955,25 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
         }
     }
 }
+
+/// Review R1 probe (PR 5993): the rendered text of the two rims' new
+/// escalation, per op, at k = 30 and 200.
+#[test]
+#[ignore = "review probe"]
+fn review_r1_two_rims_escalation_text() {
+    let tol = Tol::witness();
+    let rod = rod_of(0.01, -3.0, 6.0);
+    for k in [30.0, 200.0] {
+        let d = k * tol.eps();
+        let (a, b) = (
+            cut_below(&rod, 100.0, 0.0),
+            cut_below(&rod, 100.0 * (1.0 + d), 0.0),
+        );
+        for (op, res) in six(&a, &b) {
+            match res {
+                Err(e) => println!("k={k} {op}: {e:?}\n   TEXT: {e}"),
+                Ok(_) => println!("k={k} {op}: built"),
+            }
+        }
+    }
+}

@@ -1075,4 +1075,65 @@ mod subdivision_guard_rows {
             other => panic!("{other:?} for a residual crossing twice"),
         }
     }
+
+    /// **Review R1 (PR 5993): the re-cut never loses or merges a root.**
+    /// `F = A(1 − cos φ)² − c`, `φ = θ − θ₀`, is flat to fourth order at
+    /// `θ₀` (`F ≈ Aφ⁴/4 − c`), so with `A = 10⁻⁶` a whole sixteenth about
+    /// `θ₀` reads in band at every share and the first cut leaves it
+    /// inside its neighbours' piece. Swept over `θ₀` (so the flat stretch
+    /// lands on a cut, across two sixteenths, and inside one) and over
+    /// `c` (no root, a double root, two roots within the band of each
+    /// other, two roots in adjacent sixteenths, two roots well apart):
+    /// every certified answer has the true count with each root on the
+    /// residual, and every refusal is a touch or a limit, never a fault
+    /// and never a certified miss of a residual that crosses.
+    #[test]
+    fn review_r1_the_recut_keeps_every_root() {
+        let a = 1e-6;
+        let (mut certified, mut touched, mut limited) = (0, 0, 0);
+        // Every third of a sixteenth, so the flat stretch sits on a cut,
+        // across one, and inside a sixteenth.
+        for i in 0..48 {
+            let t0 = -PI + 2.0 * PI * f64::from(i) / 48.0 + 1e-3;
+            for c in [-1e-11, 0.0, 1e-11, 1e-10, 4e-9, 3e-8, 1e-7, 1e-6] {
+                let f = DegreeTwo::new(
+                    1.5 * a - c,
+                    -2.0 * a * t0.cos(),
+                    -2.0 * a * t0.sin(),
+                    0.5 * a * (2.0 * t0).cos(),
+                    0.5 * a * (2.0 * t0).sin(),
+                )
+                .poly();
+                let value = |t: f64| a * (1.0 - (t - t0).cos()).powi(2) - c;
+                // The nearest roots stand `0.16` apart, so a coarser grid
+                // than `sign_changes`' reads them.
+                let truth = (0..=20_000_u32)
+                    .map(|k| value(-PI + 2.0 * PI * f64::from(k) / 20_000.0))
+                    .collect::<Vec<_>>()
+                    .windows(2)
+                    .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+                    .count();
+                match walk(&f, &value, 0.0, 1e-9) {
+                    Ok(Roots::Certified(found)) => {
+                        certified += 1;
+                        assert_eq!(found.count(), truth, "θ₀ {t0}, c {c:e}: {found:?}");
+                        for &t in found.roots() {
+                            assert!(value(t).abs() <= 1e-8, "θ₀ {t0}, c {c:e}: root {t}");
+                        }
+                    }
+                    Ok(Roots::Miss) => {
+                        assert_eq!(truth, 0, "θ₀ {t0}, c {c:e}: a miss of {truth} crossings");
+                        certified += 1;
+                    }
+                    Err(RootRefusal::Touch(_)) => touched += 1,
+                    Err(RootRefusal::Unsettled(_)) => limited += 1,
+                    other => panic!("θ₀ {t0}, c {c:e} ({truth} crossings): {other:?}"),
+                }
+            }
+        }
+        assert!(
+            touched > 0 && certified > 0,
+            "certified {certified}, touched {touched}, limited {limited}"
+        );
+    }
 }
