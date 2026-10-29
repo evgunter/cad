@@ -905,6 +905,12 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
+    # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
+    # spelling one attribute over: where the file put the pole or apex
+    # import made a vertex, as `singularity` beside the `kind` word
+    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # other arm), the way `promoted_to` carries `surface_promotion`'s.
+    "SingularityFound": "StructureNormalization.singularity",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
