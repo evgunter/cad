@@ -313,7 +313,7 @@ fn the_tube_circle_tangency_decides_zero() {
         Ok(SectionRead::Built(s)) => {
             assert!(s.tangency().is_some(), "the pipe's tangency is decided");
             assert!(
-                matches!(s.components(), [c] if matches!(c.carrier, ClassCarrier::Unminted(_))),
+                matches!(s.counted().expect("a counted section"), [c] if matches!(c.carrier, ClassCarrier::Unminted(_))),
                 "one tangent component"
             );
         }
@@ -338,7 +338,7 @@ fn a_sphere_on_the_core_is_tangent_along_a_circle() {
             Ok(SectionRead::Built(sec)) => {
                 assert!(sec.tangency().is_some(), "tangent");
                 assert!(
-                    matches!(sec.components(), [c] if c.shape == ComponentShape::Loop
+                    matches!(sec.counted().expect("a counted section"), [c] if c.shape == ComponentShape::Loop
                         && c.witness.is_none()),
                     "one tangent loop: {:?}",
                     sec.components()
