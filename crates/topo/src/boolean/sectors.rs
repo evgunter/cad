@@ -6142,6 +6142,31 @@ mod tests {
         }
     }
 
+    /// **A degenerate direction refuses, never decides** (PR 5983's
+    /// review): normalizing a zero direction is NaN in every component,
+    /// so the one check must not read it as parallel or apart. Before
+    /// the normalization a zero bound's cross-norm was an exact zero and
+    /// read parallel on to the sense; now it must come back an error.
+    #[test]
+    fn a_zero_direction_refuses_rather_than_reading_parallel_or_apart() {
+        let b = band();
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        for (p, q) in [
+            (Vec3::zero(), u),
+            (u, Vec3::zero()),
+            (Vec3::zero(), Vec3::zero()),
+            (Vec3::new(f64::NAN, 0.0, 0.0), u),
+        ] {
+            let got = parallel_same(p, q, 1.0, BOUNDS_PARALLEL, b);
+            assert!(got.is_err(), "{p:?} against {q:?} decided {got:?}");
+        }
+        // A direction far below the squares' underflow band is still a
+        // direction: normalize prescales it.
+        let tiny = Vec3::new(1e-300, 0.0, 0.0);
+        assert!(parallel_same(tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
+        assert!(!parallel_same(-tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
+    }
+
     /// **Two parallel directions' sense is its own decision, and its
     /// decided zero refuses as its in-band arm does**: read at an arm in
     /// the band, and at one in the zero band, the cosine of two equal
