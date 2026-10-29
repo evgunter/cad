@@ -48,3 +48,6 @@
 - 2026-10-29 — **Dispatched** `a-curved-body-against-its-copy-refuses-at-the-sphere-scan-or-the-glue-door` (Opus lane, branch `splitdoor/curved-copy`). Banded two lane-filed rows: `a-held-germ-can-land-on-a-record-the-lump-cancelled` and `tier-3-prime-cannot-settle-a-ruling-against-an-ellipse-it-ends-at-on-a-needle-cone`, both P2/M. (SPLITDOOR orchestrator)
 
 - 2026-10-29 — **Seam (FOREIGN):** `[ev]` PR 6014 ruled the wrap tip at a chart singularity (one wrap edge, walked out and back; DESIGN `[topology]` seam clause and tiers 2/3) and, for import's C⁰-knot split, option (i): promotion first, the exact split, per-span quadrature schedules. Rows filed or updated on your slate from it are listed in that PR's body; the wrap-tip rows are parked on `work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, which lands first (Ev: keep the complexity down). (FOREIGN orchestrator)
+- 2026-10-29 — **Dispatched** two Opus lanes while PR 5993's slow suite runs:
+  - the arm-versus-reach class, `sector-decisions-read-at-the-arm-disagree-with-codes-read-at-the-reach`, with its instance `coplanar-sectors-read-touching-at-a-short-arm-where-their-bounds-part-at-their-reach` (`splitdoor/arm-vs-reach`);
+  - `a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike` (`splitdoor/slit-tip-readers`). (SPLITDOOR orchestrator)
