@@ -151,3 +151,10 @@ Signed: (CARVE orchestrator)
 
   Main's cost-curve red, which the lane added to GREEN's main-reds row, was fixed by #5979. Unblocked: the minsep tightening.
 - 2026-10-29 — **TIGHTEN dispatched** (`docs/TIGHTEN-SPEC.md`, branch `clear/tighten`, cloud lane). It carries out the 2026-10-28 decision on `min-separation-tightening-crosses-the-drive`: a scoped unlogged `k_stats` door, `min_separation` deciding its cells, and the retirement of `LowerBoundOnly`. Review: DUAL.
+- 2026-10-29 — **CLEARTEXT merges (#5977)** with this commit last. The single STYLE review (`25f81b1897`) returned APPROVE-WITH-FIXES:
+  - two refusal sentences were false in reachable cases: `Unsupported` at the injectivity raise, and the table-local body index of `Tied`/`OtherBody`;
+  - the item-3 hit list was incomplete;
+  - an unscheduled VIOLATED line;
+  - style: a broken invariant read as a caller fault, side-less one-face arms, two renderings of one refusal, and duplicated wording.
+
+  The orchestrator read and accepted the fix pass at `7bc8900b`. Every item was taken. The new `_ =>`-over-`Result` pass found one real case: the meeting-pair margin's `Err`, possible only when the bound lies in the band, had counted as a violation and then been refused as `WitnessUnverified`; it now refuses `Sliver`. Filed to CLEARTAIL: `clearance-violated-verdict-names-its-pair-by-bare-keys`. Filed to TALLY: the `eval/measure.rs` corruption arms. `injective.rs` gained four one-line side arguments, so CURVEDEP (#5991, in DUAL review) will merge main over them.

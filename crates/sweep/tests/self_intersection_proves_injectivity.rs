@@ -32,7 +32,8 @@ use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CertificateArm,
-    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, min_separation,
+    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
+    min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
@@ -114,7 +115,7 @@ fn verify(
 fn injective(body: &Body<f64>, faces: Option<Vec<FaceKey>>, budget: usize) -> BoundReport<Witness> {
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
     let side = Side { body, faces };
-    let windows = side.windows().expect("every face has a window");
+    let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -479,7 +480,10 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         faces: vec![f],
     };
     let (sa, sb) = (side(fa), side(fb));
-    let (wa, wb) = (sa.windows().unwrap(), sb.windows().unwrap());
+    let (wa, wb) = (
+        sa.windows(Which::First).unwrap(),
+        sb.windows(Which::Second).unwrap(),
+    );
     let bound = ClearanceBound::AtLeast(0.1);
     let sweep = Sweep {
         bound,
