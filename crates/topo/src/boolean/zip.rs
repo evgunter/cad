@@ -24,9 +24,9 @@
 //! ([`BooleanError::SeamOrientation`]) rather than zipped.
 //!
 //! Scaffolding carriers use the canonical full-period self-loop spec
-//! ([`EdgeCurveSpec::self_loop_circle_at`]), whose endpoint-pin
-//! certification *requires* the zipped vertex pairs to be bitwise
-//! coincident — the pipeline's coincidences are (crossing points are
+//! ([`EdgeCurveSpec::self_loop_circle_at`](geom_brep::EdgeCurveSpec::self_loop_circle_at)),
+//! whose endpoint-pin certification *requires* the zipped vertex
+//! pairs to be bitwise coincident — the pipeline's coincidences are (crossing points are
 //! computed once and inserted into both bodies; ring vertices copy the
 //! pierce point bitwise); anything less refuses loudly at
 //! certification, never zips approximately.

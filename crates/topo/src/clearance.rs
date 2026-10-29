@@ -2971,8 +2971,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         ..Boundary::default()
     };
     let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
-    let mut images: BTreeMap<HalfEdgeKey, ([Point2<Interval>; 2], Option<IsoImage>)> =
-        BTreeMap::new();
+    let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
     for &lk in core::iter::once(&f.outer).chain(&f.rings) {
         let l = body.get_loop(lk)?;
         match l.boundary {
@@ -3009,7 +3008,14 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                 Interval::from_certified(q.y),
                             )
                         };
-                        images.insert(row.half_edge, ([lift(t0), lift(t1)], iso_of(&row.pcurve)));
+                        images.insert(
+                            row.half_edge,
+                            (
+                                [lift(t0), lift(t1)],
+                                iso_of(&row.pcurve),
+                                harmonic_of(&row.pcurve),
+                            ),
+                        );
                     }
                 }
             }
@@ -3035,9 +3041,10 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let found = images.get(he);
                 Use {
                     plus: e.he_plus == *he,
-                    image: found.map(|(image, _)| *image),
+                    image: found.map(|(image, _, _)| *image),
+                    harmonic: found.and_then(|(_, _, h)| *h),
                     iso: found
-                        .and_then(|(_, iso)| *iso)
+                        .and_then(|(_, iso, _)| *iso)
                         .map(|(held, at, angle)| Iso {
                             held,
                             at,
@@ -3089,10 +3096,7 @@ fn extent_of(rows: impl Iterator<Item = (bool, [[Interval; 2]; 2])>) -> Option<[
 /// channel with no harmonic term (`c + l·t`). A free channel with one
 /// (`c + a·cos t + b·sin t + l·t`) can turn back, so it is not.
 fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
-    let zero = |x: T| {
-        let i = Interval::from_certified(x);
-        i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
-    };
+    let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
     let moves_monotone = |ch: &Channel<T>| match *ch {
         Channel::Angle { .. } => true,
         Channel::Free { a, b, .. } => zero(a) && zero(b),
@@ -3112,16 +3116,34 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
 /// coordinate is an angle ([`iso_of`]).
 type IsoImage = (Axis, Interval, bool);
 
+/// A half-edge's chart image as the boundary lifts it: its two end
+/// points, the coordinate line it is, and its harmonic form.
+type Image = (
+    [Point2<Interval>; 2],
+    Option<IsoImage>,
+    Option<injective::Harmonic>,
+);
+
+/// **A harmonic chart image's coefficients, lifted**
+/// ([`injective::Harmonic`]); `None` for every other variant.
+fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic> {
+    let (p0, pa, pb, pl) = p.harmonic_form()?;
+    let lift = |x: T, y: T| [Interval::from_certified(x), Interval::from_certified(y)];
+    Some(injective::Harmonic {
+        p0: lift(p0.x, p0.y),
+        pa: lift(pa.x, pa.y),
+        pb: lift(pb.x, pb.y),
+        pl: lift(pl.x, pl.y),
+    })
+}
+
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is
 /// an angle. The held coordinate is exact structure — a velocity, or a
 /// harmonic channel's three coefficients, that lift to the point zero —
 /// so no zero is decided here.
 fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
-    let zero = |x: T| {
-        let i = Interval::from_certified(x);
-        i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
-    };
+    let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
     let lift = Interval::from_certified;
     let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
         if zero(d.x) {
