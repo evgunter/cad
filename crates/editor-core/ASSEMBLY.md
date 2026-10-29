@@ -475,22 +475,27 @@ census. A disjoint assembly reports nothing.
 *Across the seam.* A sub-assembly's records ride through the seam in
 what its product body carries (`PartValue::carry`), each citing the
 part (`CitedInput::Part`). An instance's copy carries them as every
-placement's copy carries its source's (`Carry`, `wire::copy_of`). A
+copy carries its source's (`Carry::copied`, the one door every copy's
+carry goes through). A
 record's faces are re-keyed at every graft through the graft's own
 descendant map. Nothing is re-verified across the seam.
 
 *A part's own census findings.* A part crosses the seam as one copy,
-whose meetings its own census decided. The part's reading of its
-census crosses with it (`checks::at_rest::seam_verdict`, at the part
-store): each overlap between two of its copies rides
+whose meetings its own censuses decided. The part's reading of them
+crosses with it, its product's and each `⊔`'s its product does not
+read, as its own at-rest check reads them
+(`checks::at_rest::whole_reading`, at the part store): each overlap
+between two of its copies rides
 `PartValue::interference`, and each pair it could not look at rides
 `PartValue::at_rest`, each finding routed (`Route`: the instantiating
 node, the document that found it, and the instances below). An
 instance's copy is censused (`Carry::censused`): a census reading
 it as one arrival discards what it finds inside it
 (`product::gather_sources`), as it discards what it finds inside any
-arrival a door already censused (a `⊔`, or a copy of one, a pattern's
-members among them). The kernel's
+arrival a door already censused (a `⊔`, or a value that carries
+one's as a copy carries it: a placement's copy, a family's members, a
+pick of a piece, a union of one body, a mirror's image).
+The kernel's
 census has no group scope, so it still computes inside such an arrival,
 and the door discards what it found. Each carried finding is reported
 once per part row, by the first route in gather order, so a part placed

@@ -862,10 +862,15 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }),
             )
             .collect();
-        // The part's own verdict on what its census found, read as its
-        // own at-rest check reads it, so the document instantiating it
-        // reports each finding once, as the part's.
-        let seam = crate::checks::at_rest::reading(&product, tol);
+        // The part's own verdict on what its censuses found, the
+        // product's and each door's, read as its own at-rest check reads
+        // them, so the document instantiating it reports each finding
+        // once, as the part's.
+        let crate::checks::at_rest::WholeReading {
+            reading: seam,
+            carried_interference,
+            carried_at_rest,
+        } = crate::checks::at_rest::whole_reading(&product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference
@@ -879,7 +884,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             },
                         )
                     })
-                    .chain(product.carried_interference.into_iter().map(|row| {
+                    .chain(carried_interference.into_iter().map(|row| {
                         PartRow::below(
                             doc,
                             row.route,
@@ -905,7 +910,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             },
                         )
                     })
-                    .chain(product.carried_at_rest.into_iter().map(|row| {
+                    .chain(carried_at_rest.into_iter().map(|row| {
                         PartRow::below(
                             doc,
                             row.route,

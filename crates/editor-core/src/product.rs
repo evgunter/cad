@@ -596,11 +596,8 @@ impl ProductError {
 /// no body at all.
 ///
 /// Each source also carries the DECLARED CONTACT RECORDS keyed in that
-/// body's arena (ASM-R2b D-1). This function is the ONE place the
-/// channel's two homes reconcile: a boolean's records ride its payload
-/// (the `BooleanBody` contract, which predates the channel), every
-/// other op's ride its carry ([`crate::Carry::contacts`]). Downstream
-/// therefore never asks which op put records where.
+/// body's arena (ASM-R2b D-1), as its value's carry holds them
+/// ([`crate::Carry::contacts`]).
 ///
 /// A placement reads one `Body`, so the product of a document whose one
 /// placement reads a split's `above` port is that one half, and one
@@ -613,9 +610,8 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     match &value.payload {
-        ValuePayload::Body(body) => Some(vec![(0, body.clone(), carried(), rows())]),
-        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-            Some(vec![(0, body.clone(), Arc::clone(contacts), rows())])
+        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            Some(vec![(0, body.clone(), carried(), rows())])
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
         // Cannot refuse: an instance list is minted by the pattern op,
