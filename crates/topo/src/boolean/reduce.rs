@@ -4167,6 +4167,7 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
 /// the SAME face, so the rest are found on later passes — the shape the
 /// conic × plane lane already uses, and the reason this function does
 /// not return a set.
+#[allow(clippy::too_many_arguments)]
 fn wall_crossing<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
@@ -8423,6 +8424,7 @@ mod spline_face_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod review_5993_rows {
     //! Review rows (PR 5993, R2): the line × torus door on the span path,
     //! at the near-perpendicular pose `r1_probes` pins

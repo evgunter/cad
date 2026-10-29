@@ -1143,7 +1143,7 @@ fn united_at_the_run(
 /// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, Meeting, OnEdge, Pierce, Sectors, Unprofiled};
+    use Tip::{Backstop, Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];

@@ -1148,6 +1148,7 @@ mod subdivision_guard_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod review_5993_recut_rows {
     //! Review rows (PR 5993, R2): the first cut's re-cut of a sixteenth
     //! with no definite share. Each residual is read against a dense
@@ -1329,7 +1330,7 @@ mod review_5993_recut_rows {
         let f = DegreeTwo::new(1e-7, -1e-7, 0.0, 0.0, 0.0).poly();
         let got = walk(&f, eps);
         println!("double: dropped {} -> {got:?}", dropped(&f, eps));
-        assert!(!matches!(got, Ok(_)), "a double root certified: {got:?}");
+        assert!(got.is_err(), "a double root certified: {got:?}");
         let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
         let at = -PI + piece * 9.0 + piece * SPLITS[0];
         // sin(t − at) · 1e-3: roots at `at` and `at + π`.

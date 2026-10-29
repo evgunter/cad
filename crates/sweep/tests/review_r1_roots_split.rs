@@ -137,7 +137,7 @@ fn review_r1_steinmetz_by_seam_placement() {
         (0.7, 0.0),
         (0.0, 0.7),
         (0.7, 1.1),
-        (1.5707963267948966, 0.0),
+        (core::f64::consts::FRAC_PI_2, 0.0),
     ] {
         let a = finished("A", cyl_spun(sa, false), tol);
         let b = finished("B", cyl_spun(sb, true), tol);

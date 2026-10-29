@@ -37,7 +37,6 @@ crates/geom-brep/src/half_angle.rs	1	constant	f64::from(POLE_CANDIDATES)	a candi
 crates/geom-brep/src/half_angle.rs	1	constant	f64::from(n)	a subdivision count
 crates/geom-brep/src/half_angle.rs	1	constant	f64::from(top)	a subdivision count
 crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLITS)
-crates/geom-brep/src/half_angle.rs	2	constant	SPLITS[0]	the first split fraction (SPLITS), where an escalation reads its cut
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
