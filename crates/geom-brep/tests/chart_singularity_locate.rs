@@ -328,3 +328,26 @@ fn the_cap_reads_alike_at_interval() {
         [(Singularity::North, true), (Singularity::South, false)]
     );
 }
+
+/// **A small face reads its side, however coarse the band**: a cap
+/// 2 µm across, a quarter turn from both poles, at the band
+/// `(1e-6, 1e-5)`. The poles are decided off its boundary, so which side
+/// of its loop they lie on is the loop's orientation and no tolerance
+/// reads its width.
+#[test]
+fn a_small_face_far_from_the_poles_reads_them_outside_at_a_coarse_band() {
+    let coarse = Band::new(1e-6, 1e-5).unwrap();
+    let d = (1.0_f64 - 1e-12).sqrt();
+    for forward in [true, false] {
+        let cap = closed(section(Vec3::new(1.0, 0.0, 0.0), d), forward);
+        let located = locate(&unit_sphere(), &[cap.as_slice()], forward, coarse);
+        for l in &located {
+            assert!(
+                matches!(l.lies, Ok(Lies::Outside)),
+                "forward {forward}: {:?} {:?}",
+                l.singularity,
+                l.lies
+            );
+        }
+    }
+}

@@ -340,8 +340,7 @@ pub enum NormalizationKind {
     /// by the kernel's one reading of it
     /// (`geom_brep::chart_singularity::locate`, which tier 3 refuses
     /// the same faces by): the face's boundary and the region its sense
-    /// bit names say which. A point inside a face with a side the band
-    /// cannot read (a loop of no width) refuses too.
+    /// bit names say which.
     /// The minted meridians are the surface's own (at its `u_ref`
     /// azimuth and the half turn, or the half-turn twin of a seam the
     /// file states), each ending at the first boundary edge it meets,

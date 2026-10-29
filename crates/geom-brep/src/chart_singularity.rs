@@ -34,7 +34,8 @@
 //! it holds on its left exactly when it winds positively on the
 //! negative nappe; one that does not wind leaves the singular points on
 //! the side its chart image does not enclose, which is its left exactly
-//! when that image runs clockwise (`chart_singularity_loop_side`). The
+//! when that image runs clockwise (`chart_singularity_loop_side`, its
+//! orientation read as an exact order). The
 //! face's side of each loop is its left under the outward normal, the
 //! chart normal turned by the face's sense.
 
@@ -556,10 +557,17 @@ pub fn walk_loop<T: Decide>(
 /// that does not wind, `chart_singularity_nappe` for a cone loop that
 /// does).
 ///
+/// A winding-free loop's side is its image's orientation, an exact
+/// order (`Band::least`): the point has been decided off the boundary
+/// past the band, so no tolerance separates the two sides, and a band
+/// held against the loop's area would read the loop's width, which is
+/// not the question; a small face is not a sliver of the side.
+///
 /// # Errors
 ///
-/// The escalation of either decision: an image of no area to read a
-/// side off, or a loop on no decided nappe.
+/// The escalation of either decision: an image whose orientation reads
+/// no sign (an area of exactly zero, or an enclosure straddling it), or
+/// a loop on no decided nappe.
 pub fn loop_holds_on_left<T: Decide>(
     walk: &LoopWalk<T>,
     singularity: Singularity,
@@ -570,7 +578,7 @@ pub fn loop_holds_on_left<T: Decide>(
             let side = decide_nonzero(
                 "chart_singularity_loop_side",
                 Margin::over_lever(walk.area, walk.length),
-                band,
+                Band::least(),
             )?;
             Ok(side == NonzeroSign::Negative)
         }
