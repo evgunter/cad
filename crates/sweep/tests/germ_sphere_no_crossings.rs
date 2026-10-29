@@ -314,7 +314,7 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
     for (a, b) in [(&cone, &*inside), (&*inside, &cone)] {
         assert_eq!(
             topo::test_support::no_crossings_certificates(a, b, Tol::witness()).unwrap(),
-            0,
+            (0, 0),
             "the ball inside is apart"
         );
     }

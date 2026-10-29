@@ -1464,18 +1464,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     decls: &Glue<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let events = event_pairs(red);
-    let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
-    let pairs = section_pairs(
-        a,
-        b,
-        &red.sections,
-        band,
-        SectionPath::Crossings,
-        Exempt::Glued(&glued),
-        |fa, fb| events.contains(&(fa, fb)),
-        true,
-    )?;
+    let pairs = crossings_section_pairs(a, b, red, decls, band, true)?;
     match pairs.iter().find(|p| p.verdict.is_err()) {
         None => Ok(()),
         Some(p) => {
@@ -1491,6 +1480,31 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             })
         }
     }
+}
+
+/// **The crossings path's section pairs**, as the interior-loop guard
+/// reads them: the reduction's sections and events, the glued pairs
+/// exempt. With `stop` the walk returns at the first refusing pair.
+fn crossings_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    red: &BooleanReduction<T>,
+    decls: &Glue<T>,
+    band: Band,
+    stop: bool,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let events = event_pairs(red);
+    let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
+    section_pairs(
+        a,
+        b,
+        &red.sections,
+        band,
+        SectionPath::Crossings,
+        Exempt::Glued(&glued),
+        |fa, fb| events.contains(&(fa, fb)),
+        stop,
+    )
 }
 
 /// **W2's verdict per face, asked once.** Keyed by the operand as well
@@ -2099,9 +2113,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// does.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Exempt<'r> {
-    /// Every in-scope pair is classified: the test-support and
-    /// sweep-testing doors' spelling, which no production path takes.
-    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    /// Every in-scope pair is classified: the certificate's own rows'
+    /// spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support"))]
     Nothing,
     /// The crossings path: the GLUED pairs, `(A face, B face)`, whose
     /// contact is the carrier the glued rungs walk along their edges. A
@@ -2124,7 +2138,7 @@ impl Exempt<'_> {
     /// Does this exemption answer the pair `(A face, B face)`?
     pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
         match self {
-            #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Nothing => false,
             Self::Glued(pairs) => pairs.contains(&(fa, fb)),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
@@ -2149,7 +2163,7 @@ struct Evidence<'r> {
 impl Evidence<'static> {
     /// No reduction behind the certificates: no `Rest` pair, no settled
     /// pair, no event.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     const NONE: Self = Self {
         rest: &[],
         settled: &[],
@@ -2172,17 +2186,7 @@ fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     mut deferred: OnDeferred,
     band: Band,
 ) -> Result<OnDeferred, BooleanError> {
-    let pairs = section_pairs(
-        a,
-        b,
-        sections,
-        band,
-        SectionPath::Fallback,
-        Exempt::Rest(evidence.rest),
-        |fa, fb| evidence.events.contains(&(fa, fb)),
-        false,
-    )?;
-    for p in &pairs {
+    for p in &fallback_section_pairs(a, b, sections, evidence, band)? {
         let Err(refusal) = p.verdict else {
             continue;
         };
@@ -2198,6 +2202,28 @@ fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
         )?;
     }
     Ok(deferred)
+}
+
+/// **The no-crossings path's section pairs, every one**, as
+/// [`section_extent_pass`] reads them: a verified `Rest` pair exempt,
+/// the sweep's touches as events.
+fn fallback_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
+    evidence: &Evidence<'_>,
+    band: Band,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    section_pairs(
+        a,
+        b,
+        sections,
+        band,
+        SectionPath::Fallback,
+        Exempt::Rest(evidence.rest),
+        |fa, fb| evidence.events.contains(&(fa, fb)),
+        false,
+    )
 }
 
 /// **The no-crossings certificates' refusals on settled one-carrier
@@ -2284,33 +2310,64 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
+    let (red, glued, band) = reduced_as_the_op_does(op, a, b, tol)?;
+    crossings_section_pairs(a, b, &red, &glued, band, false)
+}
+
+/// **The glue door and the reduction, run as the op runs them** on
+/// undeclared operands: the test doors' road to the pipeline's own
+/// readings.
+#[cfg(any(test, feature = "test-support"))]
+fn reduced_as_the_op_does<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    tol: Tol,
+) -> Result<(BooleanReduction<T>, Glue<T>, Band), BooleanError> {
     let band = Band::linear(tol)?;
-    let decls = Glue::none();
+    let none = Glue::none();
+    let glued = super::glue::decided_declarations(a, b, &none, band)?.into_owned();
     let red =
-        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
-    let events = event_pairs(&red);
-    section_pairs(
-        a,
-        b,
-        &red.sections,
-        band,
-        SectionPath::Crossings,
-        Exempt::Nothing,
-        |fa, fb| events.contains(&(fa, fb)),
-        false,
-    )
+        super::boolean_reduce_declared_strategy(op, a, b, &glued, SweepStrategy::Realized, tol)?;
+    Ok((red, glued, band))
 }
 
 /// **The section pass's per-pair report on the no-crossings path**:
-/// every pair the pass examines, with no event anywhere, whatever the
-/// crossing layer would find. The pass itself stops at the first
-/// refusal; this reads every pair.
+/// every pair the pass examines, read as the pass reads it
+/// ([`fallback_section_pairs`]) over the union's glue door and
+/// reduction, whatever the crossing layer found. A pair the reduction
+/// settled one carrier reports its refusal, which the pass holds.
+///
+/// # Errors
+///
+/// The glue door's and the reduction's refusals, and [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_section_report(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let (red, _, band) = reduced_as_the_op_does(BooleanOp::Union, a, b, tol)?;
+    let events = event_pairs(&red);
+    let evidence = Evidence {
+        rest: &red.rest_contacts,
+        settled: &red.coincident,
+        events: &events,
+    };
+    fallback_section_pairs(a, b, &red.sections, &evidence, band)
+}
+
+/// **The section certificate as if the sweep had found nothing**: every
+/// pair the no-crossings pass would examine, no pair exempt, no event,
+/// no section table. No production path reads this; it is the reading
+/// a certificate arm's own rows take on a pose the crossing layer would
+/// see, to reach the no-event decision.
 ///
 /// # Errors
 ///
 /// [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn no_crossings_section_report(
+pub(crate) fn no_event_section_report(
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
@@ -2328,36 +2385,36 @@ pub(crate) fn no_crossings_section_report(
 }
 
 /// **The no-crossings path's two certificates**, run as the path runs
-/// them before the vertex probe on undeclared operands: the sphere
-/// extent scan, then — when it asks for no re-cut — the section pass.
-/// Both run with no reduction behind them: no verified `Rest` pair, no
-/// settled pair and no event. `Ok` with the number of
-/// re-cuts the scan asked for.
+/// them over the union's glue door and reduction, whatever the crossing
+/// layer found: the sphere extent scan, then — when it asks for no
+/// re-cut — the section pass. `Ok` with the number of re-cuts the scan
+/// asked for and the number of refusals held for the `On` verdict,
+/// which this door does not run.
 ///
 /// # Errors
 ///
-/// Either certificate's refusal.
+/// The glue door's and the reduction's refusals, and either
+/// certificate's.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn no_crossings_certificates(
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
-) -> Result<usize, BooleanError> {
-    let band = Band::linear(tol)?;
-    let evidence = Evidence::NONE;
+) -> Result<(usize, usize), BooleanError> {
+    let (red, _, band) = reduced_as_the_op_does(BooleanOp::Union, a, b, tol)?;
+    let events = event_pairs(&red);
+    let evidence = Evidence {
+        rest: &red.rest_contacts,
+        settled: &red.coincident,
+        events: &events,
+    };
     let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
     let asked = recuts.rechart.len() + recuts.cut_in.len();
-    if asked == 0 {
-        section_extent_pass(
-            a,
-            b,
-            &super::section_table::SectionTable::default(),
-            &evidence,
-            deferred,
-            band,
-        )?;
+    if asked != 0 {
+        return Ok((asked, 0));
     }
-    Ok(asked)
+    let held = section_extent_pass(a, b, &red.sections, &evidence, deferred, band)?;
+    Ok((0, held.0.len()))
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**

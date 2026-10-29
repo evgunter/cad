@@ -1070,8 +1070,9 @@ pub mod test_support {
     }
 
     /// **The section certificate's per-pair report** on the crossings
-    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
-    /// the events of the reduction `op` would run, as
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, read
+    /// as the interior-loop guard reads it over the glue door and the
+    /// reduction `op` would run (the glued pairs exempt), as
     /// `(A face, B face, outcome)`. The outcome is `Ok` with each
     /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
     /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
@@ -1093,34 +1094,58 @@ pub mod test_support {
     }
 
     /// The no-crossings path's certificates on `a` × `b` — the sphere
-    /// extent scan, then the section pass — as that path runs them
-    /// before its vertex probe, whatever the crossing layer would find.
-    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    /// extent scan, then the section pass — as that path runs them over
+    /// the union's glue door and reduction, whatever the crossing layer
+    /// found. `Ok` with the number of sphere re-cuts the scan asked for
+    /// and the number of refusals held for the `On` verdict (pairs the
+    /// reduction settled one carrier), which this door does not run.
     ///
     /// # Errors
     ///
-    /// Either certificate's refusal.
+    /// The glue door's and the reduction's refusals, and either
+    /// certificate's.
     pub fn no_crossings_certificates(
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
-    ) -> Result<usize, crate::BooleanError> {
+    ) -> Result<(usize, usize), crate::BooleanError> {
         crate::boolean::no_crossings_certificates(a, b, tol)
     }
 
     /// **The section pass's per-pair report on the no-crossings path**,
     /// spelled as [`section_report`]'s: every pair the pass examines,
-    /// with no event, as `(A face, B face, outcome)`.
+    /// read as the pass reads it over the union's glue door and
+    /// reduction, as `(A face, B face, outcome)`.
     ///
     /// # Errors
     ///
-    /// The box builder's own errors.
+    /// The glue door's and the reduction's refusals.
     pub fn no_crossings_section_report(
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
     ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
         Ok(crate::boolean::no_crossings_section_report(a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
+    /// **The section certificate as if the sweep had found nothing**,
+    /// spelled as [`section_report`]'s: every pair the no-crossings pass
+    /// would examine, no pair exempt and no event. No production path
+    /// reads it; a certificate arm's rows take it to reach the no-event
+    /// decision on a pose the crossing layer would see.
+    ///
+    /// # Errors
+    ///
+    /// The box builder's own errors.
+    pub fn no_event_section_report(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::no_event_section_report(a, b, tol)?
             .into_iter()
             .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
             .collect())
