@@ -65,7 +65,7 @@ fn arc(pair: SurfacePair, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeCu
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair,
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier: carrier.clone(),
         param_start: t0,
@@ -325,7 +325,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(ka, kc),
-                witness: rim.mid_point(0.0, 2.0 * PI),
+                selector: geom_brep::CurveSelector::Witness(rim.mid_point(0.0, 2.0 * PI)),
             },
             carrier: rim,
             param_start: 0.0,

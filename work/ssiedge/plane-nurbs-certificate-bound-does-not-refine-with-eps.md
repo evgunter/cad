@@ -239,7 +239,7 @@ between a rational loft wall of each body, refuses
 `CertifyError::PlaneNurbs(Limb { limb: ImageMiss, margin: 9.007e-6 })`
 at `Tol::witness`, in both operand orders. Fixture:
 `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
-`a_sheath_on_its_blade_unions_past_the_shared_rim` (5 stations); the
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (5 stations); the
 tour's `lily.rs` wall 8 (9 stations) stops at the same refusal, its
 margin 4.527e-6.
 
