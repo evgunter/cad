@@ -83,6 +83,17 @@ pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
 
 /// Which band a [`StepImportError::SingularityUndecided`] could not call
 /// its distance in.
+///
+/// **Not carried by the `pncad` façade, argued.** It picks the refusal's
+/// ending, and the ending is the whole of what it changes for a caller:
+/// a smaller tolerance decides a `Run` reading, a finer ε_in a `File`
+/// one, and the rendered message names the lever for each. The façade
+/// carries the variant (and Python its word, `singularity_undecided`),
+/// which is what a caller routes on. The falsifier: a caller that must
+/// act on WHICH knob decides it without reading the message (a GUI
+/// offering the ε_in override in place of a tolerance) — then the carry
+/// is `pncad::prelude`'s export, the façade's matchability row, and a
+/// Python attribute beside `variant`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SingularityBand {
     /// The run's own band: a smaller tolerance decides it.
