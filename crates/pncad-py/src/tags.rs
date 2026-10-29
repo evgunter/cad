@@ -780,7 +780,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
 
 /// The stable tag for a measure with no value at this build's scalar.
 ///
-/// One arm today. Deliberately NOT sharing a function with
+/// Deliberately NOT sharing a function with
 /// [`measure_unavailable_tag`] one screen up: that one is the
 /// ANALYSIS lane's band refusal and this one the MEASUREMENT lane's
 /// missing enclosure, two kernel types whose names differ by one word
@@ -788,6 +788,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
 pub fn measure_unavailable_at_tag(reason: &MeasureUnavailableAt) -> &'static str {
     match reason {
         MeasureUnavailableAt::NeedsEnclosure { .. } => "needs_enclosure",
+        MeasureUnavailableAt::NoUpperBound { .. } => "no_upper_bound",
     }
 }
 
