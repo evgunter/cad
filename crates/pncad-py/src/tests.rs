@@ -4044,8 +4044,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, and an indexed read's index by its seat, none of
-            // which the word carries.
+            // side, an indexed read's index by its seat, and a drawn
+            // profile's traced face by its place among the faces it
+            // reads, none of which the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4059,6 +4060,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "index"
                         | "measured"
                         | "side"
+                        | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5225,6 +5227,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "split",
             "tolerance_conflict",
+            "trace",
             "transform",
             "tube",
             "underflowed_direction",
@@ -5268,6 +5271,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin_error_tag",
             "split_op_error_tag",
             "structure_refusal_tag",
+            "trace_step_fault_tag",
             "transform_error_tag",
             "tube_error_tag",
         ],
@@ -5318,6 +5322,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "target",
             "target_space",
             "tool",
+            "traced",
         ],
         delegates: &[],
     },
@@ -5498,6 +5503,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "geometry",
             "resolve",
             "step_ids",
+            "trace",
             "transition",
             "unminted",
             "validate",
@@ -5988,6 +5994,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "trace_step_fault_tag",
+        values: &[
+            "carrier",
+            "no_heading",
+            "no_pen",
+            "no_such_crossing",
+            "no_such_face",
+            "no_tangent",
+            "no_trace",
+            "not_a_run",
+            "off_trace",
+            "undrawn",
+            "unreached",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "transform_error_tag",
         values: &[
             "approx_lane_unsupported",
@@ -6399,6 +6422,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // One fact at two doors: a step reading a face's trace refused
+    // (`TraceRefusal`), carried by the evaluation's node error and by
+    // the program's own check alike.
+    ("trace", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.

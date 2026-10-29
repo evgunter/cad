@@ -4275,7 +4275,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
             return Err(operand_refusal(
                 profiles[k],
                 super::phrase::FREE_PROFILE,
-                super::family::PROFILE,
+                "drawn profile",
             ));
         }
         let plane = match k.checked_sub(1) {
