@@ -106,8 +106,9 @@ pub enum MaterialSign {
     ///   or a tilted cap holding a pole). Under either sense such a
     ///   face holds a pole, which breaks the rule that a chart
     ///   singularity inside a face is a vertex of it; the reading
-    ///   carries nothing about the bit, and validity, not the side
-    ///   reader, is what refuses the face.
+    ///   carries nothing about the bit, and tier 3's chart-singularity
+    ///   check, not the side reader, is what refuses the face
+    ///   ([`crate::chart_singularity`]).
     Unencoded,
 }
 
@@ -3726,9 +3727,10 @@ pub fn seam_loops<T: Decide>(
 /// * **One boundary loop**: read at each pole on an edge interior to
 ///   the region, on some member's loop and off the boundary. The region
 ///   holds that pole, so it is the side of the boundary that holds it.
-///   A pole on no member's loop is not read: the region would be the
-///   side without it only if no face held a chart singularity off its
-///   loop, which validity does not yet refuse. `Unencoded` when no pole
+///   A pole on no member's loop is not read: the region is the side
+///   without it only where no face holds a chart singularity off its
+///   loop, which tier 3 refuses ([`crate::chart_singularity`]) and this
+///   reader does not assume. `Unencoded` when no pole
 ///   is read, among them a boundary carrying both poles: that region
 ///   and its complement are both legal, and for a region of one face,
 ///   flipping its bit describes the other one, a valid body and not a

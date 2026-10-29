@@ -33,7 +33,7 @@ escalated typed refusal, never a raw comparison.
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
-| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
+| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs`; where a chart singularity lies against a face, `crates/geom-brep/src/chart_singularity.rs` |
 | O1 analytic offset mint | `crates/geom-brep/src/offset.rs` |
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
@@ -1262,7 +1262,9 @@ by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
-singularity inside a face is a vertex of it, so a sphere face lies on
+singularity in a face's closure is a vertex of it, read off the face's
+region by one reading that STEP import and tier 3 both take
+(`chart_singularity.rs`, `locate`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
@@ -1275,8 +1277,8 @@ loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
 orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
-pole-free reading would assume the rule above, which validity does not
-yet enforce. For a region of one face the flipped bit describes the
+pole-free reading would assume the rule above, which tier 3 enforces
+and this reader does not lean on. For a region of one face the flipped bit describes the
 complement, another valid body. Where a region's faces overlap, tier 3
 refuses it by its cover census (`sphere_region_cover`), read for every
 seam region of two faces or more, whatever its members' own boundaries

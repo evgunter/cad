@@ -522,7 +522,7 @@ pub fn walk_loop<T: Decide>(
     // chart's area element over `du dv`: `R² sin v` on a sphere, and on a
     // cone, `sin α · v|v| / 2` (its element `|v| sin α`).
     let g = |v: T| match chart.arm() {
-        ChartArm::Sphere { radius } => radius * radius * v.sin(),
+        ChartArm::Sphere { radius } => radius.powi(2) * v.sin(),
         ChartArm::Cone { half_angle } => half_angle.sin() * v * v.abs() * T::from_f64(0.5),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => T::zero(),
     };

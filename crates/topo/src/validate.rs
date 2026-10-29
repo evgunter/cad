@@ -1532,10 +1532,9 @@ pub enum ValidationError {
     ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap or a tilted cap holding a pole. Under
-    ///   either sense it holds a pole, which breaks the rule that a
-    ///   chart singularity inside a face is a vertex of it, so its loop
-    ///   says nothing about the bit; refusing
-    ///   such a face is this validity's rule to state, not check 6's;
+    ///   either sense it holds a pole, so its loop says nothing about
+    ///   the bit; the chart-singularity arm refuses the face
+    ///   ([`Self::ChartSingularityNotAVertex`]);
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
@@ -4177,6 +4176,17 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 // never whole.
 /// Where a chart singularity lies in a face it is not a vertex of
 /// ([`ValidationError::ChartSingularityNotAVertex`]).
+///
+/// **Not on a curated `pncad` list, argued** (`scripts/payload-rung-sweep.py`
+/// names this rung): `pncad` re-exports `topo` whole, so a Rust caller
+/// matches it already, and a Python caller reads the arm's word
+/// (`chart_singularity_not_a_vertex`) and the sentence, which names the
+/// place and, for an undecided one, the tolerance that decides it. The
+/// recourse is one for every place: state the point as a vertex. **The
+/// falsifier is a caller who must act differently on an interior point
+/// and one inside an edge** (splitting the edge where the face needs no
+/// cut) without reading the sentence; then the prelude carries this type
+/// and Python a word beside the arm.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SingularityLies {
     /// In the face's interior.
@@ -5509,6 +5519,15 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::LoopRoleInverted`]) and a curved face's
 ///    stored `sense` bit against the material side its own boundary
 ///    traversal encodes ([`ValidationError::CurvedSenseInverted`]).
+///    Beside them, **chart singularities as vertices**: every chart
+///    singularity in a face's closure is a vertex of it, so a sphere's
+///    pole or a cone's apex in a face's interior or inside one of its
+///    edges refuses, and one whose distance to the boundary or side of a
+///    loop is in band escalates with its margin
+///    ([`ValidationError::ChartSingularityNotAVertex`]). The reading is
+///    `geom_brep::chart_singularity::locate`, the one STEP import makes
+///    such a point a vertex by, read off the face's region: it never
+///    asks whether a loop has a meridian.
 /// 7. **The orientation invariant, PER SOLID** (solids, arena order):
 ///    each solid's own faces leave infinity outside its material, read
 ///    by the reader of a shell's role — a ray aimed at one of its faces
@@ -5620,6 +5639,14 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     whole-body inversion by check 6's planar arm at the planar faces
 ///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
 ///     cylinder and the tilted-split washer).
+/// - **A chart singularity the reading cannot place** (check 6's
+///   chart-singularity arm, exempt where
+///   `geom_brep::chart_singularity::locate` answers neither a place nor
+///   an escalation): an edge on a carrier with no closed-form distance
+///   (not a line or a circle) whose samples pass too near the point to
+///   place it off, and a loop whose chart image states no winding about
+///   the surface axis (a sample with no chart point away from every
+///   singular point, or a loop winding more than once).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -7998,7 +8025,8 @@ pub(crate) fn tier3_local_checks_marked<
     // by a pole on an interior edge (`sphere_region_material_sign`).
     // Exempt: the regions that reader leaves unread, listed on
     // `CurvedSenseInverted`. So is a face with a pole off its loop on
-    // each side, which holds a pole under either sense.
+    // each side, which holds a pole under either sense: the
+    // chart-singularity arm below refuses it.
     // ------------------------------------------------------------------
     // Every seam region of a sphere, read once: the cover census here,
     // the pole read below for a member whose own boundary encodes no side.
