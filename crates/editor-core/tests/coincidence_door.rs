@@ -2663,8 +2663,9 @@ fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<Stri
     (all, lines)
 }
 
-/// **`cd`'s union escalates at `Interval` on the ruled region's span**
-/// (`bool_ruled_region_span`), so the scene stands beside the registry
+/// **`cd`'s union escalates at `Interval`**, at the default ε on the
+/// ruled region's span (`bool_ruled_region_span`; at `1e-12` a carrier
+/// gap reads first), so the scene stands beside the registry
 /// (`work/intent/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`).
 fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
@@ -2674,9 +2675,11 @@ fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
             matches!(
                 &e.kind,
                 editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { diag, .. })
-                    if diag.predicate == Some("bool_ruled_region_span")
+                    if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS
+                        || diag.predicate == Some("bool_ruled_region_span")
             ),
-            "{}'s union escalates at Interval on the ruled region's span: {:?}",
+            "{}'s union escalates at Interval, on the ruled region's span at the default ε: \
+             {:?}",
             cd.name,
             e.kind
         ),
@@ -2972,7 +2975,9 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 /// kind.
 ///
 /// - `cone_on_sphere`: a cone typed tangent to a sphere along a circle;
-///   `CurvedPierceUnsupported`.
+///   `CurvedPierceUnsupported`, or at a tighter ε an escalation on the
+///   conic–quadric reading that comes before it (at `1e-12`,
+///   `bool_conic_quadric_disc`).
 /// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
 ///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
 ///   torus.
@@ -3000,6 +3005,8 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     };
     refused(crate::corpus::cone_on_sphere::document(), &|e| {
         matches!(e, B::CurvedPierceUnsupported { .. })
+            || matches!(e, B::Escalated { diag, .. }
+                if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
     });
     refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {
         matches!(
