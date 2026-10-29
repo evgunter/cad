@@ -956,3 +956,17 @@ becomes.
 
 Filed: `doors-carrying-a-shared-row-have-no-row-at-rest` (P2) and
 `no-row-certifies-a-shared-row-at-interval` (P3).
+
+## 2026-10-29 — PR 5990 merges: the guard's spline arms, and `[one-way.readings]` re-phrased
+
+Ev approved the design for the interior-loop guard's spline arms, and
+ratified the W5 stage after a probe settled the factual crux.
+`[one-way.readings]` is re-phrased so that stages always run together
+may jointly prove one rule (fork row 217). Ev also approved re-spelling
+lily's leaf as one loft, with a stem graft as the new wall 8, now in
+flight.
+- Filed `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` (P1),
+  to be built after PR 6026.
+- Re-banded P0 → P3: `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  and `a-pair-walk-end-at-a-domain-corner-refuses-undecided`. Neither
+  has a consumer.

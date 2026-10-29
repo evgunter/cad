@@ -1304,3 +1304,5 @@ mod fallback_rows_review_head;
 mod review_5956_delta_needle;
 #[path = "review_6002_needle_join.rs"]
 mod review_6002_needle_join;
+#[path = "review_6020_seam_probes.rs"]
+mod review_6020_seam_probes;

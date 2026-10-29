@@ -44,7 +44,11 @@ use geom_core::Decide;
 use geom_core::Tol;
 use topo::Body;
 
+pub mod axis_projection;
+pub mod blocks_on_one_floor;
 pub mod boss;
+pub mod boss_tangent_by_value;
+pub mod cone_on_sphere;
 pub mod cup;
 pub mod cut_cylinder;
 pub mod die;
@@ -64,8 +68,11 @@ pub mod kiss_carry;
 pub mod loft_prism;
 pub mod measured_web;
 pub mod part_select;
+pub mod pin_in_bore;
 pub mod plate_param;
 pub mod reshaped_rod;
+pub mod revolves_on_one_axis;
+pub mod shaft_and_bearing;
 pub mod sink;
 pub mod slots;
 pub mod symmetric_plate;
@@ -118,6 +125,80 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
             ),
         ])
         .collect()
+}
+
+/// **A meridian profile and its revolve** ([`revolved`]).
+#[derive(Clone, Copy)]
+pub struct Revolved {
+    /// The meridian.
+    pub profile: RecipeNodeId,
+    /// The revolve.
+    pub revolve: RecipeNodeId,
+}
+
+impl Revolved {
+    /// **The wall the meridian's `k`-th step sweeps** (step 0 is the
+    /// start): its first half, whose axis is the wall's.
+    pub fn wall(self, r: &Recorder, k: usize) -> editor_core::StableName {
+        let Some(Node::Profile(program)) = r.doc.node(self.profile) else {
+            unreachable!("a meridian is a profile")
+        };
+        let leg = editor_core::ProfileEdgeRef::Piece {
+            step: program.ids[0][k],
+            role: editor_core::PieceRole::Leg,
+        };
+        crate::fixture::fname(self.revolve, editor_core::RoleSeg::Band(leg.into()))
+    }
+
+    /// The revolve's body.
+    pub fn body(self) -> editor_core::Operand {
+        editor_core::Operand::output(self.revolve, 0)
+    }
+
+    /// The revolve's `axis` output.
+    pub fn axis(self) -> editor_core::Operand {
+        editor_core::Operand::output(self.revolve, 1)
+    }
+}
+
+/// **`steps` as a one-loop profile revolved a full turn about the
+/// profile's `y`**.
+pub fn revolved(
+    r: &mut Recorder,
+    steps: Vec<editor_core::ProgramStep<editor_core::Formula>>,
+) -> Revolved {
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![editor_core::LoopProgram::Chain(steps)],
+        ids: Vec::new(),
+    }));
+    let revolve = r.insert(crate::fixture::revolve_about(
+        profile,
+        (0.0, 0.0),
+        crate::fixture::along_y(),
+        crate::fixture::ang(std::f64::consts::TAU),
+    ));
+    Revolved { profile, revolve }
+}
+
+/// **A copy of `body` in the space `beside` is in**, placed by `placed`
+/// (the identity bundle, [`editor_core::stand`], to stand it where its
+/// numbers put it).
+pub fn placed_in(
+    r: &mut Recorder,
+    beside: &editor_core::Operand,
+    body: editor_core::Operand,
+    placed: editor_core::Placed,
+) -> RecipeNodeId {
+    let space = r
+        .doc
+        .operand_space(beside)
+        .expect("the body beside is in a space");
+    let read = crate::fixture::body_read(&r.doc, body);
+    r.insert(Node::place(
+        editor_core::BodyRead::plain(read),
+        editor_core::Operand::Var(space),
+        placed.bundle(),
+    ))
 }
 
 /// **A split's two halves placed in the world**, above then below:
@@ -308,6 +389,31 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry battery is what makes the reshaping's rewrite a
         // persisted, replayed, name-digested fact rather than a row's.
         reshaped_rod::document(),
+        // INTENT stage 6's scenes that every lane evaluates; the rest
+        // stand beside the registry ([`stage6_beside_the_registry`]).
+        pin_in_bore::document(),
+        axis_projection::document(),
+        blocks_on_one_floor::document(),
+        revolves_on_one_axis::document(),
+    ]
+}
+
+/// **INTENT stage 6's scenes beside the registry**: each is short of
+/// registry membership, which requires every node green at every lane, and
+/// `coincidence_door.rs` pins where it stops, or (the press fit written
+/// over two equal variables) it is a variant read for the census only.
+/// `shaft_and_bearing` and `boss_tangent_by_value` are green at `f64` and
+/// their unions escalate at `Interval`; the others' unions refuse at `f64`.
+/// The per-row door census reads them beside [`documents`], so the rows
+/// they reach are counted.
+pub fn stage6_beside_the_registry() -> Vec<CorpusDoc> {
+    vec![
+        pin_in_bore::two_variables(),
+        shaft_and_bearing::document(),
+        boss_tangent_by_value::document(),
+        shaft_and_bearing::rounded_mouth(),
+        shaft_and_bearing::with_a_ball(),
+        cone_on_sphere::document(),
     ]
 }
 
