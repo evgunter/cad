@@ -4,7 +4,6 @@ kind: issue
 title: MissingSlot stays a typed arm at the datum, placement, pattern and instance slot readers the D10 hold keeps; every other reader panics
 status: open
 opened: 2026-10-20
-blocked_on: []
 priority: P3
 cost: E
 ---
@@ -47,4 +46,6 @@ body, surfaced typed") is the same class on the datum-frame ground:
 when the hold lifts, the D9 test (can a correct kernel reach it from
 any input?) decides whether it is row 4 or a misfiled limit.
 
-**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.
+## D10 exit walk (2026-10-29)
+
+Most of the named readers are gone (`wire_datum`, `frame_from_slots`, `stepped_map`, `wire_pattern`, `wire_placed_union`, `wire_part`, `need_vec3`, `need_point3`), and so is `FaceFrameReadback`. Four still raise `NodeErrorKind::MissingSlot` typed, so the scene still stands: `need_scalar` and `need_angle` (`crates/editor-core/src/eval/wire.rs:1201`, `:1209`, read by the loft's station moves at `:4357`), `instance_of` (`:2560`) and `member_of` (`:2590`). Open.
