@@ -29,13 +29,10 @@
 //! holding nothing), so the corners a point ends with, and the vertices
 //! they gather, do not depend on the order the fusions run in. Which of
 //! two fused keys survives does: the one standing for the smaller
-//! operand vertex (itself, or the original its null-pair copy was
-//! minted at). Nothing reads that key alone: each fusion is a row of
+//! operand vertex ([`SplitNaming::original_of`]). Nothing reads that key alone: each fusion is a row of
 //! [`SplitNaming::vertex_fusions`], and the split's lineage reads a
 //! dead vertex as the vertex that survives it, so a record or a name
 //! citing either cone lands on the one vertex.
-
-use std::collections::BTreeMap;
 
 use geom_core::{Band, Decide, Tol};
 
@@ -86,15 +83,17 @@ pub(super) fn fuse_section_cones<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let band = Band::linear(tol).map_err(SplitFinishError::Band)?;
-    let originals: BTreeMap<VertexKey, VertexKey> = naming.vertex_pairs.iter().copied().collect();
-    let stands_for = |v: VertexKey| originals.get(&v).copied().unwrap_or(v);
     while let Some(Fusion { face, from, to }) = next_fusion(body, side, naming, band)? {
         let start = |he| body.get_half_edge(he).map(|h| h.start);
         let (a, b) = (
             start(from).ok_or(SplitFinishError::Corrupt)?,
             start(to).ok_or(SplitFinishError::Corrupt)?,
         );
-        let keep = if stands_for(a) <= stands_for(b) { a } else { b };
+        let keep = if naming.original_of(a) <= naming.original_of(b) {
+            a
+        } else {
+            b
+        };
         let p = body
             .get_vertex(keep)
             .and_then(|v| body.points.get(v.point).copied())

@@ -427,6 +427,29 @@ pub struct PlanePieces {
 }
 
 impl SplitNaming {
+    /// **The operand vertex `v` stands for**: `v` itself, or the end of
+    /// its chain of null-pair rows ([`Self::vertex_pairs`]), a copy of a
+    /// copy chased to the original.
+    ///
+    /// # Panics
+    ///
+    /// Where the rows cycle: each row is a copy with the vertex the null
+    /// edge that minted it was minted at, so it names an earlier key.
+    #[must_use]
+    pub fn original_of(&self, v: crate::entity::VertexKey) -> crate::entity::VertexKey {
+        let mut at = v;
+        for _ in 0..=self.vertex_pairs.len() {
+            match self.vertex_pairs.iter().find(|&&(copy, _)| copy == at) {
+                Some(&(_, original)) => at = original,
+                None => return at,
+            }
+        }
+        unreachable!(
+            "the null-pair rows cycle from {v:?}: each copy names the vertex it was minted at, \
+             an earlier key"
+        )
+    }
+
     /// Records one side's joins, with the side's `SplitEdge` records as
     /// they stood before the kills (`split_from`).
     pub(super) fn record_joins(
@@ -686,11 +709,12 @@ pub enum SplitFinishError {
     /// loop, read to fuse the pinch's cones on a side
     /// ([`super::section_cones`]), escalated. No input is known to reach
     /// it: two sides of different cones within the band of one line at
-    /// the pinch have so far refused earlier, in the boolean that made
-    /// the pinch (`bool_vertex_face_side`, `enters_material`) or in the
-    /// reduction ([`super::SplitReduceError::SectionGermsEscalated`]),
-    /// over the cube tilts of `tests/split_through_a_union_pinch.rs`'s
-    /// union, 1e-10 to 1e-6 off the section's line, at ε = 1e-9.
+    /// the pinch refuse earlier, in the boolean that made the pinch
+    /// (`bool_vertex_face_side`, `enters_material`) or in the reduction
+    /// ([`super::SplitReduceError::SectionGermsEscalated`]), or read
+    /// decided. Guarded by
+    /// `split_through_a_union_pinch::no_tilt_in_the_band_reaches_the_cone_corner_escalation`,
+    /// which goes red at a witness.
     ConeCornerEscalated {
         /// The corner's vertex.
         vertex: VertexKey,

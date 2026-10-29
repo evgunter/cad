@@ -49,7 +49,12 @@ pub(crate) fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
 /// The cube's frame: its bottom face's normal `m`, and `u` (the tilt of
 /// +z into that face) and `w = m × u` spanning it.
 pub(crate) fn cube_frame() -> [[f64; 3]; 3] {
-    let m = unit(CUBE_NORMAL);
+    frame_along(CUBE_NORMAL)
+}
+
+/// [`cube_frame`] for the bottom face's normal `normal`.
+fn frame_along(normal: [f64; 3]) -> [[f64; 3]; 3] {
+    let m = unit(normal);
     let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
     [m, u, cross(m, u)]
 }
@@ -75,7 +80,11 @@ pub(crate) fn ell() -> AtRestBody<f64> {
 /// [`PINCH_AT`] with normal [`CUBE_NORMAL`], on its side, centred on the
 /// corner there.
 pub(crate) fn cube() -> AtRestBody<f64> {
-    let [m, u, w] = cube_frame();
+    cube_on(cube_frame())
+}
+
+/// [`cube`] on the frame `[m, u, w]`.
+fn cube_on([m, u, w]: [[f64; 3]; 3]) -> AtRestBody<f64> {
     let v = PINCH_AT;
     let body = common::mapped_cube::<f64>(
         move |x, y, z| {
@@ -311,4 +320,44 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
             }
         }
     }
+}
+
+/// **No tilt in the band reaches the fusion's escalation**
+/// (`SplitFinishError::ConeCornerEscalated`'s doc). The cube's normal
+/// `(1, δ, 0.7)` puts its trace on x = 1 within an angle of about δ of
+/// the prism top's at the corner, the trace of the other cone; at δ a
+/// few ε the fusion's wedge would read the two in band. Each such union
+/// refuses before the split's fusion reads anything, in the union or in
+/// the reduction, or splits. Red where the escalation is reached: the
+/// variant then has a witness, and its doc and this row change.
+#[test]
+fn no_tilt_in_the_band_reaches_the_cone_corner_escalation() {
+    let mut split_in_band = 0;
+    for c in [0.5, 1.0, 2.0, 5.0, 10.0, 30.0] {
+        let delta = c * t().eps();
+        let Ok(topo::BooleanResult::Body(u)) =
+            topo::union(&ell(), &cube_on(frame_along([1.0, delta, 0.7])), t())
+        else {
+            continue;
+        };
+        split_in_band += 1;
+        for s in [1.0, -1.0] {
+            let plane = split_plane(Point3::new(1.0, 1.0, 1.0), Vec3::new(s, 0.0, 0.0), t());
+            let r = split(&u.body, &plane, t());
+            assert!(
+                !matches!(
+                    r,
+                    Err(topo::SplitError::Finish(
+                        topo::SplitFinishError::ConeCornerEscalated { .. }
+                    ))
+                ),
+                "δ = {c} ε, normal {s} x: the fusion's escalation is reached: {:?}",
+                r.err()
+            );
+        }
+    }
+    assert!(
+        split_in_band > 0,
+        "no union in the band built, so no split reached the fusion"
+    );
 }
