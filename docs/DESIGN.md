@@ -331,11 +331,18 @@ witnesses; two spans' meetings; a curve's crossings of a surface).
 **Total**: a reading is one exhaustive match over its kind or kind
 pair. An unlisted arm refuses typed, naming what it lacks; no arm
 answers a default value; one method is fixed per arm at write time, and
-a second method for the same question exists only as a test oracle. A
-stage may precede the method only if it is total in kind, decides the
-same question soundly at the same band, and cannot change the verdict
-by which stage decided (a box cull before exact roots); a method
-reached because another declined is a fallback, and is forbidden.
+a second method for the same question exists only as a test oracle.
+A reading may be built of several stages, always run together in a
+fixed order, when together they decide one rule: the stages are the
+parts of one proof of that rule, not a list of heuristics tried in turn,
+and each stage decides soundly at the reading's band. A box cull before
+exact roots is such a stage. So is the interior-loop guard's loop-free
+test before C3's whole reading of a plane × spline section: the rule is
+that no closed loop of the section lies inside both faces, which the
+test proves where it holds and the whole reading proves or refuses
+where it does not. What is forbidden is a method that decides a
+different rule, a second and similar predicate for the same fact,
+reached because the first declined: that is a fallback.
 **One**: each question has one reading, which every consumer reads,
 because two readings of one fact are two predicates that can decide it
 differently inside the band ([tolerance]). An outcome takes the pose reading's

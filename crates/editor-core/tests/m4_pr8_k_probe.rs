@@ -228,13 +228,7 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
             9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 104, 112, 126, 132, 142, 150, 164, 170, 178,
         ],
     ),
-    (
-        "heat_sink",
-        &[
-            10, 18, 29, 37, 45, 58, 64, 77, 83, 96, 102, 115, 121, 134, 140, 148, 157, 165, 176,
-            184, 195, 203, 214, 222, 233, 241, 249,
-        ],
-    ),
+    ("heat_sink", &[10, 18, 29, 37, 48, 56, 64, 78, 86]),
     (
         "crossing_slots",
         &[9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 102],
@@ -261,8 +255,8 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
     (
         "kitchen_sink",
         &[
-            26, 35, 46, 54, 64, 70, 78, 88, 99, 102, 117, 127, 138, 146, 154, 163, 171, 187, 203,
-            214, 222, 233, 241, 252, 260, 276, 284,
+            26, 35, 46, 54, 64, 70, 78, 88, 102, 111, 122, 131, 141, 152, 166, 180, 196, 212, 228,
+            236,
         ],
     ),
     ("cut_cylinder", &[5, 9, 36, 45, 59, 67]),
@@ -271,10 +265,13 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
     ("die_fillet", &[9, 17, 22, 30]),
     ("die_chamfer", &[9, 17, 22, 30]),
     ("die_pips", &[9, 17, 25, 34, 80, 85, 93]),
-    ("heat_sink_fins", &[10, 18, 26, 34]),
-    ("die_tool", &[9, 17, 25, 34, 52, 57, 59, 67]),
+    ("heat_sink_fins", &[10, 18, 29, 37, 45]),
+    (
+        "die_tool",
+        &[9, 17, 25, 34, 52, 63, 77, 91, 105, 119, 133, 141, 143, 151],
+    ),
     ("face_sketch", &[9, 17, 28, 36, 45, 65, 73]),
-    ("part_select", &[11, 18, 28, 31, 38, 41, 49, 63, 71]),
+    ("part_select", &[11, 18, 28, 31, 41, 55, 70, 78]),
     ("symmetric_plate", &[14, 23, 28, 30, 38]),
     ("loft_prism", &[9, 24, 39, 49, 58]),
     ("die_composed", &[9, 17, 25, 34, 80, 85, 89, 97]),
@@ -288,13 +285,23 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
     ("plate_param", &[14, 24, 35, 43, 57, 63, 71]),
     ("kiss_carry", &[9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 102]),
     ("reshaped_rod", &[14, 24, 29, 55]),
+    (
+        "pin_in_bore",
+        &[9, 20, 34, 47, 57, 71, 98, 109, 123, 136, 146, 162, 170],
+    ),
+    ("axis_projection", &[17, 32, 38, 43, 51]),
+    (
+        "blocks_on_one_floor",
+        &[9, 17, 28, 36, 45, 73, 81, 90, 110, 118, 132, 140],
+    ),
+    ("revolves_on_one_axis", &[11, 20, 32, 41, 51, 59, 67]),
 ];
 
 /// **The wrapper property at the EVALUATION lane, as a differential
 /// rather than as a claim: evaluating the corpus at `Probe` and at
 /// `f64` produces BIT-IDENTICAL results** — save, today, the content and
 /// naming keys of the nodes [`PINNED_KEY_SPLITS`] names, which split
-/// between the lanes on 26 documents while everything else about those
+/// between the lanes on 30 documents while everything else about those
 /// nodes agrees.
 ///
 /// Scope, because the scope is the part that was got wrong once: the

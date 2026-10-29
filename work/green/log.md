@@ -128,3 +128,19 @@ stays P1, since greening main is this track's central job.
   agreed to merging it rather than handing it off: the effort was
   spent, and review covers the semantics. Its remaining reds are pinned
   in #5966.
+
+## 2026-10-29 — nightly 76, the rebalance, and the triage overlap
+
+- Nightly 76: the latency alarm read a median of 17.6 min (n=229), so
+  `pr-ci-wall-clock-root-cause-measured` closed. The gate self-tests and
+  the `--all-features` suite were green on their first night.
+- #5984 and #5989 merged after a full review and a fix pass. #6019
+  (mesh as app-shard ballast) merged on the orchestrator's read: a
+  one-tuple change with a selftest that reds a stale ballast entry. The
+  closure-tier balance waits on a day of data.
+- The nightly-76 lane duplicated the daily nightly triage's rustdoc
+  fixes (#6022 closed, superseded by #6018). `program.md` now says GREEN
+  acts on the triage's table.
+- The r2_turn_probes fuzz red unrelated PRs twice. The user agreed to
+  leave it running. The row moved to GERMCERT at P2, because the bound
+  is the defect.
