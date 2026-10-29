@@ -38,9 +38,10 @@
 //!
 //! **Orientation across kinds.** The plane arm's Same± verdict is a
 //! statement about MATERIAL SIDES, and so is every other arm's: a
-//! sphere's or cylinder's description carries the `outward` bit
-//! saying whether the face's outward normal agrees with the surface's
-//! outward radial direction (S10's sense fold, one dimension curved).
+//! sphere's, cylinder's, torus's or cone's description carries the
+//! `outward` bit saying whether the face's outward normal points away
+//! from the centre, the axis or the tube's spine circle (S10's sense
+//! fold, one dimension curved).
 //! `Rest` contact is precisely [`CarrierRelation::SameOpposite`] — a
 //! peg's convex wall against a bore's concave wall is the curved
 //! spelling of two boxes' opposed faces. Aligned coincidence is
@@ -318,9 +319,47 @@ impl<T: geom_core::Real> ConsumedExtent<'static, T> {
     }
 }
 
+/// The ladder's inventory as its refusals name it: a literal, so a
+/// refusal can `concat!` it, which [`INVENTORY`]'s row checks.
+macro_rules! inventory_named {
+    () => {
+        "plane, sphere, cylinder, torus, cone"
+    };
+}
+pub(crate) use inventory_named;
+
+/// **The surface kinds the ladder carries a description for**
+/// ([`CarrierDesc`]): the `Rest` table's inventory. A face on any other
+/// kind (a spline, a fitted surface) has no description to compare
+/// (`carrier_pair::PairUnread::OutsideInventory`), and is not
+/// declarable.
+pub(crate) const INVENTORY: [geom::SurfaceKind; 5] = [
+    geom::SurfaceKind::Plane,
+    geom::SurfaceKind::Sphere,
+    geom::SurfaceKind::Cylinder,
+    geom::SurfaceKind::Torus,
+    geom::SurfaceKind::Cone,
+];
+
+/// Is `kind` in the ladder's [`INVENTORY`]?
+pub(crate) fn in_inventory(kind: geom::SurfaceKind) -> bool {
+    INVENTORY.contains(&kind)
+}
+
+/// The contact lane's refusal of a declared face outside [`INVENTORY`].
+pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
+    "a declared face's surface kind is outside the Rest ladder's inventory (",
+    inventory_named!(),
+    ")"
+);
+
 /// **The curved kinds the undeclared ladder decides exactly**, on its
 /// sphere and cylinder data rungs: the curved surfaces whose aligned
-/// pairs the census reads as one carrier.
+/// pairs the census reads as one carrier. A subset of [`INVENTORY`]:
+/// the census's same-side arm reads a pair's shared interior through
+/// the faces' tangent cones at its witnesses, which it reads for these
+/// two kinds; a torus or cone pair stays the census's
+/// (`work/atrest/curved-copies-filling-one-volume-read-as-undecidable.md`).
 pub(crate) fn exact_curved<T: geom_core::Real>(s: &geom::Surface<T>) -> bool {
     matches!(
         s,
@@ -1403,6 +1442,22 @@ mod tests {
     /// face's chart may put it on either nappe. An axis tilted so the
     /// generators part by a thousand bands across the extent is another
     /// carrier, and a half-angle off by a few bands is in band.
+    /// **The inventory's refusals name the inventory**: the literal the
+    /// refusals `concat!` is [`INVENTORY`] in its order, and each kind
+    /// in it has a description.
+    #[test]
+    fn the_inventory_named_is_the_inventory() {
+        let names: Vec<&str> = INVENTORY.iter().map(|k| k.name()).collect();
+        assert_eq!(inventory_named!(), names.join(", "));
+        for kind in geom::SurfaceKind::ALL {
+            assert_eq!(
+                in_inventory(kind),
+                !matches!(kind, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx),
+                "{kind:?}: the ladder describes every analytic kind"
+            );
+        }
+    }
+
     #[test]
     fn a_cone_is_one_carrier_under_its_reversed_axis() {
         let b = band();

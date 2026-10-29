@@ -69,9 +69,9 @@ pub enum PairFace {
 /// verdict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PairUnread {
-    /// A face's surface kind is outside the ladder's inventory (NURBS,
-    /// `Approx`), or its key does not resolve: there is no
-    /// description to compare.
+    /// A face's surface kind is outside the ladder's
+    /// [`super::carrier_eq::INVENTORY`], or its key does not resolve:
+    /// there is no description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
     /// key does not resolve, its box has no claim to make (a NURBS
@@ -186,8 +186,8 @@ pub(crate) fn pair_extent<T: Decide>(
 /// generalization of [`face_plane`], folding the face's sense into
 /// the material side exactly as that door does (S10).
 ///
-/// `None` for a surface kind outside the `Rest` ladder's inventory
-/// (NURBS, `Approx`): the C4 table names the kinds
+/// `None` for a surface kind outside the `Rest` ladder's
+/// [`super::carrier_eq::INVENTORY`]: the C4 table names the kinds
 /// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
 /// compare refuses typed at the caller rather than being approximated
 /// by one it can. `None` too where `face`, the caller's key, does not
@@ -251,7 +251,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             half_angle: *half_angle,
             outward,
         }),
-        _ => None,
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -589,7 +589,7 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
             half_angle: *half_angle,
             outward: true,
         }),
-        _ => None,
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -611,7 +611,7 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
 ///   on one, which determines nothing: the edge rests in the chart of
 ///   the pair's first key.
 /// - Definitely **distinct** carriers are the pair, and so is a kind
-///   outside the ladder's inventory (a spline), which has no
+///   outside the ladder's [`super::carrier_eq::INVENTORY`], which has no
 ///   coincidence to read.
 /// - A coincidence **in band**, a rung that cannot decide, or a region
 ///   that does not read is the pair too, and that is an answer, not a

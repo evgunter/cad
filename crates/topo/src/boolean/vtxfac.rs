@@ -1098,7 +1098,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // The conformal (carrier) lump. The sector's oriented carrier
         // description generalizes the plane one (`face_carrier` folds
         // the face sense exactly as `face_plane` does — S10); a kind
-        // outside the `Rest` ladder's inventory (NURBS, `Approx`)
+        // outside the `Rest` ladder's `carrier_eq::INVENTORY`
         // keeps the C5 typed refusal.
         let Some(sector_carrier) = super::carrier_pair::face_carrier(piercing_body, s.face) else {
             let kind = piercing_body

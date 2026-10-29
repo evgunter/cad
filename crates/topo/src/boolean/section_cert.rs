@@ -55,7 +55,16 @@
 //! - **W4, a lone evented component**: `Σ` has exactly one component and
 //!   the pair has an event. The event's vertex lies on `Σ` within the
 //!   band, hence on `γ`, and on an edge of `F` or `G`, so
-//!   `γ ⊄ int F ∩ int G`.
+//!   `γ ⊄ int F ∩ int G`. That is all the crossings path needs, since
+//!   the join cuts along every crossing. The no-crossings path needs
+//!   more, `γ ∩ int F ∩ int G = ∅`, and it follows there: were `γ` to
+//!   meet `int F ∩ int G` and not lie in it, a walk along `γ` from such
+//!   a point would leave `F` (or `G`) at a point of an edge of `F` lying
+//!   on `G`'s carrier inside `G`. Where the carriers are transverse that
+//!   edge crosses `G`, a crossing the sweep records or refuses (S), and
+//!   the path would not be the no-crossings one; where they are tangent
+//!   along `γ` the classification reads the pinch first and refuses
+//!   R-tan, before any witness.
 //! - **The no-event decision**: with no event on the pair,
 //!   `γ ∩ F ∩ G` has no relative boundary point, so it is empty or all
 //!   of `γ`, and one point decides. A witness strictly inside both faces

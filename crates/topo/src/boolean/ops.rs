@@ -2173,7 +2173,9 @@ impl Evidence<'static> {
 
 /// **The no-crossings path's section pass.** Each pair the vertex probe
 /// could not see into is certified here, with the sweep's touches as
-/// its events, or refused, typed as the fallback's extent refusal
+/// its events (W4 clears a lone component one touches; with no crossing
+/// anywhere it then meets neither face's interior, the step
+/// [`super::section_cert`]'s W4 states), or refused, typed as the fallback's extent refusal
 /// ([`BooleanError::FallbackExtentUnsupported`]) naming the pair's
 /// curved face. A verified `Rest` pair is answered without its section,
 /// and a refusing pair the reduction settled one carrier is held
@@ -6828,12 +6830,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         what: "extent scan: face rows out of arena order",
                     });
                 }
-                // Whether the section certificate clears every face on
-                // this sphere against `yf` (`None`), else the first
-                // refusing pair's face on this sphere and its refusal. A carrier margin decided zero is a
-                // touch, no event where this returns `None`; one in the
-                // band asks too, and the certificate, reading it
-                // undecided, refuses.
+                // Each pair of a face on this sphere with `yf` the
+                // section certificate refuses, with its refusal; empty
+                // when it clears every one ([`sphere_faces_apart`]). A
+                // carrier margin decided zero is a touch, no event where
+                // this comes back empty; one in the band asks too, and
+                // the certificate, reading it undecided, refuses.
                 let mut faces = || {
                     sphere_faces_apart(
                         (x_is, x, x_rows),
@@ -7021,8 +7023,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // face. Whether the FACES meet is the
                                 // section certificate's question, asked
                                 // of every face on this sphere against
-                                // `yf`: with no event anywhere, a circle
-                                // certified out of one face of each pair
+                                // `yf`: with no crossing anywhere, a circle
+                                // certified out of one face of each pair,
+                                // or evidenced by a touch on it (W4),
                                 // leaves the two boundaries disjoint. A
                                 // circle certified inside both faces is
                                 // an escape off every edge, of each
