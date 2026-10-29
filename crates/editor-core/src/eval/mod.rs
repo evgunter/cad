@@ -57,7 +57,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{BooleanError, BooleanResultKind, ContactRecords};
+use topo::{BooleanError, BooleanResultKind};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -829,12 +829,6 @@ pub struct NodeValue<T: Decide> {
     /// the verdicts are, so no content key reads it; it rides the value
     /// with the names it is spelled in.
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
-    /// **What each input its contact records cite is**: a record's
-    /// [`topo::Backing::Carried`] names an input by position, and this
-    /// is that position's input, by read ([`crate::coincide::CitedInput`]).
-    /// A [`topo::Backing::Decided`] names a row of
-    /// [`Self::coincidences`].
-    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
@@ -921,7 +915,6 @@ impl<T: Decide> NodeValue<T> {
             outputs: out.outputs.into(),
             carry: out.carry,
             coincidences: out.coincidences,
-            cited_inputs: out.cited_inputs,
             members: None,
             family: None,
             verdicts: Arc::new(Vec::new()),
@@ -952,7 +945,6 @@ impl NodeValue<f64> {
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             carry: Carry::default(),
             coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
@@ -1282,11 +1274,11 @@ pub enum BooleanValue<T: Decide> {
     Body {
         /// The result body.
         body: Framed<T>,
-        /// How the kernel produced it.
+        /// How the kernel produced it. Its contacts, declared or glued
+        /// on a decided Zero, surviving into the result (the
+        /// `BooleanBody` contract, spec D2), ride the value's carry
+        /// ([`Carry::contacts`]) as every body's do.
         kind: BooleanResultKind,
-        /// Contacts, declared or glued on a decided Zero, surviving into
-        /// the result (the `BooleanBody` contract, spec D2).
-        contacts: Arc<ContactRecords>,
     },
 }
 
@@ -4323,7 +4315,6 @@ where
                 outputs: out.outputs.into(),
                 carry: out.carry,
                 coincidences: out.coincidences,
-                cited_inputs: out.cited_inputs,
                 motion: out.motion,
                 members: None,
                 family: None,

@@ -342,3 +342,199 @@ fn a_pick_of_a_moved_copy_stands_with_it() {
         "the picked piece stands 7 off, clear of the fresh block: {reported:?}"
     );
 }
+
+/// A part store holding `a ⊔ a'`, overlapping, as its product.
+fn overlapping_part(label: &str) -> (fixture::resolver::PartStore, editor_core::DocRef) {
+    let (part, source) = overlap(label);
+    let part = set_product(&part, source);
+    let mut store = fixture::resolver::PartStore::default();
+    let r = store.insert(part, Tol::witness());
+    (store, r)
+}
+
+/// An instance of `part` standing in the world.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    put(
+        doc,
+        Node::instantiate_part(
+            part,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    )
+}
+
+/// **A mirror of an instance reports its part's finding once.** The
+/// part is `a ⊔ a'`, overlapping; the host's product is a mirror of its
+/// instance. The image carries what the instance carries, so the host
+/// decides nothing inside it and the overlap is one finding, the part's.
+///
+/// *Breaks if* a mirror builds its own carry, so a census reading the
+/// image as one arrival finds the overlap again beside the part's.
+#[test]
+fn a_mirror_of_an_instance_reports_its_parts_finding_once() {
+    let (store, part) = overlapping_part("carry-mirror-part");
+    let (doc, k) = block(doc("carry-mirror-host"), [-3.5, 0.0], 0.5, 1.0);
+    let (doc, k) = put(doc, fixture::stood(k));
+    let plane = fixture::plane_on(&doc, k, [-3.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let (doc, i) = instance(doc, part);
+    let (doc, image) = put(
+        doc,
+        Node::Mirror {
+            body: Operand::output(i, 0).into(),
+            plane,
+        },
+    );
+    let (doc, stood) = put(doc, fixture::stood(image));
+    let doc = set_product(&doc, stood);
+    let ev = run(&doc, &fixture::resolver::with_resolver(store));
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the host decides nothing inside the image: {:?}",
+        product.census
+    );
+    let reported = at_rest(&doc, &ev);
+    assert_eq!(reported.len(), 1, "the part's overlap, once: {reported:?}");
+    assert!(
+        matches!(
+            &reported[0].evidence,
+            CheckEvidence::CarriedInterference { finding } if finding.route.through == i
+        ),
+        "as the part's, through the instance: {reported:?}"
+    );
+}
+
+/// **A mirror of a `⊔` beside its source reports the overlap once.**
+/// `a ⊔ a'` overlaps; its mirror stands clear of it, and the product
+/// assembles the two. The image carries its source's census, so the
+/// overlap inside it is the source's, reported once, at its `⊔`.
+///
+/// *Breaks if* a mirror's image is a body no door censused, so the
+/// product's census finds the overlap inside it again.
+#[test]
+fn a_mirror_of_an_assemble_beside_its_source_reports_the_overlap_once() {
+    let (doc, source) = overlap("carry-mirror-assemble");
+    let plane = fixture::plane_on(&doc, source, [-3.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    let (doc, image) = put(
+        doc,
+        Node::Mirror {
+            body: Operand::output(source, 0).into(),
+            plane,
+        },
+    );
+    let (doc, stood) = put(doc, fixture::stood(image));
+    let (doc, both) = assembled(doc, &[source, stood]);
+    let doc = set_product(&doc, both);
+    let ev = run(&doc, &EvalOptions::default());
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the product decides nothing inside the source or its image: {:?}",
+        product.census
+    );
+    let reported = at_rest(&doc, &ev);
+    let source_read = doc.output(source, 0).expect("the `⊔` defines its body");
+    assert_eq!(reported.len(), 1, "the overlap, once: {reported:?}");
+    assert!(
+        matches!(
+            (&reported[0].subject, &reported[0].evidence),
+            (FindingSubject::Census { read }, CheckEvidence::Interference { .. })
+                if *read == source_read
+        ),
+        "as the source's own `⊔`'s: {reported:?}"
+    );
+}
+
+/// **A pick of an instance's piece keeps its part's records.** The
+/// part is `bolt ⊔ plate`, whose seat is recorded; the host assembles
+/// its instance beside a clear block, places that `⊔`, and its product
+/// is a pick of the instance's piece. The pick carries the seat's
+/// record as the instance does.
+///
+/// *Breaks if* a pick drops the records its piece carries because they
+/// cite inputs the pick does not name.
+#[test]
+fn a_pick_of_an_instance_piece_keeps_its_records() {
+    let d = doc("carry-pick-instance-part");
+    let (d, plate) = block(d, [0.0; 2], 1.0, 0.2);
+    let (d, plate) = put(d, fixture::stood(plate));
+    let (d, bolt) = beside(d, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (d, seat) = assembled(d, &[bolt, plate]);
+    let d = set_product(&d, seat);
+    let mut store = fixture::resolver::PartStore::default();
+    let part = store.insert(d, Tol::witness());
+    let opts = fixture::resolver::with_resolver(store);
+
+    let (host, i) = instance(doc("carry-pick-instance-host"), part);
+    let direct = set_product(&host, i);
+    let ev_direct = run(&direct, &opts);
+    let seats = editor_core::product_recorded(&direct, &ev_direct, Tol::witness())
+        .expect("the instance gathers")
+        .contacts
+        .rows()
+        .len();
+    assert!(seats > 0, "the instance carries the part's seat");
+
+    let (host, c) = block(host, [5.0, 0.0], 0.5, 1.0);
+    let (host, c) = put(host, fixture::stood(c));
+    let (host, outer) = assembled(host, &[i, c]);
+    let (host, placed) = put(host, fixture::stood(outer));
+    let piece = host.output(i, 0).expect("the instance defines its body");
+    let (host, picked) = put(
+        host,
+        fixture::stood(editor_core::BodyRead::plain(Operand::pick(
+            Operand::Node(placed),
+            vec![piece],
+        ))),
+    );
+    let host = set_product(&host, picked);
+    let ev = run(&host, &opts);
+    let product = editor_core::product_recorded(&host, &ev, Tol::witness()).expect("it gathers");
+    assert_eq!(
+        product.contacts.rows().len(),
+        seats,
+        "the pick keeps the part's seat record"
+    );
+    assert_eq!(
+        unproven(&host, &ev),
+        unproven(&direct, &ev_direct),
+        "and the checks read the seat as the instance's"
+    );
+}
+
+/// **A union of one instance is that instance, its part's finding
+/// with it.** A union or an intersect of one body is that body (DM4):
+/// it carries what the body carries, so the host decides nothing inside
+/// it and reports the part's overlap once, through the instance.
+///
+/// *Breaks if* a lone member is handed on bare, so the host loses the
+/// part's finding and its census finds the overlap again.
+#[test]
+fn a_union_of_one_instance_carries_its_parts_finding() {
+    let (store, part) = overlapping_part("carry-lone-member-part");
+    let (doc, i) = instance(doc("carry-lone-member-host"), part);
+    let (doc, lone) = put(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![i.into()]),
+        },
+    );
+    let doc = set_product(&doc, lone);
+    let ev = run(&doc, &fixture::resolver::with_resolver(store));
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the host decides nothing inside the lone member: {:?}",
+        product.census
+    );
+    let reported = at_rest(&doc, &ev);
+    assert_eq!(reported.len(), 1, "the part's overlap, once: {reported:?}");
+    assert!(
+        matches!(
+            &reported[0].evidence,
+            CheckEvidence::CarriedInterference { finding } if finding.route.through == i
+        ),
+        "as the part's, through the instance: {reported:?}"
+    );
+}

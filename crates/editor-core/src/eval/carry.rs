@@ -5,26 +5,26 @@
 //!
 //! [`Carry`] is that one bundle, on every body value, every piece of a
 //! `⊔` and every part an instance copies: the records keyed in the
-//! body's arena, the findings of the documents below, the pieces and
-//! their door's census. A copy shares its source's body
-//! ([`super::Framed::moved`]) and so keeps every key, so the one thing
-//! a placement changes in what it carries is where the pieces stand
-//! ([`Carry::moved`]). A placement's copy of one body and an instance's
-//! take it through that one door (`wire::copy_of`). A family read
-//! whole carries each member's own ([`Carry::members`]): every member
-//! is evaluated on its own, at its own index values, so its records
-//! are keyed in its own arena, and each reader of a family's bodies
-//! reads member `i`'s through [`Carry::member`]. A projection of a
-//! member and a pick of one piece carry their source's carry by hand,
-//! and a mirror builds its own; one door for all of them is
-//! `work/intent/a-mirror-of-an-assemble-reports-its-findings-twice.md`'s
-//! cure.
+//! body's arena and what each input they cite is, the findings of the
+//! documents below, the pieces and their door's census. Every copy
+//! takes its carry through one door, [`Carry::copied`]: a placement's
+//! copy, an instance's, each member of a placed family, a pick of one
+//! piece and a mirror's image. A copy keeps every arena key of its
+//! source (a placement shares its body, [`super::Framed::moved`]; a
+//! reflection re-mints none, `topo::mirror_body`), so what it carries
+//! is its source's, its records citing their source as its one input,
+//! and its pieces standing where it stands. A family read whole carries
+//! each member's own ([`Carry::members`]): every member is evaluated on
+//! its own, at its own index values, so its records are keyed in its
+//! own arena, and each reader of a family's bodies reads member `i`'s
+//! through [`Carry::member`].
 
 use std::sync::Arc;
 
 use geom_core::{Decide, RigidMotion};
 
 use super::NodeErrorKind;
+use crate::coincide::CitedInput;
 
 /// **A body value's at-rest result**, as its copies carry it.
 ///
@@ -35,10 +35,17 @@ use super::NodeErrorKind;
 #[derive(Debug, Clone)]
 pub struct Carry<T: Decide> {
     /// **The contact records its body carries**, keyed in its arena:
-    /// declared across an instance seam, kept by its source's door, or
-    /// its source's own. A boolean's own records ride its payload
-    /// ([`super::BooleanValue::Body::contacts`]) and its copy's here.
+    /// a boolean's own, declared across an instance seam, kept by its
+    /// source's door, or its source's own.
     pub contacts: Arc<topo::ContactRecords>,
+    /// **What each input its records cite is**: a record's
+    /// [`topo::Backing::Carried`] names an input by position, and this
+    /// is that position's input ([`CitedInput`]); a
+    /// [`topo::Backing::Decided`] names a row of the value's own
+    /// coincidences ([`super::NodeValue::coincidences`]). It rides with
+    /// the records, so a carry taken whole never cites through a list
+    /// it did not come with.
+    pub cited_inputs: Arc<[CitedInput]>,
     /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
     /// each with the route it came by: what an instance reports as its
     /// part's, keyed in the same arena as `contacts`.
@@ -79,6 +86,7 @@ impl<T: Decide> Default for Carry<T> {
     fn default() -> Self {
         Self {
             contacts: Arc::default(),
+            cited_inputs: Arc::new([]),
             findings: Arc::default(),
             parts: 1,
             pieces: None,
@@ -90,15 +98,48 @@ impl<T: Decide> Default for Carry<T> {
 }
 
 impl<T: Decide> Carry<T> {
-    /// **What a copy under `map` carries**: this, its pieces standing
-    /// where the copy stands. `None` is the identity bundle's placement
-    /// by no map.
+    /// **What a copy carries** (D10 `[placement.placement]`), the one
+    /// door every copy's carry goes through: this carry's records, each
+    /// citing the record it is in `source`, the copy's one input; its
+    /// findings, parts, census and census decision, which stay the
+    /// source's; its pieces where the copy `stands`; and each member's
+    /// own carry, copied alike.
     ///
     /// # Errors
     ///
     /// [`NodeErrorKind::Motion`] where a piece's composed frame
     /// overflows.
-    pub(crate) fn moved(&self, map: Option<&RigidMotion<T>>) -> Result<Self, NodeErrorKind> {
+    pub(crate) fn copied(
+        &self,
+        stands: Stands<'_, T>,
+        source: &CitedInput,
+    ) -> Result<Self, NodeErrorKind> {
+        let members = match &self.members {
+            Some(members) => Some(
+                members
+                    .iter()
+                    .map(|member| member.copied(stands, source))
+                    .collect::<Result<Arc<[Self]>, NodeErrorKind>>()?,
+            ),
+            None => None,
+        };
+        let pieces = match stands {
+            Stands::Moved(map) => moved_pieces(self.pieces.as_ref(), map)?,
+            Stands::Reflected => None,
+        };
+        Ok(Self {
+            contacts: Arc::new(self.contacts.carried_from(0)),
+            cited_inputs: Arc::new([source.clone()]),
+            pieces,
+            members,
+            ..self.clone()
+        })
+    }
+
+    /// **This, standing where `map` moves it**: its pieces and each
+    /// member's moved with it, and nothing else changed, since a rigid
+    /// motion re-mints no key.
+    fn moved(&self, map: &RigidMotion<T>) -> Result<Self, NodeErrorKind> {
         let members = match &self.members {
             Some(members) => Some(
                 members
@@ -109,15 +150,23 @@ impl<T: Decide> Carry<T> {
             None => None,
         };
         Ok(Self {
-            pieces: moved_pieces(self.pieces.as_ref(), map)?,
+            pieces: moved_pieces(self.pieces.as_ref(), Some(map))?,
             members,
             ..self.clone()
         })
     }
 
-    /// This, with `contacts` as its records.
-    pub(crate) fn recording(self, contacts: Arc<topo::ContactRecords>) -> Self {
-        Self { contacts, ..self }
+    /// This, its records `contacts`, each input they cite `cited`.
+    pub(crate) fn recording(
+        self,
+        contacts: Arc<topo::ContactRecords>,
+        cited: Vec<CitedInput>,
+    ) -> Self {
+        Self {
+            contacts,
+            cited_inputs: cited.into(),
+            ..self
+        }
     }
 
     /// **What a family whose members carry `members` carries**: their
@@ -148,6 +197,7 @@ impl<T: Decide> Carry<T> {
         }
         Self {
             contacts: Arc::default(),
+            cited_inputs: Arc::new([]),
             findings: Arc::new(findings),
             parts: members.iter().map(|member| member.parts).sum(),
             pieces: None,
@@ -165,6 +215,17 @@ impl<T: Decide> Carry<T> {
             .and_then(|members| members.get(i))
             .unwrap_or(self)
     }
+}
+
+/// **Where a copy stands against its source**: moved by a rigid map
+/// (`None` the identity bundle's placement by no map), or reflected
+/// across a plane, where no rigid motion stands a piece.
+#[derive(Clone, Copy)]
+pub(crate) enum Stands<'m, T: Decide> {
+    /// Placed by a rigid map; its pieces stand where it stands.
+    Moved(Option<&'m RigidMotion<T>>),
+    /// A mirror's image, which holds no pieces.
+    Reflected,
 }
 
 /// **Pieces moved by `map`** with their holder: every piece at every
@@ -190,7 +251,7 @@ fn moved_pieces<T: Decide>(
                     .iter()
                     .map(|body| body.moved(map).map_err(NodeErrorKind::Motion))
                     .collect::<Result<_, _>>()?,
-                carry: piece.carry.moved(Some(map))?,
+                carry: piece.carry.moved(map)?,
                 ..piece.clone()
             })
         })
