@@ -145,7 +145,7 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
 /// against a pad that under-states the bracket (the certificate's
 /// sup bound alone).
 #[test]
-fn a_spline_witness_stands_within_its_pad_of_the_section() {
+fn a_spline_witness_stands_within_its_residual_of_the_section() {
     for h in [-0.2, -0.03] {
         let c = lone(&read(&level(h), &dome()));
         let off = off_the_circle(c.witness.expect("a loop carries a witness"), h);
