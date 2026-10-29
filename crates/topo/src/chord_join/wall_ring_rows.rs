@@ -1,7 +1,7 @@
 //! **Ring re-homing on a cylinder wall reads a path's parity across the
-//! run** ([`super::path_ring_side`]): a ring vertex beside a run vertex
-//! or along a ruling of the run reads its side, one on the run says
-//! nothing, a wall closed along its seam reads a vertex on the seam as
+//! run** ([`super::path_ring_side`]): a ring vertex beside a run vertex,
+//! along a ruling of the run or on a run arc's plane reads its side, one
+//! on the run says nothing, a wall closed along its seam reads a vertex on the seam as
 //! any other, and an island bounded by spline edges cut from a cylinder
 //! × sphere section re-homes its bystanders as membership in the ball
 //! says.
@@ -131,6 +131,123 @@ fn a_ring_vertex_on_the_run_says_nothing() {
             "the ring vertex at ({u}, {v})"
         );
     }
+}
+
+/// The slope of [`tilted_island`]'s rims: their planes are tilted
+/// `atan(TILT)` about `y`, so each cuts the unit cylinder in an ellipse
+/// whose semi-axes differ by more than the island is wide.
+const TILT: f64 = 2.5;
+
+/// The height at azimuth `u` of the ellipse the plane through
+/// `(0, 0, h)` tilted by [`TILT`] cuts the unit cylinder in.
+fn tilted(h: f64, u: f64) -> f64 {
+    h + TILT * u.cos()
+}
+
+/// The arc of [`tilted`]`(h, ·)` from azimuth `u0` to `u1` (either way
+/// round), its parameter the azimuth, described as the cylinder cut by
+/// its plane.
+fn tilted_arc(
+    body: &mut Body<f64>,
+    cyl: SurfaceKey,
+    h: f64,
+    (u0, u1): (f64, f64),
+) -> EdgeCurveSpec<f64> {
+    let centre = Point3::new(0.0, 0.0, h);
+    let alpha = TILT.atan();
+    let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
+    let plane = body.add_surface(geom::Surface::Plane {
+        origin: centre,
+        normal,
+        u_ref: Vec3::unit_y(),
+    });
+    let ellipse = geom::Curve3::Ellipse {
+        center: centre,
+        axis: normal,
+        semi_u: 1.0 / alpha.cos(),
+        semi_v: 1.0,
+        u_ref: Vec3::new(alpha.cos(), 0.0, alpha.sin()),
+    };
+    let (carrier, t0, t1) = if u1 > u0 {
+        (ellipse, u0, u1)
+    } else {
+        (ellipse.reversed().unwrap(), -u0, -u1)
+    };
+    EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(cyl, plane),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
+        },
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    }
+}
+
+/// The unit wall `[0.2, 1.4] × [0, 4]` holding the island between the
+/// rulings at azimuths 0.5 and 1 and the tilted rims
+/// [`tilted`]`(0.3, ·)` and [`tilted`]`(0.7, ·)`, walled off by its
+/// closing ruling at 0.5. Returns the body, the wall and the island's
+/// face.
+fn tilted_island() -> (Body<f64>, FaceKey, FaceKey) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        (0.2, 1.4),
+        (0.0, 4.0),
+        tol(),
+    );
+    let cyl = body.get_face(face).unwrap().surface;
+    let corners = [
+        at(0.5, tilted(0.3, 0.5)),
+        at(1.0, tilted(0.3, 1.0)),
+        at(1.0, tilted(0.7, 1.0)),
+        at(0.5, tilted(0.7, 0.5)),
+    ];
+    let island = ring_at(&mut body, face, corners[0], &[]);
+    let low = tilted_arc(&mut body, cyl, 0.3, (0.5, 1.0));
+    let e0 = body
+        .mev(MevSite::Lone { r#loop: island }, corners[1], low, tol())
+        .unwrap();
+    let fan = |he| MevSite::Fan { he1: he, he2: he };
+    let e1 = body.mev_line(fan(e0.he_minus), corners[2], tol()).unwrap();
+    let high = tilted_arc(&mut body, cyl, 0.7, (1.0, 0.5));
+    let e2 = body.mev(fan(e1.he_minus), corners[3], high, tol()).unwrap();
+    let after = body.get_half_edge(e2.he_plus).unwrap().next;
+    let made = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: e0.he_plus,
+                he2: after,
+            },
+            tol(),
+        )
+        .unwrap();
+    (body, face, made.face)
+}
+
+/// **A ring vertex on a run arc's plane, off the arc, reads its side.**
+/// On each tilted rim's plane either side of the island, the vertex is
+/// outside, every path from it starting on that plane out of the rim's
+/// span; between the rims, inside the island, it is In.
+#[test]
+fn a_vertex_on_a_run_arcs_plane_off_the_arc_reads_its_side() {
+    let (mut body, face, run) = tilted_island();
+    for (u, h) in [(1.2, 0.7), (0.3, 0.7), (1.2, 0.3), (0.3, 0.3)] {
+        let ring = ring_at(&mut body, face, at(u, tilted(h, u)), &[]);
+        assert_eq!(
+            wall_side(&body, (face, run), ring).unwrap(),
+            RingSide::Out,
+            "the ring vertex at azimuth {u} on the plane through height {h}"
+        );
+    }
+    let ring = ring_at(&mut body, face, at(0.75, tilted(0.5, 0.75)), &[]);
+    assert_eq!(
+        wall_side(&body, (face, run), ring).unwrap(),
+        RingSide::In,
+        "the ring vertex inside the island"
+    );
 }
 
 /// **A wall closed along its seam reads a vertex on the seam as any
