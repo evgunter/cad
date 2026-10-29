@@ -2,8 +2,10 @@
 id: a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane
 kind: issue
 title: A tube-circle tangency between two torus faces is read twice: the critical gap of the pair's pose and the glue door's tangency lane along a shared rim
-status: open
+status: closed
 opened: 2026-10-28
+closed: 2026-10-29
+branch: sect/torus-decided-once
 ---
 
 
@@ -28,3 +30,27 @@ one pair nothing checks that they agree, and in band they can disagree
 Either the glue door reading the pair's decided gap where the section
 value builds the pair, or a stated reason why a tangency along a held
 rim and the pose's tangency are separate decisions.
+
+## Closed — two questions, argued at both sites and pinned (#sect/torus-decided-once)
+
+The gap decides whether the pair is tangent and where; the glue door's
+touch decides that the rim the faces hold lies within ε of both surfaces
+at every sample, the residual every carrier owes however its pair was
+decided (C2's limbs, C7's first equation). The first does not imply the
+second: measured on two G1 bends (cores `R = 2`, `1.5`, planes `0.7`
+rad apart, tubes `0.5`), the second's tube `0.6ε` wider and moved
+`0.6ε`, the gap reads Zero and the rim stands `1.2ε` off the second
+torus on its far side, so the touch escalates (`contact_tangent_gap`);
+an exact distance from the rim's points to the torus measures the same
+`1.2ε`. The converse holds by construction (a touch within ε at every
+point of the rim puts both of the gap's readings within it). The argument
+is in `pair_section/gap.rs`'s module docs and `tangency_reading`'s; the
+row is `contact_verify::tests::a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim`.
+
+Off the band an operation does not see them disagree today: along a
+torus × torus tube circle each torus's transverse curvature is
+`cos(φ − β)/(R + r·cos(φ − β))` of the tube angle, whose difference
+keeps an oscillation larger than its mean, so `κ_rel` crosses zero and
+the glue door's undeclared reading escalates on the second order
+wherever its touch passes
+(`mate7a_torus_rest::the_g1_tube_chain_refuses_at_the_glue_door`).
