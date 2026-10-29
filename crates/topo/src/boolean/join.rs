@@ -3631,7 +3631,6 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
         Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
-        Uncarried::Carry(CarryError::Unbuilt(why)) => unbuilt(SectionUnbuilt::Unbuilt(why)),
         Uncarried::Carry(CarryError::Site(SiteRefusal::Untold(why))) => {
             unbuilt(SectionUnbuilt::Untold(why))
         }
