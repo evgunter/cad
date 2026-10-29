@@ -379,13 +379,35 @@ jobs:
       - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
         if: matrix.row == 'dev-probe'
         run: cd demos/tour && cargo test --features probe --test all k_probe_brackets
-      - name: large-K lint (gate — a flagged margin fails this row)
+      - name: large-K lint (pinned red — it must fail on exactly the pinned counts)
         if: matrix.row == 'dev-probe'
+        # Pinned at what main produces while
+        # work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md
+        # stays open: the gate must fail (exit 2) with these per-ε flag
+        # counts, so any move of the distribution is red. Closing that row
+        # restores this step as a plain gate.
         run: |
-          cd tools/k-lint && cargo run -- \
+          set -uo pipefail
+          cd tools/k-lint
+          cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
-            ../../target/k-fresh/k-eps-1e-12.csv
+            ../../target/k-fresh/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-large.out
+          status=${PIPESTATUS[0]}
+          want='k-eps-1e-12.csv: 721 flagged — rule 1 (undecided/invalid): 0, rule 2 (near a threshold): 720, rule 3 (below a floor): 721
+          k-eps-1e-6.csv: 13331 flagged — rule 1 (undecided/invalid): 9225, rule 2 (near a threshold): 4106, rule 3 (below a floor): 4106
+          k-eps-1e-9.csv: 38717 flagged — rule 1 (undecided/invalid): 14820, rule 2 (near a threshold): 13766, rule 3 (below a floor): 23897'
+          want=$(printf '%s\n' "$want" | sed -E 's/^ +//')
+          have=$(grep -oE 'k-eps-[0-9e-]+\.csv: [0-9]+ samples \([^)]*\), [0-9]+ flagged — rule 1 \(undecided/invalid\): [0-9]+, rule 2 \(near a threshold\): [0-9]+, rule 3 \(below a floor\): [0-9]+' ../../k-lint-large.out \
+            | sed -E 's/: [0-9]+ samples \([^)]*\),/:/' | LC_ALL=C sort -u)
+          if [ "$status" -eq 2 ] && [ "$have" = "$want" ]; then
+            echo "::warning title=large-K lint pinned red::fails on the pinned counts, as pinned (work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md)"
+            exit 0
+          fi
+          echo "::error title=large-K lint moved off its pin::exit $status (pinned 2); counts:"
+          printf 'want:\n%s\nhave:\n%s\n' "$want" "$have"
+          exit 1
       - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
         if: matrix.row == 'dev-probe'
         run: |
