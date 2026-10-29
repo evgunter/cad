@@ -8239,8 +8239,8 @@ fn validate_declarations<T: Decide>(
     let bad = |operand, what| BooleanError::InvalidInput { operand, what };
     // THE C8 boundary, stated once: a declared face must sit on a
     // carrier the classification's certified ladder describes — the
-    // kinds `carrier_eq` carries a rung for. Kinds outside it (cone,
-    // NURBS, `Approx`) refuse typed at this door; undeclared touching
+    // kinds `carrier_eq` carries a rung for. Kinds outside it (NURBS,
+    // `Approx`) refuse typed at this door; undeclared touching
     // refuses forever at the classification frontiers — the door only
     // widens what a VERIFIED declaration can unlock. Per-class
     // geometric admission (the `Tangent` witness lane) is
@@ -8260,12 +8260,13 @@ fn validate_declarations<T: Decide>(
                 geom::Surface::Plane { .. }
                 | geom::Surface::Sphere { .. }
                 | geom::Surface::Cylinder { .. }
-                | geom::Surface::Torus { .. },
+                | geom::Surface::Torus { .. }
+                | geom::Surface::Cone { .. },
             ) => Ok(()),
             Some(_) => Err(bad(
                 operand,
                 "declared face's carrier is outside the certified inventory \
-                 (plane, sphere, cylinder, torus)",
+                 (plane, sphere, cylinder, torus, cone)",
             )),
             None => Err(bad(operand, "declared face lost its surface")),
         }
