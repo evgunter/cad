@@ -947,7 +947,6 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    // `None`: nothing blocked, so no `Plain/Report` line is written.
     let sets: [(&str, SymRules, Option<u64>); 4] = [
         // Pinned at what main measures (2026-10-28), every set's count
         // moved: 8 blocked residuals where it rendered none, 20 where it

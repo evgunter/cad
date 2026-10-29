@@ -52,6 +52,12 @@ On it, at the default ε:
 Whichever of PR 5952 and these pins lands second re-pins the rows the
 other moves.
 
+**Un-pinning owes a re-measure.** Each pinned row stops at its pin, so
+what the row checks past that point has not run on main. In particular,
+`m10_3_r2`'s containment checks (the body under its
+`test_utils::pinned_red::row` pin) have not run since #5542. Whoever
+un-pins a row re-measures what ran past its old stop.
+
 **Closing this row** takes each move's mechanism: the #5542 part (largely
 PR 5952's), and the post-#5542 moves, bisected. Then each pin is
 re-blessed with its move explained, or its row restored.

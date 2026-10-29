@@ -27,7 +27,7 @@ gathered across M2's full pipeline.
   (predicate, margin, band, outcome) with decisions bit-identical to
   f64. That premise is checked, not argued:
   `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the
   registered corpus at `Probe` and at `f64` and compares them bit for
   bit (value channel, mass properties, content keys, name tables,
   verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
