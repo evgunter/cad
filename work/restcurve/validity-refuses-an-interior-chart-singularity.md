@@ -2,11 +2,12 @@
 id: validity-refuses-an-interior-chart-singularity
 kind: issue
 title: Validity refuses a revolution-chart face whose loop is rims only (a pole or apex interior to the face)
-status: open
+status: spec
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census, import-normalizes-the-rim-only-cap]
 priority: P0
 cost: H
+branch: restcurve/chart-singularity-is-a-vertex
 ---
 
 
@@ -196,3 +197,62 @@ The rule is now DESIGN `[topology]`'s, both directions at tier 3: every chart si
 This row builds the first rule only: every chart singularity in a face's closure is a vertex of it. The rule reads the face's region, form-neutral as the FOREIGN re-aim says. It holds today: import normalizes to the two-half pole form (PR 6007), and that form satisfies the rule.
 
 The wrap-tip half from PR 6014 is now `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`. That covers tier 2's valence-1 exemption and tier 3's tip-on-the-singularity. It is parked on the shared loop walk, which Ev asked to land first. This row adds no exemption and admits no tip.
+
+## Spec (RESTCURVE orchestrator, 2026-10-29)
+
+Unit branch `restcurve/chart-singularity-is-a-vertex`. Review tier: **dual, concurrent pair**. The unit adds a refusal to tier 3, and it gives a reading that import already uses one home that validity also cites. That is architecture whose impact is broad and hard to change later (`memories/orchestration-model.md`; difficulty H).
+
+### The rule
+
+**Every chart singularity in a face's closure is a vertex of that face.** DESIGN `[topology.tiers]` tier 3 states it, and so does `crates/geom-brep/README.md` C12 (7). The singularities are a sphere's two poles and a cone's apex: whatever the chart's singular set names, for every kind that has one. A singular point is read against the face's region and lands in one of three places:
+- at a vertex of the face, which is legal;
+- inside one of its edges, which is refused;
+- in its interior, which is refused.
+
+A point outside the closure is no finding. The reading is form-neutral: it never asks whether a loop has a meridian. A tilted cap holds a pole and has no meridian; a meridian spur that stops short has a meridian and still holds the pole.
+
+### One home, cited by import and by validity
+
+Today the full reading exists once: `step-import/src/normalize/singularity.rs` (`scan`, `holds`, `nearest_on_edge`, `on_boundary`). It is f64 and reads a pre-body `SolidSpec`, and topo cannot depend on step-import.
+
+Props' sphere reader does not cover the rule:
+- `geom_brep::props::curved`, `pole_side` / `pole_against_arc` / `agreed_side`, is sphere-only.
+- It skips holed faces, which go by Gauss–Bonnet alone.
+- The cone arm treats an interior apex as a legal puncture.
+
+So:
+1. **Lift the reading into geom-brep**, in a module of its own that sits beside props and is not inside it. Make it generic over the certifying scalar as props' readers are, and read it over the `LoopEdge` loops that topo already builds (`crate::props::loop_edges`) plus the face's sense. It answers, per singular point: at a vertex (which loop, which vertex), inside an edge (which edge), interior, or outside.
+   - On/off and side decisions go through `Band`/`decide`, as props does. Use named decision sites, so the margin rides the refusal (D4 ¶1).
+   - An in-band reading is undecided and carries its margin. It is never folded to a side.
+   - Whether `Chart::singular()` (step-import) or topo's `Chart::poles()` becomes the one list of a chart's singular points is the lane's call. Exactly one list survives, and the other cites it.
+2. **Import cites it.** `normalize::singularity` keeps its dispositions and its band choice, which is the coarser of the file's band and the run's. It replaces its own location reading with the home.
+   - That ground is FOREIGN's. Announce the seam on `work/foreign/log.md`, and in the PR.
+   - On the committed import corpus, every disposition import made before the change must be the same after. A disagreement is a finding to report and adjudicate, never a number to restore (`memories/output-stability-as-justification.md`).
+   - If the f64 pre-body path truly cannot take the generic reader, stop and report before forking a second reading.
+3. **Validity cites it.** Add a tier-3 check in `crates/topo/src/validate.rs`, sitting after check 6's curved arm, which already holds `loops` and `band`.
+   - It refuses with one new `ValidationError` variant. The variant names the face, the singular point, and where the point lies (interior, or inside which edge).
+   - An undecided reading escalates with its margin, ending by `MarginDiag`'s one classification, never by a rule of its own.
+   - Keep check 7's gate on a clean battery as it is. Say in the PR which tier-3 findings this check now suppresses through that gate.
+   - State the rule in validate's own module docs, in the present tense. Remove the check from the not-yet-checked list, and remove the exemptions that point at "this validity's rule": the `CurvedSenseInverted` doc, and check 6's curved-arm comment on the face with a pole on each side.
+
+### What moves, and is this unit's to correct
+
+The survey of 2026-10-29 named:
+- `crates/mesh/tests/meridian_free_face.rs`: its caps assert tier 3 = joins only.
+- `crates/mesh/tests/loops_with_no_rim.rs`, `a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk`: there is a pole inside each great-circle arc.
+- The doc sentences on `mesh::TessellateError::MeridianFreeCurvedFace` and `SingleColumnCurvedFace`.
+- `geom_brep::props::curved::sphere_region_material_sign`'s "which validity does not yet refuse".
+- `crates/topo/tests/cone_apex_cap_body.rs`: check whether its cap holds the apex at a vertex.
+- The Euler-built witnesses, which now refuse: `crates/topo/tests/mesh12_rim_row_reach.rs::two_level_rim_cap` and mesh's `witness_bodies::one_circle_cut`. Re-point each such row at the new refusal. Never delete a row, and never weaken an assertion to keep it green.
+
+Sweep for the rest (implementer discipline §5), and record the hit list in the PR.
+
+Props' arms that become reachable only through an invalid body are PROPS' to retire. File each one on its owner's slate rather than retiring it here:
+- the holed-sphere path that consults no pole;
+- `Unencoded`'s pole-on-each-side meaning;
+- the cone arm's apex puncture.
+
+### Not in this unit
+
+- The wrap tip, which is `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity` (parked). Add no valence-1 exemption.
+- The shared corner-turn loop walk (`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`). The new home's winding reading is a loop walk on a chart, so write it as one walk that row can extend, not as a private helper. Name that coupling in the PR.
