@@ -20,18 +20,18 @@
 //! wall's normal off the rim's image in its chart, levered over each
 //! chart's certified curvature. The rim is the `v = 0` row of both walls,
 //! a curve known in advance, so it is described by that shared row (D2's
-//! structural selector) and certified through each wall's row
-//! certificate, owing no uniqueness tube. The result passes the gate, and
-//! the union stops at the interior-loop guard, which has no arm for a
-//! spline wall's pair. This row is that guard's tripwire: it reds when
-//! the guard reads the pair.
+//! structural selector), certified per wall with no uniqueness tube. Its
+//! certificate then bounds the walls' crossing over the whole rim, and on
+//! one of the lens's two rims the walls are tangent at a point: their
+//! crossing reading changes sign across it. The union refuses there. This
+//! row is that site's tripwire: it reds when the rim certifies.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::loft_body;
-use topo::{BooleanError, PairRefusalSite};
+use topo::{BooleanError, EdgeDescribeFailure, EulerOpError};
 
 /// The lens on chord `width`, rising `ridge` above it and dropping
 /// `keel` below, run counterclockwise from the `+s` margin.
@@ -77,16 +77,16 @@ fn blade(
     topo::test_support::finished("a lens blade", lofted, tol)
 }
 
-/// **Both orders describe the shared rim and stop at the interior-loop
-/// guard.** The rim is each wall's `v = 0` row, recovered as the walls'
-/// shared row and certified per wall; the result passes the gate, so
-/// every edge, the rims among them, certifies at rest. The guard then
-/// refuses the pair of B's spline wall and A's cap plane
-/// (`CurvedPairUnsupported { site: InteriorLoopGuard }`, measured at ε
-/// 1e-9, 1e-6 and 1e-12 on 2026-10-28). Before the shared row, the rim's
-/// witness refused at limb 3 (`PlaneNurbs(TubeNotOneArc { AlongSide })`,
-/// before that `Undecided`): the two-chart tube cannot prove one arc
-/// along a chart's boundary row.
+/// **Both orders stop where the walls touch on the rim.** Each rim is
+/// each wall's `v = 0` row, recovered as the walls' shared row. On one of
+/// them the walls' crossing reading changes sign mid-rim (measured
+/// 2026-10-29 near `t = 0.6477` of `[0, 0.924]`: the reading is
+/// definitely negative just before, definitely positive just after), so
+/// the walls are tangent there and the rim's certificate escalates its
+/// crossing (`Escalated { Transversality }`, `shared_row_crossing`) at ε
+/// 1e-9, 1e-6 and 1e-12. A certificate that read the crossing at its
+/// samples alone stepped over that point and passed the rim; before the
+/// shared row, the rim's witness refused at limb 3 (`TubeNotOneArc`).
 /// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
 /// miss; before the seam's spline entry, the seam's dihedral arm
 /// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
@@ -95,7 +95,7 @@ fn blade(
 /// the ring-composite arm, `EdgeCarrierUnsupported` on a tip seam of A
 /// against the cap of B.
 #[test]
-fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
+fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
     let tol = Tol::witness();
     let base = [0.170, 0.028, 0.020];
     let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
@@ -114,16 +114,22 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         let err = topo::union(a, b, tol).expect_err(what);
         assert!(
             matches!(
-                err,
-                BooleanError::CurvedPairUnsupported {
-                    site: PairRefusalSite::InteriorLoopGuard,
-                    operand: topo::Operand::B,
-                    kind: geom::SurfaceKind::Nurbs,
-                    other_kind: geom::SurfaceKind::Plane,
+                &err,
+                BooleanError::EdgeUndescribed {
+                    failure: EdgeDescribeFailure::Intersection,
+                    cause: Some(cause),
                     ..
-                }
+                } if matches!(
+                    **cause,
+                    EulerOpError::Certification {
+                        error: geom_brep::CertifyError::Escalated {
+                            check: geom_brep::CertCheck::Transversality,
+                            ..
+                        },
+                    }
+                )
             ),
-            "{what}: past the shared rim, at the interior-loop guard on a spline wall: {err:?}"
+            "{what}: at the rim, where its walls touch: {err:?}"
         );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses

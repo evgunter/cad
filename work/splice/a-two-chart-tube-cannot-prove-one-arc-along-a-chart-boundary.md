@@ -78,7 +78,7 @@ difference between PR 5907's two reviews. r1's interior control used a
 √ε-scaled span, which certifies. r2's interior rows used the whole
 turn, so their ends sat on both charts' `u` sides.
 
-**Lily**, the sweep row (`a_sheath_on_its_blade_unions_past_the_shared_rim`)
+**Lily**, the sweep row (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`)
 at ε 1e-9: the rim is the full `v = 0` row of both walls, so it has both
 shapes. The walk fails first at shape 2, box 0's face `u_a = 1` with
 `v_a ≈ u_b ≈ v_b ≈ 0`, the end at a corner of both charts. Shape 1's

@@ -152,6 +152,29 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
         self.jacobian_read(x, true)
     }
 
+    /// The Jacobian over `x`, each net cut to it along both axes
+    /// ([`NurbsBoxes::deriv_box_cut_both`]).
+    pub(crate) fn jacobian_cut_both(&self, x: Box4) -> [[Interval; 4]; 3] {
+        let col = |b: Box3, s: f64| {
+            [
+                b.x * Interval::point(s),
+                b.y * Interval::point(s),
+                b.z * Interval::point(s),
+            ]
+        };
+        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
+            w.map_or_else(refused_box, |w| n.deriv_box_cut_both(w, u))
+        };
+        let (wa, wb) = (x.window_a(), x.window_b());
+        let cols = [
+            col(read(&self.a, wa, true), 1.0),
+            col(read(&self.a, wa, false), 1.0),
+            col(read(&self.b, wb, true), -1.0),
+            col(read(&self.b, wb, false), -1.0),
+        ];
+        core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
+    }
+
     /// The Jacobian, each net cut to `x` or read whole.
     fn jacobian_read(&self, x: Box4, cut: bool) -> [[Interval; 4]; 3] {
         let col = |b: Box3, s: f64| {
@@ -708,7 +731,15 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     x: Box4,
     e: [f64; 4],
 ) -> Interval {
-    let mut j = pair.jacobian(x);
+    margin_of(pair, pair.jacobian(x), e)
+}
+
+/// [`graph_margin`] of the Jacobian `j` the caller read over a box.
+fn margin_of<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    mut j: [[Interval; 4]; 3],
+    e: [f64; 4],
+) -> Interval {
     for row in &mut j {
         for (c, v) in row.iter_mut().enumerate() {
             *v = *v * Interval::point(1.0 / pair.speeds[c]);
@@ -725,6 +756,10 @@ const ROW_PIECES: usize = 8;
 
 /// How many times [`row_crossing`] may halve a piece before it stops.
 const ROW_DEPTH: u32 = 10;
+
+/// The share of a chart's domain a row's box is widened by across the row
+/// ([`row_crossing`]).
+const ROW_SLIVER: f64 = 1.0 / (1u64 << 40) as f64;
 
 /// Why [`row_crossing`] gave no bound.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -765,6 +800,7 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
     };
     let (sa, sb) = (ca.speeds(), cb.speeds());
     let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
+    let domain = Box4::of_charts(a, b);
     let mut least = f64::INFINITY;
     #[allow(clippy::cast_precision_loss)]
     let mut work: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
@@ -775,6 +811,18 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
         .collect();
     while let Some((lo, hi, depth)) = work.pop() {
         let (x, chord) = read(lo, hi);
+        // A row's fixed coordinate is a point, which no net is cut to:
+        // widen it into the domain, so the box (still holding the row)
+        // reads the cell beside the row, not the whole cell.
+        let x = Box4(core::array::from_fn(|k| {
+            let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
+            if l < h {
+                (l, h)
+            } else {
+                let w = (d1 - d0) * ROW_SLIVER;
+                if l + w <= d1 { (l, l + w) } else { (l - w, l) }
+            }
+        }));
         // Each moving coordinate one ulp inside its piece, so the box
         // reads one span's polynomial even where a piece ends on a knot.
         let x = Box4(x.0.map(|(l, h)| {
@@ -787,7 +835,7 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
         let scaled: [f64; 4] = core::array::from_fn(|k| chord[k] * pair.speeds[k]);
         let norm = scaled.iter().map(|c| c * c).sum::<f64>().sqrt();
         let e = scaled.map(|c| c / norm);
-        let margin = graph_margin(&pair, x, e);
+        let margin = margin_of(&pair, pair.jacobian_cut_both(x), e);
         let (m_lo, m_hi) = (margin.lo(), margin.hi());
         if norm > 0.0 && (m_lo > 0.0 || m_hi < 0.0) {
             least = least.min(m_lo.abs().min(m_hi.abs()));

@@ -965,6 +965,20 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         self.deriv_hull(w, along_u, true)
     }
 
+    /// [`NurbsBoxes::deriv_box`] with each touched cell's net cut to the
+    /// rectangle along both axes: tight over a narrow rectangle in either
+    /// direction, such as a piece of a boundary row.
+    pub(crate) fn deriv_box_cut_both(&self, w: UvWindow, along_u: bool) -> Box3 {
+        self.fold_cells(
+            w,
+            Some((true, true)),
+            |net| net.derivative_box(along_u),
+            Box3::meet_enclosure,
+            Box3::hull,
+        )
+        .unwrap_or_else(refused_box)
+    }
+
     /// [`NurbsBoxes::deriv_box`] read off every touched cell's whole net,
     /// without the cut: the exhaustiveness sweep's derivative box, whose
     /// slack the sweep's seeding is pinned against

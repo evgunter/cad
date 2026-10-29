@@ -89,7 +89,7 @@ Rows: `geom-brep` `a_shared_row_is_certified_per_wall` (six rows, at ε
 1e-9, 1e-6 and 1e-12; mutants of the recovery's certificate gate, its
 domain-side predicate, the per-wall gate, the recorded limbs, the remap's
 re-ordering and the transversality reading each red a row), and lily's
-`a_sheath_on_its_blade_unions_past_the_shared_rim`, which now describes
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`, which now describes
 both rims structurally, passes the gate, and stops at the interior-loop
 guard (`CurvedPairUnsupported { InteriorLoopGuard }`, B's NURBS wall ×
 A's cap plane, both orders, three ε). With the recovery forced to the
