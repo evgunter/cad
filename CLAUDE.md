@@ -9,22 +9,17 @@ client over the API), functional style, fail-loud.
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Ev first.
 - `work/` — the tracker. `work/STATUS.md` is the board (generated on
-  main, never hand-edited); `work/README.md` is the contract, and
-  orchestrators read it in full.
+  main, never hand-edited); `work/README.md` is the contract.
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with
   their clause ids kept; DESIGN.md's companion table lists them.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
-- `docs/prompts/implementer-discipline.md`,
-  `docs/prompts/reviewer-style-lane.md` and
-  `docs/prompts/designer.md` — the standing discipline handed
-  to every implementer, reviewer and designer lane by path.
-  **Orchestrators read all three in full, and again after every
-  compaction**: they are the rules the orchestrator adjudicates
-  against, and they bind the orchestrator's own judgement too (e.g. a
-  golden or stored bit that changes is never a cost to weigh against a
-  change that makes the code right — re-baseline and say what moved).
+- `docs/prompts/` — the standing discipline handed to every
+  implementer, reviewer and designer lane by path.
+- **Orchestrators**: read `memories/orchestration-model.md` in full, and
+  again after every compaction; it lists everything else an orchestrator
+  reads.
 
 ## Memory convention (important)
 
