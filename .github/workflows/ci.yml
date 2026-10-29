@@ -617,7 +617,7 @@ jobs:
                   print("TIMING", sys.argv[1], u["name"], u["target"] or "lib", "start", u["start"], "dur", u["duration"])
           print("TIMING", sys.argv[1], "total", max(u["start"] + u["duration"] for u in units))
           EOF
-          (cd demos/tour && cargo build --release -p pncad -p tess-meter -p serde_json -p test-utils)
+          (cd demos/tour && cargo build --release -p pncad)
           git fetch --depth=1 origin 552b954fcfa97cf0c2ca714d478893b223f25e62
           git checkout 552b954fcfa97cf0c2ca714d478893b223f25e62 -- demos/tour
           rm demos/tour/src/lib.rs
