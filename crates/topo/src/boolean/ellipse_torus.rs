@@ -40,8 +40,8 @@
 
 use geom_core::{Band, Decide};
 
-use super::BooleanError;
-use super::circle_roots::CircleRoots;
+use super::circle_roots::{CircleRoots, door_refusal};
+use super::{BooleanDecision, BooleanError};
 use geom_brep::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
@@ -63,9 +63,9 @@ const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
 ///
 /// [`BooleanError::ClassificationInvariant`] when `carrier` is not an
 /// ellipse or `surface` not a torus — the caller dispatched on those
-/// kinds, so a mismatch is a desync, never an answer. The subdivision
-/// never escalates; a count it cannot certify is the inner
-/// [`Unsettled`].
+/// kinds, so a mismatch is a desync, never an answer. The subdivision's
+/// sign in band escalates as [`BooleanDecision::ArcTorusRoots`], its
+/// fault is the kernel's, and its limit is the inner [`Unsettled`].
 pub(super) fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -126,28 +126,31 @@ fn torus_walk<T: Decide>(
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    Ok(certified_subdivision(
-        &TrigPoly {
-            cos: h.cos,
-            sin: h.sin,
-            degree: 4,
-        },
-        &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
-        &SubdivisionFrame {
-            t0,
-            t1,
-            speed_hi: conic.speed_hi(),
-            noise: rounding_charge(h.terms),
-            f_per_metre: h.f_per_metre_lo,
-            f_per_metre_hi: h.f_per_metre_surface,
-            residual_reach: Some(minor_radius / T::from_f64(2.0)),
-            jet: None,
-        },
-        &TORUS_ROWS,
-        meter.as_ref(),
-        band,
+    door_refusal(
+        certified_subdivision(
+            &TrigPoly {
+                cos: h.cos,
+                sin: h.sin,
+                degree: 4,
+            },
+            &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+            &SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: conic.speed_hi(),
+                noise: rounding_charge(h.terms),
+                f_per_metre: h.f_per_metre_lo,
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / T::from_f64(2.0)),
+                jet: None,
+            },
+            &TORUS_ROWS,
+            meter.as_ref(),
+            band,
+        ),
+        BooleanDecision::ArcTorusRoots,
     )
-    .map(Roots::widen))
+    .map(|found| found.map(Roots::widen))
 }
 
 #[cfg(test)]

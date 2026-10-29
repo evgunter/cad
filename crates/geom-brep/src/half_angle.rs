@@ -13,7 +13,7 @@
 //! [`certified_subdivision`], decided on the residual itself in the
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
-//! tangency refused typed, [`crate::roots::Unsettled`]).
+//! tangency refused as a touch, [`crate::roots::RootRefusal::Touch`]).
 //!
 //! The subdivision is not bound to degree two: a residual of degree `N`
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
@@ -87,7 +87,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::{QuarticRows, depressed_quartic_roots};
-use crate::roots::{RootRefusal, Roots, Unsettled};
+use crate::roots::{Passes, RootFault, RootRefusal, Roots, Unsettled, in_band};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
 /// torus ([`crate::ConicTorusHarmonics`]).
@@ -416,28 +416,20 @@ fn ladder_roots<T: Decide>(
         let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
             - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
         // Its answer is not read (the subdivision answers); an in-band
-        // sign it meets is the door's escalation. Its `CountDisagrees` is
-        // dropped with its count, unlike the line × torus door's, where
-        // the quartic's coefficients are the residual's own and a
-        // disagreement is a classification invariant: here they come
+        // sign it meets is the door's escalation. A repeated root it reads
+        // is dropped with its count, as is its `CountDisagrees`, unlike
+        // the line × torus door's, where the quartic's coefficients are
+        // the residual's own and a disagreement is a classification
+        // invariant: here they come
         // through the anchor rotation, pole division and rescale, whose
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
         return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
             Err(RootRefusal::Escalated(diag)) => Err(diag),
             Ok(_)
-            | Err(RootRefusal::Unsettled(
-                Unsettled::CountDisagrees { .. }
-                | Unsettled::Tangency
-                | Unsettled::Resolvent
-                | Unsettled::SignInBand
-                | Unsettled::Meter
-                | Unsettled::Exhausted
-                | Unsettled::ImpossibleCount
-                | Unsettled::AtApex
-                | Unsettled::Degenerate
-                | Unsettled::Crease,
-            )) => Ok(()),
+            | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+                Ok(())
+            }
         };
     }
     Ok(())
@@ -507,8 +499,9 @@ const BISECTIONS: u32 = 64;
 /// midpoint `m`, with the derivatives there to third order and the one
 /// global bound the harmonics give exactly, `|F⁗| ≤ M₄ = Σ k⁴Aₖ`. The
 /// turn is cut into pieces whose every end has a DEFINITE residual sign
-/// (a cut that would land in the band is moved along its piece). On a
-/// piece of half-width `w`:
+/// (a cut that would land in the band is moved along its piece, and a
+/// starting sixteenth with no definite share is left inside its
+/// neighbours' piece). On a piece of half-width `w`:
 ///
 /// - **clear** — `|F(m)| − (|F′(m)|w + |F″(m)|w²/2 + |F‴(m)|w³/6 +
 ///   M₄w⁴/24)` (less the noise) definitely positive, in metres: `F`
@@ -520,20 +513,27 @@ const BISECTIONS: u32 = 64;
 ///   piece holds at most one root, and holds one exactly when its ends'
 ///   signs differ; that root is bisected on the residual itself to the
 ///   scalar's resolution and must then read ON the surface (`side`,
-///   `Zero`), or the walk refuses [`Unsettled::SignInBand`] — and, where the caller hands
+///   `Zero`): in the gap it escalates, and definitely off it refuses
+///   [`Unsettled::Meter`], the residual's step between two adjacent
+///   scalars being past the band — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
 ///   too, or it refuses [`Unsettled::Meter`]. The bisection closes on two adjacent scalars, and the root is
 ///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
-///   holds a double root — a tangency — and the walk refuses
-///   [`Unsettled::Tangency`], never a certified `Miss`.
+///   holds a double root — a tangency — and the walk escalates on its
+///   clear margin, never a certified `Miss`.
+///
+/// A piece none of whose split shares reads a definite sign escalates on
+/// the first share's reading, as does a turn with no definite share at
+/// all: the walk has cut wherever it can, and the sign stays in band.
 ///
 /// # Errors
 ///
-/// [`Unsettled`] as above, [`Unsettled::Exhausted`] past the piece
-/// budget, and [`Unsettled::ImpossibleCount`] for an odd count round the
-/// turn or more roots than the degree allows.
+/// [`RootRefusal::Touch`] and [`Unsettled::Meter`] as above,
+/// [`Unsettled::Exhausted`] past the piece budget, and
+/// [`RootFault::ImpossibleCount`] for an odd count round the turn or more
+/// roots than the degree allows.
 ///
 /// The same Taylor bound, over a piece of a harmonic, is
 /// `curve_pair::pose::window`'s.
@@ -568,7 +568,7 @@ pub fn certified_subdivision<T: Decide>(
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
-) -> Result<TrigRoots<T>, Unsettled> {
+) -> Result<TrigRoots<T>, RootRefusal> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -644,25 +644,36 @@ pub fn certified_subdivision<T: Decide>(
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         Ok(Sign::Zero) | Err(_) => None,
     };
+    // A cut whose every share reads in band, at the sign the walk needed
+    // definite there.
+    let in_band_at = |t: T| {
+        RootRefusal::Touch(in_band(
+            rows.side,
+            Margin::of(residual(t)),
+            Passes::NonZero,
+            band,
+        ))
+    };
     // The first cut: one end in each sixteenth of the turn, each moved
-    // along its sixteenth until its sign is definite; the last end is the
-    // first a turn on.
+    // along its sixteenth until its sign is definite; a sixteenth with no
+    // such share is re-cut by leaving it inside its neighbours' piece, so
+    // a stretch in band at the walk's own cuts is walked, not refused. The
+    // last end is the first a turn on.
     let n = SUBDIVISION_START;
     let piece = T::tau() / T::from_f64(f64::from(n));
     let base = (t0 + t1) / two - T::pi();
-    let Some(mut ends) = (0..n)
-        .map(|k| {
+    let mut ends: Vec<(T, Sign)> = (0..n)
+        .filter_map(|k| {
             let from = base + piece * T::from_f64(f64::from(k));
             SPLITS.iter().find_map(|&share| {
                 let t = from + piece * T::from_f64(share);
                 side(t).map(|s| (t, s))
             })
         })
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Err(Unsettled::SignInBand);
+        .collect();
+    let Some(&(first, first_side)) = ends.first() else {
+        return Err(in_band_at(base + piece * T::from_f64(SPLITS[0])));
     };
-    let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
     // The pieces are walked left to right ([`geom_core::bisect`]), so the
     // bisection's raw midpoints come out in order; the reported roots do
@@ -744,8 +755,14 @@ pub fn certified_subdivision<T: Decide>(
                 // by that turn, on the scalars the root is reported at.
                 let turn = lo - reported(lo);
                 root = nearer(close(l - turn, r - turn));
-                if !on(root) {
-                    return Step::Stop(Unsettled::SignInBand);
+                match decide(rows.side, Margin::of(residual(root)), band) {
+                    Ok(Sign::Zero) => {}
+                    Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                    // Definitely off beside a sign change: the residual's
+                    // step between adjacent scalars is past the band.
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        return Step::Stop(Unsettled::Meter.into());
+                    }
                 }
             }
             if let Some(meter) = slack {
@@ -768,27 +785,32 @@ pub fn certified_subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter),
+                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter.into()),
                 }
             }
             roots.push(root);
             return Step::Settled;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(Unsettled::Tangency);
+            return Step::Stop(RootRefusal::Touch(in_band(
+                rows.clear,
+                Margin::of(clear),
+                Passes::Positive,
+                band,
+            )));
         }
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(Unsettled::SignInBand);
+            return Step::Stop(in_band_at(l + (r - l) * T::from_f64(SPLITS[0])));
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     });
     match walk {
         Ok(None) => {}
         Ok(Some(why)) => return Err(why),
-        Err(_) => return Err(Unsettled::Exhausted),
+        Err(_) => return Err(Unsettled::Exhausted.into()),
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -797,9 +819,9 @@ pub fn certified_subdivision<T: Decide>(
     // `2N` is more than a degree-`N` polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
-        return Err(Unsettled::ImpossibleCount);
+        return Err(RootFault::ImpossibleCount.into());
     }
-    Roots::of(&roots).ok_or(Unsettled::ImpossibleCount)
+    Ok(Roots::of(&roots).ok_or(RootFault::ImpossibleCount)?)
 }
 
 #[cfg(test)]
@@ -832,7 +854,7 @@ mod subdivision_guard_rows {
         residual: &impl Fn(f64) -> f64,
         noise: f64,
         eps: f64,
-    ) -> Result<TrigRoots<f64>, Unsettled> {
+    ) -> Result<TrigRoots<f64>, RootRefusal> {
         let frame = SubdivisionFrame {
             t0: -0.5,
             t1: 0.5,

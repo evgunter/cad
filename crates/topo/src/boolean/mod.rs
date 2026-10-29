@@ -4605,13 +4605,12 @@ pub(crate) const CONIC_EDGES_RECOURSE: &str =
 fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
     use geom_brep::roots::Unsettled as U;
     match why {
-        U::Tangency => {
-            "it comes within the tolerance of the face without a crossing the Boolean can \
-             tell apart: it touches the face, runs along it, or crosses it more than once \
-             within the tolerance"
+        U::Floor => {
+            "it comes too near the face for the Boolean to resolve whether or where it \
+             crosses: it may touch the face, run along it, or cross it more than once"
         }
         U::Crease => "it meets the face at a corner of the spline",
-        U::SignInBand => {
+        U::Meter => {
             "the point it located as a crossing does not evaluate onto the face within the \
              tolerance"
         }
@@ -9169,7 +9168,7 @@ mod tests {
                 edge,
                 face,
                 face_of: Operand::B,
-                why: geom_brep::roots::Unsettled::Tangency,
+                why: geom_brep::roots::Unsettled::Floor,
             },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,

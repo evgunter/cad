@@ -132,7 +132,7 @@ fn a_line_tangent_to_a_dome_escalates() {
     let along = line(Point3::new(0.0, 0.5, 0.0), Vec3::unit_x());
     let got = read(&along, (0.1, 0.9), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a tangency refuses: {got:?}"
     );
 }
@@ -142,7 +142,7 @@ fn a_pass_within_the_band_escalates() {
     let below = line(Point3::new(0.0, 0.5, -0.5 * band().zero()), Vec3::unit_x());
     let near = read(&below, (0.1, 0.9), &dome());
     assert!(
-        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass within the band is never clear: {near:?}"
     );
 }
@@ -155,7 +155,7 @@ fn a_line_along_a_patch_within_the_band_escalates() {
     let along = line(Point3::new(0.0, 0.5, 0.5 * band().zero()), Vec3::unit_x());
     let got = read(&along, (0.2, 0.8), &flat());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a run within the band is never clear: {got:?}"
     );
 }
@@ -266,7 +266,7 @@ fn review_r1_a_tangency_near_the_chart_edge_and_an_end_is_not_dropped() {
         let (ring, params) = touching(delta, 5e4 * e, 500.0 * e);
         let got = read(&ring, params, &chart);
         assert!(
-            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
             "δ = {delta:e}: a tangency 500·escalate inside the span refuses: {got:?}"
         );
     }
@@ -297,7 +297,7 @@ fn review_r1_a_pass_in_the_bands_gap_escalates() {
     let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
     let got = read(&below, (0.1, 0.9), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass in the band's gap is never clear: {got:?}"
     );
 }
@@ -344,7 +344,7 @@ fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_escalates() {
     // The control: the same touch mid-chart refuses.
     let mid = read(&at(0.5 * l), (-l + 128.0 * s, 128.0 * s), &chart);
     assert!(
-        matches!(mid, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(mid, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a touch mid-chart refuses: {mid:?}"
     );
     let edge = read(&at(32.0 * s), (-l + 128.0 * s, 128.0 * s), &chart);
@@ -426,7 +426,7 @@ fn review_r2_a_pass_in_the_bands_sliver_escalates() {
     let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
     let got = read(&below, (0.1, 0.9), &chart);
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass in the sliver is never clear: {got:?}"
     );
 }
@@ -630,7 +630,7 @@ fn cup(lift: f64) -> Curve3<f64> {
 fn a_nurbs_span_tangent_to_a_dome_escalates() {
     let got = read_whole(&cup(0.0), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a tangency refuses: {got:?}"
     );
 }
@@ -650,12 +650,12 @@ fn steep(lift: f64) -> Curve3<f64> {
 fn a_nurbs_pass_within_the_band_escalates() {
     let near = read_whole(&steep(0.5 * band().zero()), &dome());
     assert!(
-        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass within the band is never clear: {near:?}"
     );
     let gap = read_whole(&steep(2.0 * band().zero()), &dome());
     assert!(
-        matches!(gap, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(gap, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "nor one in the band's gap: {gap:?}"
     );
 }

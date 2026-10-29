@@ -154,7 +154,9 @@ use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use geom_brep::quartic::QuarticRows;
-use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+use geom_brep::roots::{
+    OnCarrier, Passes, RootFault, RootRefusal, Roots, Unsettled, in_band, spread_in_band,
+};
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
@@ -310,9 +312,15 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 ),
                 DECISION,
             ),
-            // A negative length is not an answer; an in-band one is a
-            // near-coaxial pose neither arm can stand behind.
-            Ok(Sign::Negative) | Err(_) => Ok(Err(Unsettled::SignInBand)),
+            // An in-band offset is a near-coaxial pose neither arm can
+            // stand behind; a negative length is not one.
+            Err(diag) => Err(BooleanError::Escalated {
+                decision: DECISION,
+                diag,
+            }),
+            Ok(Sign::Negative) => Err(BooleanError::ClassificationInvariant {
+                what: "the circle × torus door read a carrier's axis offset negative",
+            }),
         };
     }
 
@@ -563,7 +571,14 @@ fn parallel_axes_roots<T: Decide>(
         (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
         (_, Sign::Negative) => return Ok(CircleRoots::Miss),
-        _ => return Err(Unsettled::Tangency.into()),
+        _ => {
+            return Err(RootRefusal::Touch(spread_in_band(
+                "bool_circle_torus_plane_height",
+                depth,
+                charge_h,
+                band,
+            )));
+        }
     }
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
@@ -576,38 +591,29 @@ fn parallel_axes_roots<T: Decide>(
     // `θ₀`: the carrier's farthest point from the torus axis, along
     // `+w_perp`.
     let theta0 = w_perp.dot(v_ref).atan2(w_perp.dot(u_ref));
-    let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
+    // An extreme the band cannot place is a touch, on its reading.
+    let place = |theta: T, rho: T| -> Result<Result<Band3, Indeterminate>, Indeterminate> {
         let (s, c) = theta.sin_cos();
         let res = geom_brep::implicit_residual(
             torus,
             center + u_ref * (radius * c) + v_ref * (radius * s),
         );
-        match geom_brep::roots::spread_signs(
-            "bool_circle_torus_contour_residual",
-            res,
-            charge,
-            band,
-        )? {
-            (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
+        const RESIDUAL: &str = "bool_circle_torus_contour_residual";
+        match geom_brep::roots::spread_signs(RESIDUAL, res, charge, band)? {
+            (_, Sign::Negative) => return Ok(Ok(Band3::Tube)),
             (Sign::Positive, _) => {}
-            _ => return Ok(None),
+            _ => return Ok(Err(spread_in_band(RESIDUAL, res, charge, band))),
         }
-        Ok(
-            match decide(
-                "bool_circle_torus_contour_side",
-                Margin::of(rho - major_radius),
-                band,
-            )? {
-                Sign::Positive => Some(Band3::Beyond),
-                Sign::Negative => Some(Band3::Hole),
-                Sign::Zero => None,
-            },
-        )
+        const SIDE: &str = "bool_circle_torus_contour_side";
+        let side = Margin::of(rho - major_radius);
+        Ok(match decide(SIDE, side, band)? {
+            Sign::Positive => Ok(Band3::Beyond),
+            Sign::Negative => Ok(Band3::Hole),
+            Sign::Zero => Err(in_band(SIDE, side, Passes::NonZero, band)),
+        })
     };
-    let (Some(far), Some(near)) = (place(theta0, rho_max)?, place(theta0 + T::pi(), rho_min)?)
-    else {
-        return Err(Unsettled::Tangency.into());
-    };
+    let far = place(theta0, rho_max)?.map_err(RootRefusal::Touch)?;
+    let near = place(theta0 + T::pi(), rho_min)?.map_err(RootRefusal::Touch)?;
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
     // hole and the far one is not; ρ+ iff the far one is beyond and the
@@ -666,7 +672,7 @@ fn parallel_axes_roots<T: Decide>(
             count += 1;
         }
     }
-    Ok(CircleRoots::of(&thetas[..count]).ok_or(Unsettled::ImpossibleCount)?)
+    Ok(CircleRoots::of(&thetas[..count]).ok_or(RootFault::ImpossibleCount)?)
 }
 
 #[cfg(test)]

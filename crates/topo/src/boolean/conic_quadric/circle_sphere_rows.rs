@@ -580,7 +580,7 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
         ));
         assert!(matches!(
             line_sphere_roots(Point3::new(0.3, 0.0, 0.0), d, c, r, band()).unwrap(),
-            WallRoots::Tangent
+            WallRoots::Tangent(_)
         ));
     }
 }

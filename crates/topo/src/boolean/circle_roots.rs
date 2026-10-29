@@ -37,8 +37,8 @@
 //!   bound spans, both ends decided — definitely one-signed is a miss,
 //!   definitely straddling is two roots, an end in the escalation gap
 //!   escalates, and an extreme otherwise not definite is a tangency,
-//!   which is not a crossing at any order this lane sees and refuses
-//!   [`Unsettled::Tangency`]. The noise meter bounds the error by the
+//!   which is not a crossing at any order this lane sees and escalates
+//!   on that extreme's reading. The noise meter bounds the error by the
 //!   zero band, not by the gap's far edge, so an extreme read bare could
 //!   clear `Kε` while its true value sits in the gap.
 //! - **root slack** — at either root the extremes' errors move the
@@ -90,7 +90,9 @@
 use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
-use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
+use geom_brep::roots::{
+    OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_in_band, spread_signs,
+};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::{BooleanDecision, BooleanError};
@@ -130,13 +132,14 @@ pub(super) fn door_half_angle_roots<T: Decide>(
     .map(Roots::widen))
 }
 
-/// A root finder's answer as a door gives it: an uncertified count as
-/// the inner `Err`, and an in-band sign escalated as the door's
-/// `decision`.
+/// A root finder's answer as a door gives it: a limit as the inner
+/// `Err`, an in-band sign escalated as the door's `decision`, and a fault
+/// a kernel defect.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`], as above.
+/// [`BooleanError::Escalated`], as above, and
+/// [`BooleanError::ClassificationInvariant`] for a fault.
 pub(super) fn door_refusal<V>(
     found: Result<V, RootRefusal>,
     decision: BooleanDecision,
@@ -144,7 +147,12 @@ pub(super) fn door_refusal<V>(
     match found {
         Ok(roots) => Ok(Ok(roots)),
         Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
-        Err(RootRefusal::Escalated(diag)) => Err(BooleanError::Escalated { decision, diag }),
+        Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
+            Err(BooleanError::Escalated { decision, diag })
+        }
+        Err(RootRefusal::Fault(fault)) => Err(BooleanError::ClassificationInvariant {
+            what: fault.readings(),
+        }),
     }
 }
 
@@ -156,9 +164,8 @@ pub(super) fn door_refusal<V>(
 /// # Errors
 ///
 /// [`RootRefusal::Escalated`] when `value ∓ spread` lies in the band's
-/// gap, and [`Unsettled::Tangency`] when one end is in the zero band and
-/// the other definite: the carrier is neither on the surface nor clear
-/// of it.
+/// gap, and the straddle of the two ends when they disagree: the
+/// carrier is neither on the surface nor clear of it.
 pub(super) fn constant_residual_roots<T: Decide>(
     value: T,
     spread: T,
@@ -168,7 +175,7 @@ pub(super) fn constant_residual_roots<T: Decide>(
     match spread_signs(row, value, spread, band)? {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(Roots::Miss),
         (Sign::Zero, Sign::Zero) => Ok(Roots::On(OnCarrier)),
-        _ => Err(Unsettled::Tangency.into()),
+        _ => Err(RootRefusal::Touch(spread_in_band(row, value, spread, band))),
     }
 }
 
@@ -268,8 +275,8 @@ pub(super) struct FirstHarmonicRows {
 /// band's escalation gap. An escalated noise or root-slack reading is
 /// NOT an escalation: it refuses [`Unsettled::Meter`] in the inner `Err`,
 /// as a definitely excessive one does — a meter that cannot be read does
-/// not license the roots it meters. An extreme in the zero band refuses
-/// [`Unsettled::Tangency`] there. An escalated coaxial test falls through
+/// not license the roots it meters. An extreme in the zero band
+/// escalates too, on its own reading. An escalated coaxial test falls through
 /// to the extremes, which decide the same carrier.
 pub(super) fn first_harmonic_roots<T: Decide>(
     h: &FirstHarmonic<T>,
@@ -329,8 +336,22 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     if hi == Sign::Negative {
         return Ok(Roots::Miss);
     }
-    if (lo, hi) != (Sign::Negative, Sign::Positive) {
-        return Err(Unsettled::Tangency.into());
+    // An extreme in the zero band: a double root there.
+    if lo == Sign::Zero {
+        return Err(RootRefusal::Touch(spread_in_band(
+            rows.extreme,
+            lo_value,
+            lo_noise,
+            band,
+        )));
+    }
+    if hi == Sign::Zero {
+        return Err(RootRefusal::Touch(spread_in_band(
+            rows.extreme,
+            hi_value,
+            hi_noise,
+            band,
+        )));
     }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
     // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the

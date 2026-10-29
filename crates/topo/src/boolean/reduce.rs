@@ -65,7 +65,7 @@ use super::circle_roots::{CircleRoots, door_refusal};
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
-use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
+use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead, WallRung};
 use super::{BooleanError, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
 use crate::coincidence::{Cited, Cites};
@@ -4117,12 +4117,22 @@ fn wall_crossing<T: Decide + Bounds>(
     // `None`: a kind pair with no root lane (a spiric or a spline
     // against any carrier), which takes the refusals' path below, as a
     // door's refusal does.
+    // Where the span meets the carrier, localized and read against the
+    // face: off it, the roots are not this face's question.
+    let off_face = || super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band);
+    // A door's reading in band, of its pose or of where its roots lie,
+    // escalates unless every touch of the span is off the face.
+    let in_band = |refusal: BooleanError| match refusal {
+        BooleanError::Escalated { .. } if off_face()? => Ok(SpanVerdict::OffFace),
+        refusal => Err(refusal),
+    };
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
-            match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
-                Some(Ok(found)) => Some(found),
-                Some(Err(verdict)) => return Ok(verdict),
-                None => None,
+            match line_wall_roots_of(origin, dir, (t0, t1), surface, band) {
+                Ok(Some(Ok(found))) => Some(found),
+                Ok(Some(Err(verdict))) => return Ok(verdict),
+                Ok(None) => None,
+                Err(refusal) => return in_band(refusal),
             }
         }
         // The conic root doors ([`super::circle_roots`]), one answer
@@ -4130,40 +4140,43 @@ fn wall_crossing<T: Decide + Bounds>(
         // wall or a cone, whose quadric form is of degree two along it
         // ([`super::conic_quadric`]), and one per conic against a torus.
         // A conic against any other kind has no root lane here.
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => match (carrier, surface) {
-            (
-                _,
-                geom::Surface::Sphere { .. }
-                | geom::Surface::Cylinder { .. }
-                | geom::Surface::Cone { .. },
-            ) => Some(super::conic_quadric::conic_quadric_roots(
-                carrier, t0, t1, surface, band,
-            )?),
-            (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => Some(
-                super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?,
-            ),
-            (_, geom::Surface::Torus { .. }) => Some(super::ellipse_torus::ellipse_torus_roots(
-                carrier, t0, t1, surface, band,
-            )?),
-            _ => None,
-        },
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+            let door = match (carrier, surface) {
+                (
+                    _,
+                    geom::Surface::Sphere { .. }
+                    | geom::Surface::Cylinder { .. }
+                    | geom::Surface::Cone { .. },
+                ) => Some(super::conic_quadric::conic_quadric_roots(
+                    carrier, t0, t1, surface, band,
+                )),
+                (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => Some(
+                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band),
+                ),
+                (_, geom::Surface::Torus { .. }) => Some(
+                    super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band),
+                ),
+                _ => None,
+            };
+            match door.transpose() {
+                Ok(found) => found,
+                Err(refusal) => return in_band(refusal),
+            }
+        }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let found = match found {
         Some(Ok(found)) => found,
         Some(Err(Unsettled::AtApex)) => return Ok(SpanVerdict::AtApex),
-        // A tangency, a count the door could not certify, or no root lane
-        // at all: where the span may meet the carrier is localized and
-        // read against the face, which settles it off the face or keeps
-        // the door.
+        // A limit of the door, or no root lane at all: where the span may
+        // meet the carrier is localized and read against the face, which
+        // settles it off the face or keeps the door.
         Some(Err(_)) | None => {
-            return Ok(
-                if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
-                    SpanVerdict::OffFace
-                } else {
-                    SpanVerdict::Unsettled
-                },
-            );
+            return Ok(if off_face()? {
+                SpanVerdict::OffFace
+            } else {
+                SpanVerdict::Unsettled
+            });
         }
     };
     // The carrier's speed at a parameter: only the kinds `found` was
@@ -4395,7 +4408,12 @@ fn line_wall_roots_of<T: Decide>(
             diag: fault.diag,
         })? {
             WallRoots::Two(ts) => two(ts),
-            WallRoots::Tangent => Err(Unsettled::Tangency),
+            WallRoots::Tangent(diag) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::WallRoots(WallRung::Discriminant),
+                    diag,
+                });
+            }
             WallRoots::AxisParallel => return Ok(Some(Err(SpanVerdict::Constant))),
             WallRoots::Miss => Ok(CircleRoots::Miss),
         },
@@ -4409,7 +4427,7 @@ fn line_wall_roots_of<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => match door_refusal(
+        } => door_refusal(
             super::solid_contain::line_torus_roots(
                 origin,
                 dir,
@@ -4420,15 +4438,8 @@ fn line_wall_roots_of<T: Decide>(
                 band,
             ),
             BooleanDecision::TorusRoots,
-        )? {
-            Err(Unsettled::CountDisagrees { .. }) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the constructed roots of a quartic disagree in number with its \
-                           certified count",
-                });
-            }
-            found => found.map(Roots::widen),
-        },
+        )?
+        .map(Roots::widen),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
@@ -4438,7 +4449,12 @@ fn line_wall_roots_of<T: Decide>(
                     diag,
                 })? {
                 WallRoots::Two(ts) => two(ts),
-                WallRoots::Tangent => Err(Unsettled::Tangency),
+                WallRoots::Tangent(diag) => {
+                    return Err(BooleanError::Escalated {
+                        decision: BooleanDecision::SphereRoots,
+                        diag,
+                    });
+                }
                 WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),
             }
         }
@@ -4475,7 +4491,7 @@ fn line_wall_roots_of<T: Decide>(
 ///   `Q = res·(ρ cos α + |h| sin α)` with that factor at most `|q|`, so
 ///   `disc/(|A|·R)`, `R ≥ |q(t*)|`, is a lower bound on the residual's
 ///   magnitude there, signed as the crossing count. Positive: two roots;
-///   Zero: a tangency, [`Unsettled::Tangency`]; Negative: a miss.
+///   Zero: a tangency, escalated on that reading; Negative: a miss.
 /// - **`bool_line_cone_root_slack`** — each root's arc-length slack: the
 ///   rounding of `G`'s evaluation (charged against its term bound,
 ///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed,
@@ -4520,15 +4536,17 @@ fn line_cone_roots<T: Decide>(
     let disc = b2.powi(2) - a2 * c2;
     let vertex = (T::zero() - b2) / a2;
     let reach = at(t0).norm().max(at(t1).norm()).max(at(vertex).norm());
-    match decide(
-        "bool_line_cone_depth",
-        Margin::of(disc / (a2.abs() * reach)),
-        band,
-    )
-    .map_err(escalate)?
-    {
+    let depth = Margin::of(disc / (a2.abs() * reach));
+    match decide("bool_line_cone_depth", depth, band).map_err(escalate)? {
         Sign::Positive => {}
-        Sign::Zero => return Ok(Err(Unsettled::Tangency)),
+        Sign::Zero => {
+            return Err(escalate(geom_brep::roots::in_band(
+                "bool_line_cone_depth",
+                depth,
+                geom_brep::roots::Passes::NonZero,
+                band,
+            )));
+        }
         Sign::Negative => return Ok(Ok(CircleRoots::Miss)),
     }
     let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
@@ -7429,11 +7447,11 @@ mod line_cone_rows {
     /// The cone about `+z` from the origin, half-angle `π/4`.
     const APEX: (f64, f64, f64) = (0.0, 0.0, 0.0);
 
-    fn roots(
+    fn door(
         origin: [f64; 3],
         dir: [f64; 3],
         span: (f64, f64),
-    ) -> Result<CircleRoots<f64>, Unsettled> {
+    ) -> Result<Result<CircleRoots<f64>, Unsettled>, BooleanError> {
         let tip = Point3::new(APEX.0, APEX.1, APEX.2);
         line_cone_roots(
             Point3::from_array(origin),
@@ -7442,7 +7460,25 @@ mod line_cone_rows {
             span,
             band(),
         )
-        .unwrap()
+    }
+
+    fn roots(
+        origin: [f64; 3],
+        dir: [f64; 3],
+        span: (f64, f64),
+    ) -> Result<CircleRoots<f64>, Unsettled> {
+        door(origin, dir, span).unwrap()
+    }
+
+    /// Whether the door escalates a touch on its depth rung.
+    fn touches(got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>) -> bool {
+        matches!(
+            got,
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::ConeRoots,
+                diag,
+            }) if diag.predicate == Some("bool_line_cone_depth")
+        )
     }
 
     /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
@@ -7510,15 +7546,12 @@ mod line_cone_rows {
         );
         // Along `x` at `y = 1`, height 1: tangent to the cone's circle of
         // radius 1 there, at `(0, 1, 1)`.
-        let graze = roots(
+        let graze = door(
             [-2.0, 1.0 + 0.1 * b.zero(), 1.0],
             [1.0, 0.0, 0.0],
             (0.0, 4.0),
         );
-        assert!(
-            matches!(graze, Err(Unsettled::Tangency)),
-            "a graze within the band, got {graze:?}"
-        );
+        assert!(touches(&graze), "a graze within the band, got {graze:?}");
         let s = core::f64::consts::FRAC_1_SQRT_2;
         let ruling = roots([0.5, 0.0, 0.0], [s, 0.0, s], (0.0, 2.0));
         assert!(
@@ -7545,9 +7578,9 @@ mod line_cone_rows {
                 "{label}: got {got:?}"
             );
         }
-        let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
+        let short = door([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
         assert!(
-            matches!(short, Err(Unsettled::Tangency)),
+            touches(&short),
             "a segment ending half a metre short of the apex, got {short:?}"
         );
     }

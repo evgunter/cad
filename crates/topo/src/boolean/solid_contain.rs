@@ -148,7 +148,7 @@
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
 //!   the factorization's own certifications. A constructed root set
 //!   that disagrees with the certified count
-//!   ([`Unsettled::CountDisagrees`]) blocks the ray, carrying both
+//!   ([`RootFault::CountDisagrees`]) blocks the ray, carrying both
 //!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
@@ -214,7 +214,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::recourse::Reading;
-use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
+use geom_brep::roots::{Found, RootFault, RootRefusal, Roots};
 
 use super::region::RegionRefusal;
 use super::rim_wedge::Rim;
@@ -409,7 +409,7 @@ pub enum PointInSolidError {
     },
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
-    /// certify ([`Unsettled::CountDisagrees`]). The certified count is
+    /// certify ([`RootFault::CountDisagrees`]). The certified count is
     /// the wrong one: the sign ladder's discriminant carries `f64`
     /// rounding its band does not charge
     /// (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
@@ -2386,8 +2386,8 @@ pub(super) enum WallRoots<T> {
     AxisParallel,
     /// The discriminant is in the zero band — the line is TANGENT to
     /// the wall, and a tangency is not a crossing at any order this
-    /// function can see.
-    Tangent,
+    /// function can see. The zero band's rejection of the discriminant.
+    Tangent(geom_core::Indeterminate),
     /// A definitely negative discriminant: no real root.
     Miss,
     /// Two definite roots of the carrier's own parameter, ascending.
@@ -2455,17 +2455,20 @@ pub(super) fn line_wall_roots<T: Decide>(
     let b2 = w0p.dot(dp);
     let c2 = w0p.norm_squared() - radius.powi(2);
     let disc = b2.powi(2) - a2 * c2;
-    match decide(
-        "bool_ray_cylinder_disc",
-        Margin::over_lever(disc / a2, two_r),
-        band,
-    )
-    .map_err(|diag| WallRootFault {
+    let disc_margin = Margin::over_lever(disc / a2, two_r);
+    match decide("bool_ray_cylinder_disc", disc_margin, band).map_err(|diag| WallRootFault {
         rung: WallRung::Discriminant,
         diag,
     })? {
         Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
+        Sign::Zero => {
+            return Ok(WallRoots::Tangent(geom_brep::roots::in_band(
+                "bool_ray_cylinder_disc",
+                disc_margin,
+                geom_brep::roots::Passes::NonZero,
+                band,
+            )));
+        }
         Sign::Negative => return Ok(WallRoots::Miss),
     }
     Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
@@ -2551,13 +2554,17 @@ pub(super) fn line_sphere_roots<T: Decide>(
     let c2 = w0.norm_squared() - radius.powi(2);
     let disc = b2.powi(2) - a2 * c2;
     let two_r = T::from_f64(2.0) * radius;
-    match decide(
-        "bool_ray_sphere_disc",
-        Margin::over_lever(disc / a2, two_r),
-        band,
-    )? {
+    let disc_margin = Margin::over_lever(disc / a2, two_r);
+    match decide("bool_ray_sphere_disc", disc_margin, band)? {
         Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
+        Sign::Zero => {
+            return Ok(WallRoots::Tangent(geom_brep::roots::in_band(
+                "bool_ray_sphere_disc",
+                disc_margin,
+                geom_brep::roots::Passes::NonZero,
+                band,
+            )));
+        }
         Sign::Negative => return Ok(WallRoots::Miss),
     }
     Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
@@ -2603,7 +2610,7 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
 /// * a ray all but perpendicular to the axis has a resolvent root
 ///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
-/// * an [`Unsettled::CountDisagrees`] blocks that ray
+/// * a [`RootFault::CountDisagrees`] blocks that ray
 ///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// **So this door refuses over a BAND around a tangency, and the band is
@@ -2620,8 +2627,9 @@ pub(super) fn line_sphere_roots<T: Decide>(
 /// # Errors
 ///
 /// [`RootRefusal::Escalated`] — an in-band classifying sign, which the
-/// caller wraps in its own error type — and [`RootRefusal::Unsettled`],
-/// a count the ladder does not certify.
+/// caller wraps in its own error type — [`RootRefusal::Touch`], a rung
+/// that reads a repeated root, and [`RootRefusal::Fault`], rungs that
+/// contradict.
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -2676,19 +2684,21 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
 /// [`RayFault::Graze`] and [`RayFault::Blocked`], as above.
 fn torus_crossings<T: Decide>(
     face: FaceKey,
-    roots: Result<QuarticRoots<T>, Unsettled>,
+    roots: Result<QuarticRoots<T>, RootRefusal>,
 ) -> Result<Option<Found<T, 4>>, RayFault<PointInSolidError>> {
     match roots {
         Ok(Roots::Miss) => Ok(None),
         Ok(Roots::Certified(found)) => Ok(Some(found)),
-        Err(Unsettled::CountDisagrees {
+        Err(RootRefusal::Fault(RootFault::CountDisagrees {
             certified,
             constructed,
-        }) => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
+        })) => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
             face,
             certified,
             constructed,
         })),
+        // The caller escalates the gap's escalation; a touch of the ray,
+        // a limit or another fault is this ray's.
         Err(_) => Err(RayFault::Graze),
     }
 }
@@ -3440,7 +3450,7 @@ fn carrier_roots<T: Decide>(
                             return Err(RayFault::Graze);
                         }
                     }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Tangent(_) => return Err(RayFault::Graze),
                     WallRoots::Two(ts) => {
                         for (t, chart) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
                             push(t, RootSide::Ordered(oriented(chart, sense)));
@@ -3489,7 +3499,7 @@ fn carrier_roots<T: Decide>(
                         push(near, RootSide::Ordered(oriented(Sign::Negative, sense)));
                         push(far, RootSide::Ordered(oriented(Sign::Positive, sense)));
                     }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Tangent(_) => return Err(RayFault::Graze),
                     WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
                 },
                 FaceGeo::TorusPatch {
@@ -3508,9 +3518,8 @@ fn carrier_roots<T: Decide>(
                         minor_radius,
                         band,
                     ) {
-                        Ok(roots) => Ok(roots),
-                        Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                        found => found,
                     };
                     match torus_crossings(face, found)? {
                         Some(found) => {
@@ -4079,7 +4088,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                         }
                         return Err(RayFault::Graze);
                     }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Tangent(_) => return Err(RayFault::Graze),
                     WallRoots::Two(ts) => ts,
                 };
                 for t in ts {
@@ -4129,7 +4138,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 let [near, far] =
                     match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
                         WallRoots::Two(ts) => ts,
-                        WallRoots::Tangent => return Err(RayFault::Graze),
+                        WallRoots::Tangent(_) => return Err(RayFault::Graze),
                         WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
                     };
                 // The near/far outward pair is read off the geometry
@@ -4162,9 +4171,8 @@ pub(crate) fn ray_crossings<T: Decide>(
                 }
                 let roots =
                     match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
-                        Ok(roots) => Ok(roots),
-                        Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                        found => found,
                     };
                 let Some(found) = torus_crossings(face, roots)? else {
                     continue;

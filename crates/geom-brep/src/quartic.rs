@@ -7,7 +7,7 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign};
 
-use crate::roots::{RootRefusal, Roots, Unsettled};
+use crate::roots::{Passes, RootFault, RootRefusal, Roots, in_band};
 
 /// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
 /// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
@@ -285,7 +285,7 @@ pub struct QuarticRows {
 /// its row in [`QuarticRows`]:
 ///
 /// 1. **`disc` Zero**: the quartic has a repeated real root.
-///    [`Unsettled::Tangency`].
+///    A touch, on that reading.
 /// 2. **`odd` Zero**: `q̂` is in band and the quartic is BIQUADRATIC.
 ///    Not a degeneracy but a different closed form: `y²` solves a
 ///    quadratic and the roots come out of two square roots, which is also
@@ -301,15 +301,15 @@ pub struct QuarticRows {
 ///    chosen.
 /// 3. **`split_lead` non-Positive**: the resolvent's largest real root
 ///    is not positive, which contradicts its own constant term `−q̂² < 0`
-///    on the branch that computed it. [`Unsettled::Resolvent`]. It is
+///    on the branch that computed it. [`RootFault::Resolvent`]. It is
 ///    NOT only a rounding-scale contradiction: a `q̂` small enough that
 ///    the root `≈ q̂²/c1` falls inside the band, but large enough to clear
 ///    rung 2, reaches it too, a legitimate root refused on its size
 ///    (`work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`).
 /// 4. **`split` Zero**: one of the two quadratic factors has a zero
 ///    discriminant, i.e. a double root, which contradicts the definite
-///    discriminant of rung 1. [`Unsettled::Tangency`].
-/// 5. **[`Unsettled::CountDisagrees`]**: the roots CONSTRUCTED
+///    discriminant of rung 1. A touch, on that reading.
+/// 5. **[`RootFault::CountDisagrees`]**: the roots CONSTRUCTED
 ///    disagree in number with the count CERTIFIED by rung 1. Where
 ///    measured exactly, the construction is right and rung 1 is wrong:
 ///    `Δ`'s `f64` evaluation carries rounding far past the band that no
@@ -324,8 +324,9 @@ pub struct QuarticRows {
 ///
 /// # Errors
 ///
-/// [`RootRefusal::Escalated`], an in-band classifying sign, and
-/// [`RootRefusal::Unsettled`], the rungs above that certify no count.
+/// [`RootRefusal::Escalated`], an in-band classifying sign,
+/// [`RootRefusal::Touch`], a rung that reads a repeated root, and
+/// [`RootRefusal::Fault`], the rungs above that contradict.
 #[allow(clippy::too_many_lines)] // one closed form and its ladder
 pub fn depressed_quartic_roots<T: Decide>(
     p: T,
@@ -335,6 +336,7 @@ pub fn depressed_quartic_roots<T: Decide>(
     rows: &QuarticRows,
     band: Band,
 ) -> Result<QuarticRoots<T>, RootRefusal> {
+    let repeated = |row, margin, passes| RootRefusal::Touch(in_band(row, margin, passes, band));
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
@@ -342,26 +344,30 @@ pub fn depressed_quartic_roots<T: Decide>(
         - T::from_f64(27.0) * q_hat.powi(4)
         + T::from_f64(16.0) * p.powi(4) * s
         - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
+    let disc_margin = Margin::over_lever(disc, lever.powi(11));
+    let disc_sign = decide(rows.disc, disc_margin, band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
-        Sign::Zero => return Err(Unsettled::Tangency.into()),
+        Sign::Zero => return Err(repeated(rows.disc, disc_margin, Passes::NonZero)),
         Sign::Positive => {
-            let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
-            let depth = decide(
-                rows.depth,
-                Margin::over_lever(
-                    T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
-                    lever.powi(3),
-                ),
-                band,
-            )?;
+            let shape_margin = Margin::over_lever(p, lever);
+            let shape = decide(rows.shape, shape_margin, band)?;
+            let depth_margin = Margin::over_lever(
+                T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
+                lever.powi(3),
+            );
+            let depth = decide(rows.depth, depth_margin, band)?;
             match (shape, depth) {
                 (Sign::Negative, Sign::Negative) => 4,
                 (Sign::Positive, _) | (_, Sign::Positive) => 0,
                 // One of the two is on its own zero while the other does
                 // not settle the question: the count is not certain.
-                _ => return Err(Unsettled::Tangency.into()),
+                (Sign::Zero, _) => {
+                    return Err(repeated(rows.shape, shape_margin, Passes::NonZero));
+                }
+                (_, Sign::Zero) => {
+                    return Err(repeated(rows.depth, depth_margin, Passes::NonZero));
+                }
             }
         }
     };
@@ -371,52 +377,56 @@ pub fn depressed_quartic_roots<T: Decide>(
     // The two quadratic factors of the depressed quartic, as
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
     // `α = 0` one and is taken on its own closed form.
-    let (f0, f1) =
-        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
-            // `y⁴ + p y² + s`: with `α = 0` the factorization's own
-            // relations collapse to `β + γ = p` and `βγ = s`, so the two
-            // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
-            // `X² − pX + s`. Those are the NEGATIVES of the roots of the
-            // quadratic in `y²`, which is the sign this arm is easy to get
-            // backwards and which no in-band case would have caught.
-            let inner = p.powi(2) - four * s;
-            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
-                Sign::Positive => {}
-                // A repeated `y²`, or none at all with a count that says
-                // otherwise: neither is a certified pair of factors.
-                Sign::Zero | Sign::Negative => return Err(Unsettled::Tangency.into()),
+    let (f0, f1) = if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)?
+        == Sign::Zero
+    {
+        // `y⁴ + p y² + s`: with `α = 0` the factorization's own
+        // relations collapse to `β + γ = p` and `βγ = s`, so the two
+        // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
+        // `X² − pX + s`. Those are the NEGATIVES of the roots of the
+        // quadratic in `y²`, which is the sign this arm is easy to get
+        // backwards and which no in-band case would have caught.
+        let inner = p.powi(2) - four * s;
+        let split = Margin::over_lever(inner, lever.powi(3));
+        match decide(rows.split, split, band)? {
+            Sign::Positive => {}
+            // A repeated `y²`, or none at all with a count that says
+            // otherwise: neither is a certified pair of factors.
+            Sign::Zero | Sign::Negative => {
+                return Err(repeated(rows.split, split, Passes::Positive));
             }
-            let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
-            ((T::zero(), hi), (T::zero(), lo))
-        } else {
-            // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
-            // whose constant term is negative, so its LARGEST real root is
-            // positive — the one root whose square root splits the quartic
-            // over the reals. On four real quartic roots the resolvent has
-            // three and the largest is at least a third of their sum; on two
-            // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
-            // (a ray all but perpendicular to the axis), which is where
-            // `cubic_largest_real_root`'s conditioning has to come from its
-            // own construction rather than from the choice. The resolvent
-            // shares the quartic's discriminant, so the branch is the sign
-            // already decided above rather than a second decision.
-            let z = cubic_largest_real_root(
-                two * p,
-                p.powi(2) - four * s,
-                T::zero() - q_hat.powi(2),
-                disc_sign == Sign::Positive,
-            );
-            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(Unsettled::Resolvent.into()),
-            }
-            let alpha = z.max(T::zero()).sqrt();
-            let half_gap = q_hat / alpha;
-            (
-                (alpha, (p + z - half_gap) / two),
-                (T::zero() - alpha, (p + z + half_gap) / two),
-            )
-        };
+        }
+        let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
+        ((T::zero(), hi), (T::zero(), lo))
+    } else {
+        // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
+        // whose constant term is negative, so its LARGEST real root is
+        // positive — the one root whose square root splits the quartic
+        // over the reals. On four real quartic roots the resolvent has
+        // three and the largest is at least a third of their sum; on two
+        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+        // (a ray all but perpendicular to the axis), which is where
+        // `cubic_largest_real_root`'s conditioning has to come from its
+        // own construction rather than from the choice. The resolvent
+        // shares the quartic's discriminant, so the branch is the sign
+        // already decided above rather than a second decision.
+        let z = cubic_largest_real_root(
+            two * p,
+            p.powi(2) - four * s,
+            T::zero() - q_hat.powi(2),
+            disc_sign == Sign::Positive,
+        );
+        match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => return Err(RootRefusal::Fault(RootFault::Resolvent)),
+        }
+        let alpha = z.max(T::zero()).sqrt();
+        let half_gap = q_hat / alpha;
+        (
+            (alpha, (p + z - half_gap) / two),
+            (T::zero() - alpha, (p + z + half_gap) / two),
+        )
+    };
     // Each factor `y² + a y + c` contributes its own two roots when its
     // discriminant is definitely positive, none when definitely
     // negative. A ZERO discriminant is a double root, which contradicts
@@ -425,9 +435,10 @@ pub fn depressed_quartic_roots<T: Decide>(
     let mut found = 0usize;
     for (a, c) in [f0, f1] {
         let inner = a.powi(2) - four * c;
-        match decide(rows.split, Margin::over_lever(inner, lever), band)? {
+        let split = Margin::over_lever(inner, lever);
+        match decide(rows.split, split, band)? {
             Sign::Negative => continue,
-            Sign::Zero => return Err(Unsettled::Tangency.into()),
+            Sign::Zero => return Err(repeated(rows.split, split, Passes::NonZero)),
             Sign::Positive => {}
         }
         for y in quadratic_roots(T::one(), a / two, c, inner / four) {
@@ -440,13 +451,12 @@ pub fn depressed_quartic_roots<T: Decide>(
     // compares is the CONSTRUCTED count against the CERTIFIED one, the
     // one place the sign ladder and the factorization are made to agree.
     if found != count {
-        return Err(Unsettled::CountDisagrees {
+        return Err(RootRefusal::Fault(RootFault::CountDisagrees {
             certified: count,
             constructed: found,
-        }
-        .into());
+        }));
     }
-    Ok(Roots::of(&ts[..found]).ok_or(Unsettled::ImpossibleCount)?)
+    Roots::of(&ts[..found]).ok_or(RootRefusal::Fault(RootFault::ImpossibleCount))
 }
 
 #[cfg(test)]

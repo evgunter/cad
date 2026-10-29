@@ -16,7 +16,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::solid_contain::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
-use geom_brep::roots::{RootRefusal, Unsettled};
+use geom_brep::roots::{RootFault, RootRefusal};
 
 const R_MAJ: f64 = 1.0;
 const R_MIN: f64 = 0.3;
@@ -86,8 +86,10 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         band,
     ) {
         Ok(QuarticRoots::Miss) => (Some((0, Vec::new())), false),
-        Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => (None, true),
-        Err(RootRefusal::Unsettled(_)) => (None, false),
+        Err(RootRefusal::Fault(RootFault::CountDisagrees { .. })) => (None, true),
+        Err(RootRefusal::Unsettled(_) | RootRefusal::Touch(_) | RootRefusal::Fault(_)) => {
+            (None, false)
+        }
         Ok(QuarticRoots::Certified(found)) => {
             let (count, ts) = (found.count(), found.roots());
             let mut v: Vec<f64> = ts[..count].to_vec();

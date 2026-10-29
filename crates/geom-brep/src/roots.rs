@@ -4,8 +4,8 @@
 //! quartic ([`crate::quartic`]), and the circle × surface doors above this
 //! crate — answers `Result<Roots<T, N, C>, _>`: the value holds decided
 //! answers only, and every way of not deciding is a typed refusal in the
-//! `Err` ([`Unsettled`], or [`RootRefusal`] where the finder's own band
-//! decisions can escalate). A refusal is never read as a verdict (D4): a
+//! `Err` ([`RootRefusal`]: a sign in band, a limit
+//! ([`Unsettled`]) or a fault ([`RootFault`])). A refusal is never read as a verdict (D4): a
 //! caller takes it down a path that decides the question itself, or
 //! refuses in turn.
 //!
@@ -123,22 +123,36 @@ impl<T: Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
     }
 }
 
-/// Why a root finder gave no decided answer: the finder could not
-/// certify a count at this band. Never a miss and never a count.
+/// Why a root finder gave no decided answer about the geometry: a limit
+/// of the finder at this precision, or a pose it has no reading for.
+/// Never a miss, never a count, and never a reading in band, which is
+/// [`RootRefusal::Touch`]: this is the typed frontier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unsettled {
-    /// A double root: a piece the band cannot cut further that is neither
-    /// clear nor monotone, an extreme of the residual in the zero band, or
-    /// a repeated root of the quartic's sign ladder.
-    Tangency,
-    /// A sign the finder must read definite at a point it chose (a cut, a
-    /// split, a located root read ON) did not read so.
-    SignInBand,
     /// A meter refused: the residual's rounding, or a located root's
     /// slack, is not definitely inside the band.
     Meter,
     /// The walk ran past [`geom_core::bisect::PIECE_BUDGET`].
     Exhausted,
+    /// A piece at the walk's floor whose enclosure the band cannot decide:
+    /// an enclosure wider than the band, not a reading in it.
+    Floor,
+    /// A root within the band of a cone's apex, where the surface has no
+    /// tangent plane.
+    AtApex,
+    /// The residual's form degenerates where the band reads its leading
+    /// term zero (a line along a cone's generator).
+    Degenerate,
+    /// A meeting within the band of a crease of a spline carrier, where
+    /// it has no tangent to read a crossing by.
+    Crease,
+}
+
+/// Two of a root finder's own readings contradict each other, which
+/// their definitions rule out but for an error the finder does not
+/// charge: a kernel fault, never a pose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootFault {
     /// The roots located are a count the residual cannot have (odd round
     /// a closed turn, or more than its degree allows).
     ImpossibleCount,
@@ -153,26 +167,46 @@ pub enum Unsettled {
         /// The count the factorization built.
         constructed: usize,
     },
-    /// A root within the band of a cone's apex, where the surface has no
-    /// tangent plane.
-    AtApex,
-    /// The residual's form degenerates where the band reads its leading
-    /// term zero (a line along a cone's generator).
-    Degenerate,
-    /// A meeting within the band of a crease of a spline carrier, where
-    /// it has no tangent to read a crossing by.
-    Crease,
 }
 
-/// Why a finder whose own band decisions can escalate gave no decided
-/// answer.
+impl RootFault {
+    /// The two readings that contradict, in words.
+    #[must_use]
+    pub fn readings(self) -> &'static str {
+        match self {
+            Self::ImpossibleCount => {
+                "a root finder located a count of roots its residual cannot have"
+            }
+            Self::Resolvent => {
+                "a quartic's resolvent read no positive largest root against its own \
+                 constant term"
+            }
+            Self::CountDisagrees { .. } => {
+                "a quartic's factors built a count of roots its sign ladder did not certify"
+            }
+        }
+    }
+}
+
+/// Why a root finder gave no decided answer.
 #[derive(Debug, Clone, Copy)]
 pub enum RootRefusal {
-    /// A classifying sign the finder needed fell in the band's
-    /// escalation gap: the caller's decision escalates.
+    /// A classifying sign the finder needed fell in the band's escalation
+    /// gap: the caller's decision escalates.
     Escalated(Indeterminate),
-    /// The finder could not certify a count ([`Unsettled`]).
+    /// The residual stays in the band where a root can lie: a cut that
+    /// reads in band wherever the finder can place it, a piece the band
+    /// cannot cut further, an extreme or a discriminant in the zero band,
+    /// a located root in the gap. A touch of the carrier, a stretch along
+    /// it, or two roots the band cannot part: a reading in band of the
+    /// geometry, which escalates where the carrier is the model's, and
+    /// is the probe's where the caller chose the carrier (a ray it can
+    /// cast again).
+    Touch(Indeterminate),
+    /// The finder reached a limit ([`Unsettled`]).
     Unsettled(Unsettled),
+    /// The finder's readings contradict ([`RootFault`]).
+    Fault(RootFault),
 }
 
 impl From<Unsettled> for RootRefusal {
@@ -181,9 +215,49 @@ impl From<Unsettled> for RootRefusal {
     }
 }
 
+impl From<RootFault> for RootRefusal {
+    fn from(fault: RootFault) -> Self {
+        Self::Fault(fault)
+    }
+}
+
 impl From<Indeterminate> for RootRefusal {
     fn from(diag: Indeterminate) -> Self {
         Self::Escalated(diag)
+    }
+}
+
+/// What a finder's sign must read to pass ([`in_band`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Passes {
+    /// A definite nonzero sign: a cut's side, a discriminant's.
+    NonZero,
+    /// A definitely positive sign: a clearance, a factor's discriminant.
+    Positive,
+}
+
+/// **The escalation of a sign a finder needed and did not get**: `margin`
+/// read under `row` as the gate `passes` states, whose rejection carries
+/// the margin the band decided, or its own escalation where the margin
+/// lies in the gap. A finder calls it where it refuses on that reading,
+/// so the refusal is the reading's.
+///
+/// # Panics
+///
+/// Where the gate passes `margin`: the caller read it refused.
+pub fn in_band<T: Decide>(
+    row: &'static str,
+    margin: Margin<T>,
+    passes: Passes,
+    band: Band,
+) -> Indeterminate {
+    let read = match passes {
+        Passes::NonZero => geom_core::k_stats::decide_nonzero(row, margin, band).map(|_| ()),
+        Passes::Positive => geom_core::k_stats::decide_positive(row, margin, band),
+    };
+    match read {
+        Err(diag) => diag,
+        Ok(()) => unreachable!("`{row}` was read refused and its gate passes it"),
     }
 }
 
@@ -236,6 +310,30 @@ pub fn extreme_sign<T: Decide>(
 ) -> Result<Sign, Indeterminate> {
     let (below, above) = spread_signs(row, value, noise, band)?;
     Ok(if below == above { below } else { Sign::Zero })
+}
+
+/// **The escalation of a value known to within `spread` that a finder
+/// needed past the band and did not get** ([`spread_signs`]): the
+/// straddle of its two ends where they disagree, else the zero band's
+/// rejection of its lower end (both ends in the zero band).
+///
+/// # Panics
+///
+/// Where both ends read one definite nonzero sign: the caller read the
+/// value refused.
+pub fn spread_in_band<T: Decide>(
+    row: &'static str,
+    value: T,
+    spread: T,
+    band: Band,
+) -> Indeterminate {
+    match spread_readings(row, value, spread, band) {
+        Err(diag) => diag,
+        Ok((below, above)) if below.sign != above.sign => {
+            geom_core::k_stats::straddle(row, below, above, band)
+        }
+        Ok(_) => in_band(row, Margin::of(value - spread), Passes::NonZero, band),
+    }
 }
 
 /// The angle from an extreme of a first harmonic `c₀ + A·cos ψ` to its

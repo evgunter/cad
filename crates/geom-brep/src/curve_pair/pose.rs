@@ -1274,7 +1274,7 @@ fn subdivided<T: Decide>(
         Ok(Roots::Certified(found)) => Ok(Pose::Generic(
             found.roots().iter().map(|&t| place(t)).collect(),
         )),
-        Err(why) => Err(MeetFault::Unsettled(why)),
+        Err(why) => Err(why.into()),
     }
 }
 
@@ -1464,7 +1464,14 @@ fn harmonic_roots<T: Decide>(
     };
     let (psi, gap_psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
-        (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
+        (Sign::Zero, Sign::Zero) => {
+            return Err(MeetFault::Escalated(crate::roots::spread_in_band(
+                row::EXTREME,
+                r.hi,
+                r.noise,
+                band,
+            )));
+        }
         (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
         (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
         // Two definite crossings: read from the extreme that has crossed

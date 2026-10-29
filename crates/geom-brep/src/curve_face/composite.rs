@@ -56,20 +56,22 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, R
 
 use crate::half_angle::SPLITS;
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::Unsettled;
+use crate::roots::{Passes, Unsettled, in_band};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum CompositeRefusal {
-    /// A decision the arm must read definite fell in the band's gap:
-    /// whether a located crossing lies ON the surface, or where it stands
-    /// against an end of the span, a crease or the crossing before it.
+    /// A decision the arm must read definite stayed in the band: whether a
+    /// located crossing lies ON the surface, where it stands against an
+    /// end of the span, a crease or the crossing before it, or a piece's
+    /// end, or every share of a piece, where the carrier stays within the
+    /// band of the surface, touches it at a knot, or crosses it twice
+    /// within the band.
     Escalated(Indeterminate),
-    /// The walk could not settle the span: [`Unsettled::Tangency`] (the
-    /// carrier stays within the band of the surface along a piece too
-    /// short to cut, touches it at a knot, or crosses it twice within the
-    /// band, a double or a triple root among them), [`Unsettled::Crease`],
-    /// [`Unsettled::SignInBand`] (a located crossing does not read on the
+    /// The walk reached a limit: [`Unsettled::Floor`] (a piece at the
+    /// floor that its enclosure does not read past the band),
+    /// [`Unsettled::Crease`],
+    /// [`Unsettled::Meter`] (a located crossing reads definitely off the
     /// surface) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The composite could not be formed: the face has no canonical form
@@ -115,8 +117,8 @@ enum Meeting {
     /// A crossing at the parameter.
     Crossing(f64),
     /// A touch at a knot: the carrier comes within the band there and
-    /// leaves on the side it came from.
-    Touch(f64),
+    /// leaves on the side it came from; the band's reading there.
+    Touch(f64, Indeterminate),
 }
 
 /// An end of a piece, read: definitely past the band on a side, or not.
@@ -167,6 +169,15 @@ pub fn crossings<T: Decide>(
         Ok(s @ (Sign::Positive | Sign::Negative)) => Reading::Past(s),
         Ok(Sign::Zero) | Err(_) => Reading::Near,
     };
+    // An end read `Near` where the walk needs it past the band.
+    let near = |f: Interval| {
+        CompositeRefusal::Escalated(in_band(
+            PAST_THE_BAND,
+            Margin::of(f / divisor),
+            Passes::NonZero,
+            band,
+        ))
+    };
     let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
         let p = net.eval(T::from_computed(t));
         decide(
@@ -186,7 +197,7 @@ pub fn crossings<T: Decide>(
                 return Ok(Step::Settled);
             }
             if one_signed(slope_row(&piece.num, &piece.den).into_iter()).is_none() {
-                return cut(piece, floor, &read).map(Step::Halve);
+                return cut(piece, floor, &read, &near).map(Step::Halve);
             }
             let (fa, fb) = (end_value(&piece, true), end_value(&piece, false));
             match (read(fa), read(fb)) {
@@ -195,7 +206,7 @@ pub fn crossings<T: Decide>(
                     meetings.push(Meeting::Crossing(bisect_row(&piece, l, &residual)?));
                 }
                 (Reading::Near, Reading::Near) => {
-                    return cut(piece, floor, &read).map(Step::Halve);
+                    return cut(piece, floor, &read, &near).map(Step::Halve);
                 }
                 // Within the band at the span's own end: that end's
                 // meeting, `f` being monotone over the piece.
@@ -203,7 +214,7 @@ pub fn crossings<T: Decide>(
                 (Reading::Past(_), Reading::Near) if piece.b == b => {}
                 (Reading::Past(far), Reading::Near) => {
                     if open.is_some() {
-                        return Err(Unsettled::Tangency.into());
+                        return Err(near(fb));
                     }
                     open = Some((piece.b, piece, far));
                 }
@@ -212,13 +223,16 @@ pub fn crossings<T: Decide>(
                         // The piece before this knot read definitely
                         // past the band there, and this one not: they
                         // part only by their enclosures' width.
-                        return Err(Unsettled::Tangency.into());
+                        return Err(near(fa));
                     };
                     if k != piece.a {
-                        return Err(Unsettled::Tangency.into());
+                        return Err(near(fa));
                     }
+                    let CompositeRefusal::Escalated(at) = near(fa) else {
+                        unreachable!("`near` escalates")
+                    };
                     meetings.push(if l == far {
-                        Meeting::Touch(k)
+                        Meeting::Touch(k, at)
                     } else {
                         Meeting::Crossing(knot_crossing(&before, &piece, l, &residual)?)
                     });
@@ -233,8 +247,8 @@ pub fn crossings<T: Decide>(
         Ok(Some(refusal)) => return Err(refusal),
         Ok(None) => {}
     }
-    if open.is_some() {
-        return Err(Unsettled::Tangency.into());
+    if let Some((_, piece, _)) = open {
+        return Err(near(end_value(&piece, false)));
     }
     let creases = creases(net, (a, b), &cross)?;
     settle(net, params, band, &creases, meetings, &residual)
@@ -534,9 +548,10 @@ fn cut(
     piece: Piece,
     floor: f64,
     read: &impl Fn(Interval) -> Reading,
+    near: &impl Fn(Interval) -> CompositeRefusal,
 ) -> Result<[Piece; 2], CompositeRefusal> {
     if piece.b - piece.a <= floor {
-        return Err(Unsettled::Tangency.into());
+        return Err(Unsettled::Floor.into());
     }
     let Some((c, s)) = SPLITS.iter().find_map(|&k| {
         let c = piece.a + (piece.b - piece.a) * k;
@@ -546,7 +561,8 @@ fn cut(
     }) else {
         // Within the band at every share: the carrier runs along the
         // surface here, or crosses it twice within the band.
-        return Err(Unsettled::Tangency.into());
+        let c = piece.a + (piece.b - piece.a) * SPLITS[0];
+        return Err(near(value_at(&piece, share(&piece, c))));
     };
     let (num_l, num_r) = split_row(&piece.num, s);
     let (den_l, den_r) = split_row(&piece.den, s);
@@ -632,6 +648,14 @@ fn settle<T: Decide>(
             Ok(_) => Ok(true),
             Err(diag) => Err(CompositeRefusal::Escalated(diag)),
         };
+    let not_apart = |row, p: Point3<T>, q: Point3<T>| {
+        CompositeRefusal::Escalated(in_band(
+            row,
+            Margin::of((p - q).norm()),
+            Passes::NonZero,
+            band,
+        ))
+    };
     let ends = [net.eval(t0), net.eval(t1)];
     let creases: Vec<Point3<T>> = creases
         .iter()
@@ -639,18 +663,20 @@ fn settle<T: Decide>(
         .collect();
     let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
-        let (Meeting::Crossing(t) | Meeting::Touch(t)) = meeting;
+        let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let p = net.eval(T::from_computed(t));
         for &crease in &creases {
             if !apart("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
-        if matches!(meeting, Meeting::Touch(_)) {
-            return Err(Unsettled::Tangency.into());
+        if let Meeting::Touch(_, at) = meeting {
+            return Err(CompositeRefusal::Escalated(at));
         }
+        // Definitely off at the located crossing: the residual's step
+        // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::SignInBand.into());
+            return Err(Unsettled::Meter.into());
         }
         let mut at_end = false;
         for end in ends {
@@ -662,7 +688,7 @@ fn settle<T: Decide>(
         if let Some(&(_, before)) = roots.last()
             && !apart("spline_composite_roots_apart", p, before)?
         {
-            return Err(Unsettled::Tangency.into());
+            return Err(not_apart("spline_composite_roots_apart", p, before));
         }
         roots.push((T::from_computed(t), p));
     }

@@ -81,7 +81,7 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
                 let count = found.count();
                 panic!("a certified count is 2 or 4, never {count}")
             }
-            Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => {
+            Err(RootRefusal::Fault(RootFault::CountDisagrees { .. })) => {
                 panic!("the constructed roots disagree")
             }
             Err(_) => uncertain += 1,
@@ -273,7 +273,7 @@ fn the_ladder_disagrees_with_itself_on_a_lanes_coefficients() {
         ),
     ] {
         match depressed_quartic_roots(p, q, s, lever, &RAY_TORUS_ROWS, band) {
-            Err(RootRefusal::Unsettled(Unsettled::CountDisagrees {
+            Err(RootRefusal::Fault(RootFault::CountDisagrees {
                 certified: c,
                 constructed: b,
             })) => assert_eq!((c, b), (certified, constructed), "({p}, {q}, {s}, {lever})"),
@@ -304,7 +304,7 @@ fn a_far_ray_reaches_the_count_disagreement() {
     assert!(
         matches!(
             roots,
-            Err(RootRefusal::Unsettled(Unsettled::CountDisagrees {
+            Err(RootRefusal::Fault(RootFault::CountDisagrees {
                 certified: 2,
                 constructed: 4
             }))
@@ -323,10 +323,11 @@ fn a_far_ray_reaches_the_count_disagreement() {
 fn a_count_disagreement_blocks_the_ray_and_says_so() {
     let face = FaceKey::default();
     for (certified, constructed) in [(2, 4), (4, 2), (2, 0)] {
-        let roots: Result<QuarticRoots<f64>, Unsettled> = Err(Unsettled::CountDisagrees {
-            certified,
-            constructed,
-        });
+        let roots: Result<QuarticRoots<f64>, RootRefusal> =
+            Err(RootRefusal::Fault(RootFault::CountDisagrees {
+                certified,
+                constructed,
+            }));
         let Err(RayFault::Blocked(e)) = torus_crossings(face, roots) else {
             panic!("({certified}, {constructed}): the ray is blocked");
         };

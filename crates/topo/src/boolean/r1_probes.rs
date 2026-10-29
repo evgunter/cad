@@ -190,7 +190,7 @@ impl Tally {
                     ));
                 }
             }
-            Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => {
+            Err(RootRefusal::Fault(RootFault::CountDisagrees { .. })) => {
                 self.bad.push(format!(
                     "COUNT [{regime}] R={rr} r={r} o={o:?} d={d:?}: the constructed roots \
                      disagree with the certified count"

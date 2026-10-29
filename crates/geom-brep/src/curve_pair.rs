@@ -58,7 +58,7 @@ pub use span::{Hit, Place, Reading, Span, SpanEnd};
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
 
-use crate::roots::Unsettled;
+use crate::roots::{RootRefusal, Unsettled};
 
 /// How the table reads a pair of kinds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,10 +140,12 @@ pub struct Meetings<T: geom_core::Real> {
 /// Why [`meet`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum MeetFault {
-    /// A decision fell in the band's gap.
+    /// A decision stayed in the band: a sign in its gap, or a root
+    /// finder's cut, piece or extreme that reads in band wherever the
+    /// finder can read it.
     Escalated(Indeterminate),
-    /// A root finder, a meter or the walk's budget could not certify the
-    /// candidates.
+    /// A root finder, a meter or the walk's budget reached its limit
+    /// before it could certify the candidates.
     Unsettled(Unsettled),
     /// A pose the pair's arm has no closed form for.
     Unsupported {
@@ -159,6 +161,18 @@ pub enum MeetFault {
         /// The readings.
         readings: &'static str,
     },
+}
+
+impl From<RootRefusal> for MeetFault {
+    fn from(refusal: RootRefusal) -> Self {
+        match refusal {
+            RootRefusal::Escalated(diag) | RootRefusal::Touch(diag) => Self::Escalated(diag),
+            RootRefusal::Unsettled(why) => Self::Unsettled(why),
+            RootRefusal::Fault(fault) => Self::Contradiction {
+                readings: fault.readings(),
+            },
+        }
+    }
 }
 
 impl From<Indeterminate> for MeetFault {
