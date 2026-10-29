@@ -2992,6 +2992,24 @@ impl Node {
         }
     }
 
+    /// **A profile drawn on `frame`, tracing `faces`**: its chain (a
+    /// `Chain`, or a list of them, outer first) reads the trace of each
+    /// face, by its place in `faces`, in the frame's xy plane — a run
+    /// onto a crossing (`TraceTarget.on_trace`), a heading along the
+    /// trace (`Chain.along_trace`). `frame` is a frame pose of a body's
+    /// space and each face a `(body, name)` of that space; the profile,
+    /// and every sweep of it, is in that space. A step whose trace
+    /// refuses refuses at `evaluate` (`trace`), naming the step and the
+    /// face.
+    #[staticmethod]
+    fn drawn_profile(
+        frame: OperandArg,
+        faces: Vec<(OperandArg, String)>,
+        outline: super::trace::Outline,
+    ) -> PyResult<Self> {
+        super::trace::drawn_profile(frame, faces, outline)
+    }
+
     /// The mirror image of a body: `body` reflected across `plane` (a
     /// plane, or a frame's coordinate plane read through its role), a
     /// new body in `body`'s own space, its cells named as `body` names

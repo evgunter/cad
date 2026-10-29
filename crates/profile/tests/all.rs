@@ -124,6 +124,8 @@ mod lift_census;
 mod onarc_probe;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "pen.rs"]
+mod pen;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]

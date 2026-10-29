@@ -19,6 +19,7 @@ mod resolve;
 mod select;
 mod step;
 mod store;
+mod trace;
 mod value;
 
 use pyo3::prelude::*;
@@ -938,6 +939,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     value::register(m)?;
     analysis::register(m)?;
     measure::register(m)?;
+    trace::register(m)?;
 
     // Build-provenance surface. The persistence format carries no
     // schema version to publish here (the persist module docs say
