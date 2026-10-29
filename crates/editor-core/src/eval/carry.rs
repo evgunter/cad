@@ -6,14 +6,17 @@
 //! [`Carry`] is that one bundle, on every body value, every piece of a
 //! `⊔` and every part an instance copies: the records keyed in the
 //! body's arena and what each input they cite is, the findings of the
-//! documents below, the pieces and their door's census. Every copy
-//! takes its carry through one door, [`Carry::copied`]: a placement's
-//! copy, an instance's, each member of a placed family, a pick of one
-//! piece and a mirror's image. A copy keeps every arena key of its
-//! source (a placement shares its body, [`super::Framed::moved`]; a
-//! reflection re-mints none, `topo::mirror_body`), so what it carries
-//! is its source's, its records citing their source as its one input,
-//! and its pieces standing where it stands. A family read whole carries
+//! documents below, the pieces and their door's census. Every value
+//! that carries its source's takes it through one door,
+//! [`Carry::copied`]: a placement's copy, an instance's, each member of
+//! a placed family, a pick of one piece, a union or an intersect of one
+//! body, and a mirror's image, which is a construction of its own (D10
+//! `[repetition]`) but carries as a copy carries. Each keeps every arena
+//! key of its source (a placement shares its body,
+//! [`super::Framed::moved`]; a reflection re-mints none,
+//! `topo::mirror_body`), so what it carries is its source's, its records
+//! citing their source as its one input, and its pieces standing where
+//! it stands. A family read whole carries
 //! each member's own ([`Carry::members`]): every member is evaluated on
 //! its own, at its own index values, so its records are keyed in its
 //! own arena, and each reader of a family's bodies reads member `i`'s
@@ -43,8 +46,11 @@ pub struct Carry<T: Decide> {
     /// is that position's input ([`CitedInput`]); a
     /// [`topo::Backing::Decided`] names a row of the value's own
     /// coincidences ([`super::NodeValue::coincidences`]). It rides with
-    /// the records, so a carry taken whole never cites through a list
-    /// it did not come with.
+    /// the records, so a carry taken whole keeps the list its records
+    /// cite. A door that grafts a piece's boolean result reads it to
+    /// renumber that result's carried citations into its own list
+    /// (`wire::distribute`); every other reader re-cites a carry it
+    /// copies ([`Self::copied`]).
     pub cited_inputs: Arc<[CitedInput]>,
     /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
     /// each with the route it came by: what an instance reports as its
@@ -54,11 +60,13 @@ pub struct Carry<T: Decide> {
     /// and A10): a document's product is its pieces, so an instance's
     /// body is as many parts as the referenced document's piece outputs,
     /// each counted at its own `parts`; two piece outputs that are a
-    /// split's two halves are two parts. The placers and `Part` carry the
-    /// count through; every other op builds a body of its own and counts
-    /// 1, an explicit union included. A body of several parts is an
-    /// ordinary operand (D10 `[operations.operators]`: `(p ⊔ q) − t`
-    /// cuts both pieces).
+    /// split's two halves are two parts. Every value that carries its
+    /// source's ([`Self::copied`]) carries the count through, a union or
+    /// an intersect of one body among them; every other op builds a body
+    /// of its own and counts 1, a union of several members included. A
+    /// body of several parts is an ordinary operand (D10
+    /// `[operations.operators]`: `(p ⊔ q) − t` cuts both pieces, and so
+    /// does `∪(p ⊔ q) − t`).
     pub parts: usize,
     /// **The pieces its body holds** ([`super::Pieces`]): a `⊔`'s
     /// members, or those a copy carries from its source where it
@@ -72,8 +80,9 @@ pub struct Carry<T: Decide> {
     pub census: Option<Arc<crate::product::Census<T>>>,
     /// **Whether a door already decided the meetings inside its body**:
     /// a `⊔`'s value, an instance's copy (its part's census decided
-    /// them), and a copy of either. A census reading such a body as one
-    /// arrival discards what it finds inside it.
+    /// them), and any value that carries either's ([`Self::copied`]). A
+    /// census reading such a body as one arrival discards what it finds
+    /// inside it.
     pub censused: bool,
     /// **A family's members' own carries**, in member order: each
     /// member's records keyed in its own arena, its findings, parts,
@@ -98,12 +107,13 @@ impl<T: Decide> Default for Carry<T> {
 }
 
 impl<T: Decide> Carry<T> {
-    /// **What a copy carries** (D10 `[placement.placement]`), the one
-    /// door every copy's carry goes through: this carry's records, each
-    /// citing the record it is in `source`, the copy's one input; its
-    /// findings, parts, census and census decision, which stay the
-    /// source's; its pieces where the copy `stands`; and each member's
-    /// own carry, copied alike.
+    /// **What a value that carries its source's carries** (D10
+    /// `[placement.placement]`), the one door every copy's carry goes
+    /// through, and a mirror's image's: this carry's records, each
+    /// citing the record it is in `source`, its one input; its findings,
+    /// parts, census and census decision, which stay the source's; its
+    /// pieces where it `stands`; and each member's own carry, carried
+    /// alike.
     ///
     /// # Errors
     ///
@@ -114,46 +124,75 @@ impl<T: Decide> Carry<T> {
         stands: Stands<'_, T>,
         source: &CitedInput,
     ) -> Result<Self, NodeErrorKind> {
+        self.standing(stands, Some(source))
+    }
+
+    /// **This, standing as `stands` says**: its pieces and each
+    /// member's with it; its records re-cited as carried from `source`
+    /// where one is named, and kept as they are where none is (a
+    /// piece's own, moved with its holder, which re-mints no key).
+    fn standing(
+        &self,
+        stands: Stands<'_, T>,
+        source: Option<&CitedInput>,
+    ) -> Result<Self, NodeErrorKind> {
         let members = match &self.members {
             Some(members) => Some(
                 members
                     .iter()
-                    .map(|member| member.copied(stands, source))
+                    .map(|member| member.standing(stands, source))
                     .collect::<Result<Arc<[Self]>, NodeErrorKind>>()?,
             ),
             None => None,
         };
         let pieces = match stands {
+            Stands::Still => self.pieces.clone(),
             Stands::Moved(map) => moved_pieces(self.pieces.as_ref(), map)?,
             Stands::Reflected => None,
         };
+        let (contacts, cited_inputs) = match source {
+            Some(source) => (
+                Arc::new(self.contacts.carried_from(0)),
+                Arc::from([source.clone()]),
+            ),
+            None => (Arc::clone(&self.contacts), Arc::clone(&self.cited_inputs)),
+        };
         Ok(Self {
-            contacts: Arc::new(self.contacts.carried_from(0)),
-            cited_inputs: Arc::new([source.clone()]),
+            contacts,
+            cited_inputs,
             pieces,
             members,
             ..self.clone()
         })
     }
 
-    /// **This, standing where `map` moves it**: its pieces and each
-    /// member's moved with it, and nothing else changed, since a rigid
-    /// motion re-mints no key.
-    fn moved(&self, map: &RigidMotion<T>) -> Result<Self, NodeErrorKind> {
-        let members = match &self.members {
-            Some(members) => Some(
-                members
-                    .iter()
-                    .map(|member| member.moved(map))
-                    .collect::<Result<Arc<[Self]>, NodeErrorKind>>()?,
-            ),
-            None => None,
-        };
-        Ok(Self {
-            pieces: moved_pieces(self.pieces.as_ref(), Some(map))?,
-            members,
-            ..self.clone()
-        })
+    /// **This carry as a reader of its body reads it**: where its door's
+    /// census kept records over its pieces, those records (the touches
+    /// it recorded between them among them, keyed in this body, which
+    /// any copy of it shares), citing the census's own inputs; else
+    /// this. A census that refuses leaves the pieces' own records. The
+    /// census runs lazily, once, where a reader first asks, so a door's
+    /// value cannot hold what it keeps.
+    pub(crate) fn kept(
+        &self,
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+        tol: geom_core::Tol,
+    ) -> Self
+    where
+        T: topo::AtRestPolicy,
+    {
+        match self
+            .census
+            .as_ref()
+            .and_then(|census| census.verdict(doc, tol).ok())
+        {
+            Some(verdict) => Self {
+                contacts: Arc::new(verdict.contacts.clone()),
+                cited_inputs: verdict.cited_inputs.clone().into(),
+                ..self.clone()
+            },
+            None => self.clone(),
+        }
     }
 
     /// This, its records `contacts`, each input they cite `cited`.
@@ -217,15 +256,24 @@ impl<T: Decide> Carry<T> {
     }
 }
 
-/// **Where a copy stands against its source**: moved by a rigid map
-/// (`None` the identity bundle's placement by no map), or reflected
-/// across a plane, where no rigid motion stands a piece.
+/// **Where a value stands against the source whose carry it carries.**
 #[derive(Clone, Copy)]
 pub(crate) enum Stands<'m, T: Decide> {
-    /// Placed by a rigid map; its pieces stand where it stands.
-    Moved(Option<&'m RigidMotion<T>>),
-    /// A mirror's image, which holds no pieces.
+    /// Where its source stands: a pick of a piece, a union or an
+    /// intersect of one body, a placement by the identity bundle.
+    Still,
+    /// Moved by a rigid map; its pieces stand where it stands.
+    Moved(&'m RigidMotion<T>),
+    /// Reflected across a plane, where no rigid motion stands a piece:
+    /// a mirror's image, which holds none.
     Reflected,
+}
+
+impl<'m, T: Decide> Stands<'m, T> {
+    /// Where a placement by `map` stands: [`Self::Still`] by no map.
+    pub(crate) fn placed(map: Option<&'m RigidMotion<T>>) -> Self {
+        map.map_or(Self::Still, Self::Moved)
+    }
 }
 
 /// **Pieces moved by `map`** with their holder: every piece at every
@@ -233,13 +281,10 @@ pub(crate) enum Stands<'m, T: Decide> {
 /// piece's frame. `None` where there are no pieces.
 fn moved_pieces<T: Decide>(
     pieces: Option<&Arc<super::Pieces<T>>>,
-    map: Option<&RigidMotion<T>>,
+    map: &RigidMotion<T>,
 ) -> Result<Option<Arc<super::Pieces<T>>>, NodeErrorKind> {
     let Some(pieces) = pieces else {
         return Ok(None);
-    };
-    let Some(map) = map else {
-        return Ok(Some(Arc::clone(pieces)));
     };
     let moved = pieces
         .pieces
@@ -251,7 +296,7 @@ fn moved_pieces<T: Decide>(
                     .iter()
                     .map(|body| body.moved(map).map_err(NodeErrorKind::Motion))
                     .collect::<Result<_, _>>()?,
-                carry: piece.carry.moved(map)?,
+                carry: piece.carry.standing(Stands::Moved(map), None)?,
                 ..piece.clone()
             })
         })

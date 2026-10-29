@@ -868,7 +868,7 @@ fn copy_of<T: Decide>(
     let copy = place(source, map)?;
     let table = names::name_copy(id, table, &[copy.body()]).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(copy), table)
-        .carrying(carry.copied(super::carry::Stands::Moved(map), cites)?))
+        .carrying(carry.copied(super::carry::Stands::placed(map), cites)?))
 }
 
 /// **A rigid placement of `body`**: its body shared, its frame moved by
@@ -909,24 +909,6 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
-}
-
-/// **The records a boolean reads off its operand**: where a door
-/// censused the operand's pieces (a `⊔`, or a copy of one), the records
-/// that door kept, the touches between its pieces among them, so a
-/// meeting inside the operand is carried and never decided again; else
-/// the value's own.
-fn operand_records<T: Decide + topo::AtRestPolicy>(
-    value: &super::NodeValue<T>,
-    doc: &crate::doc::Doc<ProfileProgram>,
-    tol: Tol,
-) -> Arc<topo::ContactRecords> {
-    value
-        .carry
-        .census
-        .as_ref()
-        .and_then(|census| census.records(doc, tol))
-        .unwrap_or_else(|| Arc::clone(&value.carry.contacts))
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -2480,10 +2462,11 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 
 /// **A mirror** (D10 `[repetition]`): the body `source` defines,
 /// reflected across `plane` by the kernel's reflection door
-/// (`topo::mirror_body`), which keeps every arena key, so the image
-/// carries the source's names verbatim and what the source carries as
-/// a copy carries it ([`super::Carry::copied`]): its records, findings
-/// and census, each meeting inside it the source's. No rigid motion
+/// (`topo::mirror_body`), a construction, not a copy. The door keeps
+/// every arena key, so the image carries the source's names verbatim,
+/// and carries what the source carries as a copy carries it
+/// ([`super::Carry::copied`]): its records, findings and census, each
+/// meeting inside it the source's. No rigid motion
 /// stands the source's pieces in the image, so it holds none.
 fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     read: crate::VarId,
@@ -2733,7 +2716,7 @@ fn pick_of<T: Decide>(
     names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
     // The piece already stands where its holder stands.
     let carry = member_carry.copied(
-        super::carry::Stands::Moved(None),
+        super::carry::Stands::Still,
         &crate::coincide::CitedInput::Read(piece.read),
     )?;
     Ok((
@@ -2864,11 +2847,10 @@ struct MemberRead<T: Decide> {
     /// Where it stands: its body in its own frame.
     framed: super::Framed<T>,
     table: Arc<NameTable>,
-    /// The member's own contact records, carried into the fold step
-    /// that joins it (D1 (ii)).
-    records: Arc<topo::ContactRecords>,
-    /// What its body carries, which a union or an intersect of it alone
-    /// carries on ([`lone_member`]).
+    /// What its body carries, as a reader reads it
+    /// ([`super::Carry::kept`]): its records, carried into the fold step
+    /// that joins it (D1 (ii)), and what a union or an intersect of it
+    /// alone carries on ([`lone_member`]).
     carry: super::Carry<T>,
     /// The member as an intersect distributes over it, where it holds
     /// pieces ([`distribute`]).
@@ -2886,9 +2868,6 @@ struct Member<T: Decide> {
     /// Its body finished in that frame, through the at-rest gate once.
     body: Arc<topo::AtRestBody<T>>,
     table: Arc<NameTable>,
-    /// The member's own contact records, carried into the fold step
-    /// that joins it (D1 (ii)).
-    records: Arc<topo::ContactRecords>,
     /// What its body carries ([`MemberRead::carry`]).
     carry: super::Carry<T>,
 }
@@ -2919,7 +2898,6 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
             framed,
             body: Arc::new(body),
             table: Arc::clone(&self.table),
-            records: Arc::clone(&self.records),
             carry: self.carry.clone(),
         })
     }
@@ -3003,8 +2981,8 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let body_a = from.finished_in(&computing, &body_a, tol)?;
     let body_b = &b.finished_in(&computing, body_b, tol)?;
     let inputs = BooleanInputs {
-        records_a: from.records.carried(),
-        records_b: b.records.carried(),
+        records_a: from.carry.contacts.carried(),
+        records_b: b.carry.contacts.carried(),
     };
     match (verb.build)(BooleanOp::Subtract, inputs)
         .run_pair(&body_a, body_b, boolean_sweep, tol)
@@ -3321,17 +3299,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     node: at,
                     framed: body.clone(),
                     table: Arc::new(table),
-                    // Each member's own records, keyed in its arena:
-                    // those its door's census kept, else its own.
-                    records: {
-                        let carry = value.carry.member(i);
-                        carry
-                            .census
-                            .as_ref()
-                            .and_then(|census| census.records(doc, tol))
-                            .unwrap_or_else(|| Arc::clone(&carry.contacts))
-                    },
-                    carry: value.carry.member(i).clone(),
+                    // Each member's own, its records keyed in its arena.
+                    carry: value.carry.member(i).kept(doc, tol),
                     pieces: None,
                 })
             })
@@ -3364,8 +3333,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     node: at,
                     framed: read_body(results, at)?,
                     table: read_table(value),
-                    records: operand_records(value, doc, tol),
-                    carry: value.carry.clone(),
+                    carry: value.carry.kept(doc, tol),
                     pieces,
                 });
             }
@@ -3427,7 +3395,6 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 node: unit.node,
                 framed: unit.body.clone(),
                 table: Arc::clone(&unit.table),
-                records: Arc::clone(&unit.records),
                 carry: unit.carry.clone(),
                 pieces: unit.carry.pieces.is_some().then(|| Arc::clone(&unit)),
             };
@@ -3555,7 +3522,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .iter()
         .zip(member_ranks(&reads))
         .map(|(m, rank)| topo::MemberInputs {
-            records: m.records.carried(),
+            records: m.carry.contacts.carried(),
             rank,
         })
         .collect();
@@ -3653,7 +3620,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // member list. Row for row, they are the records the kernel carried
     // into the next step as the accumulation's own (checked at each
     // step), so a step's `Carried { input: 0, record }` indexes them.
-    let mut acc_records = Arc::new(first.records.carried_from(0));
+    let mut acc_records = Arc::new(first.carry.contacts.carried_from(0));
     let mut acc_body: &topo::AtRestBody<T> = &first.body;
     let mut acc_table = Arc::clone(&views[0]);
     // Every step's rows, in fold order: a record's `Decided(k)` cites
@@ -3738,9 +3705,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 fold_rows.push(FoldRow::Decided(spelled));
             }
         }
-        let carried_in = steps[..step]
-            .last()
-            .map_or_else(|| first.records.carried(), |s| s.body.contacts.carried());
+        let carried_in = steps[..step].last().map_or_else(
+            || first.carry.contacts.carried(),
+            |s| s.body.contacts.carried(),
+        );
         if acc_records.carried() != carried_in {
             unreachable!(
                 "union {id:?}'s fold step {step} was carried records that are not the \
@@ -3945,7 +3913,7 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
     Ok(
         OpOut::plain(ValuePayload::Body(one.framed.clone()), Arc::new(table)).carrying(
             one.carry.copied(
-                super::carry::Stands::Moved(None),
+                super::carry::Stands::Still,
                 &crate::coincide::CitedInput::Read(one.read),
             )?,
         ),
@@ -4042,7 +4010,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
                 OpOut::plain(ValuePayload::Instances(bodies), table).carrying(
                     value
                         .carry
-                        .copied(super::carry::Stands::Moved(map), &cites)?,
+                        .copied(super::carry::Stands::placed(map), &cites)?,
                 ),
             );
         }

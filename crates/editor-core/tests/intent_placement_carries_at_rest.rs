@@ -538,3 +538,167 @@ fn a_union_of_one_instance_carries_its_parts_finding() {
         "as the part's, through the instance: {reported:?}"
     );
 }
+
+/// The image of `of` across the plane `x = at`, read off a small block
+/// standing there, stood in the world.
+fn mirrored(doc: ProfileDoc, of: RecipeNodeId, at: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, k) = block(doc, [at - 0.5, 0.0], 0.1, 0.1);
+    let (doc, k) = put(doc, fixture::stood(k));
+    let plane = fixture::plane_on(&doc, k, [at, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let (doc, image) = put(
+        doc,
+        Node::Mirror {
+            body: Operand::output(of, 0).into(),
+            plane,
+        },
+    );
+    put(doc, fixture::stood(image))
+}
+
+/// The product's census rows and the at-rest check's findings.
+fn census_and_reported(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+) -> (usize, Vec<editor_core::CheckFinding>) {
+    let product = editor_core::product_recorded(doc, ev, Tol::witness()).expect("it gathers");
+    (product.census.len(), at_rest(doc, ev))
+}
+
+/// **A mirror of an overlapping `⊔` is reported once, at the `⊔`.**
+/// The product is the image alone: the image's census decides nothing
+/// inside it, and the `⊔` the product does not read reports the
+/// overlap.
+///
+/// *Breaks if* an image carries its source's census decision with no
+/// door left to report it, so the overlap is reported nowhere.
+#[test]
+fn a_mirror_of_an_assemble_alone_is_reported_once_at_the_assemble() {
+    let (doc, source) = overlap("carry-mirror-alone");
+    let (doc, image) = mirrored(doc, source, -3.0);
+    let doc = set_product(&doc, image);
+    let ev = run(&doc, &EvalOptions::default());
+    let (census, reported) = census_and_reported(&doc, &ev);
+    assert_eq!(census, 0, "the image's census decides nothing inside it");
+    let source_read = doc.output(source, 0).expect("the `⊔` defines its body");
+    assert!(
+        matches!(
+            reported.as_slice(),
+            [only] if matches!(only.subject, FindingSubject::Census { read } if read == source_read)
+        ),
+        "the overlap, once, at the `⊔`: {reported:?}"
+    );
+}
+
+/// **An instance of a part whose product is a copy of its `⊔` reports
+/// the part's overlap once.** The part's product is a mirror (`image`)
+/// or a placement (`slid`) of `a ⊔ a'`; the part's own check reports
+/// the overlap at its `⊔`, which its product does not read, and the
+/// seam carries that, so the host reports it once, as the part's.
+///
+/// *Breaks if* the seam carries the part's product census alone, so
+/// what the part's `⊔` decided is reported nowhere in the host.
+#[test]
+fn an_instance_of_a_part_whose_product_copies_its_assemble_reports_once() {
+    for copy in ["image", "slid"] {
+        let (part, source) = overlap(&format!("carry-seam-{copy}-part"));
+        let (part, product) = match copy {
+            "image" => mirrored(part, source, -3.0),
+            _ => fixture::slid(part, source, source, [5.0, 0.0, 0.0]),
+        };
+        let part = set_product(&part, product);
+        let ev_part = run(&part, &EvalOptions::default());
+        let (_, alone) = census_and_reported(&part, &ev_part);
+        assert_eq!(
+            alone.len(),
+            1,
+            "{copy}: the part reports its overlap once: {alone:?}"
+        );
+
+        let mut store = fixture::resolver::PartStore::default();
+        let part_ref = store.insert(part, Tol::witness());
+        let (doc, i) = instance(doc(&format!("carry-seam-{copy}-host")), part_ref);
+        let doc = set_product(&doc, i);
+        let ev = run(&doc, &fixture::resolver::with_resolver(store));
+        let (census, reported) = census_and_reported(&doc, &ev);
+        assert_eq!(
+            census, 0,
+            "{copy}: the host decides nothing inside the instance"
+        );
+        assert!(
+            matches!(
+                reported.as_slice(),
+                [only] if matches!(
+                    &only.evidence,
+                    CheckEvidence::CarriedInterference { finding } if finding.route.through == i
+                )
+            ),
+            "{copy}: the part's overlap, once, through the instance: {reported:?}"
+        );
+    }
+}
+
+/// **A mirror of a recorded seat keeps the seat's record**, and the
+/// checks read it as the source's: as many records and as many
+/// unproven rows as the seat's `⊔` alone.
+///
+/// *Breaks if* an image drops its source's records or decides the seat
+/// again.
+#[test]
+fn a_mirror_of_a_seat_keeps_its_record() {
+    let d = doc("carry-mirror-seat");
+    let (d, plate) = block(d, [0.0; 2], 1.0, 0.2);
+    let (d, plate) = put(d, fixture::stood(plate));
+    let (d, bolt) = beside(d, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (d, seat) = assembled(d, &[bolt, plate]);
+    let direct = set_product(&d, seat);
+    let ev_direct = run(&direct, &EvalOptions::default());
+    let records = |doc: &ProfileDoc, ev: &Evaluation<f64>| {
+        editor_core::product_recorded(doc, ev, Tol::witness())
+            .expect("it gathers")
+            .contacts
+            .rows()
+            .len()
+    };
+    let seats = records(&direct, &ev_direct);
+    assert!(seats > 0, "the seat is recorded at its `⊔`");
+    let (d, image) = mirrored(d, seat, -3.0);
+    let d = set_product(&d, image);
+    let ev = run(&d, &EvalOptions::default());
+    assert_eq!(
+        records(&d, &ev),
+        seats,
+        "the image carries the seat's record"
+    );
+    assert_eq!(
+        unproven(&d, &ev),
+        unproven(&direct, &ev_direct),
+        "and the checks read it as the source's"
+    );
+}
+
+/// **A union of one `⊔` is that `⊔`**, its census decision with it: a
+/// placement of it beside its source reports the overlap once, at the
+/// source's `⊔`.
+///
+/// *Breaks if* a lone member is handed on bare, so a census reading
+/// its copy as one arrival finds the overlap again.
+#[test]
+fn a_union_of_one_assemble_placed_beside_it_reports_the_overlap_once() {
+    let (doc, source) = overlap("carry-lone-assemble");
+    let (doc, lone) = put(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![source.into()]),
+        },
+    );
+    let (doc, placed) = fixture::slid(doc, lone, lone, [5.0, 0.0, 0.0]);
+    let (doc, both) = assembled(doc, &[source, placed]);
+    let doc = set_product(&doc, both);
+    let ev = run(&doc, &EvalOptions::default());
+    let (census, reported) = census_and_reported(&doc, &ev);
+    assert_eq!(
+        census, 0,
+        "the product decides nothing inside either arrival"
+    );
+    assert_eq!(reported.len(), 1, "the overlap, once: {reported:?}");
+}

@@ -41,9 +41,10 @@ pub(super) struct Operand<T: Decide> {
     pub body: crate::eval::Framed<T>,
     /// Its own names, total over `body`.
     pub table: Arc<NameTable>,
-    /// Its own contact records, keyed in `body`'s arena.
-    pub records: Arc<topo::ContactRecords>,
-    /// What its body carries, the pieces it holds among it.
+    /// What its body carries, as a reader reads it
+    /// ([`crate::eval::Carry::kept`]): its records keyed in `body`'s
+    /// arena, and the pieces it holds. A unit takes its piece's carry as
+    /// the piece holds it.
     pub carry: crate::eval::Carry<T>,
     /// The read the node takes it in through: what its rows name it by.
     pub seat: crate::VarId,
@@ -67,8 +68,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             read,
             body: super::read_body(results, node)?,
             table: super::read_table(value),
-            records: super::operand_records(value, doc, tol),
-            carry: value.carry.clone(),
+            carry: value.carry.kept(doc, tol),
             seat: read,
             wraps: Vec::new(),
         })
@@ -134,7 +134,6 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
                 read: piece.read,
                 body,
                 table,
-                records: Arc::clone(&carry.contacts),
                 carry: carry.clone(),
                 seat: self.seat,
                 wraps: wraps.clone(),
