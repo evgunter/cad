@@ -80,6 +80,9 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                 them. `decorate` subtracts it again before keying JOB_ROOTS, so
                 pinning a guard cannot silently switch a named job row on>
   CARGO_SCOPE=--workspace | -p a -p b ...
+  TEST_SCOPE=<the test job's scope: CARGO_SCOPE, plus test-utils on a closure>
+  TEST_SHARDS=<JSON list of {"shard": "kernel"|"app", "scope": ...}, the test
+                job's matrix; `[]` when nothing builds. See `test_shards`>
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
@@ -2814,6 +2817,56 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
     return out
 
 
+# THE TEST SHARDS. The test job's build is the per-PR floor and is
+# throughput-bound on one 4-core runner, so its scope is split in two and each
+# half builds and runs on its own runner: `app` is this roster (editor-core,
+# the members that depend on it, and verbs), `kernel` the rest. A half the
+# scope leaves empty is not run.
+APP_SHARD: tuple[str, ...] = ("verbs", "editor-core", "pncad", "pncad-py", "viewer")
+
+
+class ShardError(Exception):
+    """A run that builds, with no test shard to run its tests in."""
+
+
+def test_shards(tier: str, cargo_scope: str, run_build: str) -> tuple[str, str]:
+    """`(TEST_SCOPE, TEST_SHARDS)`: the test job's cargo scope, and the JSON
+    matrix `include` list that splits it into the `kernel` and `app` shards.
+
+    test-utils holds the tree-wide source-reader ledger and has no
+    dependencies, so every closure builds it: a new source-reading test
+    anywhere owes that ledger a line, and this is where it hears about it.
+
+    Raises ShardError when a run that builds would get no shard: the test job
+    would skip and drop every test from the gate.
+    """
+    pkgs = cargo_scope.replace("-p ", "").split()
+    if tier == "closure" and "test-utils" not in pkgs:
+        pkgs.append("test-utils")
+    if cargo_scope == "--workspace":
+        scope = cargo_scope
+        kernel = ["--workspace", *(f"--exclude {p}" for p in APP_SHARD)]
+        apps = [f"-p {p}" for p in APP_SHARD]
+    else:
+        scope = " ".join(f"-p {p}" for p in pkgs)
+        kernel = [f"-p {p}" for p in pkgs if p not in APP_SHARD]
+        apps = [f"-p {p}" for p in pkgs if p in APP_SHARD]
+        # test-utils alone is not worth a runner of its own.
+        if kernel == ["-p test-utils"] and apps:
+            apps, kernel = apps + kernel, []
+    shards = [
+        {"shard": name, "scope": " ".join(half)}
+        for name, half in (("kernel", kernel), ("app", apps))
+        if half
+    ]
+    if run_build == "true" and not shards:
+        raise ShardError(
+            f"a run that builds has no test shard (scope: '{scope}'); "
+            "the test job would skip and drop every test from the gate"
+        )
+    return scope, json.dumps(shards, separators=(",", ":"))
+
+
 def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
@@ -3583,6 +3636,7 @@ def selftest() -> None:
                     ["crates/stl/src/lib.rs"], TIER="closure",
                     PKGS="stl", RUN_STL="true", REACHED="",
                     RUN_TOPO_RELEASE="false")
+        _selftest_test_shards(t)
 
         # --- the oracle signal, which is keyed on PATHS and not on the tier.
         _files_case(t, "certified sources re-certify",
@@ -3862,6 +3916,48 @@ _FIXTURE_NEXTEST = (
     "[profile.ci.junit]\n"
     'path = "junit.xml"\n'
 )
+
+
+def _selftest_test_shards(t: str) -> None:
+    """The test job's matrix, through the CLI on the fixture (where `verbs` is
+    the one roster member) and, for the scopes no fixture diff can draw,
+    through `test_shards` directly."""
+    def shards(*halves: tuple[str, str]) -> str:
+        return json.dumps([{"shard": n, "scope": s} for n, s in halves], separators=(",", ":"))
+
+    kernel = "--workspace " + " ".join(f"--exclude {p}" for p in APP_SHARD)
+    app = " ".join(f"-p {p}" for p in APP_SHARD)
+    for what, files, scope, want in (
+        # test-utils, alone on the kernel side, rides with the app shard.
+        ("an app-only closure", ["crates/verbs/src/lib.rs"], "-p verbs -p test-utils",
+         shards(("app", "-p verbs -p test-utils"))),
+        ("a kernel-only closure", ["crates/geom-core/src/lib.rs"],
+         "-p geom-core -p stl -p topo -p test-utils",
+         shards(("kernel", "-p geom-core -p stl -p topo -p test-utils"))),
+        ("a closure on both sides", ["crates/stl/src/lib.rs", "crates/verbs/src/lib.rs"],
+         "-p stl -p verbs -p test-utils",
+         shards(("kernel", "-p stl -p test-utils"), ("app", "-p verbs"))),
+        ("the whole workspace", ["Cargo.toml"], "--workspace",
+         shards(("kernel", kernel), ("app", app))),
+        ("a docs change", ["docs/DESIGN.md"], "", "[]"),
+    ):
+        _files_case(t, f"test shards: {what}", files, TEST_SCOPE=scope, TEST_SHARDS=want)
+    for what, args, want in (
+        ("lone test-utils keeps a shard", ("closure", "-p test-utils", "true"),
+         ("-p test-utils", shards(("kernel", "-p test-utils")))),
+        ("test-utils is not added twice", ("closure", "-p geom-core -p test-utils -p verbs", "true"),
+         ("-p geom-core -p test-utils -p verbs",
+          shards(("kernel", "-p geom-core -p test-utils"), ("app", "-p verbs")))),
+    ):
+        got = test_shards(*args)
+        if got != want:
+            raise SystemExit(f"ci-filter selftest FAILED: test shards: {what}: got {got}, want {want}")
+    try:
+        got = test_shards("docs", "", "true")
+    except ShardError:
+        pass
+    else:
+        raise SystemExit(f"ci-filter selftest FAILED: test shards: a build with no shard returned {got}")
 
 
 def _selftest_slow_set_edits(t: str) -> None:
@@ -4687,6 +4783,15 @@ def main() -> int:
 
     out = decorate(res, files, config, wheel_members)
     out["ALL_REASON"] = all_reason if out["TIER"] == "all" else ""
+    # Outside the fail-closed wrapper: a run that builds and tests nothing is
+    # a red step, not a classification to fall back from.
+    try:
+        out["TEST_SCOPE"], out["TEST_SHARDS"] = test_shards(
+            out["TIER"], out["CARGO_SCOPE"], out["RUN_BUILD"]
+        )
+    except ShardError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 1
 
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees

@@ -118,3 +118,27 @@ shard: 18.8–19.1 min in three of four runs (build 13.3–13.8, default ε
    classification, as a `TEST_SHARDS` output with synthetic-diff
    selftests (#5941's review). The roster is a second, untested
    classification in ci.yml until then.
+
+## The roster moved, 2026-10-29 (GREEN latency lane, owed item 3's second half)
+
+The roster and the split are out of ci.yml's shell and in
+`scripts/ci-filter.py` (`APP_SHARD`, `test_shards`), as two new outputs:
+`TEST_SCOPE` (the closure plus test-utils) and `TEST_SHARDS` (the matrix).
+ci.yml's filter job maps them to its `cargo_scope` and `test_shards`
+outputs and no longer computes either. A build with no shard is now a
+non-zero exit of the filter, so the classify step goes red where the
+paths step did.
+
+- **Same output.** The old shell block, run against the new function on
+  439 inputs (`docs`, `--workspace`, every member alone, every member
+  beside test-utils, and 400 random sorted member subsets), matched on
+  every one, the no-shard error included.
+- **Selftest rows** (`_selftest_test_shards`): app-only closure, kernel-only,
+  both sides, `--workspace`, docs, lone test-utils, test-utils not added
+  twice, and the no-shard error. Breaking the test-utils fold or the error
+  check each reds one of them.
+- **`ci-filter.py --selftest` ran in no CI job.** The lint job now runs it
+  (about 24 s locally, off the critical path).
+
+The rebalance (items 1 and 2) is still owed; it is now a one-line edit to
+`APP_SHARD` plus its selftest rows.

@@ -57,8 +57,8 @@ jobs:
       sha: ${{ steps.target.outputs.sha }}
       render_dispatch: ${{ steps.render-tag.outputs.render_dispatch }}
       tier: ${{ steps.classify.outputs.TIER }}
-      cargo_scope: ${{ steps.paths.outputs.cargo_scope }}
-      test_shards: ${{ steps.paths.outputs.test_shards }}
+      cargo_scope: ${{ steps.classify.outputs.TEST_SCOPE }}
+      test_shards: ${{ steps.classify.outputs.TEST_SHARDS }}
       run_build: ${{ steps.classify.outputs.RUN_BUILD }}
       test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       seeds: ${{ steps.classify.outputs.SEEDS }}
@@ -159,48 +159,13 @@ jobs:
           TIER: ${{ steps.classify.outputs.TIER }}
           SEEDS: ${{ steps.classify.outputs.SEEDS }}
           PKGS: ${{ steps.classify.outputs.PKGS }}
-          CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
           EPS_EXTRA: ${{ steps.classify.outputs.EPS_EXTRA }}
-          RUN_BUILD: ${{ steps.classify.outputs.RUN_BUILD }}
         run: |
           # A row keyed here runs when the diff touches its own subject, and
           # nightly otherwise. TIER=all (an unscopable change) runs every row.
           flag() { if [ "$DRAFT" = true ]; then echo "$1=false"; elif [ "$TIER" = all ] || eval "$2"; then echo "$1=true"; else echo "$1=false"; fi; }
           touched() { [ -f changed.txt ] && grep -qE "$1" changed.txt; }
           seeded() { case ",$SEEDS," in *",$1,"*) return 0;; esac; return 1; }
-          # test-utils holds the tree-wide source-reader ledger and has no
-          # dependencies, so every closure builds it: a new source-reading
-          # test anywhere owes that ledger a line, and this is where it
-          # hears about it.
-          case "$TIER: $CARGO_SCOPE " in
-            closure:*" -p test-utils "*) scope="$CARGO_SCOPE" ;;
-            closure:*) scope="$CARGO_SCOPE -p test-utils" ;;
-            *) scope="$CARGO_SCOPE" ;;
-          esac
-          # THE TEST SHARDS. The test job's build is the per-PR floor and is
-          # throughput-bound on one 4-core runner, so its scope is split in
-          # two and each half builds and runs on its own runner: `app` is the
-          # roster below (editor-core, the members that depend on it, and
-          # verbs), `kernel` the rest. A half the scope leaves empty is not run.
-          app=(verbs editor-core pncad pncad-py viewer)
-          kernel=""; apps=""
-          if [ "$scope" = --workspace ]; then
-            kernel="--workspace"
-            for p in "${app[@]}"; do kernel+=" --exclude $p"; apps+=" -p $p"; done
-          else
-            for p in ${scope//-p /}; do
-              case " ${app[*]} " in *" $p "*) apps+=" -p $p" ;; *) kernel+=" -p $p" ;; esac
-            done
-            # test-utils alone is not worth a runner of its own.
-            if [ "$kernel" = " -p test-utils" ] && [ -n "$apps" ]; then apps+="$kernel"; kernel=""; fi
-          fi
-          shards=()
-          [ -z "$kernel" ] || shards+=("{\"shard\":\"kernel\",\"scope\":\"${kernel# }\"}")
-          [ -z "$apps" ] || shards+=("{\"shard\":\"app\",\"scope\":\"${apps# }\"}")
-          if [ "$RUN_BUILD" = true ] && [ ${#shards[@]} -eq 0 ]; then
-            echo "::error::a run that builds has no test shard (scope: '$scope'); the test job would skip and drop every test from the gate"
-            exit 1
-          fi
           {
             flag interval "touched '^interval-transcendentals/'"
             flag python "seeded pncad-py"
@@ -215,8 +180,6 @@ jobs:
             # crates, and the rows of the test files this diff changes).
             # Every row runs at every eps nightly.
             if [ "$DRAFT" = true ]; then echo "eps_extra="; else echo "eps_extra=$EPS_EXTRA"; fi
-            echo "cargo_scope=$scope"
-            echo "test_shards=[$(IFS=,; echo "${shards[*]}")]"
           } | tee -a "$GITHUB_OUTPUT"
       # HEAD^2 of the test merge is the PR head. render.yml's own commits
       # carry `[skip ci]`, and a dispatch never reaches this step, so the
@@ -280,6 +243,8 @@ jobs:
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
+      - name: change filter self-test
+        run: python3 scripts/ci-filter.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
