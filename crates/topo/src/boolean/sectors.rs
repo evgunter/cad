@@ -1982,7 +1982,7 @@ pub(super) fn runs_into<T: Decide>(
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        if !(is_edge && parallel_same(dir, bound, arm, band)?) {
+        if !(is_edge && parallel_same(dir, bound, arm, BOUNDS_PARALLEL, band)?) {
             continue;
         }
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
@@ -2011,20 +2011,26 @@ pub(super) fn runs_into<T: Decide>(
     Ok(true)
 }
 
-/// Same-direction parallelism of two bound directions (unit-ish).
-fn parallel_same<T: Decide>(
+/// **Whether two directions are parallel and point the same way**: the
+/// sine of their angle levered at `arm`, decided Zero, then their sense
+/// ([`direction_sense`]). Both are read off the directions normalized,
+/// so a margin is a length whatever the directions' norms. `predicate`
+/// names the parallelism margin and `coincide` the coincidence an
+/// in-band reading refuses as: each is the caller's reading.
+pub(super) fn parallel_same<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
+    (predicate, coincide): (&'static str, Coincide),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let cross_margin = Margin::levered(u.cross(v).norm(), arm);
-    match decide("bool_dir_parallel", cross_margin, band) {
+    let (u, v) = (u.normalize(), v.normalize());
+    match decide(predicate, Margin::levered(u.cross(v).norm(), arm), band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
         Err(diag) => {
             return Err(BooleanError::coincidence(
-                Coincide::Sectors,
+                coincide,
                 DeclarationRead::Moot,
                 diag,
             ));
@@ -2032,6 +2038,9 @@ fn parallel_same<T: Decide>(
     }
     direction_sense(u, v, arm, band)
 }
+
+/// Two bound directions of one vertex's sectors, read along one ray.
+const BOUNDS_PARALLEL: (&str, Coincide) = ("bool_dir_parallel", Coincide::Sectors);
 
 /// Whether two directions read parallel point the same way (`true`)
 /// or opposite ways, their cosine levered at `arm`
@@ -2067,10 +2076,10 @@ fn sector_overlap<T: Decide>(
     }
     let arm = a.arm.min(b.arm);
     // Identical region (same or crossed bound pairing).
-    let straight =
-        parallel_same(a.start, b.start, arm, band)? && parallel_same(a.end, b.end, arm, band)?;
-    let crossed =
-        parallel_same(a.start, b.end, arm, band)? && parallel_same(a.end, b.start, arm, band)?;
+    let straight = parallel_same(a.start, b.start, arm, BOUNDS_PARALLEL, band)?
+        && parallel_same(a.end, b.end, arm, BOUNDS_PARALLEL, band)?;
+    let crossed = parallel_same(a.start, b.end, arm, BOUNDS_PARALLEL, band)?
+        && parallel_same(a.end, b.start, arm, BOUNDS_PARALLEL, band)?;
     Ok(straight || crossed)
 }
 
@@ -2179,7 +2188,7 @@ fn crescent<T: Decide>(
             if !matches!(ra, Reach::Conic { .. }) && !matches!(rb, Reach::Conic { .. }) {
                 continue;
             }
-            if !parallel_same(da, db, arm, band)? {
+            if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
                 continue;
             }
             for reach in [ra, rb] {
@@ -2214,7 +2223,7 @@ fn crescent<T: Decide>(
             }
             let l = la.min(lb);
             if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-                && !parallel_same(da, db, l, band)?
+                && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
             {
                 continue;
             }
@@ -2266,7 +2275,7 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), band)?)
+        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), BOUNDS_PARALLEL, band)?)
 }
 
 /// A corner [`crescent`] reads: one operand's body, its sectors at the
@@ -6084,6 +6093,53 @@ mod tests {
                 && !text.contains("declare"),
             "{text}"
         );
+    }
+
+    /// **A direction's norm does not move its parallelism**: two
+    /// directions `θ` apart read one verdict at any norms, and an
+    /// in-band reading refuses as the caller's coincidence under the
+    /// caller's predicate. At a millimetre norm, `sin θ` clear of the band
+    /// read raw is in its zero band, and at a kilometre one, `sin θ` in
+    /// the zero band read raw is clear of it.
+    #[test]
+    fn parallelism_reads_the_directions_and_not_their_norms() {
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let apart = |sin: f64| {
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+            )
+        };
+        for (sin, want) in [(2.0 * e, false), (0.5 * z, true)] {
+            let (u, v) = apart(sin);
+            for norm in [1e-3, 1.0, 1e3] {
+                assert_eq!(
+                    parallel_same(u * norm, v * norm, 1.0, BOUNDS_PARALLEL, b).unwrap(),
+                    want,
+                    "sin θ {sin:e} at norm {norm:e}"
+                );
+            }
+        }
+        let (u, v) = apart((z + e) / 2.0);
+        for (reading, which) in [
+            (BOUNDS_PARALLEL, Coincide::Sectors),
+            (
+                ("bool_ee_collinear", Coincide::EdgeOnEdge),
+                Coincide::EdgeOnEdge,
+            ),
+        ] {
+            let err = parallel_same(u * 1e3, v * 1e3, 1.0, reading, b).expect_err("in band");
+            let BooleanError::Escalated { decision, diag } = &err else {
+                panic!("{which:?}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                *decision,
+                BooleanDecision::Coincidence(which, DeclarationRead::Moot),
+                "the caller's coincidence"
+            );
+            assert_eq!(diag.predicate, Some(reading.0), "the caller's predicate");
+        }
     }
 
     /// **Two parallel directions' sense is its own decision, and its

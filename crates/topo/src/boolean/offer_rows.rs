@@ -329,8 +329,9 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::recl::parallel_same_dir(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0, band()
+        super::super::sectors::parallel_same(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0,
+            ("bool_ee_collinear", Coincide::EdgeOnEdge), band()
         ).map(|_| ());
     direction_along_a_short_arm: "DirectionSense", D, CORNER_SITE, Valued =>
         super::super::sectors::direction_sense(
@@ -2736,7 +2737,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
-    ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
+    ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
         "recl.rs",

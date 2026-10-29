@@ -46,7 +46,9 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, side_code};
+use super::sectors::{
+    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same, side_code,
+};
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
 };
@@ -765,6 +767,7 @@ pub(super) fn recl_edges<T: Decide>(
         }
     }
     // ---- Group mentions into ray events and resolve each once. ----
+    const RAY_COLLINEAR: (&str, Coincide) = ("bool_ee_collinear", Coincide::EdgeOnEdge);
     let mut used = vec![false; mentions.len()];
     let mut marked: Vec<usize> = Vec::new();
     for i in 0..mentions.len() {
@@ -782,7 +785,9 @@ pub(super) fn recl_edges<T: Decide>(
             // (`split_edge_onto`), so coincident line edges reach this
             // site between the same two points, their chords bit-equal.
             let arm = mentions[i].arm.min(mentions[j].arm);
-            if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, arm, band)? {
+            if !used[j]
+                && parallel_same(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
+            {
                 used[j] = true;
                 group.push(mentions[j]);
             }
@@ -791,7 +796,7 @@ pub(super) fn recl_edges<T: Decide>(
         // one ray only if every pair reads so.
         for (p, &m) in group.iter().enumerate().skip(1) {
             for &n in &group[p + 1..] {
-                if !parallel_same_dir(m.dir, n.dir, m.arm.min(n.arm), band)? {
+                if !parallel_same(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a ray event's directions are each on the seed's ray but not \
                                on one another's",
@@ -2055,7 +2060,7 @@ fn resolve_edge_sector<T: Decide>(
         // face it was read On against even where another event's germ,
         // sharing its record, has since rewritten that On (`mark_germ`
         // rewrites every On of a germ record, a second edge's on a ray
-        // `parallel_same_dir` reads apart among them).
+        // `parallel_same` reads apart among them).
         None => find_ref_sector(first_read, a_side, f_s, n_own).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",
@@ -2261,32 +2266,6 @@ fn resolve_bisector_graze<T: Decide>(
     g.map(Some).ok_or(BooleanError::ClassificationInvariant {
         what: "bisector-graze crossing without a twin record",
     })
-}
-
-pub(super) fn parallel_same_dir<T: Decide>(
-    u: Vec3<T>,
-    v: Vec3<T>,
-    arm: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let un = u.normalize();
-    let vn = v.normalize();
-    match decide(
-        "bool_ee_collinear",
-        Margin::levered(un.cross(vn).norm(), arm),
-        band,
-    ) {
-        Ok(Sign::Zero) => {}
-        Ok(_) => return Ok(false),
-        Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::EdgeOnEdge,
-                DeclarationRead::Moot,
-                diag,
-            ));
-        }
-    }
-    super::sectors::direction_sense(un, vn, arm, band)
 }
 
 #[cfg(test)]
