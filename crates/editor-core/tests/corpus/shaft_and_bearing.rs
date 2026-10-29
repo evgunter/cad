@@ -32,6 +32,8 @@
 //! A fourth, [`one_radius`], is the scene itself with the bore, the
 //! shaft and the collar's bore all reading one `Length` variable,
 //! [`BORE`], where [`document`] writes each coordinate its own literal.
+//! [`split_bore`] is [`one_radius`] with the bore wall's two ends two
+//! variables of equal value.
 //! [`collar_by_values`] stands the collar where [`document`] mates it,
 //! by values alone; `coincidence_door.rs` reads it for the finding's
 //! edit and registers it nowhere.
@@ -122,7 +124,7 @@ pub fn document() -> CorpusDoc {
         ),
         (
             rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
-            false,
+            &[],
         ),
         &len(BORE_R),
         Below::Collar,
@@ -138,7 +140,43 @@ pub fn one_radius() -> CorpusDoc {
             "shaft_and_bearing_one_radius",
             "shaft_and_bearing with the bore, the shaft and the collar's bore one variable",
         ),
-        (rectangle(&bore, &len(HOUSING_R), (0.0, HOUSING_H)), true),
+        (rectangle(&bore, &len(HOUSING_R), (0.0, HOUSING_H)), &[BORE]),
+        &bore,
+        Below::Collar,
+    )
+}
+
+/// The second variable [`split_bore`]'s bore wall reads at one end.
+pub const BORE2: &str = "bore2";
+
+/// **[`one_radius`] with the housing's bore wall read from two
+/// variables**: [`BORE`] at one end of its meridian leg and [`BORE2`],
+/// of equal value, at the other (the top where `bore2_at_top`). The
+/// revolve reads the leg as a cylinder from the two ends' values, so
+/// the wall is one radius only at the current values. Beside the
+/// registry, read by `coincidence_door.rs` alone.
+pub fn split_bore(bore2_at_top: bool) -> CorpusDoc {
+    let bore = Formula::named(VarName::from_static(BORE), Dimension::Length);
+    let bore2 = Formula::named(VarName::from_static(BORE2), Dimension::Length);
+    let (lo, hi) = if bore2_at_top {
+        (bore.clone(), bore2)
+    } else {
+        (bore2, bore.clone())
+    };
+    let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
+    let housing = vec![
+        ProgramStep::At([lo, len(0.0)]),
+        ProgramStep::LineTo(to(&len(HOUSING_R), 0.0)),
+        ProgramStep::LineTo(to(&len(HOUSING_R), HOUSING_H)),
+        ProgramStep::LineTo(to(&hi, HOUSING_H)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    scene(
+        (
+            "shaft_and_bearing_split_bore",
+            "shaft_and_bearing_one_radius with the bore wall's two ends two variables",
+        ),
+        (housing, &[BORE, BORE2]),
         &bore,
         Below::Collar,
     )
@@ -153,7 +191,7 @@ pub fn collar_by_values() -> CorpusDoc {
         ),
         (
             rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
-            false,
+            &[],
         ),
         &len(BORE_R),
         Below::CollarByValues,
@@ -184,7 +222,7 @@ pub fn rounded_mouth() -> CorpusDoc {
                 ProgramStep::FarEndTo(len2([BORE_R, 0.0])),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ],
-            false,
+            &[],
         ),
         &len(WIDE_R),
         Below::Collar,
@@ -201,7 +239,7 @@ pub fn with_a_ball() -> CorpusDoc {
         ),
         (
             rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
-            false,
+            &[],
         ),
         &len(BORE_R),
         Below::Ball,
@@ -209,18 +247,18 @@ pub fn with_a_ball() -> CorpusDoc {
 }
 
 /// The housing whose meridian is `housing`, a shaft of radius `shaft_r`
-/// and what stands on it `below`, unioned, [`BORE`] declared at the
-/// bore's radius where `bore`.
+/// and what stands on it `below`, unioned, each of `declared` a
+/// `Length` variable at the bore's radius.
 fn scene(
     (name, about): (&'static str, &'static str),
-    (housing, bore): (Vec<ProgramStep<Formula>>, bool),
+    (housing, declared): (Vec<ProgramStep<Formula>>, &[&'static str]),
     shaft_r: &Formula,
     below: Below,
 ) -> CorpusDoc {
     let mut r = Recorder::new();
-    if bore {
+    for &name in declared {
         r.push(DocEdit::DeclareVar {
-            name: VarName::from_static(BORE),
+            name: VarName::from_static(name),
             def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
         });
     }

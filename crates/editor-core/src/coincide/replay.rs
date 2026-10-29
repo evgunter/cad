@@ -420,9 +420,12 @@ fn carrier_verdict(
 /// **Two faces on cylinders, read as one axis, one radius and one
 /// sense**: the axis as stated where `stated`, else the two axes one
 /// line in the symbols; the radii's difference zero in the symbols (one
-/// `Length` read twice); the material sides' bits giving `wanted`. The
-/// first component not established and why; `None` where either face
-/// is not on a cylinder.
+/// `Length` read twice), and each face's rims ([`rim_radii`]) its own
+/// cylinder's radius, so a wall a revolve read as a cylinder from the
+/// values of its meridian's two ends is not one radius by that reading
+/// alone; the material sides' bits giving `wanted`. The first component
+/// not established and why; `None` where either face is not on a
+/// cylinder.
 fn one_cylinder(
     (a, fa): (&topo::Body<Lane>, FaceKey),
     (b, fb): (&topo::Body<Lane>, FaceKey),
@@ -465,13 +468,56 @@ fn one_cylinder(
                 zero(r).map_err(|why| (Component::Axis, why))?;
             }
         }
-        zero(ra - rb).map_err(|why| (Component::Radius, why))?;
+        let radius = |why| (Component::Radius, why);
+        for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
+            let rims = rim_radii(body, face);
+            if rims.len() < 2 {
+                return Err(radius(deferred::Undischarged::Otherwise));
+            }
+            for rim in rims {
+                zero(rim - *r).map_err(radius)?;
+            }
+        }
+        zero(ra - rb).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((Component::Sense, deferred::Undischarged::Otherwise));
         }
         Ok(())
     };
     Some(established())
+}
+
+/// **The radii of the circles bounding `face`**: a revolved wall's
+/// rims, each the radius of the meridian end it turns, where the
+/// wall's cylinder reads one end's alone.
+fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
+    let Some(f) = body.get_face(face) else {
+        return Vec::new();
+    };
+    let mut radii = Vec::new();
+    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(lp).map(|l| &l.boundary) {
+            Some(topo::LoopBoundary::Cycle { first }) => *first,
+            // A lone vertex bounds no rim.
+            Some(topo::LoopBoundary::Empty { .. }) | None => continue,
+        };
+        let mut at = first;
+        while let Some(he) = body.get_half_edge(at) {
+            if let Some(geom::Curve3::Circle { radius, .. }) = body
+                .get_edge(he.edge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(topo::CurveGeom::certified)
+                .map(geom_brep::EdgeCurve::carrier)
+            {
+                radii.push(*radius);
+            }
+            at = he.next;
+            if at == first {
+                break;
+            }
+        }
+    }
+    radii
 }
 
 /// The face `cell` names, as the replay built it: the body of the read

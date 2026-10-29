@@ -161,7 +161,9 @@ pub(crate) fn planes_equated<P>(
 /// flips (read plainly or through a role), `on`'s first, and whether
 /// the flips on both sides together are odd. A mate of every kind
 /// equates the two (`[coincidence.structural]`: "a mate is that rung's
-/// statement").
+/// statement"), where its bundle is admitted
+/// ([`solve::admits`]): this reads the mate alone, never whether it
+/// stands.
 pub(crate) fn poses_equated<P>(
     doc: &crate::doc::Doc<P>,
     mate: &Mate,
@@ -234,9 +236,7 @@ pub(crate) fn copies_of<P>(
 
 /// **Whether a mate side's face, read in the copy `copy` of its body,
 /// stands where the mate's statement puts it** (`[coincidence.structural]`):
-/// the one rule both the gather's mint and the coincidence door read a
-/// mate side's copy by, so the row the census attributes to a mate and
-/// the row the door proves by it are one copy's.
+/// the rule the coincidence door reads a mate side's copy by.
 ///
 /// A side's pose is read off the body its selection reads, where that
 /// body stands (`eval::wire::pose`). The mate's placement `placement`

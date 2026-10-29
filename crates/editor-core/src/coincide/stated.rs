@@ -60,10 +60,17 @@ pub(crate) struct Stated {
 }
 
 impl Stated {
-    /// **What `doc`'s mates state**: every mate of a bundle that pins
-    /// its placement ([`crate::mate::solve::pins`]) equates each copy
-    /// of its `on` side with each of its `to` side. A bundle that does
-    /// not pin places nothing the door can read, so states nothing.
+    /// **What `doc`'s mates state**: every mate of a bundle the doors
+    /// admit ([`crate::mate::solve::admits`]) equates each copy of its
+    /// `on` side with each of its `to` side. A bundle they refuse
+    /// (overconstrained, unpinned, or a mate refused on its own, as a
+    /// load or a rebind can leave one) places no copy, so states
+    /// nothing.
+    ///
+    /// # Panics
+    ///
+    /// Where two admitted statements equate one pose with itself and
+    /// with its opposite ([`Self::union`]).
     pub(crate) fn of<P: crate::ProfilePayload>(
         doc: &crate::doc::Doc<P>,
         tol: geom_core::Tol,
@@ -74,7 +81,7 @@ impl Stated {
             let Some(bundle) = doc.node(placement).and_then(crate::mate::solve::bundle_of) else {
                 continue;
             };
-            if !crate::mate::solve::pins(&crate::mate::solve::equations_of(doc, bundle)) {
+            if !crate::mate::solve::admits(doc, placement, bundle) {
                 continue;
             }
             for mate in bundle.iter().filter_map(crate::mate::Constraint::mate) {
@@ -156,9 +163,10 @@ impl Stated {
 
     /// **The pose `key`'s class reaches**: a pose variable read plainly
     /// where it stands (a revolve's `axis` output, say) in it, else one
-    /// read in a copy. `None` where the class holds none, so the key is
-    /// read off its cell alone.
+    /// read in a copy. `None` where no mate reaches the key, or its
+    /// class holds no pose: the key is read off its cell alone.
     pub(crate) fn reached(&self, key: &Key) -> Option<crate::VarId> {
+        self.find(key)?;
         let poses: Vec<(crate::VarId, bool)> = self
             .class(key)
             .into_iter()
@@ -206,13 +214,25 @@ impl Stated {
         })
     }
 
-    /// States `a` and `b` one pose, opposite where `opposite`. A
-    /// statement against what the classes already hold keeps the first.
+    /// States `a` and `b` one pose, opposite where `opposite`.
+    ///
+    /// # Panics
+    ///
+    /// Where the classes already hold `a` and `b` one pose of the other
+    /// sense. Every `on` key is read in its own placement's copy, so
+    /// two keys are joined twice only through `to` keys one mate reads
+    /// alike, with one sense; an admitted bundle states no pose twice.
     fn union(&mut self, a: Key, b: Key, opposite: bool) {
-        let (a, b) = (self.insert(a), self.insert(b));
-        let ((ra, pa), (rb, pb)) = (self.root(a), self.root(b));
+        let (ia, ib) = (self.insert(a), self.insert(b));
+        let ((ra, pa), (rb, pb)) = (self.root(ia), self.root(ib));
         if ra != rb {
             self.parent[rb] = (ra, pa ^ pb ^ opposite);
+        } else if pa ^ pb != opposite {
+            unreachable!(
+                "the mates state {:?} and {:?} one pose in both senses, though every on side \
+                 is read in its own copy and an admitted bundle states no pose twice",
+                self.keys[ia], self.keys[ib]
+            );
         }
     }
 }

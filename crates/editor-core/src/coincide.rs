@@ -45,8 +45,10 @@
 //! the construction its bundle states (`[placement.placement]`), so no
 //! replay reads the fold: the door reads what the mates state, and
 //! replays where they state nothing; the replay reads two cylinders'
-//! axes as the mates state them, and their radii and senses off its
-//! carriers. A standoff equates no face's plane with another's, and a
+//! axes as the mates state them, and their radii (each wall's rims its
+//! own radius, and the two radii one) and senses off its carriers.
+//! Only a bundle the doors admit states anything
+//! ([`crate::mate::solve::admits`]). A standoff equates no face's plane with another's, and a
 //! copy another bundle moves holds the face where the mate does not
 //! read it, so neither is stated here. An unproven row between two
 //! cells with an axis names the first of one axis, one radius and one
@@ -451,8 +453,12 @@ pub struct Axes {
 pub enum Component {
     /// The two axes are not shown one.
     Axis,
-    /// The axes are one; the radii are equal only at the current values.
+    /// The axes are one; the radii are equal only at the current values,
+    /// or a wall's two ends are.
     Radius,
+    /// The axes are one; the replay did not read the radii (it did not
+    /// run on the row, or took other decisions there).
+    RadiusUnread,
     /// The axes and the radii are one; the senses are not those the row
     /// decided.
     Sense,
@@ -714,24 +720,36 @@ pub fn prove<P: crate::ProfilePayload>(
         .iter()
         .zip(walked)
         .zip(replayed)
-        .map(|(((_, rows), walked), replayed)| {
+        .zip(axes_one)
+        .map(|((((_, rows), walked), replayed), axes_one)| {
             rows.iter()
                 .zip(walked)
                 .zip(replayed)
-                .map(|((row, constructions), replayed)| match replayed {
+                .zip(axes_one)
+                .map(|(((row, constructions), replayed), one)| match replayed {
                     None => Proof::Structural(Rung::SameConstruction),
                     Some(Ok(rung)) => Proof::Structural(rung),
                     Some(Err(((replay, recourse), left))) => {
-                        // A coaxial row the first rung left has two axes.
+                        // An axis row the first rung left has two axes;
+                        // a curved wall pair whose axes the mates make
+                        // one, and whose radii the replay never read,
+                        // is left at its radius unread.
                         let left = left.or_else(|| {
-                            (row.relation == topo::Relation::Coaxial
-                                || matches!(
-                                    row.site,
-                                    topo::DecisionSite::CoaxialSphere
-                                        | topo::DecisionSite::SphereOnTorusAxis
-                                ))
-                            .then_some(Component::Axis)
+                            if axis_row(row) {
+                                Some(Component::Axis)
+                            } else {
+                                (one && row.site == topo::DecisionSite::CarrierLadder)
+                                    .then_some(Component::RadiusUnread)
+                            }
                         });
+                        // The edit a finding names makes two axes one
+                        // construction; no construction changes a sense
+                        // the row decided.
+                        let recourse = match (left, recourse) {
+                            (Some(Component::Axis), Recourse::Assert) => Recourse::OneConstruction,
+                            (Some(Component::Sense), _) => Recourse::Assert,
+                            (_, recourse) => recourse,
+                        };
                         let axes = left.map(|left| axes(doc, &stated, &constructions, left));
                         Proof::Unproven {
                             residual: Residual {
@@ -885,15 +903,7 @@ fn stated_by_the_mates<P: crate::ProfilePayload>(
             .any(|(g, _)| lies_on(doc, other, g, tol))
     };
     match (row.relation, kind(ka), kind(kb)) {
-        (topo::Relation::Coaxial, _, _) => one_axis(doc, stated, a, b),
-        (topo::Relation::OnCarrier, ..)
-            if matches!(
-                row.site,
-                topo::DecisionSite::CoaxialSphere | topo::DecisionSite::SphereOnTorusAxis
-            ) =>
-        {
-            one_axis(doc, stated, a, b)
-        }
+        _ if axis_row(row) => one_axis(doc, stated, a, b),
         (topo::Relation::SameOpposite | topo::Relation::SameOriented, k, l)
             if k == face && l == face =>
         {
@@ -903,6 +913,26 @@ fn stated_by_the_mates<P: crate::ProfilePayload>(
         (topo::Relation::OnCarrier, k, l) => (k == face && on(a, b)) || (l == face && on(b, a)),
         _ => false,
     }
+}
+
+/// **The axis the first rung reads a cell whose construction is
+/// `cell` about** ([`stated::axis_of`]): its revolve's `axis` output for
+/// a band a revolve of `doc` mints, else the cell's own. Public so the
+/// arm is checked against the symbolic evaluation as the door reads it.
+#[must_use]
+pub fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Construction {
+    stated::axis_of(doc, cell)
+}
+
+/// **Whether a row is about two cells' axes alone**: a coaxial row,
+/// or a sphere's centre read on an axis (its sphere a band about the
+/// axis it is on, [`stated::axis_of`]).
+fn axis_row(row: &NamedCoincidence) -> bool {
+    row.relation == topo::Relation::Coaxial
+        || matches!(
+            row.site,
+            topo::DecisionSite::CoaxialSphere | topo::DecisionSite::SphereOnTorusAxis
+        )
 }
 
 /// **Whether two cells' axes are one `Axis` read twice** by the mates'
