@@ -103,9 +103,12 @@ dev-probe stopped at an earlier step of the sweep.
 
 **Pinned** in `demos/tour/src/probe.rs` (`pinned_stop`). At 1e-12 the
 `lily` and `lily_walls` scenes must stop on `stem tube arc builds` with
-`AnalyticRung3(KernelLimit { operand: Torus`; they run as written at
+`AnalyticRung3(KernelLimit { operand: Torus`, at the bound and extent
+above; they run as written at
 every other ε. Both pins go red the day the stem builds. Closing this
-row removes them.
+row removes them, and un-pinning owes a k-lint re-measure: at 1e-12 the
+pins drop every `lily` and `lily_walls` sample from the K-telemetry
+CSV, so the large-K lint has never read those scenes at that ε.
 
 Reproduce: `cd demos/tour && CAD_TOLERANCE_EPS=1e-12 cargo run
 --features probe -- k-probe /tmp/k.csv` (before the pin, at

@@ -380,16 +380,13 @@ pub fn run(out: Option<String>, tol: Tol) {
     };
     // At 1e-12 the stem's tube arc refuses as limb 2's kernel limit on
     // its torus (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+    const LILY_STOP: &[&str] = &[
+        "stem tube arc builds",
+        "AnalyticRung3(KernelLimit { operand: Torus, bound: 3.201461299630955e-12",
+        "extent: 0.13416407865000426",
+    ];
     if eps == 1e-12 {
-        pinned_stop(
-            "lily",
-            eps,
-            &[
-                "stem tube arc builds",
-                "AnalyticRung3(KernelLimit { operand: Torus",
-            ],
-            lily,
-        );
+        pinned_stop("lily", eps, LILY_STOP, lily);
     } else {
         sweep(s, t, u, "lily", lily, tol);
     }
@@ -416,15 +413,7 @@ pub fn run(out: Option<String>, tol: Tol) {
     };
     // The walls build the same stem, and stop where the lily does.
     if eps == 1e-12 {
-        pinned_stop(
-            "lily_walls",
-            eps,
-            &[
-                "stem tube arc builds",
-                "AnalyticRung3(KernelLimit { operand: Torus",
-            ],
-            lily_walls,
-        );
+        pinned_stop("lily_walls", eps, LILY_STOP, lily_walls);
     } else {
         sweep(s, t, u, "lily_walls", lily_walls, tol);
     }

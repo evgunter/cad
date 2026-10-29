@@ -46,9 +46,16 @@ advisory flags.
 | 1e-9 | `demo/lily_walls:curve_pair_walk_foot_piece` | 5181 |
 | 1e-9 | `demo/lily_walls:curve_pair_walk_clear` | 290 |
 
-Every in-band sample is the lily's curve walks, which
-`work/cleave/lily-walls-curved-clearance-crowds-the-band-under-k-lint.md`
-already owns.
+Every in-band sample is the lily's curve-pair walks. They are filed on
+their owner as
+`work/cpair/lily-walls-curve-walks-decide-24045-margins-in-band-under-k-lint.md`;
+the closed CLEAVE row on `lily_walls` was a different predicate.
+
+**The 1e-12 file under-reports.** Its "rule 1: 0", and every other
+1e-12 count above, exclude the lily: GREEN's pin stops the `lily` and
+`lily_walls` scenes at 1e-12 on the stem's kernel limit
+(`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`),
+so their samples are never recorded there.
 
 **Rules 2 and 3.** The CLI caps its print, so the per-family split
 below covers only the printed flags. Each family is rostered against
@@ -64,7 +71,9 @@ the row that already carries it:
 
 The lint's own recourse (`docs/K-REPORT.md`): re-derive the baseline
 floor and thresholds against a fresh sweep, or demote the row to
-advisory with a recorded justification. It is not a geometry change.
+advisory with a recorded justification. Nobody has read the margins
+yet, so the population may also carry kernel defects; the CPAIR row is
+where the largest share gets read.
 GREEN cannot pin a distribution, so the job stays red on this step
 until INSTR rules. A full count of rules 2 and 3 by family needs the
 CLI's uncapped output.
