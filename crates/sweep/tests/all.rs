@@ -921,6 +921,8 @@ mod germ_conic_plane_roots;
 mod germ_coplanar_conic;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "probe_lily_whole_section.rs"]
+mod probe_lily_whole_section;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
 #[path = "germ_plane_torus_chord.rs"]
