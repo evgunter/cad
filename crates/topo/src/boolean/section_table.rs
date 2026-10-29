@@ -12,19 +12,20 @@
 //!   whose section stands on a coincidence decided `Zero` is recorded
 //!   from it, never by a second reading;
 //! - the interior-loop guard ([`super::section_cert::of_pair_section`]),
-//!   which takes the pair's components and decides its verdict from them
-//!   with the reduction's events, so the verdict is the guard's, not the
-//!   table's;
+//!   which takes the pair's components, counted or carried, and decides
+//!   its verdict from them with the reduction's events, so the verdict is
+//!   the guard's, not the table's;
 //! - the germ mint ([`super::join::germ_branch`]), which takes a site's
-//!   component;
+//!   component, its foot's on the carried section;
 //! - the join's matcher, which takes a site's foot on its component,
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
 //! The table is classified when it is built, and a pair is carried on
-//! its first read that needs a carrier, through the scalar's march door
-//! ([`crate::AtRestPolicy::ssi_lane`]) held from the build: so only a
-//! pair whose germs the join matches is ever marched. The table is read
+//! its first read that needs a carrier or a list no closed form counts,
+//! through the scalar's march door ([`crate::AtRestPolicy::ssi_lane`])
+//! held from the build: so only a pair with a germ, or one the guard
+//! reads whose components are the march's, is ever marched. The table is read
 //! through a [`SectionReader`], which takes the operation's one band at
 //! its making, so every pair is classified and carried at that band. An
 //! empty table (`Default`) is a reduction that read no section: a

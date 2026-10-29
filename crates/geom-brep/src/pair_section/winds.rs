@@ -126,13 +126,7 @@ impl Channel {
     /// Whether the enclosure `b` of a piece, padded by `pad`, clears the
     /// centre in the channel's plane.
     fn clear(self, b: Point3<Interval>, pad: f64) -> bool {
-        let w = |o: Point3<f64>| {
-            Vec3::new(
-                b.x - lift(o.x),
-                b.y - lift(o.y),
-                b.z - lift(o.z),
-            )
-        };
+        let w = |o: Point3<f64>| Vec3::new(b.x - lift(o.x), b.y - lift(o.y), b.z - lift(o.z));
         match self {
             Self::Axis { origin, e1, e2 } => {
                 let w = w(origin);
@@ -315,10 +309,12 @@ mod tests {
         let meridian = polygon(64, |s| on(0.4, s));
         let diagonal = polygon(128, |s| on(s, s));
         let small = polygon(32, |s| on(0.1 * s.cos(), 0.2 * s.sin()));
-        let w = |a, c| Ok(Winding {
-            about_axis: a,
-            about_core: c,
-        });
+        let w = |a, c| {
+            Ok(Winding {
+                about_axis: a,
+                about_core: c,
+            })
+        };
         assert_eq!(read(&longitude), w(1, 0), "a longitude");
         assert_eq!(read(&twice), w(2, 0), "a longitude run twice round");
         assert_eq!(read(&meridian), w(0, 1), "a meridian");
@@ -336,7 +332,9 @@ mod tests {
             radius: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        let ring = polygon(64, |s| Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.1 * s.sin()));
+        let ring = polygon(64, |s| {
+            Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.1 * s.sin())
+        });
         assert_eq!(
             winding(&wall, &ring, (0.0, 1.0), 1e-9).map(Winding::essential),
             Ok(true),

@@ -71,7 +71,13 @@ fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
 
 /// [`answers`], the pair classified within `reach`.
 fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: Reach<f64>) {
-    let sec = classify(&ring.surface(), &wall.surface(), reach, band());
+    let sec = classify(
+        &ring.surface(),
+        &wall.surface(),
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     let Section::Components { parts, single } = &sec else {
         panic!("{what}: not classified: {sec:?}");
     };
@@ -81,7 +87,13 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
     want.sort_unstable();
     assert_eq!(got, want, "{what}: the classes");
     assert_eq!(*single, want.len() == 1, "{what}: single");
-    let back = classify(&wall.surface(), &ring.surface(), reach, band());
+    let back = classify(
+        &wall.surface(),
+        &ring.surface(),
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     assert!(
         super::square_search::swapped_agrees(&sec, &back),
         "{what}: the swapped order: {back:?}"
@@ -315,9 +327,9 @@ fn square_wall_tangencies_refuse() {
 
 /// **The square reading is the band's.** A wall tilted off square by
 /// `1e-15` classifies as the square one does, witnesses on the tilted
-/// carrier; one tilted by `1e-3` is no pose an arm claims and refuses on
-/// reach. Mutant: decide the tilt unlevered, or read any tilt as square,
-/// and a row goes red.
+/// carrier; one tilted by `1e-3` is no pose an arm counts, and its
+/// section is the march's. Mutant: decide the tilt unlevered, or read
+/// any tilt as square, and a row goes red.
 #[test]
 fn a_square_wall_is_read_within_the_band_only() {
     let donut = ring(2.0, 0.5);
@@ -329,11 +341,23 @@ fn a_square_wall_is_read_within_the_band_only() {
         &[ON_WALL; 4],
     );
     let tilted = wall_along(v(1.0, 0.0, 1e-3), k);
-    assert!(matches!(classified(&donut, &tilted), Section::Intractable));
-    assert!(matches!(
-        super::section_cert_rows::classify(&tilted.surface(), &donut.surface()),
-        Section::Intractable
-    ));
+    assert!(
+        marched(&donut.surface(), &tilted.surface()),
+        "tilted by 1e-3"
+    );
+    assert!(
+        marched(&tilted.surface(), &donut.surface()),
+        "tilted by 1e-3, swapped"
+    );
+}
+
+/// Whether the section value reads the pair's components from the march:
+/// no closed form counts them.
+fn marched(f: &geom::Surface<f64>, g: &geom::Surface<f64>) -> bool {
+    match geom_brep::pair_section(f, g, band()) {
+        Ok(geom_brep::SectionRead::Built(s)) => s.counted().is_none(),
+        other => panic!("the value builds the pair: {other:?}"),
+    }
 }
 
 /// **A crossing at a tube circle's top refuses R-order, not R-tan.** `K`
@@ -384,7 +408,7 @@ fn a_wall_touching_a_strip_edge_beyond_the_parallel_answers() {
 /// the wall axis's point nearest the centre. A tilt worth `0.6` of the
 /// band's Zero there reads square and answers as the untilted wall does,
 /// read over a reach of `50` or of `1`; one worth `1.5` of it is no pose
-/// an arm claims. Mutants: lever the tilt by half or a millionth of that
+/// an arm counts, read from the march. Mutants: lever the tilt by half or a millionth of that
 /// (the outside row answers), or by twice it (the inside row refuses).
 #[test]
 fn the_square_reading_is_levered_by_the_tori_ball() {
@@ -408,15 +432,11 @@ fn the_square_reading_is_levered_by_the_tori_ball() {
             reach,
         );
         let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
-        for sec in [
-            classify(&donut.surface(), &outside.surface(), reach, band()),
-            classify(&outside.surface(), &donut.surface(), reach, band()),
-        ] {
-            assert!(
-                matches!(sec, Section::Intractable),
-                "a tilt 1.5 of the band's Zero: {sec:?}"
-            );
-        }
+        assert!(
+            marched(&donut.surface(), &outside.surface())
+                && marched(&outside.surface(), &donut.surface()),
+            "a tilt 1.5 of the band's Zero"
+        );
     }
 }
 

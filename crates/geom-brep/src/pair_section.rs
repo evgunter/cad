@@ -944,10 +944,12 @@ impl<T: Decide> PairSection<T> {
                     on = Some(j);
                 }
             }
-            let taken = on.and_then(|j| branches[j].take()).ok_or(CarryError::Desync(
-                "a listed component's witness lies on no branch the march found but another \
+            let taken = on
+                .and_then(|j| branches[j].take())
+                .ok_or(CarryError::Desync(
+                    "a listed component's witness lies on no branch the march found but another \
                  component's",
-            ))?;
+                ))?;
             if !claims(listed[i].winds, taken.winds) {
                 return Err(CarryError::Desync(
                     "a branch does not wind as the listed component it holds the witness of",
@@ -1464,9 +1466,7 @@ mod wiring {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_count_the_march_disagrees_with_refuses() {
-        use super::{
-            CarryError, Components, SectionComponent, SectionRead, SsiLane, pair_section,
-        };
+        use super::{CarryError, Components, SectionComponent, SectionRead, SsiLane, pair_section};
         use geom::Surface;
         use geom_core::{Band, Point3, Tol, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();

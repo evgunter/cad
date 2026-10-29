@@ -444,7 +444,8 @@ fn the_radial_hole_marches_the_square_walls_loops() {
         };
         assert!(
             section
-                .counted().expect("a counted section")
+                .counted()
+                .expect("a counted section")
                 .iter()
                 .all(|c| matches!(c.carrier, ClassCarrier::General)),
             "{what}: every component is the general rung's"
@@ -484,7 +485,11 @@ fn a_rod_through_the_tube_carries_both_loops() {
     let SectionRead::Built(section) = geom_brep::pair_section(&rod, &t, band()).unwrap() else {
         panic!("the value builds the pair");
     };
-    assert_eq!(section.counted().expect("a counted section").len(), 2, "two loops round the rod");
+    assert_eq!(
+        section.counted().expect("a counted section").len(),
+        2,
+        "two loops round the rod"
+    );
     let carried = section
         .carry(Some(SsiLane::marched()), band())
         .unwrap_or_else(|e| panic!("{e:?}"));

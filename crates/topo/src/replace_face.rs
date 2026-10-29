@@ -4937,14 +4937,12 @@ mod pose_reach_rows {
     /// The refusal is the offset row's: the arm refuses the same way a
     /// cylinder EXACTLY parallel to the cone's axis and as far off the
     /// apex is refused, which only `coc_coaxial` can do.
-    /// **A general cylinder × torus pose is not served at the neighbour
-    /// gate.** The section value lists no components for it, so
-    /// `route_pose` answers the kind's arm unimplemented with the value's
-    /// note, and the face replacement refuses the edge
-    /// (`NeighborPoseUnroutable`) rather than reach the offset lane; a
-    /// square pose, whose components the value lists, is served.
+    /// **A cylinder × torus pose is served at the neighbour gate, general
+    /// or square**: the section value classifies both, the general one
+    /// as its march's, so `route_pose` answers the kind's arm
+    /// implemented.
     #[test]
-    fn a_general_cylinder_torus_pose_is_not_served() {
+    fn a_general_cylinder_torus_pose_is_served() {
         let torus = Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -4969,8 +4967,8 @@ mod pose_reach_rows {
         ] {
             let got = pose_route(a, b, &edge, 0.0, 0.1, band());
             assert!(
-                matches!(got, Ok(ref r) if !r.implemented && r.note.contains("closed-form count")),
-                "({label}): the general pose is not served, got {got:?}"
+                matches!(got, Ok(ref r) if r.implemented),
+                "({label}): the general pose is served, got {got:?}"
             );
         }
         let square = rod(Vec3::unit_x());

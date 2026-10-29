@@ -64,8 +64,17 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
         ("cs_coaxial", Coincident::CylinderSphere)
     );
     assert!(section.tangency().is_none(), "no tangency");
-    assert_eq!(section.counted().expect("a counted section").len(), 2, "two circles");
-    for (k, c) in section.counted().expect("a counted section").iter().enumerate() {
+    assert_eq!(
+        section.counted().expect("a counted section").len(),
+        2,
+        "two circles"
+    );
+    for (k, c) in section
+        .counted()
+        .expect("a counted section")
+        .iter()
+        .enumerate()
+    {
         assert_eq!(
             c.winds,
             [true, false],
@@ -171,7 +180,10 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
 #[test]
 fn off_the_axis_the_reach_counts_the_loops() {
     let none = built(&cylinder(0.5), &sphere(2.0, 0.5));
-    assert!(none.counted().expect("a counted section").is_empty(), "the sphere misses the wall");
+    assert!(
+        none.counted().expect("a counted section").is_empty(),
+        "the sphere misses the wall"
+    );
     let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
     let one = built(&cyl, &sph);
     let [c] = one.counted().expect("a counted section") else {
@@ -181,7 +193,11 @@ fn off_the_axis_the_reach_counts_the_loops() {
     assert!(matches!(c.carrier, ClassCarrier::General));
     on_both(c.witness.unwrap(), &cyl, &sph, "the lone loop's witness");
     let two = built(&cylinder(0.5), &sphere(0.1, 0.7));
-    assert_eq!(two.counted().expect("a counted section").len(), 2, "two loops");
+    assert_eq!(
+        two.counted().expect("a counted section").len(),
+        2,
+        "two loops"
+    );
     for c in two.counted().expect("a counted section") {
         assert_eq!(c.winds, [true, false], "each winds about the cylinder");
         assert!(matches!(c.carrier, ClassCarrier::General));
@@ -336,7 +352,9 @@ fn the_general_rung_carries_through_its_door() {
         c.closed && c.certificate.is_some(),
         "a closed certified loop"
     );
-    let witness = section.counted().expect("a counted section")[0].witness.unwrap();
+    let witness = section.counted().expect("a counted section")[0]
+        .witness
+        .unwrap();
     assert_eq!(carried.foot(witness, band()).unwrap().component, 0);
     // Seated at an interior parameter: the loop opened there, certified
     // again, the same locus run from that point round to it.
@@ -803,7 +821,10 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
                     ts.push(f.t);
                 }
                 let want = want.expect("a site on the sheet");
-                assert!(!seen.contains(&want), "d {d}, R {big}: each sheet its own loop");
+                assert!(
+                    !seen.contains(&want),
+                    "d {d}, R {big}: each sheet its own loop"
+                );
                 seen.push(want);
                 let (lo, hi) = c.components()[want].span;
                 assert!(turns_once(&ts, hi - lo), "d {d}, R {big}, sheet {sheet}");

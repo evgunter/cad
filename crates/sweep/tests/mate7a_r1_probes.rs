@@ -352,12 +352,13 @@ fn p1_wall1_glues_the_stem_into_one_body() {
 /// refuse at their germs.** Run to 30° instead of 22°, the stem's tube
 /// wall spans the loop on the arch's side of the weld plane, and its
 /// seams cross the arch's tube, so the pair carries events, and the
-/// reduction's germ mint refuses the two tube walls
-/// (`GermSectionUnbuilt`, torus × torus: the section value lists the
-/// parallel tori's components and tells no site's component apart among
-/// them) before the interior-loop guard is asked. What this row pins is that refusal: it goes red when
-/// the op starts building this pair, or refuses it somewhere else. It
-/// cannot see the certificate. The certificate-level degrade row is
+/// reduction's germ mint, carrying the two tube walls' section to read a
+/// site's foot, refuses it (`GermSectionUnbuilt`, torus × torus: the
+/// march's stop on the lily's tori,
+/// [`the_lilys_tori_exhaust_the_doors_cell_budget`]) before the
+/// interior-loop guard is asked. What this row pins is that refusal: it
+/// goes red when the op starts building this pair, or refuses it
+/// somewhere else. It cannot see the certificate. The certificate-level degrade row is
 /// `section_cert_parallel_tori_rows`
 /// `the_lilys_pair_clears_only_on_windows_that_miss_its_loops`.
 #[test]
@@ -393,7 +394,7 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
                 Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
-                    why: topo::SectionUnbuilt::Untold(_),
+                    why: topo::SectionUnbuilt::March(_),
                     ..
                 })
             ),
@@ -481,7 +482,7 @@ fn the_lilys_tori_exhaust_the_doors_cell_budget() {
         panic!("the value builds two tori");
     };
     assert!(
-        section.tangency().is_none() && !section.components().is_empty(),
+        section.tangency().is_none() && section.counted().is_some_and(|c| !c.is_empty()),
         "a transverse gap, its components listed"
     );
     let got = geom_brep::torus_torus_ssi(&stem, &arch, section.pose().domain(), band);

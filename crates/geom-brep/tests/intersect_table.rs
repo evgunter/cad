@@ -893,7 +893,8 @@ pub(crate) fn cs_section<T: geom_core::Decide>(
 /// The closed-form circles of a section, each as (centre, axis, radius).
 #[allow(clippy::type_complexity)] // (centre, axis, radius) per circle
 pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point3<T>, Vec3<T>, T)> {
-    s.counted().expect("a counted section")
+    s.counted()
+        .expect("a counted section")
         .iter()
         .map(|c| match c.carrier {
             ClassCarrier::Closed(Curve3::Circle {
@@ -1038,7 +1039,11 @@ fn a_coaxial_short_sphere_is_empty() {
         ),
     ] {
         let s = cs_section(&cyl, &sph).unwrap();
-        assert!(s.counted().expect("a counted section").is_empty(), "{label}: {:?}", s.components());
+        assert!(
+            s.counted().expect("a counted section").is_empty(),
+            "{label}: {:?}",
+            s.components()
+        );
     }
 }
 
@@ -1094,7 +1099,8 @@ fn an_off_axis_centre_takes_the_general_rung_and_an_in_band_one_escalates() {
         );
         assert!(
             !s.counted().expect("a counted section").is_empty()
-                && s.counted().expect("a counted section")
+                && s.counted()
+                    .expect("a counted section")
                     .iter()
                     .all(|c| matches!(c.carrier, ClassCarrier::General)),
             "{label}: {:?}",
@@ -1180,8 +1186,14 @@ fn the_cylinder_sphere_value_reads_either_order() {
     let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
     let forward = cs_section(&cyl, &sph).unwrap();
     let backward = cs_section(&sph, &cyl).unwrap();
-    assert_eq!(forward.counted().expect("a counted section")[0].winds, [true, false]);
-    assert_eq!(backward.counted().expect("a counted section")[0].winds, [false, true]);
+    assert_eq!(
+        forward.counted().expect("a counted section")[0].winds,
+        [true, false]
+    );
+    assert_eq!(
+        backward.counted().expect("a counted section")[0].winds,
+        [false, true]
+    );
     assert!(matches!(
         geom_brep::pair_section(&cyl, &cyl, band()),
         Ok(SectionRead::Elsewhere(_))

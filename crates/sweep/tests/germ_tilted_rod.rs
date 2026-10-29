@@ -225,9 +225,8 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
 
 /// **The other spins, and the steeper tilts, refuse at their germs**
 /// before any body is built, on every op: a torus germ against the rod's
-/// wall, whose section the value lists but tells no site's component
-/// apart in (`GermSectionUnbuilt`), or against its end cap, which no
-/// frame arm reads (`GermFrameUnsupported`).
+/// end cap, which no frame arm reads (`GermFrameUnsupported`). (Its germs
+/// against the rod's wall take their site's foot on the carried section.)
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
@@ -244,14 +243,7 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         let c = rod(beta, spin);
         for (_, _, what, r) in every_op(&h, &c) {
             assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::GermFrameUnsupported { .. }
-                        | BooleanError::GermSectionUnbuilt {
-                            why: topo::SectionUnbuilt::Untold(_),
-                            ..
-                        })
-                ),
+                matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
                 "{what} at β {beta}, spin {spin}: {}",
                 outcome(&r)
             );

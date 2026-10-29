@@ -227,17 +227,18 @@ fn a_rod_threading_the_hole_answers_every_op() {
     );
 }
 
-/// **A radial hole through the tube stops at the germ mint, with every
-/// certificate pair answered.** Through both walls, through the inner
-/// side only, through the outer side only, and off the axis: the section
-/// pass's report holds no refusal (each torus × wall pair was R-reach
-/// before the square-wall arm), and ∖ refuses where the reduction mints
-/// its first germ inside the faces, naming the torus and the rod's wall:
-/// the section value classifies the square wall's components but tells
-/// no site's component apart among them. Mutant: drop the arm, and the
-/// report carries `Err(Reach)`.
+/// **A radial hole through the tube joins, and stops at the result
+/// gate's volume, with every certificate pair answered.** Through both
+/// walls, through the inner side only, through the outer side only, and
+/// off the axis: the section pass's report holds no refusal (each torus ×
+/// wall pair was R-reach before the square-wall arm), each germ's
+/// component is its site's foot on the carried section, and ∖ builds
+/// past the join to the volume of a face its fitted chords bound, which
+/// props does not integrate
+/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+/// Mutant: drop the arm, and the report carries `Err(Reach)`.
 #[test]
-fn a_radial_hole_through_the_tube_stops_at_the_germ_mint() {
+fn a_radial_hole_through_the_tube_stops_at_the_volume() {
     let d = donut();
     for (what, r) in [
         ("through both walls", rod((1.0, 3.0), (0.0, 0.0), 0.2)),
@@ -252,18 +253,21 @@ fn a_radial_hole_through_the_tube_stops_at_the_germ_mint() {
             assert!(v.starts_with("Ok("), "{what}: {v}");
         }
         match topo::subtract(&d, &r, Tol::witness()) {
-            Err(topo::BooleanError::GermSectionUnbuilt {
-                a_kind,
-                b_kind,
-                why: topo::SectionUnbuilt::Untold(_),
-                ..
-            }) => {
-                assert_eq!(
-                    (a_kind, b_kind),
-                    (geom::SurfaceKind::Torus, geom::SurfaceKind::Cylinder),
-                    "{what}"
-                );
-            }
+            Err(topo::BooleanError::ResultInvalid { errors }) => assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::QuadratureUnsupported { what },
+                            ..
+                        },
+                        ..
+                    }] if what.starts_with(
+                        "curved-cut face half-edge carries a pcurve with no harmonic form",
+                    )
+                ),
+                "{what}: {errors:?}"
+            ),
             other => panic!("{what}: {:?}", other.map(|r| r.body().map(|b| b.kind))),
         }
     }

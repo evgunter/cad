@@ -369,7 +369,7 @@ cases! {
     // a clear cylinder radius is a pair that does not meet: decided, it
     // is no section, which a real germ site never lies on (a desync).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Desyncs("a site on a section with no component")) =>
+        Withdrawn(Because::Desyncs("a site lies on no component of its section")) =>
         coaxial_frame(0.5, D);
     // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
@@ -1244,21 +1244,35 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     section_site(&c, &s, Point3::new(cyl, 0.0, 0.3))
 }
 
-/// [`super::super::join::section_branch`] at `site` on the section of
-/// `c` and `s`.
+/// The germ mint's reading of a site on the section of `c` and `s`: the
+/// pair carried, and a site's foot on it, the site a point of its first
+/// component, or `site` where it has none.
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,
     site: Point3<f64>,
 ) -> Result<(), BooleanError> {
     let face = crate::entity::FaceKey::default();
-    let held = match geom_brep::pair_section(c, s, band()) {
-        Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
-        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
-        Err(e) => Err(e),
+    let kinds = ((face, c.kind()), (face, s.kind()));
+    let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
+        super::super::join::section_unbuilt(why, kinds.0, kinds.1)
     };
-    super::super::join::section_branch(&held, (face, c.kind()), (face, s.kind()), site, band())
+    let section = match geom_brep::pair_section(c, s, band()) {
+        Ok(geom_brep::SectionRead::Built(section)) => section,
+        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
+        Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
+    };
+    let carried = section
+        .carry(Some(geom_brep::SsiLane::marched()), band())
+        .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
+    let site = carried
+        .components()
+        .first()
+        .map_or(site, |k| k.carrier.eval(k.span.0));
+    carried
+        .foot(site, band())
         .map(|_| ())
+        .map_err(|e| super::super::join::site_refusal(e))
 }
 
 /// The radical plane of a radius-0.5 cylinder about `z` and a

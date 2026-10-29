@@ -47,8 +47,8 @@ use geom_core::{
 use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
 use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, SquareWall};
 use super::{
-    ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
+    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius, decide_across_reported};

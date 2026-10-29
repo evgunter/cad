@@ -396,15 +396,14 @@ impl<T: Decide> SegmentPair<T> {
     }
 }
 
-/// The index of the component of `section` a germ's `branch` names: the
-/// only one, or the first or second of two.
+/// The index of the component of `section` a germ's `branch` names: its
+/// site's foot's, read where the germ was minted ([`germ_branch`]).
 fn branch_component<T: Decide>(
     branch: super::Branch,
     section: &geom_brep::CarriedSection<T>,
 ) -> Result<usize, BooleanError> {
-    match (branch, section.components().len()) {
-        (super::Branch::Only, 1) | (super::Branch::Positive, 2) => Ok(0),
-        (super::Branch::Negative, 2) => Ok(1),
+    match branch {
+        super::Branch::Component(k) if k < section.components().len() => Ok(k),
         _ => Err(BooleanError::JoinDesync {
             what: "a germ's branch does not name a component of its section",
         }),
@@ -1988,8 +1987,10 @@ fn crossing_germs_have_their_reading<T: Decide>(
         else {
             continue;
         };
-        if germ.branch == super::Branch::Only
-            || !wall(&red.a, fa)
+        if matches!(
+            germ.branch,
+            super::Branch::Only | super::Branch::Component(_)
+        ) || !wall(&red.a, fa)
             || !wall(&red.b, fb)
             || !read.insert((fa, fb))
         {
@@ -3426,10 +3427,10 @@ impl<T: Decide> SectionLoops<T> {
 /// is minted, at its site `site` (the A copy's point) with its face pair
 /// `(face_a, face_b)` and its loci: a germ along an edge rides that
 /// edge's own curve ([`germ_section_loops`]). A germ inside a face of
-/// each operand on a pair the operation's section table holds takes its
-/// component from the table ([`geom_brep::PairSection::component_of`]):
-/// the only component, or the first or second of two
-/// ([`super::Branch::Positive`], [`super::Branch::Negative`]). Of the
+/// each operand on a pair the operation's section table holds rides the
+/// component of the pair's carried section its site has its foot on
+/// ([`geom_brep::CarriedSection::foot`], [`super::Branch::Component`]),
+/// the pair carried here if no germ carried it before. Of the
 /// rest, every kind pair but the two whose sections are two loops —
 /// plane×torus and the intersecting equal-radius cylinder pair — rides
 /// its section's one loop or a straight line, read at the join;
@@ -3439,8 +3440,8 @@ impl<T: Decide> SectionLoops<T> {
 ///
 /// # Errors
 ///
-/// The table's refusals of the pair ([`section_unbuilt`]) and the site's
-/// ([`site_refusal`]); the section's own refusals ([`frame_refusal`]),
+/// The table's refusals of the pair, carried ([`section_unbuilt`]), and
+/// the site's foot ([`site_refusal`]); the section's own refusals ([`frame_refusal`]),
 /// the split's escalation and desync, and [`BooleanError::NodeUnbuilt`]
 /// for a germ on a node of the cylinder pair's section, where the two
 /// ellipses cross: an operand's edge through the node.
@@ -3456,15 +3457,12 @@ pub(super) fn germ_branch<T: Decide>(
     if locus_a.edge().is_some() || locus_b.edge().is_some() {
         return Ok(super::Branch::Only);
     }
-    if let Some(held) = sections.held((body_a, face_a), (body_b, face_b)) {
-        let kind = |body: &Body<T>, f| face_surface(body, f).map(|(_, s)| s.kind());
-        return section_branch(
-            held,
-            (face_a, kind(body_a, face_a)?),
-            (face_b, kind(body_b, face_b)?),
-            site,
-            band,
-        );
+    if let Some(carried) = sections.carried((body_a, face_a), (body_b, face_b)) {
+        return carried
+            .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?
+            .foot(site, band)
+            .map(|foot| super::Branch::Component(foot.component))
+            .map_err(site_refusal);
     }
     let kind = |body: &Body<T>, f: FaceKey| face_surface(body, f).ok().map(|(_, s)| s.kind());
     // A face that does not resolve reads no section here; the join
@@ -3610,7 +3608,7 @@ pub(super) fn section_unbuilt(
     (b_face, b_kind): (FaceKey, geom::SurfaceKind),
 ) -> BooleanError {
     use super::section_table::Uncarried;
-    use geom_brep::{CarryError, SectionError, SiteRefusal};
+    use geom_brep::{CarryError, SectionError};
     let unbuilt = |why| BooleanError::GermSectionUnbuilt {
         a_face,
         a_kind,
@@ -3620,9 +3618,7 @@ pub(super) fn section_unbuilt(
     };
     match why {
         Uncarried::Section(SectionError::Escalated(diag))
-        | Uncarried::Carry(CarryError::Site(SiteRefusal::Escalated(diag))) => {
-            section_undecided(*diag)
-        }
+        | Uncarried::Carry(CarryError::Escalated(diag)) => section_undecided(*diag),
         Uncarried::Section(SectionError::RadiusEscalated { radius, diag }) => {
             BooleanError::Escalated {
                 decision: BooleanDecision::Radius(*radius),
@@ -3631,9 +3627,7 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
         Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
-        Uncarried::Carry(CarryError::Site(SiteRefusal::Untold(why))) => {
-            unbuilt(SectionUnbuilt::Untold(why))
-        }
+        Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
         Uncarried::Carry(CarryError::NoLane { scalar }) => {
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }
@@ -3642,9 +3636,7 @@ pub(super) fn section_unbuilt(
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
-        Uncarried::Carry(
-            CarryError::Site(SiteRefusal::Desync(what)) | CarryError::Desync(what),
-        ) => BooleanError::JoinDesync { what },
+        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
     }
 }
 
@@ -3663,15 +3655,10 @@ fn faces_section_unbuilt<T: geom_core::Real>(
 
 /// A site's reading against its section: an escalation as the section
 /// undecided, a site on no component a desync.
-fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
+pub(super) fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
     match e {
         geom_brep::SiteRefusal::Escalated(diag) => section_undecided(diag),
-        // A foot is read within the band of a carried component and is
-        // never untold; the germ mint reads the classification's
-        // untold sites as unbuilt ([`section_branch`]).
-        geom_brep::SiteRefusal::Desync(what) | geom_brep::SiteRefusal::Untold(what) => {
-            BooleanError::JoinDesync { what }
-        }
+        geom_brep::SiteRefusal::Desync(what) => BooleanError::JoinDesync { what },
     }
 }
 
@@ -3680,45 +3667,6 @@ fn section_undecided(diag: geom_core::Indeterminate) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::Coincidence(Coincide::Section, DeclarationRead::Moot),
         diag,
-    }
-}
-
-/// **The branch a germ at `site` takes on a section the table holds**
-/// ([`germ_branch`]), the pair being A's face and B's with their kinds:
-/// the only component, or the first or second of two.
-///
-/// # Errors
-///
-/// The section's refusal at the glue door ([`section_unbuilt`]) and the
-/// site's ([`site_refusal`]).
-pub(super) fn section_branch<T: Decide>(
-    held: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
-    a: (FaceKey, geom::SurfaceKind),
-    b: (FaceKey, geom::SurfaceKind),
-    site: Point3<T>,
-    band: Band,
-) -> Result<super::Branch, BooleanError> {
-    let section = held
-        .as_ref()
-        .map_err(|e| section_unbuilt(super::section_table::Uncarried::Section(e), a, b))?;
-    let k = match section.component_of(site, band) {
-        Ok(k) => k,
-        Err(geom_brep::SiteRefusal::Untold(why)) => {
-            return Err(BooleanError::GermSectionUnbuilt {
-                a_face: a.0,
-                a_kind: a.1,
-                b_face: b.0,
-                b_kind: b.1,
-                why: super::SectionUnbuilt::Untold(why),
-            });
-        }
-        Err(e) => return Err(site_refusal(e)),
-    };
-    // `component_of` tells at most two components apart.
-    match (k, section.components().len()) {
-        (0, 1) => Ok(super::Branch::Only),
-        (0, _) => Ok(super::Branch::Positive),
-        _ => Ok(super::Branch::Negative),
     }
 }
 
@@ -4540,8 +4488,8 @@ enum Faced<T: geom_core::Real> {
 /// **Whether two germs face each other along their section's
 /// component** ([`super::section_table`]), each a germ and its site:
 /// each site's foot on the component it lies within
-/// the band of ([`geom_brep::CarriedSection::foot`]), which must be the
-/// one its germ's branch names; and the direction each germ leaves along
+/// the band of ([`geom_brep::CarriedSection::foot`]), the component its
+/// germ's branch was minted from; and the direction each germ leaves along
 /// its component, decided on the germ's direction against the carrier's
 /// tangent there (`bool_join_foot_heading`, the cosine levered by the
 /// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
@@ -4568,14 +4516,6 @@ fn along_facing<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
-        let named = branch_component(germ.branch, section).map_err(|_| {
-            FootRefusal::Desync("a germ's branch does not name a component of its section")
-        })?;
-        if foot.component != named {
-            return Err(FootRefusal::Desync(
-                "a germ's site lies on another component of its section than its branch names",
-            ));
-        }
         let cos = germ.dir.dot(foot.tangent) / foot.tangent.norm();
         let heading = Margin::levered(cos, section.lever());
         match decide("bool_join_foot_heading", heading, band) {
@@ -4603,7 +4543,7 @@ fn along_facing<T: Decide>(
             })
     };
     let ((f1, up1), (f2, up2)) = (foot(g1, p1)?, foot(g2, p2)?);
-    if up1 == up2 {
+    if f1.component != f2.component || up1 == up2 {
         return Ok(Faced::Apart);
     }
     let component = &section.components()[f1.component];

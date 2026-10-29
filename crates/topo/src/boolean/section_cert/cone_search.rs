@@ -445,8 +445,20 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let cone = k.surface();
     let reach = reach_of(k);
     let b = band();
-    let sec = classify(&cone, &pose.partner, reach, b);
-    let back = classify(&pose.partner, &cone, reach, b);
+    let sec = classify(
+        &cone,
+        &pose.partner,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
+    let back = classify(
+        &pose.partner,
+        &cone,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
     // In the band's Zero: R-tan is the answer, except at the plane's
     // aperture, where Zero is the parabola's class — one part, essential,
@@ -606,7 +618,13 @@ fn the_cone_arms_agree_with_the_traced_section() {
             };
             done += 1;
             let bad = check(&k, &pose);
-            match classify(&k.surface(), &pose.partner, reach_of(&k), band()) {
+            match classify(
+                &k.surface(),
+                &pose.partner,
+                reach_of(&k),
+                Some(geom_brep::SsiLane::marched()),
+                band(),
+            ) {
                 Section::Components { parts, .. } => {
                     let mut cs: Vec<Class> = parts.iter().map(class_of).collect();
                     cs.sort();
@@ -688,7 +706,7 @@ fn near_axis_balls_agree_with_the_closed_form() {
             centre: apex,
             radius: 5.0 * scale,
         };
-        match classify(&cone, &ball, reach, b) {
+        match classify(&cone, &ball, reach, Some(geom_brep::SsiLane::marched()), b) {
             Section::Tangent(_) => {
                 tangent += 1;
                 if gap > 8.0 * b.escalate() + 64.0 * f64::EPSILON * scale {

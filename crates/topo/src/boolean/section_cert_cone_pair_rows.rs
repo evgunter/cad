@@ -375,7 +375,13 @@ fn classify_at(
     eps: f64,
 ) -> Section<f64> {
     let band = geom_core::Band::linear_at(geom_core::Tol::witness(), eps).unwrap();
-    super::classify(f, g, Reach { centre, radius }, band)
+    super::classify(
+        f,
+        g,
+        Reach { centre, radius },
+        Some(geom_brep::SsiLane::marched()),
+        band,
+    )
 }
 
 /// **The precision floors are typed**: at ε `1e-12` a reading whose own

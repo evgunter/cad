@@ -330,6 +330,8 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
         span: (0.0, 1.0),
         closed: false,
         certificate: None,
+        winds: [false, false],
+        tube: 0.0,
     };
     assert!(
         SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),
