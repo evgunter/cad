@@ -757,6 +757,35 @@ pub(crate) fn apex_shape<T: Decide>(
     Ok(ApexShape { arm, rulings })
 }
 
+/// [`apex_shape`], with a window that reads no width read by `bounds`,
+/// as [`corner_shape`] reads a straight corner: at a slit's tip the
+/// face's whole turn round the apex, otherwise the refusal. The one
+/// reading of a slit tip's corner at a cone's apex.
+///
+/// # Errors
+///
+/// As [`apex_shape`], but for the whole turn at a slit's tip.
+pub(crate) fn apex_corner_shape<T: Decide>(
+    (dir_own, dir_next): (Vec3<T>, Vec3<T>),
+    apex: &crate::sector_face::ConeApex<T>,
+    bounds: CornerBounds,
+    across: Vec3<T>,
+    band: Band,
+) -> Result<ApexShape<T>, SectorFault> {
+    let shape = |full_circle| apex_shape(dir_own, dir_next, apex, full_circle, across, band);
+    match shape(bounds == CornerBounds::OneEdge) {
+        Err(SectorFault::Rung {
+            rung: SectorRung::Straight { .. },
+            diag,
+        }) if bounds == CornerBounds::SlitTip
+            && diag.margin.rejected_sign() == Some(Sign::Zero) =>
+        {
+            shape(true)
+        }
+        read => read,
+    }
+}
+
 /// [`sector_shape`] for the wedge square to an edge: the sector CCW
 /// about the edge's own direction `axis` from `dir_next` to `dir_own`,
 /// both square to it. The orientation is the edge's (its plus half runs
@@ -1102,6 +1131,57 @@ mod tests {
             s.bisector.expect("a strut vertex subdivides"),
             Vec3::new(0.0, 1.0, 0.0),
         );
+    }
+
+    /// At a cone's apex the window between a slit's two coincident
+    /// rulings reads no width: between distinct edges it refuses, at a
+    /// slit's tip it is the whole turn, subdivided at both extremal
+    /// rulings. A corner between two rulings apart reads the same
+    /// whichever bounds it is given, so a tip's reading reaches no other
+    /// corner of its face.
+    #[test]
+    fn an_apex_window_of_no_width_is_a_slit_tips_whole_turn() {
+        let apex = crate::sector_face::ConeApex {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            sense: true,
+        };
+        let across = Vec3::new(0.3, 1.0, -0.2);
+        let read =
+            |own, next, bounds| apex_corner_shape((own, next), &apex, bounds, across, band());
+        let ruling = Vec3::new(0.0, 1.0, 1.0);
+        let refused = read(ruling, ruling, CornerBounds::Distinct)
+            .expect_err("a window of no width between distinct edges");
+        assert!(
+            matches!(
+                refused,
+                SectorFault::Rung {
+                    rung: SectorRung::Straight { full_circle: false },
+                    ..
+                }
+            ),
+            "the window's own rung refuses: {refused:?}"
+        );
+        let turn = read(ruling, ruling, CornerBounds::SlitTip).expect("the slit tip's whole turn");
+        assert_eq!(
+            turn.rulings.len(),
+            2,
+            "both extremal rulings lie inside the turn: {turn:?}"
+        );
+        let apart = Vec3::new(1.0, 0.0, 1.0);
+        for (own, next) in [(apart, ruling), (ruling, apart)] {
+            let (distinct, tip) = (
+                read(own, next, CornerBounds::Distinct).unwrap(),
+                read(own, next, CornerBounds::SlitTip).unwrap(),
+            );
+            assert_eq!(
+                format!("{distinct:?}"),
+                format!("{tip:?}"),
+                "a corner between rulings apart reads alike under either bounds"
+            );
+        }
     }
 
     /// A collapsed bounding chord fails the arm rung, named.

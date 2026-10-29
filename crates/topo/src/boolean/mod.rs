@@ -5711,8 +5711,11 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         pad_override,
     };
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &[
+            crate::sector_shape::SlitTips::of(a_operand),
+            crate::sector_shape::SlitTips::of(b_operand),
+        ],
         &declared,
         &mut acc,
         band,
@@ -5758,8 +5761,11 @@ pub fn sweep_split(
     let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &[
+            crate::sector_shape::SlitTips::of(a_operand),
+            crate::sector_shape::SlitTips::of(b_operand),
+        ],
         &declared,
         &mut acc,
         band,
@@ -5807,8 +5813,11 @@ pub fn sweep_records(
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &[
+            crate::sector_shape::SlitTips::of(a_operand),
+            crate::sector_shape::SlitTips::of(b_operand),
+        ],
         &declared,
         &mut acc,
         band,
@@ -5987,8 +5996,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut *a, &mut *b),
+        &tips,
         &declared,
         &mut acc,
         band,

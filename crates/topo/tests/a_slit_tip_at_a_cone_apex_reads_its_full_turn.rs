@@ -1,11 +1,31 @@
-//! PROBE (measurement on main).
+//! **A slit's tip at a cone's apex reads the face's whole turn.** The
+//! cone of half-angle 45° about +z, apex A at the origin, rim at
+//! `z = 1`, holding the tetrahedral cavity A R Q1 Q2, `R = (0, 1, 1)` on
+//! the rim and `Q1, Q2 = (±0.1, 0.3, 0.6)` inside: the cavity touches
+//! the wall along the ruling A R only, so the material either side of it
+//! is two wedges, wall | cavity face A R Q1 and cavity face A R Q2 | wall
+//! (`crates/topo/README.md`, tier 3), and the wall carries the ruling as
+//! a slit, two coincident edges from the rim to their tip at the apex.
+//! The wall's one loop runs round the rim and up the slit to the apex
+//! and back: a cap less a slit, which sweeps the whole turn round the
+//! apex. No door builds it (a Boolean refuses an edge at a cone's apex,
+//! `CrossingAtConeApex`), so it is built through the Euler doors.
+//!
+//! Split through the apex, by planes that hold both slit edges on one
+//! side, the walk reads the wall's corner at the apex between the slit's
+//! two edges as the window of the whole turn, and each side holds its
+//! closed form, the cone over its part of the rim's disc less the
+//! cavity, and passes tiers 3 and 3′.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
-use topo::{Body, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{
+    Body, ContactRecords, FaceKey, HalfEdgeKey, SplitPart, VertexKey, split, validate_geometric,
+    validate_pseudomanifold,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -28,52 +48,84 @@ fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
         .0
 }
 
-pub struct Notched {
-    pub body: Body<f64>,
-    pub lateral: FaceKey,
-}
-
-/// The cone of half-angle 45° about +z, apex at the origin, rim at
-/// z = 1, with a tetrahedral cavity A P Q1 Q2 touching its wall along
-/// the ruling A P only.
-pub fn notched_cone(flip: bool) -> Notched {
+/// The body, through the Euler doors (module docs).
+fn notched_cone() -> Body<f64> {
     let t = tol();
     let line = |a: Point3<f64>, b: Point3<f64>| EdgeCurveSpec::line_between(a, b);
     let a = Point3::new(0.0, 0.0, 0.0);
     let p = Point3::new(0.0, 1.0, 1.0);
-    let (q1, q2) = if flip {
-        (Point3::new(-0.1, 0.3, 0.6), Point3::new(0.1, 0.3, 0.6))
-    } else {
-        (Point3::new(0.1, 0.3, 0.6), Point3::new(-0.1, 0.3, 0.6))
-    };
-        let mut b = Body::<f64>::new();
+    let (q1, q2) = (Point3::new(0.1, 0.3, 0.6), Point3::new(-0.1, 0.3, 0.6));
+    let mut b = Body::<f64>::new();
     let seed = b.mvfs(a, true).unwrap();
     let f0 = seed.face;
-    let e1 = b.mev(MevSite::Lone { r#loop: seed.r#loop }, p, line(a, p), t).unwrap();
+    let e1 = b
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p,
+            line(a, p),
+            t,
+        )
+        .unwrap();
     let lens = b
-        .mef(MefSite::Chords { he1: e1.he_minus, he2: e1.he_plus }, line(p, a), FaceSurface::Inherit, t)
+        .mef(
+            MefSite::Chords {
+                he1: e1.he_minus,
+                he2: e1.he_plus,
+            },
+            line(p, a),
+            FaceSurface::Inherit,
+            t,
+        )
         .unwrap();
     let f1 = lens.face;
     let (va, vp) = (vertex_at(&b, a), vertex_at(&b, p));
     // The cavity in f1.
     let h = out_of(&b, va, f1);
-    b.mev(MevSite::Fan { he1: h, he2: h }, q1, line(a, q1), t).unwrap();
+    b.mev(MevSite::Fan { he1: h, he2: h }, q1, line(a, q1), t)
+        .unwrap();
     let vq1 = vertex_at(&b, q1);
     let wall1 = b
-        .mef(MefSite::Chords { he1: out_of(&b, vq1, f1), he2: out_of(&b, vp, f1) }, line(q1, p), FaceSurface::Inherit, t)
+        .mef(
+            MefSite::Chords {
+                he1: out_of(&b, vq1, f1),
+                he2: out_of(&b, vp, f1),
+            },
+            line(q1, p),
+            FaceSurface::Inherit,
+            t,
+        )
         .unwrap();
     // f1 is wall a (it keeps e1's minus half); wall1 holds e2's.
     let wall_a = f1;
     let t2 = wall1.face;
     let h = out_of(&b, va, t2);
-    b.mev(MevSite::Fan { he1: h, he2: h }, q2, line(a, q2), t).unwrap();
+    b.mev(MevSite::Fan { he1: h, he2: h }, q2, line(a, q2), t)
+        .unwrap();
     let vq2 = vertex_at(&b, q2);
     let wall_b = b
-        .mef(MefSite::Chords { he1: out_of(&b, vq2, t2), he2: out_of(&b, vp, t2) }, line(q2, p), FaceSurface::Inherit, t)
+        .mef(
+            MefSite::Chords {
+                he1: out_of(&b, vq2, t2),
+                he2: out_of(&b, vp, t2),
+            },
+            line(q2, p),
+            FaceSurface::Inherit,
+            t,
+        )
         .unwrap()
         .face;
     let cap_a = b
-        .mef(MefSite::Chords { he1: out_of(&b, vq1, t2), he2: out_of(&b, vq2, t2) }, line(q1, q2), FaceSurface::Inherit, t)
+        .mef(
+            MefSite::Chords {
+                he1: out_of(&b, vq1, t2),
+                he2: out_of(&b, vq2, t2),
+            },
+            line(q1, q2),
+            FaceSurface::Inherit,
+            t,
+        )
         .unwrap()
         .face;
     let cap_p = t2;
@@ -94,7 +146,10 @@ pub fn notched_cone(flip: bool) -> Notched {
         )
         .unwrap()
         .face;
-    let plane = |c: &[Point3<f64>]| FaceSurface::New { surface: topo::test_support::plane(c, t), sense: true };
+    let plane = |c: &[Point3<f64>]| FaceSurface::New {
+        surface: topo::test_support::plane(c, t),
+        sense: true,
+    };
     b.set_face_surface(
         f0,
         FaceSurface::New {
@@ -109,21 +164,28 @@ pub fn notched_cone(flip: bool) -> Notched {
     )
     .unwrap();
     for (f, c) in [
-        (base, vec![Point3::new(0.0, -1.0, 1.0), Point3::new(1.0, 0.0, 1.0), Point3::new(0.0, 1.0, 1.0)]),
+        (
+            base,
+            vec![
+                Point3::new(0.0, -1.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
+            ],
+        ),
         (wall_a, vec![q1, p, a]),
         (wall_b, vec![q2, a, p]),
         (cap_a, vec![q1, a, q2]),
         (cap_p, vec![q1, q2, p]),
     ] {
-        if let Err(e) = b.set_face_surface(f, plane(&c)) {
-            eprintln!("PROBE set {f:?}: {e:?}");
-        }
+        b.set_face_surface(f, plane(&c)).unwrap();
     }
     // At rest: the rim in the base's chart, every line edge as the
     // section of its two faces' surfaces.
     let rim_edge = b
         .edges()
-        .find(|(_, e)| b.get_half_edge(e.he_plus).unwrap().start == b.half_edge_end(e.he_plus).unwrap())
+        .find(|(_, e)| {
+            b.get_half_edge(e.he_plus).unwrap().start == b.half_edge_end(e.he_plus).unwrap()
+        })
         .unwrap()
         .0;
     {
@@ -141,11 +203,23 @@ pub fn notched_cone(flip: bool) -> Notched {
         };
         b.set_edge_curve(rim_edge, spec, t).unwrap();
     }
-    let edges: Vec<_> = b.edges().map(|(k, e)| (k, e.he_plus)).filter(|&(k, _)| k != rim_edge).collect();
+    let edges: Vec<_> = b
+        .edges()
+        .map(|(k, e)| (k, e.he_plus))
+        .filter(|&(k, _)| k != rim_edge)
+        .collect();
     for (edge, he) in edges {
         let (s1, s2) = topo::readback::edge_sides(&b, edge).unwrap().surfaces();
-        let p0 = *b.get_point(b.get_vertex(b.get_half_edge(he).unwrap().start).unwrap().point).unwrap();
-        let p1 = *b.get_point(b.get_vertex(b.half_edge_end(he).unwrap()).unwrap().point).unwrap();
+        let p0 = *b
+            .get_point(
+                b.get_vertex(b.get_half_edge(he).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        let p1 = *b
+            .get_point(b.get_vertex(b.half_edge_end(he).unwrap()).unwrap().point)
+            .unwrap();
         let witness = p0.lerp(p1, 0.5);
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
@@ -155,70 +229,77 @@ pub fn notched_cone(flip: bool) -> Notched {
         b.set_edge_curve(edge, spec, t).unwrap();
     }
     topo::pcurves::mint_pcurves(&mut b, t).unwrap();
-    Notched { body: b, lateral: f0 }
+    b
 }
 
-/// A box `[-5, 5]² × [-10, 0]` in the frame whose third axis is `n`,
-/// its top face the plane through `o` along `n`.
-fn slab(o: Point3<f64>, n: Vec3<f64>) -> topo::AtRestBody<f64> {
-    use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
-    let n = n / n.norm();
-    let u0 = if n.x.abs() < 0.9 { Vec3::new(1.0, 0.0, 0.0) } else { Vec3::new(0.0, 1.0, 0.0) };
-    let u = (u0 - n * u0.dot(n)) / (u0 - n * u0.dot(n)).norm();
-    let v = n.cross(u);
-    let mut b = Body::<f64>::new();
-    prism_ops(
-        &mut b,
-        &[(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)],
-        (-10.0, 0.0),
-        |x, y, z| o + u * x + v * y + n * z,
-        FaceGeometry::Certified,
-        tol(),
-    );
-    describe_as_intersections(&mut b, tol());
-    finished("the slab", b, tol())
+/// The cavity's volume, `|det(R − A, Q1 − A, Q2 − A)| / 6`.
+const CAVITY: f64 = 0.01;
+
+/// A plane through the apex along `n` (`n_z` small enough that it
+/// meets the rim) holds below it the cone over the part of the rim's
+/// unit disc where `n·(x, y, 1) < 0`: a third of that area, the disc's
+/// segment off the line at its distance `d` from the centre.
+fn cone_below(n: Vec3<f64>) -> f64 {
+    let d = n.z / n.x.hypot(n.y);
+    let segment = |d: f64| d.acos() - d * (1.0 - d * d).sqrt();
+    // The centre reads `n_z`: below where it is negative.
+    let area = if d < 0.0 {
+        core::f64::consts::PI - segment(-d)
+    } else {
+        segment(d)
+    };
+    area / 3.0
 }
 
-fn probe(label: &str, body: &topo::AtRestBody<f64>, o: Point3<f64>, n: Vec3<f64>) {
-    let plane = topo::test_support::split_plane(o, n / n.norm(), tol());
-    match topo::split(body, &plane, tol()) {
-        Ok(_) => eprintln!("PROBE {label} split: ok"),
-        Err(e) => eprintln!("PROBE {label} split: {e:?}"),
-    }
-    let s = slab(o, n);
-    match topo::intersect(body, &s, tol()) {
-        Ok(_) => eprintln!("PROBE {label} intersect slab: ok"),
-        Err(e) => eprintln!("PROBE {label} intersect slab: {e:?}"),
-    }
-}
-
+/// **The body is the slit form, at rest**: tiers 3 and 3′ pass and it
+/// holds the cone less the cavity.
 #[test]
-fn probe_measure() {
-    let body = topo::test_support::finished("the notched cone", notched_cone(false).body, tol());
-    eprintln!("PROBE t3 {:?}", topo::validate_geometric(&body, tol()));
-    eprintln!("PROBE t3' {:?}", topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), tol()));
-    eprintln!(
-        "PROBE vol {:?} want {}",
-        topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).map(|m| m.enclosure.volume),
-        core::f64::consts::PI / 3.0 - 0.01
+fn the_cone_carries_the_ruling_as_a_slit_to_its_apex() {
+    let body = topo::test_support::finished("the notched cone", notched_cone(), tol());
+    let want = core::f64::consts::PI / 3.0 - CAVITY;
+    let v = topo::test_support::pinned_volume("the notched cone", &body, tol()).volume;
+    assert!(
+        (v - want).abs() < 1e-12,
+        "the notched cone holds {v}, not {want}"
     );
-    let o = Point3::new(0.0, 0.0, 0.0);
-    probe("y=0", &body, o, Vec3::new(0.0, 1.0, 0.0));
-    probe("tilted", &body, o, Vec3::new(0.3, 1.0, -0.2));
-    probe("tilted2", &body, o, Vec3::new(1.0, 0.5, 0.0));
+    assert_eq!(validate_geometric(&body, tol()), Ok(()), "tier 3");
+    assert_eq!(
+        validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
+        Ok(()),
+        "tier 3′"
+    );
 }
 
+/// **A split through the apex builds**, each side at its closed form,
+/// the cavity above: along the axis square to the slit's plane, along
+/// it tilted, and leaning off it.
 #[test]
-fn probe_build() {
-    for flip in [false, true] {
-        let mut n = notched_cone(flip);
-        match <f64 as topo::AtRestPolicy>::gate_at_rest_kept(n.body, tol()) {
-            Ok(_) => eprintln!("PROBE flip {flip}: at rest"),
-            Err(e) => {
-                for x in e {
-                    eprintln!("PROBE flip {flip}: {x:?}");
-                }
-            }
+fn a_split_through_the_apex_at_the_slits_tip_builds() {
+    let body = topo::test_support::finished("the notched cone", notched_cone(), tol());
+    for n in [
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.5, 0.0),
+        Vec3::new(0.3, 1.0, -0.2),
+    ] {
+        let what = format!("the split along {n:?}");
+        let plane =
+            topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.0), n / n.norm(), tol());
+        let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let below = cone_below(n);
+        let above = core::f64::consts::PI / 3.0 - below - CAVITY;
+        for (side, part, want) in [("above", &r.above, above), ("below", &r.below, below)] {
+            let what = format!("{what}, {side}");
+            let SplitPart::Body(b) = part else {
+                panic!("{what}: empty");
+            };
+            let v = topo::test_support::pinned_volume(&what, b, tol()).volume;
+            assert!((v - want).abs() < 1e-12, "{what}: holds {v}, not {want}");
+            assert_eq!(validate_geometric(b, tol()), Ok(()), "{what}: tier 3");
+            assert_eq!(
+                validate_pseudomanifold(b, &ContactRecords::default(), tol()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
         }
     }
 }

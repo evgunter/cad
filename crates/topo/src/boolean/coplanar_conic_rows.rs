@@ -96,12 +96,16 @@ pub(in crate::boolean) fn sweep(
     x: &Body<f64>,
     y: &Body<f64>,
 ) -> Result<ReductionContacts, BooleanError> {
+    let tips = [
+        crate::sector_shape::SlitTips::of(x),
+        crate::sector_shape::SlitTips::of(y),
+    ];
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
     let declared = GluedPairs::default();
     sweep_and_settle(
-        &mut x,
-        &mut y,
+        (&mut x, &mut y),
+        &tips,
         &declared,
         &mut acc,
         band(),
