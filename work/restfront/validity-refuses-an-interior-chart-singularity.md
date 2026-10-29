@@ -179,3 +179,7 @@ face too. When validity refuses such a face, all three rows in that file
 go red at import, and so does `tier_gate`'s corpus row. Re-point them
 then: `sphere_region_material_sign` may read a pole on no member's loop
 as outside the region once this rule is enforced.
+
+## Re-aimed by FOREIGN's designer pair (2026-10-29)
+
+Both designers on `import-normalizes-the-rim-only-cap` found the kinds-only "the loop has no meridian" predicate is not the rule (this row's own FLUX and TESS sections say as much): a tilted cap holds a pole with no meridian in its loop, and a meridian spur stopping short of the pole has one and still holds it. The rule both reached, form-neutral: **every chart singularity in a face's closure is a vertex of it**, read off the face's region. Import's door (that row's unit) uses the same reading, so validity refuses exactly what import re-mints. When that row closes this one's trigger fires; re-open it then on this rule. (FOREIGN orchestrator)
