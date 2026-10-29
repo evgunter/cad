@@ -2139,9 +2139,10 @@ impl Exempt<'_> {
 /// is answered without its section.
 ///
 /// A refusing pair the reduction settled one carrier (`settled`) is
-/// deferred rather than raised: its section is the carrier's patch the
-/// two faces share, not a curve, and the fallback answers it where both
-/// faces' shells read `On` each other ([`OnDeferred::answered`]).
+/// deferred rather than raised: its section is not a curve but the part
+/// of the one carrier the two faces share, and the fallback answers it
+/// where both faces' shells read `On` each other
+/// ([`OnDeferred::answered`]).
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
@@ -2188,30 +2189,41 @@ struct OnDeferred(Vec<(FaceKey, FaceKey, BooleanError)>);
 
 impl OnDeferred {
     /// Each deferred pair answered, or the first one's refusal. A pair
-    /// is answered where its A face's shell reads `On` its B face's
-    /// shell and back ([`super::shell_witness::check_mutual`] has run):
-    /// every witness of both lies on the other boundary and every face
-    /// of each is settled one carrier with a face of the other, so no
-    /// point of either shell stands off the other boundary, and no part
-    /// of the patch the pair shares is a region the probe sides wrongly.
-    /// Eq. 15.3 keeps one copy of the one surface. A shell read to a
-    /// side has points off the other boundary, which the patch may
-    /// separate onto both sides, and its pair keeps the refusal.
+    /// `(fa, fb)` is answered where `fa`'s shell reads `On` `fb`'s shell
+    /// and `fb`'s reads `On` `fa`'s (`working` the shells' verdicts,
+    /// `pristine` the operands their partners are named in). Nothing
+    /// here reads the pair's patch: what carries the answer is the `On`
+    /// verdict ([`super::shell_witness`]), that every witness the ladder
+    /// takes of each shell, its vertices and its edges' midpoints, lies
+    /// on the other solid's boundary, and that every face of each is
+    /// settled one carrier with a face of the other at one orientation.
+    /// The ladder takes no interior witness on a curved face, so two
+    /// faces on one carrier whose patches differ read `On` only where
+    /// their edges do too; where an edge of one runs off the other
+    /// solid's boundary (a torus lens inside the union of its tori), its
+    /// midpoint sides the shell and the pair keeps its refusal.
     fn answered<T: Real>(
         self,
-        [(a, a_sides), (b, b_sides)]: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
+        working: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
+        pristine: [&Body<T>; 2],
     ) -> Result<(), BooleanError> {
-        let on = |body: &Body<T>, sides: &[super::shell_witness::Verdict], f: FaceKey| {
-            body.get_face(f).is_some_and(|face| {
-                sides
-                    .iter()
-                    .any(|&(s, v)| s == face.shell && matches!(v, ShellVerdict::On { .. }))
+        // `f`'s shell, in `body`'s keys.
+        let shell = |body: &Body<T>, f: FaceKey| body.get_face(f).map(|face| face.shell);
+        // `f`'s shell of `working[i]` reads `On` the shell of `g` in
+        // `pristine[1 − i]`.
+        let on = |i: usize, f: FaceKey, g: FaceKey| {
+            let (body, sides) = working[i];
+            let (Some(mine), Some(theirs)) = (shell(body, f), shell(pristine[1 - i], g)) else {
+                return false;
+            };
+            sides.iter().any(|&(s, v)| {
+                s == mine && matches!(v, ShellVerdict::On { partner, .. } if partner == theirs)
             })
         };
         match self
             .0
             .into_iter()
-            .find(|(fa, fb, _)| !(on(a, a_sides, *fa) && on(b, b_sides, *fb)))
+            .find(|(fa, fb, _)| !(on(0, *fa, *fb) && on(1, *fb, *fa)))
         {
             None => Ok(()),
             Some((.., refusal)) => Err(refusal),
@@ -8186,7 +8198,10 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
     )?;
-    deferred.answered([(&red.a, &a_sides), (&red.b, &b_sides)])?;
+    deferred.answered(
+        [(&red.a, &a_sides), (&red.b, &b_sides)],
+        [a_pristine, b_pristine],
+    )?;
     let a_keep = kept_shells(op, Operand::A, &a_sides);
     let b_keep = kept_shells(op, Operand::B, &b_sides);
 

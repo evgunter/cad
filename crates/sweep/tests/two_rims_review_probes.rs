@@ -108,15 +108,29 @@ fn union_and_lens() -> (Body<f64>, Body<f64>) {
     (union, lens)
 }
 
+/// **A lens inside the union of its tori is never read `On` it.** Each
+/// face of the lens lies on the carrier of a face of the union at the
+/// same orientation, and the two bodies meet along the same two
+/// circles, so every face pair is settled one carrier and the section
+/// pass defers the wall pairs to the shells' verdicts. The patches
+/// differ: the lens's seam meridians run off the union's boundary, and
+/// their midpoints side the shells (the union `Out` of the lens, the
+/// lens `In` the union), so neither reads `On` and every op keeps the
+/// deferred pair's refusal. Red if the `On` verdict ever weakens on a
+/// curved face far enough to read the lens `On` the union, or if the
+/// refusal moves to another door; a body built at its closed form would
+/// be the pose's next answer.
 #[test]
-fn a_lens_inside_the_union_of_its_tori_is_sided_by_its_extent() {
+fn a_lens_inside_the_union_of_its_tori_is_never_read_on_it() {
     let (u, l) = union_and_lens();
     let (vu, vl) = (
         vol(&finished("u", u.clone(), tol())).0,
         vol(&finished("l", l.clone(), tol())).0,
     );
-    eprintln!("union {vu}, lens {vl}");
-    assert!(vl > 0.1 && vu > vl + 1.0);
+    assert!(
+        vl > 0.1 && vu > vl + 1.0,
+        "the lens is a proper part: {vl}, {vu}"
+    );
     check(
         "union vs lens",
         &u,
@@ -128,6 +142,18 @@ fn a_lens_inside_the_union_of_its_tori_is_sided_by_its_extent() {
             ("B ∖ A", None),
         ],
     );
+    let (fu, fl) = (
+        finished("A", u.clone(), tol()),
+        finished("B", l.clone(), tol()),
+    );
+    let mut got = vec![("A ∪ B", topo::union(&fu, &fl, tol()))];
+    got.extend(subtract_both_orders_and_intersect(&u, &l));
+    for (op, r) in got {
+        assert!(
+            matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
+            "union vs lens, {op}: the deferred wall pair's refusal: {r:?}"
+        );
+    }
 }
 
 fn rod(r: f64, h: f64) -> Body<f64> {
@@ -143,6 +169,14 @@ fn rod(r: f64, h: f64) -> Body<f64> {
     )
 }
 
+/// **Rods sharing a wall at two lengths are sided by their extent, or
+/// refuse typed.** The short rod's wall lies on the long one's carrier,
+/// and the short rod's top cap stands inside the long rod, so neither
+/// shell reads `On` and the wall pair keeps its refusal where the
+/// short rod's shell decides the op. `∪` and `B ∖ A` build at their
+/// closed forms; `∩` and `A ∖ B` refuse `FallbackExtentUnsupported`
+/// (`work/splitdoor/rods-sharing-a-wall-at-two-lengths-refuse-intersect-and-the-short-difference.md`).
+/// Red on a wrong body, or where a refusal moves.
 #[test]
 fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
     let (a, b) = (rod(0.5, 1.0), rod(0.5, 2.0));
@@ -161,6 +195,29 @@ fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
             ("B ∖ A", Some(vb - va)),
         ],
     );
+    let mut got = vec![(
+        "A ∪ B",
+        topo::union(
+            &finished("A", a.clone(), tol()),
+            &finished("B", b.clone(), tol()),
+            tol(),
+        ),
+    )];
+    got.extend(subtract_both_orders_and_intersect(&a, &b));
+    for (op, r) in got {
+        let builds = op == "A ∪ B" || op == "B ∖ A";
+        assert_eq!(
+            matches!(r, Ok(BooleanResult::Body(_))),
+            builds,
+            "short vs long rod, {op}: builds only where the long rod decides: {r:?}"
+        );
+        if !builds {
+            assert!(
+                matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
+                "short vs long rod, {op}: the wall pair's refusal: {r:?}"
+            );
+        }
+    }
 }
 
 #[test]

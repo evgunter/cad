@@ -64,4 +64,4 @@ The second bullet stays open, and is now the unit's whole scope.
 - **The stretch.** They stay within the escalation `10ε` of each other over `|cos θ| < 10/k`: about ±0.34 rad at `k = 30`, some 66 cm of rim.
 - **The refusal.** The subdivision's first cut finds no definite sign in that sixteenth, and `pose::coplanar_ellipses` refuses `Unsettled::SignInBand`. The pass `carrier_cross::boundary_crossing` answers `Unread`, and every op refuses `CurvedPierceUnsupported` at `reduce.rs`'s curved sweep arm. Measured at ε = 1e-9 and 1e-12. At 1e-6 the basin meter refuses the seam ruling first.
 
-Building the touch alone does not settle that row. There the glue door decides the two cut planes one carrier, and their rims two curves (`work/splitdoor/two-rims-read-coplanar-refuse-unsupported-or-untyped.md`, "The fork at k = 30 and 80").
+Building the touch alone does not settle that row. There the glue door decides the two cut planes one carrier, and the rims' meeting is in band, so the ops owe `Escalated` (Ev on PR 5973; `work/splitdoor/two-rims-read-coplanar-refuse-unsupported-or-untyped.md`, "Decided").

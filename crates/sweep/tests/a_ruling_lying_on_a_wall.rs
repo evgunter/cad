@@ -765,7 +765,9 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// level of one on the other has no definite sign across that stretch,
 /// and the coplanar ellipse reading refuses it
 /// (`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`, the
-/// touch). Every op refuses `CurvedPierceUnsupported` there, but for the
+/// touch). That meeting is in band, so every op owes `Escalated` there
+/// (`work/splitdoor/roots-unsettled-folds-band-precision-and-fault-into-one-frontier.md`).
+/// Today every op refuses `CurvedPierceUnsupported` there, but for the
 /// three with the first rod first at 80, which escalate on the sector
 /// reading's `conic_bend` before reaching that frontier. None reads the
 /// rims' crossings away.

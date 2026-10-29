@@ -1650,7 +1650,8 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// and moved off the origin. The copies' discs, bounded by an arc, and
 /// their walls, on two keys, each lie on one carrier facing the same way
 /// sharing interior: the finding carries the `SameSideInterference`. Its
-/// overlap is bounded by the copies' intersection, the one cylinder. It
+/// overlap is bounded by the copies' intersection, the one cylinder,
+/// and named by the first copy's four faces, the ones it keeps. It
 /// is loud, and unquietable, since no face of one copy opposes a face of
 /// the other for a gap to hold over, so stage 5's check never refuses
 /// it. What the census leaves undecidable between
@@ -1691,12 +1692,19 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let [finding] = &interference[..] else {
             panic!("{label}: one interference: {interference:?}");
         };
+        let editor_core::Overlap::Bounded { faces } = &finding.overlap else {
+            panic!("{label}: the overlap is bounded: {finding:?}");
+        };
         assert!(
-            matches!(finding.overlap, editor_core::Overlap::Bounded { .. })
-                && finding.is_loud()
-                && !finding.quietable
-                && !finding.refusable(),
-            "{label}: bounded, loud and unquietable: {finding:?}"
+            finding.is_loud() && !finding.quietable && !finding.refusable(),
+            "{label}: loud and unquietable: {finding:?}"
+        );
+        // Each copy's faces lie on the other's, and the intersection keeps
+        // the first copy's (Eq. 15.3): the overlap is named by those four,
+        // the two discs and the two half-bands.
+        assert!(
+            faces.len() == 4 && faces.iter().all(|f| f.copy == finding.a),
+            "{label}: the first copy's four faces name the overlap: {faces:?}"
         );
         let count = |f: fn(&topo::ValidationError) -> bool| {
             finding.evidence.iter().filter(|&e| f(e)).count()

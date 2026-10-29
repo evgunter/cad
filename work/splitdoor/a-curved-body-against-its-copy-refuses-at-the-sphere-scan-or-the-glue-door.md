@@ -4,6 +4,8 @@ kind: issue
 title: A ball, a dome or a revolve with a cone face, booleaned with an identical copy, refuses before the On verdict: at the sphere extent scan or the glue door's second order
 status: open
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 
