@@ -244,7 +244,7 @@ struct Named {
 /// carrier; for a measure its value; for an assertion its verdict whole.
 #[derive(Debug)]
 enum Reading {
-    Refused { class: String, whole: String },
+    Refused { whole: String },
     Bodies(Vec<BTreeMap<String, Named>>),
     Measure(f64),
     Verdict(String),
@@ -257,11 +257,9 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
         other => {
             return Some(match ev.node_error(node) {
                 Some(e) => Reading::Refused {
-                    class: format!("{:?}", e.kind.class()),
                     whole: masked(&format!("{:?}", e.kind)),
                 },
                 None => Reading::Refused {
-                    class: format!("{:?}", core::mem::discriminant(other)),
                     whole: masked(&format!("{other:?}")),
                 },
             });
@@ -471,11 +469,9 @@ fn census(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<String> {
 ///   verdict, whole;
 /// - every document's product census finds the same findings.
 ///
-/// The one exception is a placed union's separation certificate, an
-/// axis-aligned box test, which refuses in a turned frame where it
-/// certifies in the fins' own
-/// (`work/orbit/a-placed-unions-separation-certificate-depends-on-the-computing-axes.md`);
-/// it is named and counted.
+/// A union over a family's rigid images certifies its pairs apart by
+/// axis-aligned boxes, which a turned frame fattens; a pair it does not
+/// certify is judged, so what it builds reads the same.
 ///
 /// *Breaks if* an operation reads an operand's coordinates as its own
 /// computing frame's without `relative` (a measure, a union member, a
@@ -493,7 +489,6 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
     let mut compared = 0usize;
     let mut apart: Vec<String> = Vec::new();
     let mut unmoved: Vec<&str> = Vec::new();
-    let mut uncertified: Vec<(&str, RecipeNodeId)> = Vec::new();
     for d in crate::corpus::documents() {
         let plain = run(&d.doc, None);
         let turned = evaluate::<f64>(&d.doc, None, &CancelToken::new(), &twisted, Tol::witness());
@@ -513,17 +508,6 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
                     continue;
                 }
             };
-            // The one verdict outside the band a frame moves: a placed
-            // union's separation certificate bounds each copy by an
-            // axis-aligned box, which a turned frame fattens
-            // (`work/orbit/a-placed-unions-separation-certificate-depends-on-the-computing-axes.md`).
-            // Counted, so the exception cannot quietly grow.
-            if let (Reading::Bodies(_), Reading::Refused { class, .. }) = (&a, &b)
-                && class == "PlacementsUncertified"
-            {
-                uncertified.push((d.name, node));
-                continue;
-            }
             if let Err(why) = agree(&a, &b, 1e-9) {
                 apart.push(format!(
                     "{}: node {node:?} ({}) reads apart: {}",
@@ -549,11 +533,8 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
         if bodies > 0 && moved == 0 {
             unmoved.push(d.name);
         }
-        // A document whose placed union is the named exception gathers
-        // over that refusal in the turned run; its census is not compared.
-        let excepted = uncertified.iter().any(|(name, _)| *name == d.name);
         let (cx, cy) = (census(&d.doc, &plain), census(&d.doc, &turned));
-        if !excepted && cx != cy {
+        if cx != cy {
             apart.push(format!(
                 "{}: the product census reads apart: {cx:?} vs {cy:?}",
                 d.name
@@ -569,14 +550,6 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
     assert!(
         unmoved.is_empty(),
         "documents with bodies none of which computed in another frame: {unmoved:?}"
-    );
-    assert_eq!(
-        uncertified
-            .iter()
-            .map(|(name, _)| *name)
-            .collect::<Vec<_>>(),
-        ["heat_sink_fins", "heat_sink_fins"],
-        "the placed union and the copy reading it, alone: {uncertified:?}"
     );
     assert!(compared > 100, "{compared} nodes compared");
 }

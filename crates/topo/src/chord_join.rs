@@ -4017,9 +4017,10 @@ fn quadric_loop_arc<T: Decide>(
 /// contributes none, and an edge on a carrier the surface's loops do
 /// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
 /// ([`SplitJoinError::RingIslandUnread`]). A spline edge is read on a
-/// cylinder or a sphere face where it is the certified intersection of
-/// the face's surface with another ([`SplineArc::of_edge`]), and is
-/// unread everywhere else.
+/// cylinder, a sphere or a torus face where it is the certified
+/// intersection of the face's surface with another
+/// ([`SplineArc::of_edge`]), and is unread on a cone, whose pairs the
+/// section table does not carry.
 fn run_loop_arcs<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -4039,10 +4040,11 @@ fn run_loop_arcs<T: Decide>(
             continue;
         };
         let arc = match (quadric, curve.carrier()) {
-            (Quadric::Cylinder { .. } | Quadric::Sphere { .. }, geom::Curve3::Nurbs(_)) => {
-                SplineArc::of_edge(curve, own).map(LoopArc::Spline)
-            }
-            (_, geom::Curve3::Nurbs(_)) => None,
+            (
+                Quadric::Cylinder { .. } | Quadric::Sphere { .. } | Quadric::Torus { .. },
+                geom::Curve3::Nurbs(_),
+            ) => SplineArc::of_edge(curve, own).map(LoopArc::Spline),
+            (Quadric::Cone { .. }, geom::Curve3::Nurbs(_)) => None,
             _ => quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
                 .map_err(|diag| SplitJoinError::Escalated { face, diag })?,
         };

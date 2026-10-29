@@ -2,12 +2,10 @@
 //! static offset the resolution derives (A11's member rule).
 //!
 //! One walk answers both questions. It runs from the body a side's
-//! selection reads down the reads to its name's head, through the nodes that
-//! place a body without renaming it and the unions whose member the
-//! name says, and it yields the MEMBER (the
-//! identity the solve keys pairs by) together with the CHAIN of
-//! pose-bearing nodes whose maps compose onto the minting instance's
-//! pose.
+//! selection reads down the reads to its name's head, through the
+//! families whose member the name says and the unions whose operand it
+//! says, and it yields the MEMBER (the identity the solve keys pairs
+//! by) together with the CHAIN of families it passed.
 //!
 //! Structural throughout: no expression is evaluated in the walk, so
 //! the member a side resolves to never depends on a slot value. The offset —
@@ -16,86 +14,62 @@
 
 use crate::doc::Doc;
 use crate::names::{RoleSeg, VerbatimEdge};
-use crate::node::{Node, PartSelect, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId};
 
 /// **The member a mate reference resolves to** (A11's member
 /// vocabulary): a live `InstantiatePart`, `Place` or construction,
 /// reached from the reference's operand through the nodes that carry a
-/// body to it without renaming it — any number of `Part` instance
-/// selections, any number of `Pattern` levels, each of which the name
-/// qualifies `Instance(i)`, and any number of `Union`s, each of which
-/// the name qualifies `From`, keyed by the member's read.
+/// body to it without renaming it — any number of `Union`s, each of
+/// which the name qualifies `From`, keyed by the member's read — and
+/// at each family the walk passes, the member of it the name says
+/// (`Member { at, of }`, D10 `[repetition]`).
 ///
-/// A member is its instance and the PLACEMENT the walk passed on the
-/// way down: two references that reach one instance through different
-/// placings relate the same pair of instances through different static
-/// offsets, so they are different members, and a bundle holding a
-/// mate on each folds them as two constraints rather than as one
-/// pair. Two references through ONE placement spelled two
-/// ways — read at a placement, and at a union above it naming that
-/// member; read at a `Part` selecting a copy, and at the pattern naming
-/// that copy — are one member, and their mates fold.
+/// A member is its instance and the family members the walk passed on
+/// the way down: two references to two members of one family stand on
+/// two members, and two references through ONE family member spelled
+/// two ways — read at a placement, and at a union above it naming that
+/// member — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
-    /// The instance this member stands on: the head instance itself,
-    /// or — for a pattern-placed member — the innermost pattern's
-    /// INPUT instance, whose pose every copy at every level is derived
-    /// from.
+    /// The instance this member stands on.
     pub instance: RecipeNodeId,
-    /// **The placing nodes the walk passed**, OUTERMOST first: each
-    /// pattern with the copy the name says. Empty
-    /// for a reference read at its instance, or through nothing but
-    /// `Part` selections and unions, which move nothing.
+    /// **The family members the walk passed**, OUTERMOST first, each
+    /// at the index values the name says. Empty for a reference read
+    /// through no family.
     pub chain: Vec<Placing>,
 }
 
-/// One placing node on a member's chain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// One family member on a member's chain.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Placing {
-    /// A pattern, at the structural index the reference's name says.
-    Copy {
-        /// The pattern node.
-        pattern: RecipeNodeId,
-        /// The copy index.
-        index: u32,
+    /// The family the operation `family` defines, at the index values
+    /// the reference's name says.
+    Member {
+        /// The family's operation.
+        family: RecipeNodeId,
+        /// The member's index values.
+        at: crate::names::MemberAt,
     },
 }
 
 impl Placing {
     /// The recipe node this placing is.
     #[must_use]
-    pub fn node(self) -> RecipeNodeId {
+    pub fn node(&self) -> RecipeNodeId {
         match self {
-            Self::Copy { pattern, .. } => pattern,
+            Self::Member { family, .. } => *family,
         }
-    }
-}
-
-impl Member {
-    /// **Which copy this member is, at every level**: one
-    /// `(pattern node, structural index)` per pattern on the chain,
-    /// OUTERMOST first, empty for a member no pattern places.
-    #[must_use]
-    pub fn copy(&self) -> Vec<(RecipeNodeId, u32)> {
-        self.chain
-            .iter()
-            .map(|p| match *p {
-                Placing::Copy { pattern, index } => (pattern, index),
-            })
-            .collect()
     }
 }
 
 /// **The member key, written out.** Its order, every node compared by
 /// id (which is document order: an id's mint ordinal leads it), is
 /// stated rather than derived, so whatever orders members orders them
-/// by recipe structure: `(instance, copy, chain)` — the instance, then the copy
-/// chain (patterns only, outermost first), then the whole placing
-/// chain, each compared lexicographically. The copies lead so that a
-/// copy chain alone decides between two members whenever it differs.
+/// by recipe structure: `(instance, chain)`, the chain compared
+/// lexicographically, outermost first.
 impl Ord for Member {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        (self.instance, self.copy(), &self.chain).cmp(&(other.instance, other.copy(), &other.chain))
+        (self.instance, &self.chain).cmp(&(other.instance, &other.chain))
     }
 }
 
@@ -105,55 +79,21 @@ impl PartialOrd for Member {
     }
 }
 
-/// One pose-bearing node the member walk passed, with what it
-/// contributes to the reference's static offset.
-#[derive(Debug, Clone, Copy)]
-enum Placer {
-    /// A pattern, at the structural index the reference named.
-    Pattern {
-        /// The pattern node.
-        node: RecipeNodeId,
-        /// The copy index the NAME says.
-        i: u32,
-    },
-}
-
-/// The member's view of a placer: which copy, with
-/// the walk's own bookkeeping (the `Part` a check reads) left behind.
-impl From<Placer> for Placing {
-    fn from(p: Placer) -> Self {
-        match p {
-            Placer::Pattern { node, i } => Self::Copy {
-                pattern: node,
-                index: i,
-            },
-        }
-    }
-}
-
-/// What the member walk yields: the member, the pose-bearing nodes
-/// between the operand and the minting instance, OUTERMOST first (the
-/// order the geometry composes them in, so the fold below reads left
-/// to right), and the reference's name as the member's instance names
-/// it.
-///
-/// The member's copy chain is DERIVED from `chain` — it is the
-/// patterns in it, in the same order — so the two never disagree
-/// about which copy the reference names; and `placed` is the name the
-/// same descent reached, one qualifier off per pattern in `chain`.
+/// What the member walk yields: the member, and the reference's name
+/// as the member's instance names it, one `Member` qualifier off per
+/// family on the member's chain.
 #[derive(Debug, Clone)]
 pub(super) struct Walk {
     pub(super) member: Member,
-    /// The name inside every `Instance(i)` qualifier the walk took
-    /// off, headed at the member's instance: a copy's MASTER's name.
+    /// The name inside every `Member` qualifier the walk took off,
+    /// headed at the member's instance: a copy's SOURCE's name.
     placed: crate::names::StableName,
 }
 
 impl Walk {
     /// **The face of the member's source the reference names** — the
     /// name the walk reached at the member, which a copy carries
-    /// verbatim from its source, in the source's own coordinates; a
-    /// pattern's copy reads its master's face.
+    /// verbatim from its source, in the source's own coordinates.
     ///
     /// `None` when that name is no face's.
     pub(super) fn part_face(&self) -> Option<crate::FaceName> {
@@ -175,11 +115,33 @@ impl Walk {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
+pub(super) fn walk<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    r: &crate::node::SitedFace,
+) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
     let mut name: &crate::names::StableName = &r.name;
-    let mut chain: Vec<Placer> = Vec::new();
+    let mut chain: Vec<Placing> = Vec::new();
     loop {
+        // A family's member: the name must SAY which member, and the
+        // walk continues at the same operation under the name inside
+        // the qualifier, which is the member's own.
+        if name.node == at
+            && let Some(RoleSeg::Member { at: values, of }) = name.path.first()
+        {
+            // The qualifier keys every index the family is over, in
+            // order: one that keys fewer names no member.
+            let keys: Vec<crate::VarId> = values.iter().map(|&(index, _)| index).collect();
+            if doc.node_reach(at).chain() != Some(keys.as_slice()) {
+                return Err(at);
+            }
+            chain.push(Placing::Member {
+                family: at,
+                at: values.clone(),
+            });
+            name = of;
+            continue;
+        }
         // A placement's copy, an instance's or a `Place`'s, carries its
         // source's names verbatim: the member the solve poses, whoever
         // minted the name.
@@ -190,33 +152,19 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             return Ok(Walk {
                 member: Member {
                     instance: at,
-                    chain: chain.iter().copied().map(Placing::from).collect(),
+                    chain,
                 },
                 placed: name.clone(),
             });
         }
         if at != name.node {
-            // Not the head yet: only a name-carrying edge
-            // ([`crate::names::verbatim_edge`]) that projects this body
-            // may stand between an operand and the material it speaks
-            // about: a `Part` selecting an instance moves nothing at
-            // all and carries every name
-            // VERBATIM. Anything else — a boolean, a split's intact
-            // pass-through, a mirror's image — is a different body, not this one placed. (A union is the
-            // head of every name it carries, so the walk meets it
-            // below, at the head.)
+            // Not the head yet: no name-carrying edge
+            // ([`crate::names::verbatim_edge`]) projects this body. A
+            // split's intact pass-through or a mirror's image is a
+            // different body, not this one placed. (A union is the head
+            // of every name it carries, so the walk meets it below, at
+            // the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
-                Some(VerbatimEdge::Selected {
-                    of,
-                    select: PartSelect::Instance(_),
-                }) => {
-                    // Pose-neutral and identity-transparent: no
-                    // placer, no name segment, and — because the
-                    // index it carries is an EXPRESSION — nothing
-                    // evaluated. The name is the authority on which
-                    // copy.
-                    at = doc.operation_of(of).ok_or(at)?;
-                }
                 Some(
                     VerbatimEdge::Intact { .. }
                     | VerbatimEdge::Reflected { .. }
@@ -226,21 +174,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     return Err(at);
                 }
             }
-            continue;
         }
         match doc.node(at) {
-            // A pattern's copy: the name must SAY which copy, and the
-            // walk continues at the pattern's input under the name
-            // inside the qualifier. Any number of levels, because a
-            // member's identity carries the whole chain of copies.
-            Some(Node::Pattern { input, .. }) => {
-                let Some(RoleSeg::Instance { i, of }) = name.path.first() else {
-                    return Err(at);
-                };
-                chain.push(Placer::Pattern { node: at, i: *i });
-                name = of;
-                at = doc.operation_of(*input).ok_or(at)?;
-            }
             // A union's member: the name must SAY which member, and the
             // walk continues at that member under the name inside the
             // qualifier. A union moves nothing, so it is no placer: a
@@ -268,7 +203,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 return Ok(Walk {
                     member: Member {
                         instance: at,
-                        chain: chain.iter().copied().map(Placing::from).collect(),
+                        chain,
                     },
                     placed: name.clone(),
                 });
@@ -289,27 +224,18 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 ///
 /// The rule is a WALK, from the operation defining the selection's
 /// body down its reads to the selected name's head, which must be a
-/// live `InstantiatePart`, `Place` or construction.
-/// Between them it admits exactly the nodes that carry a body without
-/// renaming it: any number of `Part`
-/// nodes selecting an `Instance`, any number of `Pattern` levels,
-/// each of which must carry its `Instance(i)` qualifier in the name,
-/// and any number of `Union`s, each of which must carry a `From`
-/// qualifier keyed by one of its member reads. A nested copy is
-/// a member like any other; its identity carries the whole chain of
-/// placings ([`Member::chain`]).
+/// live `InstantiatePart`, `Place` or construction. Between them it
+/// admits any number of `Union`s, each of which must carry a `From`
+/// qualifier keyed by one of its member reads, and at each family, the
+/// `Member` qualifier naming which member ([`Member::chain`]).
 ///
 /// Structural only — no expression is evaluated here, so the member
-/// never depends on a slot value. That includes a `Part`'s
-/// own index, which is an expression in a structural slot: admission
-/// reads the NAME, and the offset checks the node against it.
+/// never depends on a slot value: admission reads the NAME.
 ///
-/// Outside the vocabulary: a non-instance head; a pattern whose name
-/// carries no `Instance(i)` qualifier; a union whose name carries no
-/// `From` qualifier keyed by one of its member reads; anything the walk
-/// meets that places no body of its own — a boolean, a split, a `Part`
-/// naming a split HALF (which is a different body, not this one
-/// placed), a head the walk never reaches at all; and a side that is no
+/// Outside the vocabulary: a non-instance head; a union whose name
+/// carries no `From` qualifier keyed by one of its member reads;
+/// anything the walk meets that places no body of its own — a boolean,
+/// a split, a head the walk never reaches at all; and a side that is no
 /// live one-face selection ([`head_of`]).
 ///
 /// [`crate::refactor::split`]'s interface-crossing collector is one of
@@ -317,19 +243,22 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<Member> {
+pub fn member_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<Member> {
     walk(doc, head).ok().map(|w| w.member)
 }
 
 /// **The member a side resolves to, and the side's name as that
 /// member's instance names it** — [`member_of`]'s walk, with the name
-/// it reached at the instance: inside one `Instance(i)` qualifier per
-/// pattern level the walk consumed ([`Member::copy`]) and one `From`
-/// per union, so a copy answers its MASTER's name. That name is a row
-/// of the instance's own product table.
+/// it reached at the instance: inside one `Member` qualifier per family
+/// the walk passed ([`Member::chain`]) and one `From` per union, so a
+/// copy answers its SOURCE's name. That name is a row of the instance's
+/// own product table.
 ///
 /// `None` exactly where [`member_of`] answers `None`.
-pub fn member_reading<P>(
+pub fn member_reading<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<(Member, crate::names::StableName)> {
@@ -338,12 +267,14 @@ pub fn member_reading<P>(
 
 /// **The face of the member's source a side names** — the side walked
 /// to its member, and the name the walk reached there, which a copy
-/// carries verbatim, in the source's own coordinates; a copy reads its
-/// MASTER's face.
+/// carries verbatim, in the source's own coordinates.
 ///
 /// `None` when the side is outside A11's member vocabulary
 /// ([`member_of`] answers `None`), or when that name is no face's.
-pub fn head_face<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate::FaceName> {
+pub fn head_face<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<crate::FaceName> {
     walk(doc, head).ok()?.part_face()
 }
 

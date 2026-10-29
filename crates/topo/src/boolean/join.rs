@@ -487,8 +487,8 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A cylinder or sphere face, closed by the segment's curve, a
-    /// carried chord ([`GermLane::Carried`]).
+    /// A cylinder, sphere or torus face, closed by the segment's curve,
+    /// a carried chord ([`GermLane::Carried`]).
     Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -512,7 +512,7 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
-    /// A cylinder or sphere face closed by a carried chord, whose run may
+    /// A cylinder, sphere or torus face closed by a carried chord, whose run may
     /// hold earlier carried chords: closed by the chord's arc with its
     /// evidence of lying on the face
     /// ([`crate::chord_join::path_island_winding_closed_by`]).
@@ -4548,8 +4548,9 @@ enum Faced<T: geom_core::Real> {
 /// germ's foot and heading are its own, read once for the operation
 /// ([`super::section_table::SectionTable::germ_foot`]); both germs are
 /// A's halves, the B halves at their slots being mirror checks
-/// ([`partners`]). Two germs on
-/// different components, or leaving the same way, never face. A closed component is travelled round; on an
+/// ([`partners`]). Two germs whose branches name different
+/// components, as [`facing`] reads them, or leaving the same way, never
+/// face. A closed component is travelled round; on an
 /// open one the partner's foot must lie ahead. `Along` carries the
 /// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
 ///
@@ -4565,6 +4566,9 @@ fn along_facing<T: Decide>(
     band: Band,
 ) -> Result<Faced<T>, BooleanError> {
     use super::section_table::{FootRefusal, GermFoot};
+    if g1.branch != g2.branch {
+        return Ok(Faced::Apart);
+    }
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
@@ -4797,7 +4801,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     // Ring lane: decided by the run's winding. A planar, sphere, cone or
     // torus face's run is closed by the segment's curve, so it waits on
     // that curve ([`RoleLane::resolve`]), and so does a carried chord's
-    // cylinder or sphere face; a cylinder face's on a planar section
+    // cylinder, sphere or torus face; a cylinder face's on a planar section
     // closes along its section plane on its chart, decided here, before
     // the curve is computed in the order it decides. An along-edge
     // segment reads no section: a curved face there refuses typed,
@@ -4817,7 +4821,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
         RingClosure::Chord => match crate::ring_path::Quadric::of(surface()?) {
             Some(
                 crate::ring_path::Quadric::Cylinder { .. }
-                | crate::ring_path::Quadric::Sphere { .. },
+                | crate::ring_path::Quadric::Sphere { .. }
+                | crate::ring_path::Quadric::Torus { .. },
             ) => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
@@ -4907,7 +4912,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
-    /// A ring of the cylinder or sphere `face` a carried chord closes.
+    /// A ring of the cylinder, sphere or torus `face` a carried chord
+    /// closes.
     CarriedRing { face: FaceKey },
 }
 
@@ -5008,7 +5014,7 @@ fn ring_order<T: Decide>(
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve, and
-/// a carried chord's cylinder or sphere face
+/// a carried chord's cylinder, sphere or torus face
 /// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
@@ -5126,7 +5132,7 @@ fn run_spline_edge<T: Decide>(
 /// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
 /// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
 /// naming that ring's face; one that passes the tip of a slit or ring
-/// of either operand's ([`super::sectors::SlitTips`]): `side`'s own, or
+/// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
@@ -5187,7 +5193,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
 }
 
 /// The slit or ring whose tip one of `side`'s `vertices` is
-/// ([`super::sectors::SlitTips`]), as its operand and carrying face:
+/// ([`crate::sector_shape::SlitTips`]), as its operand and carrying face:
 /// `side`'s own at the vertex, else the other's at a vertex the other
 /// holds there, a vertex pair's partner or a pierce the vertex's ring
 /// serves. A null edge's copy of a vertex reads as the vertex.

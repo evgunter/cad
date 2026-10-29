@@ -56,9 +56,7 @@ finer pose read through the role it is read through), bound at the
 reader's seat.
 
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
-materialize and are never stored (`names/select.rs`); `PlacedUnion` is a node
-beside `Pattern`, not a flag on it, because forking a result type on a variant
-is the silent-dispatch trap D3 forbids (`node.rs`).
+materialize and are never stored (`names/select.rs`).
 
 ## DM1 — A sketch on a face is placed against the face's plane
 
@@ -227,12 +225,9 @@ carry that cost on top of its own. So the chain goes, not the link:
   an empty fold step is the typed empty result for an intersect and a
   kernel bug for a union. A union reads shapes already in one space and
   places nothing: a placement defines copies, and the union reads them, so the
-  union of a pattern's copies is this node over the pattern's members.
-  `PlacedUnion` (`node.rs`) both places copies of one prototype and
-  fuses them, so it retires into those two: a placement of the copies,
-  and this union reading them. When its bodies are rigid images of one
-  body, visible in the reads, the union has a fast path: bodies it
-  certifies disjoint are grafted without a boolean (the group boolean,
+  union of a pattern's copies is this node over the family. When its
+  bodies are rigid images of one body, visible in the reads, the union has
+  a fast path: pairs it certifies apart are not judged (the group boolean,
   `README.md`).
 - **Naming keys by the read, not by depth.** An operation that carries an
   entity in from an input wraps its name in `From { read: VarId, of:

@@ -1444,7 +1444,7 @@ pub mod bounds_allowlist {
     //! certificate is the base scalar's. **Whether they should carry
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
     //! not the door** — the one production caller,
-    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `editor_core::eval::wire::images_apart`, sits beneath
     //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
     //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
     //! by propagation. **Doors tighten; passes keep their lanes.** (The

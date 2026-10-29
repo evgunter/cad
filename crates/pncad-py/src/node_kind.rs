@@ -24,7 +24,7 @@
 //! # The words are not the wire's words
 //!
 //! The saved text spells a node by its Rust variant identifier
-//! (`"PlacedUnion"`), because that is serde's rendering of the enum
+//! (`"InstantiatePart"`), because that is serde's rendering of the enum
 //! and it belongs to the persistence format's own compatibility
 //! contract. The words here are snake_case, the convention every
 //! other stable string this crate publishes already follows
@@ -69,9 +69,6 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Place { .. } => "place",
         Node::World => "world",
         Node::Space => "space",
-        Node::Pattern { .. } => "pattern",
-        Node::Part { .. } => "part",
-        Node::PlacedUnion { .. } => "placed_union",
         Node::InstantiatePart { .. } => "instantiate_part",
         Node::Measure { .. } => "measure",
         Node::Assertion { .. } => "assertion",

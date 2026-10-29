@@ -43,7 +43,7 @@ distributions, duals, stackups), `docs/ERROR-DESIGN.md` and
 | Decisions | Modules |
 |---|---|
 | Witness W1–W9 | `src/witness.rs` (`WitnessDatum`, `BranchCertification`, `WitnessBifurcation`); `src/edit.rs` (`ReWitness`, `ReWitnessBulk`); `src/doc.rs` (`Doc::witness`); `src/eval/mod.rs` (`NodeErrorKind::WitnessBifurcation`, `content_key`); `src/resolve/mod.rs` (`Diagnosis::WitnessBifurcation`) |
-| Group boolean | `src/node.rs` (`Node::PlacedUnion`, `PatternKind::Explicit`, `Node::placement_rule_fault`); `src/eval/wire.rs` (`wire_placed_union`); `src/names/emit.rs` (`name_placed_union`); `crates/topo/src/separation.rs` (`Separation`); `crates/topo/src/instance.rs` (the graft doors) |
+| Group boolean | `src/eval/wire.rs` (`images_apart`, `fold_members`); `src/eval/counters.rs` (`judgements`); `crates/topo/src/separation.rs` (`Separation::apart`); `crates/topo/src/boolean/nary.rs` (`Apart`, `nary_boolean_apart`) |
 | Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_value`); `src/eval/mod.rs` (`ProfileLane`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
 
 ## The witness mechanism (W1–W9)
@@ -147,23 +147,24 @@ path, taken when its bodies are rigid images of one body, visible in the
 reads.
 
 - **Naming does not grow.** Each copy's names carry its `Member { (i, …),
-  of }` segment, keyed by the index variables' ids; each copy's rows are
-  re-keyed onto the one output body through that copy's graft bridge.
+  of }` segment, keyed by the index variables' ids; each copy's rows reach
+  the one output body as any union member's do.
 - **Disjointness is certified, never declared.** `topo::Separation::of` builds
-  one BVH of padded conservative face boxes over the one body; `certify(maps)`
-  tests each pair `(i, j)` in that body's frame through `M_i⁻¹ ∘ M_j`. Box
+  one BVH of padded conservative face boxes over the one body;
+  `Separation::apart(maps)` tests each pair `(i, j)` in that body's frame
+  through `M_i⁻¹ ∘ M_j` and returns the pairs it certifies apart. Box
   separation is real separation, and the test is sufficient-not-necessary:
-  copies it cannot certify disjoint go through the union's ordinary n-ary
-  door (DM4, `topo::nary_boolean`), which decides their contact as for any
-  members. The
-  certificate runs before any body is placed.
-- **Lowering.** In index order (D9), each certified copy goes through
-  `graft_disjoint_all_keyed`, minting its own solids, so the result is a body
-  of one solid per copy. That is the body the pairwise fold produces, since a
-  solid is one piece of material (`docs/DESIGN.md`), and it is a boolean
-  operand like any other, since booleans take bodies, a body of several
-  parts included. No new kernel op or naming record; `BooleanNaming`
-  stays two-operand.
+  a pair it cannot certify apart is judged by the union's ordinary n-ary
+  door (DM4, `topo::nary_boolean`), which decides its contact as for any
+  members. The certificate runs before any body is placed.
+- **Lowering.** The union runs `topo::nary_boolean_apart` with the certified
+  pairs (`topo::Apart`): the n-ary door judges every other pair and never a
+  certified one, so a family whose pairs are all certified is a body of one
+  solid per copy, judged nowhere. That is the body the full judgement
+  produces, since a solid is one piece of material (`docs/DESIGN.md`), and it
+  is a boolean operand like any other. The judged pairs are counted
+  (`EvalCounters::judgements`), which is how the fast path is visible. No new
+  kernel op or naming record; `BooleanNaming` stays two-operand.
 
 ## The profile-parameter lift (PP1–PP6)
 

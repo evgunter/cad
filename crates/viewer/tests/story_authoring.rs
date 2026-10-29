@@ -46,9 +46,7 @@ use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{
-    DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, SessionOp,
-};
+use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------
@@ -379,9 +377,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         };
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
-    // Fusing THESE onto the rook is refused at the door, typed: a
-    // pattern's value is several bodies, not the ONE a boolean seat
-    // consumes (the F4 division the heatsink demo documents).
+    // Fusing THESE onto the rook is refused at the door, typed: a union's
+    // member seat reads the family whole (D10 `[repetition]`), its
+    // members joining the list, but the family stands in the block's own
+    // space and the carved rook in the rook's, and a union reads its
+    // members in one space.
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
@@ -389,8 +389,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(
         matches!(
             &refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                if node.id() == pattern
+            Some(Refusal::Edit(edit))
+                if matches!(edit.as_ref(), pncad::document::EditError::SpaceMismatch { .. })
         ),
         "{:?}",
         refused.refusal
@@ -403,7 +403,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // boolean seat takes without complaint.
     let merlons = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
@@ -418,7 +418,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         let eval = session.evaluation().expect("the fused group landed");
         let value = eval.value(merlons).expect("the group evaluated");
         assert!(
-            matches!(value.payload, ValuePayload::Body(_)),
+            matches!(
+                value.payload,
+                ValuePayload::Boolean(pncad::document::BooleanValue::Body { .. })
+            ),
             "the fused group is ONE body where the pattern was four"
         );
     }
@@ -458,17 +461,28 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // The crenellated rook's world placement reads the union, so it is
     // in the cone too (A10): the cascade takes the copy with the body.
     let rook_copy = common::copy_of(session.committed_doc(), crenellated);
+    // The fused door's family: the placement its union reads whole.
+    let Some(pncad::document::Node::Union {
+        members: pncad::document::Bodies::Family(family),
+    }) = session.committed_doc().node(merlons)
+    else {
+        panic!("the fused door mints a union over the family");
+    };
+    let fused_family = session
+        .committed_doc()
+        .operation_of(family.read)
+        .expect("the family is a node");
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
         format!(
-            "Delete Extrude {} and 5 dependent features",
+            "Delete Extrude {} and 6 dependent features",
             test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["1 × Pattern", "1 × PlacedUnion", "1 × Union", "2 × Place"]
+            ["2 × Union", "4 × Place"]
                 .iter()
                 .all(|kind| hover.contains(kind))
         }),
@@ -477,14 +491,22 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(
         affordance.cascade,
-        vec![rook_copy, crenellated, crowning, merlons, pattern, block],
+        vec![
+            rook_copy,
+            crenellated,
+            crowning,
+            merlons,
+            fused_family,
+            pattern,
+            block
+        ],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        6,
+        7,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
