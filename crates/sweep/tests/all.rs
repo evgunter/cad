@@ -1288,3 +1288,5 @@ mod fallback_rows_review;
 
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
+#[path = "review_5956_delta_needle.rs"]
+mod review_5956_delta_needle;
