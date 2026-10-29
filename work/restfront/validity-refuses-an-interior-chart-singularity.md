@@ -27,7 +27,7 @@ owns rim/meridian classification; the unit says which and why. The
 Euler door is the one native way to state it
 (`crates/topo/tests/mesh12_rim_row_reach.rs::two_level_rim_cap`).
 
-Lands AFTER `work/exch/import-normalizes-the-rim-only-cap.md`. With it,
+Lands AFTER `work/foreign/import-normalizes-the-rim-only-cap.md`. With it,
 props' rim-only arm (PR 2741: `sphere_rim_only_pole_level`,
 `require_rim_only_closed`, and the rim-only half of
 `rim_interior_side`'s callers) is unreachable through a valid body and

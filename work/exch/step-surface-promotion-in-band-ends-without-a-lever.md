@@ -4,6 +4,8 @@ kind: issue
 title: STEP surface promotion reads raw f64 against eps_in, and its ill-conditioned arm refuses RecognitionAmbiguous with no lever where the definite arm refuses Topology
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane

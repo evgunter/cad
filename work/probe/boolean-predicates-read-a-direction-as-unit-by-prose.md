@@ -63,3 +63,14 @@ Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and i
 slack's ratio but scales the travel margin (`bool_join_arc_travel`,
 `bool_join_arc_ahead`) by `1/|dir|`, silently. A `UnitVec3<T>` on
 `HalfGerm::dir` would cover this reader too.
+
+## 2026-10-29 — the sector directions' bullet is closed (SPLITDOOR)
+
+`sectors.rs` `parallel_same` now normalizes both directions before it
+levers their cross-norm and their cosine (PR 5983, which merged
+`recl.rs` `parallel_same_dir` into it), so `bool_dir_parallel`, `bool_ee_collinear`
+and the `bool_dir_same` it reaches read a length whatever the bounds'
+norms. `direction_sense`'s other callers (`within`'s half-planes,
+`insert.rs` `tied_held` and `strut_order`, `vtxfac.rs` `germ_order`, the
+crescent gate's normals) still take their directions as given;
+`BoolSector::{start, end}` as `UnitVec3<T>` would cover them.

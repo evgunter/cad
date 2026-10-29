@@ -45,13 +45,12 @@ pub enum NodeKindWanted {
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
     /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set and why a pattern's instances are not in it), or
-    /// a split's half read by its port ([`admits_read`]).
+    /// admissible set), or a split's half read by its port
+    /// ([`admits_read`]).
     Body,
-    /// A node whose value is a pattern's INSTANCES — what a
-    /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
-    /// it defines a `Bodies` variable, a pattern's or a transform's of
-    /// one (its kind fixed at minting off its operand).
+    /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
+    /// node evaluated once per value of the indices it reaches (D10
+    /// `[repetition]`), or one whose output is a `Bodies` variable.
     Instances,
 }
 
@@ -71,12 +70,19 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
     let held = doc.node(node);
     match wanted {
         NodeKindWanted::Body => combine::denotes_body(doc, node),
-        NodeKindWanted::Instances => doc
-            .read_of_node(node)
-            .and_then(|read| doc.var(read))
-            .is_some_and(|var| {
-                pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-            }),
+        NodeKindWanted::Instances => {
+            held.is_some()
+                && doc
+                    .node_reach(node)
+                    .chain()
+                    .is_some_and(|chain| !chain.is_empty())
+                || doc
+                    .read_of_node(node)
+                    .and_then(|read| doc.var(read))
+                    .is_some_and(|var| {
+                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
+                    })
+        }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
 }
@@ -115,7 +121,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Split { .. }
         | Node::Mirror { .. }
-        | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -129,8 +134,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Assemble { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Place { .. }
         | Node::World
@@ -1004,6 +1007,7 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
+        | ValuePayload::Family
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

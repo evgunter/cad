@@ -365,7 +365,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     );
     run(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: block.into(),
             count: 2,
             rule: row(),

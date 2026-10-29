@@ -176,27 +176,19 @@ pub(crate) enum Copying {
     Own,
     /// A `Place` reads the body.
     Whole,
-    /// A `Place` reads a `Part` picking one of the body's bodies, the
-    /// pick's index the count variable held here.
-    Pick(crate::VarId),
+    /// A `Place` reads one member of the family `body` is
+    /// (`xs[i]`, [`crate::BodyRead`]).
+    Member,
 }
 
 /// **Every placement copying the body `body`**, in document order, and
-/// how: the placement whose output it is, each `Place` reading it, and
-/// each `Place` reading a `Part` that picks one of its bodies, once per
-/// pick.
+/// how: the placement whose output it is, and each `Place` reading it,
+/// whole or one member of it.
 pub(crate) fn copies_of<P>(
     doc: &crate::doc::Doc<P>,
     body: crate::VarId,
 ) -> Vec<(RecipeNodeId, Copying)> {
     let own = doc.operation_of(body);
-    let pick = |shape: crate::VarId| match doc.operation_of(shape).and_then(|at| doc.node(at)) {
-        Some(crate::Node::Part {
-            of,
-            select: crate::node::PartSelect::Instance(index),
-        }) if *of == body => Some(Copying::Pick(*index)),
-        _ => None,
-    };
     let mut out = Vec::new();
     for p in doc.placements() {
         if own == Some(p) {
@@ -207,9 +199,14 @@ pub(crate) fn copies_of<P>(
             continue;
         };
         if source.read == body {
-            out.push((p, Copying::Whole));
-        } else {
-            out.extend(pick(source.read).map(|how| (p, how)));
+            out.push((
+                p,
+                if source.is_indexed() {
+                    Copying::Member
+                } else {
+                    Copying::Whole
+                },
+            ));
         }
     }
     out

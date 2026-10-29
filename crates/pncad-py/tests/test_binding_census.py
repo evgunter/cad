@@ -1015,15 +1015,6 @@ BOUND_AS = {
     # it could not build was the one whose third field this façade did
     # not carry.
     "MetaVersionError": "EditError.inner_variant",
-    # `CountMismatch` is what `EditError::PlacementRuleMismatch` carries:
-    # which answer to "how many placements" the node gives twice, three
-    # shapes with three different repairs, crossing at the carrier's
-    # second word (`listed_with_count`, `stepped_without_count`,
-    # `listed_on_pattern`). Every carrier of the fault publishes it the
-    # same way: `Node.placed_union`'s boundary refusal on
-    # `EditError.inner_variant` too, and `NodeErrorKind::PlacementRule`
-    # on `EvaluationError.inner_kind`.
-    "CountMismatch": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
     # `PersistError.variant` says WHICH stage refused; three of these
@@ -1119,16 +1110,9 @@ BOUND_AS = {
     # and its `StationMove`s.
     "LoftSection": "Node.loft",
     "PinRefusal": "EditError.variant",
-    # What a frame fails to be a placement: the edit door spreads it
-    # into arms of its own, so its discriminant crosses as
-    # `EditError.variant` (`non_finite_placement`,
-    # `non_rigid_placement`).
+    # What a frame fails to be a placement crosses as the refusal of
+    # the door that met it, on `EditError.variant`.
     "FrameFault": "EditError.variant",
-    # Which of a node's placement frames an edit refusal is about: its
-    # position crosses as `EditError.index` (a transform's step, an
-    # explicit rule's listed placement), `None` for an instance's own
-    # placement frame, the only one it has.
-    "FrameSite": "EditError.index",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -1328,19 +1312,7 @@ BOUND_AS = {
     # as a key type for no gain, since both are read in order and
     # never looked up by one id.
     #
-    # `PlacementRuleFault` crosses as `EditError.variant`
-    # (`placement_rule_mismatch`, `empty_placement_list`,
-    # `non_finite_placement`, `non_rigid_placement`). It sat in the
-    # `gap` roster carrying the reason "a placement is set by an edit
-    # Python cannot author" — MEASURED WRONG, and corrected here: the
-    # fault is the GROUP BOOLEAN's placement-rule fault, not the
-    # assembly registry's, and `Node.placed_union_at` has reached it
-    # since LIB-PYPU (a non-rigid frame raises `non_rigid_placement`
-    # today). `DocEdit.set_offset`'s own refusals are separate
-    # `EditError` arms that share the tag namespace, so binding it
-    # changed nothing about this entry except who noticed.
-    #
-    # `InputFault` (DM5) is the same shape one door further: the rule
+    # `InputFault` (DM5): the rule
     # is stated once on the node and rendered by three doors, and the
     # two a Python caller can reach are edit doors, so it crosses as
     # `EditError.variant` — `repeated_designation` and
@@ -1369,7 +1341,6 @@ BOUND_AS = {
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
-    "PlacementRuleFault": "EditError.variant",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
     # What a `PieceInvalid` refusal lists, one per failing source body;
@@ -1380,6 +1351,14 @@ BOUND_AS = {
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
     "ValuePayload": "Value.kind",
+    # An index's declaration (D10 `[repetition]`) is a `VarDecl` arm,
+    # and a member's index values cross as plain lists beside the
+    # member they place.
+    "Index": "VarDecl.index",
+    "MemberAt": "Value.members",
+    # Why an index is refused as declared crosses at the carrier's
+    # second word (`count_not_count`, `within_no_index`).
+    "IndexFault": "EditError.inner_variant",
     "all_bodies": "Evaluation.all_bodies",
     "all_edges": "Evaluation.all_edges",
     "all_faces": "Evaluation.all_faces",
@@ -1898,7 +1877,7 @@ FAMILIES: dict[str, str] = {
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
 #: `Maintenance`, `reading_edges`,
-#: `relative_freedom_components`, `solve_document`), instantiated parts (`PlacementRuleFault`),
+#: `relative_freedom_components`, `solve_document`), instantiated parts,
 #: split and inline (`split`, `inline`, `SplitOutcome`,
 #: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
 #: `InterfaceRecord`, `InterfaceCrossing`) and the product
@@ -1912,15 +1891,6 @@ FAMILIES: dict[str, str] = {
 #: have matched to each other, which is exactly how this family stayed
 #: invisible for as long as it did.
 #:
-#: One correction the closing measured, recorded rather than quietly
-#: fixed: `PlacementRuleFault` carried the reason "no document Python
-#: can produce reaches one — a placement is set by an edit Python
-#: cannot author". That was measured against the wrong door. The fault
-#: is the GROUP BOOLEAN's placement-rule fault, and
-#: `Node.placed_union_at` has reached it since LIB-PYPU; the
-#: instance-offset edit, `DocEdit.set_offset`, changes nothing about
-#: it, because that edit's own refusals are separate `EditError` arms
-#: sharing the tag namespace.
 #: **B-CHECKS is CLOSED and no longer a `gap` id here**
 #: (LIB-B-CHECKS). It held thirteen names, the largest census-owned
 #: family: `run_checks`, `enforce_checks`, `subject_body`,
@@ -2026,51 +1996,6 @@ FAMILIES: dict[str, str] = {
 #: origin is the pose's, its normal is `sense * axis`, its +x is
 #: `u_ref` turned by the spin about that normal, and the face whose
 #: kind reads `Torus` is the face the sketch refuses.
-#: **B-PART is CLOSED and no longer a `gap` id here**
-#: (LIB-B-PART), and it is B-FACE-FRAME's lesson arriving twice more,
-#: once at each level this file cannot see into. It cited ONE name —
-#: `PartSelect`, which is now spelled identically in `pncad.pyi` and
-#: so leaves this roster entirely under rule 1 — and its charter named
-#: THREE things.
-#:
-#: `Node.part` is an ARM of a curated enum. `Node` is curated and the
-#: stub declares a top-level `Node`, so rule 1 accounts it WHOLE, and
-#: which of its two dozen arms Python spells as a constructor is
-#: invisible here. That is the same blind spot as `Pose.sense` one
-#: level over: a FIELD there, a VARIANT here, and the census compares
-#: NAMES, whose insides are nobody's roster.
-#:
-#: `SlotId.Instance` is a field of a `different-shape` row, and the
-#: shape argument is what hid it: "`SlotId` is what
-#: `DocEdit.bind_count_param` names implicitly" is true and remains
-#: true, and it means a slot with NO door is unreportable. `Instance`
-#: had none — `bind_count_param` hardcodes `SlotId::Count`, and its
-#: own prose claimed that was "the only structural slot there is",
-#: which four Count-dimensioned slots contradict. Closing the family
-#: added `DocEdit.bind_instance_param` beside it, one door per slot,
-#: keeping the shape decision rather than crossing the enum.
-#:
-#: That row has since moved into `BOUND_AS` (LIB-DOORS-1), and the
-#: paragraph above is unchanged by the move: the door-per-slot
-#: decision it records is about ADDRESSING a slot, and what moved is
-#: reading one off a refusal.
-#:
-#: The third thing is not a name at all, and is the measurement worth
-#: keeping here: closing this family REQUIRED binding a door the
-#: charter never mentioned. `PartSelect.instance` selects out of a
-#: plural `Instances` payload, exactly one node emits one
-#: (`Node::Pattern`), and that node was deliberately unbound because
-#: no downstream door consumed its value. `Node.part` IS that door, so
-#: binding the selector without the source would have shipped an
-#: unreachable half and an unconstructible refusal tag. Nothing in
-#: this file could have reported that: both names are arms behind
-#: `Node`. What found it was reading the kernel for the family's
-#: INPUTS, and that is a step this census cannot prompt.
-#:
-#: What closing it bound: `Node.part(of, select)`,
-#: `PartSelect.instance`, `Node.pattern`,
-#: and `DocEdit.bind_instance_param`. The positive form is
-#: `tests/test_part_select.py`.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
 #: (LIB-B-NOTATION), and it is the first family whose roster was
 #: HONEST about its own entries: it cited two names, `WrittenLength`
@@ -2939,13 +2864,6 @@ NOT_BOUND = {
     # word plus prose, and each site's clause is its own, so a Python
     # caller reads the site in the message.
     "EdgeCarrierSite": INTERIOR,
-    # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
-    # turn or more lands every copy on the master or names an angle
-    # within the turn. Carried in Rust so a consumer matching that
-    # variant can name the field's type; interior here because Python
-    # never holds one. The refusal crosses as `full_range_step` plus
-    # its sentence, which names the angle.
-    "StepTurns": INTERIOR,
     # `BooleanError::CoincidentShell`'s orientation: why the settled
     # coincidence pairs did not certify a shell lying on the other
     # operand. Carried in Rust so a consumer matching that variant can
@@ -3226,15 +3144,6 @@ NOT_BOUND = {
     # paragraph in this constant's docstring says why, because that
     # gap between a three-door charter and a one-row roster is the
     # measurement worth keeping.
-    # B-PART IS GONE FROM THIS ROSTER, closed at LIB-B-PART, and the
-    # id left `FAMILIES` with it. It cited exactly ONE name here —
-    # `PartSelect` — which now leaves the roster ENTIRELY rather than
-    # moving to `BOUND_AS`: `pncad.pyi` declares a top-level
-    # `PartSelect` with the same two arms, so rule 1 accounts it, the
-    # way it accounts the sibling selector vocabulary `PatternKind`.
-    # The closure paragraph in this constant's docstring says what the
-    # family's other two charter names were, and why neither was ever
-    # a row.
     # B-NOTATION IS GONE FROM THIS ROSTER, closed at LIB-B-NOTATION,
     # and the id left `FAMILIES` with it. It cited TWO names here —
     # `WrittenLength` and `WrittenAngle` — and both leave the roster
@@ -3342,7 +3251,7 @@ NOT_BOUND = {
     # mates and the solve, instantiated parts, split/inline, the
     # product — and every one of them is accounted for: name-for-name
     # in `pncad.pyi`, or in `BOUND_AS` because their Python shape
-    # differs (`NodeMap`, `PlacementRuleFault`, and `MateSide`, which
+    # differs (`NodeMap`, and `MateSide`, which
     # is both). The
     # positive form is `tests/test_assembly_author.py`.
     # B-CHECKS IS GONE FROM THIS ROSTER, closed at LIB-B-CHECKS, and
@@ -3734,10 +3643,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::PlacementRuleMismatch": "EditError.variant",
-    "EditError::EmptyPlacementList": "EditError.variant",
-    "EditError::NonFinitePlacement": "EditError.variant",
-    "EditError::NonRigidPlacement": "EditError.variant",
+    "EditError::IndicesUnrelated": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
@@ -3751,6 +3657,8 @@ MEMBERS_BOUND_AS = {
     "EvalError::ContinuousExprInCountEval": "EvalError.variant",
     "EvalError::CountOverflow": "EvalError.variant",
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
+    "EvalError::IndexOutsideMember": "EvalError.variant",
+    "EvalError::ModByNonPositive": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
     # A name or fresh read evaluated outside a document: the lowering's
     # own words ride `EvalError.variant` (`unlowered_name`, ...).
@@ -4105,9 +4013,8 @@ MEMBERS_BOUND_AS = {
     # being false.
     "Denotation::Unique": "Denotation.tied",
     # The structural-slot edit, reached through one door per slot rather
-    # than by naming the arm — `bind_count_param`, `bind_instance_param`
-    # and `bind_v_degree_param` all build this arm.
-    "DocEdit::SetStructuralParam": "DocEdit.bind_count_param",
+    # than by naming the arm — `bind_v_degree_param` builds this arm.
+    "DocEdit::SetStructuralParam": "DocEdit.bind_v_degree_param",
     # THE RUST RUN'S OWN FIELDS, under a Python class that is a different
     # type: `pncad.pyi`'s `Evaluation` is the binding's captured
     # (document, evaluation) pair. Four of its ten fields carry names
@@ -4177,6 +4084,10 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # word that is about something else.
     "NodePickError::Index": "NodePickError.index",
     "PersistError::Snapshot": "PersistError.snapshot",
+    # A coincidence of words: `EditError.index` is the payload's
+    # position (a transform's step, a list entry), and the arm, an index
+    # refused as declared, crosses as the tag word `variant == "index"`.
+    "EditError::Index": "EditError.index",
     # The arm's PAYLOAD, whole: the value the arm carries, `None` on
     # every other arm. Each arm itself crosses as the tag word beside
     # it (`variant == "interference"`, `"carried_interference"`,

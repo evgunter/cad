@@ -41,8 +41,7 @@ use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow, VarName,
-    apply, product_recorded,
+    Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow, product_recorded,
 };
 use fixture::{Recorder, band, len};
 use geom_core::Tol;
@@ -331,22 +330,7 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
 /// The corpus heat sink with its fin count driven to `fins`, and each
 /// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
-    let entry = documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let driven = apply(
-        &entry.doc,
-        &DocEdit::DefineVar {
-            var: VarName::from_static("fins").into(),
-            def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    crate::corpus::place_pattern_to(driven, fins)
+    crate::corpus::heatsink::placed_fins(fins)
 }
 
 #[test]

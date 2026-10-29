@@ -109,8 +109,9 @@ by the variable the input slot reads, DM4: a union's or intersect's members,
 a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
-chamfer, told apart by the minting node), pattern `Instance { i, of }`
-with `i` recipe-structural. Role arguments are themselves names; profile locators
+chamfer, told apart by the minting node), family `Member { at, of }`
+with `at` the member's index values, keyed by the family's index
+variables. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
@@ -129,8 +130,9 @@ a name which output holds the entity, so a split's roles carry no half
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
 states. Each output has its own table, so a split's roles say no half;
-the pattern's `Instance { i }` segment still restates the output, only to
-keep one node's table distinct. D10 makes the compensation fail: `P1` and
+a family is one variable holding a body per value of its indices, so its
+`Member { at }` segment says which member holds the entity, the one
+segment a variable's own scope cannot. D10 makes the compensation fail: `P1` and
 `P2` are two placements of `X`, each equally a copy of it; pinned into one
 space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
 verbatim (a placement adds no name segment, above), which one table per
@@ -669,8 +671,9 @@ was stamped (D9). Epochs come from a process-wide counter that SATURATES rather
 than wrapping — an epoch is never reused, and a seal past that point simply
 leaves the table unstamped. A table is sealed the first time it is read as an
 operand, by `defer::upstream_name` for a table read one entity at a time and by
-`emit_union::member_view`, `emit::name_pattern`, `emit::name_placed_union` and
-`emit::name_in_part` for one read whole; a row inserted after a seal is
+`emit_union::member_view` (and its repeated and lone-member twins),
+`emit::name_family`, `emit::name_copy` and `emit::name_assemble` for one read
+whole; a row inserted after a seal is
 unstamped and compares structurally, and a clone starts unsealed so what it
 gains is stamped on its next operand use.
 

@@ -801,7 +801,7 @@ the first to fail) retired into `ProductError::RootInvalid`, which lists
 EVERY failing root and output, and `ProductInvalid` now means only
 "every source passes", a graft defect. STEP import's per-instance gate
 is the same shape on the import path and is EXCH's
-(`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
+(`work/importgate/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
 
 #### 17. `geom-core` has zero `#[inline]` attributes **[verified]**
 

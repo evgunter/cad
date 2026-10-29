@@ -92,9 +92,8 @@ pub(crate) fn measure_unavailable_at_err(
 /// geometric readings, `gap` is C5's SIGNED mating gap, and
 /// `min_clearance` is the one an engine answers.
 ///
-/// The shape is `PatternKind`'s and `PartSelect`'s: a frozen value
-/// class of static constructors, one per kernel arm, spelled in snake
-/// case. Each reference is a `(node, name)` pair: the entity's stable
+/// The shape is `StationMove`'s: a frozen value class of static
+/// constructors, one per kernel arm, spelled in snake case. Each reference is a `(node, name)` pair: the entity's stable
 /// name, and the node its carrier is READ AT. A text that is not a name
 /// refuses here with `ValueError`.
 #[pyclass(frozen, module = "pncad", from_py_object)]

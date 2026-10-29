@@ -11,9 +11,9 @@
 use crate::fixture;
 use editor_core::{
     Bodies, CheckEvidence, DocEdit, DocumentId, EvalOptions, Evaluation, FindingSubject, Node,
-    Operand, PartSelect, ProfileDoc, RecipeNodeId, VarId, apply,
+    Operand, ProfileDoc, RecipeNodeId, VarId, apply,
 };
-use fixture::{len, on_frame, run, scl, square};
+use fixture::{len, on_frame, run, square};
 use geom_core::Tol;
 
 /// A block of half-width `half` centred at `(x, y)`, from `0` to
@@ -95,30 +95,35 @@ fn assembled_family(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, Recip
     )
 }
 
-/// Two copies of `source` along x, `pitch` apart: a pattern.
+/// Two copies of `source` along x, `pitch` apart: a family over an
+/// index, member `k` slid `scalar(k)·pitch` (D10 `[repetition]`), in
+/// `source`'s space. Inserted plainly: the rows name their product, so
+/// no world `⊔` gathers the family beside it.
 fn patterned(doc: ProfileDoc, source: RecipeNodeId, pitch: f64) -> (ProfileDoc, RecipeNodeId) {
+    let name = fixture::fresh_index_name(&doc);
+    let (doc, k) = fixture::index(doc, &name, 2);
+    let target = fixture::space(&doc, source);
+    let read = fixture::body_read(&doc, source.into());
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(k, [1.0, 0.0, 0.0], pitch),
+    );
     put(
         doc,
-        Node::Pattern {
-            input: source.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(pitch),
-            },
-        },
+        Node::place(
+            editor_core::BodyRead::plain(read),
+            Operand::Var(target),
+            placed.bundle(),
+        ),
     )
 }
 
-/// Member `i` of `family`, read through a projection.
+/// Member `i` of `family`, read by an indexed read and placed where it
+/// stands, inserted plainly as [`patterned`] is.
 fn member(doc: ProfileDoc, family: RecipeNodeId, i: i64) -> (ProfileDoc, RecipeNodeId) {
-    put(
-        doc,
-        Node::Part {
-            of: family.into(),
-            select: PartSelect::Instance(editor_core::Formula::count(i)),
-        },
-    )
+    let node = fixture::member_node(&doc, family, vec![editor_core::Formula::count(i)]);
+    put(doc, node)
 }
 
 /// `a ⊔ a'`: two world blocks overlapping in general position.
