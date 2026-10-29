@@ -54,6 +54,7 @@ use geom_brep::{
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
+use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
     UnreadNeighbourhood,
@@ -2014,23 +2015,27 @@ pub(super) fn runs_into<T: Decide>(
 /// **Whether two directions are parallel and point the same way**: the
 /// sine of their angle levered at `arm`, decided Zero, then their sense
 /// ([`direction_sense`]). Both are read off the directions normalized,
-/// so a margin is a length whatever the directions' norms. `predicate`
-/// names the parallelism margin and `coincide` the coincidence an
-/// in-band reading refuses as: each is the caller's reading.
+/// so a margin is a length whatever the directions' norms. The caller's
+/// `reading` names the parallelism margin and the coincidence an in-band
+/// reading refuses as.
 pub(super) fn parallel_same<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
-    (predicate, coincide): (&'static str, Coincide),
+    reading: Parallelism,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let (u, v) = (u.normalize(), v.normalize());
-    match decide(predicate, Margin::levered(u.cross(v).norm(), arm), band) {
+    match decide(
+        reading.predicate,
+        Margin::levered(u.cross(v).norm(), arm),
+        band,
+    ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
         Err(diag) => {
             return Err(BooleanError::coincidence(
-                coincide,
+                reading.coincide,
                 DeclarationRead::Moot,
                 diag,
             ));
@@ -2038,9 +2043,6 @@ pub(super) fn parallel_same<T: Decide>(
     }
     direction_sense(u, v, arm, band)
 }
-
-/// Two bound directions of one vertex's sectors, read along one ray.
-const BOUNDS_PARALLEL: (&str, Coincide) = ("bool_dir_parallel", Coincide::Sectors);
 
 /// Whether two directions read parallel point the same way (`true`)
 /// or opposite ways, their cosine levered at `arm`
@@ -6095,12 +6097,13 @@ mod tests {
         );
     }
 
-    /// **A direction's norm does not move its parallelism**: two
-    /// directions `θ` apart read one verdict at any norms, and an
+    /// **A direction's norm does not move its parallelism or its sense**:
+    /// two directions `θ` apart read one verdict at any norms, and an
     /// in-band reading refuses as the caller's coincidence under the
     /// caller's predicate. At a millimetre norm, `sin θ` clear of the band
     /// read raw is in its zero band, and at a kilometre one, `sin θ` in
-    /// the zero band read raw is clear of it.
+    /// the zero band read raw is clear of it; a cosine just clear at its
+    /// arm read raw at a millimetre norm is in its zero band.
     #[test]
     fn parallelism_reads_the_directions_and_not_their_norms() {
         let b = band();
@@ -6121,11 +6124,23 @@ mod tests {
                 );
             }
         }
+        // The sense, levered at an arm its cosine only just clears: read
+        // raw at a millimetre norm it would be in its zero band.
+        let (u, v) = apart(0.5 * z);
+        for norm in [1e-3, 1.0, 1e3] {
+            for (w, want) in [(v, true), (-v, false)] {
+                assert_eq!(
+                    parallel_same(u * norm, w * norm, 2.0 * e, BOUNDS_PARALLEL, b).unwrap(),
+                    want,
+                    "the sense of {w:?} at norm {norm:e}"
+                );
+            }
+        }
         let (u, v) = apart((z + e) / 2.0);
         for (reading, which) in [
             (BOUNDS_PARALLEL, Coincide::Sectors),
             (
-                ("bool_ee_collinear", Coincide::EdgeOnEdge),
+                super::super::refusal_routes::RAY_COLLINEAR,
                 Coincide::EdgeOnEdge,
             ),
         ] {
@@ -6138,7 +6153,11 @@ mod tests {
                 BooleanDecision::Coincidence(which, DeclarationRead::Moot),
                 "the caller's coincidence"
             );
-            assert_eq!(diag.predicate, Some(reading.0), "the caller's predicate");
+            assert_eq!(
+                diag.predicate,
+                Some(reading.predicate),
+                "the caller's predicate"
+            );
         }
     }
 

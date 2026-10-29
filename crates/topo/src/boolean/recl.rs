@@ -46,6 +46,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
+use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
     BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same, side_code,
 };
@@ -767,7 +768,6 @@ pub(super) fn recl_edges<T: Decide>(
         }
     }
     // ---- Group mentions into ray events and resolve each once. ----
-    const RAY_COLLINEAR: (&str, Coincide) = ("bool_ee_collinear", Coincide::EdgeOnEdge);
     let mut used = vec![false; mentions.len()];
     let mut marked: Vec<usize> = Vec::new();
     for i in 0..mentions.len() {

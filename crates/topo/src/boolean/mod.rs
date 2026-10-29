@@ -250,6 +250,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = crate::sector_shape::rung_words(predicate) {
         return Some(words);
     }
+    if let Some(reading) = refusal_routes::PARALLELISMS
+        .iter()
+        .find(|reading| reading.predicate == predicate)
+    {
+        return Some(reading.coincide.subject());
+    }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
@@ -302,7 +308,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | crate::census::LINE_WEDGE_BEFORE_ARRIVING
         | crate::census::LINE_WEDGE_TURN
         | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
-        "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
