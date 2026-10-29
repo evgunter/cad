@@ -190,3 +190,9 @@ Both designers on `import-normalizes-the-rim-only-cap` found the kinds-only "the
 ## Grown by `[ev]` PR 6014 (2026-10-29, fork row 215: the wrap tip)
 
 The rule is now DESIGN `[topology]`'s, both directions at tier 3: every chart singularity in a face's closure is a vertex of it, AND every wrap edge's tip lies on its face's chart singularity (refusing a meridian that stops short of the pole: `spur.step`, which passes tiers 2–3′ with the tier-2 exemption alone). Tier 2's "no valence-1 vertices" becomes "no valence-1 vertices but a wrap edge's tip", read off the stored wrap flag (structural, no ε). The two-half form import mints today (PR 6007) satisfies both until revolve and import flip. Read the tip's incidence as a certified reading of its pcurve end on the chart's singular set, not a point-to-pole distance at a band. (FOREIGN orchestrator)
+
+## Scope at dispatch (RESTCURVE orchestrator, 2026-10-29)
+
+This row builds the first rule only: every chart singularity in a face's closure is a vertex of it. The rule reads the face's region, form-neutral as the FOREIGN re-aim says. It holds today: import normalizes to the two-half pole form (PR 6007), and that form satisfies the rule.
+
+The wrap-tip half from PR 6014 is now `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`. That covers tier 2's valence-1 exemption and tier 3's tip-on-the-singularity. It is parked on the shared loop walk, which Ev asked to land first. This row adds no exemption and admits no tip.
