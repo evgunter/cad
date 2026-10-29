@@ -286,3 +286,22 @@ circles where the old form drifted up to 9.4e5 ulps, same order. The
 unclamped `half_chord` is read only past a decided secant, so its square
 is a product of decided-positive margins. Left as filed: the sphere ×
 tube-circle rows (a verdict would move at `Interval`), P3.
+
+## 2026-10-29 — a torus pair's tangency and coincidence decided once (PR 5994)
+
+PR 5994 closes `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+(one decision, `geom_brep::tori_coincide`, read first by the pose in every
+stance and by the carrier ladder's undeclared arm; the declared reading is
+a different question and reads the same displacement) and
+`a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`
+(two questions, argued at `tangency_reading`, one pose pinned showing both
+answers right; no implication between them is claimed). Main read a nearly
+coincident tilted pair Tangent (a wrong definite answer); head reads it one
+surface at both readers. Disclosed moves: in-band pairs main built now refuse
+undecided; corner sites decide One on the bound's sum, not each datum.
+Tier: **single FULL**: APPROVE-WITH-FIXES, no MAJOR (the bound held against an
+exact-distance oracle and an adversarial search); one fix pass took all 11
+items, including one home for the identity walk (`geom_brep::identity_walk`,
+which topo's `identity_data` reads — the orchestrator checked its ranking and
+non-finite handling match main's) and the ring convention refused at the
+ladder.
