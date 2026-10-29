@@ -307,3 +307,11 @@ PR 5952's.
 With `ray_wall_margin_twins` pinned, `nightly.yml`'s `--all-features`
 job runs it again: the `HELD_OUT_TESTS` filter is dropped in the same PR,
 as the section above asks.
+
+**After PR 5952 landed (2026-10-29):**
+- the pins above are re-taken on main with PR 5952, at all three ε;
+- `m10_3_r2` containment passes and is un-pinned;
+- `m10_6` accounting, `m10_sym_profile` ×2 and the `sym_9` ladder are
+  re-pinned at the new readings.
+
+The values are on the CPAIR row.

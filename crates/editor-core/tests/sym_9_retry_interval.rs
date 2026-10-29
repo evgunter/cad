@@ -667,12 +667,15 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // counts moved with PR 5728 and PR 5811
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
     // `work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
-    // With the ladder and without it still read alike.
+    // With the ladder and without it still read alike. Then PR 5952
+    // (the profile's simplicity pass reads no gap on a line pair that
+    // shares a vertex) took 8 numeric decisions off the plate and 10 off
+    // the bracket.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1149, 832], [1149, 832], 0),
+        ("two_hole_plate", [1149, 824], [1149, 824], 0),
         ("r1_annulus", [654, 555], [654, 555], 0),
         ("r1_segment_boss", [651, 531], [651, 531], 0),
-        ("r2_filleted_bracket", [1535, 1167], [1535, 1167], 0),
+        ("r2_filleted_bracket", [1535, 1157], [1535, 1157], 0),
         ("r2_link", [954, 813], [954, 813], 0),
     ];
     let mut moved: Vec<String> = Vec::new();

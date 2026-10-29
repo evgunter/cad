@@ -244,21 +244,6 @@ fn the_unresolved_budget_is_refused_mass_plus_tail() {
 /// "the witness chamber is contained in the box".
 #[test]
 fn containment_fires_when_the_chamber_is_strictly_inside_the_box() {
-    // Pinned red since #5542's merge: at every ε both boundary leaves
-    // refuse on budget, not as flips, so containment does not fire
-    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the containment row",
-        &["boundary_certified=false all_flips=false, boundary classes [Budget, Budget]"],
-        containment_fires_when_the_chamber_is_strictly_inside_the_box_row,
-    );
-}
-
-/// The row [`containment_fires_when_the_chamber_is_strictly_inside_the_box`]
-/// runs, under its pin.
-fn containment_fires_when_the_chamber_is_strictly_inside_the_box_row() {
     let doc = pinched(0.25, 0.5);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(

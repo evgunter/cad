@@ -78,13 +78,12 @@ use fixture::{Recorder, len};
 /// A bit-exact golden therefore has to be keyed by the ε row, and the
 /// three rows are the three the matrix draws.
 ///
-/// **Pinned at what main measures** (2026-10-28), not a re-bless: the
-/// planted flip certifies none of its box and refuses it all on budget,
-/// where it certified 0.917 and refused 0.083 as `flip_crossing`. It
-/// moved at #5542's merge (`fa901e4308` reads today's planted flip;
-/// `42af7c0b48` before it holds the old goldens): its `segment_gap`
-/// reading. On PR 5952, which changes that reading, the planted flip
-/// certifies half its box and refuses half as `flip_crossing`
+/// **Pinned at what main measures** (2026-10-29), not a re-bless: the
+/// planted flip certifies half its box and refuses half as
+/// `flip_crossing`, and containment fires, where it certified 0.917 and
+/// refused 0.083 as `flip_crossing`. #5542's merge (`fa901e4308`) first
+/// moved it, to certifying none of the box; PR 5952 (the gap read by an
+/// overlap's depth, and not on a shared-vertex pair) moved it here
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`). The
 /// terminal sliver did not move.
 const ACCOUNTING_GOLDENS: &[(&str, &str, &str)] = &[

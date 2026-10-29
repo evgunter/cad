@@ -332,35 +332,31 @@ fn eps_row(eps: f64) -> usize {
 /// forms, and those lines' digests at every row; the `*/Decision`
 /// lines, the freezes and the largest form hold.
 ///
-/// **Pinned at what main measures** (2026-10-28), not explained. It
+/// **Pinned at what main measures** (2026-10-29), not explained. It
 /// first moved with #5542's merge (`fa901e4308`; `42af7c0b48` before it
 /// holds the old pin), where `segment_gap` joined the profile's
 /// validation: `Plain/Decision` 928 → 944 calls, both `*/Assertion`
-/// lines 524 → 532, and both walks gained `*/Report` lines. Since then,
-/// unbisected, `Plain/Decision` 944 → 992. Every digest moved, at every
-/// row (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+/// lines 524 → 532, and both walks gained `*/Report` lines. Then
+/// `Plain/Decision` 944 → 992, unbisected; then PR 5952 took the
+/// `*/Report` lines away and `Plain/Decision` 992 → 976. Every digest
+/// moved, at every row
+/// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 992 forms 9897 frozen 0 digest 7d02580b44038e796b282f38331315d4\n\
-     Plain/Assertion calls 532 forms 2783 frozen 0 digest e83fadabec203060a11929530e0831d5\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 32 forms 152 frozen 0 digest bd2855288cb64d9c935641c5eb0656f2\n\
-     Early/Assertion calls 532 forms 4201 frozen 0 digest 88870c4f0e5ada85065ece8740a51027\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest b1292a7d0849233b0dc62e91e26d70ac\n\
+     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
+     Early/Assertion calls 532 forms 4231 frozen 0 digest 22e1ea40284774ef624fde19d7ba0f06",
     "\
-     Plain/Decision calls 992 forms 9897 frozen 0 digest 6f86ea610e66bc701943305ef660ecac\n\
-     Plain/Assertion calls 532 forms 2783 frozen 0 digest b57b009b921d6a0f2b854cb1b583a22c\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 32 forms 152 frozen 0 digest bd2855288cb64d9c935641c5eb0656f2\n\
-     Early/Assertion calls 532 forms 4201 frozen 0 digest 83f5905992443a02a5c6042fe90d8f6d\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Plain/Decision calls 976 forms 9789 frozen 0 digest 08650e2e51b39ab8a7719732f4e2430a\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest ed4fab55a50737de9fa0d4bba53f57ec\n\
+     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
+     Early/Assertion calls 532 forms 4231 frozen 0 digest f84140de6ef76c9c89ac18d75feab99a",
     "\
-     Plain/Decision calls 992 forms 9897 frozen 0 digest 4d7297c0d5ac93c8c76fad729a796200\n\
-     Plain/Assertion calls 532 forms 2783 frozen 0 digest 0d8881083564b6f61054a6f001a9ed02\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 32 forms 152 frozen 0 digest bd2855288cb64d9c935641c5eb0656f2\n\
-     Early/Assertion calls 532 forms 4201 frozen 0 digest 5c173864eb2734e834bd4a19d59a6885\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Plain/Decision calls 976 forms 9789 frozen 0 digest 4b7556244d138ea5c634de0f542b7f0a\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest 4ba81d361ee96c59e00226ced255f112\n\
+     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
+     Early/Assertion calls 532 forms 4231 frozen 0 digest fc61ebc3d4a97dba3fec18a676708db6",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -772,19 +768,17 @@ const PLATE_MAX_TERMS: usize = 28;
 /// sine and cosine of a radian, which moves the two `Plain` digests and
 /// no count (measured both ways on D's tree).
 ///
-/// **Pinned at what main measures** (2026-10-28), not explained: every
-/// line moved, and both walks gained `*/Report` lines. The plate is the
-/// two-hole plate that PR 5728 and PR 5811 moved
-/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`), and
-/// #5542's `segment_gap` moved it first
+/// **Pinned at what main measures** (2026-10-29), not explained: every
+/// line moved. The plate is the two-hole plate that PR 5728 and PR 5811
+/// moved (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`);
+/// #5542's `segment_gap` moved it first, and PR 5952 took the
+/// `*/Report` lines #5542 brought away again
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1157 forms 20726 frozen 36 digest ec52a9cb1d84ab199defca488d1e3c27\n\
-     Plain/Assertion calls 824 forms 9307 frozen 193 digest 8d5a1ad339e657f6f8f231396e4adb2d\n\
-     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 350 forms 11772 frozen 0 digest feee9ebdad25f30a10274968ed4e235f\n\
-     Early/Assertion calls 824 forms 10714 frozen 0 digest eef0edecbbd5daa9da7852f546bd2eaf\n\
-     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Plain/Decision calls 1149 forms 20618 frozen 36 digest 5b68ab11cb6a6488e4a842bd68fd8b54\n\
+     Plain/Assertion calls 824 forms 9331 frozen 193 digest 3b9e5da836f18dc5a35a3a4ece119754\n\
+     Early/Decision calls 342 forms 11649 frozen 0 digest 9ff98070a7578f2caaee1b066b8b10b0\n\
+     Early/Assertion calls 824 forms 10745 frozen 0 digest bfcde6cb8486b98883080e5e22c9cf20\n\
      Door/Decision calls 557 forms 13569 frozen 0 digest 07819a3c990e37a0b06cfef06cbc955d";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
@@ -948,24 +942,25 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, Option<u64>); 4] = [
-        // Pinned at what main measures (2026-10-28), every set's count
-        // moved: 8 blocked residuals where it rendered none, 20 where it
-        // rendered 16. The first move was at #5542's merge
+        // Pinned at what main measures (2026-10-29): the two sets that
+        // render blocked residuals render 12 where they rendered 16.
+        // #5542's merge moved every set's count (to 8 and 20) and PR 5952
+        // brought the shipped sets back to none
         // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-        ("shipped", SymRules::shipped(), Some(8)),
+        ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(20),
+            Some(12),
         ),
-        ("without_the_reads", SymRules::without_the_reads(), Some(8)),
+        ("without_the_reads", SymRules::without_the_reads(), None),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(20),
+            Some(12),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

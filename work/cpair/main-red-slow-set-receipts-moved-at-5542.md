@@ -67,3 +67,21 @@ Reproduce: `cargo nextest run -p editor-core --profile ci
 | test(/^m10_sym_profile_interval::the_/) | test(/^sym_9_retry_interval::sym_9_the_/)
 | test(=m10_3_r2_probes_interval::containment_fires_when_the_chamber_is_strictly_inside_the_box)'`,
 at a checkout before and at `fa901e4308`.
+
+## 2026-10-29 — after PR 5952 landed
+
+PR 5952 merged before these pins, so they are re-taken on main with it,
+at all three ε:
+
+| row | on main with PR 5952 |
+|---|---|
+| `m10_6` accounting, planted flip | certified 0.5, `flip_crossing` 0.5, containment fires (old golden: 0.917 / 0.083); re-pinned |
+| `m10_sym_profile` slab ledger | `Plain/Decision` 976, `*/Assertion` 532, no `*/Report` lines; re-pinned |
+| the plate ledger | `Plain/Decision` 1149; re-pinned |
+| `Plain/Report` per dial set | None / 12 / None / 12 (old: None / 16 / None / 16); re-pinned |
+| `sym_9` ladder | the plate `[1149, 824]`, the bracket `[1535, 1157]`; re-pinned |
+| `sym_9` leaf receipt | unmoved by PR 5952, `[1463, 1380, 34]` |
+| `m10_3_r2` containment | passes as written, so its pin is gone |
+
+What is left is the post-#5542 drift these rows carry beside PR 5952's
+fix, which is unbisected.
