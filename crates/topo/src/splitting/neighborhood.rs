@@ -275,7 +275,9 @@ pub(crate) fn entry_side<T: Decide, E>(
 /// rungs read it, and a wide sector gets one entry at its subdivision
 /// direction; at a cone's apex, [`apex_shape`] reads it against the
 /// plane, and it gets one at each extremal ruling inside it (module
-/// docs). Each entry is its direction, the sector's arm, and the side of
+/// docs). `one_edge` says the two bounds are one orbit half-edge, and
+/// `slit_tip` that `face` wraps round the tip of two coincident edges
+/// there ([`SlitTips`]). Each entry is its direction, the sector's arm, and the side of
 /// the plane along `normal` that direction points to, levered at the arm
 /// (`split_bisector_side`), in orbit order; none for a convex sector or
 /// an apex sector the plane's side is monotone across. The walk's

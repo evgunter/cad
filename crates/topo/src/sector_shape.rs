@@ -450,9 +450,10 @@ fn sector_arm<T: Decide>(
 /// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
 /// and `face` carries them as a slit of one of its loops or as a ring:
 /// it wraps round the tip, so its corner there between the two edges is
-/// a full turn (`boolean::sectors::build_sectors`, [`crate::splitting::wide_entries`]). The reduction may split the two
-/// edges apart from the tip, each at its own vertex, so the reading is
-/// taken before it.
+/// a full turn (the Boolean's `sectors::build_sectors`, the split's
+/// [`crate::splitting::wide_entries`]). The Boolean's reduction may split
+/// the two edges apart from the tip, each at its own vertex, so each lane
+/// takes the reading before its reduction.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
 
