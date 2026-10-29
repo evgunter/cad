@@ -92,7 +92,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::census::{genus, rings};
-use crate::common::printed;
+use demo_tour::booleans::at_rest;
+use demo_tour::torusvessel::plane_chart_at;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
@@ -102,16 +103,6 @@ use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::AtRestBody;
 use pncad::topo::Body;
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
@@ -692,8 +683,9 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
         // The drums have a closed form; the stepped pot does not get a
         // number invented for it here (the scene owns its census).
         if let Some(r) = drum_radius {
-            let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed())
-                .expect("props");
+            let props =
+                pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
+                    .expect("props");
             let want = core::f64::consts::PI * (r * r * TOP - (r - t) * (r - t) * (TOP - t));
             assert!(
                 (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
@@ -705,12 +697,10 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
     }
 }
 
-/// The teapot's own vessel meridian, kept in step with the scene by
-/// its stations rather than by sharing code: `demos/tour/src/teapot.rs`
-/// is a binary's module and a test cannot import it, so what ties the
-/// two is that both are checked against the same numbers — the scene
-/// asserts its census, this file asserts the defect, and a change to
-/// either meridian moves one of those two.
+/// A stepped pot: foot, belly and neck as straight steps at the
+/// teapot's sixty-fourths. It is this file's own fixture: the scene's
+/// vessel (`demo_tour::teapot`) has a spherical belly, so the two do
+/// not share a meridian.
 fn teapot_pot(tol: Tol) -> Body<f64> {
     revolved(
         Open.at(Point2::new(0.0, 0.0))
@@ -733,26 +723,6 @@ fn teapot_pot(tol: Tol) -> Body<f64> {
             .into(),
         tol,
     )
-}
-
-/// Every planar face of `body` whose plane sits at station `y` — the
-/// chart, not a face.
-///
-/// **Spelled twice in this PR**, here and as `teapot::plane_chart_at`
-/// in the scene: an integration test cannot import a binary's module,
-/// and copying five lines is the whole cost of that. The copies are
-/// tied by what they are checked against — both are asserted to return
-/// the face count the fixture's own geometry implies (2 for a full
-/// revolve's cap, 1 for an extrusion's), so a change to what a chart
-/// means fails on both sides rather than drifting on one.
-fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
-        })
-        .map(|(k, _)| k)
-        .collect()
 }
 
 /// **The ANNULAR mouth: two disjoint rims, not one ring.**
@@ -825,8 +795,8 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "the mouth plane is worn by two faces — the SPLIT, which is the finding"
     );
     pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it triangulates");
-    let props =
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed()).expect("props");
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
+        .expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(

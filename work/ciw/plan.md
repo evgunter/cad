@@ -21,7 +21,6 @@ against it rather than around it.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `the-tours-k-probe-brackets-suite-runs-in-no-ci-row` | E | demos/tour's probe-gated `k_probe_brackets` runs in no CI row, and its 1e-12 row is red on main |
 | P2 | `the-viewer-app-feature-rows-gate-one-eps-of-three` | E | the viewer's app-feature rows run at the default eps only, per-PR and nightly |
 | P3 | `oracle-filter-blind-to-the-kernels-edge-onto-the-certified-crate` | E | should the oracle filter fire when the kernel's edge onto the certified crate changes |
 | P3 | `red-run-whose-jobs-never-started-reads-as-a-broken-tree` | E | a run whose jobs were never acquired reads as a broken tree |
