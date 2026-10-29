@@ -1,7 +1,7 @@
 ---
 id: g-moves-four-main-reds-messages
 kind: issue
-title: Four slow rows red on main read different numbers under G; whoever greens them re-derives at G's
+title: Six rows red on main read G's numbers (four slow rows, the m10_sym_profile plate digest, the sweep thread-count digest at 1e-12); whoever greens them pins G's
 status: open
 opened: 2026-10-29
 priority: P2
