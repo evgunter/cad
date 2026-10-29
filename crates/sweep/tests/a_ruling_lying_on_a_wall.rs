@@ -946,4 +946,3 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
         }
     }
 }
-
