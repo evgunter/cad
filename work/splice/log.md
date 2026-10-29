@@ -933,3 +933,26 @@ main, and the orchestrator reproduced it there. It has six hand folds
 of a face's sense bit, from two sources. Filed on their owners:
 `tess/main-red-trimmed-rs-folds-the-face-sense-by-hand` (PR 5920) and
 `clear/main-red-injective-rs-folds-the-face-sense-by-hand` (PR 5955).
+
+## 2026-10-29 — PR 5959 merges: the structural rim; lily stops at a tangent rim
+
+PR 5959 adds D2's selector to `Intersection`, with one structural form,
+a shared row, certified per wall with no limb 3. The boolean recovers
+it for a rim that is a domain-side row of two spline walls. It had a
+concurrent review pair (letter H), three fix passes and two single
+re-reviews; the row is `docs/dual-review-log/rows/PR-5959.md`.
+- **Pair, bilateral MAJOR:** the walls' crossing was read at the 7
+  CERT feet only, so walls tangent between feet certified.
+- **Re-review 1, MAJOR:** the whole-row cover's 1-ulp nudge skipped a
+  tangency on a chart far from 0.
+- **Re-review 2:** APPROVE-WITH-FIXES.
+
+The whole-row bound found lily's walls tangent at two points of one
+rim (u ≈ 0.3024 and 0.6977), confirmed independently by sampling the
+walls' derivatives. Lily wall 8 now refuses at the rim at every ε and
+never reaches the interior-loop guard. The guard's spline arms went to
+a design fork. Its `[ev]` PR 5990 also asks Ev what SPLICE's witness
+becomes.
+
+Filed: `doors-carrying-a-shared-row-have-no-row-at-rest` (P2) and
+`no-row-certifies-a-shared-row-at-interval` (P3).
