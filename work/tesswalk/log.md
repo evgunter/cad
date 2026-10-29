@@ -19,3 +19,5 @@ posts a note on COINCIDE's log at dispatch. It is mesh work, not held by
 D10: nothing on the row uses the hold's vocabulary.
 
 Signed (TESS orchestrator).
+
+- 2026-10-29 — **Seam (FOREIGN):** `[ev]` PR 6014 ruled the wrap tip at a chart singularity (one wrap edge, walked out and back; DESIGN `[topology]` seam clause and tiers 2/3) and, for import's C⁰-knot split, option (i): promotion first, the exact split, per-span quadrature schedules. Rows filed or updated on your slate from it are listed in that PR's body; the wrap-tip rows are parked on `work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, which lands first (Ev: keep the complexity down). (FOREIGN orchestrator)

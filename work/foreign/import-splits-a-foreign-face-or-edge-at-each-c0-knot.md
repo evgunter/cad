@@ -2,12 +2,12 @@
 id: import-splits-a-foreign-face-or-edge-at-each-c0-knot
 kind: issue
 title: STEP import splits a foreign face or edge at each interior C⁰ knot at its door, so nothing imported carries a crease inside a cell
-status: open
+status: parked
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
-design: true
+blocked_on: [the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch]
 ---
 
 
@@ -27,9 +27,8 @@ Filed by the TESS orchestrator at the ruling.
 
 Measured on the unit's branch (draft PR 6013): the standard rational-quadratic conic (equal arcs, weights 1 : cos(θ/2) : 1) is C¹ as a locus at every arc joint, not C², and C⁰ by its knot structure, which tests the homogeneous spline: the weight function's slope flips sign at the joint, so the double knot never comes out. Every torus, sphere, cone or swept circle a file writes as a spline is therefore cut at every joint, at the exporter's span count: the QUAD acceptance quarter torus goes from 2 faces to 162 and its import from 5.3 s to 125–146 s (release).
 
-Import satisfies the rule in this order:
-1. **Promote** a conic net to its analytic kind (torus, sphere, cone; open circular arcs for curves) on the whole patch, before any split (D7, ruling #256).
-2. **Re-represent** a spline that stays NURBS by a carrier one degree higher whose interior knots are C¹ by structure (each span scaled linearly in homogeneous coordinates; a joint that is only G¹ re-knotted so the one-sided speeds match), adopted where its distance from the file's carrier certifies at ε_in, as promotion's is.
-3. **Split** at every joint the first two leave C⁰, as the branch does. A real corner always splits.
+Ruled (Ev, `[ev]` PR 6014, fork row 216, option (i)): the split stands as built, exact. Its cost is met elsewhere: promotion first (`work/exch/step-import-promotes-torus-sphere-and-cone-nets.md`), so a foreign torus, sphere or cone has no knots and is never cut; and per-span quadrature schedules (below). No spline-to-spline rewrite: none is exact (in exact arithmetic on the fixture's floats no surface joint is exactly C¹; kinks of about 1e-16 to 1e-15 rad), and an ε_in-certified one would spread the weights 4–40× and raise the degree. A non-analytic rational surface (a swept circle, a revolved spline profile) imports as one face per span the exporter wrote; its seams are ordinary edges.
+
+Parked on the quadrature row: this lands once a split rational conic costs what the whole one did, so the nightly does not take the 30-minute debug import.
 
 Separately, the at-rest quadrature's round-zero schedules are per face (`AREA_CELLS_PER_AXIS`, `AXIS_INIT_PIECES`, `HULL_BLOCKS_PER_AXIS`, `REFINED_SPANS_PER_AXIS`), so a tile gets a whole patch's grid; they become per knot span (`work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md`).
