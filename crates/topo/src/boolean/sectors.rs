@@ -63,7 +63,9 @@ use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{SectorFault, SectorRung, SectorShape, SlitTips, sector_shape};
+use crate::sector_shape::{
+    CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder, corner_shape,
+};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
@@ -278,10 +280,8 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
 ///
 /// A corner between a slit's or ring's two coincident edges at its tip
 /// ([`SlitTips`], read off the operand at rest) is the carrying face's
-/// full turn round the tip: [`sector_shape`] decides its two bounds
-/// leave along one ray, which between two distinct edges it rejects as
-/// a spike, and here the structure says which of 0 and a full turn it
-/// is. The full turn is pushed as four quarter sectors, each convex.
+/// full turn round the tip ([`corner_shape`]), pushed as four quarter
+/// sectors, each convex.
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -305,28 +305,24 @@ pub(super) fn build_sectors<T: Decide>(
         } = corner?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
-        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
-        // implementation, called from here and from the splitting
-        // lane's neighborhood walk, under the one pooled set of K names
-        // (pooled in #652). This is a call, not a copy.
+        // argument needs < 180°), and a slit tip's full turn, are
+        // [`corner_shape`]: ONE implementation, called from here and from
+        // the splitting lane's neighborhood walk, under the one pooled
+        // set of K names (pooled in #652). This is a call, not a copy.
         //
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
         // The value arrives typed, so it cannot be the wrong one.
-        let shape = match sector_shape(dir_end, dir_start, normal, alone, band) {
-            Ok(shape) => shape,
-            Err(SectorFault::Rung {
-                rung: SectorRung::Straight { .. },
-                diag,
-            }) if diag.margin.rejected_sign() == Some(Sign::Positive)
-                && tips.holds(vertex, face) =>
-            {
+        let bounds = tips.bounds(vertex, face, alone);
+        let shape = match corner_shape(dir_end, dir_start, normal, bounds, band) {
+            Ok(CornerShape::Sector(shape)) => shape,
+            Ok(CornerShape::FullTurn(turn)) => {
                 push_full_turn(
                     &mut sectors,
                     he,
-                    (dir_start, reach_start),
-                    (dir_end, reach_end),
+                    &turn,
+                    (reach_start, reach_end),
                     face,
                     normal,
                 );
@@ -393,26 +389,22 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// Pushes the full turn of `face` round a slit's tip ([`SlitTips`]),
-/// from the next orbit chord `start` CCW round to the corner's own
-/// chord `end` (the two leave along one ray), as four convex quarter
-/// sectors in the chained order [`build_sectors`] pushes a subdivided
-/// corner in: the end-sharing quarter first. The quarter bounds are
-/// `start` turned a quarter, a half and three quarters about the
-/// face's outward normal, bisectors levered at the shorter chord.
+/// Pushes the full turn of `face` round a slit's tip ([`FullTurn`]) as
+/// four convex quarter sectors in the chained order [`build_sectors`]
+/// pushes a subdivided corner in: the end-sharing quarter first. The
+/// quarter bounds are levered at the turn's arm; `start_reach` and
+/// `end_reach` stand behind the next chord and the corner's own.
 fn push_full_turn<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     he: HalfEdgeKey,
-    (start, start_reach): (Vec3<T>, Reach<T>),
-    (end, end_reach): (Vec3<T>, Reach<T>),
+    turn: &FullTurn<T>,
+    (start_reach, end_reach): (Reach<T>, Reach<T>),
     face: FaceKey,
     normal: OutwardNormal<T>,
 ) {
-    let arm = start.norm().min(end.norm());
-    let (u_start, u_end) = (start.normalize(), end.normalize());
-    let quarter = normal.vec().cross(u_start);
-    let bounds = [u_start, quarter, -u_start, -quarter, u_end];
-    let inner = Reach::Bisector(arm);
+    let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
+    let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
+    let inner = Reach::Bisector(turn.arm);
     let reaches = [start_reach, inner, inner, inner, end_reach];
     for k in (0..4).rev() {
         sectors.push(BoolSector {
@@ -423,7 +415,7 @@ fn push_full_turn<T: Decide>(
             end_reach: reaches[k + 1],
             face,
             normal,
-            arm,
+            arm: turn.arm,
         });
     }
 }

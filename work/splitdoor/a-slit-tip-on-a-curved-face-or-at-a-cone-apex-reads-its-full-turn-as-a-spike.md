@@ -36,6 +36,17 @@ the tips. Neither has a witness; both are unmeasured.
   on `sector_apex_window` rejects it. Passing `one_edge || slit_tip` there
   reads the window as the whole turn, which is what the face does.
 
+- **Known gap, both lanes: `SlitTips` is keyed by `(vertex, face)`, not
+  by corner.** At a vertex that is a slit's tip in `face`, every corner
+  of `face` there reads as the tip's. A corner of the same face at that
+  vertex between two other edges whose bounds leave along one ray (a
+  cusp between tangent curves at the slit's far end) would read as a
+  full turn rather than refused as a spike. Keying by the corner's two
+  edges closes it. Found by the review of PR 5982.
+
+Both readers above call `sector_shape::corner_shape` with a
+`CornerBounds`, and the gap is closed in `SlitTips::bounds`.
+
 ## Witness wanted
 
 A body at rest with either shape (a groove touching a cylinder along a

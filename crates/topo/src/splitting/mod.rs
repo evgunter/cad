@@ -231,9 +231,10 @@ pub enum SectorEntryKind {
     /// A real neighborhood edge, classified by its final vertex.
     Edge,
     /// A subdivision entry of one sector, classified by its direction: a
-    /// wide (≥180°) sector's interior bisector (convex subdivision), or, at
-    /// a cone's apex, each extremal ruling inside the sector, one or two at
-    /// any width (the `neighborhood` module docs). Shares its half-edge with
+    /// wide (≥180°) sector's interior bisector (convex subdivision), a slit
+    /// tip's full turn's three quarter directions, or, at a cone's apex,
+    /// each extremal ruling inside the sector, one or two at any width (the
+    /// `neighborhood` module docs). Shares its half-edge with
     /// the sector's [`SectorEntryKind::Edge`] entry before it.
     WideBisector,
 }

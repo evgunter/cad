@@ -43,6 +43,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_shape::CornerBounds;
 use crate::splitting::{
     EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
 };
@@ -284,7 +285,11 @@ fn entered_faces<T: Decide>(
                     (vertex, face),
                     (dir_a, dir_b),
                     resolved.at_vertex,
-                    (he == orbit[next], false),
+                    if he == orbit[next] {
+                        CornerBounds::OneEdge
+                    } else {
+                        CornerBounds::Distinct
+                    },
                     n,
                     band,
                 )

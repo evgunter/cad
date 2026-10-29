@@ -29,8 +29,12 @@
 //!    span); the straight band (θ ≈ π, where `â + b̂` collapses) ⇒
 //!    `n × b̂`, 90° into the interior. θ ≈ 0 or ≈ 2π between two
 //!    DISTINCT edges is a spike — ill-conditioned, refused rather than
-//!    guessed; the same reading on a one-edge orbit (a strut vertex) is
-//!    the legitimate full-circle sector and takes the same 90° device.
+//!    guessed — unless the structure says which: at a slit's tip
+//!    ([`SlitTips`]) the face wraps round the two coincident edges, and
+//!    [`corner_shape`] reads the full turn and subdivides it at its three
+//!    quarters ([`FullTurn`]). The same reading on a one-edge orbit (a
+//!    strut vertex) is the legitimate full-circle sector and takes the
+//!    90° device.
 //!
 //! The three items above are the CONTRACT — what each rung decides and
 //! what it returns. The **derivations** — why convex subdivision beats
@@ -443,6 +447,109 @@ fn sector_arm<T: Decide>(
     Ok(arm)
 }
 
+/// What the structure says about a corner's two bounds, which
+/// [`corner_shape`] reads a θ ≈ 0 / ≈ 2π reading by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CornerBounds {
+    /// Two distinct edges, not a slit's tip: such a reading is a spike.
+    Distinct,
+    /// One orbit half-edge, a strut vertex ([`sector_shape`]'s
+    /// `full_circle`).
+    OneEdge,
+    /// A slit's two coincident edges at its tip ([`SlitTips`]): the face
+    /// wraps a full turn round them.
+    SlitTip,
+}
+
+/// What [`corner_shape`] read: the sector-shape rungs' answer, or a
+/// slit tip's full turn.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CornerShape<T: Real> {
+    /// The rungs decided the corner ([`sector_shape`]).
+    Sector(SectorShape<T>),
+    /// The face's full turn round a slit's tip.
+    FullTurn(FullTurn<T>),
+}
+
+/// A face's full turn round a slit's tip, from the next orbit chord
+/// counter-clockwise (about the face's outward normal) round to the
+/// corner's own, the two along one ray.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FullTurn<T: Real> {
+    /// The metering arm, as [`SectorShape::arm`].
+    pub arm: T,
+    /// Unit direction of the next orbit chord, the turn's start.
+    pub unit_next: Vec3<T>,
+    /// Unit direction of the corner's own orbit chord, its end.
+    pub unit_own: Vec3<T>,
+    /// `unit_next` turned a quarter about the outward normal.
+    quarter: Vec3<T>,
+}
+
+/// The order a lane reads a [`FullTurn`]'s quarters in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnOrder {
+    /// Counter-clockwise from the next chord: the sector bounds' order.
+    FromNext,
+    /// From the corner's own chord round to the next: the orbit's order,
+    /// in which the split's walk lists a sector's duplicate entries.
+    FromOwn,
+}
+
+impl<T: Real> FullTurn<T> {
+    /// The three directions that cut the turn into convex quarters:
+    /// `unit_next` turned a quarter, a half and three quarters, listed
+    /// in `order`.
+    pub(crate) fn quarters(&self, order: TurnOrder) -> [Vec3<T>; 3] {
+        let (q, back) = (self.quarter, -self.unit_next);
+        match order {
+            TurnOrder::FromNext => [q, back, -q],
+            TurnOrder::FromOwn => [-q, back, q],
+        }
+    }
+}
+
+/// [`sector_shape`], with a reading that the bounds leave along one ray
+/// read by `bounds`: at a slit's tip the face's full turn, otherwise a
+/// spike as the rungs refuse it. The one reading of a slit tip's corner
+/// for both lanes.
+///
+/// # Errors
+///
+/// As [`sector_shape`], but for the full turn at a slit's tip.
+pub(crate) fn corner_shape<T: Decide>(
+    dir_own: Vec3<T>,
+    dir_next: Vec3<T>,
+    normal: OutwardNormal<T>,
+    bounds: CornerBounds,
+    band: Band,
+) -> Result<CornerShape<T>, SectorFault> {
+    match sector_shape(
+        dir_own,
+        dir_next,
+        normal,
+        bounds == CornerBounds::OneEdge,
+        band,
+    ) {
+        Ok(shape) => Ok(CornerShape::Sector(shape)),
+        Err(SectorFault::Rung {
+            rung: SectorRung::Straight { .. },
+            diag,
+        }) if bounds == CornerBounds::SlitTip
+            && diag.margin.rejected_sign() == Some(Sign::Positive) =>
+        {
+            let unit_next = dir_next.normalize();
+            Ok(CornerShape::FullTurn(FullTurn {
+                arm: dir_own.norm().min(dir_next.norm()),
+                unit_next,
+                unit_own: dir_own.normalize(),
+                quarter: normal.vec().cross(unit_next),
+            }))
+        }
+        Err(fault) => Err(fault),
+    }
+}
+
 /// **The tips of an operand's slits and zero-area rings**, read from
 /// the operand at rest: each `(vertex, face)` where two distinct line
 /// edges on one segment by structure ([`crate::census::shared_segments`],
@@ -492,6 +599,18 @@ impl SlitTips {
     /// edges.
     pub(crate) fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
         self.0.contains(&(vertex, face))
+    }
+
+    /// What the structure says about `face`'s corner at `vertex`, whose
+    /// bounds are one orbit half-edge where `one_edge`.
+    pub(crate) fn bounds(&self, vertex: VertexKey, face: FaceKey, one_edge: bool) -> CornerBounds {
+        if one_edge {
+            CornerBounds::OneEdge
+        } else if self.holds(vertex, face) {
+            CornerBounds::SlitTip
+        } else {
+            CornerBounds::Distinct
+        }
     }
 
     /// Tips named outright, for a unit row that has no body to read.
