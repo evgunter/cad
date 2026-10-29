@@ -4,6 +4,8 @@ kind: issue
 title: A held germ can land on a record 15.10 cancelled, whose uniform side mark_germ cannot clean
 status: open
 opened: 2026-10-29
+priority: P2
+cost: M
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: tier 3′ cannot settle where a seam ruling meets the section ellipse it ends at, on a needle cone cut nearly along its axis
 status: open
 opened: 2026-10-29
+priority: P2
+cost: M
 ---
 
 

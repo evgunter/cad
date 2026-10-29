@@ -121,6 +121,10 @@
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
 //! section conic in the partner's planar or spherical face. There the
 //! chord is the whole section conic, from the vertex round to itself.
+//! A chord between two copies of one site, which the null edges tie
+//! ([`same_site`]), runs round the same way: a section conic that meets
+//! a face's boundary at one site alone reaches it under whichever of
+//! the site's copies the split's null edges leave there.
 //! In the plane × plane
 //! lane, on a planar face the split divides, or on a ruling section, a
 //! self-loop is a lone site, and rides `mef`'s placeholder circle
@@ -1916,7 +1920,7 @@ pub(crate) fn lone_site_placeholder<T: Real>(
 /// Where a chord's arc ends on its section conic.
 #[derive(Clone, Copy, Debug)]
 enum ArcEnd<T> {
-    /// At the conic parameter of a second, distinct vertex.
+    /// At the conic parameter of a vertex at a distinct site.
     At(T),
     /// Back at its start, a whole turn on: a self-loop chord's.
     WholeTurn,
@@ -1935,11 +1939,11 @@ fn oriented_arc<T: Real>(
     let tau = T::tau();
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
-    // span of zero, two distinct ends sharing a conic parameter, which
-    // is either a zero-length arc or a whole turn. Nothing here gates
-    // that: both lanes pair distinct sites at distinct points
-    // (`bool_join_chord` in the boolean), and a vertex with itself only
-    // as a self-loop, which says so (`ArcEnd::WholeTurn`).
+    // span of zero, two ends sharing a conic parameter, which is either
+    // a zero-length arc or a whole turn. A chord's two ends at one site
+    // say which ([`far_end`]: `ArcEnd::WholeTurn`). That ends at distinct
+    // sites lie at distinct points nothing here enforces: two that share
+    // a parameter read a zero span, which the chord's mint refuses.
     // Each span is read forward from its own start, never as a turn
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
@@ -1996,6 +2000,35 @@ fn chord_arc<T: Decide>(
     };
     let to = p2.map_or(ArcEnd::WholeTurn, |p2| ArcEnd::At(seamed.param(p2)));
     oriented_arc(&seamed, face, seamed.param(p1), to, ccw)
+}
+
+/// **Where a chord from `u1` to `u2` ends on its closed section**:
+/// `u2`'s point, or `None`, back at its start a whole turn on, where the
+/// two are one site ([`same_site`]). A chord leaves its start, and the
+/// null edges already join a site's copies, so a chord between two of
+/// them runs round its whole closed section.
+fn far_end<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<Option<Point3<T>>, SplitJoinError> {
+    Ok((!same_site(body, face, (u1, u2))?).then(|| vertex_point(body, u2)))
+}
+
+/// **Whether `u2` is one site with `u1`**: `u1` itself or a copy of it
+/// the null edges tie ([`null_site`]), the join's one reading of
+/// site-ness. A site that does not resolve is the join's broken
+/// invariant.
+fn same_site<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<bool, SplitJoinError> {
+    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
+        face,
+        what: StaleSite::WHAT,
+    })?;
+    Ok(tied.contains(&u2))
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -2297,7 +2330,8 @@ fn section_pin_refusal<T: Decide>(
 ///    there as the lane that paired the chord's ends decided it
 ///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
-///    self-loop (`u1 == u2`) is the whole conic, run the same way; on
+///    chord from a vertex to itself or to a copy of its site
+///    ([`same_site`]) is the whole conic, run the same way; on
 ///    a ruling section, and in the plane × plane and along-edge lanes,
 ///    a self-loop stays a lone site (`None`, the placeholder circle). A
 ///    self-loop along a closed edge never reaches here: it copies the
@@ -2490,7 +2524,6 @@ fn chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
@@ -2507,7 +2540,8 @@ fn chord_spec<T: Decide>(
         }
     };
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(SectionChord {
         spec: EdgeCurveSpec {
@@ -2754,10 +2788,10 @@ fn bool_planar_chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -2882,11 +2916,7 @@ fn carried_chord_spec<T: Decide>(
     };
     let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
     let t1 = if seat1 { start } else { from };
-    let t2 = if u1 == u2 || at_seat(p2)? {
-        stop
-    } else {
-        foot(p2)?
-    };
+    let t2 = if at_seat(p2)? { stop } else { foot(p2)? };
     // The travel in parameter, metered by the carrier's speed at the
     // chord's start. Only its sign is consumed, and the margin's sign is
     // the travel's own (the speed is positive): the point speed sets only
@@ -4511,11 +4541,10 @@ fn along_edge_spec<T: Decide>(
     )
     .start;
     let e_end = body.proven_half_edge_end(e.he_plus);
-    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
-        face,
-        what: StaleSite::WHAT,
-    })?;
-    let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
+    let forward = match (
+        same_site(body, face, (u1, e_start))?,
+        same_site(body, face, (u1, e_end))?,
+    ) {
         (true, false) => true,
         (false, true) => false,
         _ => {
@@ -4594,7 +4623,7 @@ fn closed_edge_spec<T: Decide>(
 }
 
 /// **Whether `edge` is closed at the site of `u`**: both of its ends
-/// are copies of that site ([`null_site`]). The one test of a closed
+/// are copies of that site ([`same_site`]). The one test of a closed
 /// segment edge ([`JoinPlan::of`]).
 fn closed_at<T: Decide>(
     body: &Body<T>,
@@ -4608,11 +4637,7 @@ fn closed_at<T: Decide>(
             what: "the segment's edge no longer resolves",
         });
     };
-    let tied = null_site(body, &[u]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
-        face,
-        what: StaleSite::WHAT,
-    })?;
-    Ok(tied.contains(&a) && tied.contains(&b))
+    Ok(same_site(body, face, (u, a))? && same_site(body, face, (u, b))?)
 }
 
 /// **Which way a closed edge's chord runs**, where both ends of the
@@ -4691,6 +4716,12 @@ fn closed_chord_runs_forward<T: Decide>(
 /// included — the copies one crossing site was split into, however
 /// many null edges it holds. A null edge's two ends are the same point,
 /// so the site is one point held by several vertices.
+///
+/// The split states the same relation a second way once its null edges
+/// are gone: each copy's null-pair row names the vertex it was minted
+/// at, and [`crate::splitting::SplitNaming::original_of`] chases a copy
+/// to the operand vertex. Two vertices one site ties here are two that
+/// read back to one original there.
 ///
 /// Runs on bodies mid-operation. [`StaleSite`]: a vertex of the site
 /// does not resolve, one of `from`, the caller's keys, or a copy a null

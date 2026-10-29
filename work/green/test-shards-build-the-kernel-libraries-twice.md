@@ -152,3 +152,85 @@ paths step did.
 
 The rebalance (items 1 and 2) is still owed; it is now a one-line edit to
 `APP_SHARD` plus its selftest rows.
+
+## Rebalanced, 2026-10-29 (GREEN latency lane, owed items 1 and 2)
+
+**Closure-tier shard times since #5941** (ci.yml `pull_request` runs
+from its merge, 10-28 17:43Z, to 10-29 09:00Z; 189 completed runs, 132
+with a test shard). A run is counted TIER=all when every subject row
+(tools, demos, interval, step import) ran, which only TIER=all forces.
+Minutes are job wall, from the jobs API.
+
+| tier | runs | `kernel` median / p90 (build) | `app` median / p90 (build) | slower shard median / p90 |
+|---|---|---|---|---|
+| closure | 107 kernel, 119 app | 14.4 / 17.9 (11.6) | 11.4 / 12.6 (10.1) | 14.2 / 17.7 |
+| all | 13 | 18.9 / 19.4 (13.6) | 12.5 / 13.2 (10.0) | 18.9 / 19.4 |
+
+`kernel` was the longer shard in 92 of the 107 closure runs that had
+both, and in all 13 TIER=all runs. No closure run had `kernel` alone;
+12 had `app` alone.
+
+**Where the kernel shard's time goes** (local, 4 cores, the ci job's
+profile env, deps warm, workspace crates cold: build 13m48s against
+13.6 hosted).
+- Build: two ~600 s units close it. topo's lib-test runs 225→829 s on
+  topo's lib (19→217 s), and sweep's `all` runs 253→826 s. Next are topo
+  `all` (391), mesh `all` (169) and mesh's lib-test (169), all
+  competing with those two for 4 cores.
+- Tests: 289 test-s at default ε, of which sweep is 142, topo 69,
+  geom-brep 25, mesh 9.
+- The app shard's build (10m28s) is 1,167 unit-s in 628 s, chain-bound
+  on editor-core's lib (67→362 s) and `all` (375→628 s), so about 1,300
+  unit-s of its cores sit idle.
+
+**The move: mesh's tests into `app`.**
+- mesh is the only package whose move fits. Its two test units (338
+  unit-s) relieve kernel's contention without a long unit to wait on,
+  and its tests run in 9 test-s, so `app` takes the build and almost no
+  runtime.
+- sweep is too big. The 10-28 run with sweep in `app` measured app 19.2
+  and kernel 13.8, because `all` (573 s) moves with it.
+- topo would put its 603 s lib-test into `app`, on top of the editor-core
+  chain, in every topo-seeded closure.
+
+**The rule.** `app` is verbs, every member depending on it, and
+`APP_BALLAST` (mesh). Ballast is a timing choice the member graph
+cannot express, so it is a hand-kept list.
+`_selftest_app_shard_premise` checks `APP_SHARD` equals the closure plus
+the ballast. It reds a ballast entry that is not a member, or is already
+in the closure.
+
+**Measured on #6019's own runs** (TIER=all). Hosted runners come in two
+speeds: the same kernel build takes 9.3–9.7 min on a fast one and
+13.4–14.7 on a slow one. So each shard is compared with its own runner
+class.
+
+| run | `kernel` (build) | `app` (build) |
+|---|---|---|
+| 40847689090 | 17.7 (12.5, slow) | 14.3 (11.7, slow) |
+| 40857713276 | 11.9 (8.6, fast) | 14.0 (11.5, slow) |
+| 40861550771 | 13.9 (9.9, fast) | 15.2 (12.6, slow) |
+| 40864140159 | 18.3 (13.0, slow) | 14.6 (12.0, slow) |
+
+- Kernel's build fell by 0.6–1.2 min on slow runners and 0.2–1.0 on
+  fast ones. App's rose by 1.0–2.4 on slow runners (base 9.9–10.7).
+- On slow runners the slower shard went from 18.9–19.4 to 17.7–18.3.
+  That is about a minute at TIER=all.
+- The TIER=all gap left is test runtime, not build. TIER=all runs every
+  test at three ε, and kernel's runtime (4.6 min against app's 2.0)
+  is half sweep's. No package move short of sweep's shifts it.
+- The 17.7 run's `kernel` red is a seeded fuzz in geom, unrelated to
+  this change. It is filed on tint's
+  `turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling`.
+
+**Closure tier, estimated from those deltas.** Kernel 13.2–13.8 and app
+12.4–13.8 at the median (14.4 and 11.4, with kernel's build −0.6 to
+−1.2 and app's +1.0 to +2.4), within a minute of each other, which is the
+balance criterion here. The estimate is from four runs; whether it
+holds is owed item 1 below.
+
+## Owed, 2026-10-29
+
+1. After a day of closure runs on main with mesh in `app`, read the two
+   shards' medians as above. Close this row if they are within 1 min of
+   each other. Otherwise re-choose `APP_BALLAST` on those numbers.
