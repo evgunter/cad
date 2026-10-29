@@ -2803,25 +2803,6 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
             _ => None,
         })
         .collect();
-    for finding in &product.census {
-        if let topo::ValidationError::CensusUndecidable {
-            a: topo::EntityId::Face(a),
-            b: topo::EntityId::Face(b),
-            ..
-        } = finding
-        {
-            for f in [a, b] {
-                eprintln!(
-                    "DBG {f:?} {:?}",
-                    product.names.name_of(&editor_core::EntityRef {
-                        body: 0,
-                        key: EntityKey::Face(*f)
-                    })
-                );
-            }
-        }
-    }
-    eprintln!("DBG walls {:?}", crate::corpus::pin_in_bore::walls(&cd.doc));
     let [press, loose] = crate::corpus::pin_in_bore::walls(&cd.doc);
     let names = |[x, y]: [(RecipeNodeId, editor_core::StepId); 2]| {
         undecided.contains(&[x, y]) || undecided.contains(&[y, x])
@@ -2851,23 +2832,31 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
     );
 }
 
-/// **Two copies on one housing's axis glue their walls unproven**
-/// (INTENT stage 6, `shaft_and_bearing`). The shaft and the collar are
-/// each mated to the housing revolve's `axis` output; the union glues
-/// the shaft's wall to the bore's and to the collar's, two `SameOpposite`
-/// rows at `CarrierLadder` each (one per half of the shaft's wall), and
-/// decides the walls' rims and seams by vertex fusion. Every row is
-/// unproven: a wall pair as two constructions, and the fusions beyond
-/// the tier's budget or likewise.
+/// **Two copies on one housing's axis glue their walls on one axis,
+/// unproven while their radii are two variables** (INTENT stage 6,
+/// `shaft_and_bearing`). The shaft and the collar are each mated to the
+/// housing revolve's `axis` output; the union glues the shaft's wall to
+/// the bore's and to the collar's, two `SameOpposite` rows at
+/// `CarrierLadder` each (one per half of the shaft's wall), and decides
+/// the walls' rims and seams by vertex fusion. Every wall is a band of
+/// its revolve, so about that revolve's `axis` output, and the mates
+/// make the three outputs one: the door reads each wall pair's axes as
+/// one, `housing.axis` read twice. Each wall's radius is its own literal
+/// coordinate, so its own symbol, and the row is unproven at its radius,
+/// which the finding names. [`shaft_and_bearing::one_radius`] reads one
+/// `bore` for the three radii, and its four wall rows are proven by the
+/// carrier verdict, the axes as the mates state them; the seams on the
+/// walls then prove too.
 ///
-/// At `Interval` the union escalates, so the scene stands beside the
+/// At `Interval` the union escalates, so both scenes stand beside the
 /// registry.
 ///
-/// Red if the scene's rows change in kind, site or proof, or once its
-/// union passes at `Interval` (then it joins the registry); INTENT stage
-/// 6 PR B flips the wall rows.
+/// Red if a scene's rows change in kind, site or proof, if the walls'
+/// axes stop reading as one, or once its union passes at `Interval`
+/// (then it joins the registry).
 #[test]
-fn two_copies_on_one_axis_glue_their_walls_unproven() {
+fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
+    use coincide::{Axes, Component};
     let cd = crate::corpus::shaft_and_bearing::document();
     let (rows, lines) = door_lines(&cd);
     let walls = "SameOpposite CarrierLadder unproven/Numeric/OneConstruction";
@@ -2894,6 +2883,59 @@ fn two_copies_on_one_axis_glue_their_walls_unproven() {
         inputs.extend([a, b]);
     }
     assert_eq!(inputs.len(), 3, "the housing, the shaft and the collar");
+    // The housing is the meridian revolved first.
+    let housing_axis = cd
+        .doc
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(cd.doc.node(id), Some(Node::Revolve { .. })))
+        .map(|revolve| axis_port(&cd.doc, revolve))
+        .expect("the housing is revolved");
+    let ev = run(&cd.doc);
+    for (_, rows, proofs) in proved_rows(&cd.doc, &ev) {
+        for (row, proof) in rows.iter().zip(&proofs) {
+            let axes = match proof {
+                Proof::Unproven { residual, .. } => residual.axes,
+                Proof::Structural(_) => None,
+            };
+            assert_eq!(
+                axes.map(|a: Axes| (a.reached, a.left)),
+                (row.site == DecisionSite::CarrierLadder)
+                    .then_some(([Some(housing_axis); 2], Component::Radius)),
+                "a wall pair is one axis, housing.axis read twice, and two radii; no other row \
+                 is read for its axes: {row:?}"
+            );
+        }
+    }
+    let words: Vec<String> = unproven(&cd.doc, &ev)
+        .iter()
+        .map(ToString::to_string)
+        .filter(|f| f.contains("rests on one carrier against"))
+        .collect();
+    assert!(
+        !words.is_empty()
+            && words.iter().all(|f| f.contains(&format!(
+                "the axes are one, both reading {}; the radii are equal only at the current values",
+                tag(housing_axis)
+            ))),
+        "each wall finding names its one axis and its two radii: {words:?}"
+    );
+    escalates_at_interval(&cd);
+
+    let cd = crate::corpus::shaft_and_bearing::one_radius();
+    let (_, lines) = door_lines(&cd);
+    let walls = "SameOpposite CarrierLadder CarrierVerdict";
+    let on = "OnCarrier VertexFusion MarginIdentity";
+    let meet = "Meet VertexFusion unproven/Numeric/OneConstruction";
+    let budget = "Meet VertexFusion unproven/Numeric/Budget";
+    assert_eq!(
+        lines,
+        [
+            walls, walls, on, on, meet, meet, meet, meet, walls, walls, budget, budget, budget,
+            budget, on, on, meet, meet, meet, meet, budget, budget, budget, budget,
+        ],
+        "with one radius the walls are one axis and one radius"
+    );
     escalates_at_interval(&cd);
 }
 
@@ -2903,10 +2945,13 @@ fn two_copies_on_one_axis_glue_their_walls_unproven() {
 /// revolve, are proven by the carrier verdict; the socket's wall and the
 /// copy's spigot wall, two pieces of it, and the spigot's foot and the
 /// shoulder on the socket's floor and the body's top, are unproven, as
-/// is every rim the fusion decides.
+/// is every rim the fusion decides. The socket and the spigot are one
+/// axis (two bands of the revolve, about its `axis` output, which the
+/// copy's mate reads twice); their radii are two literal coordinates,
+/// so the wall row is unproven at its radius.
 ///
-/// Red if the scene's rows change in kind, site or proof; INTENT stage
-/// 6 PR B flips the spigot-in-socket wall row.
+/// Red if the scene's rows change in kind, site or proof, or the wall
+/// row's axes stop reading as one.
 #[test]
 fn a_bushing_stacked_on_its_own_axis_glues_its_walls() {
     let cd = crate::corpus::axis_projection::document();
@@ -2923,6 +2968,27 @@ fn a_bushing_stacked_on_its_own_axis_glues_its_walls() {
         a != b && a_band(na) && a_band(nb) && na.node == nb.node && na.path != nb.path,
         "the socket wall and the copy's spigot wall, two pieces of one revolve: {:?}",
         rows[2]
+    );
+    let axis = axis_port(&cd.doc, na.node);
+    let ev = run(&cd.doc);
+    let proof = proved_rows(&cd.doc, &ev)
+        .into_iter()
+        .find_map(|(_, rows_, proofs)| {
+            rows_
+                .iter()
+                .position(|row| *row == rows[2])
+                .map(|i| proofs[i].clone())
+        })
+        .expect("the wall row is proved");
+    assert!(
+        matches!(
+            &proof,
+            Proof::Unproven { residual, .. } if residual.axes.is_some_and(|a| {
+                a.reached == [Some(axis); 2] && a.left == coincide::Component::Radius
+            })
+        ),
+        "the socket and the spigot are one axis, the revolve's read twice, and two radii: \
+         {proof:?}"
     );
 }
 
@@ -3028,19 +3094,19 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     });
 }
 
-/// **Two blocks resting on one floor are a flush pair the door leaves
-/// unproven** (INTENT stage 6, `blocks_on_one_floor`). Each block is
-/// mated to the floor's top, never to the other block; the union of the
-/// two decides their bases flush, and their tops, and their abutting
-/// walls opposed, each over the budget, so unproven though the two rests
-/// generate the bases' equivalence (`[coincidence.structural]`;
-/// `work/intent/two-rests-on-one-plane-are-not-one-construction-at-the-door.md`).
-/// The world's `⊔` records the union's base on the floor's top at rest,
-/// unproven alike.
+/// **Two blocks resting on one floor are one plane at their bases**
+/// (INTENT stage 6, `blocks_on_one_floor`). Each block is mated to the
+/// floor's top, never to the other block; the two rests generate the
+/// bases' equivalence (`[coincidence.structural]`), so the union's flush
+/// pair of bases is proven by the first rung. Its tops and side walls
+/// flush, and its abutting walls opposed, are flush through the cubes'
+/// heights and the slides' values, no mate's statement, and are left
+/// over the budget. The world's `⊔` records the union's base, which the
+/// union mints from the two, on the floor's top at rest, unproven alike.
 ///
 /// Red if the scene's rows change in kind, site or proof.
 #[test]
-fn two_blocks_resting_on_one_floor_are_an_unproven_flush_pair() {
+fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
     let cd = crate::corpus::blocks_on_one_floor::document();
     let (_, lines) = door_lines(&cd);
     let flush = "SameOriented PlaneLadder unproven/Numeric/Budget";
@@ -3050,7 +3116,7 @@ fn two_blocks_resting_on_one_floor_are_an_unproven_flush_pair() {
         lines,
         [
             flush,
-            flush,
+            "SameOriented PlaneLadder SameConstruction",
             flush,
             "SameOpposite PlaneLadder unproven/Numeric/Budget",
             flush,
@@ -3079,15 +3145,18 @@ fn two_blocks_resting_on_one_floor_are_an_unproven_flush_pair() {
     );
 }
 
-/// **Two revolves reading one pair of axis variables glue unproven**
-/// (INTENT stage 6, `revolves_on_one_axis`). Both rings' `axis_through`
-/// slots read `ax` and `ay`; the second stands on the first in its
-/// space. The union reads the two bores and the two walls on one carrier
-/// each and glues the second's base to the first's top, every row
-/// unproven: the replay finds no identity in the carrier verdict or the
-/// margin.
+/// **Two revolves reading one pair of axis variables glue unproven, one
+/// axis and two radii** (INTENT stage 6, `revolves_on_one_axis`). Both
+/// rings' `axis_through` slots read `ax` and `ay`; the second stands on
+/// the first in its space. The union reads the two bores and the two
+/// walls on one carrier each and glues the second's base to the first's
+/// top, every row unproven. The two axes are one line in the symbols,
+/// each revolve's own `axis` output; each radius is a literal coordinate
+/// less `ax`, its own symbol, so the bores and the walls are left at the
+/// radius.
 ///
-/// Red if the scene's rows change in kind, site or proof.
+/// Red if the scene's rows change in kind, site or proof, or the walls'
+/// residual stops naming the radius.
 #[test]
 fn two_revolves_reading_one_axis_glue_unproven() {
     let cd = crate::corpus::revolves_on_one_axis::document();
@@ -3103,6 +3172,23 @@ fn two_revolves_reading_one_axis_glue_unproven() {
             on,
             on,
         ]
+    );
+    let ev = run(&cd.doc);
+    let axes: Vec<_> = proved_rows(&cd.doc, &ev)
+        .into_iter()
+        .flat_map(|(_, _, proofs)| proofs)
+        .filter_map(|proof| match proof {
+            Proof::Unproven { residual, .. } => residual.axes,
+            Proof::Structural(_) => None,
+        })
+        .collect();
+    assert!(
+        axes.len() == 2
+            && axes
+                .iter()
+                .all(|a| a.left == coincide::Component::Radius && a.reached == [None, None]),
+        "the bores and the walls: two revolves' own axes, which no mate reaches, one line, and \
+         two radii: {axes:?}"
     );
 }
 
@@ -3232,4 +3318,842 @@ fn measure_the_stage6_axis_identities() {
             }
         });
     }
+}
+
+// ---- INTENT stage 6 PR B: a coaxiality is one axis read twice ----
+
+/// **The door's proofs of `rows`, decided at `node` of `doc`**, its
+/// parts resolved through `opts`'s resolver.
+fn proofs_with(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    node: RecipeNodeId,
+    rows: &[NamedCoincidence],
+) -> Vec<Proof> {
+    coincide::prove(
+        doc,
+        &[(node, rows)],
+        opts.resolver.as_ref(),
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .remove(0)
+}
+
+/// **An instanced shaft mated onto this document's revolve's `axis` is
+/// coaxial with the bore by construction, with no replay**. The shaft
+/// is a part (a rectangle on its own axis, revolved); its instance is
+/// placed in a housing revolve's space by one mate, the axis of the
+/// instance's shaft wall on the housing's `axis` output, and unioned
+/// with the housing. The union stands on a part, so the replay reads
+/// none of its rows (`Unreplayed::ThroughAPart`): the wall pair it glues
+/// is unproven there, which is the premise, and its finding says the
+/// axes are one and the radii unread. The same two cells read as
+/// a coaxial row are one axis at the first rung: the shaft wall's axis
+/// by the mate, the bore wall's by its revolve's own statement (a band
+/// is about its revolve's `axis` output), so `housing.axis` read twice.
+/// (The kernel's union refuses every coaxial pair it would record as
+/// `Coaxial` today, so the row is the wall pair's cells read for their
+/// axes alone.)
+///
+/// Red if the first rung stops reading a band's axis as its revolve's
+/// output, or a mate side of an instance's face, or if the union's row
+/// on the part is replayed.
+#[test]
+fn an_instanced_shaft_mated_onto_a_revolves_axis_is_coaxial_by_construction() {
+    use crate::corpus::{Recorder, revolved};
+    use editor_core::{Coord, Dimension, Operand, TargetAxis};
+    let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {
+        let to = |x, y| ProgramTarget::Point(len2([x, y]));
+        vec![
+            ProgramStep::At(len2([inner, lo])),
+            ProgramStep::LineTo(to(outer, lo)),
+            ProgramStep::LineTo(to(outer, hi)),
+            ProgramStep::LineTo(to(inner, hi)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let mut part = Recorder::new();
+    part.doc = ProfileDoc::empty_derived("s6b-shaft", Tol::witness());
+    let shaft = revolved(&mut part, rect(0.0, 0.5, (-2.0, 1.5)));
+    let wall = shaft.wall(&part, 2);
+    let mut store = crate::fixture::resolver::PartStore::new();
+    let (part_ref, _) = store.insert_part((part.doc, shaft.revolve), Tol::witness());
+    let opts = crate::fixture::resolver::with_resolver(store);
+
+    let mut r = Recorder::new();
+    let housing = revolved(&mut r, rect(0.5, 1.0, (0.0, 1.0)));
+    let space = r
+        .doc
+        .operand_space(&housing.body())
+        .expect("the housing is in its space");
+    let instance = r.insert(Node::instantiate_part(
+        part_ref,
+        Operand::Var(space),
+        editor_core::stand().bundle(),
+    ));
+    r.constrain(
+        instance,
+        crate::fixture::mate(
+            crate::fixture::axis(Operand::select(Operand::output(instance, 0), vec![wall])),
+            housing.axis(),
+        ),
+        vec![
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::turn_over(4).expect("a quarter turn")),
+        ],
+    );
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(housing.body()),
+            editor_core::BodyRead::plain(Operand::output(instance, 0)),
+        ]),
+    });
+    let ev = editor_core::evaluate::<f64>(
+        &r.doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
+    assert_eq!(
+        crate::corpus::failures(&ev),
+        Vec::<String>::new(),
+        "the host evaluates"
+    );
+    let walls: Vec<NamedCoincidence> = rows(&ev, union)
+        .into_iter()
+        .filter(|row| row.site == DecisionSite::CarrierLadder)
+        .collect();
+    assert!(
+        !walls.is_empty()
+            && walls.iter().all(|row| {
+                let [(a, na), (b, nb)] = two_cells(row);
+                a != b && a_band(na) && a_band(nb)
+            }),
+        "the union glues the shaft's wall to the bore: {walls:?}"
+    );
+    let at_the_door = proofs_with(&r.doc, &opts, union, &walls);
+    let housing_axis = axis_port(&r.doc, housing.revolve);
+    assert!(
+        at_the_door.iter().all(|p| matches!(
+            p,
+            Proof::Unproven { residual, .. }
+                if residual.replay == coincide::Unreplayed::ThroughAPart
+                    && residual.axes.is_some_and(|a| {
+                        a.reached == [Some(housing_axis); 2]
+                            && a.left == coincide::Component::RadiusUnread
+                    })
+        )),
+        "a node's row on a part is not replayed, and its walls are one axis, housing.axis, \
+         their radii unread: {at_the_door:?}"
+    );
+    let coaxial: Vec<NamedCoincidence> = walls
+        .iter()
+        .map(|row| NamedCoincidence {
+            relation: Relation::Coaxial,
+            ..row.clone()
+        })
+        .collect();
+    assert_eq!(
+        proofs_with(&r.doc, &opts, union, &coaxial),
+        vec![Proof::Structural(Rung::SameConstruction); coaxial.len()],
+        "the shaft's wall and the bore are housing.axis read twice"
+    );
+}
+
+/// **A collar placed by values is two axes, and the finding names the
+/// mate that would make them one** (INTENT stage 6,
+/// `shaft_and_bearing_collar_by_values`). The collar stands where
+/// `shaft_and_bearing` mates it, by its six values alone. The union
+/// glues the shaft's wall to the collar's as there, unproven: the shaft's
+/// axis reads the housing's `axis` output by its mate, the collar's is
+/// its own revolve's, and the two do not reduce to one line in the
+/// symbols. The finding names both and the edit: mate the collar's copy
+/// onto the housing's axis, which the shaft's copy reads. The shaft's
+/// wall against the bore is one axis still, left at its radius.
+///
+/// Red if the door reads a values-placed copy's axis as stated, or the
+/// finding stops naming the edit.
+#[test]
+fn a_collar_placed_by_values_is_two_axes_and_the_finding_names_the_mate() {
+    let cd = crate::corpus::shaft_and_bearing::collar_by_values();
+    let ev = run(&cd.doc);
+    assert_eq!(
+        crate::corpus::failures(&ev),
+        Vec::<String>::new(),
+        "{} evaluates",
+        cd.name
+    );
+    let axes: Vec<coincide::Axes> = proved_rows(&cd.doc, &ev)
+        .into_iter()
+        .flat_map(|(_, _, proofs)| proofs)
+        .filter_map(|proof| match proof {
+            Proof::Unproven { residual, .. } => residual.axes,
+            Proof::Structural(_) => None,
+        })
+        .collect();
+    use coincide::Component::{Axis, Radius};
+    assert_eq!(
+        axes.iter().map(|a| a.left).collect::<Vec<_>>(),
+        [Radius, Radius, Axis, Axis],
+        "the bore and the shaft one axis, the shaft and the collar two"
+    );
+    // The housing, the shaft and the collar are revolved in that order,
+    // and the shaft and the collar placed in that order.
+    let revolves: Vec<RecipeNodeId> = cd
+        .doc
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(cd.doc.node(id), Some(Node::Revolve { .. })))
+        .collect();
+    let housing_axis = axis_port(&cd.doc, revolves[0]);
+    let copies: Vec<VarId> = cd
+        .doc
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(cd.doc.node(id), Some(Node::Place { .. })))
+        .map(|p| cd.doc.output(p, 0).expect("a placement defines its copy"))
+        .collect();
+    let want = [
+        (Some(housing_axis), Some(copies[0])),
+        (None, Some(copies[1])),
+    ];
+    for a in axes.iter().filter(|a| a.left == Axis) {
+        let got = [(a.reached[0], a.copies[0]), (a.reached[1], a.copies[1])];
+        assert!(
+            got == want || got == [want[1], want[0]],
+            "the shaft's axis reaches the housing's, no mate reaches the collar's: {a:?}"
+        );
+    }
+    let edit = format!(
+        "Edit, for the axis: mate {}'s axis onto {}, which {} reads",
+        tag(copies[1]),
+        tag(housing_axis),
+        tag(copies[0])
+    );
+    let findings: Vec<String> = unproven(&cd.doc, &ev)
+        .iter()
+        .map(ToString::to_string)
+        .filter(|f| f.contains("the axes are two"))
+        .collect();
+    assert!(
+        findings.len() == 2 && findings.iter().all(|f| f.contains(&edit)),
+        "each shaft-and-collar wall finding names the edit {edit:?}: {findings:?}"
+    );
+}
+
+/// **A variable read as a speaker with no document says it**: `read`
+/// and its tag.
+fn tag(var: VarId) -> String {
+    format!("read {:012x}", var.0.digest() >> 16)
+}
+
+/// **The edit mates the copy no axis mate reaches, in either cell
+/// order**. Two scenes of a housing, a shaft and a collar unioned,
+/// each with one of the two copies mated onto the housing's `axis`
+/// output and the other placed by values (slides off the axis literal
+/// lengths, each its own variable), the union's members in an order
+/// that names the two walls' cells the other way round from the
+/// corpus scene. Each wall finding between the shaft and the collar
+/// names the copy placed by values as the one to mate, onto the
+/// housing's axis, which the mated copy reads, whichever cell the row
+/// names first.
+///
+/// Red if the edit is chosen by cell order, or names a pose no mate
+/// reaches.
+#[test]
+fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{Coord, Dimension, Operand, TargetAxis};
+    let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {
+        let to = |x, y| ProgramTarget::Point(len2([x, y]));
+        vec![
+            ProgramStep::At(len2([inner, lo])),
+            ProgramStep::LineTo(to(outer, lo)),
+            ProgramStep::LineTo(to(outer, hi)),
+            ProgramStep::LineTo(to(inner, hi)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let none = || Formula::zero(Dimension::Angle);
+    let by_values = |y: f64, spin: Formula| editor_core::Placed {
+        mates: Vec::new(),
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(y)),
+            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (Coord::Spin(Some(TargetAxis::X)), none()),
+            (Coord::Spin(Some(TargetAxis::Y)), spin),
+            (Coord::Spin(Some(TargetAxis::Z)), none()),
+        ],
+    };
+    let mut firsts = std::collections::BTreeSet::new();
+    for shaft_mated in [true, false] {
+        let mut r = Recorder::new();
+        let housing = revolved(&mut r, rect(0.5, 1.0, (0.0, 1.0)));
+        let shaft = revolved(&mut r, rect(0.0, 0.5, (-2.0, 1.5)));
+        let quarter = || Formula::turn_over(4).expect("a quarter turn");
+        let shaft_placed = if shaft_mated {
+            editor_core::Placed {
+                mates: vec![crate::fixture::mate(shaft.axis(), housing.axis())],
+                values: vec![
+                    (
+                        Coord::Slide(TargetAxis::Y),
+                        Formula::zero(Dimension::Length),
+                    ),
+                    (Coord::SPIN, quarter()),
+                ],
+            }
+        } else {
+            by_values(0.0, quarter())
+        };
+        let shaft_copy = placed_in(&mut r, &housing.body(), shaft.body(), shaft_placed);
+        let collar = revolved(&mut r, rect(0.5, 0.75, (0.0, 0.5)));
+        let collar_placed = if shaft_mated {
+            by_values(-1.0, none())
+        } else {
+            editor_core::Placed {
+                mates: vec![crate::fixture::mate(collar.axis(), housing.axis())],
+                values: vec![
+                    (Coord::Slide(TargetAxis::Y), len(-1.0)),
+                    (Coord::SPIN, none()),
+                ],
+            }
+        };
+        let collar_copy = placed_in(&mut r, &housing.body(), collar.body(), collar_placed);
+        let union = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::plain(housing.body()),
+                editor_core::BodyRead::plain(Operand::output(collar_copy, 0)),
+                editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
+            ]),
+        });
+        let ev = run(&r.doc);
+        assert_eq!(
+            crate::corpus::failures(&ev),
+            Vec::<String>::new(),
+            "evaluates"
+        );
+        let [shaft_copy, collar_copy] = [shaft_copy, collar_copy]
+            .map(|p| r.doc.output(p, 0).expect("a placement defines its copy"));
+        let (mated, unmated) = if shaft_mated {
+            (shaft_copy, collar_copy)
+        } else {
+            (collar_copy, shaft_copy)
+        };
+        let housing_axis = axis_port(&r.doc, housing.revolve);
+        // The housing's own bore is read where it was built, in no
+        // copy: its edit names no reader.
+        let onto = format!(
+            "Edit, for the axis: mate {}'s axis onto {}",
+            tag(unmated),
+            tag(housing_axis)
+        );
+        let edit = format!("{onto}, which {} reads", tag(mated));
+        let findings: Vec<String> = unproven(&r.doc, &ev)
+            .iter()
+            .filter(|f| f.subject == editor_core::FindingSubject::Node(union))
+            .map(ToString::to_string)
+            .filter(|f| f.contains("the axes are two"))
+            .collect();
+        assert!(
+            findings.iter().any(|f| f.contains(&edit))
+                && findings
+                    .iter()
+                    .all(|f| f.contains(&edit) || (f.contains(&onto) && !f.contains(", which "))),
+            "shaft mated {shaft_mated}: each finding names {edit:?}: {findings:?}"
+        );
+        let findings: Vec<&String> = findings.iter().filter(|f| f.contains(&edit)).collect();
+        for f in &findings {
+            firsts.insert(f.contains(&format!("the first cell's reads {}", tag(housing_axis))));
+        }
+    }
+    assert_eq!(
+        firsts.len(),
+        2,
+        "the two scenes name the mated cell first in one and second in the other"
+    );
+}
+
+/// **A wall whose two ends are two variables is not one radius by B's
+/// reading** (`shaft_and_bearing_split_bore`). The housing's bore wall
+/// reads `bore` at one end and `bore2`, of equal value, at the other;
+/// the revolve reads the leg as a cylinder from the two ends' values,
+/// its radius one end's. The door's own reading of two cylinders asks
+/// each wall's rims to be its radius, so it leaves the bore against the
+/// shaft at the radius whichever end reads `bore2`. With `bore2` at
+/// the top the kernel's carrier-pair verdict, reading the cylinder's
+/// radius off the bottom end alone, proves the row anyway: a wall
+/// decided from values that no door row records
+/// (`work/coincide/a-revolves-wall-classification-is-no-door-row.md`).
+///
+/// Red if the door's cylinder reading proves a wall whose ends are two
+/// variables, or once the kernel's wall classification is a door row
+/// (then both orders are unproven).
+#[test]
+fn a_wall_whose_two_ends_are_two_variables_is_not_one_radius() {
+    for bore2_at_top in [true, false] {
+        let cd = crate::corpus::shaft_and_bearing::split_bore(bore2_at_top);
+        let ev = run(&cd.doc);
+        assert_eq!(
+            crate::corpus::failures(&ev),
+            Vec::<String>::new(),
+            "evaluates"
+        );
+        // The housing's band is the first cell of the bore's two rows.
+        let housing = cd
+            .doc
+            .ids()
+            .into_iter()
+            .find(|&id| matches!(cd.doc.node(id), Some(Node::Revolve { .. })))
+            .expect("the housing is revolved");
+        let bore: Vec<Proof> = proved_rows(&cd.doc, &ev)
+            .into_iter()
+            .flat_map(|(_, rows, proofs)| rows.into_iter().zip(proofs))
+            .filter(|(row, _)| {
+                row.site == DecisionSite::CarrierLadder
+                    && two_cells(row).iter().any(|(_, n)| n.node == housing)
+            })
+            .map(|(_, p)| p)
+            .collect();
+        assert_eq!(
+            bore.len(),
+            2,
+            "bore2 at top {bore2_at_top}: the bore's two rows"
+        );
+        for p in &bore {
+            match (bore2_at_top, p) {
+                (true, Proof::Structural(Rung::CarrierVerdict)) => {}
+                (false, Proof::Unproven { residual, .. })
+                    if residual
+                        .axes
+                        .is_some_and(|a| a.left == coincide::Component::Radius) => {}
+                _ => panic!("bore2 at top {bore2_at_top}: {p:?}"),
+            }
+        }
+    }
+}
+
+/// **A bundle the doors refuse states nothing** (review probe R1). A
+/// housing and a shaft placed in it by values (its off-axis slides
+/// literal lengths) are unioned. A ghost ring is placed twice beside
+/// them, one copy's outer wall mated onto the housing's `axis`, the
+/// other's inner wall onto the shaft copy's wall; a load then moves the
+/// second mate into the first copy's bundle, which no edit door admits
+/// (two axis mates: `Overconstrained`). Read as statements, the two
+/// mates would make the housing's axis and the shaft's one through the
+/// ghost's, and the bore and the shaft one carrier. The refused bundle
+/// places no copy and states nothing, so the union's wall rows stay
+/// unproven.
+///
+/// Red if the first rung reads a bundle the doors refuse.
+#[test]
+fn a_refused_bundle_states_nothing() {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{Coord, Dimension, DocEdit, FreeVar, Operand, TargetAxis, VarDecl, VarName};
+    let rect = |inner: &Formula, outer: &Formula, (lo, hi): (f64, f64)| {
+        let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
+        vec![
+            ProgramStep::At([inner.clone(), len(lo)]),
+            ProgramStep::LineTo(to(outer, lo)),
+            ProgramStep::LineTo(to(outer, hi)),
+            ProgramStep::LineTo(to(inner, hi)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("bore"),
+        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+    });
+    let bore = Formula::named(VarName::from_static("bore"), Dimension::Length);
+    let housing = revolved(&mut r, rect(&bore, &len(1.0), (0.0, 1.0)));
+    let shaft = revolved(&mut r, rect(&len(0.0), &bore, (-2.0, 1.5)));
+    let shaft_wall = shaft.wall(&r, 2);
+    let none = || Formula::zero(Dimension::Angle);
+    let shaft_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        shaft.body(),
+        editor_core::Placed {
+            mates: Vec::new(),
+            values: vec![
+                (Coord::Slide(TargetAxis::X), len(0.0)),
+                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::Slide(TargetAxis::Z), len(0.0)),
+                (Coord::Spin(Some(TargetAxis::X)), none()),
+                (
+                    Coord::Spin(Some(TargetAxis::Y)),
+                    Formula::turn_over(4).expect("a quarter turn"),
+                ),
+                (Coord::Spin(Some(TargetAxis::Z)), none()),
+            ],
+        },
+    );
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(housing.body()),
+            editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
+        ]),
+    });
+    let ghost = revolved(&mut r, rect(&len(0.1), &len(0.2), (5.0, 6.0)));
+    let (outer, inner) = (ghost.wall(&r, 2), ghost.wall(&r, 4));
+    let mut ghost_on = |wall, to| {
+        placed_in(
+            &mut r,
+            &housing.body(),
+            ghost.body(),
+            editor_core::Placed {
+                mates: vec![crate::fixture::mate(
+                    crate::fixture::axis(Operand::select(ghost.body(), vec![wall])),
+                    to,
+                )],
+                values: vec![
+                    (
+                        Coord::Slide(TargetAxis::Y),
+                        Formula::zero(Dimension::Length),
+                    ),
+                    (Coord::SPIN, Formula::zero(Dimension::Angle)),
+                ],
+            },
+        )
+    };
+    let first = ghost_on(outer, housing.axis());
+    let second = ghost_on(
+        inner,
+        crate::fixture::axis(Operand::select(
+            Operand::output(shaft_copy, 0),
+            vec![shaft_wall],
+        )),
+    );
+    let text = editor_core::save(&r.doc, &[], Tol::witness()).expect("saves");
+    let doctored = crate::wire::doctored(&text, |w| {
+        let nodes = &mut w["snapshot"]["nodes"];
+        let moved = nodes[second.0.to_string()]["Place"]["constraints"]
+            .as_array_mut()
+            .expect("a bundle")
+            .remove(0);
+        nodes[first.0.to_string()]["Place"]["constraints"]
+            .as_array_mut()
+            .expect("a bundle")
+            .insert(1, moved);
+    });
+    let doc = editor_core::load(&doctored, Tol::witness())
+        .expect("the load door admits each mate on its own")
+        .doc;
+    let ev = run(&doc);
+    assert!(
+        crate::corpus::failures(&ev)
+            .iter()
+            .any(|f| f.contains("Overconstrained")),
+        "the doctored bundle is refused: {:?}",
+        crate::corpus::failures(&ev)
+    );
+    let walls: Vec<Proof> = proved_rows(&doc, &ev)
+        .into_iter()
+        .filter(|(node, _, _)| *node == union)
+        .flat_map(|(_, rows, proofs)| rows.into_iter().zip(proofs))
+        .filter(|(row, _)| row.site == DecisionSite::CarrierLadder)
+        .map(|(_, p)| p)
+        .collect();
+    assert!(
+        !walls.is_empty() && walls.iter().all(|p| matches!(p, Proof::Unproven { .. })),
+        "the bore and the shaft are two axes: {walls:?}"
+    );
+}
+
+/// **The revolve's port named `axis`**.
+fn axis_port(doc: &ProfileDoc, revolve: RecipeNodeId) -> VarId {
+    let port = doc
+        .node(revolve)
+        .expect("a revolve")
+        .outputs()
+        .iter()
+        .position(|p| p.name == "axis")
+        .expect("a revolve defines an axis");
+    doc.output(revolve, u8::try_from(port).expect("a port"))
+        .expect("the axis output")
+}
+
+/// **Every cell the first rung reads about a revolve's `axis` output is
+/// about it**, in the symbols: the arm (`coincide::axis_of`) checked
+/// against the symbolic evaluation (`[coincidence.door]`). For every
+/// revolve of every corpus document with one, the document is
+/// evaluated at `Sym` in the door's replay session, and every face,
+/// edge and vertex the revolve mints is handed to the arm as the walk
+/// reads it. Each one the arm reads about the revolve's `axis` output
+/// has its carrier read against that output's line: a cylinder's, a
+/// cone's or a torus's axis, a sphere's centre, a plane's normal, a
+/// circle's axis, a line itself, or a point, as the residuals of one
+/// line on another (`d′ × d`, `(p − f) × d`) or of a point on it, every
+/// one proven zero by the tier. The arm reads every band and nothing
+/// else.
+///
+/// Red if a revolve mints a band off its own axis, or the arm reads a
+/// cell about the axis that is not (a meridian edge, a cap), or misses
+/// a band.
+#[test]
+fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
+    use coincide::{Construction, Origin};
+    use editor_core::pose::PoseValue;
+    use geom::{Curve3, Surface};
+    use geom_core::sym::deferred;
+    use geom_core::{Band, Decide, Sym};
+    type S = Sym<f64>;
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let (mut bands, mut revolves) = (0usize, 0usize);
+    let docs = crate::corpus::documents()
+        .into_iter()
+        .chain(crate::corpus::stage6_beside_the_registry());
+    for cd in docs {
+        let doc = &cd.doc;
+        let revolve_ids: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|&id| matches!(doc.node(id), Some(Node::Revolve { .. })))
+            .collect();
+        if revolve_ids.is_empty() {
+            continue;
+        }
+        let opts = EvalOptions {
+            symbols: true,
+            ..EvalOptions::default()
+        };
+        coincide::with_replay_session(opts, |opts| {
+            let ev: Evaluation<S> = editor_core::evaluate(
+                doc,
+                None,
+                &editor_core::CancelToken::new(),
+                opts,
+                Tol::witness(),
+            );
+            for &revolve in &revolve_ids {
+                let axis_var = axis_port(doc, revolve);
+                let body_var = doc.output(revolve, 0).expect("a revolve defines its body");
+                let Ok(PoseValue::Axis(line)) = editor_core::eval::bound_pose(
+                    doc,
+                    &ev,
+                    editor_core::OperandSlot::Axis,
+                    axis_var,
+                    Tol::witness(),
+                ) else {
+                    assert!(
+                        ev.value(revolve).is_none(),
+                        "{}: a revolve that built its body reads its axis",
+                        cd.name
+                    );
+                    continue;
+                };
+                let Some(table) = ev.table(body_var) else {
+                    continue;
+                };
+                revolves += 1;
+                let (foot, dir) = (line.foot(), line.dir().get());
+                let line_on = |p: Point3<S>, d: Option<geom_core::Vec3<S>>| {
+                    let mut r = vec![];
+                    if let Some(d) = d {
+                        let c = d.cross(dir);
+                        r.extend([c.x, c.y, c.z]);
+                    }
+                    let o = (p - foot).cross(dir);
+                    r.extend([o.x, o.y, o.z]);
+                    r
+                };
+                for (name, entry) in table.iter() {
+                    if name.node != revolve {
+                        continue;
+                    }
+                    let cell = Construction {
+                        origin: Origin::Minted(name.clone()),
+                        maps: Vec::new(),
+                    };
+                    let about =
+                        coincide::axis_of(doc, &cell).origin == Origin::Pose(axis_var, None);
+                    assert!(
+                        about || !a_band(name),
+                        "{}: the arm reads every band about its revolve's axis: {name:?}",
+                        cd.name
+                    );
+                    if !about {
+                        continue;
+                    }
+                    let Entry::Unique(editor_core::EntityRef { body, key }) = entry else {
+                        continue;
+                    };
+                    let framed = ev
+                        .read_body(body_var, *body)
+                        .expect("the revolve stands")
+                        .expect("its body");
+                    let body = framed.body();
+                    let residuals = match key {
+                        EntityKey::Face(face) => {
+                            match body
+                                .get_face(*face)
+                                .and_then(|f| body.get_surface(f.surface))
+                                .expect("a face has a surface")
+                            {
+                                Surface::Cylinder { origin, axis, .. } => {
+                                    line_on(*origin, Some(*axis))
+                                }
+                                Surface::Cone { apex, axis, .. } => line_on(*apex, Some(*axis)),
+                                Surface::Torus { center, axis, .. } => {
+                                    line_on(*center, Some(*axis))
+                                }
+                                Surface::Sphere { center, .. } => line_on(*center, None),
+                                Surface::Plane { normal, .. } => {
+                                    let c = normal.cross(dir);
+                                    vec![c.x, c.y, c.z]
+                                }
+                                other => panic!("{}: a revolve's band on {other:?}", cd.name),
+                            }
+                        }
+                        EntityKey::Edge(edge) => match body
+                            .get_edge(*edge)
+                            .and_then(|e| body.get_curve_geom(e.curve))
+                            .and_then(topo::CurveGeom::certified)
+                            .map(geom_brep::EdgeCurve::carrier)
+                            .expect("an edge has a carrier")
+                        {
+                            Curve3::Circle { center, axis, .. } => line_on(*center, Some(*axis)),
+                            Curve3::Line { origin, dir } => line_on(*origin, Some(*dir)),
+                            other => {
+                                panic!("{}: an edge read about the axis on {other:?}", cd.name)
+                            }
+                        },
+                        EntityKey::Body => {
+                            panic!("{}: the arm reads a body about an axis", cd.name)
+                        }
+                        EntityKey::Vertex(v) => line_on(
+                            *body
+                                .get_vertex(*v)
+                                .and_then(|v| body.get_point(v.point))
+                                .expect("a vertex has a point"),
+                            None,
+                        ),
+                    };
+                    for (i, r) in residuals.into_iter().enumerate() {
+                        let why = r
+                            .sign_within(band)
+                            .map(|d| deferred::discharge_or_why(d.margin));
+                        assert!(
+                            matches!(why, Ok(Ok(()))),
+                            "{}: {name:?}'s residual {i} against its revolve's axis: {why:?}",
+                            cd.name
+                        );
+                    }
+                    bands += 1;
+                }
+            }
+        });
+    }
+    assert!(
+        revolves >= 6 && bands >= 30,
+        "the corpus's revolves and their bands were read: {revolves} revolves, {bands} bands"
+    );
+}
+
+/// **A stated axis proves a wall pair the fold does not**. A housing
+/// is copied into its own space by values (slid, and spun half a
+/// radian about its `y`, each a literal variable), and a shaft is mated
+/// onto that copy's bore wall's axis, slid and spun by literal
+/// variables; the bore and the shaft read one `bore`, and the two are
+/// unioned. The kernel's carrier-pair verdict reads the shaft's axis as
+/// the fold builds it from the copy's spun axis, which is over the
+/// door's budget at `Sym`; the replay reads it as the mate states it,
+/// the housing copy's bore axis, and proves the two walls one carrier
+/// by their radii (one `bore`, at both ends of each wall) and senses.
+///
+/// Red if the replay reads a mated copy's axis by its fold.
+#[test]
+fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{Coord, Dimension, DocEdit, FreeVar, Operand, TargetAxis, VarDecl, VarName};
+    let bore = Formula::named(VarName::from_static("bore"), Dimension::Length);
+    let rect = |inner: &Formula, outer: &Formula, (lo, hi): (f64, f64)| {
+        let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
+        vec![
+            ProgramStep::At([inner.clone(), len(lo)]),
+            ProgramStep::LineTo(to(outer, lo)),
+            ProgramStep::LineTo(to(outer, hi)),
+            ProgramStep::LineTo(to(inner, hi)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]
+    };
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("bore"),
+        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+    });
+    let housing = revolved(&mut r, rect(&bore, &len(1.0), (0.0, 1.0)));
+    let wall = housing.wall(&r, 4);
+    let housing_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        housing.body(),
+        editor_core::Placed {
+            mates: Vec::new(),
+            values: vec![
+                (Coord::Slide(TargetAxis::X), len(3.0)),
+                (Coord::Slide(TargetAxis::Y), len(0.5)),
+                (Coord::Slide(TargetAxis::Z), len(0.25)),
+                (
+                    Coord::Spin(Some(TargetAxis::X)),
+                    Formula::zero(Dimension::Angle),
+                ),
+                (Coord::Spin(Some(TargetAxis::Y)), crate::fixture::ang(0.5)),
+                (
+                    Coord::Spin(Some(TargetAxis::Z)),
+                    Formula::zero(Dimension::Angle),
+                ),
+            ],
+        },
+    );
+    let shaft = revolved(&mut r, rect(&len(0.0), &bore, (-2.0, 1.5)));
+    let shaft_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        shaft.body(),
+        editor_core::Placed {
+            mates: vec![crate::fixture::mate(
+                shaft.axis(),
+                crate::fixture::axis(Operand::select(
+                    Operand::output(housing_copy, 0),
+                    vec![wall],
+                )),
+            )],
+            values: vec![
+                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::SPIN, crate::fixture::ang(0.7)),
+            ],
+        },
+    );
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(Operand::output(housing_copy, 0)),
+            editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
+        ]),
+    });
+    let ev = run(&r.doc);
+    assert_eq!(
+        crate::corpus::failures(&ev),
+        Vec::<String>::new(),
+        "evaluates"
+    );
+    let walls: Vec<Proof> = proved_rows(&r.doc, &ev)
+        .into_iter()
+        .filter(|(node, _, _)| *node == union)
+        .flat_map(|(_, rows, proofs)| rows.into_iter().zip(proofs))
+        .filter(|(row, _)| row.site == DecisionSite::CarrierLadder)
+        .map(|(_, p)| p)
+        .collect();
+    assert_eq!(
+        walls,
+        vec![Proof::Structural(Rung::CarrierVerdict); 2],
+        "the bore and the shaft: one axis by the mate, one bore, one sense"
+    );
 }

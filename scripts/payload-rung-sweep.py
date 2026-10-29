@@ -274,6 +274,13 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
                            "re-exported whole; Python's `Coincidence.residual` says the "
                            "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
+    # The first of one axis, one radius and one sense an unproven row
+    # between two cells with an axis is left at (`Residual::axes`):
+    # carried through `document::coincide` like `Unwalked`, and said by
+    # the `unproven-coincidence` finding's sentence.
+    "Component": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
+                            "re-exported whole; the finding's sentence says the arm, "
+                            "crates/editor-core/src/checks.rs (`axes_words`)"),
 
     # The pose definitions (D10, INTENT stage 3 A): carried through
     # `document::pose`, re-exported whole, and said in Python by

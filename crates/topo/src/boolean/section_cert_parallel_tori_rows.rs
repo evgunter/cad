@@ -471,11 +471,11 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
     // The stem's window ends at the weld plane, the arch's starts there.
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
-    let mut cleared = certify(&s, false, |_| Sheet::Not, windows)
+    let mut cleared = certify(&s, false, band(), |_| Sheet::Not, windows)
         .expect("windows parted by the weld plane clear both loops");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(
@@ -484,7 +484,7 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
         "one loop outside the stem's window, the other outside the arch's"
     );
     assert_eq!(
-        certify(&s, false, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Loop),
         "windows reaching over a loop with no event refuse R-loop"
     );
@@ -535,19 +535,19 @@ fn an_evented_lily_pair_clears_only_by_its_witnesses() {
     let [stem, arch] = lily(3.9, 0.0);
     let s = classify(&stem, &arch);
     assert_eq!(
-        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),
         "evented, both witnesses inside both faces: R-undec"
     );
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
     let mut cleared =
-        certify(&s, true, |_| Sheet::Not, windows).expect("each witness out of one window");
+        certify(&s, true, band(), |_| Sheet::Not, windows).expect("each witness out of one window");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(cleared, [Cleared::Out(Side::F), Cleared::Out(Side::G)]);
 }

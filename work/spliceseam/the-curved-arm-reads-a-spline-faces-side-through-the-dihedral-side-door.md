@@ -52,7 +52,8 @@ it loses the cover. A spline target there needs the curve × face
 clause's foot reading, not this door: a cover's side is global, and
 this door's side is local to the edge.
 
-Witness: lily wall 8 (`demos/tour/src/lily.rs`) moves off
+Witness: the sheath grafted on its blade (lily wall 8 until 2026-10-29,
+now `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`) moves off
 `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` once this row,
 the boundary-first row and the two flush rows land.
 

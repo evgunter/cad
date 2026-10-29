@@ -843,6 +843,9 @@ impl SaidFinding<'_> {
                     crate::coincide::site_words(row.site),
                     row.margin,
                 )?;
+                if let Some(axes) = &residual.axes {
+                    axes_words(f, axes, by)?;
+                }
                 match restated.len() {
                     0 => Ok(()),
                     1 => f.write_str("; a fold step's row at its cells is reported with it"),
@@ -933,6 +936,74 @@ impl SaidFinding<'_> {
                 _ => "",
             },
         }
+    }
+}
+
+/// **An unproven row's axes, in words** ([`crate::coincide::Axes`]):
+/// each cell's axis as the pose its mates reach, the component not
+/// established, and the edit for that component alone. Two axes' edit
+/// mates the copy no axis mate reaches onto the pose the other cell's
+/// mates reach, whichever cell the row names first; a radius never
+/// read is said so.
+fn axes_words(
+    f: &mut fmt::Formatter<'_>,
+    axes: &crate::coincide::Axes,
+    by: crate::spoken::Speaker<'_>,
+) -> fmt::Result {
+    use crate::coincide::Component;
+    let one = |f: &mut fmt::Formatter<'_>| match axes.reached {
+        [Some(a), Some(b)] if a == b => {
+            write!(f, "; the axes are one, both reading {}", by.read(a))
+        }
+        _ => f.write_str("; the axes are one"),
+    };
+    match axes.left {
+        Component::Axis => {
+            let axis = |i: usize| match axes.reached[i] {
+                Some(pose) => format!("reads {}", by.read(pose)),
+                None => "is its own".to_owned(),
+            };
+            write!(
+                f,
+                "; the axes are two: the first cell's {}, the second's {}",
+                axis(0),
+                axis(1)
+            )?;
+            let edit = [(0, 1), (1, 0)].into_iter().find_map(|(i, j)| {
+                let pose = axes.reached[i]?;
+                let copy = axes.copies[j].filter(|_| axes.reached[j].is_none())?;
+                Some((pose, copy, axes.copies[i]))
+            });
+            match edit {
+                Some((pose, copy, reader)) => {
+                    write!(
+                        f,
+                        ". Edit, for the axis: mate {}'s axis onto {}",
+                        by.read(copy),
+                        by.read(pose)
+                    )?;
+                    match reader {
+                        Some(reader) => write!(f, ", which {} reads", by.read(reader)),
+                        None => Ok(()),
+                    }
+                }
+                None => f.write_str(". Edit, for the axis: read both cells' axes from one Axis"),
+            }
+        }
+        Component::Radius => {
+            one(f)?;
+            f.write_str(
+                "; the radii are equal only at the current values. Edit, for the radius: read \
+                 one Length for both radii, at both ends of each wall",
+            )
+        }
+        Component::RadiusUnread => {
+            one(f)?;
+            f.write_str("; the radii were not read")
+        }
+        Component::Sense => f.write_str(
+            "; the axes and the radii are one; the senses are not the ones the row decided",
+        ),
     }
 }
 

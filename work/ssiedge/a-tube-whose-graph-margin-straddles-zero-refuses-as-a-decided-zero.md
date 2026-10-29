@@ -38,7 +38,7 @@ a decision.
 demo-tour lily wall 8 at default ε, on PR 5907's head:
 `Certification { error: PlaneNurbs(TubeStraddles { verdict:
 Zero(Classified { margin: MarginDiag(Value(0.0, ..)), band: [1e-9, 1e-8)
-}), boxes: 16 }) }`.
+}), boxes: 16 }) }`. That wall 8 was the leaf's sheath grafted on its blade; since 2026-10-29 the scene builds the leaf as one loft, and the sweep row `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs` builds the same graft.
 
 ## What is open
 
