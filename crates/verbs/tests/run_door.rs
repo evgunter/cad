@@ -308,6 +308,7 @@ fn members_both_ways(
     let via = Members {
         op: topo::NaryOp::Union,
         members: inputs.clone(),
+        apart: topo::Apart::default(),
     }
     .run_members(&bodies, SweepStrategy::Realized, tol());
     (door, via)

@@ -208,7 +208,7 @@ pub enum OperandSlot {
     Member(u32),
     /// The family a union or an intersect reads whole.
     Members,
-    /// What a transform, a pattern or a placed union places.
+    /// What an assertion's value reads: a slot variable or an operand.
     Input,
     /// The copies a part projection picks one of.
     Of,
@@ -287,8 +287,7 @@ impl OperandSlot {
             // two sides agree (`MateFault::KindsDiffer`).
             Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
-            // A placement copies a body, or until patterns are index
-            // variables a pattern's family whole.
+            // A placement copies a body, or a family read whole.
             Self::Input | Self::Source => SlotKind::Placeable,
         }
     }

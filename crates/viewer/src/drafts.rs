@@ -23,7 +23,7 @@ use pncad::profile::{Step, Target};
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{PatternKindChoice, ShapeKind};
+use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
@@ -179,7 +179,7 @@ pub(crate) struct Drafts {
     /// Its rotation angle, radians.
     pub(crate) transform_angle: f64,
     /// The pattern tool's rule choice.
-    pub(crate) pattern_kind: PatternKindChoice,
+    pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
     /// calls, and so whether the placements come out as separate
     /// instances or as one fused body.
@@ -637,7 +637,7 @@ impl Default for Drafts {
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
-            pattern_kind: PatternKindChoice::Linear,
+            pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
             // The one home both stepping gestures open on.

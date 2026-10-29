@@ -41,7 +41,9 @@ Two directions read at a corner, levered at a sector's arm or the
 shorter of two, where each direction's own reach is known:
 
 - `boolean/recl.rs` ray-event grouping (`parallel_same_dir` at
-  `mentions[i].arm.min(mentions[j].arm)`), and `bool_ee_collinear`;
+  `mentions[i].arm.min(mentions[j].arm)`), and `bool_ee_collinear`
+  (2026-10-29: now `sectors::parallel_same` passed `RAY_COLLINEAR`,
+  PR 5983; same arm);
 - `boolean/insert.rs` `bool_shared_cut_order` and `strut_order` at
   `s.arm`;
 - `census.rs` `strictly_inside` (tier 3's line wedge, scaled to the

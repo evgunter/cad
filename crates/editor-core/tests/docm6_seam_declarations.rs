@@ -412,31 +412,27 @@ fn a_placed_product_keeps_its_parts() {
     );
 }
 
-/// **A placed union of a product places it whole**: its prototype is
-/// the instance's one body, both cubes, placed at each frame.
+/// **A union of a family of a product places it whole**: each member
+/// is the instance's one body, both cubes, placed at its values.
 #[test]
-fn a_placed_union_of_a_product_places_both_parts() {
+fn a_union_of_a_family_of_a_product_places_both_parts() {
     let (store, inner_ref, _) = product_and_cube("placed", 0.0);
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-placed-outer"),
         Tol::witness(),
     );
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
+    let (doc, _, row) = fixture::linear(doc, instance, [1.0, 0.0, 0.0], 20.0, 2);
     let (doc, group) = insert(
         doc,
-        Node::PlacedUnion {
-            input: instance.into(),
-            count: None,
-            kind: editor_core::PatternKind::Explicit(vec![
-                Frame::IDENTITY,
-                Frame::translation([20.0, 0.0, 0.0]),
-            ]),
+        Node::Union {
+            members: editor_core::Bodies::Family(row.into()),
         },
     );
     let ev = run(&doc, &with_resolver(store));
     assert!(
         ev.node_error(group).is_none(),
-        "the placed union evaluates over a product: {:?}",
+        "the union of the family evaluates over a product: {:?}",
         ev.node_error(group)
     );
 }
