@@ -206,3 +206,84 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
     );
     assert!(matches!(unread, Section::Intractable), "{unread:?}");
 }
+
+/// r1 probe: the dome loop's residual against the witness's true
+/// distance from the circle, and the same loop read through a plane
+/// whose origin stands a kilometre off.
+#[test]
+fn r1_probe_residual_and_far_origin() {
+    let t = std::time::Instant::now();
+    let s = read(&level(-0.1), &dome());
+    let c = lone(&s);
+    let w = c.witness.unwrap();
+    let r = ((w.x - 0.5).powi(2) + (w.y - 0.5).powi(2)).sqrt();
+    let dist = ((r - 0.1_f64.sqrt()).powi(2) + (w.z + 0.1).powi(2)).sqrt();
+    eprintln!(
+        "R1 near: residual {:e}, true distance {dist:e}, band zero {:e}, {:.2?}",
+        c.residual,
+        band().zero(),
+        t.elapsed()
+    );
+    assert!(dist <= c.residual, "residual is an upper bound");
+    let t = std::time::Instant::now();
+    let far = plane(p(1000.0, 1000.0, -0.1), v(0.0, 0.0, 1.0));
+    let s = read(&far, &dome());
+    eprintln!("R1 far: {s:?} in {:.2?}", t.elapsed());
+    let c = lone(&s);
+    assert!(c.reaches.is_none(), "far origin: still a loop: {s:?}");
+}
+
+/// r1 probe: a loop standing `d` inside all four sides of the wall
+/// (the dome cut just above its rim's lowest points) is a loop, never a
+/// component that reaches the boundary.
+#[test]
+fn r1_probe_a_loop_hugging_the_sides_is_not_open() {
+    for d in [1e-3, 1e-5, 1e-7] {
+        let t = std::time::Instant::now();
+        let h = -(0.5 - d) * (0.5 - d);
+        let s = read(&level(h), &dome());
+        eprintln!("R1 hug d={d:e}: {s:?} in {:.2?}", t.elapsed());
+        if let Section::Components { parts, .. } = &s {
+            assert!(
+                parts.iter().all(|c| c.reaches.is_none()),
+                "d={d:e}: a closed loop {d} inside the sides read as reaching: {s:?}"
+            );
+        }
+    }
+}
+
+/// r1 probe: the far-origin plane's refusal, by name.
+#[test]
+fn r1_probe_far_origin_cause() {
+    let far = plane(p(1000.0, 1000.0, -0.1), v(0.0, 0.0, 1.0));
+    let near = plane(p(0.5, 0.5, -0.1), v(0.0, 0.0, 1.0));
+    for (what, pl) in [("near", &near), ("far", &far)] {
+        let got =
+            geom_brep::pair_section_with(pl, &dome(), Some(geom_brep::SsiLane::marched()), band());
+        let shown = match &got {
+            Ok(geom_brep::SectionRead::Built(s)) => {
+                format!("Built({} components)", s.components().len())
+            }
+            Ok(geom_brep::SectionRead::Elsewhere(_)) => "Elsewhere".to_string(),
+            Err(e) => format!("Err({e})"),
+        };
+        eprintln!("R1 cause {what}: {shown}");
+    }
+}
+
+/// r1 counterexample (class e): the witness's residual should scale
+/// with ε. Measured: 0.2165 m at ε 1e-6, 1e-9 and 1e-12, while the
+/// witness's true distance from the circle is 1.3e-9, 9.3e-13 and
+/// 1.2e-15. Red at every ε: the residual is the tube's rung (the
+/// ladder's widest), a label the chart tube does not bound in metres.
+#[test]
+fn r1_residual_scales_with_eps() {
+    let s = read(&level(-0.1), &dome());
+    let c = lone(&s);
+    assert!(
+        c.residual <= 1e3 * band().zero(),
+        "residual {:e} against band zero {:e}",
+        c.residual,
+        band().zero()
+    );
+}
