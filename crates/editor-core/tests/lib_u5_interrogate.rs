@@ -595,12 +595,10 @@ fn sweep_the_corpus_for_body_index_rungs() -> BodyIndexSweep {
 /// turns up.
 ///
 /// The one door whose body index IS the caller's is `clearance`, and it
-/// answers `ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody
-/// { .. })` for a bad index — a `map_err(|_| ..)` one frame up destroys
-/// the `InterrogateError` before a caller can see it, which is
-/// `work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index`
-/// on SHELL's slate. A row for either rung today would pin that defect.
-/// If SHELL's repair lands, that door becomes the place to drive them.
+/// speaks the two rungs in its own words rather than the ladder's, whose
+/// `NoSuchBody` sentence names a kernel defect: `SelectionRefusal`'s
+/// `NoSuchBody` and `NoBodies`, the second driven in
+/// `clearance_refusals_say_what_they_found`.
 ///
 /// They are CONSTRUCTED here rather than named in a string for the
 /// reason the driven rungs are not: rustc checks a constructor's

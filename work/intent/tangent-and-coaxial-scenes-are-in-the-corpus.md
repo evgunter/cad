@@ -2,7 +2,7 @@
 id: tangent-and-coaxial-scenes-are-in-the-corpus
 kind: unit
 title: INTENT stage 6 PR A: the corpus holds the coaxial and tangent scenes stage 6 proves, each row's proof pinned as it is today
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: M

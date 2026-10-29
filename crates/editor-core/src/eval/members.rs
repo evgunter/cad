@@ -336,12 +336,7 @@ fn family_value<T: Decide>(
         members
             .members
             .iter()
-            .map(|(_, value)| {
-                value
-                    .carry
-                    .clone()
-                    .recording(super::wire::records_of(value))
-            })
+            .map(|(_, value)| value.carry.clone())
             .collect(),
     );
     let coincidences: Vec<crate::coincide::NamedCoincidence> = members
@@ -364,7 +359,6 @@ fn family_value<T: Decide>(
         outputs,
         carry,
         coincidences: coincidences.into(),
-        cited_inputs: Arc::from([]),
         motion: None,
         members: Some(Arc::new(members)),
         family: None,
