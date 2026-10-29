@@ -29,11 +29,18 @@
 //!   (the site `CoaxialSphere`), turned so no edge of the ball
 //!   crosses the shaft's wall.
 //!
+//! A fourth, [`one_radius`], is the scene itself with the bore, the
+//! shaft and the collar's bore all reading one `Length` variable,
+//! [`BORE`], where [`document`] writes each coordinate its own literal.
+//! [`collar_by_values`] stands the collar where [`document`] mates it,
+//! by values alone; `coincidence_door.rs` reads it for the finding's
+//! edit and registers it nowhere.
+//!
 //! No mass pin: every body is revolved, so its volume is `π`-valued.
 
 use editor_core::{
-    Coord, Dimension, DocEdit, Formula, Node, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
-    TargetAxis,
+    Coord, Dimension, DocEdit, Formula, FreeVar, Node, ProgramStep, ProgramTarget, RecipeNodeId,
+    SlotId, TargetAxis, VarDecl, VarName,
 };
 
 use crate::fixture::{len, len2, scl};
@@ -69,13 +76,20 @@ enum Below {
     Collar,
     /// A ball, its centre on the axis, placed by values.
     Ball,
+    /// The collar placed where [`Self::Collar`] stands by values, no
+    /// mate: its slides off the axis two literal lengths, each its own
+    /// variable.
+    CollarByValues,
 }
 
+/// The variable [`one_radius`]'s bore, shaft and collar bore read.
+pub const BORE: &str = "bore";
+
 /// A rectangle `ρ ∈ [inner, outer]`, `y ∈ [lo, hi]`, as a meridian.
-fn rectangle(inner: f64, outer: f64, (lo, hi): (f64, f64)) -> Vec<ProgramStep<Formula>> {
-    let to = |x, y| ProgramTarget::Point(len2([x, y]));
+fn rectangle(inner: &Formula, outer: &Formula, (lo, hi): (f64, f64)) -> Vec<ProgramStep<Formula>> {
+    let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
     vec![
-        ProgramStep::At(len2([inner, lo])),
+        ProgramStep::At([inner.clone(), len(lo)]),
         ProgramStep::LineTo(to(outer, lo)),
         ProgramStep::LineTo(to(outer, hi)),
         ProgramStep::LineTo(to(inner, hi)),
@@ -106,9 +120,43 @@ pub fn document() -> CorpusDoc {
             "shaft_and_bearing",
             "a shaft and a collar each mated to a housing revolve's axis output, unioned",
         ),
-        rectangle(BORE_R, HOUSING_R, (0.0, HOUSING_H)),
-        BORE_R,
+        (
+            rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
+            false,
+        ),
+        &len(BORE_R),
         Below::Collar,
+    )
+}
+
+/// **The scene with one radius read three times** (module docs):
+/// beside the registry.
+pub fn one_radius() -> CorpusDoc {
+    let bore = Formula::named(VarName::from_static(BORE), Dimension::Length);
+    scene(
+        (
+            "shaft_and_bearing_one_radius",
+            "shaft_and_bearing with the bore, the shaft and the collar's bore one variable",
+        ),
+        (rectangle(&bore, &len(HOUSING_R), (0.0, HOUSING_H)), true),
+        &bore,
+        Below::Collar,
+    )
+}
+
+/// **The scene with the collar placed by values** (module docs).
+pub fn collar_by_values() -> CorpusDoc {
+    scene(
+        (
+            "shaft_and_bearing_collar_by_values",
+            "shaft_and_bearing with the collar placed by values, no mate",
+        ),
+        (
+            rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
+            false,
+        ),
+        &len(BORE_R),
+        Below::CollarByValues,
     )
 }
 
@@ -120,22 +168,25 @@ pub fn rounded_mouth() -> CorpusDoc {
             "shaft_and_bearing_rounded",
             "shaft_and_bearing with the bore's mouth a torus the shaft crosses",
         ),
-        vec![
-            ProgramStep::At(len2([HOUSING_R, 0.0])),
-            ProgramStep::LineTo(ProgramTarget::Point(len2([HOUSING_R, HOUSING_H]))),
-            ProgramStep::Toward {
-                dx: scl(-1.0),
-                dy: scl(0.0),
-            },
-            ProgramStep::Fillet(len(MOUTH_R)),
-            ProgramStep::Toward {
-                dx: scl(0.0),
-                dy: scl(-1.0),
-            },
-            ProgramStep::FarEndTo(len2([BORE_R, 0.0])),
-            ProgramStep::LineTo(ProgramTarget::Start),
-        ],
-        WIDE_R,
+        (
+            vec![
+                ProgramStep::At(len2([HOUSING_R, 0.0])),
+                ProgramStep::LineTo(ProgramTarget::Point(len2([HOUSING_R, HOUSING_H]))),
+                ProgramStep::Toward {
+                    dx: scl(-1.0),
+                    dy: scl(0.0),
+                },
+                ProgramStep::Fillet(len(MOUTH_R)),
+                ProgramStep::Toward {
+                    dx: scl(0.0),
+                    dy: scl(-1.0),
+                },
+                ProgramStep::FarEndTo(len2([BORE_R, 0.0])),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ],
+            false,
+        ),
+        &len(WIDE_R),
         Below::Collar,
     )
 }
@@ -148,23 +199,33 @@ pub fn with_a_ball() -> CorpusDoc {
             "shaft_and_bearing_ball",
             "shaft_and_bearing with a ball on the shaft, its centre on the axis",
         ),
-        rectangle(BORE_R, HOUSING_R, (0.0, HOUSING_H)),
-        BORE_R,
+        (
+            rectangle(&len(BORE_R), &len(HOUSING_R), (0.0, HOUSING_H)),
+            false,
+        ),
+        &len(BORE_R),
         Below::Ball,
     )
 }
 
 /// The housing whose meridian is `housing`, a shaft of radius `shaft_r`
-/// and what stands on it `below`, unioned.
+/// and what stands on it `below`, unioned, [`BORE`] declared at the
+/// bore's radius where `bore`.
 fn scene(
     (name, about): (&'static str, &'static str),
-    housing: Vec<ProgramStep<Formula>>,
-    shaft_r: f64,
+    (housing, bore): (Vec<ProgramStep<Formula>>, bool),
+    shaft_r: &Formula,
     below: Below,
 ) -> CorpusDoc {
     let mut r = Recorder::new();
+    if bore {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(BORE),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
+        });
+    }
     let housing = revolved(&mut r, housing);
-    let shaft = revolved(&mut r, rectangle(0.0, shaft_r, SHAFT_Y));
+    let shaft = revolved(&mut r, rectangle(&len(0.0), shaft_r, SHAFT_Y));
     let quarter = Formula::turn_over(4).expect("a quarter turn");
     let shaft_copy = on_the_axis(
         &mut r,
@@ -172,11 +233,31 @@ fn scene(
         shaft,
         (Formula::zero(Dimension::Length), quarter),
     );
+    let zero = || Formula::zero(Dimension::Length);
     let (third, third_copy) = match below {
         Below::Collar => {
-            let collar = revolved(&mut r, rectangle(shaft_r, COLLAR_R, (0.0, COLLAR_H)));
+            let collar = revolved(&mut r, rectangle(shaft_r, &len(COLLAR_R), (0.0, COLLAR_H)));
             let below = (len(BELOW), Formula::zero(Dimension::Angle));
             (collar, on_the_axis(&mut r, housing, collar, below))
+        }
+        Below::CollarByValues => {
+            let collar = revolved(&mut r, rectangle(shaft_r, &len(COLLAR_R), (0.0, COLLAR_H)));
+            let none = || Formula::zero(Dimension::Angle);
+            let by_values = editor_core::Placed {
+                mates: Vec::new(),
+                values: vec![
+                    (Coord::Slide(TargetAxis::X), len(0.0)),
+                    (Coord::Slide(TargetAxis::Y), len(BELOW)),
+                    (Coord::Slide(TargetAxis::Z), len(0.0)),
+                    (Coord::Spin(Some(TargetAxis::X)), none()),
+                    (Coord::Spin(Some(TargetAxis::Y)), none()),
+                    (Coord::Spin(Some(TargetAxis::Z)), none()),
+                ],
+            };
+            (
+                collar,
+                placed_in(&mut r, &housing.body(), collar.body(), by_values),
+            )
         }
         Below::Ball => {
             let ball = revolved(
@@ -195,7 +276,6 @@ fn scene(
             // `y`, a quarter turn back about `x`, then about `y`.
             let back =
                 || Formula::neg(Formula::turn_over(4).expect("a quarter turn")).expect("negates");
-            let zero = || Formula::zero(Dimension::Length);
             let across = editor_core::Placed {
                 mates: Vec::new(),
                 values: vec![

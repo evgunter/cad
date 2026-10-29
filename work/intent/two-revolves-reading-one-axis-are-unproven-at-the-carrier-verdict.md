@@ -2,11 +2,12 @@
 id: two-revolves-reading-one-axis-are-unproven-at-the-carrier-verdict
 kind: issue
 title: Two revolves whose axis slots read the same two variables glue their bores and walls unproven: the replay's carrier verdict finds no identity
-status: open
+status: closed
 opened: 2026-10-29
 priority: P2
 cost: M
 refs: [tangent-and-coaxial-scenes-are-in-the-corpus, a-coaxiality-is-one-axis-read-twice]
+closed: 2026-10-29
 ---
 
 Measured by INTENT stage 6 PR A on the corpus document
@@ -38,4 +39,6 @@ cancellation the form does not see).
 **Done when** the cause is measured and the bores' rows prove, or the
 reason they cannot is stated and pinned; stage 6 PR B reads this beside
 its own rung.
+
+**Closed: the cause is the radii, and the rows are rightly unproven** (measured by INTENT stage 6 PR B). Each radius is a literal profile coordinate less `ax`. Every literal coordinate is its own free variable, so its own symbol in the replay, and within one wall the start and end coordinates are two symbols as well. The axis is not the cause: PR B's carrier verdict reads two cylinders by axis, radius and sense, and it finds the two revolves' axes one line in the symbols, though they are two `axis` outputs. It leaves each bore and wall row at its radius (`Axes { left: Radius }`), and the finding says "the axes are one …; the radii are equal only at the current values". Pinned in `coincidence_door::two_revolves_reading_one_axis_glue_unproven`. A document that reads one `Length` for both radii proves the rows, as `shaft_and_bearing_one_radius` shows.
 

@@ -31,17 +31,26 @@
 //! section edge on its tool's plane. Provenance is the document's: the walk
 //! reads the recipe and the names, never a stamp the kernel carries.
 //!
-//! **A mate is that rung's statement** (`[coincidence.structural]`): two
-//! faces whose planes one mate of a pinning bundle equates, each read in
-//! a copy that holds it where that mate's side reads it
+//! **A mate is that rung's statement** (`[coincidence.structural]`):
+//! the two poses a mate of a pinning bundle equates, each read in a
+//! copy that holds it where that mate's side reads it
 //! ([`crate::mate::reads_in`]), are one construction read twice, with
-//! the sense the mate's flips state ([`stated_by_a_mate`]). A placed
-//! copy's frame is the construction its bundle states
-//! (`[placement.placement]`), so no replay reads the fold: the door
-//! reads what the mate states, and replays where it states nothing. A
-//! standoff equates no face's plane, and a copy another bundle moves
-//! holds the face where the mate does not read it, so neither is
-//! stated here.
+//! the sense the mate's flips state, and being one construction is the
+//! equivalence the mates generate, closed over every pose kind
+//! ([`stated::Stated`]). A band a revolve mints is about the revolve's
+//! own `axis` output ([`stated::axis_of`]), so coaxiality is "one
+//! `Axis` read twice, directly or as projections of one construction":
+//! two faces whose planes are one class, or two cells whose axes are,
+//! are that rung's ([`stated_by_the_mates`]). A placed copy's frame is
+//! the construction its bundle states (`[placement.placement]`), so no
+//! replay reads the fold: the door reads what the mates state, and
+//! replays where they state nothing; the replay reads two cylinders'
+//! axes as the mates state them, and their radii and senses off its
+//! carriers. A standoff equates no face's plane with another's, and a
+//! copy another bundle moves holds the face where the mate does not
+//! read it, so neither is stated here. An unproven row between two
+//! cells with an axis names the first of one axis, one radius and one
+//! sense the door did not establish ([`Axes`]).
 //!
 //! A profile's junction no constructor made is a row of the profile
 //! node itself, its cells the two pieces that meet there
@@ -76,6 +85,7 @@ use crate::names::{
 use crate::node::{Node, RecipeNodeId};
 
 mod replay;
+mod stated;
 
 pub use replay::with_replay_session;
 
@@ -234,8 +244,8 @@ pub enum Proof {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rung {
     /// The cells are one construction read as many times: one origin,
-    /// reached through one chain of maps, or the two faces whose
-    /// planes one mate equates ([`stated_by_a_mate`]).
+    /// reached through one chain of maps, or two poses the mates make
+    /// one ([`stated_by_the_mates`]).
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
     /// carriers in the replay at `Sym`, decided them one carrier, every
@@ -414,6 +424,38 @@ pub struct Residual {
     pub constructions: Vec<Result<Construction, Unwalked>>,
     /// What the replay at `Sym` made of the row.
     pub replay: Unreplayed,
+    /// For a row between two cells with an axis, what of one axis, one
+    /// radius and one sense the door established.
+    pub axes: Option<Axes>,
+}
+
+/// **An unproven row's axes** (`[coincidence.structural]`: "coaxiality
+/// is one `Axis` read twice"): a row between two cells with an axis is
+/// one axis, one radius and one sense, and the door names the first it
+/// did not establish.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Axes {
+    /// Each cell's axis as the pose its mates reach, in the row's cell
+    /// order: a pose variable, read where it stands where one is in its
+    /// class; `None` where the axis is the cell's own.
+    pub reached: [Option<crate::VarId>; 2],
+    /// The copy each cell is read in (its placement's output), `None`
+    /// for a cell read where it was built.
+    pub copies: [Option<crate::VarId>; 2],
+    /// The first component not established.
+    pub left: Component,
+}
+
+/// **A component of a coaxial reading** ([`Axes`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Component {
+    /// The two axes are not shown one.
+    Axis,
+    /// The axes are one; the radii are equal only at the current values.
+    Radius,
+    /// The axes and the radii are one; the senses are not those the row
+    /// decided.
+    Sense,
 }
 
 impl fmt::Display for Residual {
@@ -631,65 +673,125 @@ pub fn prove<P: crate::ProfilePayload>(
                 .collect()
         })
         .collect();
+    let stated = stated::Stated::of(doc, tol);
     let left: Vec<Vec<bool>> = nodes
         .iter()
         .zip(&walked)
         .map(|((_, rows), walked)| {
             rows.iter()
                 .zip(walked)
-                .map(|(row, constructions)| !first_rung(doc, row, constructions, tol))
+                .map(|(row, constructions)| !first_rung(doc, &stated, row, constructions, tol))
+                .collect()
+        })
+        .collect();
+    // Whether each row's two cells' axes are one by the mates: the
+    // replay reads a stated axis as stated, not as the fold builds it.
+    let axes_one: Vec<Vec<bool>> = walked
+        .iter()
+        .map(|walked| {
+            walked
+                .iter()
+                .map(|c| matches!(c.as_slice(), [Ok(a), Ok(b)] if one_axis(doc, &stated, a, b)))
                 .collect()
         })
         .collect();
     let replayed = match P::evaluable(doc) {
         Some(doc) if left.iter().flatten().any(|&l| l) => {
-            replay::rungs(doc, nodes, &left, resolver, tol, cancel)?
+            replay::rungs(doc, nodes, (&left, &axes_one), resolver, tol, cancel)?
         }
         _ => left
             .iter()
             .map(|left| {
                 left.iter()
-                    .map(|&left| left.then_some(Err((Unreplayed::NotReplayed, Recourse::Assert))))
+                    .map(|&left| {
+                        left.then_some(Err(((Unreplayed::NotReplayed, Recourse::Assert), None)))
+                    })
                     .collect()
             })
             .collect(),
     };
-    Ok(walked
-        .into_iter()
+    Ok(nodes
+        .iter()
+        .zip(walked)
         .zip(replayed)
-        .map(|(walked, replayed)| {
-            walked
-                .into_iter()
+        .map(|(((_, rows), walked), replayed)| {
+            rows.iter()
+                .zip(walked)
                 .zip(replayed)
-                .map(|(constructions, replayed)| match replayed {
+                .map(|((row, constructions), replayed)| match replayed {
                     None => Proof::Structural(Rung::SameConstruction),
                     Some(Ok(rung)) => Proof::Structural(rung),
-                    Some(Err((replay, recourse))) => Proof::Unproven {
-                        residual: Residual {
-                            constructions,
-                            replay,
-                        },
-                        recourse,
-                    },
+                    Some(Err(((replay, recourse), left))) => {
+                        // A coaxial row the first rung left has two axes.
+                        let left = left.or_else(|| {
+                            (row.relation == topo::Relation::Coaxial
+                                || matches!(
+                                    row.site,
+                                    topo::DecisionSite::CoaxialSphere
+                                        | topo::DecisionSite::SphereOnTorusAxis
+                                ))
+                            .then_some(Component::Axis)
+                        });
+                        let axes = left.map(|left| axes(doc, &stated, &constructions, left));
+                        Proof::Unproven {
+                            residual: Residual {
+                                constructions,
+                                replay,
+                                axes,
+                            },
+                            recourse,
+                        }
+                    }
                 })
                 .collect()
         })
         .collect())
 }
 
+/// **What of one axis, one radius and one sense a row between two
+/// cells with an axis is left**, `left` the first component not
+/// established: each cell's axis as the pose its mates reach
+/// ([`stated::Stated::reached`]), and the copy each cell is read in.
+fn axes<P>(
+    doc: &crate::doc::Doc<P>,
+    stated: &stated::Stated,
+    constructions: &[Result<Construction, Unwalked>],
+    left: Component,
+) -> Axes {
+    let cell = |i: usize| constructions.get(i).and_then(|c| c.as_ref().ok());
+    let reached = |i| cell(i).and_then(|c| stated.reached(&stated::Key::axis(doc, c)));
+    // The outermost copy the cell is read through.
+    let copy = |i| {
+        cell(i)
+            .and_then(|c| {
+                c.maps.iter().find_map(|m| match m {
+                    Map::World(p) => Some(*p),
+                    Map::Member(..) | Map::Mirror(_) => None,
+                })
+            })
+            .and_then(|p| doc.output(p, 0))
+    };
+    Axes {
+        reached: [reached(0), reached(1)],
+        copies: [copy(0), copy(1)],
+        left,
+    }
+}
+
 /// **The door's first rung**, over `row`'s cells walked to their
 /// constructions: one construction read twice, a cell its face's minter
-/// built on it ([`on_by_construction`]), or the two faces a mate rests on
-/// each other ([`stated_by_a_mate`]).
+/// built on it ([`on_by_construction`]), or two poses the mates make one
+/// ([`stated_by_the_mates`]).
 fn first_rung<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
+    stated: &stated::Stated,
     row: &NamedCoincidence,
     constructions: &[Result<Construction, Unwalked>],
     tol: geom_core::Tol,
 ) -> bool {
     one_construction(constructions)
         || on_by_construction(doc, row, constructions, tol)
-        || stated_by_a_mate(doc, row, constructions, tol)
+        || stated_by_the_mates(doc, stated, row, constructions, tol)
 }
 
 /// Each cell of a row walked to its construction, or why it was not.
@@ -749,28 +851,25 @@ fn on_by_construction<P: crate::ProfilePayload>(
         && ((face(ka) && lies_on(doc, b, a, tol)) || (face(kb) && lies_on(doc, a, b, tol)))
 }
 
-/// **The first rung's statement by a mate** (`[coincidence.structural]`):
-/// the row's two cells are the two faces whose planes one mate equates,
-/// each in a copy that holds it where that mate's side reads it
-/// ([`side_copies`]), and the row's relation is the sense the mate's
-/// flips state; or the row lays an edge or a vertex on a face
-/// ([`topo::Relation::OnCarrier`]), that face is one of the mate's two
-/// faces, and the edge or vertex lies on the other as its minter built
-/// it ([`lies_on`]). The mate is in the bundle of a placement it pins,
-/// so its `on` copy stands where its bundle's fold puts it, and the
-/// fold equates that copy's plane with its target's, read where the
-/// target stands, wherever it evaluates.
-///
-/// A standoff or any other construction off a face's plane equates no
-/// face's plane ([`crate::mate::planes_equated`]), so it states nothing
-/// here.
-fn stated_by_a_mate<P: crate::ProfilePayload>(
+/// **The first rung's statement by the mates** (`[coincidence.structural]`):
+/// the row's two cells are poses the mates' equivalence makes one
+/// ([`stated::Stated`]). Two faces decided on one plane are one where
+/// their planes are in one class, with the sense the class states
+/// between them. A row laying an edge or a vertex on a face holds where
+/// it lies, as its minter built it ([`lies_on`]), on a face of that
+/// face's plane class. A coaxial row, or a sphere's centre on an axis,
+/// holds where the two cells' axes ([`stated::axis_of`]) are in one
+/// class: the same `Axis` read twice, directly or as projections of
+/// one construction.
+fn stated_by_the_mates<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
+    stated: &stated::Stated,
     row: &NamedCoincidence,
     constructions: &[Result<Construction, Unwalked>],
     tol: geom_core::Tol,
 ) -> bool {
     use crate::names::EntityKind;
+    use stated::Key;
     let kind = |cell: &NamedCell| match cell {
         NamedCell::Entity { name, .. } => Some(name.kind),
         NamedCell::Tool { .. } | NamedCell::Piece { .. } => None,
@@ -778,48 +877,45 @@ fn stated_by_a_mate<P: crate::ProfilePayload>(
     let ([Ok(a), Ok(b)], [ka, kb]) = (constructions, row.cells.as_slice()) else {
         return false;
     };
-    // The face cell, the other cell, and the sense the mate must state
-    // (`None` where the other cell is an edge or a vertex on its face).
-    let (sense, face, other) = match (row.relation, kind(ka), kind(kb)) {
-        (topo::Relation::SameOpposite, Some(EntityKind::Face), Some(EntityKind::Face)) => {
-            (Some(true), a, b)
-        }
-        (topo::Relation::SameOriented, Some(EntityKind::Face), Some(EntityKind::Face)) => {
-            (Some(false), a, b)
-        }
-        (topo::Relation::OnCarrier, Some(EntityKind::Face), Some(_)) => (None, a, b),
-        (topo::Relation::OnCarrier, Some(_), Some(EntityKind::Face)) => (None, b, a),
-        _ => return false,
+    let face = Some(EntityKind::Face);
+    let on = |face: &Construction, other: &Construction| {
+        stated
+            .class(&Key::plane(face))
+            .into_iter()
+            .any(|(g, _)| lies_on(doc, other, g, tol))
     };
-    let other_on = |f: &Construction| match sense {
-        Some(_) => f == other,
-        None => lies_on(doc, other, f, tol),
-    };
-    doc.placements().into_iter().any(|placement| {
-        let Some(bundle) = doc.node(placement).and_then(crate::mate::solve::bundle_of) else {
-            return false;
-        };
-        if !crate::mate::solve::pins(&crate::mate::solve::equations_of(doc, bundle)) {
-            return false;
+    match (row.relation, kind(ka), kind(kb)) {
+        (topo::Relation::Coaxial, _, _) => one_axis(doc, stated, a, b),
+        (topo::Relation::OnCarrier, ..)
+            if matches!(
+                row.site,
+                topo::DecisionSite::CoaxialSphere | topo::DecisionSite::SphereOnTorusAxis
+            ) =>
+        {
+            one_axis(doc, stated, a, b)
         }
-        bundle
-            .iter()
-            .filter_map(crate::mate::Constraint::mate)
-            .any(|mate| {
-                let Some((on, to, flipped)) = crate::mate::planes_equated(doc, mate) else {
-                    return false;
-                };
-                if sense.is_some_and(|opposite| opposite != flipped) {
-                    return false;
-                }
-                let (on, to) = (
-                    side_copies(doc, placement, crate::mate::MateSide::On, on, tol),
-                    side_copies(doc, placement, crate::mate::MateSide::To, to, tol),
-                );
-                (on.contains(face) && to.iter().any(other_on))
-                    || (to.contains(face) && on.iter().any(other_on))
-            })
-    })
+        (topo::Relation::SameOpposite | topo::Relation::SameOriented, k, l)
+            if k == face && l == face =>
+        {
+            stated.sense(&Key::plane(a), &Key::plane(b))
+                == Some(row.relation == topo::Relation::SameOpposite)
+        }
+        (topo::Relation::OnCarrier, k, l) => (k == face && on(a, b)) || (l == face && on(b, a)),
+        _ => false,
+    }
+}
+
+/// **Whether two cells' axes are one `Axis` read twice** by the mates'
+/// equivalence ([`stated::Stated`]), whatever their senses.
+fn one_axis<P>(
+    doc: &crate::doc::Doc<P>,
+    stated: &stated::Stated,
+    a: &Construction,
+    b: &Construction,
+) -> bool {
+    stated
+        .sense(&stated::Key::axis(doc, a), &stated::Key::axis(doc, b))
+        .is_some()
 }
 
 /// **Whether `cell` lies on the face `face`, as their minter built
@@ -986,54 +1082,6 @@ fn plane<P: crate::ProfilePayload>(
         }
         _ => pose(),
     }
-}
-
-/// **The constructions of the copies a mate side's face is read in**:
-/// the face the selection `face` names, walked from its body
-/// ([`construction`]), in each copy of that body that holds it where
-/// a mate of `placement` reads it ([`crate::mate::reads_in`], the
-/// rule the door reads the mate by): the body itself where
-/// it is that copy's output, else under the `Place` that copies it, or
-/// a `Part` picking one of its copies (the walk's own `Instance` says
-/// which). A body no placement copies is read where it stands, which is
-/// where its `to` side reads it. Empty where the selection is no one
-/// face or the walk stops.
-fn side_copies<P: crate::ProfilePayload>(
-    doc: &crate::doc::Doc<P>,
-    placement: RecipeNodeId,
-    side: crate::mate::MateSide,
-    face: crate::VarId,
-    tol: geom_core::Tol,
-) -> Vec<Construction> {
-    let Some(select) = doc.selection(face) else {
-        return Vec::new();
-    };
-    let [name] = select.names.as_slice() else {
-        return Vec::new();
-    };
-    let Ok(read) = construction(doc, select.body, name, tol) else {
-        return Vec::new();
-    };
-    let copies = crate::mate::copies_of(doc, select.body);
-    if copies.is_empty() {
-        return match side {
-            crate::mate::MateSide::To => vec![read],
-            crate::mate::MateSide::On => Vec::new(),
-        };
-    }
-    copies
-        .into_iter()
-        .filter(|&copy| crate::mate::reads_in(doc, placement, side, select.body, copy))
-        .map(|(p, how)| match how {
-            crate::mate::Copying::Own => read.clone(),
-            crate::mate::Copying::Whole | crate::mate::Copying::Member => Construction {
-                origin: read.origin.clone(),
-                maps: core::iter::once(Map::World(p))
-                    .chain(read.maps.iter().cloned())
-                    .collect(),
-            },
-        })
-        .collect()
 }
 
 /// **The construction of the entity `name` names in `read`'s value**:

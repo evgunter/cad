@@ -3524,6 +3524,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
                 )),
             ],
             replay: pncad::document::coincide::Unreplayed::NotReplayed,
+            axes: None,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),

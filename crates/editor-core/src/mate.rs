@@ -137,34 +137,54 @@ pub(crate) fn rested_faces<P>(
 }
 
 /// **The two faces whose planes a mate equates, and its sense**: each
-/// side a face read as its plane through any number of plain flips,
-/// `on`'s face first, and whether the flips on both sides together are
-/// odd, so the two faces' outward normals are opposite. `None` exactly
-/// where [`rested_faces`] answers `None`.
+/// side a face read as its plane through any number of plain flips
+/// ([`poses_equated`]), `on`'s face first, and whether the flips on
+/// both sides together are odd, so the two faces' outward normals are
+/// opposite. `None` exactly where [`rested_faces`] answers `None`.
 pub(crate) fn planes_equated<P>(
     doc: &crate::doc::Doc<P>,
     mate: &Mate,
 ) -> Option<(crate::VarId, crate::VarId, bool)> {
-    let face = |mut var: crate::VarId| {
-        let mut flipped = false;
-        loop {
-            match doc.var(var).map(crate::Var::def)? {
-                crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => {
-                    return Some((*face, flipped));
-                }
-                crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
-                    pose: crate::pose::RoleRead { read, role: None },
-                }) => {
-                    flipped = !flipped;
-                    var = *read;
-                }
-                _ => return None,
-            }
-        }
+    let (on, to, flipped) = poses_equated(doc, mate);
+    let face = |read: crate::pose::RoleRead<crate::VarId>| match read.role {
+        None => match doc.var(read.read).map(crate::Var::def)? {
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => Some(*face),
+            _ => None,
+        },
+        Some(_) => None,
     };
-    let (on, on_flipped) = face(mate.on)?;
-    let (to, to_flipped) = face(mate.to)?;
-    Some((on, to, on_flipped != to_flipped))
+    Some((face(on)?, face(to)?, flipped))
+}
+
+/// **The two poses a mate equates, and its sense**: each side unwound
+/// through any number of flips of a pose read plainly, to the pose it
+/// flips (read plainly or through a role), `on`'s first, and whether
+/// the flips on both sides together are odd. A mate of every kind
+/// equates the two (`[coincidence.structural]`: "a mate is that rung's
+/// statement").
+pub(crate) fn poses_equated<P>(
+    doc: &crate::doc::Doc<P>,
+    mate: &Mate,
+) -> (
+    crate::pose::RoleRead<crate::VarId>,
+    crate::pose::RoleRead<crate::VarId>,
+    bool,
+) {
+    let unwound = |var: crate::VarId| {
+        let mut read = crate::pose::RoleRead::plain(var);
+        let mut flipped = false;
+        while read.role.is_none()
+            && let Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Flip { pose })) =
+                doc.var(read.read).map(crate::Var::def)
+        {
+            flipped = !flipped;
+            read = *pose;
+        }
+        (read, flipped)
+    };
+    let (on, on_flipped) = unwound(mate.on);
+    let (to, to_flipped) = unwound(mate.to);
+    (on, to, on_flipped != to_flipped)
 }
 
 /// **How a placement copies the body a selection reads**
