@@ -1542,12 +1542,8 @@ as projections of one construction. A mate is that rung's statement:
 the two poses a placement's mate equates, read with the sense it
 states, are one construction read twice, wherever the placement
 evaluates; a pose a value moves off the mate's target (a standoff) is
-not. A projection of one construction is also a cell the construction
-builds about one of its own pose outputs, which is that construction's
-statement as a rim lying on its cap is (a revolve's walls about its
-`axis`). Being one construction is the equivalence the document's
-constructions and mates generate, closed over every pose kind a mate
-equates, so a wall each part builds through
+not. Being one construction is the equivalence the document's
+constructions and mates generate, so a wall each part builds through
 the edge of a flag that a flag mate equates is one construction read
 over both, and that mate establishes the flush pair the two walls
 make. The second reads each output
@@ -1564,13 +1560,7 @@ construction takes the decisions it took here (E12). The verdicts read
 each kind modulo its own symmetry (a plane forgets in-plane motion and
 folds a shift along its normal into its offset; an axis forgets slide
 and spin along itself), so that reduction is written once, and a
-projection of a construction reduces to what it was built from. A
-carrier is read as its pose and the numbers a rigid motion keeps (a
-radius, a half-angle, its material side): a copy's pose is the one its
-mates state, at this rung as at the first, and the second rung decides
-the rest in each cell's own space, so a row is structural when each
-part is (a press fit: the axis by its mate, the radius by one `Length`
-read twice).
+projection of a construction reduces to what it was built from.
 Polynomial identity is an equivalence relation, so a chain of blocks
 each built on its neighbour's floor closes into a loop, and a brick
 laid across two of them sits on both, with nothing more said. A
@@ -1601,8 +1591,7 @@ there. A recorded coincidence names its cells as the reads they
 entered the deciding operation through and their names there, never
 by a stamp the kernel carries; a contact record a result carries cites
 the coincidence that backs it. A per-construction table of output
-forms (a carrier's formula in its construction's inputs, not an
-incidence a construction states between its own outputs) is only ever a cache generated from the symbolic evaluation and
+forms is only ever a cache generated from the symbolic evaluation and
 checked against it, never written by hand. A reading that only chooses
 a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
