@@ -1,101 +1,65 @@
-# Reviewer brief: SECT PR 6011 (a section's components are the march's; a site's component is its foot)
+# Confirmation brief: SECT PR 6011 fix pass (components by foot)
 
-You are one of two independent reviewers in a concurrent pair, under
-`docs/DUAL-REVIEW-PROTOCOL.md`. Review tier: FULL, meaning claims to
-falsify plus the style lane.
+You are a single confirmation reviewer on a fix pass. Review tier: FULL on
+the delta. The unit had a dual review on `b4a0d865` (both APPROVE-WITH-FIXES,
+no MAJOR); the fix pass is head `5d84e965a13c004a32a51bc9bedbf1fc95de8aa0`
+of https://github.com/evgunter/cad/pull/6011 (branch `sect/components-by-foot`):
+`git fetch origin sect/components-by-foot && git checkout --detach 5d84e965a13c004a32a51bc9bedbf1fc95de8aa0`.
+Read the PR body (its "Fix pass" section) through the GitHub MCP tools via
+ToolSearch. Do not read the PR's comments or reviews. Post nothing, push
+nothing.
 
-**Frozen head.** `b4a0d86585543c32ac547bdfccf8506e31fb9bea`, from
-https://github.com/evgunter/cad/pull/6011 (branch `sect/components-by-foot`).
-Review that commit only:
-`git fetch origin sect/components-by-foot && git checkout --detach b4a0d86585543c32ac547bdfccf8506e31fb9bea`.
+**Read first:** `docs/prompts/reviewer-style-lane.md`; `CLAUDE.md`; the
+C2, C5 and C7 clauses of `crates/geom-brep/README.md`;
+`work/sect/a-general-torus-pose-lists-no-components.md` (`## Decided`).
+Review `git diff b4a0d865 5d84e965 -- crates` net of the main merges
+(`git diff $(git merge-base ...)` as needed; the fix-pass commits are the
+lane's own, not the merged mains).
 
-**Lane isolation.** Until your report is delivered:
-- read the PR body only, through the GitHub MCP tools via ToolSearch
-  (there is no gh);
-- do not read its comments or reviews, any `review/*` branch, or any
-  other session's output;
-- post nothing on GitHub and push nothing;
-- disclose any accidental glimpse in your report.
+**Builds:** `CARGO_TARGET_DIR` outside the checkout, `CARGO_INCREMENTAL=0`;
+foreground; anything past 600 s `setsid`-detached and polled; nothing left
+running. Use opt-level 2 (`--profile ci` or `--release`) for the marching
+rows. **Budget: about 2 hours.**
 
-**Read first, in full:**
-- `docs/prompts/reviewer-style-lane.md`, which binds your style half;
-- `CLAUDE.md`;
-- the decided design: `work/sect/a-general-torus-pose-lists-no-components.md`
-  as it stood on origin/main before this PR (its `## Decided` section is the
-  spec; it is settled, do not re-litigate it — review the build against it);
-- the C2, C5, C7 and C12.1 clauses of `crates/geom-brep/README.md`;
-- `work/sect/the-section-of-a-surface-pair-is-one-object.md` (step 1a).
+## What the fix pass changed that needs falsifying
 
-**Builds.**
-- Point `CARGO_TARGET_DIR` outside the checkout, and set
-  `CARGO_INCREMENTAL=0`.
-- Run in the foreground. Anything that outlives a 600 s call runs
-  `setsid`-detached with its PID recorded, and you poll it in the
-  foreground. Leave no background work alive at the end.
-- **Budget:** deliver within about 3 hours. Some of these marches take tens
-  of minutes in debug (use `--release` for probes where you can); cut a
-  long run short rather than overrun, and say which.
-
-## Claims to falsify
-
-A red probe or a measured value beats an argument.
-
-1. **`Counted` / `Marched` cannot be misread.** No reader treats `Marched`
-   as "no section", and an empty `Counted` is read as disjoint only where a
-   closed form proved it. Check every reader the PR's hit list names, and
-   search for any it missed.
-2. **`winds` is sound** (`pair_section/winds.rs`): integer turns about the
-   axis and the core circle, from each piece's control hull enclosed in
-   intervals and padded by the tube radius; a piece whose padded box misses
-   the centre turns by less than π. Falsify with an independent winding
-   count (dense sampling of the true section, your own frame) on random
-   transverse poses, including loops near the axis, near the core, and
-   near-tangent poses; check the cut budget's refusal is typed.
-3. **The Counted cross-check.** The PR deviates from the spec: it checks
-   only that each winding the arm *claims* holds (claimed ⇒ marched), since
-   the parallel-tori arm lists `false` without reading essentiality. Does
-   any reader then use a Counted component's `false` as "null" (the
-   certificate's W2, the join, island closure)? Construct a Counted pose
-   whose true winding differs from its listed one and see what each reader
-   does. Also: is the witness check (each listed witness on exactly one
-   branch, within the band widened by the branch's tube) sound and does it
-   catch a missed or doubled loop?
-4. **One site reading.** A germ site's component is the carried section's
-   foot (`Branch::Component(k)`). The foot must be unambiguous wherever the
-   march certified (tube clearance). Look for a site the foot assigns to the
-   wrong component, or one that two components both claim, at poses with 3
-   or 4 loops and at loops that come close. Check the frame-era pairs still
-   read `Branch` as before.
-5. **The certificate** (`section_cert`): a `Marched` pose read from its
-   march (W0–W4, W3's band widened by the tube radius); `Refusal::NoLane`,
-   `Refusal::Unmarched`; the former wildcard arm now exhaustive. Check W0
-   (empty branch list with a full receipt) cannot certify disjoint faces
-   that meet, and that `classify` taking the lane changes no verdict for
-   lane-free pairs.
-6. **No wrong bodies.** The PR's before/after table: the tilted cut with
-   the torus just clear builds every op (volumes checked against `π/8` and
-   `2π²Rr²`). Check those volumes independently, and search for any other
-   op on this head that now returns a body; check it against an independent
-   volume. For each refusal, use the raising site and payload, not the text
-   (`memories/refusal-text-is-not-cause.md`).
-7. **Cost.** The PR reports two sweep rows not finishing within an hour at
-   ε 1e-12 in debug, and the tilted-rod spins row taking ~1560 s at the
-   compiled ε. Measure what the nightly will pay (it runs the slow set at
-   every ε) and whether any row risks the nightly's time limit
-   (`.github/workflows/nightly.yml`). Say whether the cost is the march's
-   (SECTRUNG) or this diff's.
-8. **Re-pins honest.** Each re-pinned row in the PR body, and the new
-   `crates/sweep/tests/germ_torus_components.rs`.
-9. **Suites.** `geom-brep`, `topo`, `sweep` (`--profile ci`) on this head and
-   its main merge-base: failures and times.
+1. **The site reading widened.** `CarriedComponent::reads` (and so
+   `CarriedSection::foot` and the cross-check `holds`) now reads a site
+   within the band padded by the loop's uniqueness tube (measured tubes
+   8.6e-4..2e-2 at the default ε), where `foot` used the bare band. Can a
+   site now be assigned to a component it is not on, or a site that is on no
+   component read as on one? Is the argument (limb-3 uniqueness keeps any
+   other component out of a loop's tube; the exhaustiveness receipt puts
+   every section point in some branch's tube) right as written at
+   `CarriedComponent::tube`?
+2. **`distinct`.** Each branch's witness must lie on that branch alone.
+   Does it catch a doubled loop, and can it refuse two genuinely distinct
+   loops (two loops closer than a tube)? Do the landed reviewer rows
+   (`a_doubled_loop_among_witnessless_components_is_a_desync`, the reworked
+   doubled-ring row via `PairSection::listed`) fail on `b4a0d865` and pass
+   here? Is witnessless matching by augmenting paths order-independent?
+3. **W3 pads by twice the pad**, argued as: the foot moves at most twice as
+   far as the witness because the witness is within the limb-2 bound of a
+   surface whose radius is guarded past the band. Check the argument and try
+   to break it near high curvature (small tube radius, near-horn torus).
+4. **The offer rows now refuse.** `transverse_frame_reach_*` refuse
+   `GermSectionUnbuilt` at the withdrawn tolerance (read at real section
+   points through the march; the march's tube refuses at the near-node
+   tangency). Is that the right reading of those rows, or did the rows lose
+   what they were named for?
+5. **ε coverage the lane did not run:** after the foot change it did not
+   re-run the geom-brep and topo rows at 1e-6 and 1e-12 (except the offer
+   rows). Run `pair_section`, `torus_doors_ssi`, `torus_gap`,
+   `intersect_table`, topo `section_cert`, `replace_face`, and the sweep rows
+   `germ_torus_components`, `cylinder_sphere_frame`, `germ_radial_hole` at
+   1e-6 and 1e-12 (opt-level 2), and report failures.
+6. **Everything else in the fix pass** (along_facing's check restored,
+   `Branch::Component` in frame readers, the served `replace_face` row,
+   exact pins, `Band::padded`, constants): a read for correctness.
 
 ## Report
 
-Your final message, at most 150 lines:
-- a verdict: APPROVE · APPROVE-WITH-FIXES · NOT-MERGEABLE-AS-IS · REJECT;
-- correctness findings, each MAJOR, MINOR or NOTE, with `file:line`, its
-  evidence, and whether it was shown by execution or by inspection;
-- `## Style`: the questions you exercised, each finding `sure`, `likely`
-  or `unsure`;
-- reviewer tests worth keeping, pasted as code (commit nothing);
-- any glimpse, disclosed.
+Final message, ≤120 lines: verdict (APPROVE · APPROVE-WITH-FIXES ·
+NOT-MERGEABLE-AS-IS · REJECT); findings MAJOR/MINOR/NOTE with `file:line`,
+evidence, executed or by inspection; `## Style` briefly; tests worth keeping
+as code (commit nothing).
