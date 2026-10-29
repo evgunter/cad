@@ -1,7 +1,9 @@
-//! **The torus germ row's placements through the join**: a drum, a ball
-//! and a donut against a moved donut, at the six placements of
-//! `torus-germ-pairs-have-no-section-frame`, each run under ∪ in both
-//! member orders.
+//! **The torus germ row's placements through the germ mint**: a drum, a
+//! ball and a donut against a moved donut, at the placements of
+//! `torus-germ-pairs-have-no-section-frame` whose germs the mint refused
+//! (`Untold` or `Refused(RoutesToGeneralRung)`), each run under ∪ in both
+//! member orders. A germ's component is its site's foot on the carried
+//! section, so each passes the mint and stops at a later door.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -70,26 +72,126 @@ fn at_rest(b: &Body<f64>) -> AtRestBody<f64> {
     finished("the shape", b.clone(), Tol::witness())
 }
 
-/// A run's outcome, by variant.
-fn outcome(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
+/// **Where a run stops**, in a word the rows pin: each a door's own
+/// typed refusal past the germ mint, or a body.
+fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
+    use geom_brep::PropsError;
+    use topo::{MassPropsError, ValidationError};
     match got {
-        Ok(r) => format!("Ok({:?})", r.body().map(|b| b.kind)),
-        Err(BooleanError::GermSectionUnbuilt { why, .. }) => format!("GermSectionUnbuilt({why:?})"),
-        Err(BooleanError::ResultInvalid { errors }) => format!("ResultInvalid({errors:?})"),
+        Ok(r) => format!("body {:?}", r.body().map(|b| b.kind)),
+        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+            [ValidationError::VolumeUncomputable { source, .. }] => match source {
+                MassPropsError::Face {
+                    source: PropsError::QuadratureUnsupported { what },
+                    ..
+                } if what.starts_with(
+                    "curved-cut face half-edge carries a pcurve with no harmonic form",
+                ) =>
+                {
+                    "projected".to_owned()
+                }
+                MassPropsError::Face {
+                    source: PropsError::QuadratureUnsupported { what },
+                    ..
+                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
+                    "conic trim".to_owned()
+                }
+                MassPropsError::RingOnCurvedFace { .. } => "ring on a curved face".to_owned(),
+                other => format!("volume {other:?}"),
+            },
+            other => format!("result {other:?}"),
+        },
+        Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
+        Err(BooleanError::Join(join))
+            if matches!(
+                join.error(),
+                topo::SplitJoinError::RingIslandUnread {
+                    kind: geom::SurfaceKind::Torus,
+                    ..
+                }
+            ) =>
+        {
+            "torus ring island".to_owned()
+        }
+        Err(BooleanError::JoinCarrierUnsupported {
+            carrier: geom::CurveKind::Nurbs,
+            ..
+        }) => "spline join".to_owned(),
+        Err(BooleanError::CurvedBooleanUnsupported {
+            operand,
+            kind: geom::SurfaceKind::Torus,
+            ..
+        }) => format!("curved join {operand:?}"),
         Err(e) => format!("{e:?}"),
     }
 }
 
-#[test]
-fn probe_the_germ_rows_placements() {
-    let shapes: [(&str, fn() -> Body<f64>); 3] = [("drum", drum), ("ball", ball), ("donut", donut)];
-    for (name, a) in shapes {
-        for (i, place) in placements().into_iter().enumerate() {
-            let (a, b) = (at_rest(&a()), placed(&donut(), place));
-            let ab = topo::union(&a, &b, Tol::witness());
-            let ba = topo::union(&b, &a, Tol::witness());
-            eprintln!("PROBE {name} x donut {i}: {}", outcome(&ab));
-            eprintln!("PROBE donut x {name} {i}: {}", outcome(&ba));
+/// `a` against the donut moved to each of `places`, under ∪ in both
+/// member orders (`A ∪ B`, then `B ∪ A`), against `want` by placement.
+fn row(a: fn() -> Body<f64>, places: &[usize], want: &[[&str; 2]]) {
+    let mut off = Vec::new();
+    for (&i, want) in places.iter().zip(want) {
+        let (a, b) = (at_rest(&a()), placed(&donut(), placements()[i]));
+        let got = [
+            stop(&topo::union(&a, &b, Tol::witness())),
+            stop(&topo::union(&b, &a, Tol::witness())),
+        ];
+        if got != *want {
+            off.push(format!("placement {i}: {got:?}"));
         }
     }
+    assert!(off.is_empty(), "{off:#?}");
+}
+
+/// **A drum against a moved donut passes the germ mint at every
+/// placement.** Each germ on the wall × tube pair takes its site's
+/// foot on the carried section, the general placements' (1, 2, 3, 5)
+/// listed by the march and the square walls' (0, 4) counted; every run
+/// stops past the mint at a door's own refusal: the result gate's volume
+/// on a face its fitted chords bound
+/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`)
+/// or a conic trim on the torus chart, the cap plane's spiric
+/// (`GermSectionSpiric`), or the ring lane's island on the torus face,
+/// whose spline arm is unbuilt (`torus-germ-pairs-have-no-section-frame`).
+#[test]
+fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
+    row(
+        drum,
+        &[0, 1, 2, 3, 4, 5],
+        &[
+            ["conic trim", "projected"],
+            ["projected", "projected"],
+            ["projected", "conic trim"],
+            ["spiric", "spiric"],
+            ["torus ring island", "torus ring island"],
+            ["torus ring island", "torus ring island"],
+        ],
+    );
+}
+
+/// **A ball cutting both tube circles of its meridian** (placement 5):
+/// two curves about the torus axis, counted, which no plane or meridian
+/// tells apart; each germ's component is its site's foot, and the run
+/// stops at the ring lane's island on the torus face.
+#[test]
+fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
+    row(ball, &[5], &[["torus ring island", "torus ring island"]]);
+}
+
+/// **Two donuts in general pose** (placements 1, 2, 3): the section the
+/// march's, each germ's component its site's foot. Placement 1 stops at
+/// the join's segment dispatch, which has no torus lane for a segment
+/// it does not carry (`CurvedBooleanUnsupported`), the others at the
+/// ring lane's island on the torus face.
+#[test]
+fn two_donuts_in_general_pose_pass_the_germ_mint() {
+    row(
+        donut,
+        &[1, 2, 3],
+        &[
+            ["curved join A", "curved join B"],
+            ["torus ring island", "torus ring island"],
+            ["torus ring island", "torus ring island"],
+        ],
+    );
 }

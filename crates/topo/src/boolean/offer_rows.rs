@@ -1272,7 +1272,7 @@ fn section_site(
     carried
         .foot(site, band())
         .map(|_| ())
-        .map_err(|e| super::super::join::site_refusal(e))
+        .map_err(super::super::join::site_refusal)
 }
 
 /// The radical plane of a radius-0.5 cylinder about `z` and a

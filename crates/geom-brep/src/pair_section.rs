@@ -1464,7 +1464,7 @@ mod wiring {
     /// a sphere reaching past a wall's far ruling, listed as three, and
     /// listed as two with one witness off both. As counted, they carry.
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn a_count_the_march_disagrees_with_refuses() {
         use super::{CarryError, Components, SectionComponent, SectionRead, SsiLane, pair_section};
         use geom::Surface;
