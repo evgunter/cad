@@ -47,7 +47,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
-    Pruning, SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
+    Pruning, SELF_INTERSECTION_GAP, Selection, Which, clearance_over, clearance_with,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -1184,12 +1185,24 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
 fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
     // Every carrier this fixture library builds (plane) is admitted, so
     // the row asserts the reachable half: the refusal type carries a
-    // named class and a face, and `name()` is stable for goldening.
-    let refusal = ClearanceRefusal::Engine(EngineRefusal::Unsupported {
+    // named class and a face, and `name()` is stable for goldening —
+    // the engine's, and the document door's, which forwards it.
+    let refusal = EngineRefusal::Unsupported {
         carrier: "an approximated face",
         face: topo::entity::FaceKey::default(),
-    });
+        side: Which::First,
+    };
     assert_eq!(refusal.name(), "unsupported");
+    let at = RecipeNodeId::new(0, 0);
+    let refusal = ClearanceRefusal::Engine {
+        refusal,
+        sides: [(at, 0), (at, 0)],
+    };
+    assert_eq!(
+        refusal.name(),
+        "unsupported",
+        "the door forwards the engine's class"
+    );
     // And the engine's own admission door refuses rather than skipping:
     // a comb face that IS admitted produces a window, so the contrast
     // is that no code path drops a face silently — every face of a
@@ -1231,8 +1244,10 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     assert!(
         matches!(
             report.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(_)))
-                | ClearanceVerdict::Violated(_)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::Budget(_),
+                ..
+            }) | ClearanceVerdict::Violated(_)
         ),
         "a starved budget is priced, never silence: {}",
         report.serialize()
@@ -1336,7 +1351,10 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     assert!(
         matches!(
             frontier.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(_)))
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::Budget(_),
+                ..
+            })
         ),
         "the frontier is where a budget is actually spent: {}",
         frontier.serialize()

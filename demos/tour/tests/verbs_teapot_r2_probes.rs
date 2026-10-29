@@ -21,8 +21,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
+use crate::common::census::{genus, rings};
+use crate::common::printed;
 use core::f64::consts::FRAC_PI_2;
 use pncad::sweep::ExtrudeSide;
 
@@ -63,9 +63,6 @@ fn tube_frame(
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
-#[path = "common/census.rs"]
-mod census;
-use census::{genus, rings};
 use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
 /// A copy of `body` finished for the measurement doors, which read a
