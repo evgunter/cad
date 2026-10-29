@@ -105,19 +105,21 @@ pub use editor_core::cascade_delete_order;
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
-// family read, or spelled reads); a subtract is binary. `CountMismatch`
-// rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// family read, or spelled reads); a subtract is binary. An operand
+// field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 // A placement copies one source; a read of one member of a `⊔` (an
 // instance's copy of a part's product, say) is a pick of it. A
 // placement's constraints are addressed by their `ConstraintId`.
+// Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
+// `VarDecl::Index`, a family's member is named under `Member { at }`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault, LoftSection,
-    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
+    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
+    TubeWindow, VectorSlot,
 };
+pub use editor_core::{Index, IndexFault, MemberAt};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept
@@ -144,7 +146,8 @@ pub use editor_core::{Label, LabelFault};
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinSeparationRefusal` are carried for the
+// `MeasureUnavailableAt` and `MinSeparationRefusal` (with `Which`, the
+// side its arms name a face by) are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
@@ -156,7 +159,7 @@ pub use editor_core::{Label, LabelFault};
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::MinSeparationRefusal;
+pub use editor_core::clearance::{MinSeparationRefusal, Which};
 pub use editor_core::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
     MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
@@ -325,7 +328,7 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
+    PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
@@ -395,8 +398,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, FrameSite, PartFault, PartResolver, ResolveFailure,
-    ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: a placement's constraints (`Constraint`, addressed by a

@@ -65,7 +65,9 @@
 //! rule.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, Bounds, Circles, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2,
+};
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
@@ -268,7 +270,9 @@ fn ray_circle<T: Decide>(
 /// to a coordinate is the final `√h²`. Three metre gates classify the
 /// pair first — concentric, too far apart, one inside the other — and
 /// each may legitimately spend a `sqrt`, being margins and not
-/// coordinates. A hairline-tangent pair that passes the gate and still
+/// coordinates: the last two are [`Circles`]' reach and internal
+/// clearance. The corner is not [`Circles`]' placement, which reads the
+/// radii themselves and so breaks LB4. A hairline-tangent pair that passes the gate and still
 /// rounds `h²` below zero yields NaN coordinates: poison, which every
 /// downstream `decide` refuses loudly (D4 ¶2), never a silent repair.
 fn circle_circle<T: Decide>(
@@ -282,18 +286,18 @@ fn circle_circle<T: Decide>(
     let d = c2 - c1;
     let d_sq = d.norm_squared();
     let d_len = d_sq.sqrt();
-    let (r1, r2) = (r1_sq.sqrt(), r2_sq.sqrt());
+    let carriers = Circles::new(d_len, r1_sq.sqrt(), r2_sq.sqrt());
     // Concentric carriers name no corner (identical ones name every
     // point of the circle, which is worse, not better).
     let gone = PathNoCornerReason::CarriersDoNotMeet;
     let tangent = PathNoCornerReason::CarriersParallel;
     for (margin, on_zero) in [
         // concentric: no transversal crossing at any radius pair
-        (d_len, gone),
+        (carriers.d(), gone),
         // externally tangent / disjoint
-        (r1 + r2 - d_len, tangent),
+        (carriers.reach(), tangent),
         // internally tangent / one inside the other
-        (d_len - (r1 - r2).abs(), tangent),
+        (carriers.internal(), tangent),
     ] {
         match decide("path_carrier_meet", Margin::of(margin), band) {
             Ok(Sign::Positive) => {}

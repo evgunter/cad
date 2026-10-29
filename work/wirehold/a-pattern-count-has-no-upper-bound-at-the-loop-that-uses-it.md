@@ -2,12 +2,12 @@
 id: a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it
 kind: issue
 title: wire_pattern guards n < 1 and then loops 1..n, and the cancel token is checked between nodes
-status: parked
+status: open
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [need-count-spells-every-failure-as-a-pattern-count]
-blocked_on: [patterns-are-index-variables]
+
 ---
 
 
@@ -103,3 +103,7 @@ the viewer consumes is a hand-off and never a diff from VGEOM.
 Read against the tree at `fd218851f9`. `wire_pattern` still loops `1..n` with no ceiling and no cancel check. `Node::Pattern` and `PlacedUnion` retire into `index(N)`; the bound and cancel question carry over to `N`, so re-read it there rather than closing it. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## D10 exit walk (2026-10-29)
+
+The scene still stands on main, re-sited. `wire_pattern` and `stepped_map` are gone (stage 3 G, #5954), and an index's count is now range-checked before its loop (`crates/editor-core/src/eval/members.rs:110-117`, `IndexCountOutOfRange`). But the range it admits is `0..=u32::MAX`, and `tuples` (`members.rs:120`) loops that many members inside one node. The cancel token is still checked only between nodes. So the bound sits ahead of the loop now but is still the name table's width rather than a size an evaluation can afford, and the loop is still not cancellable. Open.

@@ -56,7 +56,7 @@ use crate::node::RecipeNodeId;
 ///
 /// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
 /// only *referencing* one is `Ambiguous`. This mirrors the three
-/// emitters that already do it (`name_pattern`, `name_in_part`,
+/// emitters that already do it (`name_family`, `name_in_part`,
 /// `graft_names`), so a tie anywhere in an operand table no longer
 /// refuses the whole downstream op.
 #[derive(Clone)]
@@ -251,9 +251,7 @@ pub(super) fn narrow_into(
 /// **The narrowing rule for a name this op MINTS**: [`narrow_into`]'s
 /// counterpart for a wrapped name, whose candidates are numbered afresh
 /// as its name is fresh — one survivor is strict, several are a tie the
-/// insert door numbers. The flush writes a minted name through it, and
-/// so does `emit::name_placed_union` for the prototype candidates the
-/// fuse kept.
+/// insert door numbers. The flush writes a minted name through it.
 ///
 /// # Errors
 ///

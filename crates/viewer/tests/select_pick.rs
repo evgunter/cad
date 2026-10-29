@@ -23,10 +23,7 @@ use crate::common::plate_index;
 
 use std::collections::BTreeMap;
 
-use pncad::document::{
-    Doc, Evaluation, Formula, Frame, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
-    SlotId,
-};
+use pncad::document::{Doc, Evaluation, Frame, Node, ProfileProgram, RecipeNodeId, TargetAxis};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{HitTestError, Ray, Resolution};
 use viewer::camera::Camera;
@@ -34,7 +31,6 @@ use viewer::display::DisplayView;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
-use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
 use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
 use viewer::{cursor_projection, input, marks};
@@ -52,13 +48,21 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
 }
 
-/// A pattern of `count` small blocks, each copy projected and placed
-/// (A10) — the fixture for the rows that need SEVERAL drawn bodies of
-/// one feature, and for the structural edit that consumes one of them.
+/// A row of `count` small blocks, each member read and placed (A10,
+/// D10) — the fixture for the rows that need SEVERAL drawn bodies of
+/// one feature, and for the count edit that consumes one of them.
 ///
-/// Answers the document, the extrude node and the pattern node; the
-/// copies' placements are `doc.placements()`, in instance order.
-fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
+/// Answers the document, the extrude node, the family's placement and
+/// the members' world copies, in member order.
+fn patterned_blocks(
+    tol: Tol,
+    count: i64,
+) -> (
+    Doc<ProfileProgram>,
+    RecipeNodeId,
+    RecipeNodeId,
+    Vec<RecipeNodeId>,
+) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
     let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
@@ -69,30 +73,14 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         },
         tol,
     );
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::count(count),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
-    let doc = (0..count).fold(doc, |doc, index| {
-        let (doc, copy) = common::inserted(
-            &doc,
-            Node::Part {
-                of: pattern.into(),
-                select: PartSelect::Instance(Formula::count(index)),
-            },
-            tol,
-        );
-        common::placed(&doc, copy, tol).0
+    let (doc, pattern) = common::row_of_copies(&doc, extrude, count, (TargetAxis::X, 0.05), tol);
+    let (doc, copies) = (0..count).fold((doc, Vec::new()), |(doc, mut copies), at| {
+        let (doc, member) = common::member_read(&doc, pattern, at, tol);
+        let (doc, copy) = common::placed(&doc, member, tol);
+        copies.push(copy);
+        (doc, copies)
     });
-    (doc, extrude, pattern)
+    (doc, extrude, pattern, copies)
 }
 
 // --- the un-projection --------------------------------------------
@@ -185,8 +173,7 @@ fn every_id_round_trips_to_the_patch_it_names() {
 #[test]
 fn distinct_patches_never_share_an_id_across_bodies() {
     let tol = Tol::witness();
-    let (doc, _extrude, _pattern) = patterned_blocks(tol, 3);
-    let copies = doc.placements();
+    let (doc, _extrude, _pattern, copies) = patterned_blocks(tol, 3);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
@@ -689,7 +676,7 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
 #[test]
 fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
     let tol = Tol::witness();
-    let (doc, _extrude, pattern) = patterned_blocks(tol, 2);
+    let (doc, _extrude, pattern, copies) = patterned_blocks(tol, 2);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
@@ -697,11 +684,7 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("the first block is under this ray");
-    assert_eq!(
-        face.node,
-        session.committed_doc().placements()[0],
-        "the first copy is hit"
-    );
+    assert_eq!(face.node, copies[0], "the first copy is hit");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
@@ -727,7 +710,7 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
 #[test]
 fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     let tol = Tol::witness();
-    let (doc, _extrude, pattern) = patterned_blocks(tol, 3);
+    let (doc, _extrude, pattern, copies) = patterned_blocks(tol, 3);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
@@ -736,20 +719,12 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
         .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
         .expect("the third block is under this ray");
-    assert_eq!(
-        face.node,
-        session.committed_doc().placements()[2],
-        "the third copy is hit"
-    );
+    assert_eq!(face.node, copies[2], "the third copy is hit");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    // The variable edit that consumes it: two instances, no third.
-    let outcome = session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: SlotId::Count,
-        value: SlotValue::Count(2),
-    });
+    // The count edit that consumes it: two members, no third.
+    let outcome = session.perform(common::recount_op(&session, pattern, 2));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
 
@@ -765,17 +740,13 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
 #[test]
 fn undo_across_the_selections_birth_leaves_it_unresolved() {
     let tol = Tol::witness();
-    let (doc, _extrude, pattern) = patterned_blocks(tol, 2);
+    let (doc, _extrude, pattern, _copies) = patterned_blocks(tol, 2);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
 
     // Grow the pattern and place its third copy, then pick a face that
     // exists only because of those edits — the selection is BORN here.
-    session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: SlotId::Count,
-        value: SlotValue::Count(3),
-    });
+    session.perform(common::recount_op(&session, pattern, 3));
     common::session_insert(
         &mut session,
         SessionOp::AddPart {
@@ -834,7 +805,7 @@ fn a_selection_with_no_evaluation_behind_it_is_not_reported_as_live() {
 #[test]
 fn a_pick_index_from_an_older_generation_is_not_current() {
     let tol = Tol::witness();
-    let (doc, _extrude, pattern) = patterned_blocks(tol, 2);
+    let (doc, _extrude, pattern, _copies) = patterned_blocks(tol, 2);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
@@ -847,11 +818,7 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
         "freshly built, it describes the run on screen"
     );
 
-    session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: SlotId::Count,
-        value: SlotValue::Count(3),
-    });
+    session.perform(common::recount_op(&session, pattern, 3));
     session.pump();
     assert!(
         !index.current_for(

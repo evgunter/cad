@@ -2,7 +2,7 @@
 id: torus-germ-pairs-have-no-section-frame
 kind: issue
 title: A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame names its section
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P0
 cost: H

@@ -45,7 +45,7 @@ vocabulary! {
     /// index. `Explicit` is absent by the plan's ruling: a list of
     /// absolute frames is not a form's job.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum PatternKindChoice {
+    pub(crate) enum PatternLayoutChoice {
         /// Stepped along a direction.
         Linear = "linear",
         /// Stepped around an axis given by a point and a direction.
@@ -88,7 +88,7 @@ vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
     /// authored verb by verb.
     ///
-    /// An enum for the reason [`PatternKindChoice`] is one — and the templates
+    /// An enum for the reason [`PatternLayoutChoice`] is one — and the templates
     /// stay in it rather than being folded into the path arm because they
     /// are not chains: a circle is a seamless closed carrier no chain of
     /// legs can spell, and a rectangle is four `line_to`s nobody should

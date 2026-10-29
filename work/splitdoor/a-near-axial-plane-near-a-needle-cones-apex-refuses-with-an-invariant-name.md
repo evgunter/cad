@@ -2,7 +2,7 @@
 id: a-near-axial-plane-near-a-needle-cones-apex-refuses-with-an-invariant-name
 kind: issue
 title: a needle cone cut by a plane off its apex near the seam refuses Join SectionInvariant or Join Euler, identically on main
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M

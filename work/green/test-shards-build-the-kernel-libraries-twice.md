@@ -118,3 +118,37 @@ shard: 18.8–19.1 min in three of four runs (build 13.3–13.8, default ε
    classification, as a `TEST_SHARDS` output with synthetic-diff
    selftests (#5941's review). The roster is a second, untested
    classification in ci.yml until then.
+
+## The roster moved, 2026-10-29 (GREEN latency lane, owed item 3's second half)
+
+The roster and the split are out of ci.yml's shell and in
+`scripts/ci-filter.py` (`APP_SHARD`, `test_shards`), as two new outputs:
+`TEST_SCOPE` (the closure plus test-utils) and `TEST_SHARDS` (the matrix).
+ci.yml's filter job maps them to its `cargo_scope` and `test_shards`
+outputs and no longer computes either. A build with no shard is now a
+non-zero exit of the filter, so the classify step goes red where the
+paths step did.
+
+- **Same output.** The old shell block, run against the new function on
+  439 inputs (`docs`, `--workspace`, every member alone, every member
+  beside test-utils, and 400 random sorted member subsets), matched on
+  every one, the no-shard error included.
+- **Selftest rows** (`_selftest_test_shards`): app-only closure, kernel-only,
+  both sides, `--workspace`, docs, lone test-utils, test-utils not added
+  twice, and the no-shard error. Breaking the test-utils fold or the error
+  check each reds one of them.
+- **`ci-filter.py --selftest` ran in no CI job.** It takes 23 s on a hosted
+  runner. The lint job runs it when the diff touches `scripts/ci-filter.py`
+  or `scripts/slow_set.py`. Those diffs are TIER=all, where `test`, not
+  `lint`, is the last job. On docs and aux runs `lint` is the last job, so
+  an unconditional step would have added 23 s there. The nightly's
+  gate-self-test job runs it every night, because its premise checks read
+  the whole tree.
+- **The roster is checked against the graph.** `APP_SHARD` is `APP_ROOT`
+  (verbs) and every member that depends on it.
+  `_selftest_app_shard_premise` reds when the member graph says
+  otherwise, so a new dependent of verbs or editor-core cannot land in
+  `kernel` silently.
+
+The rebalance (items 1 and 2) is still owed; it is now a one-line edit to
+`APP_SHARD` plus its selftest rows.

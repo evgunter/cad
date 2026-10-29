@@ -2,7 +2,7 @@
 //!
 //! A name nests one whole name per derivation level: a boolean's
 //! survivor holds its operand's name ([`RoleSeg::From`]), a pattern
-//! copy its master's ([`RoleSeg::Instance`]), and so on down the chain.
+//! copy its master's ([`RoleSeg::Member`]), and so on down the chain.
 //! Nothing bounds the depth: a document of a thousand booleans nests
 //! its survivors a thousand deep.
 //! A walk that recursed once per level would need a stack proportional
@@ -356,7 +356,7 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names(sense, f);
@@ -414,7 +414,7 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names_mut(sense, f);
@@ -1971,7 +1971,10 @@ pub(super) mod tests {
                 R::Inner(r(a)),
                 R::Rim(r(b)),
                 R::HoleRim { of: r(a), hole: 4 },
-                R::Instance { i: 5, of: r(a) },
+                R::Member {
+                    at: vec![(crate::VarId::new(9, 9), 5)],
+                    of: r(a),
+                },
             ]
         }};
     }
@@ -2190,7 +2193,10 @@ pub(super) mod tests {
                     read: crate::names::FOLD_A,
                     of: r,
                 },
-                1 => RoleSeg::Instance { i: 1, of: r },
+                1 => RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), 1)],
+                    of: r,
+                },
                 2 => RoleSeg::Inner(r),
                 3 => RoleSeg::Merged(vec![n]),
                 4 => RoleSeg::Fragment(Qualifier::Borders(vec![n])),
@@ -2367,11 +2373,14 @@ pub(super) mod tests {
                     .into(),
                 )],
             );
-            let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
+            let copy = |r: NameRef| RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), 1)],
+                of: r,
+            };
             assert_eq!(
                 wrapped(piece, DEEP, 8, copy).piece_steps(),
                 [StepId::new(0, 7)].into(),
-                "the step at the foot of a chain of pattern copies"
+                "the step at the foot of a chain of members"
             );
         });
     }
@@ -2426,8 +2435,8 @@ pub(super) mod tests {
                     of: NameRef::new(named(
                         EntityKind::Face,
                         1,
-                        vec![RoleSeg::Instance {
-                            i: 0,
+                        vec![RoleSeg::Member {
+                            at: vec![(crate::VarId::new(9, 9), 0)],
                             of: NameRef::new(piece(i)),
                         }],
                     )),

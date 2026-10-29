@@ -542,8 +542,10 @@ pub(super) fn insert_null_edges<T: Decide>(
             // and Q). A sector holds at most one such arc: its arc is the
             // stretch between two sign changes of the plane's side inside
             // the sector, and that side changes sign at most twice in a
-            // sector (once in a tangent plane's wide sector; at a cone's
-            // apex, `c + k cos(φ − φ₀)` has at most two zeros). P and Q lie
+            // sector (once in a tangent plane's wide sector; twice in a
+            // slit tip's full turn, which a plane through the tip meets
+            // along one line; at a cone's apex, `c + k cos(φ − φ₀)` has at
+            // most two zeros). P and Q lie
             // just outside the arc, in the parent region, and another
             // corner's mint splices only at its own arc's ends, so Q's
             // corner is still at `at`.

@@ -107,10 +107,10 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     );
 }
 
-/// One profile, one extrude with a LITERAL distance, and a pattern
-/// over it whose count is a literal too — a continuous slot and a
-/// structural `Count` slot in one document, so both directions of the
-/// Count/continuous divide have a subject.
+/// One profile, one extrude with a LITERAL distance, and a read of one
+/// member of a row of it whose index is a literal too — a continuous
+/// slot and a structural `Count` slot in one document, so both
+/// directions of the Count/continuous divide have a subject.
 fn literal_and_pattern_doc(
     tol: Tol,
 ) -> (
@@ -129,20 +129,23 @@ fn literal_and_pattern_doc(
         },
         tol,
     );
-    let (doc, pattern) = common::inserted(
+    let (doc, pattern) = common::row_of_copies(
         &doc,
-        pncad::document::Node::Pattern {
-            input: extrude.into(),
-            count: pncad::document::Formula::count(3),
-            kind: pncad::document::PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.03),
-            },
-        },
+        extrude,
+        3,
+        (pncad::document::TargetAxis::X, 0.03),
         tol,
     );
-    (doc, extrude, pattern)
+    let (doc, member) = common::member_read(&doc, pattern, 1, tol);
+    (doc, extrude, member)
 }
+
+/// A member read's index: the structural `Count` slot of
+/// [`literal_and_pattern_doc`]'s member.
+const INDEX: SlotId = SlotId::Index {
+    seat: pncad::document::OperandSlot::Source,
+    k: 0,
+};
 
 /// `text` with the variable id the first `"key":` holds replaced by
 /// `id`: a slot on the wire is its variable's id, so this re-points one
@@ -196,9 +199,9 @@ fn repointed_slot(text: &str, key: &str, id: editor_core::MintId) -> String {
 #[test]
 fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
 
-    for node in [extrude, pattern] {
+    for node in [extrude, member] {
         let rows = props::slot_rows(&doc, node);
         assert!(
             rows.iter().any(|row| row.driver == SlotDriver::Literal),
@@ -219,10 +222,10 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     // The Count row really is one of them — otherwise the loop above
     // says nothing about the second direction of the divide.
     assert!(
-        props::slot_rows(&doc, pattern)
+        props::slot_rows(&doc, member)
             .iter()
-            .any(|row| row.slot == SlotId::Count && row.driver == SlotDriver::Literal),
-        "the pattern's count is a literal row"
+            .any(|row| row.slot == INDEX && row.driver == SlotDriver::Literal),
+        "the member's index is a literal row"
     );
 }
 
@@ -232,7 +235,7 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
 #[test]
 fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
 
     let count_into_continuous = pncad::document::apply(
         &doc,
@@ -266,8 +269,8 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
     let continuous_into_count = pncad::document::apply(
         &doc,
         &DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: SlotId::Count,
+            node: member,
+            slot: INDEX,
             expr: common::len(0.03),
             fresh: Vec::new(),
         },
@@ -279,7 +282,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             expected,
             found,
         }) => {
-            assert_eq!(slot, SlotId::Count);
+            assert_eq!(slot, INDEX);
             assert_eq!(
                 expected,
                 pncad::document::SlotKind::Is(pncad::document::VarKind::Count)
@@ -297,18 +300,18 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
 /// be read at a `Length` slot, and it is the input the claim above
 /// most needs: everything else in this suite reaches the document
 /// through `apply`. The saved fixture is doctored in ONE field — the
-/// extrude's distance re-pointed at the pattern count's variable — and
+/// extrude's distance re-pointed at the member index's variable — and
 /// `load` is asked what it thinks.
 #[test]
 fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
     let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
     pncad::document::load(&text, tol).expect("and loads back as it was written");
 
     let count = doc
-        .slot(pattern, SlotId::Count)
-        .expect("a pattern reads its count");
+        .slot(member, INDEX)
+        .expect("a member read reads its index");
     let corrupt = repointed_slot(&text, "distance", count.0);
     match pncad::document::load(&corrupt, tol) {
         Err(pncad::document::PersistError::Snapshot(
@@ -1689,12 +1692,7 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     // Every Count-dimensioned slot, so the refusal is the DIMENSION's
     // and not one slot's: `SlotId::is_structural` is defined as this
     // dimension, so these are exactly the structural slots.
-    for slot in [
-        SlotId::Count,
-        SlotId::VDegree,
-        SlotId::Stations,
-        SlotId::Instance,
-    ] {
+    for slot in [SlotId::VDegree, SlotId::Stations, INDEX] {
         assert!(slot.is_structural(), "{slot:?} is not a structural slot");
         assert!(
             SlotValue::of(slot.expr_dimension(), f64::INFINITY).is_err(),

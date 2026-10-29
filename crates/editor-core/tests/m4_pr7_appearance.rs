@@ -10,10 +10,10 @@ use crate::fixture;
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Dimension, DocEdit, EditError,
-    EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
+    EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, ProfileDoc,
+    RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
-use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
+use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -540,25 +540,15 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
 }
 
 #[test]
-fn structural_count_reduction_vanishes_the_instance_name_loudly() {
+fn an_index_count_reduction_vanishes_the_member_name_loudly() {
     let (doc, ext) = block(
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         1.0,
     );
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: ext.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    // Attribute a face of instance 2 by its pattern-minted name.
+    let (doc, k, pat) = crate::fixture::linear(doc, ext, [1.0, 0.0, 0.0], 2.0, 3);
+    // Attribute a face of member 2 by its family-minted name.
     let ev = run(&doc);
     let inst2_face = ev
         .table_at(pat)
@@ -566,24 +556,16 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
-                && matches!(n.path.first(), Some(RoleSeg::Instance { i: 2, .. })))
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
             .then(|| n.clone())
         })
-        .expect("pattern mints instance-2 face names");
+        .expect("the family mints member-2 face names");
     let doc = set(doc, inst2_face.clone(), red());
     assert!(run(&doc).appearance.is_lossless());
 
-    // Structural edit: count 3 -> 2. Instance 2 no longer exists; the
-    // name vanishes and the loss is typed, never silent.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pat,
-            slot: editor_core::SlotId::Count,
-            expr: Formula::count(2),
-            fresh: Vec::new(),
-        },
-    );
+    // The index's count 3 -> 2. Member 2 no longer exists; the name
+    // vanishes and the loss is typed, never silent.
+    let doc = crate::fixture::recount(doc, k, Formula::count(2));
     let ev = run(&doc);
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
@@ -596,15 +578,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     );
     // Restoring the count restores resolution (the attribute rode the
     // name through the round trip).
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pat,
-            slot: editor_core::SlotId::Count,
-            expr: Formula::count(3),
-            fresh: Vec::new(),
-        },
-    );
+    let doc = crate::fixture::recount(doc, k, Formula::count(3));
     assert!(run(&doc).appearance.is_lossless());
 }
 

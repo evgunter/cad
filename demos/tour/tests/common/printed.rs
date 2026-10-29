@@ -2,8 +2,8 @@
 //! mean boundary displacement, the tour's stated precision
 //! (`printed` in `src/main.rs`, which these rows check against). A
 //! fixed length whatever ε a run is at, as the tour's is; spelled here
-//! because a `tests/` file is a separate crate and cannot name the
-//! binary's items.
+//! because the `all` test binary is a separate crate from the `demo-tour`
+//! bin and cannot name the bin's items.
 
 use pncad::topo::Settle;
 

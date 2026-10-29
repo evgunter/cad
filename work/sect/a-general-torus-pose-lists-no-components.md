@@ -5,7 +5,7 @@ title: A general cylinder × torus or torus × torus pose lists no components: t
 status: closed
 opened: 2026-10-28
 priority: P0
-cost: M
+cost: H
 refs: [torus-germ-pairs-have-no-section-frame, cylinder-torus-rung-three-arm-is-unretired, torus-torus-rung-three-arm-is-unretired]
 closed: 2026-10-29
 branch: sect/components-by-foot

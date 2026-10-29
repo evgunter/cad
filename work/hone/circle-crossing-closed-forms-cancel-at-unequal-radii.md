@@ -55,3 +55,12 @@ identity, so Interval encloses. It is the one home for that algebra;
 fixing these sites with a local spelling mints a copy at each.
 
 2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.
+
+2026-10-29 (SECT, `sect/circle-crossing-once`): the two torus sites
+named above now live in `crates/geom-brep/src/pair_section/torus_arms.rs`.
+The square-wall arm (`square_folds`) reads `geom_core::Circles` for its
+tube row and its folds. The tube circle against the sphere's great
+circle (`sphere_arm`) does not yet, since its secant row is another
+decomposition whose move can shift a verdict at `Interval`; it is
+`work/sect/sphere-against-a-tube-circle-decides-its-secant-in-its-own-decomposition.md`.
+`sphere_sphere` here is unchanged.

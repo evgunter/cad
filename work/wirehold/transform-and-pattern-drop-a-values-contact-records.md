@@ -2,12 +2,12 @@
 id: transform-and-pattern-drop-a-values-contact-records
 kind: issue
 title: Transform and Pattern nodes drop a value's contact records, so a touching boolean result refuses at rest one node downstream with no change to it
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
-blocked_on: [patterns-are-index-variables]
+closed: 2026-10-29
 ---
 
 
@@ -33,3 +33,7 @@ default to `OpOut::plain`'s empty records.
 Read against the tree at `fd218851f9`. Both `wire_transform` and `wire_pattern` still return `OpOut::plain`. The Transform half is `a-transform-drops-the-contact-records-a-placement-carries` and retires with stage 3 D; the Pattern half is owed again in index-variable copies, so this row waits on the pattern unit. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Closed (2026-10-29, D10 exit walk)
+
+The code is gone. `Transform` retired into a placement (stage 3 D, #5506), and `wire_place` carries its source's records (`crates/editor-core/src/eval/wire.rs`, `carried_from(0)` at the placement arm). Patterns are index variables (#5954). A family's value carries each member's own records (`crates/editor-core/src/eval/members.rs:331-345`, `Carry::of_family`), so a placed copy of a touching boolean result keeps its records per member.

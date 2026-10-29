@@ -40,8 +40,8 @@
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec2, Vec3,
-    rounding_charge,
+    Band, Circles, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Point3, Real, Sign,
+    Vec2, Vec3, rounding_charge,
 };
 
 use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
@@ -449,20 +449,17 @@ fn crossing_parallels<T: Real>(
     (x2, z2, r2): (T, T, T),
     winds: [bool; 2],
 ) -> Vec<SectionComponent<T>> {
-    let [big_r, r] = [ring.big_r, ring.r];
-    let (dx, dz) = (x2 - big_r, z2);
-    let dist = Vec2::new(dx, dz).norm();
-    let along = (dist.powi(2) + (r - r2) * (r + r2)) / (dist + dist);
-    let half = ((r - along) * (r + along)).sqrt();
-    let (ux, uz) = (dx / dist, dz / dist);
-    let (bx, bz) = (big_r + ux * along, uz * along);
-    [half, T::zero() - half]
+    let (c1, c2) = (Point2::new(ring.big_r, T::zero()), Point2::new(x2, z2));
+    let toward = c2 - c1;
+    Circles::new(toward.norm(), ring.r, r2)
+        .at(c1, c2)
+        .crossings()
         .into_iter()
-        .map(|k| SectionComponent {
+        .map(|p| SectionComponent {
             shape: ComponentShape::Loop,
             winds,
             witness: None,
-            carrier: ClassCarrier::Closed(ring.parallel(bx - uz * k, bz + ux * k)),
+            carrier: ClassCarrier::Closed(ring.parallel(p.x, p.y)),
         })
         .collect()
 }
@@ -1107,12 +1104,9 @@ impl<T: Decide> TorusTorusPose<T> {
                         (Sign::Zero, _) => return Err(TorusPoseRefusal::Coincident),
                         (Sign::Positive | Sign::Negative, _) => {}
                     }
-                    let d = Vec2::new(r2.big_r - r1.big_r, z2).norm();
+                    let tubes = Circles::new(Vec2::new(r2.big_r - r1.big_r, z2).norm(), r1.r, r2.r);
                     let mut tube = None;
-                    for (row, m) in [
-                        (TUBE_REACH, r1.r + r2.r - d),
-                        (TUBE_NEST, d - (r1.r - r2.r).abs()),
-                    ] {
+                    for (row, m) in [(TUBE_REACH, tubes.reach()), (TUBE_NEST, tubes.internal())] {
                         let read = decide_across_reported([row, floor_of(row)], m, slack, band)
                             .map_err(undecided_gap)?;
                         match (read.0, tube) {
