@@ -394,3 +394,21 @@ pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
     let mid = (t0 + t1) / T::from_f64(2.0);
     mid + (raw - mid).reduce_periodic_centred(T::tau())
 }
+
+/// A root door's answer for a row: its roots, or its refusal, a limit
+/// (`Some`) or `None` for its decision's escalation, a touch in band.
+///
+/// # Panics
+///
+/// On any other refusal.
+#[cfg(test)]
+#[allow(clippy::panic)]
+pub(super) fn door_answer<T: geom_core::Real>(
+    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
+) -> Result<CircleRoots<T>, Option<Unsettled>> {
+    match got {
+        Ok(found) => found.map_err(Some),
+        Err(BooleanError::Escalated { .. }) => Err(None),
+        Err(other) => panic!("the door refused outside its decision: {other:?}"),
+    }
+}

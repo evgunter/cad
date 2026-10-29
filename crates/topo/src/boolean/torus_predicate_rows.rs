@@ -214,7 +214,7 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
     assert!(
         matches!(
             axial,
-            Ok(QuarticRoots::Miss) | Err(RootRefusal::Unsettled(_))
+            Ok(QuarticRoots::Miss) | Err(RootRefusal::Unsettled(_) | RootRefusal::Touch(_))
         ),
         "the axis meets no tube, and must never be answered as a crossing: {:?}",
         axial.map(|r| match r {

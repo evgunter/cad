@@ -2513,6 +2513,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "ellipse_torus.rs",
+        "torus_walk",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
+    (
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::VertexOnVertex",
@@ -2790,7 +2796,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
-        1,
+        2,
     ),
     (
         "reduce.rs",
@@ -2802,7 +2808,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::WallRoots",
-        1,
+        2,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
@@ -2842,7 +2848,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
-    ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 2),
     (
         "reduce.rs",
         "spline_plane_crossings",

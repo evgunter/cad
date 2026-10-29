@@ -35,8 +35,14 @@ fn circle<T: Real>(rho: f64) -> geom::Curve3<T> {
     }
 }
 
-fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
-    conic_quadric_roots(&circle(1.0), t0, t1, &sphere(c, r), band()).unwrap()
+fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
+    crate::boolean::circle_roots::door_answer(conic_quadric_roots(
+        &circle(1.0),
+        t0,
+        t1,
+        &sphere(c, r),
+        band(),
+    ))
 }
 
 fn on_circle(theta: f64) -> Point3<f64> {

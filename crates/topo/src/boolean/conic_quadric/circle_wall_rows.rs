@@ -94,8 +94,14 @@ fn oracle(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Vec<f64> {
     crossings(|t| off_wall(pose, t, w[0], w[1], w[2]), t0, t1)
 }
 
-fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Result<CircleRoots<f64>, Unsettled> {
-    conic_quadric_roots(&pose.carrier(), t0, t1, &wall(w[0], w[1], w[2]), band()).unwrap()
+fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Result<CircleRoots<f64>, Option<Unsettled>> {
+    crate::boolean::circle_roots::door_answer(conic_quadric_roots(
+        &pose.carrier(),
+        t0,
+        t1,
+        &wall(w[0], w[1], w[2]),
+        band(),
+    ))
 }
 
 /// The door's roots on `[t0, t1]` match the oracle's, in number and

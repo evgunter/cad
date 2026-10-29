@@ -377,6 +377,10 @@ mod torus_rows {
     use std::fmt::Write as _;
 
     use super::*;
+    use crate::boolean::circle_roots::door_answer;
+
+    /// A door's answer for a row ([`door_answer`]).
+    type Answer = Result<CircleRoots<f64>, Option<Unsettled>>;
     use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
@@ -486,9 +490,7 @@ mod torus_rows {
                 let (mut certified, mut misses, mut uncertain) = (0, 0, 0);
                 for i in 0..fuzz::scaled(120) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
-                    let found = ellipse_torus_roots(&e, t0, t1, &s, band).unwrap_or_else(|err| {
-                        panic!("ε {eps}, {name} {i}: the torus arm escalated {err:?}")
-                    });
+                    let found = door_answer(ellipse_torus_roots(&e, t0, t1, &s, band));
                     let truth = exact::truth(&e, &s);
                     let label = format!(
                         "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
@@ -568,13 +570,7 @@ mod torus_rows {
         }
 
         /// The door's answer, and the walk's with no slack meter.
-        fn answers(
-            &self,
-            band: Band,
-        ) -> (
-            Result<CircleRoots<f64>, Unsettled>,
-            Result<CircleRoots<f64>, Unsettled>,
-        ) {
+        fn answers(&self, band: Band) -> (Answer, Answer) {
             let (e, s) = self.build();
             let conic = geom_brep::Conic::of(&e).unwrap();
             let torus = (
@@ -585,8 +581,8 @@ mod torus_rows {
             );
             let [t0, t1] = self.arc;
             (
-                ellipse_torus_roots(&e, t0, t1, &s, band).unwrap(),
-                torus_walk(&conic, torus, (t0, t1), &s, None, band).unwrap(),
+                door_answer(ellipse_torus_roots(&e, t0, t1, &s, band)),
+                door_answer(torus_walk(&conic, torus, (t0, t1), &s, None, band)),
             )
         }
     }
@@ -597,7 +593,7 @@ mod torus_rows {
     /// the carrier is about 1e-5, so its `f64` rounding moves the bisected
     /// root by tens of zero bands. The true roots are the 40-digit ones
     /// `scripts/oracles/ellipse_torus_mpmath.py` finds from the stored
-    /// values. The door refuses `Unsettled` for both, and never a `Miss`
+    /// values. The door refuses both, and never a `Miss`
     /// (they cross); any root it certified would have to lie within the
     /// zero band, as arc length, of a true one. On the first the meter is
     /// what decides: with no slack meter the walk certifies all four of its
@@ -1052,7 +1048,7 @@ mod torus_rows {
                             ("certified", found.roots().to_vec())
                         }
                         Ok(Ok(CircleRoots::Miss)) => ("miss", vec![]),
-                        Ok(Err(_)) => ("uncertain", vec![]),
+                        Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
                     let conic = geom_brep::Conic::of(&e).expect("an ellipse");

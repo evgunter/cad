@@ -2661,6 +2661,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     lying_on(&arc, y, contacts)?.ok_or_else(frontier)
                 }
                 SpanVerdict::AtApex => Err(at_apex()),
+                SpanVerdict::Touch { decision, diag } => {
+                    Err(BooleanError::Escalated { decision, diag })
+                }
                 _ => Err(frontier()),
             }
         }
@@ -2694,6 +2697,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // pair, not this one.
                 SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
                 SpanVerdict::AtApex => Err(at_apex()),
+                SpanVerdict::Touch { decision, diag } => {
+                    Err(BooleanError::Escalated { decision, diag })
+                }
                 _ => Err(frontier()),
             }
         }
@@ -6226,7 +6232,7 @@ mod declaration_order_rows {
             2.0,
             0.5,
             (0.0, 3.0),
-            (0.0, 1.0),
+            (0.0, 2.0),
         );
         for class in [GlueClass::Rest, GlueClass::Tangent] {
             let door = match class {

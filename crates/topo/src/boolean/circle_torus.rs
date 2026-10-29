@@ -793,8 +793,10 @@ mod tests {
         out
     }
 
-    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
-        roots_of(
+    /// The door's answer: its roots, or its refusal, a limit or `None`
+    /// for its decision's escalation (a touch in band).
+    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
+        match roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -803,8 +805,14 @@ mod tests {
             t1,
             &torus(),
             band(),
-        )
-        .unwrap()
+        ) {
+            Ok(found) => found.map_err(Some),
+            Err(BooleanError::Escalated { decision, .. }) => {
+                assert_eq!(decision, DECISION, "the door's own decision");
+                Err(None)
+            }
+            Err(other) => panic!("the door refused outside its decision: {other:?}"),
+        }
     }
 
     /// The door's roots that fall in `[t0, t1]`, sorted.
