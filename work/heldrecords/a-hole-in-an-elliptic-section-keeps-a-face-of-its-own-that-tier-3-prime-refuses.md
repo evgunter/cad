@@ -47,3 +47,11 @@ lift the tilted arm of that test's 3′ pin.
 
 - Re-banded P2 → P1: segment-against-ellipse disjointness decides only the whole-carrier case, so a tilted split ships sides tier 3′ refuses: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured under a tier-3′ split gate (2026-10-28, SPLITDOOR)
+
+`splitdoor/split-gate-3prime` (fefc1eea99): `a_keel_ring_in_an_elliptic_section::a_keel_ring_on_an_island_in_a_hole_nests_on_the_island` refuses at tier 3′ at all three ε with 18 errors (VertexOnFace 4, EdgeFaceOverlap 4, ConformalPatch 1, MayOverlap, BoundaryCrossesItselfUndecided, SameSide*). Not a records problem: the side is wrong-shaped until the nesting fix (`outlines_disjoint` segment against ellipse).
+
+## Moved (2026-10-28, SPLITDOOR)
+
+- Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).

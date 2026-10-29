@@ -3631,6 +3631,10 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
         Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
+        Uncarried::Carry(CarryError::Unbuilt(why)) => unbuilt(SectionUnbuilt::Unbuilt(why)),
+        Uncarried::Carry(CarryError::Site(SiteRefusal::Untold(why))) => {
+            unbuilt(SectionUnbuilt::Untold(why))
+        }
         Uncarried::Carry(CarryError::NoLane { scalar }) => {
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }
@@ -3663,7 +3667,12 @@ fn faces_section_unbuilt<T: geom_core::Real>(
 fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
     match e {
         geom_brep::SiteRefusal::Escalated(diag) => section_undecided(diag),
-        geom_brep::SiteRefusal::Desync(what) => BooleanError::JoinDesync { what },
+        // A foot is read within the band of a carried component and is
+        // never untold; the germ mint reads the classification's
+        // untold sites as unbuilt ([`section_branch`]).
+        geom_brep::SiteRefusal::Desync(what) | geom_brep::SiteRefusal::Untold(what) => {
+            BooleanError::JoinDesync { what }
+        }
     }
 }
 
@@ -3693,9 +3702,23 @@ pub(super) fn section_branch<T: Decide>(
     let section = held
         .as_ref()
         .map_err(|e| section_unbuilt(super::section_table::Uncarried::Section(e), a, b))?;
-    match section.component_of(site, band).map_err(site_refusal)? {
-        0 if section.components().len() == 1 => Ok(super::Branch::Only),
-        0 => Ok(super::Branch::Positive),
+    let k = match section.component_of(site, band) {
+        Ok(k) => k,
+        Err(geom_brep::SiteRefusal::Untold(why)) => {
+            return Err(BooleanError::GermSectionUnbuilt {
+                a_face: a.0,
+                a_kind: a.1,
+                b_face: b.0,
+                b_kind: b.1,
+                why: super::SectionUnbuilt::Untold(why),
+            });
+        }
+        Err(e) => return Err(site_refusal(e)),
+    };
+    // `component_of` tells at most two components apart.
+    match (k, section.components().len()) {
+        (0, 1) => Ok(super::Branch::Only),
+        (0, _) => Ok(super::Branch::Positive),
         _ => Ok(super::Branch::Negative),
     }
 }
@@ -4349,6 +4372,8 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus(_)
+            | geom_brep::SectionError::Pinched { .. }
+            | geom_brep::SectionError::Unordered { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
@@ -4472,6 +4497,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::Carrier(
                 geom::EllipseInvalid::MinorNotPositive | geom::EllipseInvalid::SemiAxisNotFinite,
             )
+            | geom_brep::SectionError::Pinched { .. }
+            | geom_brep::SectionError::Unordered { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \

@@ -474,10 +474,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere, sphere×torus once its torus is
-/// shown a ring torus, plane×NURBS with plane×Approx over its fit, and
-/// NURBS×NURBS with every Approx pairing over its fits). An
-/// unimplemented pair answers [`route`] unchanged. The match is
+/// arms that march (cylinder×sphere and sphere×torus on their decided
+/// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
+/// with every Approx pairing over its fits). Cylinder×torus and
+/// torus×torus are unimplemented and read their poses too, so a pose in
+/// the band escalates rather than answering the kind's routing. Every
+/// other unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
@@ -531,8 +533,11 @@ pub fn route_pose<T: Decide>(
         (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
         (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
-        (Sphere, Torus) => ring_torus(b, band),
-        (Torus, Sphere) => ring_torus(a, band),
+        (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
+        (Cylinder, Torus) | (Torus, Cylinder) => {
+            torus_pose(crate::CylinderTorusPose::decide(a, b, band))
+        }
+        (Torus, Torus) => torus_pose(crate::TorusTorusPose::decide(a, b, band)),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
@@ -558,8 +563,8 @@ pub fn route_pose<T: Decide>(
         | (Sphere, Sphere)
         | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
-        (Cylinder, Torus | Nurbs)
-        | (Torus, Cylinder | Cone | Torus | Nurbs)
+        (Cylinder, Nurbs)
+        | (Torus, Cone | Nurbs)
         | (Cone, Cone | Sphere | Torus | Nurbs)
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
@@ -581,7 +586,9 @@ pub fn route_pose<T: Decide>(
             SectionError::BeyondOperandExtent { .. }
             | SectionError::CoincidentSurfaces
             | SectionError::Carrier(_)
-            | SectionError::Spiric(_),
+            | SectionError::Spiric(_)
+            | SectionError::Pinched { .. }
+            | SectionError::Unordered { .. },
         ) => Ok(arm),
         Err(SectionError::RoutesToGeneralRung { why, .. }) => refused(why),
         // Refused BEFORE the pose was classified: an operand guard the
@@ -598,20 +605,15 @@ pub fn route_pose<T: Decide>(
     }
 }
 
-/// `torus` shown inside its ring convention, the one guard the marching
-/// sphere × torus arm reads a pose by ([`TorusRefusal::require`]).
-fn ring_torus<T: Decide>(torus: &Surface<T>, band: Band) -> Result<(), SectionError> {
-    let Surface::Torus {
-        major_radius,
-        minor_radius,
-        ..
-    } = *torus
-    else {
-        return Err(SectionError::WrongLane {
-            expected: "a torus in the sphere × torus arm's torus seat",
-        });
-    };
-    TorusRefusal::require(major_radius, minor_radius, band).map_err(SectionError::DegenerateTorus)
+/// A torus pair's pose, decided ([`crate::pair_section::torus`]): any
+/// decided pose is classified, and its refusal is the value's.
+fn torus_pose<P>(decided: Option<Result<P, crate::TorusPoseRefusal>>) -> Result<(), SectionError> {
+    match decided {
+        Some(pose) => pose.map(drop).map_err(SectionError::from),
+        None => Err(SectionError::WrongLane {
+            expected: "a torus pair in the torus arm's seats",
+        }),
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -692,6 +694,19 @@ pub enum SectionError {
     /// classified as its own — the constructor is the one deciding door
     /// for the spiric's regime and its verdict stands.
     Spiric(SpiricInvalid),
+    /// A closed-form count read a margin `Zero`, or took a reading as a
+    /// tangency, where the pose was decided transverse: the count's
+    /// components pinch there, named, and are not counted.
+    Pinched {
+        /// The reading.
+        predicate: &'static str,
+    },
+    /// A crossing of the carriers the closed form cannot place on either
+    /// side of a line it reads the section by, named.
+    Unordered {
+        /// The reading.
+        predicate: &'static str,
+    },
 }
 
 impl From<EllipseInvalid> for SectionError {
@@ -752,6 +767,18 @@ impl core::fmt::Display for SectionError {
             Self::DegenerateTorus(refusal) => refusal.fmt(f),
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
             Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
+            Self::Pinched { predicate } => write!(
+                f,
+                "the section's components pinch where its closed form counts them \
+                 (`{predicate}`), so their count is not certified. Recourse: move one surface \
+                 so the two clearly cross or clearly part there"
+            ),
+            Self::Unordered { predicate } => write!(
+                f,
+                "the section's closed form cannot place a crossing of the two surfaces on \
+                 either side of the line it reads the section by (`{predicate}`). Recourse: \
+                 move one surface a little so the crossing stands clear of that line"
+            ),
         }
     }
 }
