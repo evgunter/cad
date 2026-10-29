@@ -40,8 +40,8 @@ fn refused_selection(doc: &ProfileDoc, a: &Selection, b: &Selection) -> Selectio
 }
 
 /// **Two equal arena keys of two bodies are two subjects.** A `FaceKey`
-/// keys one body's arena, so a pair across two bodies — two instances
-/// of one pattern, here — routinely carries one key value twice. The
+/// keys one body's arena, so a pair across two bodies — two members
+/// of one family, here — routinely carries one key value twice. The
 /// engine names each face with its side, in words and in its payload;
 /// the document door names each side as the selection's body.
 #[test]
@@ -349,9 +349,9 @@ fn a_named_scope_asks_what_a_name_denotes_before_how_many_answer() {
     );
 }
 
-/// **A face of another body is not "not a face"**: a pattern's
-/// instances are bodies of one value under one table, and a face name
-/// of instance 1 handed to a selection of body 0 refuses naming the
+/// **A face of another body is not "not a face"**: a family's
+/// members are bodies of one value under one table, and a face name
+/// of member 1 handed to a selection of body 0 refuses naming the
 /// body its face is on.
 #[test]
 fn a_face_of_another_output_body_refuses_naming_that_body() {
@@ -367,32 +367,22 @@ fn a_face_of_another_output_body_refuses_naming_that_body() {
             distance: len(1.0),
         },
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: cube.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(fixture::scl),
-                spacing: len(3.0),
-            },
-        },
-    );
+    let (doc, _, row) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 3.0, 2);
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let table = ev.table_at(pattern).expect("the pattern evaluates");
+    let table = ev.table_at(row).expect("the row evaluates");
     let elsewhere = table
         .iter()
         .find_map(|(n, e)| match e {
             Entry::Unique(ent) if n.kind == EntityKind::Face && ent.body == 1 => Some(n.clone()),
             _ => None,
         })
-        .expect("instance 1's faces are named");
+        .expect("member 1's faces are named");
     let scope = Selection {
-        at: pattern,
+        at: row,
         body: 0,
         faces: FaceScope::Named(vec![elsewhere.clone()]),
     };
-    let refusal = refused_selection(&doc, &scope, &Selection::body_of(pattern));
+    let refusal = refused_selection(&doc, &scope, &Selection::body_of(row));
     assert_eq!(
         refusal,
         SelectionRefusal::OtherBody {
