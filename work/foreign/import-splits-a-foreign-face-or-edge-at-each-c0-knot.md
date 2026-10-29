@@ -4,7 +4,7 @@ kind: issue
 title: STEP import splits a foreign face or edge at each interior C⁰ knot at its door, so nothing imported carries a crease inside a cell
 status: parked
 opened: 2026-10-28
-priority: P1
+priority: P0
 cost: M
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
 blocked_on: [the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch]
@@ -32,3 +32,14 @@ Ruled (Ev, `[ev]` PR 6014, fork row 216, option (i)): the split stands as built,
 Parked on the quadrature row: this lands once a split rational conic costs what the whole one did, so the nightly does not take the 30-minute debug import.
 
 Separately, the at-rest quadrature's round-zero schedules are per face (`AREA_CELLS_PER_AXIS`, `AXIS_INIT_PIECES`, `HULL_BLOCKS_PER_AXIS`, `REFINED_SPANS_PER_AXIS`), so a tile gets a whole patch's grid; they become per knot span (`work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md`).
+
+## Landing (Ev, 2026-10-29)
+
+Built and held as **draft PR 6013** (branch `foreign/c0-knot-split`), which stays open while this row is parked. Ev: it stays open "as long as it's clear what it's waiting on … and whose responsibility it is to merge", and it is addressed soon, so this row and its blocker are P0.
+- **Waits on** `work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md` (P0): until the quadrature reads per knot span, a split rational conic costs about 25× its whole patch at the at-rest gate.
+- **Who merges it: FOREIGN's orchestrator** (this row's program). When the QUAD row closes, the trigger fires and lint reports this row parked on a closed blocker, which is the signal. FOREIGN then:
+  1. merges main into the branch;
+  2. re-times the QUAD acceptance conic quarter torus, in release and debug;
+  3. un-drafts the PR and dispatches its review (single FULL);
+  4. merges it, closing this row with `pr: 6013`.
+- **Alongside:** EXCH's `step-import-promotes-torus-sphere-and-cone-nets` (P0) takes the common conics out of the split's reach, but the split does not wait on it.
