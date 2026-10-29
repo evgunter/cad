@@ -1090,6 +1090,8 @@ mod trig;
 /// Rule H, angle sums: the canonical `sin`/`cos` argument and the
 /// product rewrite over it.
 mod turn;
+#[cfg(test)]
+mod review_6009;
 
 use form::{Form, Poly, powi_form, within};
 pub use memo::{DriveMemo, MemoSize};
