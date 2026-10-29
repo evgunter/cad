@@ -9,11 +9,16 @@ metadata:
 were spawned as a subagent (implementer, reviewer, explorer), this
 memory is not about you — just do your delegated task well.
 
-**The orchestrator's reading** — in full at session start, and again
-after every compaction:
+**The orchestrator's reading**, in full at session start and again
+after every compaction, since a summary carries pending tasks, not
+standing rules:
 - `CLAUDE.md`, and `work/README.md`.
 - `docs/prompts/implementer-discipline.md`,
-  `docs/prompts/reviewer-style-lane.md` and `docs/prompts/designer.md`.
+  `docs/prompts/reviewer-style-lane.md` and `docs/prompts/designer.md`:
+  the rules the orchestrator adjudicates against, which bind its own
+  judgement too (e.g. a golden or stored bit that changes is never a
+  cost to weigh against a change that makes the code right; re-baseline
+  and say what moved).
 - This memory, and every memory under `memories/MEMORY.md`'s "Running
   the work", except the switch runbook, which is read only when
   switching.
