@@ -210,3 +210,5 @@ Signed: (CARVE orchestrator)
     - an order-independent lamina pin.
   - **Moved to CLEARTAIL:** its two P2 filings, `curved-presentation-reads-plane-and-cylinder-images-only` and `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`.
   - **Stays P1 in CLEAR:** `departure-reads-no-curved-corner`, which SHELL-4 waits on.
+- 2026-10-29 — **SENSEFOLD dispatched** (`docs/SENSEFOLD-SPEC.md`, branch `clear/sensefold`, cloud lane) for `main-red-injective-rs-folds-the-face-sense-by-hand`, after CURVEDEP. Review: the orchestrator's read.
+- 2026-10-29 — **SENSEFOLD merges (#6028)** with this commit last. The orchestrator read the diff and accepted it: one hit goes through the sense door, and two chart-space signs are sanctioned with their reasons. Receipts are unchanged. The slow-set row stays red on TESS's `trimmed.rs` sibling only.
