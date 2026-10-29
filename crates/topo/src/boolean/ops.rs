@@ -104,7 +104,9 @@
 //!   pure REST contact leave no null pair, so they take the
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
-//!   ([`Exempt::Rest`]).
+//!   ([`Exempt::Rest`]), and a settled one-carrier pair between two
+//!   shells that lie on each other by their `On` verdict
+//!   ([`OnDeferred`]).
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
@@ -1387,8 +1389,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, &red.sections, &red.rest_contacts, band)?;
-        return fallback(op, &mut red, a, b, &glued, band, tol)
+        let deferred = section_extent_pass(
+            a,
+            b,
+            &red.sections,
+            &red.rest_contacts,
+            &red.coincident,
+            band,
+        )?;
+        return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
@@ -2128,13 +2137,20 @@ impl Exempt<'_> {
 /// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
 /// pair's curved face. A verified `Rest` pair (`rest`, [`Exempt::Rest`])
 /// is answered without its section.
+///
+/// A refusing pair the reduction settled one carrier (`settled`) is
+/// deferred rather than raised: its section is not a curve but the part
+/// of the one carrier the two faces share, and the fallback answers it
+/// where both faces' shells read `On` each other
+/// ([`OnDeferred::answered`]).
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     sections: &super::section_table::SectionTable<T>,
     rest: &[(FaceKey, FaceKey)],
+    settled: &[super::SettledPair],
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<OnDeferred, BooleanError> {
     let pairs = section_pairs(
         a,
         b,
@@ -2145,18 +2161,72 @@ fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
         |_, _| false,
         true,
     )?;
-    match pairs
-        .iter()
-        .find_map(|p| p.verdict.as_ref().err().map(|r| (p, *r)))
-    {
-        None => Ok(()),
-        Some((p, refusal)) => {
-            let (operand, face, ..) = p.named();
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand,
-                face,
-                what: refusal.what(),
+    let mut deferred = Vec::new();
+    for p in &pairs {
+        let Err(refusal) = p.verdict else {
+            continue;
+        };
+        let (operand, face, ..) = p.named();
+        let refusal = BooleanError::FallbackExtentUnsupported {
+            operand,
+            face,
+            what: refusal.what(),
+        };
+        if settled.iter().any(|q| q.a == p.a_face && q.b == p.b_face) {
+            deferred.push((p.a_face, p.b_face, refusal));
+        } else {
+            return Err(refusal);
+        }
+    }
+    Ok(OnDeferred(deferred))
+}
+
+/// **The section pass's refusals on settled one-carrier pairs**, each
+/// `(A face, B face, refusal)` in arena order, held for the fallback's
+/// shell verdicts.
+#[derive(Debug, Default)]
+struct OnDeferred(Vec<(FaceKey, FaceKey, BooleanError)>);
+
+impl OnDeferred {
+    /// Each deferred pair answered, or the first one's refusal. A pair
+    /// `(fa, fb)` is answered where `fa`'s shell reads `On` `fb`'s shell
+    /// and `fb`'s reads `On` `fa`'s (`working` the shells' verdicts,
+    /// `pristine` the operands their partners are named in). Nothing
+    /// here reads the pair's patch: what carries the answer is the `On`
+    /// verdict ([`super::shell_witness`]), that every witness the ladder
+    /// takes of each shell, its vertices and its edges' midpoints, lies
+    /// on the other solid's boundary, and that every face of each is
+    /// settled one carrier with a face of the other at one orientation.
+    /// The ladder takes no interior witness on a curved face, so two
+    /// faces on one carrier whose patches differ read `On` only where
+    /// their edges do too; where an edge of one runs off the other
+    /// solid's boundary (a torus lens inside the union of its tori), its
+    /// midpoint sides the shell and the pair keeps its refusal.
+    fn answered<T: Real>(
+        self,
+        working: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
+        pristine: [&Body<T>; 2],
+    ) -> Result<(), BooleanError> {
+        // `f`'s shell, in `body`'s keys.
+        let shell = |body: &Body<T>, f: FaceKey| body.get_face(f).map(|face| face.shell);
+        // `f`'s shell of `working[i]` reads `On` the shell of `g` in
+        // `pristine[1 − i]`.
+        let on = |i: usize, f: FaceKey, g: FaceKey| {
+            let (body, sides) = working[i];
+            let (Some(mine), Some(theirs)) = (shell(body, f), shell(pristine[1 - i], g)) else {
+                return false;
+            };
+            sides.iter().any(|&(s, v)| {
+                s == mine && matches!(v, ShellVerdict::On { partner, .. } if partner == theirs)
             })
+        };
+        match self
+            .0
+            .into_iter()
+            .find(|(fa, fb, _)| !(on(0, *fa, *fb) && on(1, *fb, *fa)))
+        {
+            None => Ok(()),
+            Some((.., refusal)) => Err(refusal),
         }
     }
 }
@@ -2244,6 +2314,7 @@ pub(crate) fn no_crossings_certificates(
             b,
             &super::section_table::SectionTable::default(),
             no_rest,
+            &[],
             band,
         )?;
     }
@@ -8102,12 +8173,14 @@ fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
+#[allow(clippy::too_many_arguments)]
 fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     decls: &Glue<T>,
+    deferred: OnDeferred,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -8122,6 +8195,10 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let a_sides = classify_shells(&red.a, b_pristine, Operand::A, &red.coincident, band, tol)?;
     let b_sides = classify_shells(&red.b, a_pristine, Operand::B, &red.coincident, band, tol)?;
     check_mutual(
+        [(&red.a, &a_sides), (&red.b, &b_sides)],
+        [a_pristine, b_pristine],
+    )?;
+    deferred.answered(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
     )?;

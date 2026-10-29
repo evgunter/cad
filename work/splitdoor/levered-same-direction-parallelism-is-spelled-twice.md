@@ -2,7 +2,7 @@
 id: levered-same-direction-parallelism-is-spelled-twice
 kind: issue
 title: One levered same-direction parallelism check is spelled twice: sectors.rs parallel_same and recl.rs parallel_same_dir
-status: open
+status: dispatched
 priority: P1
 cost: M
 opened: 2026-10-28

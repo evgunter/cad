@@ -268,6 +268,54 @@ A new row pins the gap's flip from the old nominal. Filed on CPAIR:
 All three come from the shared-vertex pairs' gap readings leaving.
 Measured at all three ε.
 
+## 2026-10-28 (later) — the rest pinned, not fixed (GREEN, `green/slow-set-reds-pins`)
+
+Under the GREEN orchestrator's rule, the reds left after PR 5952 are
+pinned at main's reading (`fa2a942f45`), with comments naming the row
+that owns each fix. Rows PR #5935 pins are left to it: `m10_3_driver` ×2,
+`m10_4_r1`, `m10_9` ×3 and `sym11`.
+
+**Bisected and explained, so re-blessed:**
+- `m4_pr3_names_ci::die_name_tables_are_golden`, both digests. The first
+  failing merge is PR 5742 (`19eff38c58`); `8c3f542123` before it passes.
+  The mate's orientation is written in the minting edits' bytes, as PR
+  5742 measured. Now `0x35eb46e3c6c938ab` and names `0x2bcda7f2f5d4dffb`.
+
+**Bisected to #5542 (`fa901e4308`; `42af7c0b48` passes), pinned:**
+- `m10_6` accounting ×3 ε;
+- `m10_sym_profile` ×2;
+- `sym_9` ×2;
+- `m10_3_r2` containment, not re-run at those commits.
+
+All are filed on CPAIR,
+`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`, with each row's
+values before, at and after #5542, PR 5952's readings, and the
+reproduce command.
+
+**Pinned, filed elsewhere:**
+- `ray_wall_margin_twins` at 62 pairs:
+  `work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+  for the six; `work/charttail/…` keeps the widening.
+- `m4_pr8_k_probe`: the content and naming keys split on 26 documents,
+  pinned as a set:
+  `work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md`.
+
+**Still not this row's:** `e6` ×2 (ISOTAIL), `perf12` (RESTREAD), and the
+rows #5935 pins. `revalue` ×7, `docm9` ×5 and `intent_s2_c_world` are
+PR 5952's.
+
+With `ray_wall_margin_twins` pinned, `nightly.yml`'s `--all-features`
+job runs it again: the `HELD_OUT_TESTS` filter is dropped in the same PR,
+as the section above asks.
+
+**After PR 5952 landed (2026-10-29):**
+- the pins above are re-taken on main with PR 5952, at all three ε;
+- `m10_3_r2` containment passes and is un-pinned;
+- `m10_6` accounting, `m10_sym_profile` ×2 and the `sym_9` ladder are
+  re-pinned at the new readings.
+
+The values are on the CPAIR row.
+
 ## 2026-10-29 — one more slow-set red after SELFX (CLEAR's LOOPS implementer)
 
 `m10_5_r2_probes_interval::the_cost_curve_is_flat_where_the_bound_is_broken`

@@ -34,3 +34,5 @@ crossing's parameter, as the x side already does
 boundary edge is in hand. No fixture reaches it yet: build one where an
 edge of one solid lies tangent along an ellipse-bounded face of the
 other (a tilted rod's rim touching a plate's face), then fix.
+
+A second fixture idea (from `splitdoor/two-rims-coplanar`'s sweep, which found the same roster): two rods of different radii, tangent inside one another and both cut by one slanted plane, put an elliptical rim tangent to the other's elliptical rim on their tangent walls.

@@ -98,6 +98,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_through_a_cones_apex.rs"]
+mod a_plane_through_a_cones_apex;
 #[path = "a_point_past_a_spline_solids_reach.rs"]
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
@@ -202,6 +204,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "boolean_tangent_rim_review.rs"]
+mod boolean_tangent_rim_review;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]
@@ -300,6 +304,10 @@ mod rehome_rings_lune;
 mod review_4704_flush_round_oracle;
 #[path = "review_4996_blend_cap.rs"]
 mod review_4996_blend_cap;
+#[path = "review_5956_r1_probes.rs"]
+mod review_5956_r1_probes;
+#[path = "review_5956_r2_probes.rs"]
+mod review_5956_r2_probes;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
@@ -362,6 +370,8 @@ mod transform_nurbs_walls;
 mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
+#[path = "two_rims_review_probes.rs"]
+mod two_rims_review_probes;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
 #[path = "two_wedge_ends_on_one_line.rs"]
@@ -1284,3 +1294,5 @@ mod fallback_rows_review;
 
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
+#[path = "review_5956_delta_needle.rs"]
+mod review_5956_delta_needle;
