@@ -82,3 +82,28 @@ Reproduce (after the GREEN pins land): `scripts/k_probe_sweep.sh
 /tmp/k && (cd tools/k-lint && cargo run -- /tmp/k/k-eps-1e-6.csv
 /tmp/k/k-eps-1e-9.csv /tmp/k/k-eps-1e-12.csv)`.
 
+## Pinned red (2026-10-29, GREEN)
+
+The nightly's `large-K lint` step pins the gate's verdict, not its
+counts:
+- k-lint must exit 2, so the gate still fails;
+- the per-ε counts are printed in a `::warning`, so drift shows;
+- an exit of 0 is red, because it means this row's fix landed and the
+  gate should come back;
+- any other exit is red, because the tool broke.
+
+**Un-pinning owes restoring the gate:** closing this row puts the step
+back as a plain `cargo run` whose non-zero exit fails the job.
+
+**The reading on 2026-10-29** (main `a454950e3` plus GREEN's probe
+pins; a reading, not a pin):
+
+```
+k-eps-1e-12.csv: 721 flagged — rule 1 (undecided/invalid): 0, rule 2 (near a threshold): 720, rule 3 (below a floor): 721
+k-eps-1e-6.csv: 13331 flagged — rule 1 (undecided/invalid): 9225, rule 2 (near a threshold): 4106, rule 3 (below a floor): 4106
+k-eps-1e-9.csv: 38717 flagged — rule 1 (undecided/invalid): 14820, rule 2 (near a threshold): 13766, rule 3 (below a floor): 23897
+```
+
+These total 52,769, more than the 51,730 in the title, which was
+measured before #6023 added four corpus documents. Rule 1 is unchanged
+at 24,045.
