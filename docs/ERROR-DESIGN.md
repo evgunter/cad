@@ -187,7 +187,8 @@ content-key cached like everything.
   all of its faces, a face reference is that one); the value is the
   minimum over the pairs A × B and the closest pair is the OUTPUT
   (the witness), never an input. The same body on both sides is its
-  self-clearance (adjacent pairs excluded by the wedge rule). The
+  self-clearance, metric like every clearance: scopes that meet read
+  0, named on the shared cell (*Self-intersection scope*, E7). The
   earlier `min_clearance(sel)` spelling read as "this selection
   against the rest of the document" — the assembly consumer's
   question — which the binary door asks only pairwise; a complement

@@ -356,6 +356,16 @@ margin each earlier round refused (`SsiError::RefinementExhausted`). At
 the wall, a refused residual that stopped falling over the last two
 rounds ends in the tolerance as the arithmetic's floor; one still
 falling ends as the curvature-held march's does.
+A certified ℝ³ analytic branch is refined once more where limb 3
+certifies it narrowly (`refine_for_tube`): the tube's rung is the
+whole chain's, so where a chain box wider than the ladder's next rung
+up is no graph padded by it, the gaps that box meets are halved the
+same way, the carrier is refitted and certified again, and the finer
+carrier is kept only where its tube is wider. These rounds keep a
+certified carrier throughout and refuse nothing: they stop where no box
+holds the tube, nothing halves, the step wall would be passed, the
+finer tube is no wider, or the finer carrier does not certify; each
+kept round climbs a rung, so there are at most `SSI_TUBE_RUNGS`.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
@@ -750,7 +760,15 @@ parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
 radii, and a sphere's centre on a cylinder's axis, are decided by their
-margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
+margins like every other coincidence (D10). A pair of analytic surfaces
+decides its tangency and coincidence once, on its pose, before any rung,
+and every reader (the pair's SSI door, the section value, the section
+certificate) reads that one decision: a closed-form margin where the
+pose has one, and otherwise the pair's **critical gap**, a certified
+sweep of a one-parameter distance between the two surfaces' spines,
+never a root formula; in band, it escalates. A pair with a NURBS or
+`Approx` side has no such pose and is outside this rule: its tangency
+is its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
