@@ -326,16 +326,10 @@ fn corpus_lowered() -> (ProfileProgram, VarEnv<f64>) {
     })
 }
 
-/// The leading identifier of a `Debug` rendering — the variant name.
-/// `ProgramStep`'s chain variants and `Verb`'s are named identically
-/// because the transition table names both, so comparing the two
-/// strings compares the authored verb against the lifted one.
-fn variant_name(debug: &str) -> String {
-    debug
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_')
-        .collect()
-}
+// `ProgramStep`'s chain variants and `Verb`'s are named identically
+// because the transition table names both, so comparing their
+// `variant_name`s compares the authored verb against the lifted one.
+use crate::fixture::variant_name;
 
 /// The vocabulary members one step carries, kept in the shape the
 /// message wants: the verb, each arc spec on the step paired with the

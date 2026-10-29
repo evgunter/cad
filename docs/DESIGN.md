@@ -331,11 +331,18 @@ witnesses; two spans' meetings; a curve's crossings of a surface).
 **Total**: a reading is one exhaustive match over its kind or kind
 pair. An unlisted arm refuses typed, naming what it lacks; no arm
 answers a default value; one method is fixed per arm at write time, and
-a second method for the same question exists only as a test oracle. A
-stage may precede the method only if it is total in kind, decides the
-same question soundly at the same band, and cannot change the verdict
-by which stage decided (a box cull before exact roots); a method
-reached because another declined is a fallback, and is forbidden.
+a second method for the same question exists only as a test oracle.
+A reading may be built of several stages, always run together in a
+fixed order, when together they decide one rule: the stages are the
+parts of one proof of that rule, not a list of heuristics tried in turn,
+and each stage decides soundly at the reading's band. A box cull before
+exact roots is such a stage. So is the interior-loop guard's loop-free
+test before C3's whole reading of a plane × spline section: the rule is
+that no closed loop of the section lies inside both faces, which the
+test proves where it holds and the whole reading proves or refuses
+where it does not. What is forbidden is a method that decides a
+different rule, a second and similar predicate for the same fact,
+reached because the first declined: that is a fallback.
 **One**: each question has one reading, which every consumer reads,
 because two readings of one fact are two predicates that can decide it
 differently inside the band ([tolerance]). An outcome takes the pose reading's
@@ -793,13 +800,16 @@ tiers".
      Euler-reachable state, construction scaffolding included; what each
      operator asserts.
   2. **Tier 2, closed solid:** tier 1, with no empty loops, no
-     valence-1 vertices and one connected component per shell.
+     valence-1 vertices but a wrap edge's tip, and one connected
+     component per shell.
   3. **Tier 3, geometric:** tier 2, with every derived cache within ε
      of its description ([tolerance.residuals]); the **material wedge**
      at every edge in (0, 2π), its ends (a cusp, a knife slit) legal
      only where the tangency is jet-determinate; **maximal edges** (no
-     joinable vertex at rest); **prefer-intrinsic** descriptions
-     ([edges]); and the **orientation invariant**, a solid's faces
+     joinable vertex at rest); **chart singularities as vertices**
+     (every one in a face's closure is a vertex of it, and every wrap
+     edge's tip lies on its face's chart singularity);
+     **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
      leaving infinity outside it, read by the one reader of a shell's
      role ([coincidence.booleans]). A zero-volume lamina is a geometric
      defect.
@@ -899,7 +909,8 @@ tiers".
   and every door that finishes a body ends with the join. A body is
   then the unique complex with maximal faces and maximal edges over its
   face partition, up to the position of each closed edge's
-  conventional vertex, and the form is checked at rest on the result
+  conventional vertex and the place of each wrap edge that reaches a
+  chart singularity, and the form is checked at rest on the result
   alone. Within one n-ary operator, member order is not precedence: the
   written order decides only which description a glued face keeps and
   which fold step a refusal names, and an order that refuses where
@@ -907,7 +918,14 @@ tiers".
   **never fuses two vertices into one**; the record carry rests on it.
 - **A seam is a property of a face**, not a place on its surface, and a
   wall keeps the cuts its author wrote: the kernel adds none, except
-  where a face or edge carrier is not C¹ by its knot structure.
+  where a face or edge carrier is not C¹ by its knot structure, and at
+  a chart singularity (a sphere's pole, a cone's apex), which is a
+  vertex of every face whose closure holds it. Where no edge the author
+  wrote reaches that vertex, the kernel adds one wrap edge to it, and
+  only one: the singularity is that edge's tip, where the face's loop
+  walks the edge out and back, and the edge's place round the axis is
+  conventional, like a seam's. The join never removes a cut either
+  exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker ([failure.taxonomy], row 2), so the
@@ -1138,9 +1156,9 @@ suits the slot.
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's slant, held to one side of the
-  profile's plane) or a point and a heading (a revolve's axis line),
-  never a frame. A loft reads its sections and, for each after the
-  first, a station: slides and spins in the first section's own axes.
+  profile's plane) or a point and a heading (a revolve's axis line). A
+  profile drawn on a `Frame` may read traces in its plane
+  ("Constructing a coincidence").
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1176,8 +1194,10 @@ body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
 over other poses; as a pose of a copy; or as an output of an
-operation. So no pose is free, none is defined from nothing, and no
-construction reads one.
+operation. So no pose is free and none is defined from nothing. A
+construction reads poses as it reads any variable, only those of the
+space it is built in, and is in that space; relating two spaces is a
+placement's alone ([placement.spaces]).
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a
@@ -1258,7 +1278,9 @@ never silently re-pointed.
 **Observed values.** A `Measure` defines an *observed* variable, a
 function of the built geometry rather than of what was written. An
 observed variable, and any definition reading one, is read only by an
-assertion: a construction reads what was written.
+assertion: a construction reads what was written, and a carrier read
+in closed form (a pose, a trace) is what was written, not a
+measurement.
 
 **The product.** A document has one product slot, which reads a body
 in its world space ([placement.world]): `product: p ⊔ bolt ⊔ nut`.
@@ -1302,8 +1324,7 @@ the whole family, naming the index; a read whose index leaves the
 range is unresolved and typed, never re-pointed. A member's names are
 `Member { (i, j), of }`, keyed by the index variables' ids and the
 integers. Copies of one body are built once and mapped; a construction
-whose scalar inputs read an index is built per member, and no
-construction reads a frame. A mirror image is not a copy, because a
+whose scalar inputs read an index is built per member. A mirror image is not a copy, because a
 reflection is not a pose: `Mirror { body, plane }`
 is a construction defining a new `Body` in its source's space, the
 plane a `Plane` pose whose reads reach that space alone (a face read as
@@ -1328,8 +1349,8 @@ construction is built in coordinates of its own, which are its space,
 and spaces are related only at placement: a feature on a face is a
 construction placed into the space the face's body is in, against the
 face by mates and values, then combined, and which side of the face
-its material lies on is the mates' to say. No construction reads a
-frame (FORK-S3P), so a feature at several positions is one body placed
+its material lies on is the mates' to say. Only a placement relates
+two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 
 **Spaces.** `[placement.spaces]` A **space** is a coordinate system:
@@ -1337,7 +1358,8 @@ the coordinates a construction is written in, the world, or a space
 `new_space()` mints ([variables.kinds]). The three are one kind and
 differ only in what is written in them. A space holds nothing and
 contains nothing, and which space a body is in is derived from the
-recipe alone: a construction is in its own space, a placed copy in its
+recipe alone: a construction is in its own space, or in the space of
+the poses it reads (a mirror, a profile drawn on a frame), a placed copy in its
 placement's target, an operator's result in the space its operands
 share, and a one-input operation's result in its input's, so every
 body is in exactly one space. Each placement is a copy of its own, so
@@ -1546,7 +1568,11 @@ not. Being one construction is the equivalence the document's
 constructions and mates generate, so a wall each part builds through
 the edge of a flag that a flag mate equates is one construction read
 over both, and that mate establishes the flush pair the two walls
-make. The second reads each output
+make. A traced profile is that rung's statement too, by the same
+symmetry the verdicts read: a piece drawn along a face's trace and
+swept by a motion in that face's kind's symmetry is tangent to the face
+along the swept curve, and one whose frame's plane contains an axis of
+that symmetry is tangent at the crossing. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1574,8 +1600,10 @@ finding quiet ([intent.structural]).
 
 **Constructing a coincidence.** Coaxiality is one `Axis` read twice,
 directly or as projections of one construction; tangency is
-constructed (a sketch may read another surface's trace in its plane
-and continue tangent to it).
+constructed: a profile drawn on a frame reads another surface's trace
+in its plane and continues tangent to it, and a sweep of it stays
+tangent to the surface wherever its motion follows that surface's
+symmetry.
 
 **The door and the lint.** `[coincidence.door]` Every coincidence the
 kernel infers from values — a boolean's glue, a split's ON verdict
