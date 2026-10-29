@@ -910,7 +910,7 @@ Moved note on each:
   5868, and the doors that still read a spline by kind.
 The three new tracks are `ready`, with no orchestrator.
 
-## 2026-10-29: two main reds filed (face_normal fold census)
+## 2026-10-29 — two main reds filed on their owners (the face_normal fold census)
 
 PR 5959's lane found topo's slow-set row
 `face_normal::tests::no_source_file_folds_the_bit_by_hand` red on
