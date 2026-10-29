@@ -1130,7 +1130,11 @@ suits the slot.
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's slant, held to one side of the
   profile's plane) or a point and a heading (a revolve's axis line),
-  never a frame. A loft reads its sections and, for each after the
+  never a frame, unless the profile is drawn on one: a profile that
+  traces a face is drawn on a `Frame` pose read off that face's body,
+  reads in the frame's plane the face's trace (its carrier cut by the
+  plane, in closed form, never a variable), and is, with every sweep of
+  it, in that body's space ("Constructing a coincidence"). A loft reads its sections and, for each after the
   first, a station: slides and spins in the first section's own axes.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
@@ -1168,7 +1172,9 @@ vertex's point); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
 over other poses; as a pose of a copy; or as an output of an
 operation. So no pose is free, none is defined from nothing, and no
-construction reads one.
+construction reads one except a pose of the space it is built in,
+reached by reading a body there (a mirror's plane, a traced profile's
+frame); such a read relates no two spaces.
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a
@@ -1249,7 +1255,9 @@ never silently re-pointed.
 **Observed values.** A `Measure` defines an *observed* variable, a
 function of the built geometry rather than of what was written. An
 observed variable, and any definition reading one, is read only by an
-assertion: a construction reads what was written.
+assertion: a construction reads what was written, and the carriers
+built from it read in closed form (a pose, a trace), never a
+measurement.
 
 **The product.** A document has one product slot, which reads a body
 in its world space ([placement.world]): `product: p ⊔ bolt ⊔ nut`.
@@ -1294,7 +1302,7 @@ range is unresolved and typed, never re-pointed. A member's names are
 `Member { (i, j), of }`, keyed by the index variables' ids and the
 integers. Copies of one body are built once and mapped; a construction
 whose scalar inputs read an index is built per member, and no
-construction reads a frame. A mirror image is not a copy, because a
+construction reads a frame but a traced profile ([variables.kinds]). A mirror image is not a copy, because a
 reflection is not a pose: `Mirror { body, plane }`
 is a construction defining a new `Body` in its source's space, the
 plane a `Plane` pose whose reads reach that space alone (a face read as
@@ -1320,7 +1328,8 @@ and spaces are related only at placement: a feature on a face is a
 construction placed into the space the face's body is in, against the
 face by mates and values, then combined, and which side of the face
 its material lies on is the mates' to say. No construction reads a
-frame (FORK-S3P), so a feature at several positions is one body placed
+frame (FORK-S3P) except a profile drawn on one to trace a face, which
+is in that face's space; so a feature at several positions is one body placed
 several times, each placement a copy.
 
 **Spaces.** `[placement.spaces]` A **space** is a coordinate system:
@@ -1328,7 +1337,8 @@ the coordinates a construction is written in, the world, or a space
 `new_space()` mints ([variables.kinds]). The three are one kind and
 differ only in what is written in them. A space holds nothing and
 contains nothing, and which space a body is in is derived from the
-recipe alone: a construction is in its own space, a placed copy in its
+recipe alone: a construction is in its own space (a profile drawn on
+a frame, and every construction over it, in the frame's), a placed copy in its
 placement's target, an operator's result in the space its operands
 share, and a one-input operation's result in its input's, so every
 body is in exactly one space. Each placement is a copy of its own, so
@@ -1537,7 +1547,10 @@ not. Being one construction is the equivalence the document's
 constructions and mates generate, so a wall each part builds through
 the edge of a flag that a flag mate equates is one construction read
 over both, and that mate establishes the flush pair the two walls
-make. The second reads each output
+make. A traced profile is that rung's statement too: a piece drawn
+along a face's trace and swept by a motion in that face's kind's
+symmetry, read from pose rows this door decides, is tangent to the face
+along the swept curve, one statement for every kind. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1565,8 +1578,17 @@ finding quiet ([intent.structural]).
 
 **Constructing a coincidence.** Coaxiality is one `Axis` read twice,
 directly or as projections of one construction; tangency is
-constructed (a sketch may read another surface's trace in its plane
-and continue tangent to it).
+constructed. A profile drawn on a frame reads another surface's trace
+in its plane and runs onto it at a named crossing (where the piece
+enters or leaves the surface's material, the nth such), then continues
+along the trace's tangent. A sweep of it is tangent to the surface
+along the swept curve where its motion lies in that surface kind's
+symmetry (a revolve about the surface's own axis or through a
+sphere's centre, an extrude along a cylinder's axis), and at the point
+where the frame's plane is a normal section of the surface; elsewhere
+the profile's own tangency is all it states. A trace that does not
+exist, a crossing that is not there, and a trace with no tangent at the
+crossing refuse, typed, naming the step and the face.
 
 **The door and the lint.** `[coincidence.door]` Every coincidence the
 kernel infers from values — a boolean's glue, a split's ON verdict
