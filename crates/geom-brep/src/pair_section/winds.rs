@@ -35,15 +35,11 @@
 //!
 //! # The pad
 //!
-//! `pad` is the fitted loop's uniqueness tube radius
-//! ([`super::CarriedComponent::tube`]): the march's exhaustiveness
-//! receipt accounts every point of the section to a branch's tube, so
-//! the section's component lies within `pad` of the carrier. The straight
-//! homotopy from a point of the component to its nearest carrier point
-//! stays within `pad` of the carrier, inside the padded rectangles, so
-//! the component winds as the carrier does. A tighter bound (limbs 1 and
-//! 2, the carrier's sup-norm distance over the crossing's sine) would
-//! only admit more pieces; the tube is the bound the certificate states.
+//! `pad` is the loop's [`super::CarriedComponent::pad`], within which
+//! every point of the section's component lies of the carrier (closeness,
+//! argued there). The straight homotopy from a point of the component to
+//! its nearest carrier point stays within `pad` of the carrier, inside
+//! the padded rectangles, so the component winds as the carrier does.
 
 use geom::{Curve3, Surface};
 use geom_core::{Bounds as _, Interval, Point3, Vec3};

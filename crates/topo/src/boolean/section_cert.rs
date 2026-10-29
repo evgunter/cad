@@ -390,16 +390,16 @@ pub(crate) struct Component<T: Real> {
     /// loop's carrier, within `pad` of the component.
     pub witness: Option<Point3<T>>,
     /// **How far the witness may stand from the component**, in metres:
-    /// a marched loop's uniqueness tube radius
-    /// ([`geom_brep::CarriedComponent::tube`]: the march's exhaustiveness
-    /// puts the component within it of the carrier), zero for a closed
-    /// form. W3 reads the witness against the band padded by twice it
-    /// (`ops::pair_verdict`): a face's placement margins are lengths read
-    /// at the point's foot on the face's surface, and the witness lies
-    /// within the carrier's limb-2 bound of that surface, far below the
-    /// surface's radius (every radius is guarded past the band), where
-    /// the foot moves by at most twice the point does; so a component
-    /// point's margin is within twice `pad` of the witness's.
+    /// a marched loop's pad ([`geom_brep::CarriedComponent::pad`], where
+    /// closeness is argued: the component within it of the carrier, the
+    /// carrier within it of each surface), zero for a closed form. W3
+    /// reads the witness `w` against the band padded by twice it
+    /// (`certify`): a face's placement margins are lengths read at a
+    /// point's foot on the face's surface, and for the point `c` of the
+    /// component nearest `w`, which lies on the surface (its own foot),
+    /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
+    /// `foot(w)` is the surface point nearest `w`, no farther than `c`.
+    /// So a margin at `c` is within twice `pad` of the one read at `w`.
     pub pad: f64,
 }
 
@@ -1906,6 +1906,7 @@ pub(super) fn of_carried<T: Decide>(
             CarryError::Unminted(_)
             | CarryError::March(_)
             | CarryError::Winds(_)
+            | CarryError::PadShort { .. }
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_),
@@ -1919,8 +1920,8 @@ pub(super) fn of_carried<T: Decide>(
                 unbounded: false,
                 essential_f: c.winds[0],
                 essential_g: c.winds[1],
-                witness: Some(c.witness()),
-                pad: c.tube,
+                witness: Some(c.witness),
+                pad: c.pad,
             })
             .collect(),
         single: components.len() == 1,

@@ -223,7 +223,7 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
     }
 }
 
-/// Where one of the other spins' runs stops, in a word the row pins.
+/// Where one of the other spins' runs stops, by refusal variant.
 fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
@@ -238,107 +238,95 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
             ..
         }) => "spline join".to_owned(),
         Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
-            [ValidationError::VolumeUncomputable { source, .. }] => match source {
-                MassPropsError::RingOnCurvedFace { .. } => "ring volume".to_owned(),
-                MassPropsError::Face {
-                    source: PropsError::QuadratureUnsupported { what },
+            [
+                ValidationError::VolumeUncomputable {
+                    source: MassPropsError::RingOnCurvedFace { .. },
                     ..
-                } => {
-                    if what
-                        .starts_with("curved-cut face half-edge carries a pcurve with no harmonic")
-                    {
-                        "projected volume".to_owned()
-                    } else if what.starts_with("conic trim on a cone/sphere/torus chart") {
-                        "conic trim volume".to_owned()
-                    } else if what.starts_with("a torus wall edge beside a spiric") {
-                        "spiric image volume".to_owned()
-                    } else {
-                        format!("volume {what}")
-                    }
-                }
-                other => format!("volume {other:?}"),
-            },
+                },
+            ] => "ring volume".to_owned(),
+            [
+                ValidationError::VolumeUncomputable {
+                    source:
+                        MassPropsError::Face {
+                            source: PropsError::QuadratureUnsupported { .. },
+                            ..
+                        },
+                    ..
+                },
+            ] => "quadrature volume".to_owned(),
             other => format!("result {other:?}"),
         },
         other => outcome(other),
     }
 }
 
-/// The other spins' stops by pose and op ([`every_op`]'s order), at the
-/// compiled ε and the ε rows where they differ, measured.
-fn other_spins_want(eps: f64) -> [[&'static str; 5]; 8] {
-    OTHER_SPINS_STOPS
-        .iter()
-        .find(|(e, _)| *e == eps)
-        .map_or(OTHER_SPINS_STOPS[0].1, |(_, w)| *w)
-}
-
-/// `(ε, stops)`, the compiled ε first; measured alike at 1e-6 and 1e-12.
-const OTHER_SPINS_STOPS: &[(f64, [[&str; 5]; 8])] = &[(
-    1e-9,
+/// The other spins' stops by pose and op ([`every_op`]'s order),
+/// measured alike at the compiled ε, 1e-6 and 1e-12: the edge join on
+/// the wall's spline chord, or the result gate's volume, its quadrature
+/// on a face the chords bound (a projected image, a conic trim or a
+/// spiric's lifted image) or a ring left on a curved face.
+const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
     [
-        [
-            "spline join",
-            "projected volume",
-            "conic trim volume",
-            "ring volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "conic trim volume",
-            "ring volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "conic trim volume",
-            "ring volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "projected volume",
-            "ring volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "projected volume",
-            "spiric image volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "projected volume",
-            "spiric image volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "projected volume",
-            "spiric image volume",
-            "spline join",
-        ],
-        [
-            "spline join",
-            "projected volume",
-            "spiric image volume",
-            "spiric image volume",
-            "spline join",
-        ],
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
     ],
-)];
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+];
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
-/// ([`OTHER_SPINS_STOPS`]): each wall germ takes its site's foot on the
+/// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
 /// carried section, and the run passes the join to the edge join on the
 /// wall's closed spline chord (`JoinCarrierUnsupported`,
 /// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
@@ -359,7 +347,7 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         (0.7, FRAC_PI_2),
     ];
     let eps = Tol::witness().eps();
-    let want = other_spins_want(eps);
+    let want = OTHER_SPINS_STOPS;
     let mut got = Vec::new();
     for &(beta, spin) in &poses {
         let c = rod(beta, spin);

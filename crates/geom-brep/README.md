@@ -862,8 +862,8 @@ otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
 operand's axis and core circle, read off the loop in ℝ³, say
 (`pair_section::winds`); a point is read on a carried loop within the
-band padded by the loop's uniqueness tube, which the march's
-exhaustiveness puts the section inside of. A reader that needs a list no closed form
+band padded by the loop's pad (`CarriedComponent::pad`, where its
+closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
 its one reading. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its

@@ -113,6 +113,10 @@ enum Because {
     /// It refuses as the join's invariant break with this `what`, so a
     /// different desync turns the row red.
     Desyncs(&'static str),
+    /// It refuses at the germ mint's march of the pair's section, whose
+    /// refusal says this, so a refusal of the classification (the same
+    /// `GermSectionUnbuilt`) turns the row red.
+    MarchRefuses(&'static str),
     /// It passes on this pose: the offer is withdrawn for a pose where it
     /// would be false, which the case's comment names.
     Passes,
@@ -379,9 +383,9 @@ cases! {
     // past it, the figure-eight's lobes short of it), and the germ mint's
     // march over them cannot prove one arc per tube there.
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
-        Withdrawn(Because::Refuses("GermSectionUnbuilt")) => transverse_frame(D);
+        Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Refuses("GermSectionUnbuilt")) =>
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
         transverse_frame(-D);
     // Two parallel walls whose axes stand a band apart: their radical
     // plane's normal has no decided length. The coincidence names no
@@ -485,6 +489,8 @@ const FRAME_SITE: Door = Door::Site(
     "the radius guards run on the cylinder and sphere pose at the section door, whose radii \
      are set directly",
 );
+/// What the march's tube refusal says ([`geom_brep::SsiError::TubeStraddles`]).
+const TUBE_STRADDLES: &str = "the uniqueness tube's lower bound on the crossing angle";
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the cylinder and sphere pose's far reach is read at the section door on the two \
      surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
@@ -2130,6 +2136,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
             (Outcome::Refused { key, .. }, Because::Refuses(want)) => key == want,
             (Outcome::Refused { key, text, .. }, Because::Desyncs(what)) => {
                 key == "JoinDesync" && text.contains(what)
+            }
+            (Outcome::Refused { key, text, .. }, Because::MarchRefuses(what)) => {
+                key == "GermSectionUnbuilt" && text.contains(what)
             }
             (Outcome::Pass, Because::Passes) => true,
             _ => false,

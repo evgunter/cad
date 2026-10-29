@@ -1032,7 +1032,8 @@ impl<T: Decide> PairSection<T> {
                     closed: true,
                     certificate: None,
                     winds: c.winds,
-                    tube: 0.0,
+                    pad: 0.0,
+                    witness: curve.eval(T::pi()),
                 }),
                 (ClassCarrier::General, Some(f)) => Ok(f),
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
@@ -1095,8 +1096,9 @@ pub struct FittedCarrier<T: Real> {
     /// How it winds about each operand, in the order the section was
     /// asked of ([`winds`]).
     pub winding: [Winding; 2],
-    /// Its certificate's tube radius, in metres ([`CarriedComponent::tube`]).
-    pub tube: f64,
+    /// How far from its carrier a point of the loop is read, in metres
+    /// ([`CarriedComponent::pad`], [`pad_of`]).
+    pub pad: f64,
 }
 
 impl<T: Decide> FittedCarrier<T> {
@@ -1114,7 +1116,8 @@ impl<T: Decide> FittedCarrier<T> {
             closed: true,
             certificate: Some(self.certificate),
             winds: self.winding.map(Winding::essential),
-            tube: self.tube,
+            pad: self.pad,
+            witness: self.witness,
         })
     }
 }
@@ -1172,16 +1175,9 @@ fn march_over_the_ball(
         .into_iter()
         .map(|br| {
             let closed = matches!(br.end, BranchEnd::Closed);
-            let tube = match br.certificate.tube {
-                crate::ssi::SsiTube::Spatial { radius } => radius,
-                crate::ssi::SsiTube::Chart { .. } | crate::ssi::SsiTube::TwoChart { .. } => {
-                    return Err(CarryError::Desync(
-                        "an ℝ³ march's certificate proved no spatial tube",
-                    ));
-                }
-            };
+            let pad = pad_of(&br.carrier, &br.certificate)?;
             let winding = if closed {
-                let read = |s| winds::winding(s, &br.carrier, br.params, tube);
+                let read = |s| winds::winding(s, &br.carrier, br.params, pad);
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
@@ -1198,10 +1194,47 @@ fn march_over_the_ball(
                 certificate: br.certificate,
                 witness: br.witness,
                 winding,
-                tube,
+                pad,
             })
         })
         .collect()
+}
+
+/// **How far from its fitted carrier a point of a marched loop lies**
+/// ([`CarriedComponent::pad`]): the uniqueness tube's radius plus the
+/// largest diameter of the hull boxes it pads, the boxes the march's
+/// exhaustiveness accounts cells to (`ssi::certify::tube_boxes`). A
+/// point of the loop lies in one padded box, within the radius of the
+/// raw box, whose every point is within its diameter of the carrier's
+/// piece it hulls. The carrier's limb-2 bound must lie within the pad
+/// too, so the carrier lies within the pad of each surface; otherwise
+/// the pad is refused ([`CarryError::PadShort`]).
+fn pad_of(carrier: &Curve3<f64>, certificate: &SsiCertificate<f64>) -> Result<f64, CarryError> {
+    let crate::ssi::SsiTube::Spatial { radius } = certificate.tube else {
+        return Err(CarryError::Desync(
+            "an ℝ³ march's certificate proved no spatial tube",
+        ));
+    };
+    let Curve3::Nurbs(net) = carrier else {
+        return Err(CarryError::Desync(
+            "a fitted component's carrier is not a spline",
+        ));
+    };
+    // The largest side of each raw box bounds its diameter by `√3` of
+    // it; the product is rounded up by a relative `1e-12`, far past one
+    // rounding.
+    let side = crate::ssi::certify::tube_boxes(net, 0.0)
+        .into_iter()
+        .map(crate::ssi::enclose::Box3::width)
+        .try_fold(0.0f64, |acc, w| w.is_finite().then(|| acc.max(w)));
+    let pad = side.map(|w| radius + 3.0f64.sqrt() * w * (1.0 + 1e-12));
+    match pad {
+        Some(pad) if certificate.hull_sup <= pad => Ok(pad),
+        _ => Err(CarryError::PadShort {
+            pad: pad.unwrap_or(f64::NAN),
+            hull_sup: certificate.hull_sup,
+        }),
+    }
 }
 
 /// **[`PairSection::seat`] at `f64`.** `at` at either end of the
@@ -1253,13 +1286,16 @@ fn seat_at(
     )
     .map_err(CarryError::March)?;
     let span = seated.domain();
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
+    let pad = pad_of(&carrier, &certificate)?;
     Ok(CarriedComponent {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(seated)),
+        witness: carrier.eval(0.5 * (span.0 + span.1)),
+        carrier,
         span,
         closed: true,
         certificate: Some(certificate),
         winds: component.winds,
-        tube: component.tube,
+        pad,
     })
 }
 
@@ -1346,6 +1382,15 @@ pub enum CarryError {
     Winds(WindsRefusal),
     /// A reading in the band or poisoned.
     Escalated(Indeterminate),
+    /// A fitted loop's limb-2 bound stands past the pad its points are
+    /// read within ([`CarriedComponent::pad`]), or the pad's boxes could
+    /// not be read (`NaN`).
+    PadShort {
+        /// The pad, in metres.
+        pad: f64,
+        /// The certificate's limb-2 bound, in metres.
+        hull_sup: f64,
+    },
     /// The march and the classification disagree.
     Desync(&'static str),
     /// A closed fitted component could not be opened at its first site
@@ -1370,29 +1415,34 @@ pub struct CarriedComponent<T: Real> {
     /// itself ([`winds`]).
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
-    /// in metres: the radius of the fitted loop's uniqueness tube
-    /// (C2 limb 3, [`crate::ssi::SsiTube::Spatial`]), zero for a closed
-    /// form. Two facts make it the pad of every reading of the
-    /// component:
+    /// in metres; zero for a closed form. Every reading of a point
+    /// against the component pads its band by it ([`Self::reads`]), and
+    /// the winding ([`winds`]) and the certificate's W3 rest on it. For
+    /// a marched loop it is [`pad_of`]: two facts make it the pad, each
+    /// a limb of the loop's C2 certificate.
     ///
-    /// - **closeness**: the march's exhaustiveness receipt accounts every
-    ///   point of the section to a branch's tube (each cell of the domain
-    ///   is excluded or lies in a tube), so a point of this component
-    ///   lies within `tube` of its carrier; limbs 1 and 2 bound it far
-    ///   tighter, within the carrier's sup-norm distance over the
-    ///   crossing's sine, a number the certificate does not state, which
-    ///   the tube bounds from above;
-    /// - **uniqueness**: the tube holds exactly one arc of the section,
-    ///   so no point of another component lies within `tube` of this
-    ///   carrier, and a point read on this component within it is not on
-    ///   another.
-    pub tube: f64,
+    /// - **Closeness**: every point of the component lies within `pad`
+    ///   of the carrier. The march's exhaustiveness receipt accounts each
+    ///   cell of the domain to a branch's uniqueness tube, the hull boxes
+    ///   padded by the tube radius (limb 3 says each holds exactly one
+    ///   arc, the branch's own); a point of a padded box lies within the
+    ///   radius plus the box's diameter of the carrier. And limbs 1 and 2
+    ///   put the carrier within `hull_sup` of each surface, which the pad
+    ///   is checked to hold ([`CarryError::PadShort`]), so a point of the
+    ///   carrier lies within the pad of each surface too.
+    /// - **Uniqueness**: limb 3's tube holds this loop's arc alone, so no
+    ///   other component crosses it. A point read on two components
+    ///   (each within its pad) is not chosen between: it desyncs.
+    pub pad: f64,
+    /// A point of the carrier, `carrier(mid)`: the witness the component
+    /// is read by.
+    pub witness: Point3<T>,
 }
 
 impl<T: Decide> CarriedComponent<T> {
     /// **Where the point `p` of the section lies against this
     /// component**: its foot on the carrier where `p` is within the band
-    /// padded by [`Self::tube`] ([`Curve3::on_carrier`], [`Band::padded`]),
+    /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
     /// `None` where it is past it. The one reading of "a point on this
     /// component", by [`CarriedSection::foot`] and the counted section's
     /// cross-check alike.
@@ -1403,7 +1453,7 @@ impl<T: Decide> CarriedComponent<T> {
     pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
         use geom::{CarrierRefusal, OnCarrier};
         let padded = band
-            .padded(self.tube)
+            .padded(self.pad)
             .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
         let foot = self.carrier.foot(p, self.span.0);
         match foot.on_carrier(padded) {
@@ -1427,13 +1477,6 @@ impl<T: Decide> CarriedComponent<T> {
                 SiteRefusal::Desync(what) => CarryError::Desync(what),
             })
     }
-
-    /// The carrier's middle point, `carrier(mid)`: the witness a carried
-    /// loop is read by.
-    pub fn witness(&self) -> Point3<T> {
-        let (lo, hi) = self.span;
-        self.carrier.eval((lo + hi) * T::from_f64(0.5))
-    }
 }
 
 /// **The march's branches, each a distinct loop**: each branch's
@@ -1447,7 +1490,7 @@ fn distinct<T: Decide>(
     band: Band,
 ) -> Result<Vec<CarriedComponent<T>>, CarryError> {
     for (i, b) in branches.iter().enumerate() {
-        let w = b.witness();
+        let w = b.witness;
         for (j, other) in branches.iter().enumerate() {
             if i != j && other.holds(w, band)? {
                 return Err(CarryError::Desync(
@@ -1712,12 +1755,12 @@ mod wiring {
                 ),
                 "branch {order} twice"
             );
+            assert!(
+                PairSection::matched(&listed, fitted.clone(), band()).is_ok(),
+                "the march's own two, listed in order {order}"
+            );
             listed.reverse();
         }
-        assert!(
-            PairSection::matched(&listed, fitted, band()).is_ok(),
-            "the march's own two"
-        );
         let (wall, here) = wall_and_ball((0.5, 0.0, 0.2), 0.3);
         let (_, there) = wall_and_ball((0.5, 0.0, 1.2), 0.3);
         let lone = built(&wall, &here);
@@ -1732,6 +1775,99 @@ mod wiring {
             ),
             "a witness on no branch the march found"
         );
+    }
+
+    /// **The witnessless matching is not first fit** (an order that
+    /// defeats it): the ball round the donut's axis with its two
+    /// components claiming `[true, false]` and `[false, true]` against
+    /// branches winding `[true, true]` and `[true, false]`, listed in the
+    /// order where first fit gives the first component the `[true, true]`
+    /// branch and leaves the second none. The matching takes the
+    /// `[true, false]` branch for the first and carries.
+    #[test]
+    fn the_witnessless_matching_is_not_first_fit() {
+        use super::{PairSection, Winding};
+        let (a, b) = ball_round_the_axis();
+        let section = built(&a, &b);
+        let mut listed = section.counted().expect("counted").to_vec();
+        listed[0].winds = [true, false];
+        listed[1].winds = [false, true];
+        let mut fitted = march_over_the_ball(section.pose(), band()).expect("the march");
+        let turn = Winding {
+            about_axis: 1,
+            about_core: 0,
+        };
+        fitted[0].winding = [turn, turn];
+        fitted[1].winding = [turn, Winding::default()];
+        let carried = PairSection::matched(&listed, fitted, band())
+            .unwrap_or_else(|e| panic!("a matching exists: {e:?}"));
+        assert_eq!(
+            carried.iter().map(|c| c.winds).collect::<Vec<_>>(),
+            [[true, false], [true, true]],
+            "each component on the branch its claim needs"
+        );
+    }
+
+    /// **Closeness is checked**: every marched loop's limb-2 bound lies
+    /// within its pad, which holds its uniqueness tube's radius; and a
+    /// certificate whose limb-2 bound stands past the pad refuses
+    /// `PadShort`.
+    #[test]
+    fn a_marched_loops_pad_holds_its_limb_two_bound() {
+        use super::{CarryError, pad_of};
+        use crate::ssi::SsiTube;
+        for (what, (a, b)) in [
+            (
+                "two rings round the wall",
+                wall_and_ball((0.1, 0.0, 0.2), 0.7),
+            ),
+            ("the ball round the donut's axis", ball_round_the_axis()),
+        ] {
+            let section = built(&a, &b);
+            for br in march_over_the_ball(section.pose(), band()).expect("the march") {
+                let SsiTube::Spatial { radius } = br.certificate.tube else {
+                    panic!("{what}: a spatial tube");
+                };
+                assert!(
+                    br.certificate.hull_sup <= br.pad && radius < br.pad,
+                    "{what}: limb 2 {:e}, tube {radius:e}, pad {:e}",
+                    br.certificate.hull_sup,
+                    br.pad
+                );
+                let mut loose = br.certificate;
+                loose.hull_sup = 2.0 * br.pad;
+                assert!(
+                    matches!(
+                        pad_of(&br.carrier, &loose),
+                        Err(CarryError::PadShort { .. })
+                    ),
+                    "{what}: a limb-2 bound past the pad refuses"
+                );
+            }
+        }
+    }
+
+    /// **Close loops carry**: the wall of radius `1/2` against a sphere at
+    /// `(0.1, 0, 0.2)` of radius `0.6 + δ`, its two rings `δ` from
+    /// meeting at the far ruling, carry as counted and as marched, two
+    /// loops each, from `δ = 3e-2` down to `3e-4`.
+    #[test]
+    fn close_rings_carry_counted_and_marched() {
+        use super::{Components, SsiLane};
+        for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
+            let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);
+            let section = built(&wall, &ball);
+            let marched = super::PairSection {
+                components: Components::Marched,
+                ..section.clone()
+            };
+            for (read, s) in [("counted", &section), ("marched", &marched)] {
+                let got = s
+                    .carry(Some(SsiLane::marched()), band())
+                    .unwrap_or_else(|e| panic!("δ {delta:e}, {read}: {e:?}"));
+                assert_eq!(got.components().len(), 2, "δ {delta:e}, {read}");
+            }
+        }
     }
 
     /// **A count the march disagrees with is a desync**: the two loops of

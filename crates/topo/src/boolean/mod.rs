@@ -2733,6 +2733,14 @@ pub enum SectionUnbuilt {
     March(geom_brep::SsiError),
     /// A marched loop's winding about an operand was not read.
     Winds(geom_brep::WindsRefusal),
+    /// A marched loop's limb-2 bound stands past the pad its points are
+    /// read within (`geom_brep::CarriedComponent::pad`).
+    PadShort {
+        /// The pad, in metres.
+        pad: f64,
+        /// The certificate's limb-2 bound, in metres.
+        hull_sup: f64,
+    },
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2754,8 +2762,13 @@ impl core::fmt::Display for SectionUnbuilt {
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
             Self::Winds(why) => write!(
                 f,
-                "a marched loop of the section winds about an operand in a way its chart image \
-                 did not settle ({why:?})"
+                "a marched loop's turns about an operand's axis or core could not be read \
+                 ({why:?})"
+            ),
+            Self::PadShort { pad, hull_sup } => write!(
+                f,
+                "a marched loop's carrier lies {hull_sup:e} m from the surfaces, past the {pad:e} m \
+                 its points are read within"
             ),
             Self::Seat(e) => write!(
                 f,
