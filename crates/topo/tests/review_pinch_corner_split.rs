@@ -420,3 +420,142 @@ fn a_fused_cones_vertex_has_a_live_image_in_the_splits_lineage() {
         "the union's records carry through the split"
     );
 }
+
+/// **Every lineage image of every operand vertex and edge is live**
+/// (review 2 of PR 5981). Over 200 normals through the pinch and every
+/// union of [`cases`], each split that builds states, for each vertex
+/// and edge of the union, only images some side holds. Faces are left
+/// out: their images read dead in every cell, fusion or none (a finding
+/// of the review, not this row's subject). Ignored while it also asks
+/// for a chained fusion (a fusion whose kept vertex a later one kills,
+/// which `Lineage::through_fusions` reads to its survivor): no input
+/// here reaches one.
+#[test]
+#[ignore = "review probe: no input here chains two fusions"]
+fn every_operand_cells_split_images_are_live_through_chained_fusions() {
+    let mut chains = 0;
+    let mut built = 0;
+    let mut dead_cells = 0;
+    for case in cases() {
+        for n in normals(200) {
+            let plane = split_plane(
+                Point3::new(PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]),
+                Vec3::new(n[0], n[1], n[2]),
+                t(),
+            );
+            let Ok(r) = split(&case.union.body, &plane, t()) else {
+                continue;
+            };
+            built += 1;
+            if r.naming.vertex_fusions.rows().len() > 2 {
+                println!(
+                    "MULTI {} n={n:?} fusions {:?}",
+                    case.what,
+                    r.naming.vertex_fusions.rows()
+                );
+            }
+            let rows = r.naming.vertex_fusions.rows();
+            chains += rows
+                .iter()
+                .enumerate()
+                .filter(|&(i, &(_, kept))| rows[i + 1..].iter().any(|&(d, _)| d == kept))
+                .count();
+            let sides: Vec<&AtRestBody<f64>> = [&r.above, &r.below]
+                .into_iter()
+                .filter_map(|p| match p {
+                    SplitPart::Body(b) => Some(b),
+                    SplitPart::Empty => None,
+                })
+                .collect();
+            let live = |c: topo::Cell| {
+                sides.iter().any(|b| match c {
+                    topo::Cell::Vertex(v) => b.get_vertex(v).is_some(),
+                    topo::Cell::Edge(e) => b.get_edge(e).is_some(),
+                    topo::Cell::Face(f) => b.get_face(f).is_some(),
+                })
+            };
+            let band = geom_core::Band::linear(t()).unwrap();
+            if let Err(e) = r.carry_contacts(
+                &case.union.contacts,
+                band,
+                Some(topo::RegionLane::certified()),
+            ) {
+                println!("CARRY {} n={n:?} fusions {}: {e:?}", case.what, rows.len());
+            }
+            let lineage = r.lineage();
+            let u = &case.union.body;
+            let cells: Vec<topo::Cell> = u
+                .vertices()
+                .map(|(v, _)| topo::Cell::Vertex(v))
+                .chain(u.edges().map(|(e, _)| topo::Cell::Edge(e)))
+                .collect();
+            let dead: Vec<_> = cells
+                .into_iter()
+                .filter_map(|c| {
+                    let bad: Vec<_> = lineage
+                        .images(c)
+                        .into_iter()
+                        .filter(|&i| !live(i))
+                        .collect();
+                    (!bad.is_empty()).then_some((c, bad))
+                })
+                .collect();
+            if !dead.is_empty() {
+                dead_cells += 1;
+                let vertices = dead
+                    .iter()
+                    .filter(|(c, _)| matches!(c, topo::Cell::Vertex(_)))
+                    .count();
+                println!(
+                    "DEAD {} n={n:?} fusions {} cells {} of them vertices {vertices}",
+                    case.what,
+                    rows.len(),
+                    dead.len()
+                );
+            }
+        }
+    }
+    println!("built {built}, chained fusions {chains}, cells with dead images {dead_cells}");
+    assert_eq!(dead_cells, 0, "cells with dead images");
+    assert!(chains > 0, "no input chained two fusions");
+}
+
+/// Review 2 trace of a `Parted` carry refusal on the four-cone union
+/// (record 3, n = (-0.046, 0.999, 0.025)): which fusions ran, the
+/// record's two cells, and which side holds each image. Prints only.
+#[test]
+#[ignore = "review trace; run by hand"]
+fn review_trace_a_four_cone_parted_cell() {
+    let two = united(&ell(), &cube_along([1.0, 1.3, 0.7]));
+    let three = united(&two.body, &wedge_on(WEDGE, 0.3));
+    let four = united(&three.body, &wedge_on(WEDGE_A, 0.3));
+    for (n, rec) in [([-0.046, 0.999, 0.025], 3), ([0.988, 0.133, -0.075], 0)] {
+        let plane = split_plane(
+            Point3::new(PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]),
+            Vec3::new(n[0], n[1], n[2]),
+            t(),
+        );
+        let r = split(&four.body, &plane, t()).expect("builds");
+        println!("n={n:?} fusions {:?}", r.naming.vertex_fusions.rows());
+        let (x, y) = four.contacts.cell_pairs().nth(rec).unwrap();
+        let lineage = r.lineage();
+        for c in [x, y] {
+            let at = |p: &SplitPart<f64>, c: topo::Cell| match (p, c) {
+                (SplitPart::Body(b), topo::Cell::Vertex(v)) => b.get_vertex(v).is_some(),
+                (SplitPart::Body(b), topo::Cell::Edge(e)) => b.get_edge(e).is_some(),
+                (SplitPart::Body(b), topo::Cell::Face(f)) => b.get_face(f).is_some(),
+                _ => false,
+            };
+            let images: Vec<_> = lineage
+                .images(c)
+                .into_iter()
+                .map(|i| (i, at(&r.above, i), at(&r.below, i)))
+                .collect();
+            let fused = matches!(c, topo::Cell::Vertex(v)
+                if r.naming.vertex_fusions.rows().iter().any(|&(d, k)| d == v || k == v));
+            println!(
+                "  record {rec} cell {c:?} fused {fused}: images (cell, above, below) {images:?}"
+            );
+        }
+    }
+}
