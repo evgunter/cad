@@ -204,6 +204,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "boolean_tangent_rim_review.rs"]
+mod boolean_tangent_rim_review;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]
