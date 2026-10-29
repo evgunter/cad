@@ -37,7 +37,7 @@ join refusal and goes red that day.
 
 ## A consumer (2026-10-28, SPLICE)
 
-Lily's sweep row (`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
+The sheath-on-blade sweep row (`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
 `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`) reaches this arm
 once its rim certifies: with limb 3 temporarily stubbed to pass, blade ∪
 sheath refuses `CurvedPairUnsupported { site: InteriorLoopGuard,
