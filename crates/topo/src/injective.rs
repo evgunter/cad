@@ -4261,4 +4261,237 @@ mod presentation_rows {
             "a shared vertex off its edges"
         );
     }
+
+    /// **A disk-like plane face bounded by one closed ellipse** of
+    /// semi-axes `a`, `b`, its major axis at `angle` in the plane's chart,
+    /// run forward, sense up.
+    fn oval(a: f64, b: f64, angle: f64) -> Boundary {
+        let (s, c) = angle.sin_cos();
+        Boundary {
+            sense: true,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((
+                    Curve3::Ellipse {
+                        center: origin(),
+                        axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                        semi_u: iv0(a),
+                        semi_v: iv0(b),
+                        u_ref: Vec3::new(iv0(c), iv0(s), iv0(0.0)),
+                    },
+                    (iv0(0.0), iv0(TURN)),
+                )),
+                ends: [vertex(1), vertex(1)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                    harmonic: None,
+                }],
+            }],
+            vertices: BTreeMap::new(),
+            extent: None,
+        }
+    }
+
+    /// **A second run of the curve in reach of the widened rectangle is
+    /// not read past.** A thin oval, its major axis tilted: over the
+    /// cell's columns on `v` the run through the cell is shallow, so `R`
+    /// widens along `u` far past the cell, into the reach of the oval's
+    /// other run over those columns, which the cell itself does not
+    /// meet; over `u` the same holds of the other pair of runs. Neither
+    /// reading presents it; read past the other run, `R` would hold a
+    /// boundary the column argument does not know.
+    #[test]
+    fn a_second_run_in_reach_of_the_widened_rectangle_refuses() {
+        let b = oval(
+            0.880_878_980_650_731_8,
+            0.025_497_676_308_968_174,
+            0.485_098_449_269_096_57,
+        );
+        assert_eq!(
+            on_disk(
+                &b,
+                (0.703_916_199_917_691_5, 0.734_125_180_463_093_3),
+                (0.395_250_072_325_091_6, 0.403_810_419_745_554_4)
+            ),
+            Read::Local
+        );
+    }
+
+    /// **Another edge in reach of the widened rectangle is not read
+    /// past.** The disk's rim, and a short line edge — material past the
+    /// rim, a C's inner lip — clear of the cell's ball but inside the
+    /// rectangle the rim widens it to: just above the rim's top, the
+    /// cell's columns hold the rim below the cell, so `R` reaches down to
+    /// it, past the line. Over `v` the rim turns back in the cell.
+    #[test]
+    fn another_edge_in_reach_of_the_widened_rectangle_refuses() {
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let mut b = disk(0.7, x, true, true);
+        let lip = |u: f64| Point3::new(iv0(u), iv0(0.6985), iv0(0.0));
+        b.edges.push(Rim {
+            key: edge(2),
+            arc: Some((
+                Curve3::Line {
+                    origin: lip(0.0502),
+                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                },
+                (iv0(0.0), iv0(1e-4)),
+            )),
+            ends: [vertex(2), vertex(3)],
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+            }],
+        });
+        b.vertices.insert(vertex(2), lip(0.0502));
+        b.vertices.insert(vertex(3), lip(0.0503));
+        let cell = ((0.05, 0.0505), (0.6999, 0.700_05));
+        assert_eq!(
+            on_disk(&b, cell.0, cell.1),
+            Read::Local,
+            "the lip is in reach"
+        );
+        b.edges.pop();
+        b.vertices.retain(|&v, _| v == vertex(1));
+        let got = on_disk(&b, cell.0, cell.1);
+        assert!(
+            matches!(got, Read::Of(..)),
+            "without the lip the rim alone is read: {got:?}"
+        );
+    }
+
+    /// The plane `z = 0`'s disk of radius `0.7` presented in the cell
+    /// `(0.69, 0.71) × (0.1, 0.11)` across its rim, with its curve.
+    fn rim_cell(b: &Boundary, s: &Surface<Interval>) -> (Box<Curved>, Psi) {
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: s,
+            whole: false,
+            boundary: b,
+            u: (0.69, 0.71),
+            v: (0.1, 0.11),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(q)) = present_plane(&piece, &[0], &[], band()) else {
+            panic!("the rim is presented");
+        };
+        let Zero::Curve(_, c) = &q.zero else {
+            panic!("across a curve");
+        };
+        let carrier = |r: f64| {
+            Psi::Carrier(Implicit::Cylinder {
+                o: origin(),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                r: iv0(r),
+            })
+        };
+        assert!(
+            sign_on(&carrier(0.7), &q, None, band()).is_some(),
+            "the rim's own cylinder separates"
+        );
+        assert_eq!(
+            sign_on(&carrier(0.69), &q, None, band()),
+            None,
+            "a cylinder the rim is 0.01 off does not, though it is monotone across"
+        );
+        (c.clone(), carrier(0.69))
+    }
+
+    /// **A separator the curve is off reads no zero along it**, and the
+    /// presentation then has no sign under it: the zero check along a
+    /// curve is red when it is too lax, not only when too strict.
+    #[test]
+    fn a_separator_the_curve_is_off_reads_no_zero_along_it() {
+        let s = floor();
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let (c, off) = rim_cell(&disk(0.7, x, true, true), &s);
+        let v = c.psi(&off).expect("a carrier reads");
+        assert!(
+            !is_zero(v, band()) && v.hi() >= 0.009,
+            "0.01 off the curve: {v:?}"
+        );
+    }
+
+    /// **The graph separator's bound along a curve grows with the side's
+    /// distance from the edge's carrier**: zero where the carrier is the
+    /// side's own circle, and at least the distance where it is a circle
+    /// `0.01` larger.
+    #[test]
+    fn the_graph_separators_bound_reads_the_sides_distance_from_its_carrier() {
+        let s = floor();
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let (c, _) = rim_cell(&disk(0.7, x, true, true), &s);
+        let graph = Psi::Graph {
+            m: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            t: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            slope: iv0(0.0),
+            piece: (c.t.0 - 0.1, c.t.1 + 0.1),
+        };
+        let on = c.psi(&graph).expect("the edge is a conic");
+        assert!(is_zero(on, band()), "on its own carrier: {on:?}");
+        let mut off = (*c).clone();
+        let wider = Curve3::Circle {
+            center: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            radius: iv0(0.71),
+            u_ref: x,
+        };
+        off.edge = conic(&wider);
+        let v = off.psi(&graph).expect("the edge is a conic");
+        assert!(v.hi() >= 0.01 && !is_zero(v, band()), "0.01 off: {v:?}");
+    }
+
+    /// **A side past the shared cell reads a sign only where it is
+    /// admitted** ([`sign_on`]): against a presentation whose zero set is
+    /// on the shared cell, under a read separator. Not in the carrier arm
+    /// (no other presentation), not under the graph separator, not
+    /// against another past side.
+    #[test]
+    fn a_side_past_the_shared_cell_reads_only_where_admitted() {
+        let cyl = cylinder();
+        let past = |zero| Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (0.1, 0.2),
+            y: (0.0, 0.1),
+            zero,
+            cache: Cache::default(),
+        };
+        let p = past(Zero::Past(Side::YLo));
+        let exact = past(Zero::Side(Side::YLo));
+        let other = past(Zero::Past(Side::YLo));
+        let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        let plane = Psi::Linear { n: z, q: origin() };
+        let graph = Psi::Graph {
+            m: z,
+            t: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            slope: iv0(0.0),
+            piece: (0.0, 1.0),
+        };
+        assert_eq!(
+            sign_on(&plane, &p, Some(&exact), band()),
+            Some(Sign::Positive),
+            "admitted"
+        );
+        assert_eq!(sign_on(&plane, &p, None, band()), None, "the carrier arm");
+        assert_eq!(
+            sign_on(&graph, &p, Some(&exact), band()),
+            None,
+            "the graph separator"
+        );
+        assert_eq!(
+            sign_on(&plane, &p, Some(&other), band()),
+            None,
+            "against a past side"
+        );
+    }
 }
