@@ -856,6 +856,8 @@ mod intent_s5_c_at_rest_check;
 mod intent_s5_c_quietable;
 #[path = "intent_s6_c_trace.rs"]
 mod intent_s6_c_trace;
+#[path = "review_s6c_r2_probes.rs"]
+mod review_s6c_r2_probes;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
