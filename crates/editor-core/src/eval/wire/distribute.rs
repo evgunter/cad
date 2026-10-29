@@ -146,7 +146,13 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
                         .table
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-                    units.push(unit(body, Arc::new(table), Arc::default(), None));
+                    let member = piece.carry.member(j);
+                    units.push(unit(
+                        body,
+                        Arc::new(table),
+                        Arc::clone(&member.contacts),
+                        member.pieces.clone(),
+                    ));
                 }
             } else {
                 let Some(body) = bodies.into_iter().next() else {
@@ -332,6 +338,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         // Its records ride the boolean's payload.
         contacts: Arc::default(),
         findings: Arc::default(),
+        members: None,
     })
     .with_coincidences(coincidences)
     .citing(citing))

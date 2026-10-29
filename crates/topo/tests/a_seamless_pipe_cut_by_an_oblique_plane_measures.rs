@@ -384,11 +384,11 @@ fn injectivity(
 ) -> topo::clearance::BoundReport<(topo::FaceKey, topo::FaceKey, f64)> {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Sign};
-    use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep};
+    use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
     let side = Side { body, faces };
-    let windows = side.windows().expect("every face has a window");
+    let windows = side.windows(Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
         bound,

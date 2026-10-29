@@ -1,6 +1,6 @@
 //! **The tour's one seed finder: "the circle at radius `r`, station
 //! `y`"** — the consumer-side twin of `sweep::test_support::arcs_at`,
-//! shared by every suite in this cargo root through `#[path]`.
+//! shared by every suite in this cargo root through `crate::common`.
 //!
 //! The tour is a detached cargo root that reaches the kernel through
 //! the `pncad` façade. `sweep`'s `test_support` module is compiled only
@@ -20,8 +20,6 @@
 //! `no-public-rim-arc-selector` owns: `rim_of` takes a seed EDGE, so
 //! the library answers "which rim is this arc's" and leaves "which arc
 //! do I mean" to the caller.
-
-#![allow(dead_code)]
 
 use pncad::geom::Curve3;
 use pncad::prelude::query;

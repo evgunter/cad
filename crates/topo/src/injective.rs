@@ -73,7 +73,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Margin, Point2, Point3, Real, Sign, Vec3};
 
 use crate::cell_region::Ball;
-use crate::clearance::{CertificateArm, EngineRefusal, SharedCell};
+use crate::clearance::{CertificateArm, EngineRefusal, SharedCell, Which};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::validate::decide;
 
@@ -494,11 +494,15 @@ pub(crate) fn by_kind(
             ..
         } => match decide(RING_TORUS, Margin::of(*major_radius - *minor_radius), band) {
             Ok(Sign::Positive) => Ok(()),
-            _ => Err(EngineRefusal::TorusNotRing { face }),
+            _ => Err(EngineRefusal::TorusNotRing {
+                face,
+                side: Which::First,
+            }),
         },
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",
             face,
+            side: Which::First,
         }),
     }
 }
@@ -517,6 +521,7 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
     if let Some(&v) = near.vertices.iter().find(|v| collapsed.contains(v)) {
         return Outcome::Refuse(EngineRefusal::CollapsedChart {
             face: x.face,
+            side: Which::First,
             vertex: v,
         });
     }
@@ -2961,9 +2966,13 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (ex, ey) = (near.side(false), near.side(true));
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    for (p, face) in [(&px, x.face), (&py, y.face)] {
+    for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
-            return Outcome::Refuse(EngineRefusal::CollapsedChart { face, vertex: *v });
+            return Outcome::Refuse(EngineRefusal::CollapsedChart {
+                face,
+                side,
+                vertex: *v,
+            });
         }
     }
     if matches!(px, Ok(Presentation::Vacuous)) || matches!(py, Ok(Presentation::Vacuous)) {

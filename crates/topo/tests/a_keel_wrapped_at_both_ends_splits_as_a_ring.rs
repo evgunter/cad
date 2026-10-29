@@ -32,9 +32,8 @@ use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::splitting::plane_section;
 use topo::{
-    AtRestBody, Body, BooleanResult, ContactRecords, LoopBoundary, SplitError, SplitPart,
-    SplitReduceError, split, subtract, validate, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanResult, ContactRecords, LoopBoundary, SplitPart, split, subtract,
+    validate, validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -344,15 +343,15 @@ fn a_keel_wrapped_at_both_ends_splits_with_its_keel_a_ring() {
     }
 }
 
-/// **A later cut across the ring builds, and one through its tip
-/// refuses.** The side round the keel, split again: by `x = 2`, across
-/// the ring's two edges, into halves of `15.7 / 2`; by `x = 1.5` and
-/// `x = 2.5` through its tips, and by `y = 2` and `z = 0` along it, each
-/// refusing at a tip, the 0° corner the neighbourhood classifier reads
-/// as a sliver sector, until a cusp's second-order arm reaches the split
-/// (`work/tang/declared-cusps-second-order-wedge-arm.md`).
+/// **A later cut across the ring builds, and so does one through its
+/// tip.** The side round the keel, split again: by `x = 2`, across the
+/// ring's two edges, into halves of `15.7 / 2`; by `x = 1.5` and
+/// `x = 2.5` through its tips, and by `y = 2` and `z = 0` along it. At a
+/// tip the section face wraps a full turn round the ring's two
+/// coincident edges, and each side holds its closed form and passes
+/// tier 3′.
 #[test]
-fn a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses() {
+fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
     let tol = t();
     let pose = Pose::rest();
     let row = &ROWS[0];
@@ -381,24 +380,135 @@ fn a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses() {
             "the cut across the ring: the {side} half holds {v}, not {half}"
         );
     }
-    let tips = [1.5, 2.5].map(|x| Point3::new(x, 2.0, 0.0));
-    for (what, o, n) in [
-        ("through one tip", [1.5, 0.0, 0.0], [1.0, 0.0, 0.0]),
-        ("through the other", [2.5, 0.0, 0.0], [-1.0, 0.0, 0.0]),
-        ("along it, upright", [0.0, 2.0, 0.0], [0.0, 1.0, 0.0]),
-        ("along it, in its plane", [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    // The trench takes `0.3` out of the walls, all of it on the side
+    // the ring lies on.
+    for (what, o, n, above, below) in [
+        (
+            "through one tip",
+            [1.5, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            9.7,
+            6.0,
+        ),
+        (
+            "through the other",
+            [2.5, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            9.7,
+            6.0,
+        ),
+        (
+            "along it, upright",
+            [0.0, 2.0, 0.0],
+            [0.0, 1.0, 0.0],
+            7.85,
+            7.85,
+        ),
+        (
+            "along it, in its plane",
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            row.walls,
+            0.0,
+        ),
     ] {
-        match split(&walls, &plane(o, n), tol) {
-            Err(SplitError::Reduce(SplitReduceError::SliverSector { vertex, .. })) => {
-                let at = *walls
-                    .get_point(walls.get_vertex(vertex).unwrap().point)
-                    .unwrap();
-                assert!(
-                    tips.iter().any(|p| p.distance(at) < 1e-9),
-                    "the cut {what}: the sliver sector at {at:?}, not a tip of the ring"
-                );
-            }
-            other => panic!("the cut {what}: {other:?}, not a sliver sector"),
+        let r =
+            split(&walls, &plane(o, n), tol).unwrap_or_else(|e| panic!("the cut {what}: {e:?}"));
+        for (side, part, volume) in [("above", &r.above, above), ("below", &r.below, below)] {
+            let what = format!("the cut {what}, {side}");
+            let b = match part {
+                SplitPart::Body(b) => b,
+                SplitPart::Empty if volume == 0.0 => continue,
+                SplitPart::Empty => panic!("{what}: empty, not {volume}"),
+            };
+            assert_eq!(
+                validate_pseudomanifold(b, &ContactRecords::default(), tol),
+                Ok(()),
+                "{what}: tier 3′"
+            );
+            let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
+            assert!(
+                (v - volume).abs() < 1e-9 * volume,
+                "{what}: volume {v}, closed form {volume}"
+            );
         }
+    }
+}
+
+/// Reviewer probe (`splitdoor/pocket-floor-review`): oblique cuts through
+/// a keel's wrapped tip, where the full turn's two side quarters fall on
+/// opposite sides of the plane, so their order and sides matter. Each
+/// side's volume is integrated independently (the square less the
+/// trench rectangle, clipped by the plane, per height).
+#[test]
+fn review_an_oblique_cut_through_a_wrapped_tip_holds_its_closed_form() {
+    let tol = t();
+    let pose = Pose::rest();
+    let plane = |o: [f64; 3], n: [f64; 3]| {
+        split_plane(
+            Point3::new(o[0], o[1], o[2]),
+            Vec3::new(n[0], n[1], n[2]),
+            tol,
+        )
+    };
+    let ring = &ROWS[0];
+    let slit = &ROWS[3];
+    let tree = &ROWS[1];
+    // The open slit's trench runs on to the wall, so the side holding
+    // it is two wedges meeting along the keel, as the wall-to-wall row's,
+    // unless the plane tilts out of the floor and wraps the trench's end.
+    for (row, o, n, above, below, want_shells) in [
+        (ring, [1.5, 2.0, 0.0], [1.0, 1.0, 0.0], 9.59, 6.11, 2),
+        (ring, [1.5, 2.0, 0.0], [1.0, -1.0, 0.0], 9.59, 6.11, 2),
+        (ring, [1.5, 2.0, 0.0], [-1.0, -1.0, 0.0], 6.11, 9.59, 2),
+        (
+            ring,
+            [1.5, 2.0, 0.0],
+            [1.0, 1.0, 1.0],
+            11.158333333333333,
+            4.541666666666667,
+            2,
+        ),
+        (ring, [1.5, 2.0, 0.0], [1.0, -0.4, 0.7], 11.1, 4.6, 2),
+        (ring, [2.5, 2.0, 0.0], [-1.0, -1.0, 0.0], 9.59, 6.11, 2),
+        (slit, [1.5, 2.0, 0.0], [1.0, 0.0, 0.0], 9.25, 6.0, 3),
+        (slit, [1.5, 2.0, 0.0], [1.0, 1.0, 0.0], 9.14, 6.11, 3),
+        (
+            slit,
+            [1.5, 2.0, 0.0],
+            [1.0, 1.0, 1.0],
+            10.708333333333333,
+            4.541666666666667,
+            2,
+        ),
+        (tree, [1.5, 2.0, 0.0], [1.0, 0.0, 0.0], 9.52, 6.0, 2),
+        (tree, [2.0, 2.0, 0.0], [1.0, 1.0, 0.0], 7.76, 7.76, 2),
+    ] {
+        let body = keeled(&pose, row.trenches);
+        let r = split(&body, &plane_at(&pose, true), tol).unwrap();
+        let SplitPart::Body(walls) = r.above else {
+            panic!("nothing above the plane");
+        };
+        let what = format!("{}: {o:?} {n:?}", row.what);
+        let r = split(&walls, &plane(o, n), tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let mut shells = 0;
+        for (side, part, volume) in [("above", &r.above, above), ("below", &r.below, below)] {
+            let SplitPart::Body(b) = part else {
+                panic!("{what} {side}: empty, not {volume}");
+            };
+            assert_eq!(validate(b), Ok(()), "{what} {side}: tiers 1-3");
+            assert_eq!(
+                validate_pseudomanifold(b, &ContactRecords::default(), tol),
+                Ok(()),
+                "{what} {side}: tier 3′"
+            );
+            let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
+            assert!(
+                (v - volume).abs() < 1e-9 * volume,
+                "{what} {side}: volume {v}, closed form {volume}"
+            );
+            shells += b.shells().count();
+        }
+        assert_eq!(shells, want_shells, "{what}: shells");
     }
 }

@@ -796,6 +796,33 @@ impl Coincide {
     }
 }
 
+/// **A same-direction parallelism reading** ([`super::sectors::parallel_same`]):
+/// the name its levered sine is decided under, and the coincidence an
+/// in-band reading refuses as. Each reading's one home: the sites that
+/// read it pass it, [`super::decision_words`] states its words, and the
+/// site census credits each site that passes it with its coincidence.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Parallelism {
+    pub predicate: &'static str,
+    pub coincide: Coincide,
+}
+
+/// Two bound directions of one vertex's sectors, read along one ray.
+pub(super) const BOUNDS_PARALLEL: Parallelism = Parallelism {
+    predicate: "bool_dir_parallel",
+    coincide: Coincide::Sectors,
+};
+
+/// Two directions mentioned at one site, read along one ray: an edge of
+/// one solid along an edge of the other.
+pub(super) const RAY_COLLINEAR: Parallelism = Parallelism {
+    predicate: "bool_ee_collinear",
+    coincide: Coincide::EdgeOnEdge,
+};
+
+/// Every [`Parallelism`] reading.
+pub(super) const PARALLELISMS: [Parallelism; 2] = [BOUNDS_PARALLEL, RAY_COLLINEAR];
+
 /// [`Coincide::DeclaredReach`]'s lever: a declared pair is settled by
 /// geometry that reads one way or the other over both faces.
 const DECLARED_REACH_LEVER: &str =

@@ -91,8 +91,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
+use crate::common::census::{genus, rings};
+use crate::common::printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
@@ -100,9 +100,6 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-#[path = "common/census.rs"]
-mod census;
-use census::{genus, rings};
 use pncad::topo::AtRestBody;
 use pncad::topo::Body;
 
