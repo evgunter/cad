@@ -1146,4 +1146,246 @@ mod tests {
         split_faces(&mut solid, EPS_IN, &mut mint, &mut sink).unwrap();
         assert_eq!((solid.faces.len(), sink.len()), (1, 0));
     }
+
+    /// Review probes (6013 delta): the side test against crossings
+    /// built between the samples. Each `kept` row asserts the line is
+    /// never left out; each `info` row prints what happens.
+    mod review_probes {
+        use std::collections::{BTreeMap, BTreeSet};
+        use std::sync::Arc;
+
+        use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point3, Vec3};
+
+        use super::super::crossing_knots;
+        use super::EPS_IN;
+        use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+
+        /// The plane `z = 0` charted degree 1 in `u` with a crease at
+        /// `u = 1/2`; `xs` are the three control columns' `x`.
+        fn chart(xs: [f64; 3]) -> NurbsSurface<f64> {
+            NurbsSurface::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                xs.into_iter()
+                    .flat_map(|x| [0.0, 1.0].map(|y| Point3::new(x, y, 0.0)))
+                    .collect(),
+                vec![1.0; 6],
+            )
+            .unwrap()
+        }
+
+        fn face(s: NurbsSurface<f64>, edges: Vec<(Curve3<f64>, f64, f64)>) -> SolidSpec {
+            let n = edges.len() as u64;
+            let mut vertices = BTreeMap::new();
+            let mut map = BTreeMap::new();
+            for (i, (c, t0, t1)) in edges.into_iter().enumerate() {
+                let i = i as u64;
+                vertices.insert(30 + i, c.eval(t0));
+                map.insert(
+                    20 + i,
+                    EdgeSpec {
+                        start: 30 + i,
+                        end: 30 + (i + 1) % n,
+                        carrier: c,
+                        t0,
+                        t1,
+                        reversed: false,
+                    },
+                );
+            }
+            SolidSpec {
+                id: 1,
+                faces: vec![FaceSpec {
+                    id: 10,
+                    surface: Surface::Nurbs(Arc::new(s)),
+                    sense: true,
+                    loops: vec![LoopSpec {
+                        outer: true,
+                        uses: (0..n)
+                            .map(|i| EdgeUse {
+                                edge: 20 + i,
+                                forward: true,
+                            })
+                            .collect(),
+                    }],
+                    band: false,
+                }],
+                edges: map,
+                vertices,
+                band_seams: BTreeSet::new(),
+            }
+        }
+
+        fn circle(cx: f64, cy: f64, r: f64) -> Curve3<f64> {
+            Curve3::Circle {
+                center: Point3::new(cx, cy, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }
+        }
+
+        /// Circles whose rightmost point passes the line `x = xk` by
+        /// `δ`, the samples phased to straddle that point, at several
+        /// heights (one near the chart's `v = 0` edge) and radii.
+        fn circles(xs: [f64; 3], xk: f64) {
+            let mut bad = Vec::new();
+            for &r in &[0.2, 0.01, 1e-4] {
+                for &cy in &[0.5, r + 1e-3, 1.0 - r - 1e-6] {
+                    for &k in &[1.0001, 1.01, 1.5, 2.0, 5.0, 100.0] {
+                        for &phase in &[core::f64::consts::FRAC_PI_8, 0.01, 0.39, 0.2] {
+                            let d = k * EPS_IN;
+                            let c = circle(xk + d - r, cy, r);
+                            let s =
+                                face(chart(xs), vec![(c, phase, phase + core::f64::consts::TAU)]);
+                            if crossing_knots(&s, 0, false, EPS_IN) != vec![0.5] {
+                                bad.push((r, cy, k, phase));
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(bad.is_empty(), "left out though crossed: {bad:?}");
+        }
+
+        #[test]
+        fn kept_unit_chart() {
+            circles([0.0, 0.5, 1.0], 0.5);
+        }
+
+        /// The far side stretched 199×: the setback is ε_in/199.
+        #[test]
+        fn kept_fast_stretching_far_side() {
+            circles([0.0, 0.5, 100.0], 0.5);
+        }
+
+        /// The near side stretched instead: the circle lives on a slow
+        /// chart and crosses into a fast one.
+        #[test]
+        fn kept_fast_stretching_near_side() {
+            circles([-100.0, 0.5, 1.0], 0.5);
+        }
+
+        /// Two arcs of one circle meeting at a vertex just below the
+        /// line; the crossing tip sits `1e-3` rad past the vertex.
+        #[test]
+        fn kept_crossing_beside_a_vertex() {
+            let mut bad = Vec::new();
+            for &k in &[1.01, 2.0, 10.0] {
+                for &a in &[1e-3, 1e-2, 0.05] {
+                    let r = 0.2;
+                    let c = circle(0.5 + k * EPS_IN - r, 0.5, r);
+                    let s = face(
+                        chart([0.0, 0.5, 1.0]),
+                        vec![(c.clone(), -a, 1.0), (c, 1.0, core::f64::consts::TAU - a)],
+                    );
+                    if crossing_knots(&s, 0, false, EPS_IN) != vec![0.5] {
+                        bad.push((k, a));
+                    }
+                }
+            }
+            assert!(bad.is_empty(), "left out though crossed: {bad:?}");
+        }
+
+        /// A quadratic B-spline trim (a rounded diamond) whose tip
+        /// passes the line between its samples.
+        #[test]
+        fn kept_spline_trim() {
+            let mut bad = Vec::new();
+            for &k in &[1.01, 2.0, 10.0] {
+                for &tip in &[0.37, 0.5, 0.63] {
+                    let d = k * EPS_IN;
+                    // A closed degree-2 curve: control polygon a diamond,
+                    // tip control point placed so the curve's maximum x
+                    // (at the tip's span midpoint) is 0.5 + d.
+                    // For a uniform quadratic, the point at a control
+                    // point's peak is (P_prev + 6 P + P_next)/8 at the
+                    // knot... use an open clamped curve through (0.3,0)
+                    // to (0.3,1) with the tip in between.
+                    let build = |px: f64| {
+                        let ctrl = vec![
+                            Point3::new(0.3, 0.2, 0.0),
+                            Point3::new(0.3, tip - 0.1, 0.0),
+                            Point3::new(px, tip, 0.0),
+                            Point3::new(0.3, tip + 0.1, 0.0),
+                            Point3::new(0.3, 0.8, 0.0),
+                        ];
+                        let knots =
+                            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0], 2)
+                                .unwrap();
+                        NurbsCurve3::new(knots, ctrl, vec![1.0; 5]).unwrap()
+                    };
+                    let max_x = |c: &NurbsCurve3<f64>| {
+                        (0..=200_000)
+                            .map(|i| c.eval(f64::from(i) / 200_000.0).x)
+                            .fold(f64::MIN, f64::max)
+                    };
+                    // Bisect the tip's control x so the curve peaks at 0.5 + d.
+                    let (mut lo, mut hi) = (0.3, 2.0);
+                    for _ in 0..80 {
+                        let m = 0.5 * (lo + hi);
+                        if max_x(&build(m)) < 0.5 + d {
+                            lo = m
+                        } else {
+                            hi = m
+                        }
+                    }
+                    let spl = build(hi);
+                    let max_x = max_x(&spl);
+                    let back = Curve3::Line {
+                        origin: Point3::new(0.3, 0.8, 0.0),
+                        dir: Vec3::new(0.0, -0.6, 0.0),
+                    };
+                    let s = face(
+                        chart([0.0, 0.5, 1.0]),
+                        vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],
+                    );
+                    let got = crossing_knots(&s, 0, false, EPS_IN);
+                    eprintln!(
+                        "spline k={k} tip={tip} max_x-0.5={:e} -> {got:?}",
+                        max_x - 0.5
+                    );
+                    if max_x - 0.5 > EPS_IN && got != vec![0.5] {
+                        bad.push((k, tip));
+                    }
+                }
+            }
+            assert!(bad.is_empty(), "left out though crossed: {bad:?}");
+        }
+
+        /// Trims that touch, stop short of, or poke past the line by less
+        /// than ε_in. A `[0.5]` here is a face kept for the split, which
+        /// refuses `C0KnotUnsplit` though the crossing is within ε_in.
+        #[test]
+        fn pinned_near_misses() {
+            for &k in &[-1e5, -100.0, -2.0, -1.0, -0.5, 0.0, 0.5, 0.999] {
+                for &r in &[0.2, 1e-3] {
+                    let c = circle(0.5 + k * EPS_IN - r, 0.5, r);
+                    let s = face(
+                        chart([0.0, 0.5, 1.0]),
+                        vec![(
+                            c,
+                            core::f64::consts::FRAC_PI_8,
+                            core::f64::consts::FRAC_PI_8 + core::f64::consts::TAU,
+                        )],
+                    );
+                    let t = std::time::Instant::now();
+                    let got = crossing_knots(&s, 0, false, EPS_IN);
+                    eprintln!("near-miss k={k} r={r} -> {got:?} in {:?}", t.elapsed());
+                    // Pinned as observed at e5c46713: a trim stopping short
+                    // or touching certifies clear; a large trim poking past
+                    // the STRAIGHT line by less than ε_in is uncertified,
+                    // kept, and so refused at the split.
+                    if k <= 0.0 {
+                        assert_eq!(got, Vec::<f64>::new(), "k={k} r={r}");
+                    }
+                    if r == 0.2 && k > 0.0 {
+                        assert_eq!(got, vec![0.5], "k={k} r={r}");
+                    }
+                }
+            }
+        }
+    }
 }
