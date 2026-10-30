@@ -658,15 +658,6 @@ pub enum Coincide {
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
     Contact,
-    /// Whether two faces declared on one carrier (`Rest` or a
-    /// continuation) lie within the band of one another at every point
-    /// of both: the pair's displacement, bounded above over a ball
-    /// enclosing the faces, stands past the band, and no point known to
-    /// lie on them stands definitely off (`carrier_eq`'s
-    /// `CarrierEqError::Unsettled`). Only an in-band bound passes, and
-    /// the bound is what stands past it, so no sign of the margin
-    /// passes.
-    DeclaredReach,
     /// Whether a face of each solid lies on one carrier, at the
     /// operation's glue door or a corner site: the faces' data decided
     /// Zero over their extent glue, and definitely apart pass; a datum
@@ -715,11 +706,6 @@ impl Coincide {
             Self::TangentLocus => "where two faces of the two solids touch tangentially",
             Self::Rim => "whether a face of each solid ends on one circle",
             Self::Contact => "whether a declared contact holds along its witness",
-            Self::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one \
-                 another at every point of both, which neither a bound over the faces nor a point \
-                 on them settles"
-            }
             Self::Carriers => "whether a face of each solid lies on one surface",
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
@@ -763,7 +749,6 @@ impl Coincide {
                 | Self::TangentLocus
                 | Self::Rim
                 | Self::Contact
-                | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
                 Rest | Tangent | Continuation,
@@ -794,7 +779,6 @@ impl Coincide {
             Self::CurvedFlankSense => Ending::Lever(CURVED_FLANK_LEVER),
             Self::TangentLocus => Ending::Lever(TANGENT_LOCUS_LEVER),
             Self::Contact | Self::Section => Ending::Lever(proximity_lever!()),
-            Self::DeclaredReach => Ending::Lever(DECLARED_REACH_LEVER),
         }
     }
 
@@ -824,7 +808,6 @@ impl Coincide {
             | Self::TangentLocus
             | Self::Rim
             | Self::Contact
-            | Self::DeclaredReach
             | Self::Section
             | Self::Join => self.ending(),
         }
@@ -857,11 +840,6 @@ pub(super) const RAY_COLLINEAR: Parallelism = Parallelism {
 
 /// Every [`Parallelism`] reading.
 pub(super) const PARALLELISMS: [Parallelism; 2] = [BOUNDS_PARALLEL, RAY_COLLINEAR];
-
-/// [`Coincide::DeclaredReach`]'s lever: a declared pair is settled by
-/// geometry that reads one way or the other over both faces.
-const DECLARED_REACH_LEVER: &str =
-    "move the parts so the declared faces clearly coincide, or clearly do not";
 
 /// A coincidence whose geometry lever is to make the parts clearly meet
 /// or clearly stand apart, passing on `passes`: an in-band gap on a side
@@ -1206,9 +1184,6 @@ pub enum SelfCheck {
     /// (`bool_ring_run_winding`): a zero area is a degenerate run
     /// (`JoinDesync`).
     RingWinding,
-    /// The carrier ladder's contradiction arm, which its detector
-    /// posture (nothing declared) cannot reach.
-    CarrierLadder,
     /// Where a record's span along a line edge lies (`ops::record_spans`):
     /// the order of its bounds along the edge, or whether a face holds
     /// its midpoint, asked as the census confirms a record. The records
@@ -1232,7 +1207,6 @@ impl SelfCheck {
             Self::Normals => "whether the normals of two faces can be read",
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
-            Self::CarrierLadder => "whether a face of each solid lies on one surface",
             Self::CarriedLineage => {
                 "where a contact lands on the pieces of a split edge or a divided face"
             }
@@ -2233,11 +2207,6 @@ pub(in crate::boolean) mod tests {
             Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
             Coincide::Rim => "whether a face of each solid ends on one circle",
             Coincide::Contact => "whether a declared contact holds along its witness",
-            Coincide::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one \
-                 another at every point of both, which neither a bound over the faces nor a point \
-                 on them settles"
-            }
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -2301,9 +2270,6 @@ pub(in crate::boolean) mod tests {
                  do not",
             ),
             Coincide::Contact => Ending::Lever(MEET),
-            Coincide::DeclaredReach => Ending::Lever(
-                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not",
-            ),
             Coincide::Section => Ending::Lever(MEET),
             Coincide::Join => Ending::Sized(MEET, SizedPass::AnySign),
         }
@@ -2337,7 +2303,6 @@ pub(in crate::boolean) mod tests {
             | Coincide::TangentLocus
             | Coincide::Rim
             | Coincide::Contact
-            | Coincide::DeclaredReach
             | Coincide::Section
             | Coincide::Join => None,
         }
@@ -2612,10 +2577,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::SelfCheck(SelfCheck::RingWinding) => {
                 ("which way a ring run of the section winds", Ending::Defect)
             }
-            BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
-                "whether a face of each solid lies on one surface",
-                Ending::Defect,
-            ),
             BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
                 "where a contact lands on the pieces of a split edge or a divided face",
                 Ending::Defect,
@@ -2958,7 +2919,6 @@ pub(in crate::boolean) mod tests {
                 | Coincide::TangentLocus
                 | Coincide::Rim
                 | Coincide::Contact
-                | Coincide::DeclaredReach
                 | Coincide::Section
                 | Coincide::Join => &[],
             }

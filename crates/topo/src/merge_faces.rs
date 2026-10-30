@@ -14,15 +14,14 @@
 //! **Coincidence discipline (D10, booleans glue on Zero)**: two
 //! adjacent faces merge iff they share a `sense` and one surface key,
 //! or their carriers' margins decide them one carrier facing the same
-//! way across the edge they share — a continuation, glued declared or
-//! not ([`Body::faces_continue`]). Planes are read by
-//! `oriented_plane_eq`, every other kind the carrier ladder holds by
-//! that ladder. A *declared face pair* of the call
-//! ([`Body::merge_coplanar_faces_declared`]) is read by the declared
-//! ladder, which bridges an in-band margin and refuses a contradicted
-//! one; an undeclared pair whose margin lies in band refuses (the
-//! boolean's maximal-faces gate reads an operand the same way, so the
-//! ladder is consistent end to end). Where two faces on distinct keys
+//! way across the edge they share — a continuation
+//! ([`Body::faces_continue`]). Planes are read by `oriented_plane_eq`,
+//! every other kind the carrier ladder holds by that ladder, and a pair
+//! whose margin lies in band refuses (the boolean's maximal-faces gate
+//! reads an operand the same way, so the ladder is consistent end to
+//! end). A pair a Boolean glued one carrier is read through its record
+//! ([`GluedSurfaces`], which only the Boolean builds): one carrier, and
+//! no ladder measures it again; only which way its faces face is read. Where two faces on distinct keys
 //! glue, the survivor keeps its own description
 //! ([`MergedGroup::kept`]): the group's arena-first face that lies in no
 //! other member's hole — in a Boolean's result ordinarily operand A's,
@@ -44,7 +43,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::{
-    Cell, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+    Cell, GluedSurfaces, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, oriented_plane_eq,
 };
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -117,14 +116,14 @@ impl MergedGroup {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
     /// The faces the record is about: a group's faces in group
-    /// order, or every live face on either surface of a declared
-    /// pair in face-arena order. Never empty for a kernel-minted
+    /// order, or every live face on either surface of a glued pair in
+    /// face-arena order. Never empty for a kernel-minted
     /// record.
     pub faces: Vec<FaceKey>,
     /// The inventory refusal that stopped the glue, carried whole:
     /// the same [`MergeCoplanarError`] vocabulary the door refuses
     /// with, so a caller matches this exactly as it would match an
-    /// `Err` ([`Body::merge_coplanar_faces_declared`] states which
+    /// `Err` ([`Body::merge_coplanar_faces`] states which
     /// group gets which regime). Two variants are scope-specific and
     /// tell the reader which gate spoke:
     /// [`MergeCoplanarError::GroupNotClosed`] reaches a caller only
@@ -147,16 +146,14 @@ pub struct MergeCoplanarOutcome {
     /// refusal that stopped each; a planar group never lands here (it
     /// refuses the call). Non-empty needs no declaration: a curved run
     /// that would close its chart's full period is recorded here
-    /// through either entry point. Declared pairs on a
-    /// non-planar carrier are recorded here too, ahead of the group
-    /// records, and survive a call that found nothing to merge.
+    /// through either entry point.
     pub skipped: Vec<SkippedMerge>,
     /// Faces whose surface is the placeholder
     /// ([`MergeKind::Placeholder`]), in face-arena order — named so a
     /// caller holding a body still under construction can see why
     /// nothing happened to them, instead of reading `Ok` as "nothing
     /// to merge". None is a merge candidate; the rule is
-    /// [`Body::merge_coplanar_faces_declared`]'s *The placeholder is
+    /// [`Body::merge_coplanar_faces`]'s *The placeholder is
     /// a third kind, not a curved one*.
     pub placeholders: Vec<FaceKey>,
 }
@@ -233,13 +230,13 @@ type Described<'a, T> = SecondaryMap<FaceKey, (&'a crate::entity::Face, &'a Surf
 /// under BOTH regimes and never becomes a skip record. The split is
 /// over inventory refusals; the escape is a class of refusal, not a
 /// third regime. What puts a refusal in that class is stated once, in
-/// [`Body::merge_coplanar_faces_declared`]'s *Two failure regimes*
+/// [`Body::merge_coplanar_faces`]'s *Two failure regimes*
 /// section, and applied by
 /// [`MergeCoplanarError::is_arena_fault`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GroupRegime {
     /// An inventory refusal is the CALL's refusal: nothing commits
-    /// and the body is untouched. Planar runs, structural and declared
+    /// and the body is untouched. Planar runs, structural and glued
     /// alike: a planar group left unglued is two coplanar neighbours,
     /// which no boolean accepts as an operand, so a boolean whose
     /// output stage cannot glue one refuses its own step rather than
@@ -265,7 +262,7 @@ impl GroupRegime {
     /// [`GroupRegime::RecordsASkip`] and only when it is an inventory
     /// refusal rather than an arena fault
     /// ([`MergeCoplanarError::is_arena_fault`], the class stated in
-    /// [`Body::merge_coplanar_faces_declared`]).
+    /// [`Body::merge_coplanar_faces`]).
     fn records(self, reason: &MergeCoplanarError) -> bool {
         self == Self::RecordsASkip && !reason.is_arena_fault()
     }
@@ -274,7 +271,7 @@ impl GroupRegime {
 /// The surface kind the merge asks of a face — three answers, because
 /// the two regimes are written for two kinds and the `mvfs` seed's
 /// surface is neither. What the door does with each kind is stated
-/// once, in [`Body::merge_coplanar_faces_declared`]'s *The placeholder
+/// once, in [`Body::merge_coplanar_faces`]'s *The placeholder
 /// is a third kind, not a curved one*.
 ///
 /// Which nets are the placeholder is [`NetState`]'s answer, read
@@ -349,7 +346,7 @@ enum GroupContract {
         kind: MergeKind,
     },
     /// Every member is a placeholder: no surgery, no skip
-    /// ([`Body::merge_coplanar_faces_declared`], *The placeholder is a
+    /// ([`Body::merge_coplanar_faces`], *The placeholder is a
     /// third kind, not a curved one*).
     SetAside,
 }
@@ -451,49 +448,19 @@ pub enum MergeCoplanarError {
     /// An internal Euler step refused — surfaced typed (unreachable on
     /// tier-2 input in the supported inventory). One that reports the
     /// arena refuses the call under both failure regimes; the class is
-    /// stated in [`Body::merge_coplanar_faces_declared`].
+    /// stated in [`Body::merge_coplanar_faces`].
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
     },
-    /// A declared surface pair references a key that does not
-    /// resolve, or names two surfaces of DIFFERENT kinds — a malformed
-    /// argument, refused up front.
-    InvalidInput {
-        /// The offending surface key.
-        surface: SurfaceKey,
-        /// What was wrong.
-        what: &'static str,
-    },
-    /// A declared face pair's carriers are DEFINITELY distinct — the
-    /// declaration contradicts the geometry; refused loudly, never
-    /// glued.
-    DeclarationContradicted {
-        /// The fact that contradicted the declaration, in the declared
-        /// rung's own type (`PlaneEqError` is `CarrierEqError`).
-        fact: crate::boolean::Contradiction,
-    },
-    /// A declared face pair meets with OPPOSITE orientations at a
-    /// shared edge — no valid closed solid merges such a pair; the
-    /// declaration cannot be honored here.
-    DeclaredOppositeOrientation {
+    /// A face pair a Boolean glued one carrier meets with OPPOSITE
+    /// orientations at a shared edge — no valid closed solid merges
+    /// such a pair.
+    GluedOppositeOrientation {
         /// The pair's first face (arena order at the meeting edge).
         f1: FaceKey,
         /// The second face.
         f2: FaceKey,
-    },
-    /// A declared face pair meets at an edge, and this door's carrier
-    /// ladder has no reading of two surfaces of its kind (a declared
-    /// pair is one kind: the entry gate refuses two). The declaration
-    /// cannot be checked, so it is refused, never read as "no glue"
-    /// with the declaration silently unhonoured.
-    DeclaredPairUnread {
-        /// The pair's first face (arena order at the meeting edge).
-        f1: FaceKey,
-        /// The second face.
-        f2: FaceKey,
-        /// The pair's surface kind.
-        kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline, so the outer/ring roles cannot be
@@ -518,8 +485,7 @@ pub enum MergeCoplanarError {
         /// decided at zero where zero does not pass.
         diag: Indeterminate,
     },
-    /// The run's tolerance cannot form a valid band (needed only when
-    /// declared pairs are present).
+    /// The run's tolerance cannot form a valid band.
     Band {
         /// The band construction failure.
         error: BandError,
@@ -961,52 +927,13 @@ impl MergeCoplanarError {
             _ => None,
         }
     }
-
-    /// The refusal of the plane identity verifying a declared pair.
-    pub(crate) fn of_declared_refusal(refusal: PlaneEqError) -> Self {
-        match refusal {
-            PlaneEqError::Contradicted { fact, .. } => Self::DeclarationContradicted { fact },
-            PlaneEqError::Escalated { rung, diag } => Self::Escalated {
-                decision: MergeDecision::DeclaredPlanes(rung),
-                diag,
-            },
-            PlaneEqError::Unsettled { diag } => Self::Escalated {
-                decision: MergeDecision::DeclaredReach,
-                diag,
-            },
-            // Unreachable with `declared: true`; refuse loudly anyway.
-            PlaneEqError::Undecided { coincidence, .. } => Self::Escalated {
-                decision: MergeDecision::DeclaredOffset,
-                diag: coincidence.reported(),
-            },
-        }
-    }
 }
 
-/// What the merge does with the declared plane rung's `verdict` on the
-/// pair `(f1, f2)` meeting at a shared edge: it glues a pair that faces
-/// the same way and refuses every other verdict.
-pub(crate) fn declared_pair_verdict(
-    verdict: Result<PlaneRelation, PlaneEqError>,
-    f1: FaceKey,
-    f2: FaceKey,
-) -> Result<bool, MergeCoplanarError> {
-    match verdict {
-        Ok(PlaneRelation::SameOriented) => Ok(true),
-        Ok(PlaneRelation::SameOpposite) => {
-            Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
-        }
-        // Unreachable through the declared rung; kept typed.
-        Ok(PlaneRelation::Distinct) => Ok(false),
-        Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
-    }
-}
-
-/// What the merge does with the ladder's `verdict` on an undeclared
+/// What the merge does with the ladder's `verdict` on an unglued
 /// pair meeting at a shared edge: it glues one carrier facing the same
 /// way, leaves two carriers and a slit (one carrier, opposed) as they
 /// are, and refuses a reading the band does not decide.
-fn undeclared_pair_verdict(
+fn unglued_pair_verdict(
     verdict: Result<PlaneRelation, PlaneEqError>,
 ) -> Result<bool, MergeCoplanarError> {
     match verdict {
@@ -1020,11 +947,6 @@ fn undeclared_pair_verdict(
             decision: MergeDecision::Neighbours(rung),
             diag,
         }),
-        // Only a declared reading is contradicted or unsettled; kept
-        // typed.
-        Err(refusal @ (PlaneEqError::Contradicted { .. } | PlaneEqError::Unsettled { .. })) => {
-            Err(MergeCoplanarError::of_declared_refusal(refusal))
-        }
     }
 }
 
@@ -1062,30 +984,21 @@ pub enum OutlineVerdict {
 /// Which decision [`MergeCoplanarError::Escalated`] could not take.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MergeDecision {
-    /// A rung of the plane identity verifying a pair the caller
-    /// declared (`plane_eq`'s declared rung). The declaration is
-    /// already there, so no ending offers one.
-    DeclaredPlanes(PlaneRung),
-    /// Whether a declared pair's parallel planes lie apart. The declared
-    /// rung contradicts a definite offset and bridges an in-band one, so
-    /// it never escalates this; kept typed for the refusal that would
-    /// be a kernel defect.
-    DeclaredOffset,
-    /// Whether a declared pair's planes stay within the band across the
-    /// extent the rung reads them over: their displacement's upper
-    /// bound stands past the band and its lower bound does not
-    /// (`carrier_eq::CarrierEqError::Unsettled`).
-    DeclaredReach,
+    /// Which way two planar faces a Boolean glued one carrier face
+    /// across the edge they share: the outward normals' cosine levered
+    /// at the pair's reach. The coincidence is the glue's record, so no
+    /// ending offers one.
+    GluedOrientation,
     /// Whether a pair's extent reads, the reach its rung reads the two
-    /// carriers over, declared or not: a face whose extent does not
-    /// read has no reach to settle.
+    /// carriers over: a face whose extent does not read has no reach to
+    /// settle.
     PairReach,
-    /// A rung of the plane identity reading two undeclared planar
+    /// A rung of the plane identity reading two unglued planar
     /// faces either side of an edge, as the Boolean's maximal-faces
     /// gate reads an operand's
     /// ([`crate::boolean::BooleanDecision::Neighbours`]).
     Neighbours(PlaneRung),
-    /// Whether two undeclared faces either side of an edge lie on one
+    /// Whether two unglued faces either side of an edge lie on one
     /// carrier: their coincidence margin lies in band, where the
     /// carrier ladder decides neither one carrier nor two.
     NeighbourCoincidence,
@@ -1100,14 +1013,8 @@ impl MergeDecision {
     #[must_use]
     pub const fn subject(self) -> &'static str {
         match self {
-            Self::DeclaredPlanes(PlaneRung::Orientation) => {
-                "whether the two declared faces face the same way across the edge they share"
-            }
-            Self::DeclaredPlanes(rung @ (PlaneRung::Parallel | PlaneRung::Norm)) => rung.subject(),
-            Self::DeclaredOffset => "whether the two declared planes lie apart",
-            Self::DeclaredReach => {
-                "whether the two declared planes stay within the tolerance of \
-                                    one another across the faces"
+            Self::GluedOrientation => {
+                "whether the two glued faces face the same way across the edge they share"
             }
             Self::PairReach => "whether the two faces' extent reads, to compare them across it",
             Self::Neighbours(_) => "whether the two faces either side of an edge lie on one plane",
@@ -1123,18 +1030,7 @@ impl MergeDecision {
     fn ending(self, diag: &Indeterminate) -> String {
         let arm = RefusedArm::Undecided(diag);
         match self {
-            Self::DeclaredPlanes(PlaneRung::Orientation) => {
-                DECLARED_ORIENTATION.recourse(arm, Reading::Build)
-            }
-            // The declared rung bridges in-band parallelism, so what
-            // escalates here is a norm the rung could not read, as at every
-            // Boolean door (`SelfCheck::Normals`).
-            Self::DeclaredPlanes(PlaneRung::Parallel | PlaneRung::Norm) | Self::DeclaredOffset => {
-                Unsized::Defect.recourse(arm, Reading::Build)
-            }
-            // The displacement is a bound over a ball enclosing the
-            // faces, not a reading of them.
-            Self::DeclaredReach => Unsized::Bound.recourse(arm, Reading::Build),
+            Self::GluedOrientation => GLUED_ORIENTATION.recourse(arm, Reading::Build),
             // An extent that does not read carries no margin.
             Self::PairReach => Unsized::Defect.recourse(arm, Reading::Build),
             Self::Neighbours(rung) => {
@@ -1146,15 +1042,15 @@ impl MergeDecision {
     }
 }
 
-/// The merge's orientation decision on a declared pair meeting at a
+/// The merge's orientation decision on a glued pair meeting at a
 /// shared edge. Only a pair that faces the same way glues, so it passes
-/// on a positive margin, and [`MergeCoplanarError::DeclaredOppositeOrientation`]
+/// on a positive margin, and [`MergeCoplanarError::GluedOppositeOrientation`]
 /// is its sign-certain arm. The margin is the outward normals' cosine
 /// levered at the radius of a ball enclosing both faces, so `|cos| ≈ 1`
 /// wherever the planes stand near parallel, and what an undecided
 /// margin measures is that reach: the lever names both moves a refusal
 /// may need.
-const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
+const GLUED_ORIENTATION: SizedDecision = SizedDecision {
     lever: "turn one of the two faces so both clearly face the same way, on faces that clearly \
             span a length",
     size: "span of the two faces",
@@ -1240,30 +1136,10 @@ impl core::fmt::Display for MergeCoplanarError {
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
-            Self::InvalidInput { surface, what } => write!(
+            Self::GluedOppositeOrientation { .. } => write!(
                 f,
-                "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
-            ),
-            Self::DeclarationContradicted { fact } => write!(
-                f,
-                "a declared coincidence contradicts the geometry: {}, and the merge never \
-                 glues a lie. {}",
-                fact.fact(),
-                crate::contact::CONTRADICTION_RECOURSE
-            ),
-            Self::DeclaredOppositeOrientation { .. } => write!(
-                f,
-                "the two declared faces face opposite ways across the edge they share. {}",
-                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
-            ),
-            Self::DeclaredPairUnread { f1, f2, kind } => write!(
-                f,
-                "merge_coplanar_faces: faces {f1:?} and {f2:?} are declared one surface, and \
-                 this door's carrier ladder has no reading that compares two {} surfaces, so \
-                 the declaration cannot be checked. Recourse: if they are one surface, put both \
-                 faces on one surface key, which glues on identity; otherwise leave the pair \
-                 undeclared",
-                kind.name()
+                "the two glued faces face opposite ways across the edge they share. {}",
+                GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
             ),
             Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
                 OutlineVerdict::SeveralPositive { loops } => write!(
@@ -1638,7 +1514,7 @@ impl EstablishedFact {
 
 /// Where one [`EulerOpError`] falls **at this door**: an inventory
 /// refusal, or one that contradicts a fact the door RE-CHECKS at the
-/// call ([`Body::merge_coplanar_faces_declared`]'s arena-fault rule),
+/// call ([`Body::merge_coplanar_faces`]'s arena-fault rule),
 /// one arm per [`EstablishedFact`]. No other caller of the operator
 /// can answer the second question, so it is enumerated here.
 ///
@@ -1768,7 +1644,7 @@ impl MergeCoplanarError {
     /// about the group's mergeability: an operator refusal that
     /// contradicts a fact this door re-checks at the call
     /// ([`OpPlacement`], [`EstablishedFact`]). The rule is stated once,
-    /// in [`Body::merge_coplanar_faces_declared`].
+    /// in [`Body::merge_coplanar_faces`].
     fn is_arena_fault(&self) -> bool {
         match self {
             Self::Op { error } => matches!(OpPlacement::of(error), OpPlacement::Contradicts(_)),
@@ -1777,24 +1653,24 @@ impl MergeCoplanarError {
     }
 }
 
-/// A non-empty declared-pair context: the surface equivalence plus
-/// the band its verification decisions run in.
+/// The scan's context: the glued surface equivalence plus the band its
+/// decisions run in.
 struct MergeCtx {
-    eq: DeclaredSurfaceEq,
+    eq: GluedSurfaceEq,
     band: Band,
 }
 
-/// The declared surface-key equivalence (M4 PR 5): union-find classes
-/// over the declared face pairs' surface keys. Fragments of a face
-/// inherit its surface key (`FaceSurface::Inherit`), so surface-level
-/// equivalence covers every fragment of a declared pair without
-/// key-chasing.
+/// The glued surface-key equivalence: union-find classes over the
+/// surface keys of the face pairs a Boolean glued one carrier.
+/// Fragments of a face inherit its surface key (`FaceSurface::Inherit`),
+/// so surface-level equivalence covers every fragment of a glued pair
+/// without key-chasing.
 #[derive(Debug, Default)]
-struct DeclaredSurfaceEq {
+struct GluedSurfaceEq {
     parent: BTreeMap<SurfaceKey, SurfaceKey>,
 }
 
-impl DeclaredSurfaceEq {
+impl GluedSurfaceEq {
     fn find(&self, mut k: SurfaceKey) -> SurfaceKey {
         while let Some(&p) = self.parent.get(&k) {
             if p == k {
@@ -1824,7 +1700,7 @@ impl DeclaredSurfaceEq {
 
 impl<T: crate::props::AtRestPolicy> Body<T> {
     /// Merges every maximal run of adjacent same-plane faces (module
-    /// docs: structural or declared coincidence only), killing shared
+    /// docs: one key, or a coincidence decided by its margins), killing shared
     /// edges (`kef`; intra-face duplicates via `kemr`, whose new ring
     /// takes the plus half's side — a **provisional designation, not
     /// truth**: which loop is "the" ring is a containment question this
@@ -1883,40 +1759,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to
     /// join is untouched (deterministic no-op).
     ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces(
-        &mut self,
-        tol: Tol,
-    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        self.merge_coplanar_faces_declared(&[], tol)
-    }
-
-    /// [`Body::merge_coplanar_faces`] with declared coincident
-    /// SURFACE pairs (M4 PR 5, F5): each pair's surfaces are declared
-    /// to describe one carrier. The pair's surfaces become equivalent
-    /// for the adjacency test (fragments inherit surface keys, so every
-    /// fragment of a declared face is covered), and each meeting edge
-    /// between them is read by the declared ladder, which bridges an
-    /// in-band margin and refuses a contradicted one; every other pair
-    /// is read by its margins exactly as [`Body::merge_coplanar_faces`]
-    /// reads it (`Body::faces_continue`).
-    ///
-    /// A declared pair whose surfaces never meet at an edge licenses
-    /// nothing and is a no-op (the equivalence is consulted only
-    /// across shared edges); a pair whose keys do not resolve, or
-    /// whose surfaces are of two kinds, is a typed refusal.
-    ///
     /// # Two failure regimes, one refusal vocabulary
     ///
     /// A group's **inventory** refusal — *this group cannot be
@@ -1924,9 +1766,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`SkippedMerge`] while the remaining groups commit, and which
     /// of the two is a property of the GROUP: curved runs record,
     /// planar runs refuse, whether their adjacency was structural or
-    /// declared. A planar group left unglued is two coplanar
+    /// glued. A planar group left unglued is two coplanar
     /// neighbours, which the boolean's maximal-faces gate refuses as
-    /// an operand and no declaration can cover, so the boolean that
+    /// an operand, so the boolean that
     /// licensed the merge refuses its own step instead of shipping
     /// that body; a curved run's cut form is an operand that gate
     /// accepts. Both raise
@@ -2010,38 +1852,46 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces_declared(
+    pub fn merge_coplanar_faces(
         &mut self,
-        declared: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
         T: crate::props::AtRestPolicy,
     {
-        self.merge_coplanar_faces_staged(declared, tol, true)
+        self.merge_coplanar_faces_staged(&GluedSurfaces::none(), tol, true)
     }
 
-    /// [`Body::merge_coplanar_faces_declared`] without the join: the
+    /// [`Body::merge_coplanar_faces`] over a Boolean's result, with the
+    /// surface pairs it glued one carrier, and without the join: the
     /// boolean's merge, whose output stage re-describes what it minted
     /// and joins after (`boolean::ops::finish_output`). Its result is
     /// construction state a later step must join.
+    ///
+    /// A glued pair's surfaces are equivalent for the adjacency test
+    /// (fragments inherit surface keys, so every fragment of a glued
+    /// face is covered), and each meeting edge between them reads the
+    /// glue's record: one carrier, glued where the two faces face the
+    /// same way. Every other pair is read by its margins exactly as
+    /// [`Body::merge_coplanar_faces`] reads it (`Body::faces_continue`).
+    /// A glued pair whose surfaces never meet at an edge is a no-op.
     pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
-        declared: &[(SurfaceKey, SurfaceKey)],
+        glued: &GluedSurfaces,
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
         T: crate::props::AtRestPolicy,
     {
-        self.merge_coplanar_faces_staged(declared, tol, false)
+        self.merge_coplanar_faces_staged(glued, tol, false)
     }
 
-    /// The merge, ending with the join where `join` is set: on the
-    /// staged result before it is adopted, so a refusal of either
-    /// leaves the body untouched.
+    /// [`Body::merge_coplanar_faces`]'s body over `glued`, ending with
+    /// the join where `join` is set: on the staged result before it is
+    /// adopted, so a refusal of either leaves the body untouched.
     fn merge_coplanar_faces_staged(
         &mut self,
-        declared: &[(SurfaceKey, SurfaceKey)],
+        glued: &GluedSurfaces,
         tol: Tol,
         join: bool,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
@@ -2063,27 +1913,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
-        // ---- Declared pairs: validate, then join the equivalence. ----
-        //
-        // A key that does not resolve, or a pair of two kinds, is a
-        // malformed argument and refuses.
-        let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
-            self.get_surface(k)
-                .map(geom::Surface::kind)
-                .ok_or(MergeCoplanarError::InvalidInput {
-                    surface: k,
-                    what: "declared surface key does not resolve",
-                })
-        };
-        let mut eq = DeclaredSurfaceEq::default();
-        for &(k1, k2) in declared {
-            if kind_of(k1)? != kind_of(k2)? {
-                // Named: the second key, whose kind disagrees with the first's.
-                return Err(MergeCoplanarError::InvalidInput {
-                    surface: k2,
-                    what: "declared surfaces are not one kind",
-                });
-            }
+        // ---- Glued pairs: the equivalence. ----
+        let mut eq = GluedSurfaceEq::default();
+        for &(k1, k2) in glued.pairs() {
             eq.union(k1, k2);
         }
         let ctx = MergeCtx {
@@ -2454,8 +2286,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// carried — the boolean's maximal-faces gate accepts a curved
     /// run's cut form. A planar group refuses the call, however its
     /// adjacency was licensed: two unglued coplanar neighbours are a
-    /// body no boolean accepts as an operand, and a declared pair
-    /// cannot make them one, so a planar group the merge cannot glue
+    /// body no boolean accepts as an operand, and no glue can make
+    /// them one, so a planar group the merge cannot glue
     /// is the caller's refusal, never a record. A placeholder run is
     /// set aside ([`GroupContract::SetAside`]).
     ///
@@ -2581,29 +2413,25 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     }
 
     /// **The merge test** (the coincidence ladder, D10): the two faces
-    /// share a `sense` and one surface key, or their carriers' margins
-    /// decide them one carrier facing the same way across the edge —
-    /// a continuation, glued declared or not. A pair this call's
-    /// declarations name is read by the declared ladder, which bridges
-    /// an in-band margin and refuses a contradicted one; an undeclared
-    /// pair whose margin lies in band refuses, since two faces whose
-    /// carriers decide neither one nor two may not stand either side
-    /// of an edge unread.
+    /// share a `sense` and one surface key, or a Boolean glued their
+    /// surfaces one carrier and they face the same way across the edge
+    /// ([`Body::glued_continue`]), or their carriers' margins decide
+    /// them one carrier facing the same way across it — a continuation.
+    /// A pair whose margin lies in band refuses, since two faces whose
+    /// carriers decide neither one nor two may not stand either side of
+    /// an edge unread.
     ///
     /// Planes are read by `oriented_plane_eq`, every other kind the
     /// ladder holds by the carrier ladder ([`crate::boolean::carrier_pair_relation`]);
-    /// a kind outside it (cone, NURBS, `Approx`) glues on one key only.
+    /// a kind outside it (NURBS, `Approx`) glues on one key only.
     ///
     /// **Shared sense is a precondition of the one-key rung** (S10). Two
     /// faces on one surface whose `sense` bits differ have OPPOSITE
     /// outward normals: they are the two sides of a slit, not one
     /// region cut in two, and gluing them would mint a face that is
     /// its own reverse. The ladder reads such a pair `SameOpposite`,
-    /// which no rung glues: a declared one refuses
-    /// ([`MergeCoplanarError::DeclaredOppositeOrientation`] — a
-    /// declaration that such a pair is mergeable is exactly the lie that
-    /// variant was minted to refuse), an undeclared one is simply not a
-    /// merge candidate (a slit is legal geometry).
+    /// which no rung glues: a slit is legal geometry, and not a merge
+    /// candidate.
     ///
     /// `plus` and `minus` are the shared edge's two halves as the
     /// adjacency scan resolved them: their faces are the pair, and
@@ -2614,16 +2442,14 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Errors
     ///
-    /// The declared ladder's refusals ([`declared_pair_verdict`]); a
-    /// declared pair the ladder cannot read
-    /// ([`MergeCoplanarError::DeclaredPairUnread`]); an
-    /// undeclared pair's in-band reading
-    /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]).
+    /// A glued pair's orientation refusals ([`Body::glued_continue`]); an
+    /// unglued pair's in-band reading
+    /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]);
+    /// a pair whose extent does not read ([`MergeDecision::PairReach`]).
     ///
     /// # Panics
     ///
-    /// Where the census does not hold either face, or a boundary record
-    /// does not resolve ([`Body::boundary_points`]): the scan reads the
+    /// Where the census does not hold either face: the scan reads the
     /// body the census was taken of, through its own links.
     fn faces_continue(
         &self,
@@ -2648,8 +2474,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         if face1.sense == face2.sense && k1 == k2 {
             return Ok(true);
         }
-        let declared = ctx.eq.same(k1, k2);
         let band = ctx.band;
+        if ctx.eq.same(k1, k2) {
+            return self.glued_continue(f1, f2, band);
+        }
         let (
             Surface::Plane {
                 origin: o1,
@@ -2663,12 +2491,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             },
         ) = (s1.clone(), s2.clone())
         else {
-            return self.carriers_continue((f1, s1), f2, declared, band);
-        };
-        let id = if declared {
-            PlaneIdentity::DECLARED
-        } else {
-            PlaneIdentity::NONE
+            return self.carriers_continue(f1, f2, band);
         };
         // Outward normals, not chart normals (S10): `PlaneDesc`'s
         // contract, and the reason the SameOpposite verdict stands as
@@ -2682,101 +2505,114 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             origin: o2,
             normal: plane_outward_normal(face2, n2).vec(),
         };
-        // The pair is read over a ball enclosing both faces, and
-        // their vertices, the points known to be consumed: the
-        // glue holds at every point of both faces, and a face
-        // standing definitely off the other's plane contradicts a
-        // declaration. A face whose extent does not read has no
-        // reach to settle, which the reach decision names.
-        let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
-        let reach =
-            crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band).map_err(|_| {
-                MergeCoplanarError::Escalated {
-                    decision: MergeDecision::PairReach,
-                    diag: Indeterminate {
-                        margin: geom_core::MarginDiag::INVALID,
-                        band,
-                        predicate: Some("merge_pair_extent"),
-                        terminal_sliver: false,
-                    },
-                }
-            })?;
-        let extent = crate::boolean::ConsumedExtent {
-            reach: reach.reach,
-            on: [&on1, &on2],
-        };
-        let verdict = oriented_plane_eq(&p1, &p2, id, &extent, band);
-        if declared {
-            declared_pair_verdict(verdict, f1, f2)
-        } else {
-            undeclared_pair_verdict(verdict)
-        }
+        // The pair is read over a ball enclosing both faces: the glue
+        // holds at every point of both. A face whose extent does not
+        // read has no reach to settle, which the reach decision names.
+        let extent = self.pair_reach(f1, f2, band)?;
+        unglued_pair_verdict(oriented_plane_eq(&p1, &p2, &extent, band))
     }
 
-    /// [`Body::faces_continue`] for a pair that is not two planes: the
-    /// carrier ladder's reading, declared or not, where both kinds are
-    /// in its inventory. Where either is outside it, an undeclared pair
-    /// does not glue, and a declared one, one kind by the entry gate,
-    /// refuses ([`MergeCoplanarError::DeclaredPairUnread`]) rather than
-    /// drop the declaration unsaid.
-    fn carriers_continue(
+    /// The consumed extent of the face pair `(f1, f2)`, or the reach
+    /// decision's refusal where a face's extent does not read.
+    fn pair_reach(
         &self,
-        (f1, s1): (FaceKey, &Surface<T>),
+        f1: FaceKey,
         f2: FaceKey,
-        declared: bool,
         band: Band,
-    ) -> Result<bool, MergeCoplanarError> {
-        let verdict =
-            match crate::boolean::carrier_pair_relation(self, f1, self, f2, declared, band) {
-                Ok(verdict) => verdict,
-                Err(crate::boolean::PairUnread::OutsideInventory) if declared => {
-                    return Err(MergeCoplanarError::DeclaredPairUnread {
-                        f1,
-                        f2,
-                        kind: s1.kind(),
-                    });
-                }
-                Err(crate::boolean::PairUnread::OutsideInventory) => return Ok(false),
-                Err(crate::boolean::PairUnread::Extent(_)) => {
-                    return Err(MergeCoplanarError::Escalated {
-                        decision: MergeDecision::PairReach,
-                        diag: Indeterminate {
-                            margin: geom_core::MarginDiag::INVALID,
-                            band,
-                            predicate: Some("merge_pair_extent"),
-                            terminal_sliver: false,
-                        },
-                    });
-                }
-            };
-        if declared {
-            declared_pair_verdict(verdict, f1, f2)
-        } else {
-            undeclared_pair_verdict(verdict)
-        }
+    ) -> Result<crate::boolean::ConsumedExtent<T>, MergeCoplanarError> {
+        crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
+            .map(|extent| extent.consumed())
+            .map_err(|_| MergeCoplanarError::Escalated {
+                decision: MergeDecision::PairReach,
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("merge_pair_extent"),
+                    terminal_sliver: false,
+                },
+            })
     }
 
-    /// The face's boundary vertex positions, outer loop then rings
-    /// (an empty loop contributes its lone vertex): the points the
-    /// declared rung knows lie on the face. `face` is one the caller
-    /// resolved.
+    /// **A pair a Boolean glued one carrier, read through its record**:
+    /// the glue says one carrier, so no ladder measures the pair again,
+    /// and the merge asks only which way the two faces face across the
+    /// edge, a material side and no coincidence. Two planes read it off
+    /// their outward normals' cosine levered at the pair's reach
+    /// ([`GLUED_ORIENTATION`]); a curved pair off its faces' outward
+    /// bits. Facing the same way glues; opposite refuses
+    /// ([`MergeCoplanarError::GluedOppositeOrientation`]).
     ///
     /// # Panics
     ///
-    /// Where a boundary record (a loop, a member's edge, a lone vertex
-    /// or its point) does not resolve or a cycle does not close: on a
-    /// tier-1-valid body every one does.
-    #[track_caller]
-    fn boundary_points(&self, face: FaceKey) -> Vec<geom_core::Point3<T>> {
-        let f = proven(&self.faces, face, EntityId::Face);
-        self.face_boundary_linked(face, f)
-            .map(|member| match member {
-                BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge { he, half, .. } => {
-                    self.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
-                }
+    /// Where the pair is not two faces of one kind in the carrier
+    /// ladder's inventory: the glue door glues a one-carrier pair only
+    /// on such a reading.
+    fn glued_continue(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        band: Band,
+    ) -> Result<bool, MergeCoplanarError> {
+        use crate::boolean::carrier_eq::CarrierDesc as C;
+        let opposite = || MergeCoplanarError::GluedOppositeOrientation { f1, f2 };
+        let carrier = |f| {
+            crate::boolean::face_carrier(self, f).unwrap_or_else(|| {
+                unreachable!("{f:?} is a glued one-carrier face outside the carrier ladder")
             })
-            .collect()
+        };
+        let aligned = match (carrier(f1), carrier(f2)) {
+            (C::Plane { normal: n1, .. }, C::Plane { normal: n2, .. }) => {
+                let arm = self.pair_reach(f1, f2, band)?.reach.radius();
+                match crate::validate::decide_nonzero(
+                    "bool_plane_orient",
+                    geom_core::Margin::levered(n1.dot(n2), arm),
+                    band,
+                ) {
+                    Ok(geom_core::k_stats::NonzeroSign::Positive) => true,
+                    Ok(geom_core::k_stats::NonzeroSign::Negative) => false,
+                    Err(diag) => {
+                        return Err(MergeCoplanarError::Escalated {
+                            decision: MergeDecision::GluedOrientation,
+                            diag,
+                        });
+                    }
+                }
+            }
+            (C::Sphere { outward: w1, .. }, C::Sphere { outward: w2, .. })
+            | (C::Cylinder { outward: w1, .. }, C::Cylinder { outward: w2, .. })
+            | (C::Torus { outward: w1, .. }, C::Torus { outward: w2, .. })
+            | (C::Cone { outward: w1, .. }, C::Cone { outward: w2, .. }) => w1 == w2,
+            (c1, c2) => unreachable!(
+                "{f1:?} and {f2:?} are glued one carrier on a {} and a {}",
+                c1.kind(),
+                c2.kind()
+            ),
+        };
+        if aligned { Ok(true) } else { Err(opposite()) }
+    }
+
+    /// [`Body::faces_continue`] for an unglued pair that is not two
+    /// planes: the carrier ladder's reading, where both kinds are in its
+    /// inventory. Where either is outside it, the pair does not glue.
+    fn carriers_continue(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        band: Band,
+    ) -> Result<bool, MergeCoplanarError> {
+        match crate::boolean::carrier_pair_relation(self, f1, self, f2, band) {
+            Ok(verdict) => unglued_pair_verdict(verdict),
+            Err(crate::boolean::PairUnread::OutsideInventory) => Ok(false),
+            Err(crate::boolean::PairUnread::Extent(_)) => Err(MergeCoplanarError::Escalated {
+                decision: MergeDecision::PairReach,
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("merge_pair_extent"),
+                    terminal_sliver: false,
+                },
+            }),
+        }
     }
 
     /// Refuses, before any write, a surgery that would leave `rep`'s

@@ -849,5 +849,5 @@ fn corrected_subtract_cells_geometric() {
 /// A ball of radius `arm` about the origin, no point of either face
 /// known: the extent a bare arm names.
 fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
-    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
 }

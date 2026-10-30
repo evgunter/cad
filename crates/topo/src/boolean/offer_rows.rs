@@ -2750,19 +2750,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::of_plane_rung",
         1,
     ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "SelfCheck::CarrierLadder",
-        1,
-    ),
-    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     ("mod.rs", "route_rim", "Coincide::Rim", 1),
     (
         "mod.rs",

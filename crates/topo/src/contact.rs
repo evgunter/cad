@@ -88,6 +88,18 @@ impl GlueClass {
             crate::boolean::CarrierRelation::Distinct => None,
         }
     }
+
+    /// The carrier relation a one-carrier class glues under: its
+    /// [`Self::relation`] as the carrier ladder spells it, the inverse of
+    /// [`Self::of_senses`]. `None` for a tangency, whose carriers are
+    /// distinct.
+    pub(crate) const fn carrier_relation(self) -> Option<crate::boolean::CarrierRelation> {
+        match self.relation() {
+            crate::Relation::SameOriented => Some(crate::boolean::CarrierRelation::SameOriented),
+            crate::Relation::SameOpposite => Some(crate::boolean::CarrierRelation::SameOpposite),
+            _ => None,
+        }
+    }
 }
 
 /// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN
@@ -129,25 +141,7 @@ pub const CONTRADICTION_RECOURSE: &str =
 /// in the payload and `Debug`.
 pub const CONTRADICTION_REASON: &str = "the geometry does not match it";
 
-/// **The trilean a contact verification returns** (C4's per-class
-/// tables, AQ6's shape): every declaration states three lists, and
-/// this is the verdict that says which one the geometry landed in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContactVerdict {
-    /// Every must-verify-DEFINITE condition is definitely satisfied:
-    /// the contact holds on the geometry's own evidence, and the
-    /// declaration added nothing.
-    Definite,
-    /// The definite conditions hold and the residual margins landed
-    /// in band — the declaration BRIDGES exactly this residue and
-    /// nothing else (C4's invariant). A bridged verdict is only ever
-    /// reachable with a declaration in hand.
-    Bridged,
-}
-
-/// **A contact verification's typed refusal** — the two failing arms
-/// of the trilean, kept off [`ContactVerdict`] so a caller cannot
-/// pattern-match a refusal into a pass.
+/// **A contact verification's typed refusal**.
 ///
 /// `Clone` and `PartialEq` because the refusal is CARRIED: the census
 /// wraps it in
@@ -263,24 +257,12 @@ pub struct DeclaredContact {
 }
 
 /// **The kernel contact finding** — "this face pair would verify as
-/// this class, on this evidence" (SELECT-DESIGN §3a: a VALUE, never
-/// itself a declaration).
-///
-/// A finding is a [`DeclaredContact`] PLUS the verdict that decided
-/// it, by composition rather than by repeating the fields: the claim
-/// and the evidence for it are different things, and a refusal carries
-/// only the claim. Keeping the verdict off the claim is what stops the
-/// pun the two failure gates would otherwise make — a contradiction
-/// has no verification verdict to report, and it must not borrow
-/// `Definite` to mean "the counter-evidence was definite".
+/// this class" (SELECT-DESIGN §3a: a VALUE, never itself a
+/// declaration). A finding is only ever minted on a definite reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContactFinding {
-    /// What was claimed.
+    /// What was found.
     pub pair: DeclaredContact,
-    /// The verdict the verify door reported. A finding is only ever
-    /// minted on [`ContactVerdict::Definite`] — a bridged pair needs a
-    /// declaration, so it cannot be evidence FOR one.
-    pub verdict: ContactVerdict,
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 //! **The carrier-pair doors**: one cross-body face pair's carrier
 //! verdict, on every kind the `Rest` table names ([`carrier_pair_relation`],
-//! [`carrier_pair_verdict`]), its planar restriction
+//! [`carrier_pair_decided`]), its planar restriction
 //! ([`flush_pair_relation`]), the oriented descriptions they compare
 //! ([`face_carrier`]) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
@@ -9,14 +9,14 @@ use geom_brep::ExtentBall;
 use geom_core::{Band, Decide, Point3};
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
-use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
+use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::reduce::face_plane;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
 use crate::face_normal::plane_outward_normal;
 use crate::live::BoundaryMember;
 
-/// **The one flush-pair door**: the C4 verify ladder for a single
+/// **The one flush-pair door**: the carrier ladder for a single
 /// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
 /// to two planes (descriptions through [`face_plane`], outward and
 /// sense-folded, so REST contact is precisely the `SameOpposite`
@@ -48,12 +48,11 @@ pub fn flush_pair_relation<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    declared: bool,
     band: Band,
 ) -> Result<Result<PlaneRelation, PlaneEqError>, PairUnread> {
     face_plane(a, fa).ok_or(PairUnread::OutsideInventory)?;
     face_plane(b, fb).ok_or(PairUnread::OutsideInventory)?;
-    carrier_pair_relation(a, fa, b, fb, declared, band)
+    carrier_pair_relation(a, fa, b, fb, band)
 }
 
 /// Which face of a pair, in the order a door took them.
@@ -126,36 +125,24 @@ pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option
 
 /// **A face pair's consumed extent**, as the carrier doors read it:
 /// one ball enclosing both faces ([`face_ball`]), since the verdict is
-/// consumed on each, and each face's boundary vertices, the points
-/// known to be consumed ([`super::carrier_eq::ConsumedExtent`]).
-#[derive(Clone, Debug)]
+/// consumed on each ([`super::carrier_eq::ConsumedExtent`]).
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct PairExtent<T: geom_core::Real> {
     /// The ball enclosing both faces.
     pub(crate) reach: ExtentBall<T>,
-    /// The first face's boundary vertices, then the second's.
-    pub(crate) on: [Vec<Point3<T>>; 2],
 }
 
 impl<T: geom_core::Real> PairExtent<T> {
-    /// The extent as the ladder reads it, its faces in the order
-    /// measured, or the other way round when `swapped`.
-    pub(crate) fn consumed(&self, swapped: bool) -> super::carrier_eq::ConsumedExtent<'_, T> {
-        let [first, second] = &self.on;
-        super::carrier_eq::ConsumedExtent {
-            reach: self.reach,
-            on: if swapped {
-                [second, first]
-            } else {
-                [first, second]
-            },
-        }
+    /// The extent as the ladder reads it.
+    pub(crate) fn consumed(&self) -> super::carrier_eq::ConsumedExtent<T> {
+        super::carrier_eq::ConsumedExtent::new(self.reach)
     }
 }
 
 /// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
 /// at rest: mid-operation, a face whose boundary carries null
-/// scaffolding has no box to read, and the sites there take a declared
-/// pair's extent from [`super::GluedPairs::consumed`].
+/// scaffolding has no box to read, and the sites there take a glued
+/// pair's extent from [`super::GluedPairs::reach_of`].
 ///
 /// # Errors
 ///
@@ -167,19 +154,15 @@ pub(crate) fn pair_extent<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<PairExtent<T>, PairFace> {
-    let read = |body, face| face_ball(body, face, band).zip(face_witnesses(body, face));
-    let (ball_a, on_a) = read(a, fa).ok_or(PairFace::First)?;
-    let (ball_b, on_b) = read(b, fb).ok_or(PairFace::Second)?;
+    let ball_a = face_ball(a, fa, band).ok_or(PairFace::First)?;
+    let ball_b = face_ball(b, fb, band).ok_or(PairFace::Second)?;
     // Two readable balls enclose readably short of overflow, which the
     // larger reach is what tips; the second face takes the blame
     // rather than neither.
     let reach = ExtentBall::enclosing(&[ball_a, ball_b])
         .and_then(ExtentBall::readable)
         .ok_or(PairFace::Second)?;
-    Ok(PairExtent {
-        reach,
-        on: [on_a, on_b],
-    })
+    Ok(PairExtent { reach })
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -259,11 +242,10 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// carrier kind the `Rest` table names.
 ///
 /// Descriptions through [`face_carrier`] and the pair's consumed
-/// extent through [`pair_extent`]: a declared verdict that bridges is
-/// one whose displacement stays in band at every point of both faces,
-/// and an undeclared coincidence one whose sum decides Zero there
-/// ([`super::carrier_eq::pair_door_reading`]). One door for the
-/// verify-at-use site and the operation's glue door.
+/// extent through [`pair_extent`]: a coincidence is one whose
+/// displacement's bound decides Zero at every point of both faces
+/// ([`super::carrier_eq::pair_door_reading`]). The operation's glue
+/// door reads its pairs here, and so do the census and the merge.
 ///
 /// # Errors
 ///
@@ -281,37 +263,14 @@ pub fn carrier_pair_relation<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    declared: bool,
     band: Band,
 ) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
-    Ok(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+    Ok(carrier_pair_decided(a, fa, b, fb, band)?.map(|(rel, _)| rel))
 }
 
-/// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
-/// CONTACT verification uses, since only a caller that can see the
-/// bridged residue can enforce C4's "trusted exactly there" invariant.
-/// One traversal, two projections.
-///
-/// # Errors
-///
-/// As [`carrier_pair_relation`].
-///
-/// # Panics
-///
-/// As [`carrier_pair_relation`].
-pub fn carrier_pair_verdict<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
-    declared: bool,
-    band: Band,
-) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
-    Ok(carrier_pair_reading(a, fa, b, fb, declared, band)?.map(|(rel, verdict, _)| (rel, verdict)))
-}
-
-/// [`carrier_pair_verdict`], undeclared, with the margin that decided
-/// a coincidence: the reading the coincidence door runs on two cells'
+/// [`carrier_pair_relation`] with the margin that decided a coincidence
+/// ([`super::carrier_eq::CarrierReading`]): the margin the glue door
+/// records, and the reading the coincidence door runs on two cells'
 /// carriers in a replay at `Sym`, where the margin says whether the
 /// symbolic tier proved every Zero the verdict stands on
 /// ([`geom_core::MarginDiag::proven`]). `None` beside `Distinct`.
@@ -330,37 +289,13 @@ pub fn carrier_pair_decided<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Result<(CarrierRelation, Option<geom_core::MarginDiag>), CarrierEqError>, PairUnread> {
-    Ok(carrier_pair_reading(a, fa, b, fb, false, band)?.map(|(rel, _, margin)| (rel, margin)))
-}
-
-/// [`carrier_pair_verdict`] with the margin that decided a coincidence
-/// ([`super::carrier_eq::CarrierReading`]), which the declaration door
-/// records.
-///
-/// # Errors
-///
-/// As [`carrier_pair_relation`].
-///
-/// # Panics
-///
-/// As [`carrier_pair_relation`].
-pub(crate) fn carrier_pair_reading<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
-    declared: bool,
-    band: Band,
-) -> Result<Result<super::carrier_eq::CarrierReading, CarrierEqError>, PairUnread> {
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    let id = PlaneIdentity { declared };
     Ok(super::carrier_eq::pair_door_reading(
         &ca,
         &cb,
-        id,
-        &extent.consumed(false),
+        &extent.consumed(),
         band,
     ))
 }
@@ -600,7 +535,7 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
 ///
 /// - One surface record on both sides is one surface: its chart.
 /// - Two records are read by the carrier-equality ladder
-///   ([`super::carrier_eq::carrier_eq`], undeclared) over the region
+///   ([`super::carrier_eq::carrier_eq`]) over the region
 ///   the description is consumed on: a ball enclosing the edge's own
 ///   extent and each named face's boundary vertices (`sides`' faces,
 ///   where the face exists yet; a chord minted before its section face
@@ -673,11 +608,7 @@ pub fn rest_locus<T: Decide>(
     let Some(reach) = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable) else {
         return geom_brep::RestLocus::Pair(pair);
     };
-    let extent = super::ConsumedExtent {
-        reach,
-        on: [&on_a, &on_b],
-    };
-    match super::carrier_eq::carrier_eq(&ca, &cb, PlaneIdentity::NONE, &extent, band) {
+    match super::carrier_eq::carrier_eq(&ca, &cb, &super::ConsumedExtent::new(reach), band) {
         Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
             geom_brep::RestLocus::Chart(pair.keys()[0])
         }

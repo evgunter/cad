@@ -107,6 +107,7 @@ mod join;
 mod nary;
 mod node;
 mod ops;
+pub(crate) use ops::GluedSurfaces;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) mod section_cert;
 mod section_table;
@@ -206,7 +207,7 @@ pub use ops::{
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
-pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 #[cfg(feature = "sweep-testing")]
@@ -222,10 +223,9 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict,
-    face_carrier, flush_pair_relation, rest_locus,
+    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
+    flush_pair_relation, rest_locus,
 };
-pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
@@ -1144,44 +1144,10 @@ pub(crate) struct InBandPair {
     pub(crate) a: FaceKey,
     /// The B-operand face.
     pub(crate) b: FaceKey,
-    /// The undecided reading.
-    pub(crate) reading: DoorReading,
-}
-
-/// What the glue door could not decide of an undeclared pair: a rung of
-/// the plane ladder in band, or a coincidence measure undecided with the
-/// orientation already decided.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum DoorReading {
-    /// [`carrier_eq::CarrierEqError::Escalated`].
-    Rung {
-        rung: PlaneRung,
-        diag: Indeterminate,
-    },
-    /// [`carrier_eq::CarrierEqError::Undecided`].
-    Coincidence {
-        coincidence: carrier_eq::CoincidenceMeasure,
-        relation: CarrierRelation,
-    },
-}
-
-impl DoorReading {
-    /// The reading of an undeclared pair's refusal; `None` for the
-    /// refusals only a declared reading gives.
-    pub(crate) fn of(refusal: carrier_eq::CarrierEqError) -> Option<Self> {
-        match refusal {
-            carrier_eq::CarrierEqError::Escalated { rung, diag } => Some(Self::Rung { rung, diag }),
-            carrier_eq::CarrierEqError::Undecided {
-                coincidence,
-                relation,
-            } => Some(Self::Coincidence {
-                coincidence,
-                relation,
-            }),
-            carrier_eq::CarrierEqError::Unsettled { .. }
-            | carrier_eq::CarrierEqError::Contradicted { .. } => None,
-        }
-    }
+    /// The undecided reading: a rung of the plane ladder in band, or a
+    /// coincidence measure undecided with the orientation already
+    /// decided.
+    pub(crate) reading: carrier_eq::CarrierEqError,
 }
 
 /// **Where a boolean's coincidence verdicts come from.** An operation
@@ -1236,7 +1202,8 @@ impl<T: Real> Glue<T> {
 /// **One glued cross-operand face pair and its class**: a pair an
 /// operation decided, or one an n-ary union's fold step was given
 /// ([`GlueVerdict::given_at`]); a given pair carries the decision it
-/// was given on.
+/// was given on, and a one-carrier pair the glue door decided the
+/// margin it decided it on, which the declaration door records.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
@@ -1248,16 +1215,31 @@ pub(crate) struct GluedPair<T: Real = f64> {
     /// The decision a given pair carries; none for a pair the operation
     /// decided.
     pub(crate) given: Option<GivenDecision<T>>,
+    /// The margin the glue door decided a one-carrier pair on
+    /// ([`carrier_pair::carrier_pair_decided`]); none for a tangency,
+    /// which the declaration door reads along its locus, and for a
+    /// given pair.
+    pub(crate) decided: Option<MarginDiag>,
 }
 
 impl<T: Real> GluedPair<T> {
-    /// A glued pair, under `class`.
+    /// A glued pair, under `class`, carrying no decision of its own.
     pub(crate) fn new(a: FaceKey, b: FaceKey, class: impl Into<GlueClass>) -> Self {
         Self {
             a,
             b,
             class: class.into(),
             given: None,
+            decided: None,
+        }
+    }
+
+    /// A one-carrier pair the glue door decided under `class` on
+    /// `margin`.
+    pub(crate) fn decided(a: FaceKey, b: FaceKey, class: GlueClass, margin: MarginDiag) -> Self {
+        Self {
+            decided: Some(margin),
+            ..Self::new(a, b, class)
         }
     }
 
@@ -1304,7 +1286,7 @@ pub(crate) struct GluedPairs<T: Real> {
     extent: std::collections::BTreeMap<(FaceKey, FaceKey), carrier_pair::PairExtent<T>>,
     /// What the glue door read of each pair it left in band,
     /// `(A face, B face)` ([`Glue::in_band`]).
-    in_band: std::collections::BTreeMap<(FaceKey, FaceKey), DoorReading>,
+    in_band: std::collections::BTreeMap<(FaceKey, FaceKey), carrier_eq::CarrierEqError>,
     /// The operation's section table ([`section_table`]).
     pub(crate) sections: section_table::SectionTable<T>,
 }
@@ -1334,13 +1316,6 @@ pub(crate) fn unreadable_extent(face: carrier_pair::PairFace) -> BooleanError {
         what: "a glued face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
     }
-}
-
-/// A declared one-carrier pair whose displacement over its consumed
-/// extent is neither bridged nor contradicted
-/// ([`carrier_eq::CarrierEqError::Unsettled`]), read under `class`.
-pub(crate) fn unsettled_rest(class: GlueClass, diag: Indeterminate) -> BooleanError {
-    BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
 }
 
 /// The Boolean's refusal of a coincidence between `pair` that did not
@@ -1837,10 +1812,10 @@ impl<T: Real> GluedPairs<T> {
         let (o1, f1, o2, f2) = pair;
         let reading = *self.in_band.get(&Self::key(o1, f1, o2, f2)?)?;
         Some(match reading {
-            DoorReading::Rung { rung, diag } => {
+            carrier_eq::CarrierEqError::Escalated { rung, diag } => {
                 BooleanError::plane_identity(rung, self.on_pair_door(pair, senses), diag)
             }
-            DoorReading::Coincidence {
+            carrier_eq::CarrierEqError::Undecided {
                 coincidence,
                 relation,
             } => undecided_coincidence(
@@ -1877,9 +1852,9 @@ impl<T: Real> GluedPairs<T> {
         f1: FaceKey,
         o2: Operand,
         f2: FaceKey,
-    ) -> Result<carrier_eq::ConsumedExtent<'_, T>, BooleanError> {
+    ) -> Result<carrier_eq::ConsumedExtent<T>, BooleanError> {
         Self::key(o1, f1, o2, f2)
-            .and_then(|key| Some(self.extent.get(&key)?.consumed(o1 == Operand::B)))
+            .and_then(|key| Some(self.extent.get(&key)?.consumed()))
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "a declared face pair's consumed extent was not measured at rest",
             })
@@ -1955,33 +1930,30 @@ impl<T: Real> GluedPairs<T> {
         Self::key(o1, f1, o2, f2).and_then(|k| self.map.get(&k).copied())
     }
 
-    /// Whether the pair is declared ONE carrier (`Rest` or a
-    /// continuation) — the question the classification stages actually
-    /// ask (a `Tangent` pair does not license same-carrier treatment).
-    pub(crate) fn declares_one_carrier(
-        &self,
-        o1: Operand,
-        f1: FaceKey,
-        o2: Operand,
-        f2: FaceKey,
-    ) -> bool {
-        self.class_of(o1, f1, o2, f2)
-            .is_some_and(GlueClass::is_one_carrier)
-    }
-
     /// The pairs the declaration door verified one carrier, each with
     /// the relation its class demands: a `Rest` contact opposed, a
     /// continuation aligned (rung 2 of the coincidence ladder).
     pub(crate) fn settled(&self) -> impl Iterator<Item = SettledPair> + '_ {
         self.verified.one_carrier.iter().filter_map(|&(a, b)| {
-            let relation = match self.map.get(&(a, b))? {
-                GlueClass::Rest => CarrierRelation::SameOpposite,
-                GlueClass::Continuation => CarrierRelation::SameOriented,
-                // Never verified one carrier: no settled relation.
-                GlueClass::Tangent => return None,
-            };
+            let relation = self.map.get(&(a, b))?.carrier_relation()?;
             Some(SettledPair { a, b, relation })
         })
+    }
+
+    /// **The relation the (operand-tagged) pair was glued under**, as
+    /// the carrier ladder spells it: the glue door's decision, read
+    /// from its record and measured nowhere again
+    /// (`[coincidence.booleans]`). `None` for a pair not glued one
+    /// carrier.
+    pub(crate) fn glued_relation(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<CarrierRelation> {
+        self.class_of(o1, f1, o2, f2)
+            .and_then(GlueClass::carrier_relation)
     }
 
     /// Whether the pair is declared `Tangent`.
@@ -6865,16 +6837,12 @@ fn piece_classes<T: Real>(
     Ok(out)
 }
 
-/// **C4's verify-at-use, at the door**: EVERY glued pair is checked
-/// against the geometry before the op runs — not only the pairs the
-/// classification happens to walk past — per class: `Rest` and a
-/// continuation down the carrier ladder, a tangency down the witness
-/// lane ([`verify_tangency`], routed along a rim by [`route_rim`]). Each
-/// records the decision's row.
-///
-/// The sense is part of each one-carrier claim, as an exact bit:
-/// `Rest` demands opposed senses and a continuation aligned ones, and
-/// each is contradicted by the other's. A tangency claims no sense.
+/// **The declaration door**: EVERY glued pair's decision recorded
+/// before the op runs, per class. A `Rest` or continuation pair records
+/// the margin the glue door decided it on ([`one_carrier_row`]), and no
+/// ladder reads it again; a tangency is read down the witness lane
+/// ([`verify_tangency`], routed along a rim by [`route_rim`]) for its
+/// locus, which the consumers place.
 fn verify_declared_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -6886,6 +6854,7 @@ fn verify_declared_contacts<T: Decide>(
         a: fa,
         b: fb,
         class,
+        decided,
         ..
     } in &decls.pairs
     {
@@ -6919,13 +6888,9 @@ fn verify_declared_contacts<T: Decide>(
                 );
             }
             GlueClass::Rest | GlueClass::Continuation => {
-                match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
-                    OneCarrier::Unread => {}
-                    OneCarrier::Decided(row) => {
-                        verified.one_carrier.insert((fa, fb));
-                        verified.coincidences.push(row);
-                    }
-                }
+                let row = one_carrier_row(a, fa, b, fb, class, decided)?;
+                verified.one_carrier.insert((fa, fb));
+                verified.coincidences.push(row);
             }
         }
     }
@@ -6969,6 +6934,7 @@ fn given_verdicts<T: Decide>(
         b: fb,
         class,
         given,
+        ..
     } in &decls.pairs
     {
         match class {
@@ -7041,44 +7007,6 @@ pub(super) fn glue_contradicted(
     }
 }
 
-/// The refusal of a one-carrier declaration whose senses contradict
-/// its class: aligned under `Rest`, opposed under a continuation. The
-/// sense is a structural bit, so no `decide` ran; the predicate labels
-/// the finding for the reader and never enters the K funnel.
-pub(super) fn sense_contradiction(
-    fa: FaceKey,
-    fb: FaceKey,
-    class: GlueClass,
-    band: Band,
-) -> BooleanError {
-    let predicate = match class {
-        GlueClass::Continuation => "continuation_senses_aligned",
-        GlueClass::Rest => "contact_rest_senses_opposed",
-        GlueClass::Tangent => {
-            return BooleanError::ClassificationInvariant {
-                what: "a tangency's senses were read as contradicting it, and it claims none",
-            };
-        }
-    };
-    let margin = Indeterminate {
-        margin: MarginDiag::INVALID,
-        band,
-        predicate: Some(predicate),
-        terminal_sliver: false,
-    };
-    glue_contradicted(fa, fb, class, None, margin)
-}
-
-/// **What the declaration door made of one `Rest` or continuation
-/// pair** that it did not refuse.
-enum OneCarrier {
-    /// A carrier kind the ladder cannot describe: no certificate.
-    Unread,
-    /// One carrier with the class's sense, decided by a margin: a
-    /// certificate and the row recording the decision.
-    Decided(crate::Coincidence),
-}
-
 /// The row a glued tangency records: the tangency the witness lane
 /// decided along its locus, on the margin that decided it.
 fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coincidence {
@@ -7095,91 +7023,42 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
     }
 }
 
-/// The `Rest` and continuation half of [`verify_declared_contacts`]:
-/// the carrier ladder in its declared posture — a definitely-different
-/// carrier contradicts, an in-band residue is bridged (C4), a sliver
-/// escalates — and then the sense bit the class demands.
+/// **The row a one-carrier pair the glue door decided records**: its
+/// class's relation, on the margin the door decided it on, at the
+/// ladder that read it.
 ///
-/// One carrier with the class's sense, either way it was settled, is
-/// the certificate the crossing layer's carrier-identity rung reads,
-/// recorded once here instead of re-derived per event.
-fn verify_one_carrier_declaration<T: Decide>(
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a pair that carries no
+/// decided margin: only the glue door glues a one-carrier pair, and it
+/// glues one only on a margin.
+fn one_carrier_row<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     class: GlueClass,
-    band: Band,
-) -> Result<OneCarrier, BooleanError> {
-    let outcome = match carrier_pair::carrier_pair_reading(a, fa, b, fb, true, band) {
-        Ok(outcome) => outcome,
-        Err(carrier_pair::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
-        // A carrier kind the ladder cannot describe: `validate_
-        // declarations` has already had its say about which kinds this
-        // op accepts, so there is nothing left to add here — and
-        // nothing for the identity rung to read.
-        Err(carrier_pair::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
-    };
-    let aligned = class == GlueClass::Continuation;
-    let one = |relation, margin: Option<MarginDiag>| {
-        let margin = margin.ok_or(BooleanError::ClassificationInvariant {
-            what: "declaration door: a declared reading of one carrier carries no margin",
-        })?;
-        Ok(OneCarrier::Decided(crate::Coincidence {
-            cells: [
-                crate::RowCell::face(Operand::A, fa),
-                crate::RowCell::face(Operand::B, fb),
-            ],
-            more: [None; 3],
-            relation,
-            site: declared_site(a, fa, b, fb),
-            margin,
-            discharge: crate::Discharge::of(margin),
-        }))
-    };
-    match outcome {
-        Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
-            one(crate::Relation::SameOriented, margin)
-        }
-        Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
-            one(crate::Relation::SameOpposite, margin)
-        }
-        Ok((
-            carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-            ..,
-        )) => Err(sense_contradiction(fa, fb, class, band)),
-        // The declared posture contradicts a definite difference, it
-        // never answers `Distinct`: a kernel defect.
-        Ok((carrier_eq::CarrierRelation::Distinct, ..)) => {
-            Err(BooleanError::ClassificationInvariant {
-                what: "declaration door: declared rung returned Distinct instead of contradicting",
-            })
-        }
-        Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => {
-            Err(glue_contradicted(fa, fb, class, Some(fact), diag))
-        }
-        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
-            Err(BooleanError::plane_identity(
-                rung,
-                PlaneDoor::OnPair(DeclarationRead::Spent(class)),
-                diag,
-            ))
-        }
-        Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(class, diag)),
-        // Unreachable with `declared: true`; refuse loudly anyway.
-        Err(carrier_eq::CarrierEqError::Undecided { coincidence, .. }) => {
-            Err(undecided_coincidence(
-                coincidence,
-                [(Operand::A, fa), (Operand::B, fb)],
-                DeclarationRead::Spent(class),
-            ))
-        }
-    }
+    margin: Option<MarginDiag>,
+) -> Result<crate::Coincidence, BooleanError> {
+    let margin = margin.ok_or(BooleanError::ClassificationInvariant {
+        what: "the declaration door: a one-carrier glued pair carries no decided margin",
+    })?;
+    Ok(crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        more: [None; 3],
+        relation: class.relation(),
+        site: decided_site(a, fa, b, fb),
+        margin,
+        discharge: crate::Discharge::of(margin),
+    })
 }
 
-/// Which ladder decided a declared one-carrier pair: the plane ladder
-/// where both faces are planes, the carrier ladder otherwise.
-fn declared_site<T: Decide>(
+/// Which ladder decided a one-carrier pair: the plane ladder where both
+/// faces are planes, the carrier ladder otherwise.
+fn decided_site<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
@@ -7195,17 +7074,6 @@ fn declared_site<T: Decide>(
         crate::DecisionSite::PlaneLadder
     } else {
         crate::DecisionSite::CarrierLadder
-    }
-}
-
-/// The conformal screen's carrier ladder contradicting a pair it ran
-/// undeclared, or leaving it unsettled — verdicts only a declared
-/// reading gives, which no verdict on an undeclared pair is: the kernel's
-/// own check ([`SelfCheck::CarrierLadder`]).
-fn screen_contradiction(diag: Indeterminate) -> BooleanError {
-    BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
-        diag,
     }
 }
 
@@ -7469,9 +7337,9 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 /// The C4 `Tangent` table of two faces on two carriers along their
 /// tangent line, where it runs through both faces
 /// ([`RestLineInBothFaces`]) ([`contact_verify::tangent_locus_relation`]):
-/// the touch and the material sides. `declared` is the posture: a
-/// record stands as the declaration; a pair the census discovers is
-/// read as a detector.
+/// the touch and the material sides, read as the glue door reads a
+/// tangency, whether a record cites the pair or the census discovers it.
+/// `Ok` carries the touch's margin.
 ///
 /// # Errors
 ///
@@ -7481,23 +7349,12 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 /// `NotCertifiable` where a face has no surface.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
     line: &RestLineInBothFaces<'_, T>,
-    declared: bool,
     band: Band,
-) -> Result<crate::contact::ContactVerdict, crate::contact::ContactRefusal> {
+) -> Result<MarginDiag, crate::contact::ContactRefusal> {
     let [fa, fb] = line.faces;
     let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
     let (t0, t1) = line.overlap;
-    contact_verify::tangent_locus_relation(
-        sa,
-        sense_a,
-        sb,
-        sense_b,
-        &line.carrier,
-        t0,
-        t1,
-        declared,
-        band,
-    )
+    contact_verify::tangent_locus_relation(sa, sense_a, sb, sense_b, &line.carrier, t0, t1, band)
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and
@@ -7597,7 +7454,7 @@ fn verify_tangency<T: Decide>(
         terminal_sliver: false,
     };
     // 1. The conformal screen (detector posture).
-    match carrier_pair::carrier_pair_relation(a, fa, b, fb, false, band) {
+    match carrier_pair::carrier_pair_relation(a, fa, b, fb, band) {
         // No description to compare: the witness lane below answers
         // for the kinds it holds.
         Ok(Ok(CarrierRelation::Distinct)) | Err(carrier_pair::PairUnread::OutsideInventory) => {}
@@ -7624,11 +7481,6 @@ fn verify_tangency<T: Decide>(
                 diag,
             )));
         }
-        // Unreachable with `declared: false`; refuse loudly anyway.
-        Ok(Err(
-            carrier_eq::CarrierEqError::Contradicted { diag, .. }
-            | carrier_eq::CarrierEqError::Unsettled { diag },
-        )) => return Err(Refused(screen_contradiction(diag))),
         Err(carrier_pair::PairUnread::Extent(face)) => {
             return Err(Refused(unreadable_extent(face)));
         }
@@ -8871,33 +8723,6 @@ mod tests {
         );
         assert_eq!(pairs.cover(Operand::B, g, Operand::A, f), None);
         assert_eq!(pairs.cover(Operand::A, f, Operand::A, g), None);
-    }
-
-    /// **The conformal screen's ladder contradicting an undeclared pair
-    /// is the kernel's own check.** The arm is unreachable (the screen
-    /// runs the ladder with `declared: false`, which contradicts
-    /// nothing), so the row pins its routing: a mutant sending it to a
-    /// coincidence reds here.
-    #[test]
-    fn a_contradiction_at_the_undeclared_screen_is_the_kernels_own_check() {
-        let diag = Indeterminate {
-            margin: MarginDiag::value(5e-9),
-            band: Band::new(1e-9, 1e-8).unwrap(),
-            predicate: Some("bool_plane_offset"),
-            terminal_sliver: false,
-        };
-        let err = screen_contradiction(diag);
-        assert!(
-            matches!(
-                err,
-                BooleanError::Escalated {
-                    decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
-                    ..
-                }
-            ),
-            "{err:?}"
-        );
-        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
     }
 
     /// **[`BooleanOp::ALL`] holds each operation once, and an

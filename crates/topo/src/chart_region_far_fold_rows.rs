@@ -7,7 +7,6 @@
 
 use geom_core::{Band, Tol};
 
-use crate::contact::ContactVerdict;
 use crate::pcurves::pole_slit_tests::cylinder_patch_below;
 use crate::{Body, ChartOverlap, LoopBoundary};
 
@@ -49,14 +48,7 @@ fn a_face_walked_from_a_far_stated_arc_reads_in_the_window_and_folds_onto_its_tw
                 far += 1;
             }
             assert_eq!(
-                super::cylinder_pair_overlap(
-                    &body,
-                    face,
-                    &twin,
-                    face,
-                    ContactVerdict::Definite,
-                    band
-                ),
+                super::cylinder_pair_overlap(&body, face, &twin, face, band, band),
                 Ok(ChartOverlap::PositiveArea),
                 "{periods} periods, walked from {start:?}"
             );

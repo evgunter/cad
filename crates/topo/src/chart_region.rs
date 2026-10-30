@@ -559,13 +559,13 @@ pub struct RegionLane<T: Decide> {
     /// [`declared_pair_overlap`] — the same door for a pair whose chart
     /// authority may be a VERIFIED DECLARATION, which adds the
     /// world-carrier arm below the structural rung and therefore
-    /// demands Door 1's verdict in hand. Pinned the same way.
+    /// demands Door 1's premise band in hand. Pinned the same way.
     declared_overlap: fn(
         &Body<T>,
         FaceKey,
         &Body<T>,
         FaceKey,
-        crate::contact::ContactVerdict,
+        Band,
         Band,
     ) -> Result<ChartOverlap, ChartRegionError>,
 }
@@ -624,10 +624,10 @@ impl<T: Decide> RegionLane<T> {
         face_a: FaceKey,
         body_b: &Body<T>,
         face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
+        premise: Band,
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
-        (self.declared_overlap)(body_a, face_a, body_b, face_b, door_one, band)
+        (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
     }
 }
 
@@ -786,6 +786,21 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     )
 }
 
+/// **The premise band of a pair whose carriers Door 1 read in band**:
+/// `band` with its zero edge halved, its escalate edge kept. A carrier
+/// coincidence in band has already spent part of the ε budget at Door
+/// 1's own rows, so the gates [`declared_pair_overlap`] runs on its
+/// premise decide against this tighter band.
+#[must_use]
+pub fn in_band_premise(band: Band) -> Band {
+    match Band::new(band.zero() / 2.0, band.escalate()) {
+        Ok(tight) => tight,
+        // Halving a valid band's zero edge keeps 0 < zero/2 < escalate:
+        // the constructor cannot refuse (D2 row 4).
+        Err(_) => unreachable!("halving a valid band's zero edge keeps it valid"),
+    }
+}
+
 /// **The declared pair's overlap door** — what a face–face record whose
 /// chart authority may be a VERIFIED DECLARATION (rung 3) certifies
 /// through, in the fixed order structural-identity-first.
@@ -820,22 +835,19 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///   declared-Rest lane owns the torus descent; same recorded closing
 ///   shape, sequenced with that lane.
 ///
-/// # `door_one` — why the verdict is an argument, not a re-derivation
+/// # `premise` — Door 1's reading, as the band it leaves
 ///
-/// The world carrier is a carrier BECAUSE the declaration was
-/// verified, so this door is not independent of Door 1 and the type
-/// now says so: it cannot be reached without the verdict that verified
-/// the pair. It is READ in two places: the planar interior-witness
-/// rung, which runs only on [`ContactVerdict::Definite`]
-/// ([`interior_witness`] states why), and the cylinder arm's premise
-/// budget, which TIGHTENS under `Bridged` — a bridged carrier has
-/// already spent an in-band residue at Door 1's own rows, so the
-/// enclosure's gates decide against a half-zero-edge band there
-/// ([`cylinder_pair_overlap`]'s door-one section). The cylinder arm
-/// still has no witness rung (a flush cylinder seat's
-/// collinear-boundary refusal stands, stated below).
-///
-/// [`ContactVerdict::Definite`]: crate::contact::ContactVerdict::Definite
+/// The world carrier is a carrier BECAUSE Door 1 read the two faces one
+/// carrier, so this door is not independent of Door 1 and the type says
+/// so: it cannot be reached without the band Door 1's reading leaves
+/// its premise. That is `band` itself where Door 1 decided the carriers
+/// one (a margin decided Zero), and [`in_band_premise`] where it read
+/// them in band. It is READ in two places: the planar interior-witness
+/// rung, which runs only on the run's own band ([`interior_witness`]
+/// states why), and the cylinder arm's gates, which decide against it
+/// ([`cylinder_pair_overlap`]'s premise section). The cylinder arm
+/// still has no witness rung (a flush cylinder seat's collinear-boundary
+/// refusal stands, stated below).
 ///
 /// # Errors
 ///
@@ -846,7 +858,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
-    door_one: crate::contact::ContactVerdict,
+    premise: Band,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
     // INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
@@ -866,7 +878,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
                    uv_b: &FaceUv<T>| match read {
         Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
             match interior_witness(
-                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, door_one, band,
+                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, premise, band,
             ) {
                 WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
                 // The rung's schedule stopped short. That is a fact about
@@ -899,7 +911,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     if matches!(face_surface(body_a, face_a)?, Surface::Cylinder { .. })
         && matches!(face_surface(body_b, face_b)?, Surface::Cylinder { .. })
     {
-        return cylinder_pair_overlap(body_a, face_a, body_b, face_b, door_one, band);
+        return cylinder_pair_overlap(body_a, face_a, body_b, face_b, premise, band);
     }
     let carrier = world_carrier(body_a, face_a, body_b, face_b, divergence)?;
     // The gate that makes the representative choice honest — and the
@@ -1146,7 +1158,7 @@ fn face_boundary_points<T: Decide>(
 /// **The lever is the pair's own extent, per vertex.** Door 1 reads
 /// the same disagreement as one displacement over a ball enclosing both
 /// faces, the tilt levered to the ball's far reach and summed with the
-/// offset (`bool_plane_reach` via `carrier_eq::declared_reading`).
+/// offset (`bool_plane_reach` via `carrier_eq::pair_door_reading`).
 /// Here the tilt's contribution to each term is `r·sin θ` with `r` that
 /// vertex's own distance from the carrier origin, and the offset term
 /// rides in the same length. A tilt a peg absorbs and a tilt that opens
@@ -1270,7 +1282,7 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///
 /// Door 1's ladder read the same data as one displacement over a ball
 /// enclosing both faces (`carrier_cyl_reach` via
-/// `carrier_eq::declared_reading`: the axis offset at a pivot, the tilt
+/// `carrier_eq::pair_door_reading`: the axis offset at a pivot, the tilt
 /// levered from it, the radius difference, summed); the enclosure
 /// re-decides at the PAIR'S OWN
 /// TRIMS (fixed order, D9). The quantity the gates must bound is the
@@ -1321,22 +1333,16 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// bound is global). Zero proceeds; definite Positive refuses
 /// [`ChartRegionError::CarrierTilt`]; in-band escalates.
 ///
-/// # Door 1's verdict, consumed
+/// # Door 1's premise, consumed
 ///
-/// The transfer's premise is co-signed by the declaration Door 1
-/// verified, and the verdict says HOW: `Definite` — the geometry's own
-/// evidence carried every carrier row; `Bridged` — some carrier row
-/// sat in band at Door 1's own arms and the declaration bridged it,
-/// i.e. part of the ε budget is already spent before this arm adds its
-/// transfer error on top. The arm therefore tightens its PREMISE
-/// budget under `Bridged`: the gate rows decide against a band whose
-/// zero edge is HALVED (escalate edge unchanged). The tightening is a
-/// conservative allocation, not a derived identity — it can only move
-/// a gate outcome from certify-onward into escalation, never the
-/// reverse — and it is pinned by the Bridged-tightens row in the
-/// acceptance suite. `ContactVerdict` has only passing variants (a
-/// Door-1 refusal is `ContactRefusal`, a different type), so consuming
-/// the verdict admits no refused pair either way.
+/// The transfer's premise is co-signed by Door 1's reading of the two
+/// carriers, and `premise` is the band it leaves: the run's own where
+/// the carriers decided one, and [`in_band_premise`] where Door 1 read
+/// them in band, part of the ε budget already spent before this arm adds
+/// its transfer error on top. The gate rows decide against it. The
+/// tightening is a conservative allocation, not a derived identity — it
+/// can only move a gate outcome from certify-onward into escalation,
+/// never the reverse.
 ///
 /// # The fold
 ///
@@ -1456,33 +1462,14 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
-    door_one: crate::contact::ContactVerdict,
+    premise: Band,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
     let a = cyl_frame(body_a, face_a)?;
     let b = cyl_frame(body_b, face_b)?;
 
-    // --- Door 1's verdict, CONSUMED (doc above): a `Bridged` carrier
-    //     has already spent an in-band residue at Door 1's own rows,
-    //     so the enclosure's PREMISE budget is tightened — the zero
-    //     edge halves, the escalate edge stays. Tightening is
-    //     conservative by direction: it can only move a gate outcome
-    //     from Zero (certify onward) into the escalation band, never
-    //     the reverse, and a definite-apart refusal is unmoved.
-    //     `ContactVerdict` has only PASSING variants (a Door-1 refusal
-    //     is `ContactRefusal`, a different type), so no refused pair
-    //     can reach here in the first place.
-    let gate_band = match door_one {
-        crate::contact::ContactVerdict::Definite => band,
-        crate::contact::ContactVerdict::Bridged => {
-            match Band::new(band.zero() / 2.0, band.escalate()) {
-                Ok(tight) => tight,
-                // Halving a valid band's zero edge keeps 0 < zero/2 <
-                // escalate: the constructor cannot refuse (D2 row 4).
-                Err(_) => unreachable!("halving a valid band's zero edge keeps it valid"),
-            }
-        }
-    };
+    // --- Door 1's premise, CONSUMED (doc above).
+    let gate_band = premise;
 
     // --- The carrier gates, at the pair's own extent (doc above).
     //     `reach` is the axial reach (largest |axial coordinate| of a
@@ -1894,13 +1881,11 @@ fn band_overlap<T: Decide + Bounds>(
 /// there; the carrier is a space to measure in, and
 /// [`carrier_agreement`] is its whole warrant. This rung is different:
 /// it converts a refusal into a proof by asserting a point lies ON
-/// both planes. A `Bridged` verdict says precisely that the carriers'
-/// coincidence rests on the DECLARATION — the geometry left a residue
-/// in band and the declaration bridged it — and a precondition may not
-/// be discharged by the claim under test. So the rung runs only on
-/// [`ContactVerdict::Definite`](crate::contact::ContactVerdict::Definite);
-/// on `Bridged` it declines and the region walk's typed refusal
-/// stands. Three-outcome honest, and the three are TYPED
+/// both planes, which holds only where Door 1 decided the carriers one.
+/// A tightened premise says the carriers stand in band of each other,
+/// and a point on one is then not on the other. So the rung runs only
+/// where `premise` is the run's own band; on a tightened one it declines
+/// and the region walk's typed refusal stands. Three-outcome honest, and the three are TYPED
 /// ([`WitnessOutcome`]): a proof, a decline that leaves the carried
 /// refusal standing, and a schedule that hit one of its two caps —
 /// which is a fact about the work and gets a refusal per cap.
@@ -1972,10 +1957,10 @@ fn interior_witness<T: Decide + Bounds>(
     carrier: &Surface<T>,
     uv_a: &FaceUv<T>,
     uv_b: &FaceUv<T>,
-    door_one: crate::contact::ContactVerdict,
+    premise: Band,
     band: Band,
 ) -> WitnessOutcome {
-    if door_one != crate::contact::ContactVerdict::Definite {
+    if premise != band {
         return WitnessOutcome::Declined;
     }
     let Surface::Plane {
@@ -6053,7 +6038,6 @@ mod from_computed_rows {
 
     use super::{ChartOverlap, declared_pair_overlap};
     use crate::Body;
-    use crate::contact::ContactVerdict;
     use crate::revalue_pin::{Revalued, S, revalued};
     use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 
@@ -6102,8 +6086,7 @@ mod from_computed_rows {
             )
             .bottom
             .face;
-            let got =
-                declared_pair_overlap(&post, top, &over, under, ContactVerdict::Definite, band);
+            let got = declared_pair_overlap(&post, top, &over, under, band, band);
             assert_eq!(
                 got,
                 Ok(ChartOverlap::PositiveArea),

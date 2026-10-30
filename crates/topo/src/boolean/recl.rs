@@ -86,16 +86,15 @@ fn carrier_of<T: Decide>(
 }
 
 /// The geometrically-ON sector pair's carrier identity check. A pair
-/// the operation glued (a verified `Rest` or continuation declaration,
-/// or a pair the glue door decided one carrier and declared) reads as
-/// the declaration door read it at rest, over both faces; any other
-/// pair over the sectors `on` names about the corner, where a
-/// coincidence decided Zero is one the door did not glue and refuses on
-/// the reading that binds it ([`super::unglued_corner`]).
+/// the operation glued one carrier reads the relation the glue door
+/// recorded ([`super::GluedPairs::glued_relation`]), and no ladder
+/// measures it again; any other pair is read by the ladder over the
+/// sectors `on` names about the corner, where a coincidence decided
+/// Zero is one the door did not glue and refuses on the reading that
+/// binds it ([`super::unglued_corner`]).
 ///
-/// C8: a CURVED sector pair descends the ladder only as a glued
-/// one-carrier pair; an unglued on-carrier curved pair keeps the typed
-/// frontier refusal.
+/// C8: a CURVED sector pair is one carrier only as a glued pair; an
+/// unglued on-carrier curved pair keeps the typed frontier refusal.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -117,57 +116,48 @@ pub(super) fn require_same<T: Decide>(
             what: "a glued tangency reached the carrier-identity check",
         });
     }
+    if let Some(relation) = declared.glued_relation(o1, s1.face, o2, s2.face) {
+        return Ok(relation);
+    }
     let c1 = carrier_of(body1, o1, s1)?;
     let c2 = carrier_of(body2, o2, s2)?;
-    let declared_one_carrier = declared.declares_one_carrier(o1, s1.face, o2, s2.face);
-    if !declared_one_carrier {
-        let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
-        let refusal = if curved(&c1) {
-            Some((o1, s1.face, body1.get_face(s1.face), body1))
-        } else if curved(&c2) {
-            Some((o2, s2.face, body2.get_face(s2.face), body2))
-        } else {
-            None
-        };
-        if let Some((operand, face, f, body)) = refusal {
-            let kind = f
-                .and_then(|f| body.get_surface(f.surface))
-                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind,
-            });
-        }
-    }
-    let id = super::PlaneIdentity {
-        declared: declared_one_carrier,
+    let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
+    let refusal = if curved(&c1) {
+        Some((o1, s1.face, body1.get_face(s1.face), body1))
+    } else if curved(&c2) {
+        Some((o2, s2.face, body2.get_face(s2.face), body2))
+    } else {
+        None
     };
-    // A glued pair reads as the door read it at rest, over both faces;
-    // any other over the region `on` read it coplanar on, about the
+    if let Some((operand, face, f, body)) = refusal {
+        let kind = f
+            .and_then(|f| body.get_surface(f.surface))
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+        return Err(BooleanError::CurvedBooleanUnsupported {
+            operand,
+            face,
+            kind,
+        });
+    }
+    // Read over the region `on` read the pair coplanar on, about the
     // corner.
     let reach = match on {
         ReadOn::Faces => arm,
         ReadOn::FirstBounds => s1.span(),
     };
-    let extent = if declared_one_carrier {
-        declared.consumed(o1, s1.face, o2, s2.face)?
-    } else {
-        super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-            corner_of(body1, s1),
-            reach,
-        ))
-    };
+    let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(
+        corner_of(body1, s1),
+        reach,
+    ));
     let pair = (o1, s1.face, o2, s2.face);
-    match super::carrier_eq::carrier_eq_reading(&c1, &c2, id, &extent, band) {
-        Ok((PlaneRelation::Distinct, ..)) if !declared_one_carrier && on == ReadOn::FirstBounds => {
+    match super::carrier_eq::carrier_eq_reading(&c1, &c2, &extent, band) {
+        Ok((PlaneRelation::Distinct, _)) if on == ReadOn::FirstBounds => {
             Err(unglued_tilt(&c1, &c2, s1, reach, declared, pair, band))
         }
-        Ok((PlaneRelation::Distinct, ..)) => Err(BooleanError::ClassificationInvariant {
+        Ok((PlaneRelation::Distinct, _)) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
-        Ok((rel, ..)) if declared_one_carrier => Ok(rel),
-        Ok((rel, _, margin)) => {
+        Ok((rel, margin)) => {
             let bounds = match &c2 {
                 CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
                 _ => None,
@@ -205,18 +195,6 @@ pub(super) fn require_same<T: Decide>(
             coincidence,
             [(o1, s1.face), (o2, s2.face)],
             declared.carriers_read(pair, relation),
-        )),
-        Err(PlaneEqError::Contradicted { fact, .. }) => {
-            Err(BooleanError::DeclarationContradicted { fact })
-        }
-        // Only a declared reading is unsettled.
-        Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(
-            declared.class_of(o1, s1.face, o2, s2.face).ok_or(
-                BooleanError::ClassificationInvariant {
-                    what: "an undeclared sector pair's carrier reading was unsettled",
-                },
-            )?,
-            diag,
         )),
     }
 }

@@ -822,11 +822,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
                 }),
         };
-        let extent =
-            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(at, arm));
+        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(at, arm));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
-        match super::oriented_plane_eq(&p1, &p2, super::PlaneIdentity::NONE, &extent, band) {
+        match super::oriented_plane_eq(&p1, &p2, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -845,19 +844,6 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    super::PlaneDoor::Neighbours,
-                    diag,
-                ));
-            }
-            // Unreachable with `declared: false`; kept typed.
-            Err(super::PlaneEqError::Contradicted { fact, .. }) => {
-                return Err(BooleanError::DeclarationContradicted { fact });
-            }
-            // Unreachable with `declared: false` (only a declared
-            // reading is unsettled); kept typed as the gate's in-band.
-            Err(super::PlaneEqError::Unsettled { diag }) => {
-                return Err(BooleanError::plane_identity(
-                    super::PlaneRung::Parallel,
                     super::PlaneDoor::Neighbours,
                     diag,
                 ));
@@ -4003,7 +3989,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             matches!(
-                super::carrier_pair::carrier_pair_relation(x, pf, y, face, false, band),
+                super::carrier_pair::carrier_pair_relation(x, pf, y, face, band),
                 Ok(Ok(super::carrier_eq::CarrierRelation::Distinct))
             )
         })

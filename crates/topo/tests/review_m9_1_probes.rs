@@ -25,7 +25,7 @@ fn band() -> Band {
 /// A ball of radius `arm` about the origin, no point of either face
 /// known: the extent a bare arm names.
 fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
-    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }
 
 fn declared() -> PlaneIdentity {
