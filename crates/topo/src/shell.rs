@@ -381,6 +381,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
@@ -494,6 +495,38 @@ pub enum ShellError<T: Real> {
         overlap: T,
         /// The wall thickness the shell was asked for.
         thickness: T,
+    },
+    /// **The cavity crosses itself.** At a scalar whose clearance lane
+    /// answers ([`crate::AtRestPolicy::clearance_lane`]), the moved
+    /// clone is asked E7's self-intersection question before it is
+    /// inserted ([`cavity_embedded`]), and two of its points that are
+    /// not one point of its boundary were found coincident: somewhere
+    /// the material is thinner than the two walls, on any carrier and
+    /// at any angle. [`ShellError::WallClearance`] and
+    /// [`ShellError::OffsetsCross`] are the closed-form planar readings
+    /// of the same collision, which carry a measured gap; this one
+    /// carries the witness instead.
+    CavityCrosses {
+        /// The operand face whose moved wall holds the first point.
+        face: FaceKey,
+        /// The operand face whose moved wall holds the second; `face`
+        /// itself when one wall folds through itself.
+        other: FaceKey,
+        /// The two points, each as a `(u, v)` of its moved face's
+        /// stored chart.
+        stations: [(f64, f64); 2],
+        /// How far apart the two points are at most, in meters: the
+        /// upper end of the separation the verifier decided not strictly
+        /// positive at the self-intersection site.
+        distance: f64,
+    },
+    /// **The cavity's self-intersection question refused**: the engine
+    /// could not certify the moved clone embedded, so it is not
+    /// inserted ([`cavity_embedded`]). The engine's refusal, verbatim;
+    /// its face keys are the operand's, which the clone keeps.
+    CavityUncertified {
+        /// The clearance engine's typed refusal.
+        refusal: crate::clearance::EngineRefusal,
     },
     /// A chart worn by several faces of ONE solid has faces with
     /// DIFFERENT orientation bits, so "inward" is not one direction for
@@ -687,6 +720,20 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                  walls somewhere along their overlap, so their inward offsets cross and the \
                  cavity would self-intersect. Recourse: {THINNER_WALL}"
             ),
+            Self::CavityCrosses { .. } => write!(
+                f,
+                "two of the thin solid's inner walls meet where the material is thinner than \
+                 two walls, so the cavity would self-intersect. Recourse: {THINNER_WALL}"
+            ),
+            Self::CavityUncertified { refusal } => {
+                write!(
+                    f,
+                    "whether the thin solid's inner walls stay clear of each other could not be \
+                     certified: "
+                )?;
+                refusal.say(f, [&"the cavity", &"the cavity"])?;
+                write!(f, ". {}", cavity_refusal_ending(refusal))
+            }
             Self::ChartSenseMixed { .. } => write!(
                 f,
                 "two faces share a surface but not an orientation, so \"inward\" is not one \
@@ -789,6 +836,27 @@ struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
+
+/// The ending of a refusal of the cavity's self-intersection question:
+/// a refinement the band or a budget stopped is the geometry's lever, a
+/// carrier or touching pair no certificate reads yet is not yet built,
+/// and a scope with no face is the op's defect.
+fn cavity_refusal_ending(refusal: &crate::clearance::EngineRefusal) -> &'static str {
+    use crate::clearance::EngineRefusal as R;
+    match refusal {
+        R::Sliver { .. }
+        | R::Budget(_)
+        | R::PoisonEnclosure { .. }
+        | R::WitnessUnverified { .. } => {
+            "Recourse: change the wall thickness, or move the geometry"
+        }
+        R::Unsupported { .. }
+        | R::Uncertified { .. }
+        | R::CollapsedChart { .. }
+        | R::TorusNotRing { .. } => NOT_YET_ENDING,
+        R::EmptyScope { .. } => KERNEL_DEFECT_ENDING,
+    }
+}
 
 /// The ending of a pcurve mint the shell op ran: a certification
 /// refusal's own at the build door ([`PcurveMintError::ending`]), the
@@ -1630,6 +1698,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
 
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;
+
+    // ---- Decide: the cavity is embedded, where the scalar certifies. ----
+    cavity_embedded(&cavity, band)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -4142,6 +4213,103 @@ fn wall_clearance<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// **The cell-pair budget of the cavity's self-intersection question**,
+/// the document door's own default for the same question
+/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`). A recorded run
+/// dial: exhausting it refuses typed and never answers.
+const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
+
+/// **The cavity is embedded**: E7's self-intersection question asked of
+/// the moved clone, every face against every face and itself, at the
+/// strict bound, before the void door grafts it. A verified crossing
+/// refuses [`ShellError::CavityCrosses`] with its witness, and a refusal
+/// of the question [`ShellError::CavityUncertified`]; the gate never
+/// passes a cavity it did not certify.
+///
+/// It runs where the scalar holds the engine's door
+/// ([`crate::AtRestPolicy::clearance_lane`]: `Interval` and `Sym` over
+/// it) and is skipped where it does not (`f64`, `Probe`, `Dual`), where
+/// the curved window stays open (module docs). Faces of different
+/// solids are read too: their cavities are eroded apart, so a pair of
+/// them is never touching and is decided by distance.
+///
+/// **The witness is the verifier's own**: of the stations the engine
+/// places on the two faces, the pair whose separation is least at its
+/// upper end, evaluated afresh on the stored charts lifted to
+/// [`Interval`] and decided at the engine's own strict site, where a
+/// separation in the band is a coincidence.
+fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+    cavity: &Body<T>,
+    band: Band,
+) -> Result<(), ShellError<T>> {
+    use crate::clearance::{
+        BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
+    };
+    use geom_core::Bounds as _;
+    let Some(lane) = T::clearance_lane() else {
+        return Ok(());
+    };
+    let side = Side {
+        body: cavity,
+        faces: cavity.faces().map(|(k, _)| k).collect(),
+    };
+    let uncertified = |refusal| ShellError::CavityUncertified { refusal };
+    let windows = lane.windows(&side, Which::First).map_err(uncertified)?;
+    let bound = ClearanceBound::StrictlyPositive;
+    let sweep = Sweep {
+        bound,
+        band,
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
+        },
+    };
+    let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
+        let (face, other) = candidate.faces();
+        let chart = |f: FaceKey| {
+            cavity
+                .face_surface_linked(f, proven(&cavity.faces, f, EntityId::Face))
+                .map_scalar(Interval::from_certified)
+        };
+        let (sa, sb) = (chart(face), chart(other));
+        let (la, lb) = lane.on_face_stations(candidate);
+        let at = |s: &geom::Surface<Interval>, (u, v): (f64, f64)| {
+            s.eval(Interval::from_bounds(u, u), Interval::from_bounds(v, v))
+        };
+        let mut best: Option<([(f64, f64); 2], Interval)> = None;
+        for &a in &la {
+            let pa = at(&sa, a);
+            for &b in &lb {
+                let d = (pa - at(&sb, b)).norm();
+                if best.is_none_or(|(_, w)| d.hi() < w.hi()) {
+                    best = Some(([a, b], d));
+                }
+            }
+        }
+        let (stations, distance) = best.ok_or("no station of either cell is on its face")?;
+        match decide(bound.predicate(), Margin::of(distance), band) {
+            Ok(Sign::Zero | Sign::Negative) => Ok((face, other, stations, distance.hi())),
+            Ok(Sign::Positive) => Err(format!(
+                "the closest station pair is {:?} m apart",
+                distance.hi()
+            )),
+            Err(source) => Err(format!("the closest station pair's separation: {source}")),
+        }
+    });
+    match report.verdict {
+        BoundVerdict::Holds => Ok(()),
+        BoundVerdict::Violated((face, other, stations, distance)) => {
+            Err(ShellError::CavityCrosses {
+                face,
+                other,
+                stations,
+                distance,
+            })
+        }
+        BoundVerdict::Refused(refusal) => Err(uncertified(refusal)),
+    }
 }
 
 /// One planar face reduced to what the clearance gate reads: its
