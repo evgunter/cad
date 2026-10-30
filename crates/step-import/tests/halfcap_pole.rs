@@ -101,8 +101,8 @@ fn the_no_split_twin_certifies_the_same_volume() {
 fn a_split_vertex_a_hair_off_the_pole_refuses_at_the_default_band() {
     let eps = Tol::witness().eps();
     for (name, below) in [
-        ("halfcap_eps6.step", "9.99999999978924e-10 m"),
-        ("halfcap_eps7.step", "1.00000000119619e-10 m"),
+        ("halfcap_eps6.step", "9.999999999789241e-10 m"),
+        ("halfcap_eps7.step", "1.0000000011961913e-10 m"),
     ] {
         if (0.99e-9..=1.01e-9).contains(&eps) {
             let refused = import_step(&fixture(name), &ImportOptions::default(), Tol::witness());

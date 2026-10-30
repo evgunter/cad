@@ -6391,6 +6391,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::SeamRegionCoverUnresolved { .. }
+        | V::ChartSingularityUndecided { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
         | V::RingPairContactEscalated { .. }

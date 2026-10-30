@@ -188,7 +188,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         };
         assert!(
             e.to_string().ends_with(
-                "if this distance is intended, tighten the tolerance below 1.00000000119619e-10 m"
+                "if this distance is intended, tighten the tolerance below 1.0000000011961913e-10 m"
             ),
             "the refusal names the tolerance that decides it: {e}"
         );

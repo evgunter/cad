@@ -258,3 +258,98 @@ fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
         );
     }
 }
+
+/// **A pole whose distance to a face's boundary is in band is
+/// undecided, at rest as at import**: a unit ball split by a great
+/// circle that passes `3ε` from both poles, inside the band `(ε, Kε)`.
+/// Each face holds one pole off its boundary and has the other just
+/// outside, and neither reading is a vertex, an edge or a side: tier 3
+/// refuses all four as undecided distances, carrying the sized ending
+/// ([`geom_brep::chart_singularity::ON_BOUNDARY`]), among whatever else
+/// it reports of a cut left on its scaffolding (no chart lane describes
+/// an arc that close to the pole at rest). Mapping an undecided reading to no finding
+/// passes a pole a finer tolerance would place inside a face.
+#[test]
+fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
+    use geom_brep::chart_singularity::Undecided;
+    let tol = Tol::witness();
+    let delta = 3.0 * tol.eps();
+    // The great circle whose normal makes `n·z = sin δ`: it passes `δ`
+    // from each pole.
+    let rim = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(delta.cos(), 0.0, delta.sin()),
+        radius: 1.0,
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let (a, b) = (Point3::new(0.0, 1.0, 0.0), Point3::new(0.0, -1.0, 0.0));
+    let pi = core::f64::consts::PI;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            EdgeCurveSpec::arc_of_circle(rim.clone(), 0.0, pi).unwrap(),
+            tol,
+        )
+        .unwrap();
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_minus,
+                he2: first.he_plus,
+            },
+            EdgeCurveSpec::arc_of_circle(rim, pi, core::f64::consts::TAU).unwrap(),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    let _ = made;
+    let errors = topo::validate_geometric(&body, tol).unwrap_err();
+    let mut undecided: Vec<(topo::FaceKey, Singularity)> = Vec::new();
+    for e in &errors {
+        match e {
+            topo::ValidationError::ChartSingularityUndecided {
+                face,
+                point,
+                reading: Undecided::Boundary(_),
+            } => {
+                assert!(
+                    e.to_string().contains("tighten the tolerance below"),
+                    "the sized ending: {e}"
+                );
+                undecided.push((*face, *point));
+            }
+            topo::ValidationError::ChartSingularityNotAVertex { .. }
+            | topo::ValidationError::ChartSingularityUndecided { .. } => {
+                panic!("only undecided distances: {e:?}")
+            }
+            _ => {}
+        }
+    }
+    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+    let mut want: Vec<(topo::FaceKey, Singularity)> = faces
+        .iter()
+        .flat_map(|&f| [(f, Singularity::North), (f, Singularity::South)])
+        .collect();
+    let key = |p: &(topo::FaceKey, Singularity)| {
+        (
+            faces.iter().position(|f| *f == p.0),
+            p.1 == Singularity::South,
+        )
+    };
+    undecided.sort_by_key(key);
+    want.sort_by_key(key);
+    assert_eq!(undecided, want, "{errors:?}");
+}

@@ -241,8 +241,10 @@ impl Read {
     /// band at all) reads on within `eps` and off past it.
     fn coarser(eps: f64, escalate: f64) -> geom_core::Band {
         use geom_core::Band;
+        // With no band at all the two meet: the escalation one value
+        // past the zero, so nothing lies between them.
         Band::new(eps, escalate)
-            .or_else(|_| Band::new(eps, 2.0 * eps))
+            .or_else(|_| Band::new(eps, eps.next_up()))
             .unwrap_or(Band::least())
     }
 
@@ -271,17 +273,16 @@ impl Read {
     }
 
     /// The kernel's reading's failure to place a point, as this pass
-    /// refuses it. A side read in band names the file's band where it is
-    /// the one that sets the escalation.
+    /// refuses it. A side is no distance either band decides, so its
+    /// refusal names no band ([`StepImportError::SingularitySideUndecided`]).
     fn unread(&self, why: Unread<f64>, id: u64) -> StepImportError {
         match why {
             Unread::Boundary { cause, distance } => self.refuse(cause, distance, id),
-            Unread::Side(cause) => {
-                let file = self
-                    .band
-                    .is_some_and(|band| band.escalate() >= self.coarser.escalate());
-                self.refusal(cause, file, id)
-            }
+            Unread::Side { why, .. } => StepImportError::SingularitySideUndecided {
+                id,
+                side: why,
+                file: self.file,
+            },
             Unread::Carrier { .. } => foreign_carrier(id),
             Unread::Loop { .. } => unreadable(id),
         }
@@ -339,7 +340,22 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
     }
     let valence = valences(solid);
     let loops = loop_edges(solid, fi);
-    let views: Vec<&[LoopEdge<f64>]> = loops.iter().map(Vec::as_slice).collect();
+    // Each vertex's stored point: what "at a vertex" reads.
+    let corners: Vec<Vec<Point3<f64>>> = face
+        .loops
+        .iter()
+        .map(|lp| {
+            lp.uses
+                .iter()
+                .map(|u| solid.vertices[&use_start(solid, *u)])
+                .collect()
+        })
+        .collect();
+    let views: Vec<home::FaceLoop<'_, f64>> = loops
+        .iter()
+        .zip(&corners)
+        .map(|(edges, corners)| home::FaceLoop { edges, corners })
+        .collect();
     for (k, located) in home::locate(&face.surface, &views, face.sense, read.coarser)
         .into_iter()
         .enumerate()
@@ -352,6 +368,13 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 }
             }
             Lies::InsideEdge { r#loop, edge, t } => {
+                // This pass cuts lines and circles alone.
+                if !matches!(
+                    loops[r#loop][edge].carrier,
+                    Curve3::Line { .. } | Curve3::Circle { .. }
+                ) {
+                    return Err(foreign_carrier(face.id));
+                }
                 return Ok(Some(Action::InsideEdge {
                     fi,
                     edge: face.loops[r#loop].uses[edge].edge,
@@ -408,21 +431,7 @@ fn loop_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
 /// brought to the representative at or past `from` and short of a turn
 /// beyond it. `None` for any other carrier.
 fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
-    match *carrier {
-        Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let w = x - center;
-            let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
-            let tau = core::f64::consts::TAU;
-            Some(from + (t - from).rem_euclid(tau))
-        }
-        _ => None,
-    }
+    home::foot(carrier, x, from)
 }
 
 /// The two uses of the single edge at `vertex` in face `fi`'s loop: the
@@ -486,10 +495,10 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let loops = loop_edges(solid, fi);
     let walk =
         home::walk_loop(&inverse, &points, &loops[0], read.coarser).ok_or(unreadable(face_id))?;
-    match home::nappe(&walk, read.coarser) {
+    match home::nappe(&walk) {
         Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
         Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
-        Err(cause) => Err(read.unread(Unread::Side(cause), face_id)),
+        Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
 }
 

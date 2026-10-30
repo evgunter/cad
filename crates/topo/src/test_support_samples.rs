@@ -1422,10 +1422,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             point: geom_brep::chart_singularity::Singularity::Apex,
             lies: crate::SingularityLies::InsideEdge { edge },
         },
-        ValidationError::ChartSingularityNotAVertex {
+        ValidationError::ChartSingularityUndecided {
             face,
             point: geom_brep::chart_singularity::Singularity::South,
-            lies: crate::SingularityLies::Undecided { cause: diag() },
+            reading: geom_brep::chart_singularity::Undecided::Boundary(diag()),
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            reading: geom_brep::chart_singularity::Undecided::Side(
+                geom_brep::chart_singularity::SideUnread::Straddle,
+            ),
         },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },

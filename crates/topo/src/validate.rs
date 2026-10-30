@@ -1582,9 +1582,7 @@ pub enum ValidationError {
     /// inside one of its edges (`docs/DESIGN.md` `[topology.tiers]`:
     /// every chart singularity in a face's closure is a vertex of it).
     /// Read by `geom_brep::chart_singularity::locate`, the one reading
-    /// STEP import makes such a point a vertex by; `lies` says where, or
-    /// carries the escalation of a distance or a side the band could not
-    /// call.
+    /// STEP import makes such a point a vertex by; `lies` says where.
     ChartSingularityNotAVertex {
         /// The face.
         face: FaceKey,
@@ -1592,6 +1590,21 @@ pub enum ValidationError {
         point: geom_brep::chart_singularity::Singularity,
         /// Where it lies.
         lies: SingularityLies,
+    },
+    /// Tier 3, check 6's chart-singularity arm, **undecided**: whether a
+    /// chart singularity of the face's surface lies at a vertex of it,
+    /// inside it or outside it cannot be read — its distance to the
+    /// face's boundary is in band, or the side of one of its loops it
+    /// lies on does not clear its reading's bound
+    /// (`geom_brep::chart_singularity::Undecided`, whose ending it
+    /// carries).
+    ChartSingularityUndecided {
+        /// The face.
+        face: FaceKey,
+        /// Which singular point of its surface.
+        point: geom_brep::chart_singularity::Singularity,
+        /// What could not be read.
+        reading: geom_brep::chart_singularity::Undecided,
     },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
     /// leave infinity inside its material, so the volume they enclose is
@@ -4181,8 +4194,8 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 /// names this rung): `pncad` re-exports `topo` whole, so a Rust caller
 /// matches it already, and a Python caller reads the arm's word
 /// (`chart_singularity_not_a_vertex`) and the sentence, which names the
-/// place and, for an undecided one, the tolerance that decides it. The
-/// recourse is one for every place: state the point as a vertex. **The
+/// place. The recourse is one for every place: state the point as a
+/// vertex. **The
 /// falsifier is a caller who must act differently on an interior point
 /// and one inside an edge** (splitting the edge where the face needs no
 /// cut) without reading the sentence; then the prelude carries this type
@@ -4196,12 +4209,21 @@ pub enum SingularityLies {
         /// The edge.
         edge: EdgeKey,
     },
-    /// Undecided at the band: its distance to the face's boundary, or
-    /// the side of one of its loops it lies on, is in band.
-    Undecided {
-        /// The escalation, carrying the margin.
-        cause: Indeterminate,
-    },
+}
+
+/// A face's loops, flattened: each loop's edges and their half-edges.
+type FlatLoops<T> = Vec<(
+    Vec<geom_brep::props::LoopEdge<T>>,
+    Vec<crate::entity::HalfEdgeKey>,
+)>;
+
+/// What a chart singularity is, in a sentence.
+fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'static str {
+    match point {
+        geom_brep::chart_singularity::Singularity::North
+        | geom_brep::chart_singularity::Singularity::South => "a pole of a sphere",
+        geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
+    }
 }
 
 impl ValidationError {
@@ -4444,11 +4466,7 @@ impl fmt::Display for ValidationError {
                  Recourse: validate at a finer tolerance"
             ),
             Self::ChartSingularityNotAVertex { point, lies, .. } => {
-                let what = match point {
-                    geom_brep::chart_singularity::Singularity::North
-                    | geom_brep::chart_singularity::Singularity::South => "a pole of a sphere",
-                    geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
-                };
+                let what = singularity_noun(*point);
                 match lies {
                     SingularityLies::Interior => write!(
                         f,
@@ -4460,17 +4478,38 @@ impl fmt::Display for ValidationError {
                         "{what} lies inside an edge of a face on that surface rather than at \
                          one of its corners. {DEFECT}"
                     ),
-                    SingularityLies::Undecided { cause } => write!(
+                }
+            }
+            Self::ChartSingularityUndecided { point, reading, .. } => {
+                use geom_brep::chart_singularity::{SideUnread, Undecided};
+                let what = singularity_noun(*point);
+                let ending = reading.recourse(Reading::AtRest);
+                match reading {
+                    Undecided::Boundary(cause) => write!(
                         f,
                         "{}",
                         cause.undecided(
                             format_args!(
-                                "whether {what} lies at a corner of a face on that surface, on \
-                                 its boundary, or inside it"
+                                "whether {what} lies at a corner of a face on that surface or \
+                                 on its boundary"
                             ),
-                            geom_brep::chart_singularity::ON_BOUNDARY
-                                .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                            ending
                         )
+                    ),
+                    Undecided::Side(SideUnread::Banded(cause)) => write!(
+                        f,
+                        "{}",
+                        cause.undecided(
+                            format_args!(
+                                "which side of a face's boundary on that surface {what} lies on"
+                            ),
+                            ending
+                        )
+                    ),
+                    Undecided::Side(SideUnread::Straddle) => write!(
+                        f,
+                        "which side of a face's boundary on that surface {what} lies on cannot \
+                         be read: the reading lies within its own error bound. {ending}"
                     ),
                 }
             }
@@ -5522,12 +5561,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    Beside them, **chart singularities as vertices**: every chart
 ///    singularity in a face's closure is a vertex of it, so a sphere's
 ///    pole or a cone's apex in a face's interior or inside one of its
-///    edges refuses, and one whose distance to the boundary or side of a
-///    loop is in band escalates with its margin
-///    ([`ValidationError::ChartSingularityNotAVertex`]). The reading is
-///    `geom_brep::chart_singularity::locate`, the one STEP import makes
-///    such a point a vertex by, read off the face's region: it never
-///    asks whether a loop has a meridian.
+///    edges refuses ([`ValidationError::ChartSingularityNotAVertex`]),
+///    and one whose distance to the boundary is in band, or whose side
+///    of a loop its reading cannot clear of its error bound, refuses as
+///    undecided ([`ValidationError::ChartSingularityUndecided`]). The
+///    reading is `geom_brep::chart_singularity::locate`, the one STEP
+///    import makes such a point a vertex by, read off the face's region:
+///    it never asks whether a loop has a meridian.
 /// 7. **The orientation invariant, PER SOLID** (solids, arena order):
 ///    each solid's own faces leave infinity outside its material, read
 ///    by the reader of a shell's role — a ray aimed at one of its faces
@@ -5642,11 +5682,15 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// - **A chart singularity the reading cannot place** (check 6's
 ///   chart-singularity arm, exempt where
 ///   `geom_brep::chart_singularity::locate` answers neither a place nor
-///   an escalation): an edge on a carrier with no closed-form distance
-///   (not a line or a circle) whose samples pass too near the point to
-///   place it off, and a loop whose chart image states no winding about
-///   the surface axis (a sample with no chart point away from every
-///   singular point, or a loop winding more than once).
+///   an undecided reading): an edge on a sampled carrier (not a line or
+///   a circle) whose refinement against its speed bound settles neither
+///   on nor off within its budget, or one with no finite speed bound
+///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
+///   and a loop whose chart image states no certified winding about the
+///   surface axis: a sample with no chart point away from every singular
+///   point, a step not certified to turn by less than a sixteenth of a
+///   turn within the walk's budget, or a loop winding more than once
+///   (`work/restcurve/a-loop-the-chart-singularity-walk-cannot-certify-is-exempt.md`).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -8031,6 +8075,9 @@ pub(crate) fn tier3_local_checks_marked<
     // Every seam region of a sphere, read once: the cover census here,
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
+    // Each sphere and cone face's loops as this arm flattens them, kept
+    // for the chart-singularity arm below.
+    let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     for region in &regions {
         if let (Some(&face), Some(cover)) = (region.members.first(), region.cover.clone()) {
             errors.extend(census_finding(face, cover));
@@ -8049,15 +8096,23 @@ pub(crate) fn tier3_local_checks_marked<
         }
         // Every loop: a cylinder face reads its side off its whole
         // boundary's chart Green form, rings included, as its flux does.
-        let Ok(loops) = core::iter::once(face.outer)
+        let Ok(flat) = core::iter::once(face.outer)
             .chain(face.rings.iter().copied())
-            .map(|l| crate::props::loop_edges(body, l).map(|(edges, _)| edges))
-            .collect::<Result<Vec<_>, _>>()
+            .map(|l| crate::props::loop_edges(body, l))
+            .collect::<Result<FlatLoops<T>, _>>()
         else {
             continue; // derivation exempt (posture above)
         };
+        let held;
+        let flat = if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
+            flattened.insert(face_key, flat);
+            &flattened[face_key]
+        } else {
+            held = flat;
+            &held
+        };
         let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
-            loops.iter().map(Vec::as_slice).collect();
+            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
         match geom_brep::props::boundary_material_sign_loops(surface, &loops, band) {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
                 // Two exact ±1s: the derived side is definite by
@@ -8108,48 +8163,71 @@ pub(crate) fn tier3_local_checks_marked<
     // STEP import makes such a point a vertex by, so validity refuses
     // exactly what import re-mints: one in the interior or inside an
     // edge refuses, and one whose distance to the boundary or side of a
-    // loop is in band escalates with its margin. A face whose reading
-    // cannot place the point is exempt (the not-yet-checked list): an
-    // edge on a carrier with no closed-form distance passing near it, or
-    // a loop whose chart image states no winding.
+    // loop is undecided refuses as undecided, carrying its ending. A
+    // face whose reading cannot place the point is exempt (the
+    // not-yet-checked list): an edge on a sampled carrier whose
+    // refinement settles neither on nor off, or a loop whose chart image
+    // states no certified winding. The loops are check 6's curved arm's,
+    // and "at a vertex" reads each vertex's stored point.
     // ------------------------------------------------------------------
-    for (face_key, face) in body.faces.iter() {
-        use geom_brep::chart_singularity::{Lies, Unread, locate};
-        let Some(surface) = body.surfaces.get(face.surface) else {
+    for (face_key, flat) in flattened.iter() {
+        use geom_brep::chart_singularity::{FaceLoop, Lies, Undecided, locate};
+        let (Some(face), Some(surface)) = (
+            body.faces.get(face_key),
+            body.faces
+                .get(face_key)
+                .and_then(|face| body.surfaces.get(face.surface)),
+        ) else {
+            continue; // unreachable: the curved arm read both
+        };
+        let Some(corners) = flat
+            .iter()
+            .map(|(_, hes)| {
+                hes.iter()
+                    .map(|&he| {
+                        let he = body.half_edges.get(he)?;
+                        body.points.get(body.vertices.get(he.start)?.point).copied()
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
             continue; // unreachable on tier-1 input
         };
-        if !matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
-            continue;
-        }
-        let Ok(flat) = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .map(|l| crate::props::loop_edges(body, l))
-            .collect::<Result<Vec<_>, _>>()
-        else {
-            continue; // tier 1 refuses a loop that does not flatten
-        };
-        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
-            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
+        let loops: Vec<FaceLoop<'_, T>> = flat
+            .iter()
+            .zip(&corners)
+            .map(|((edges, _), corners)| FaceLoop { edges, corners })
+            .collect();
         for located in locate(surface, &loops, face.sense, band) {
-            let lies = match located.lies {
-                Ok(Lies::AtVertex { .. } | Lies::Outside)
-                | Err(Unread::Carrier { .. } | Unread::Loop { .. }) => continue,
-                Ok(Lies::Interior) => SingularityLies::Interior,
+            let (point, face) = (located.singularity, face_key);
+            match located.lies {
+                Ok(Lies::AtVertex { .. } | Lies::Outside) => {}
+                Ok(Lies::Interior) => errors.push(ValidationError::ChartSingularityNotAVertex {
+                    face,
+                    point,
+                    lies: SingularityLies::Interior,
+                }),
                 Ok(Lies::InsideEdge { r#loop, edge, .. }) => {
                     let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) else {
                         continue; // unreachable: the flattening resolved it
                     };
-                    SingularityLies::InsideEdge { edge: he.edge }
+                    errors.push(ValidationError::ChartSingularityNotAVertex {
+                        face,
+                        point,
+                        lies: SingularityLies::InsideEdge { edge: he.edge },
+                    });
                 }
-                Err(Unread::Boundary { cause, .. } | Unread::Side(cause)) => {
-                    SingularityLies::Undecided { cause }
+                Err(why) => {
+                    if let Some(reading) = Undecided::of(&why) {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading,
+                        });
+                    }
                 }
-            };
-            errors.push(ValidationError::ChartSingularityNotAVertex {
-                face: face_key,
-                point: located.singularity,
-                lies,
-            });
+            }
         }
     }
 

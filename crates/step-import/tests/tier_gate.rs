@@ -467,17 +467,17 @@ const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
 /// as the whole message, face, margin, band and number included.
 const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
      or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
-     one of its vertices is undecided: margin 9.99999999978924e-9 \
+     one of its vertices is undecided: margin 9.999999999789241e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 9.99999999978924e-10 m";
+     the tolerance below 9.999999999789241e-10 m";
 /// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
 const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
      or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
-     one of its vertices is undecided: margin 1.00000000119619e-9 \
+     one of its vertices is undecided: margin 1.0000000011961913e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 1.00000000119619e-10 m";
+     the tolerance below 1.0000000011961913e-10 m";
 /// The poleguard twins' fine-band refusal: at 1e-12 the run's band
 /// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
 /// K·ε_in)`, cannot call it, so no tolerance decides it and the ending

@@ -57,6 +57,10 @@ impl fmt::Display for AdoptionCandidate {
 pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
      boundary, lies on that boundary or at one of its vertices";
 
+/// What [`StepImportError::SingularitySideUndecided`] asks.
+pub(crate) const SINGULARITY_SIDE_SUBJECT: &str =
+    "which side of a face's boundary a sphere pole or cone apex lies on";
+
 /// **Whether a chart singularity lies on a face's boundary**, the
 /// kernel's sized decision of it
 /// ([`geom_brep::chart_singularity::ON_BOUNDARY`]), which tier 3 ends
@@ -333,6 +337,24 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
+    /// Which side of a face's boundary a sphere pole or cone apex lies on,
+    /// the point being off that boundary, cannot be read: its reading does
+    /// not clear its own error bound, or a band decision of it is in band
+    /// (`geom_brep::chart_singularity::SideUnread`). Whether the point lies
+    /// inside the face, and so whether the normalization that makes it a
+    /// vertex ([`crate::NormalizationKind::ChartSingularityVertex`]) owes
+    /// the face a cut, is undecided, and it refuses rather than guess. The
+    /// side is no distance the file's band or the run's decides, so the
+    /// refusal names neither: it ends as the kernel ends the side
+    /// ([`geom_brep::chart_singularity::LOOP_SIDE`]).
+    SingularitySideUndecided {
+        /// The `ADVANCED_FACE` whose boundary the point lies beside.
+        id: u64,
+        /// Why the side is unread.
+        side: geom_brep::chart_singularity::SideUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
     /// An assembly instance's placement map is not admitted as a rigid
     /// motion at the kernel's decided door
     /// ([`geom_core::RigidMotion::check_rigid`]): a map this reader's
@@ -569,6 +591,22 @@ impl fmt::Display for StepImportError {
                     "step import: face #{id}: {}",
                     cause.undecided(SINGULARITY_SUBJECT, ending)
                 )
+            }
+            Self::SingularitySideUndecided { id, side, file } => {
+                use geom_brep::chart_singularity::{SideUnread, Undecided};
+                let ending = Undecided::Side(*side).recourse(*file);
+                match side {
+                    SideUnread::Banded(cause) => write!(
+                        f,
+                        "step import: face #{id}: {}",
+                        cause.undecided(SINGULARITY_SIDE_SUBJECT, ending)
+                    ),
+                    SideUnread::Straddle => write!(
+                        f,
+                        "step import: face #{id}: {SINGULARITY_SIDE_SUBJECT} cannot be read: \
+                         the reading lies within its own error bound. {ending}"
+                    ),
+                }
             }
             Self::PlacementMap { transform, source } => write!(
                 f,
