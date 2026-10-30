@@ -1593,7 +1593,10 @@ fn spline_crossings<T: Decide>(
         Err(refusal) => {
             return match refusal.fault {
                 MeetFault::Escalated(diag) => Err(diag),
-                MeetFault::Unsettled(_)
+                // A meeting in band on the path is the path's, which says
+                // nothing there, as a probe ray grazes.
+                MeetFault::Touch(_)
+                | MeetFault::Unsettled(_)
                 | MeetFault::Unsupported { .. }
                 | MeetFault::Desync
                 | MeetFault::Contradiction { .. } => Ok(None),
