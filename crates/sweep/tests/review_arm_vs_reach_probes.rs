@@ -137,15 +137,15 @@ fn run(
             if (u + i - v.0 - v.1).abs() > 1e-7 {
                 bad.push(format!("{row}: ∪ + ∩ = {} ≠ {}", u + i, v.0 + v.1));
             }
-            if let Some(d) = g("A ∖ B") {
-                if (d + i - v.0).abs() > 1e-7 {
-                    bad.push(format!("{row}: A∖B + A∩B = {} ≠ {}", d + i, v.0));
-                }
+            if let Some(d) = g("A ∖ B")
+                && (d + i - v.0).abs() > 1e-7
+            {
+                bad.push(format!("{row}: A∖B + A∩B = {} ≠ {}", d + i, v.0));
             }
-            if let Some(d) = g("B ∖ A") {
-                if (d + i - v.1).abs() > 1e-7 {
-                    bad.push(format!("{row}: B∖A + A∩B = {} ≠ {}", d + i, v.1));
-                }
+            if let Some(d) = g("B ∖ A")
+                && (d + i - v.1).abs() > 1e-7
+            {
+                bad.push(format!("{row}: B∖A + A∩B = {} ≠ {}", d + i, v.1));
             }
         }
     }

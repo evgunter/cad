@@ -57,6 +57,7 @@
 //! two can overlap one order down, in a crescent from the vertex, which
 //! a union of two plane faces refuses ([`crescent_refusal`]).
 
+use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::{
@@ -1262,6 +1263,25 @@ pub(super) fn within_reaching<T: Decide>(
     })
 }
 
+/// **The length one direction's side of another is read at**: the
+/// shorter of the two's own reaches, `bound`'s alone where the
+/// direction read against it has none (`own` is `None`: a face–face
+/// line, a bisector). Every reading of two directions against each
+/// other in the sector passes and the fate cuts takes its lever here
+/// ([`within_reaching`]); each reach may be known only from both sides,
+/// and the lever then is too.
+pub(super) fn reading_lever<T: geom_core::Real>(
+    bound: LeverBounds<T>,
+    own: Option<LeverBounds<T>>,
+) -> LeverBounds<T> {
+    own.map_or(bound, |o| bound.min(o))
+}
+
+/// [`reading_lever`] of two reaches known exactly.
+pub(super) fn exact_lever<T: geom_core::Real>(bound: T, own: Option<T>) -> T {
+    reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
+}
+
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
 /// which side of `start`, then of `end`, it lies on, `Positive` toward
 /// the other.
@@ -1271,7 +1291,7 @@ fn within_signs<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
-    let lever = |r: Reach<T>| own.map_or(r.length(), |o| o.min(r.length()));
+    let lever = |r: Reach<T>| exact_lever(r.length(), own);
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), lever(s.start_reach));
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), lever(s.end_reach));
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
@@ -1305,13 +1325,20 @@ pub(super) fn half_planes<T: Decide>(
         }
         // CCW about the normal from `start` to `end` (module docs), so
         // the face lies ahead of `start` and behind `end`.
+        // A direction along a bound is read along it, sides and sense,
+        // at the one lever (`reading_lever`).
         let ahead = s.normal.vec().cross(dir).normalize();
+        let along = |r: Reach<T>| exact_lever(r.length(), Some(reach.length()));
         match within_signs(s, (dir, Some(reach.length())), DeclarationRead::Moot, band)? {
             (Sign::Positive, Sign::Positive) => out.extend([(ahead, s), (-ahead, s)]),
-            (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
+            (Sign::Zero, Sign::Positive)
+                if direction_sense(s.start, dir, along(s.start_reach), band)? =>
+            {
                 out.push((ahead, s));
             }
-            (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
+            (Sign::Positive, Sign::Zero)
+                if direction_sense(s.end, dir, along(s.end_reach), band)? =>
+            {
                 out.push((-ahead, s));
             }
             _ => {}
@@ -1951,7 +1978,7 @@ pub(super) fn runs_into<T: Decide>(
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        let lever = reach.length().min(along.length());
+        let lever = exact_lever(along.length(), Some(reach.length()));
         if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
@@ -2057,7 +2084,8 @@ fn sector_overlap<T: Decide>(
         }
     }
     let along = |(u, ru): (Vec3<T>, Reach<T>), (v, rv): (Vec3<T>, Reach<T>)| {
-        parallel_same(u, v, ru.length().min(rv.length()), BOUNDS_PARALLEL, band)
+        let lever = exact_lever(rv.length(), Some(ru.length()));
+        parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
     };
     let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
     let (b_start, b_end) = ((b.start, b.start_reach), (b.end, b.end_reach));
@@ -2114,8 +2142,9 @@ pub(super) fn crescent_refusal<T: Decide>(
     Ok(())
 }
 
-/// A bound's curvature vector at the base vertex, where the sector
-/// reads one, with the bound's reach: a conic's, and a line edge's zero.
+/// A bound's curvature vector at the base vertex and its reach, where
+/// the bound is an edge whose bend the sector reads: a curved edge's
+/// own, a line edge's zero; `None` for a bisector or a probe.
 fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
         Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
@@ -2260,7 +2289,13 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), BOUNDS_PARALLEL, band)?)
+        && parallel_same(
+            a.dir,
+            b.dir,
+            exact_lever(b.reach, Some(a.reach)),
+            BOUNDS_PARALLEL,
+            band,
+        )?)
 }
 
 /// A corner [`crescent`] reads: one operand's body, its sectors at the

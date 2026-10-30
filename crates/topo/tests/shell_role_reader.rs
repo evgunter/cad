@@ -712,9 +712,8 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 /// point of it is off the band of those walls; the join reads its side
 /// off its germ at the seam, and builds at every width.
 ///
-/// Turned at ε 1e-9 from 12ε up, and moved at ε 1e-9 below 30ε, the same
-/// operands refuse earlier, in the reduction's sector question
-/// (`bool_sector_within`, `bool_sector_coplanar`)
+/// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
+/// reduction's sector question (`bool_sector_coplanar`)
 /// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 /// Turned at ε 1e-6, the 30ε bar `slab ∖ fill` refuses
 /// `ResultVolumeImplausible`: the backstop holds the operands' flush
@@ -730,8 +729,7 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     for pose in [Pose::Aligned, Pose::Turned, Pose::Moved] {
         for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
             channel_rows(pose, m, 0.0, tol, |op| match pose {
-                Pose::Turned if at_1e9 && m >= 12.0 => Want::Sector,
-                Pose::Moved if at_1e9 && m < 30.0 => Want::Sector,
+                Pose::Turned if at_1e9 && m == 12.0 => Want::Sector,
                 Pose::Turned if !at_1e9 && m == 30.0 && op == "slab ∖ fill" => Want::Backstop,
                 _ => Want::Builds,
             });
@@ -847,3 +845,4 @@ fn a_needles_orientation_through_the_structural_doors() {
         }
     }
 }
+

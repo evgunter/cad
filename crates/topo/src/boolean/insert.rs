@@ -2258,11 +2258,16 @@ fn walk_faces_first<T: Decide>(
     {
         return Ok(tie);
     }
-    // The arrival edge bounds the half of its corner that ends on it.
+    // The arrival edge bounds the half of its corner that ends on it:
+    // every corner's last sector ends on its own chord.
     let reach = sectors
         .iter()
         .find(|t| t.he == s.he && t.end_edge())
-        .map_or(s.arm, |t| t.end_reach.length());
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "no sector of a corner ends on its arrival edge",
+        })?
+        .end_reach
+        .length();
     strut_order(
         (anchor_dir(body, s.he), reach),
         s.normal.vec(),
@@ -3565,6 +3570,37 @@ mod tests {
             strut_order((e, 1.0), n, (y, near), 1.0, unread, band).is_err(),
             "germs in band of each other refuse without the tie"
         );
+    }
+
+    /// **A germ `θ` off the arrival edge, the edge long and the entry's
+    /// arm short**: `θ` times the arm reads Zero, `θ` times the edge's
+    /// reach definite, so the germ's half-turn is read at the edge's
+    /// reach. The turn runs clockwise from the edge: just
+    /// counterclockwise of it the germ lies at the turn's far end, after a
+    /// germ square to the edge; just clockwise, at its near end, before
+    /// it. Read at the arm both would lie along the edge, at angle 0,
+    /// before it.
+    #[test]
+    fn a_germ_beside_a_long_arrival_edge_is_placed_at_the_edges_reach() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let arm = 100.0 * band.escalate();
+        let theta = band.zero() / (10.0 * arm);
+        let square = Vec3::new(0.0, 1.0, 0.0);
+        let unread = || -> Result<Option<Sign>, BooleanError> { panic!("the tie was read") };
+        for (side, first_nearer) in [(-1.0, true), (1.0, false)] {
+            let g = Vec3::new(theta.cos(), side * theta.sin(), 0.0);
+            assert_eq!(
+                strut_order((e, 1.0), n, (g, square), arm, unread, band).ok(),
+                Some(first_nearer),
+                "at the edge's reach, side {side}"
+            );
+            assert_eq!(
+                strut_order((e, arm), n, (g, square), arm, unread, band).ok(),
+                Some(true),
+                "at the arm, side {side}"
+            );
+        }
     }
 
     /// **A germ tangent to a bound of its sector moves to the sector
