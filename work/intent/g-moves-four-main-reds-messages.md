@@ -2,8 +2,9 @@
 id: g-moves-four-main-reds-messages
 kind: issue
 title: INTENT G (PR 5954) moved six slow rows on main; all are now pinned or re-blessed, and two moves stay unexplained: R2's rounded pad loses two symbolic decisions outside the bracket-only DECIDE-3 trade, and the m10_sym_profile plate digest and sweep thread-count line moved without a stated cause
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-10-30
 priority: P1
 cost: M
 ---
@@ -51,3 +52,42 @@ loss of two `symbolic` decisions in `sym_9_the_drive_writes_the_ladders_receipt`
 thread-count `chk 97/104` line. Moved to INTENT per GREEN's charter (the
 fix row goes on the program that owns the code that moved). Un-pinning
 each owes the re-measure its pin site names.
+
+## Closed (2026-10-30, INTENT)
+
+Each move was measured on G's merge `cdef4469` against the same tree
+with rule H shut (`SymRules::without_angle_sum()`). The shut reading
+matched G's first parent `bc30e8a3` every time, which was also re-run
+for the `sweep` row. So rule H (`crates/geom-core/src/sym/turn.rs`)
+accounts for all three moves. The probes were temporary and none is
+committed.
+
+- **R2's rounded pad, `symbolic` -2: a defect, filed as
+  `work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`**
+  (SYM owns `sym/turn.rs`). The bare leaf reads `[1427, 1416, 0]`
+  shipped and `[1429, 1414, 0]` with rule H shut. One
+  `carrier_on_surface_1` and one `carrier_on_surface_2` decision go from
+  `Symbolic` to `NumericZero`. The leg's rounded `π/2` is a symbolic
+  angle, so its products linearise into multiple-angle atoms. One square
+  in each residual then freezes on the coefficient bound, a freeze that
+  does not happen with the rule shut. This is a loss outside DECIDE-3's
+  bracket-only exemption, so the pin stays and cites the SYM row.
+- **The `m10_sym_profile` plate's `Early/Decision` digest: correct.**
+  Rule H keys three `sin`/`cos` pairs whose argument has no
+  rational-turn part by the sign-normalised argument, each `sin` read
+  as `−sin(−ω)`. The 168 forms downstream carry the new keys at
+  unchanged sizes, and every count holds.
+- **The `sweep` 1e-12 `sym_arc_loft chk=99/104` → `97/104`: correct, at
+  a cost in check coverage.** Under rule H one `Mul` node's kids carry
+  coefficients of about 100 and 160 bits at this row's scale, so their
+  product passes the 256-bit ring and the early walk freezes the node.
+  The two contradiction checks whose residual is a multiple of it then
+  read frozen. No decision is lost (`sym` +2 at every row, as G pinned),
+  and `disp` stays 0. Rule H also turns two of `sym_thin_strip`'s
+  build-time checks from frozen to expanded, but the door's receipt
+  subtracts those, so they never reach the table.
+
+Each pin site now carries its explanation
+(`sym_9_retry_interval.rs`, `m10_sym_profile_interval.rs`'s
+`PLATE_LEDGER`, and `mass_props_are_thread_count_invariant.rs`'s
+`expected`).

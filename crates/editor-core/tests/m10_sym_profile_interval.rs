@@ -774,8 +774,13 @@ const PLATE_MAX_TERMS: usize = 28;
 /// #5542's `segment_gap` moved it first, and PR 5952 took the
 /// `*/Report` lines #5542 brought away again
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-/// `Early/Decision`'s digest is pinned at main's, not explained
-/// (`work/green/g-moves-four-main-reds-messages.md`).
+/// PR 5954's rule H moved `Early/Decision`'s digest and no count
+/// (`SymRules::without_angle_sum` reads the old one): the walk mints its
+/// `sin`/`cos` atoms over a canonical argument
+/// (`geom_core::sym`'s `turn`), and the plate's three `sin`/`cos` pairs
+/// over an argument with no rational-turn part are keyed by the
+/// sign-normalised argument, each `sin` read as `−sin(−ω)`. The 168
+/// forms downstream carry the new keys at their old sizes.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1149 forms 20618 frozen 36 digest 5b68ab11cb6a6488e4a842bd68fd8b54\n\
      Plain/Assertion calls 824 forms 9331 frozen 193 digest 3b9e5da836f18dc5a35a3a4ece119754\n\
