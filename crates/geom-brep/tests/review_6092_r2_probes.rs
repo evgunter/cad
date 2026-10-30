@@ -7,8 +7,9 @@
 //! accepted it or stopped at its wall; a typed refusal is allowed and
 //! printed.
 //!
-//! Slow: about 40 min in release on head (the multi-span rows run to
-//! the per-span-cell wall). A review probe, not a gate row.
+//! The gate runs one case of each claim (`*_one_case`, in the slow
+//! set); the full sweeps take about 2 min in release and are ignored:
+//! `cargo nextest run --release -p geom-brep --run-ignored only -E 'test(/review_6092_r2_probes/)'`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
@@ -171,6 +172,7 @@ fn hold(
 /// a double (C⁰) knot, and translations up to 1e6 m: every bracket
 /// returned, accepted or stopped, holds the oracle.
 #[test]
+#[ignore = "the full sweep, about 2 min in release: cargo nextest run --release -p geom-brep --run-ignored only -E 'test(/review_6092_r2_probes/)'"]
 fn rational_extreme_weights_unequal_spans_and_far_translations_hold_the_oracle() {
     let ku = kv(2, &[0.1234, 0.1235, 0.61, 0.61]);
     let kvv = kv(2, &[0.0007, 0.3333]);
@@ -193,6 +195,7 @@ fn rational_extreme_weights_unequal_spans_and_far_translations_hold_the_oracle()
 /// is where the per-span constants halved (4 hull blocks, 32 area
 /// cells), so its at-the-wall bracket is the one to hold.
 #[test]
+#[ignore = "the full sweep, about 2 min in release: cargo nextest run --release -p geom-brep --run-ignored only -E 'test(/review_6092_r2_probes/)'"]
 fn rational_one_span_extreme_weights_hold_the_oracle_at_the_wall() {
     let ku = kv(2, &[]);
     let kvv = kv(2, &[]);
@@ -215,6 +218,7 @@ fn rational_one_span_extreme_weights_hold_the_oracle_at_the_wall() {
 /// hulls now per hull block. Unequal non-dyadic spans, a C⁰ knot, far
 /// translations, run to the wall.
 #[test]
+#[ignore = "the full sweep, about 2 min in release: cargo nextest run --release -p geom-brep --run-ignored only -E 'test(/review_6092_r2_probes/)'"]
 fn polynomial_composite_arm_holds_the_oracle_at_the_wall() {
     let ku = kv(5, &[0.0003, 0.4142, 0.4142, 0.4142, 0.4142, 0.4142]);
     let kvv = kv(2, &[0.271]);
@@ -236,6 +240,7 @@ fn polynomial_composite_arm_holds_the_oracle_at_the_wall() {
 /// domain grid skipped a point within its clearance of a knot. Prints
 /// the round-0..wall widths across `g` so a widening near `g → 0` shows.
 #[test]
+#[ignore = "the full sweep, about 2 min in release: cargo nextest run --release -p geom-brep --run-ignored only -E 'test(/review_6092_r2_probes/)'"]
 fn near_coincident_knots_hold_the_oracle_and_print_their_width() {
     for &g in &[1e-2, 1e-5, 1e-8, 1e-11, 1e-14] {
         let ku = kv(2, &[0.37, 0.37 + g]);
@@ -259,4 +264,37 @@ fn near_coincident_knots_hold_the_oracle_and_print_their_width() {
             Mode::Target,
         );
     }
+}
+
+/// One case of the extreme-weight claim: weights `0.5..2`, unequal
+/// spans and a C⁰ knot, translated 1e6 m.
+#[test]
+fn rational_extreme_weights_one_case() {
+    let ku = kv(2, &[0.1234, 0.1235, 0.61, 0.61]);
+    let kvv = kv(2, &[0.0007, 0.3333]);
+    let (cp, ws) = net(&ku, &kvv, 1e6, &|i, j| log_weight(i, j, 0.5, 2.0));
+    hold(
+        "rational w[0.5,2] off 1e6",
+        &ku,
+        &kvv,
+        &cp,
+        &ws,
+        Mode::Target,
+    );
+}
+
+/// One case of the near-coincident-knot claim, at a gap of `1e-11`.
+#[test]
+fn near_coincident_knots_one_case() {
+    let ku = kv(2, &[0.37, 0.37 + 1e-11]);
+    let kvv = kv(2, &[0.5]);
+    let (cp, ws) = net(&ku, &kvv, 0.0, &|i, j| log_weight(i, j, 0.5, 2.0));
+    hold(
+        "near-coincident u knots g 1e-11 rational",
+        &ku,
+        &kvv,
+        &cp,
+        &ws,
+        Mode::Target,
+    );
 }

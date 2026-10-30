@@ -386,19 +386,26 @@ fn c0_multiplicity_knot_under_the_exact_arm() {
     drive("c0-kink EXACT arm", &ku, &kv, &cp, &ws);
 }
 
-/// The sliver attack: an interior v knot one ulp above a coarse BLOCK
-/// edge (`HULL_BLOCKS_PER_AXIS = 8`), so two cut points sit one ulp apart
-/// and the cell between them is one ulp wide.
+/// The sliver attack: an interior v knot one ulp above a hull-block
+/// edge. The blocks are laid per knot span (four a span), so without
+/// the knot the span `[0, 0.71]` has an edge at its midpoint, 0.355;
+/// with it, `[0, k]` and `[k, 0.71]` lay their own, and no cut lands
+/// beside the knot. The row pins that the cut list mints no one-ulp
+/// cell there and the answer holds its oracle.
 #[test]
 fn knot_one_ulp_from_a_block_edge() {
     let ku = kv_offgrid_deg2();
-    // block edge 3/8 of [0,1]
-    let edge: f64 = 3.0 / 8.0;
+    let edge = BLOCK_EDGE;
     let k = f64::from_bits(edge.to_bits() + 1);
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
     drive("sliver: knot 1 ulp above block edge", &ku, &kv, &cp, &ws);
 }
+
+/// The midpoint of the v span `[0, 0.71]` these rows' vectors share, a
+/// hull-block edge of that span under four blocks a span, written as the
+/// per-span rule computes it.
+const BLOCK_EDGE: f64 = 0.0 + (0.71 - 0.0) * (2.0 / 4.0);
 
 /// The same sliver, one ulp BELOW the block edge, and under the exact
 /// arm, where the whole v integral of that cell is taken through the
@@ -406,7 +413,7 @@ fn knot_one_ulp_from_a_block_edge() {
 #[test]
 fn knot_one_ulp_below_a_block_edge_exact_arm() {
     let ku = kv_offgrid_deg2();
-    let edge: f64 = 3.0 / 8.0;
+    let edge = BLOCK_EDGE;
     let k = f64::from_bits(edge.to_bits() - 1);
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
     let (cp, ws) = tile(&ku, &kv, &|i, _| 1.0 + 0.20 * i as f64);
@@ -485,7 +492,8 @@ fn many_dyadic_knots_per_axis_stay_sound() {
 }
 
 /// **The isolation control for the sliver finding.** One interior v
-/// knot, placed at a graded distance from the coarse block edge 3/8.
+/// knot, placed at a graded distance from the hull-block edge
+/// [`BLOCK_EDGE`].
 /// The geometry is the SAME surface class at every gap; only the
 /// distance from a cut point the engine adds by itself changes, and
 /// each rung asserts, under its own `gap <label>` name, that the door
@@ -501,7 +509,7 @@ fn many_dyadic_knots_per_axis_stay_sound() {
 /// sit on a plateau the far control already stands for.
 #[test]
 fn width_versus_gap_from_a_block_edge() {
-    let edge: f64 = 3.0 / 8.0;
+    let edge = BLOCK_EDGE;
     let ku = kv_offgrid_deg2();
     let scan = |label: &str, k: f64| {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();

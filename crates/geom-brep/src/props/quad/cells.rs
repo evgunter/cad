@@ -14,7 +14,7 @@ use geom_core::spline::{
     TensorChannels, cell_measure_quotients,
 };
 
-use super::net::{PatchNet, PatchRect, knots_inside};
+use super::net::{PatchNet, PatchRect, range_spans};
 use crate::patch_bound::{certified_inf, certified_sup};
 use crate::props::PropsError;
 use crate::props::bracket::pt;
@@ -109,11 +109,12 @@ impl MeasureCells {
         let held =
             |kv: &KnotVector| -> Vec<Interval> { kv.knots().iter().map(|k| pt(*k)).collect() };
         let (held_u, held_v) = (held(kv_u), held(kv_v));
+        // A span's lower end is a cut of the range (`lo` or a knot), so
+        // it locates the span exactly.
         let meeting = |kv: &'n KnotVector, lo: f64, hi: f64| {
-            let k = kv.knots();
-            (kv.first_span()..=kv.last_span())
-                .filter_map(|i| kv.span(i))
-                .filter(move |s| k[s.index()] < hi && k[s.index() + 1] > lo)
+            range_spans(kv.knots(), lo, hi)
+                .into_iter()
+                .filter_map(move |(a, _)| kv.span_at(a))
         };
         let mut cells = Vec::new();
         for su in meeting(kv_u, u0, u1) {
@@ -291,10 +292,10 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
     }
 }
 
-/// **The composite's cut list in one direction**: the range's ends and
-/// the interior knots inside it, and every knot span between two of
-/// them cut into `pieces` equal pieces and into
-/// [`HULL_BLOCKS_PER_SPAN`] equal blocks, merged.
+/// **A cut list in one direction**: the range's ends, the interior
+/// knots inside it, and every knot span between two of them
+/// ([`range_spans`]) cut into `pieces` equal pieces
+/// ([`algebra::split_points`]).
 ///
 /// The knots are the point. An integrand that is only C⁰ at a knot may
 /// genuinely JUMP there, and no derivative hull bounds a jump — so a
@@ -311,58 +312,37 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
 /// alone, never of how many other spans share the range: a patch read
 /// whole and the same patch split into one face per span
 /// (`docs/DESIGN.md` [topology]'s C⁰-knot split) are read on the same
-/// cells, and cost the same. It is [`algebra::equal_split_points`]'
-/// schedule over the range's own spans, and a knot is a span end by
-/// construction, so no grid point needs a clearance from one.
-///
-/// The block edges are in the list for a soundness reason, not a
-/// tightness one: each cell reads its remainder hulls from ONE coarse
-/// block, which is only valid if the block contains it. Cutting there
-/// makes that containment structural rather than an arithmetic
-/// coincidence of `pieces` being a multiple of [`HULL_BLOCKS_PER_SPAN`].
+/// cells. A knot is a span end by construction, so no grid point needs
+/// a clearance from one.
 ///
 /// The result is sorted, deduplicated, and spans exactly `[lo, hi]`,
 /// so consecutive cells share a cut point and the cells tile the
-/// rectangle with no gap.
+/// range with no gap.
 ///
 /// `knots` is the raw slice the caller cuts on. A derivative's interior
 /// knots are its parent's, so every caller cuts on the carrier's own.
 pub(super) fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
-    // The span ends: the range's own and every interior knot. `hi` is
-    // pushed as ITSELF because `lo + (hi − lo)·1` is a rounded
-    // expression that may miss it by an ulp and leave the last sliver
-    // of the range outside every cell.
-    let mut ends: Vec<f64> = vec![lo, hi];
-    ends.extend(knots_inside(knots, lo, hi));
-    ends.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
-    ends.dedup();
-    let mut cuts = ends.clone();
-    for w in ends.windows(2) {
-        cuts.extend(algebra::range_grid_points(w[0], w[1], pieces, &[]));
-        cuts.extend(algebra::range_grid_points(
-            w[0],
-            w[1],
-            HULL_BLOCKS_PER_SPAN,
-            &[],
-        ));
+    let mut cuts = vec![lo];
+    for (a, b) in range_spans(knots, lo, hi) {
+        cuts.extend(algebra::split_points(a, b, pieces));
+        cuts.push(b);
     }
-    cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
-    cuts.dedup();
     cuts
 }
 
-/// The knot spans per axis a rectangle meets, multiplied: the count of
-/// span cells the per-span schedules ([`knot_aligned_cuts`]) are laid
-/// over, and the multiplier of the rectangle lanes' work wall
-/// ([`super::run::span_work_wall`]).
-pub(super) fn span_cell_count(rect: PatchRect, knots: (&[f64], &[f64])) -> usize {
-    let (u0, u1, v0, v1) = rect.corners();
-    let spans = |lo: f64, hi: f64, kv: &[f64]| {
-        let mut ends: Vec<f64> = knots_inside(kv, lo, hi).collect();
-        ends.dedup();
-        ends.len() + 1
-    };
-    spans(u0, u1, knots.0) * spans(v0, v1, knots.1)
+/// **A cut list for cells that read a hull block**: [`knot_aligned_cuts`]
+/// at `pieces`, merged with the hull blocks' own edges (the same rule at
+/// [`HULL_BLOCKS_PER_SPAN`]). The block edges are in the list for a
+/// soundness reason, not a tightness one: each cell reads its hulls from
+/// ONE block, which is only valid if the block contains it. Cutting
+/// there makes that containment structural rather than an arithmetic
+/// coincidence of `pieces` being a multiple of the block count.
+pub(super) fn block_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
+    let mut cuts = knot_aligned_cuts(lo, hi, pieces, knots);
+    cuts.extend(knot_aligned_cuts(lo, hi, HULL_BLOCKS_PER_SPAN, knots));
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    cuts
 }
 
 /// The hull block a cell reads its `f_dd` hulls from: the one that
@@ -397,8 +377,8 @@ pub(super) fn round_cuts(
     let (u0, u1, v0, v1) = rect.corners();
     let pieces = SPAN_INIT_PIECES << round;
     (
-        knot_aligned_cuts(u0, u1, pieces, knots.0),
-        knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots.1),
+        block_aligned_cuts(u0, u1, pieces, knots.0),
+        block_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots.1),
     )
 }
 
@@ -559,62 +539,27 @@ mod tests {
         (rkv, count)
     }
 
-    /// **A range's cuts restricted to one of its knot spans are that
-    /// span's own cuts**, bit for bit: the per-span tile of a patch is
-    /// read on the cells the whole patch reads there. Red if the grid
-    /// is laid over the range rather than per span, on the non-dyadic
-    /// range `[0.1, 0.7]` with knots at thirds-unfriendly values and a
-    /// double knot, at every count the rounds and the area pass use.
-    #[test]
-    fn a_ranges_cuts_on_a_span_are_the_spans_own() {
-        let knots = [0.0, 0.0, 0.0, 0.1, 0.23, 0.5, 0.5, 0.61, 0.7, 0.7, 0.7];
-        for pieces in [1, 2, 3, 8, 13, 16, 64] {
-            let whole = knot_aligned_cuts(0.1, 0.7, pieces, &knots);
-            for w in [0.1, 0.23, 0.5, 0.61, 0.7].windows(2) {
-                let part: Vec<f64> = whole
-                    .iter()
-                    .copied()
-                    .filter(|c| *c >= w[0] && *c <= w[1])
-                    .collect();
-                assert_eq!(
-                    part,
-                    knot_aligned_cuts(w[0], w[1], pieces, &knots),
-                    "pieces {pieces}, span [{}, {}]",
-                    w[0],
-                    w[1]
-                );
-            }
-        }
-    }
-
     /// `knot_aligned_cuts` pinned bit for bit, the values written out by
     /// `lo + (hi − lo)·(k/n)` per span:
     ///
-    /// * `[0.1, 0.7]`, `pieces = 3`, a double knot at `0.5`: thirds and
-    ///   the block quarters of `[0.1, 0.5]` and of `[0.5, 0.7]`, the knot
-    ///   one cut.
-    /// * `pieces = 4`, knots outside or ON the range ends add nothing,
-    ///   and the quarters of `[0.1, 0.3]` and `[0.3, 0.7]` are the
-    ///   blocks' own.
+    /// * `[0.1, 0.7]`, `pieces = 3`, a double knot at `0.5`: the thirds
+    ///   of `[0.1, 0.5]` and of `[0.5, 0.7]`, the knot one cut.
+    /// * `pieces = 4`, knots outside or ON the range ends add nothing.
     /// * `[-0.3, 0.2]`, `pieces = 3`, no knots: a range straddling zero.
+    ///
+    /// [`block_aligned_cuts`] adds the quarters of each span to the
+    /// first.
     #[test]
     fn knot_aligned_cuts_are_pinned_bit_for_bit() {
-        assert_eq!(HULL_BLOCKS_PER_SPAN, 4, "the lists below hold the quarters");
         assert_eq!(
             knot_aligned_cuts(0.1, 0.7, 3, &[0.5, 0.5]),
             [
                 0.1,
-                0.2,
                 0.233_333_333_333_333_34,
-                0.300_000_000_000_000_04,
                 0.366_666_666_666_666_7,
-                0.4,
                 0.5,
-                0.55,
                 0.566_666_666_666_666_7,
-                0.6,
                 0.633_333_333_333_333_3,
-                0.649_999_999_999_999_9,
                 0.7
             ]
         );
@@ -636,12 +581,28 @@ mod tests {
             knot_aligned_cuts(-0.3, 0.2, 3, &[]),
             [
                 -0.3,
-                -0.175,
                 -0.133_333_333_333_333_33,
-                -0.049_999_999_999_999_99,
                 0.033_333_333_333_333_326,
-                0.075_000_000_000_000_01,
                 0.2
+            ]
+        );
+        assert_eq!(HULL_BLOCKS_PER_SPAN, 4, "the list below holds the quarters");
+        assert_eq!(
+            block_aligned_cuts(0.1, 0.7, 3, &[0.5, 0.5]),
+            [
+                0.1,
+                0.2,
+                0.233_333_333_333_333_34,
+                0.300_000_000_000_000_04,
+                0.366_666_666_666_666_7,
+                0.4,
+                0.5,
+                0.55,
+                0.566_666_666_666_666_7,
+                0.6,
+                0.633_333_333_333_333_3,
+                0.649_999_999_999_999_9,
+                0.7
             ]
         );
     }

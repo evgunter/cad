@@ -76,7 +76,7 @@ const CORPUS_EPS: f64 = 1e-9;
 // `f_uu`/`f_vv` hulls are the quotient statement's
 // (`geom_core::spline::cell_measure_quotients`), at the round the
 // lane's work wall stops it: the composite arm's round 7, the exact-v
-// arm's round 11 (`props::quad`'s `FACE_WORK_WALL`, per span cell).
+// arm's round 11 (`props::quad`'s `FACE_WORK_WALL`).
 
 /// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
 const MOEBIUS_FLOOR: f64 = 1.451_877_376_029e-8;
@@ -1148,14 +1148,14 @@ fn quarter_torus_closed(rr: f64, r: f64) -> (f64, f64) {
     (flux, area)
 }
 
-/// **A patch costs per span, so more spans do not stop it short.** The
-/// quarter torus at 12× (R = 24 m, r = 6 m) on 9×9 conic spans (PR
-/// 5589's first reviewer's witness) stopped at the work wall after round
-/// 6 while its schedule was laid over the face: its rounds cost more
-/// cells than the calibrating face's, and each span got about a ninth of
-/// the cells a one-span patch gets. Laid per span, with the wall per span
-/// cell, it meets the reporting target at round 3, and that round's
-/// bracket holds the closed-form flux and area. The flux is read about
+/// **The 9×9 conic torus meets its target at the round before its
+/// wall.** The quarter torus at 12× (R = 24 m, r = 6 m) on 9×9 conic
+/// spans (PR 5589's first reviewer's witness) stopped at the work wall
+/// after round 6 while its schedule was laid over the face, each span
+/// getting about a ninth of the cells a one-span patch gets. Laid per
+/// span, its round 3 meets the reporting target, and round 4 would take
+/// it past the one per-face wall; that round's bracket holds the
+/// closed-form flux and area. The flux is read about
 /// the origin with the patch's normal inward, so its value is
 /// `−∫ S·n dA`.
 #[test]
@@ -1175,7 +1175,7 @@ fn a_conic_torus_on_nine_spans_a_direction_meets_its_target_holding_its_closed_f
     .expect("the conic torus has an enclosure");
     assert_eq!(
         (run.end, run.rounds),
-        (LaneEnd::Accepted(LaneStop::Refinable), 4),
+        (LaneEnd::Accepted(LaneStop::Wall), 4),
         "{run:?}"
     );
     assert!(

@@ -42,20 +42,7 @@ pub(in crate::props) const EDGE_INIT_PIECES: usize = 16;
 /// 12× rebuilt on 9×9 conic spans (its cap certified it at round 7; it
 /// stops at round 6) and a flat chart trimmed by a hexagon of curved
 /// arcs (round 4).
-///
-/// **A rectangle lane's face takes it once per knot-span cell**
-/// ([`span_work_wall`]): its rounds are laid per span cell, so its
-/// round's work is the span cells' sum, and a patch read whole stops at
-/// the round its per-span tiles would.
 pub const FACE_WORK_WALL: usize = 14_250_000;
-
-/// **The rectangle lanes' work wall**: [`FACE_WORK_WALL`] per knot-span
-/// cell the rectangle meets. Their schedules are per span cell
-/// ([`super::cells::knot_aligned_cuts`]), so a round's work is the sum
-/// of its span cells', and this wall is the sum of theirs.
-pub(super) fn span_work_wall(span_cells: usize) -> usize {
-    FACE_WORK_WALL.saturating_mul(span_cells)
-}
 
 /// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
 /// of a round's width a later round removes is at most this share of
@@ -137,8 +124,7 @@ pub enum LaneStop {
     /// so a later round may be a little narrower or wider. A lane with no
     /// rounds is at its floor.
     Floor,
-    /// The next round would take the face past its work wall
-    /// ([`FACE_WORK_WALL`], per knot-span cell on a rectangle lane).
+    /// The next round would take the face past [`FACE_WORK_WALL`].
     Wall,
 }
 
@@ -264,7 +250,7 @@ pub fn rounds_run_by<R>(run: impl FnOnce() -> R) -> (R, usize) {
 /// else in the width is the part no round removes. The stop is
 /// [`LaneStop::Floor`] once the removable part is at most
 /// [`FLOOR_SHARE`] of the width, [`LaneStop::Wall`] when the next round would pass
-/// the face's work wall, and [`LaneStop::Refinable`] otherwise. Both read
+/// [`FACE_WORK_WALL`], and [`LaneStop::Refinable`] otherwise. Both read
 /// the round alone: the work through a round is the sum of its rounds'
 /// costs, which `cost` states without running them, so a window entered
 /// at any round stops exactly where the whole schedule would.
@@ -276,20 +262,10 @@ pub(in crate::props) struct Run<'c> {
 }
 
 impl<'c> Run<'c> {
-    /// The call over `window` under [`FACE_WORK_WALL`], its earlier
-    /// rounds' work already spent. `cost(round)` is that round's
-    /// weighted cell count.
+    /// The call over `window`, its earlier rounds' work already spent.
+    /// `cost(round)` is that round's weighted cell count.
     pub(in crate::props) fn enter(window: RoundWindow, cost: &'c dyn Fn(usize) -> usize) -> Self {
-        Self::enter_walled(window, FACE_WORK_WALL, cost)
-    }
-
-    /// [`Run::enter`] under the work wall `wall`.
-    pub(in crate::props) fn enter_walled(
-        window: RoundWindow,
-        wall: usize,
-        cost: &'c dyn Fn(usize) -> usize,
-    ) -> Self {
-        let mut work = Work::new(wall);
+        let mut work = Work::new(FACE_WORK_WALL);
         for round in 0..window.first {
             work.spend(cost(round));
         }

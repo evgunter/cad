@@ -41,7 +41,7 @@
 //!
 //! * [`prism`] is `1e5·ε` across, and certifies at EVERY ε row this
 //!   repo runs, in the schedule's first round;
-//! * [`exhausting_prism`] is `2e14·ε` across, and its schedule cannot
+//! * [`exhausting_prism`] is `5e13·ε` across, and its schedule cannot
 //!   converge at any of them.
 //!
 //! Each row then ASSERTS the arm it takes rather than branching on it.
@@ -150,8 +150,8 @@ fn prism_pair() -> Body<f64> {
 /// ε — one posture at every ε row, which is what the module docs'
 /// vacuity argument needs.
 ///
-/// `k = 1e5` is nine orders below [`exhausting_prism`]'s scale and five
-/// orders above ε itself, so
+/// `k = 1e5` is eight orders below the exhaustion threshold
+/// (about `9e12·ε`, [`exhausting_prism`]) and five orders above ε itself, so
 /// neither end of the window is near. It converges in the schedule's
 /// FIRST round at every ε row — measured: the same 8 quadrature
 /// verdicts and the same ~0.43 s a call at 1e-9, 1e-6 and 1e-12, where
@@ -166,21 +166,22 @@ fn prism() -> Body<f64> {
 /// The same scaling argument as [`prism`], read from the other side.
 /// The window is two-sided and both ends are real:
 ///
-/// * from BELOW, the walls' lanes stop at their work wall, one per
-///   knot-span cell: measured, `1e13·ε` meets the target and `2e14·ε`
-///   stops at the wall;
+/// * from BELOW, measured at ε = 1e-9 through `mass_properties` at the
+///   pinned resolution: the prism meets the target at `8e12·ε` and
+///   stops at its work wall at `1e13·ε`, so the schedule exhausts once
+///   `s` passes about `9e12·ε`;
 /// * from ABOVE, the loft's carrier certification is a RELATIVE
 ///   residual, so a body more than ~1e15·ε across cannot be built at
 ///   all (it refuses `ResidualExceeded` before any quadrature runs).
 ///
-/// `2e14·ε` sits five times below the second, at every ε row this repo
-/// runs.
+/// `5e13·ε` sits five times above the first bound and twenty times
+/// below the second, at every ε row this repo runs.
 fn exhausting_prism() -> Body<f64> {
     arc_prism(EXHAUSTING * Tol::witness().get().eps)
 }
 
 /// [`exhausting_prism`]'s scale, in units of ε.
-const EXHAUSTING: f64 = 2.0e14;
+const EXHAUSTING: f64 = 5.0e13;
 
 /// `ROUND SPLIT`'s fine prism's scale, in units of ε: large enough
 /// that its sign settles before its schedule meets the target, small
@@ -467,7 +468,7 @@ fn a_multi_solid_certificate_reads_each_face_once() {
 /// by having nothing to split. Both graft ORDERS, because the assembly
 /// re-orders parts into arena order and an order-sensitive splice would
 /// agree on one and not the other. The last two subjects pair the
-/// exhausting `2e14·ε` prism with each of the others: the gate admits
+/// exhausting `5e13·ε` prism with each of the others: the gate admits
 /// both, and the continuation stops short exactly as `mass_properties`
 /// does.
 ///

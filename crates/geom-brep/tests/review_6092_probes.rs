@@ -288,14 +288,13 @@ fn a_polynomial_c0_patch_reads_as_its_tiles() {
     );
 }
 
-/// **Red at `ae1ba4fa`.** The polynomial lane's area pass hulls each
-/// cell with `Collapse::Over` on the raw derivative grids, and a closed
-/// cell `[x, k]` ending ON a C⁰ knot reads `span_of(k)`, the NEXT
-/// span's coefficients (and the empty double-knot span's zero filler).
-/// The whole patch's area width is about 1.1% wider than its tiles'
-/// summed, so the two are not read alike although their cells are.
+/// The polynomial lane's area pass hulls each cell with
+/// `Collapse::Over` on the derivative grids, and a closed cell `[x, k]`
+/// ending ON a C⁰ knot must read only the span it lies in, not the
+/// next span's coefficients. Red at `ae1ba4fa`, where the loose-knot
+/// hull read `span_of(k)` and the whole patch's area came out about
+/// 1.1% wider than its tiles' summed.
 #[test]
-#[ignore = "PR 6092 review finding: whole and tiled polynomial area widths differ"]
 fn a_polynomial_c0_patchs_area_reads_as_its_tiles() {
     whole_against_tiles(
         "polynomial area",
@@ -317,7 +316,7 @@ fn a_rational_c0_patch_reads_as_its_tiles() {
 
 #[test]
 fn an_extreme_weight_c0_patch_reads_as_its_tiles() {
-    let w = |a: usize, b: usize| if (a + b) % 2 == 0 { 1e-1 } else { 1e1 };
+    let w = |a: usize, b: usize| if (a + b).is_multiple_of(2) { 1e-1 } else { 1e1 };
     whole_against_tiles(
         "extreme weights",
         &wavy(&EU, &EV, w, 0.0),

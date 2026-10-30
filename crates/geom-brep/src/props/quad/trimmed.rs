@@ -11,7 +11,6 @@ use geom_core::spline::{
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use super::cells::knot_aligned_cuts;
 use super::net::{
     Collapse, PatchGrid, PatchNet, RVec3, certified_box, grid_vec, knots_inside,
     newton_cotes_weights, norm_hi, normal_partials, refused_vec, rv_add, widen,
@@ -111,9 +110,8 @@ const IMAGE_INIT_PIECES: usize = 8;
 /// chord anywhere becomes one within a few levels; a cusp or a fold
 /// never does, and refusing is the honest answer for it.
 const MONOTONE_BISECTIONS: usize = 4;
-/// Cells per chart knot span, per axis, of the trimmed lane's AREA rule
-/// under ONE chord: its `u` span, and its column in `v`
-/// ([`knot_aligned_cuts`]).
+/// Cells per axis of the trimmed lane's AREA rule under ONE chord: its
+/// `u` span, and its column in `v` ([`chord_area_cuts`]).
 ///
 /// The rule under each chord is the rectangle lane's own cell rule
 /// ([`chord_polygon_area`]), so its pad is `½h_u·sup|∂_u g| +
@@ -1250,6 +1248,31 @@ fn composite_piece(
     })
 }
 
+/// **The cut list under one chord** in one direction: the range's ends,
+/// the chart's knots inside it, and the range's own
+/// [`CHORD_AREA_CELLS`]-piece grid, a grid point within
+/// [`algebra::grid_clearance`] of a knot dropped. Uniform over the
+/// RANGE, not per knot span: a chord's column runs from the chart's
+/// lowest `v` and may cross every span beneath it, and a per-span count
+/// there would multiply the pass by the spans crossed
+/// (`work/quad/the-trimmed-lanes-chord-area-is-laid-per-range-not-per-span.md`).
+fn chord_area_cuts(lo: f64, hi: f64, knots: &[f64]) -> Vec<f64> {
+    let mut cuts = vec![lo, hi];
+    cuts.extend(knots_inside(knots, lo, hi));
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    let mandatory = cuts.clone();
+    cuts.extend(algebra::range_grid_points(
+        lo,
+        hi,
+        CHORD_AREA_CELLS,
+        &mandatory,
+    ));
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    cuts
+}
+
 /// **The chord polygon's area**, the same Green decomposition with
 /// `G_g(u, v) = ∫_{v₀}^{v} g` — `g = |S_u×S_v|` is not polynomial, so
 /// it cannot be the exact rule the flux takes.
@@ -1314,7 +1337,7 @@ fn chord_polygon_area(
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = Interval::zero();
-        for w in knot_aligned_cuts(span_u.start(), span_u.end(), CHORD_AREA_CELLS, &ku).windows(2) {
+        for w in chord_area_cuts(span_u.start(), span_u.end(), &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
             // Adjacent cuts of a sorted list are ordered; a pair that is
             // not (an infinite end cuts to NaN) names no region, and the
@@ -1336,9 +1359,7 @@ fn chord_polygon_area(
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
             let mut col = Interval::zero();
-            for wc in
-                knot_aligned_cuts(column.start(), column.end(), CHORD_AREA_CELLS, &kvb).windows(2)
-            {
+            for wc in chord_area_cuts(column.start(), column.end(), &kvb).windows(2) {
                 let (c0, c1) = (wc[0], wc[1]);
                 let Some(cell_v) = ParamRange::new(c0, c1) else {
                     return Interval::refused();

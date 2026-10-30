@@ -77,14 +77,13 @@ fn blade(tol: Tol) -> topo::Body<f64> {
 /// **A round tube big enough that its number stays open**: two
 /// circles (two semicircular arcs each, so every wall is rational) of
 /// radii `23.4·s` and `11.7·s`, lofted `125·s` apart, with
-/// `s = 65536·(ε / 1e-9)`. The reporting target is `1024·ε` and the
-/// width a wall reaches at the work wall is a length that grows with the
-/// part, so scaling the part with ε puts the same crossing at every ε
-/// row. Measured at ε = 1e-9: the tube certifies its number at
-/// `s = 1024`, and at 65536 each wall stops at the work wall, its
-/// bracket holding the frustum's volume. The work wall is per knot-span
-/// cell, so a multi-span wall refines each span as far as a one-span
-/// face would. It is `pncad-py`'s `oversized_round_loft`.
+/// `s = 512·(ε / 1e-9)`. The reporting target is `1024·ε` and the width
+/// a wall reaches at the work wall is a length that grows with the part,
+/// so scaling the part with ε puts the same crossing at every ε row.
+/// Measured at ε = 1e-9: the tube certifies its number at `s = 64`, and
+/// at 512 each wall stops at the work wall (the exact-v arm's round 11)
+/// with its bracket holding the frustum. It is `pncad-py`'s
+/// `oversized_round_loft`.
 fn round_tube(tol: Tol) -> topo::Body<f64> {
     let circle = |r: f64| {
         vec![bulge_loop(vec![
@@ -92,7 +91,7 @@ fn round_tube(tol: Tol) -> topo::Body<f64> {
             (Point2::new(-r, 0.0), -1.0),
         ])]
     };
-    let s = 65536.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
+    let s = 512.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
     loft_body::<f64>(
         &[circle(23.4 * s), circle(11.7 * s)],
         &sweep::test_support::stacked_at(&[0.0, 125.0 * s]),

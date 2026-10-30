@@ -234,6 +234,8 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
+#[path = "review_6092_probes.rs"]
+mod review_6092_probes;
 #[path = "review_6092_r2_probes.rs"]
 mod review_6092_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
@@ -260,8 +262,6 @@ mod review_m6_3_chart_probes;
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
 mod review_pr12_meridian_probe;
-#[path = "review_6092_probes.rs"]
-mod review_6092_probes;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
 #[path = "revolved_point_anchor.rs"]

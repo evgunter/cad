@@ -608,25 +608,24 @@ def polygonal_loft():
 
 
 def oversized_round_loft():
-    """A tapered round tube 8 192 km long: RATIONAL walls, and a part
-    big enough that the certified quadrature cannot reach its target.
+    """A tapered round tube 64 km long: RATIONAL walls, and a part big
+    enough that the certified quadrature cannot reach its target.
 
     The size is the point rather than an accident. The reporting
     target is `1024 * eps`, a LENGTH that shrinks with the run's
-    tolerance, while the width a rational wall reaches by its work
-    wall (`FACE_WORK_WALL` per knot-span cell) is a length that grows
-    with the PART — so at the suite's own eps the two cross only on a
-    part this large. Measured on this tube at the default eps (the
-    sweep suite's `round_tube`, the same loft): at 125 m it certifies,
-    at 128 km (1024x) it certifies, and at 8 192 km (65536x) each wall
-    stops at the work wall.
+    tolerance, while the width a rational wall reaches by the face
+    work wall (`FACE_WORK_WALL`) is a length that grows with the
+    PART — so at the suite's own eps the two cross only on a part
+    this large. Measured on this tube at the default eps (the sweep
+    suite's `round_tube`, the same loft): at 8 km (64x) it certifies,
+    and at 64 km (512x) each wall stops at the work wall.
     """
     return stacked_loft(
         Doc(),
         2,
-        8192000.0,
+        64000.0,
         lambda t: circle_split(
-            (0.0 * m, 0.0 * m), (1533542.4 * (1 - t) + 766771.2 * t) * m, 2, 0.0 * rad
+            (0.0 * m, 0.0 * m), (11980.8 * (1 - t) + 5990.4 * t) * m, 2, 0.0 * rad
         ),
     )
 
@@ -732,15 +731,10 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(e.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
-        # tube of radii 1533542.4 m and 766771.2 m over an 8192 km spine
+        # tube of radii 11980.8 m and 5990.4 m over a 64 km spine
         # encloses the frustum on those radii, and the rational walls
         # the loft fits sit around it.
-        frustum = (
-            math.pi
-            * 8192000.0
-            * (1533542.4**2 + 1533542.4 * 766771.2 + 766771.2**2)
-            / 3.0
-        )
+        frustum = math.pi * 64000.0 * (11980.8**2 + 11980.8 * 5990.4 + 5990.4**2) / 3.0
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
         # A deciding predicate the walk runs out on is THE quadrature

@@ -98,7 +98,7 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 
 /// **A deciding predicate run out at the wall is THE refusal, and it
 /// carries the enclosure** (`[tolerance.measure]`; PR 5741's review,
-/// n6). The thin strip of the row below, at `delta/s = 1e-12`: every
+/// n6). The thin strip of the row below, at `delta/s = 1e-10`: every
 /// wall runs to its work wall with the enclosure still straddling the
 /// strip's own volume, so `V ≤ V_true` cannot be decided. The door
 /// answers [`topo::MassPropsError::Undecided`] — not `Ok` with a stop
@@ -110,7 +110,7 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
     let tol = Tol::witness();
     let s = 1.0e14 * tol.get().eps;
-    let delta = 1e-12 * s;
+    let delta = 1e-10 * s;
     let body = strip_loft(s, delta, false).expect("the strip lofts at every ε row");
     let truth = 2.0 * s * delta * s;
     let asked = topo::Settle::AtMost {
@@ -159,18 +159,22 @@ fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
 /// two large rational walls whose fluxes nearly cancel, so the volume
 /// is `≈ 2·s·delta` per unit height while the enclosure width is the
 /// walls' own. At `s = 1e14·ε` no wall reaches the reporting target
-/// at any ε (each stops at the work wall, one per knot-span cell), so
-/// the sign walk runs the schedule out wherever the sign stays open: at
-/// `delta/s = 1e-1` it settles and the number is a bracket, and at
-/// `1e-12` it does not settle and check 7 refuses
-/// `VolumeSignUnresolved` (measured at 1e-9; `1e-10` settles, so the
-/// refusing arm sits two decades past it).
+/// at any ε (each stops at the work wall after 11 rounds, 2.489e-5 m
+/// against 1.024e-6 m at ε = 1e-9), so the sign walk runs the schedule
+/// out wherever the sign stays open: at `delta/s = 1e-1` it settles and
+/// the number is a bracket, and at `1e-10` it does not settle and check 7
+/// refuses `VolumeSignUnresolved` (measured at 1e-9; `1e-8` settles, so
+/// the refusing arm sits two decades past it). The scale was `1e12·ε`
+/// and the thin arm `1e-8` while every lane stopped at its round cap
+/// and refused a face at round 0 on a predicted last round: the walls
+/// now refine to the work wall, which certifies the `1e12·ε` strip's
+/// number and settles its `1e-8` sign.
 /// The family's disposition is a function of `delta/s` alone, which is
 /// why two thicknesses pin the same two arms at every ε row rather than
-/// going vacuous at one of them. Both traversal
-/// senses are built: the reversed strip is the inside-out twin, and
-/// an undecided sign cannot tell it from the upright one, which is
-/// the whole reason an undecided sign may not pass.
+/// going vacuous at one of them. Both traversal senses are built; the
+/// profile canonicalizes traversal (`profile`'s "winding is invisible"),
+/// so both are the one positive body and each must land as the other
+/// does.
 ///
 /// A body that settles at a LATER round and passes is the roster row
 /// below, whose `strictly_early` requirement is exactly that.
@@ -179,7 +183,7 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
     let tol = Tol::witness();
     let s = 1.0e14 * tol.get().eps;
     let (mut admitted, mut refused) = (0usize, 0usize);
-    for rel in [1e-1, 1e-12] {
+    for rel in [1e-1, 1e-10] {
         for reversed in [false, true] {
             let label = format!("strip rel={rel:e} reversed={reversed}");
             let body = strip_loft(s, rel * s, reversed)
@@ -195,8 +199,10 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 let errors = plain.expect_err("the doors agree");
                 // The refusal carries the enclosure the walk stopped on,
                 // and it holds the strip's closed form: the two bulges
-                // cancel, so V = ±2·s·delta·s (the loft is `s` tall).
-                let truth = if reversed { -1.0 } else { 1.0 } * 2.0 * s * (rel * s) * s;
+                // cancel, so V = 2·s·delta·s (the loft is `s` tall). The
+                // profile canonicalizes traversal, so both senses build
+                // this one body.
+                let truth = 2.0 * s * (rel * s) * s;
                 let bracket = errors.iter().find_map(|e| match e {
                     topo::ValidationError::VolumeSignUnresolved {
                         limit: topo::SignLimit::Quadrature,

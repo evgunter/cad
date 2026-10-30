@@ -14,12 +14,12 @@ use super::area::{
 };
 use super::cells::{
     HULL_BLOCKS_PER_SPAN, MeasureCells, RefinedNet, advance_block, cell_count, cell_midpoint,
-    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cell_count, span_cells,
+    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cells,
 };
 use super::net::{
     Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, newton_cotes_weights, widen,
 };
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent, span_work_wall};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use crate::props::PropsError;
 use crate::props::bracket::{lo_or_refuse, pt};
 
@@ -64,18 +64,22 @@ impl Ladder {
     }
 }
 
-/// The u-collapsed slice of the six grids the area midpoint needs: the
-/// homogeneous net's `A`, `A_u`, `A_v` and the weight net's `w`, `w_u`,
-/// `w_v` — one per area column, [`PatchGrid::slice_u`] for why.
-struct AreaSlice {
-    a: [Option<[Vec<Interval>; 3]>; 3],
-    w: [Option<[Vec<Interval>; 3]>; 3],
+/// One ladder's three grids (`A`, `A_u`, `A_v`) collapsed in u at one
+/// column ([`PatchGrid::slice_u`] for why), `None` where the ladder has
+/// run out of degree.
+type LadderSlice = [Option<[Vec<Interval>; 3]>; 3];
+
+/// **One composite column**: the homogeneous ladder's slice and the
+/// weight ladder's, the one u collapse every cell of the column reads,
+/// flux and area alike.
+struct ColumnSlice {
+    a: LadderSlice,
+    w: LadderSlice,
 }
 
 impl Ladder {
-    /// The three grids' slices at one u collapse, `None` where the
-    /// ladder has run out of degree.
-    fn slices(&self, u: Collapse<'_>) -> [Option<[Vec<Interval>; 3]>; 3] {
+    /// The three grids' slices at one u collapse.
+    fn slice(&self, u: Collapse<'_>) -> LadderSlice {
         [
             Some(self.a.slice_u(u)),
             self.au.as_ref().map(|g| g.slice_u(u)),
@@ -85,31 +89,36 @@ impl Ladder {
 
     /// The three grids at one v collapse of `sl`, the identically-zero
     /// derivative where the ladder has run out.
-    fn slices_at(&self, sl: &[Option<[Vec<Interval>; 3]>; 3], v: Collapse<'_>) -> [RVec3; 3] {
-        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
+    fn slice_at(&self, sl: &LadderSlice, v: Collapse<'_>) -> [RVec3; 3] {
         let grids = [Some(&self.a), self.au.as_ref(), self.av.as_ref()];
         core::array::from_fn(|k| match (grids[k], sl[k].as_ref()) {
             (Some(g), Some(s)) => g.at_v(s, v),
-            _ => zero,
+            _ => [Interval::zero(), Interval::zero(), Interval::zero()],
         })
     }
 
-    /// This ladder's and the weight ladder's area slice at one u
-    /// collapse.
-    fn area_slice(&self, w: &Self, u: Collapse<'_>) -> AreaSlice {
-        AreaSlice {
-            a: self.slices(u),
-            w: w.slices(u),
+    /// The base grid alone at one v collapse of `sl`.
+    fn base_at(&self, sl: &LadderSlice, v: Collapse<'_>) -> RVec3 {
+        match sl[0].as_ref() {
+            Some(s) => self.a.at_v(s, v),
+            None => unreachable!("a ladder's base grid is always sliced"),
+        }
+    }
+
+    /// This ladder's and the weight ladder's slices at one u collapse.
+    fn column(&self, w: &Self, u: Collapse<'_>) -> ColumnSlice {
+        ColumnSlice {
+            a: self.slice(u),
+            w: w.slice(u),
         }
     }
 
     /// The numerator of `S_u×S_v`,
     /// `w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)`, which sits over `w³`
-    /// ([`rational_patch_face`] docs), off an area slice at one v
-    /// collapse.
-    fn cross_num_at(&self, w: &Self, sl: &AreaSlice, v: Collapse<'_>) -> RVec3 {
-        let [a, au, av] = self.slices_at(&sl.a, v);
-        let [w0, wu, wv] = w.slices_at(&sl.w, v).map(|g| g[0]);
+    /// ([`rational_patch_face`] docs), at one v collapse of a column.
+    fn cross_num_at(&self, w: &Self, sl: &ColumnSlice, v: Collapse<'_>) -> RVec3 {
+        let [a, au, av] = self.slice_at(&sl.a, v);
+        let [w0, wu, wv] = w.slice_at(&sl.w, v).map(|g| g[0]);
         let base = cross(&au, &av);
         let ta = cross(&au, &a);
         let tb = cross(&a, &av);
@@ -119,60 +128,18 @@ impl Ladder {
             w0 * base[2] - wv * ta[2] - wu * tb[2],
         ]
     }
-}
 
-/// The u-collapsed slice of the three grids the flux midpoint needs
-/// (`A`, `A_u`, `A_v`) plus the weight channel — [`PatchGrid::slice_u`]
-/// for why this exists.
-struct FluxSlice {
-    a: [Vec<Interval>; 3],
-    au: Option<[Vec<Interval>; 3]>,
-    av: Option<[Vec<Interval>; 3]>,
-    w: [Vec<Interval>; 3],
-}
-
-impl Ladder {
-    /// This ladder's flux slice at one u collapse, with the weight
-    /// ladder's base grid alongside.
-    fn flux_slice(&self, w: &Self, u: Collapse<'_>) -> FluxSlice {
-        FluxSlice {
-            a: self.a.slice_u(u),
-            au: self.au.as_ref().map(|g| g.slice_u(u)),
-            av: self.av.as_ref().map(|g| g.slice_u(u)),
-            w: w.a.slice_u(u),
-        }
-    }
-
-    /// `N/w³` from a slice, at one v collapse — the composite rule's
+    /// `N/w³` at one v collapse of a column — the composite rule's
     /// per-cell integrand.
-    fn integrand_at(&self, w: &Self, sl: &FluxSlice, v: Collapse<'_>) -> Interval {
-        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
-        let a = self.a.at_v(&sl.a, v);
-        let au = match (self.au.as_ref(), sl.au.as_ref()) {
-            (Some(g), Some(s)) => g.at_v(s, v),
-            _ => zero,
-        };
-        let av = match (self.av.as_ref(), sl.av.as_ref()) {
-            (Some(g), Some(s)) => g.at_v(s, v),
-            _ => zero,
-        };
-        dot(&a, &cross(&au, &av)) / w.a.at_v(&sl.w, v)[0].powi(3)
+    fn integrand_at(&self, w: &Self, sl: &ColumnSlice, v: Collapse<'_>) -> Interval {
+        self.numerator_at(sl, v) / w.base_at(&sl.w, v)[0].powi(3)
     }
 
-    /// `A·(A_u×A_v)` from a slice, at one v collapse — the flux
-    /// numerator alone, for the arm that divides by `w³` once per
-    /// column instead of once per node.
-    fn numerator_at(&self, sl: &FluxSlice, v: Collapse<'_>) -> Interval {
-        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
-        let a = self.a.at_v(&sl.a, v);
-        let au = match (self.au.as_ref(), sl.au.as_ref()) {
-            (Some(g), Some(s)) => g.at_v(s, v),
-            _ => zero,
-        };
-        let av = match (self.av.as_ref(), sl.av.as_ref()) {
-            (Some(g), Some(s)) => g.at_v(s, v),
-            _ => zero,
-        };
+    /// `A·(A_u×A_v)` at one v collapse of a column — the flux numerator
+    /// alone, for the arm that divides by `w³` once per column instead
+    /// of once per node.
+    fn numerator_at(&self, sl: &ColumnSlice, v: Collapse<'_>) -> Interval {
+        let [a, au, av] = self.slice_at(&sl.a, v);
         dot(&a, &cross(&au, &av))
     }
 
@@ -197,7 +164,7 @@ impl Ladder {
     /// the span it is read through.
     fn num_v_exact(
         &self,
-        sl: &FluxSlice,
+        sl: &ColumnSlice,
         kv: &KnotVector,
         vlo: f64,
         vhi: f64,
@@ -315,9 +282,8 @@ pub(super) fn round_cost(
 /// not: the frontier is a part-SIZE frontier. The lane's stops do not
 /// move with ε, so each carrier stops at the same displacement on every
 /// ε row and only the `1024·ε` target moves. The width here is the one
-/// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL) per knot-span
-/// cell): on one span cell, the composite arm's round 7 and the exact-v
-/// arm's round 11. It is the Taylor
+/// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)): on a one-span
+/// face, the composite arm's round 7 and the exact-v arm's round 11. It is the Taylor
 /// remainder's, which quarters per round (exactly where every cell
 /// splits evenly; more slowly where a cell abuts an off-grid knot); the
 /// midpoint sum's own width is a small fraction of it on these carriers,
@@ -328,8 +294,11 @@ pub(super) fn round_cost(
 ///
 /// ```text
 /// carrier                                      width (m)   arm        @ ε = 1e-9
+/// 1 µm quarter cylinder                         3.326e-17  exact-v    certifies*
+/// 1 m × 2 m quarter cylinder, single span       3.404e-11  exact-v    certifies
 /// unit sphere octant (degenerate pole row)      5.794e-8   composite  certifies (18×)
 /// quarter torus, R = 2 m, r = 0.5 m             9.301e-8   composite  certifies (11×)
+/// 1 m × 2 m half cylinder, TWO spans            1.118e-10  exact-v    certifies
 /// 5 m C0-kink extruded wall                     exact      exact-v    certifies
 /// 1 km quarter cylinder                         3.298e-8   exact-v    certifies (31×)
 /// warped bilinear, weights 1e-1/1e1             9.882e-6   composite  STOPS SHORT
@@ -337,8 +306,8 @@ pub(super) fn round_cost(
 /// bilinear square, weights 1e-3/1e3             6.358e+5   composite  STOPS SHORT
 /// ```
 ///
-/// Convergence is never the small end's problem — its width scales
-/// with the part. The FACE-EXTENT gate is: at ε = 1e-6 a 1 µm quarter
+/// \* Convergence is never the small end's problem — its width scales
+/// with the part. The FACE-EXTENT gate is: at ε = 1e-6 the 1 µm
 /// cylinder's 0.22 µm mean width is under the run's own tolerance and
 /// the same face is refused [`PropsError::DegenerateFace`].
 ///
@@ -485,7 +454,7 @@ pub(super) fn rational_patch_face<T: Decide>(
         .flat_map(|u| cells_v.iter().map(|v| measure.area_bounds(u, v)))
         .collect::<Result<Vec<_>, _>>()?;
     // One u collapse per area column: the pass walks `u` outermost.
-    let mut column: Option<(f64, AreaSlice)> = None;
+    let mut column: Option<(f64, ColumnSlice)> = None;
     let area = area_midpoint_taylor(
         rect,
         AREA_CELLS_PER_SPAN,
@@ -493,14 +462,14 @@ pub(super) fn rational_patch_face<T: Decide>(
         (knots_u, knots_v),
         |b| {
             if column.as_ref().is_none_or(|(u, _)| *u != b.umid) {
-                column = Some((b.umid, a.area_slice(&w, Collapse::At(b.umid))));
+                column = Some((b.umid, a.column(&w, Collapse::At(b.umid))));
             }
             let Some((_, sl)) = column.as_ref() else {
                 unreachable!("the column was just sliced")
             };
             let vm = Collapse::At(b.vmid);
             let cm = a.cross_num_at(&w, sl, vm);
-            let wm = w.slices_at(&sl.w, vm)[0][0];
+            let wm = w.base_at(&sl.w, vm)[0];
             let g_mid = (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt() / wm.powi(3);
             let (mut bu, mut bv) = (0, 0);
             advance_block(&mut bu, b.u.start(), &edges_u);
@@ -568,11 +537,7 @@ pub(super) fn rational_patch_face<T: Decide>(
         let (b_uu, b_vv) = blocks[bu * nbv + bv];
         (b_uu, if exact_v { None } else { Some(b_vv) })
     };
-    let mut run = Run::enter_walled(
-        window,
-        span_work_wall(span_cell_count(rect, (knots_u, knots_v))),
-        &cost,
-    );
+    let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     loop {
         let mut flux = Interval::zero();
@@ -589,7 +554,7 @@ pub(super) fn rational_patch_face<T: Decide>(
             // enclosing too.
             let hu = pt(c_uhi) - pt(c_ulo);
             let um = cell_midpoint(c_ulo, c_uhi);
-            let slice = a.flux_slice(
+            let slice = a.column(
                 &w,
                 Collapse::AtSpan {
                     mid: um.0,
@@ -600,7 +565,7 @@ pub(super) fn rational_patch_face<T: Decide>(
             // cube is a per-COLUMN quantity there.
             let w3 = nc_v
                 .as_ref()
-                .map(|_| w.a.at_v(&slice.w, Collapse::At(v0.midpoint(v1)))[0].powi(3));
+                .map(|_| w.base_at(&slice.w, Collapse::At(v0.midpoint(v1)))[0].powi(3));
             let mut bv = 0usize;
             for iv in 0..cuts_v.len() - 1 {
                 let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
@@ -1142,11 +1107,11 @@ mod tests {
                 &net.map_points(|_, w| [pt(w), Interval::zero(), Interval::zero()]),
             ));
             let f = |u: f64, v: f64| {
-                mid(a.integrand_at(&w, &a.flux_slice(&w, Collapse::At(u)), Collapse::At(v)))
+                mid(a.integrand_at(&w, &a.column(&w, Collapse::At(u)), Collapse::At(v)))
             };
             let g = |u: f64, v: f64| {
                 let (cu, cv) = (Collapse::At(u), Collapse::At(v));
-                let c = a.cross_num_at(&w, &a.area_slice(&w, cu), cv).map(mid);
+                let c = a.cross_num_at(&w, &a.column(&w, cu), cv).map(mid);
                 (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() / mid(w.chan(cu, cv)).powi(3)
             };
             let inside = |x: f64, hull: Interval, noise: f64| {

@@ -127,11 +127,11 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 /// passing by testing nothing. Every wall must carry the same interior
 /// knots: the sections are one skin.
 ///
-/// "Off-grid" is tested against the coarsest cut the rounds make
-/// (`AXIS_INIT_PIECES = 8`) and every doubling of it up to the last
-/// round's `1024`: a knot that coincided with a cell edge at any of
-/// those resolutions would never have straddled, and the row would be
-/// measuring the on-grid case by accident.
+/// "Off-grid" is tested against the dyadic grid of the domain at 8 and
+/// every doubling of it up to `1024`: the cut lists restart at every
+/// knot, so an off-grid knot makes spans of unequal, non-dyadic length,
+/// and a knot on that grid would be measuring the even-span case by
+/// accident.
 fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let body = &lofted.body;
     let interior_of = |face: topo::FaceKey| -> Vec<f64> {

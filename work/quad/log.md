@@ -341,7 +341,7 @@ PR 5568's fix pass.
 
 - 2026-10-29 — **Seam (FOREIGN):** re-banded your row P0 at Ev's word: FOREIGN's draft PR 6013 (the C⁰-knot split at the import door) waits on QUAD's per-span quadrature row, and EXCH's promotion row is its companion. (FOREIGN orchestrator)
 
-- 2026-10-30 — (QUAD per-span lane) The rectangle lanes' round-zero schedules are per knot span on `quad/per-span-round-zero`: cells, hull blocks, refined net and area pass, with the work wall once per span cell. Four residues filed: `the-rectangle-lanes-re-derive-their-area-pass-on-every-window-entry`, `the-rectangle-lanes-wall-per-span-cell-is-the-face-wall-carried-over`, `the-trimmed-lanes-image-pieces-are-laid-per-image-not-per-span`, `the-area-pass-at-32-cells-a-span-halves-a-one-span-faces-resolution`.
+- 2026-10-30 — (QUAD per-span lane) The rectangle lanes' round-zero schedules are per knot span on `quad/per-span-round-zero`: cells, hull blocks, refined net and area pass, under the one per-face work wall. Four residues filed: `the-rectangle-lanes-re-derive-their-area-pass-on-every-window-entry`, `the-trimmed-lanes-chord-area-is-laid-per-range-not-per-span`, `the-trimmed-lanes-image-pieces-are-laid-per-image-not-per-span`, `the-area-pass-at-32-cells-a-span-halves-a-one-span-faces-resolution`.
 ## 2026-10-30: track picked up; the per-span unit dispatched
 
 - **Picked up** (`ready` → `active`). Two rows at P0/P1.

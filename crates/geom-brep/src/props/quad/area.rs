@@ -7,7 +7,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
 use geom_core::spline::ParamRange;
 
-use super::cells::knot_aligned_cuts;
+use super::cells::{block_aligned_cuts, knot_aligned_cuts};
 use super::net::{PatchRect, RVec3, widen};
 use crate::props::bracket::{lo_or_refuse, pt};
 
@@ -54,7 +54,7 @@ const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 /// `debug-assertions` are on in release — so this direction is a
 /// release panic, not a missed catch.**
 ///
-/// Three things remove it, in order of what they cover:
+/// Two things remove it, in order of what they cover:
 ///
 /// 1. **The knot lines are in the schedule** ([`knot_aligned_cuts`],
 ///    the same cut rule the area grid uses). Through the patch lanes
@@ -67,8 +67,6 @@ const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 ///    two counts with no common factor collapse together only at the
 ///    product. This covers an arbitrary evaluator — including one
 ///    with no knots at all, which is how the probes drive it.
-/// 3. **The coarse block edges**, which [`knot_aligned_cuts`] already
-///    contributes.
 ///
 /// **What it bounds, exactly.** The traversal walks the rectangle's
 /// four sides in order, so on a WRAPPED patch (whose `u0` and `u1`
@@ -469,8 +467,8 @@ pub(super) fn area_midpoint_taylor<E>(
     mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
 ) -> Result<Interval, E> {
     let (u0, u1, v0, v1) = rect.corners();
-    let cuts_u = knot_aligned_cuts(u0, u1, n, knots.0);
-    let cuts_v = knot_aligned_cuts(v0, v1, n, knots.1);
+    let cuts_u = block_aligned_cuts(u0, u1, n, knots.0);
+    let cuts_v = block_aligned_cuts(v0, v1, n, knots.1);
     let mut acc = Interval::zero();
     for iu in 0..cuts_u.len() - 1 {
         let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);

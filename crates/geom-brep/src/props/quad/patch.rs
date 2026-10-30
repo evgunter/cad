@@ -14,7 +14,7 @@ use super::area::{
 };
 use super::cells::{
     HULL_BLOCKS_PER_SPAN, advance_block, cell_count, cell_midpoint, knot_aligned_cuts,
-    remainder_cell_u, remainder_cell_v, round_cuts, span_cell_count,
+    remainder_cell_u, remainder_cell_v, round_cuts,
 };
 use super::net::{
     Collapse, PatchGrid, PatchNet, PatchRect, clipped_spans, grid_vec, newton_cotes_weights,
@@ -23,7 +23,6 @@ use super::net::{
 use super::rational::rational_patch_face;
 use super::run::{
     Accept, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow, Run, face_extent,
-    span_work_wall,
 };
 use crate::props::PropsError;
 use crate::props::bracket::pt;
@@ -338,11 +337,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // rather than a remainder. One home for the loop and its cost.
     let cuts = |round: usize| round_cuts(rect, (knots_u, knots_v), false, round);
     let cost = |round: usize| composite_round_cost(rect, (knots_u, knots_v), round);
-    let mut run = Run::enter_walled(
-        window,
-        span_work_wall(span_cell_count(rect, (knots_u, knots_v))),
-        &cost,
-    );
+    let mut run = Run::enter(window, &cost);
     let blocks: Vec<(Interval, Interval)> = (0..edges_u.len() - 1)
         .flat_map(|bu| (0..nbv).map(move |bv| (bu, bv)))
         .map(|(bu, bv)| block(bu, bv))

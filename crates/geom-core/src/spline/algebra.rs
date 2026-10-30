@@ -878,17 +878,21 @@ pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
             continue;
         }
         // `span_is_nonempty` has just checked `span + 1` is in range.
-        let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-        for k in 1..splits {
-            #[allow(clippy::cast_precision_loss)]
-            let f = k as f64 / splits as f64;
-            let u = lo + (hi - lo) * f;
-            if u > lo && u < hi {
-                add.push(u);
-            }
-        }
+        add.extend(split_points(kv.knots()[span], kv.knots()[span + 1], splits));
     }
     add
+}
+
+/// The points cutting `[lo, hi]` into `splits` equal pieces,
+/// `lo + (hi − lo)·(k/splits)` for `0 < k < splits`, ascending, less any
+/// that floating point collapses onto an end: [`equal_split_points`]'
+/// schedule on one interval. `splits` of 0 or 1 yields none.
+pub fn split_points(lo: f64, hi: f64, splits: usize) -> impl Iterator<Item = f64> {
+    (1..splits).filter_map(move |k| {
+        #[allow(clippy::cast_precision_loss)]
+        let u = lo + (hi - lo) * (k as f64 / splits as f64);
+        (u > lo && u < hi).then_some(u)
+    })
 }
 
 /// **The equal-split refinement chain**: the [`refine_plan_homogeneous`]
