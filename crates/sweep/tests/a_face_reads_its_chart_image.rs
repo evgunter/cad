@@ -174,6 +174,83 @@ fn the_one_face_ball_reads_the_whole_sphere() {
     let (flux, area) = measured(&body, "the one-face ball");
     close(flux / 3.0, 4.0 / 3.0 * PI, "the one-face ball: volume");
     close(area, 4.0 * PI, "the one-face ball: area");
+    // Its sense bit is the only side it has: flipped, it is a cavity's
+    // wall, and the ball's volume comes back negative.
+    let inverted = body
+        .flipped_face_sense_for_tests(face)
+        .expect("the face resolves");
+    let (flux, area) = measured(&inverted, "the inverted one-face ball");
+    close(
+        flux / 3.0,
+        -4.0 / 3.0 * PI,
+        "the inverted one-face ball: volume",
+    );
+    close(area, 4.0 * PI, "the inverted one-face ball: area");
+}
+
+/// **The empty rule's torus is the full torus's.** The full-turn torus
+/// wall keeps its seams, so its own Green form reads it; the whole-torus
+/// closed form an empty chart image takes must read that same face, sign
+/// and magnitude, under the face's own bit.
+#[test]
+fn the_whole_torus_is_the_full_turn_torus_face() {
+    let vp = Profile::new(SketchPlane::<f64>::xy(), vec![circle(3.0, 0.25, 0.5)])
+        .validate(tol())
+        .unwrap();
+    let body = sweep::revolve(&vp, y_axis(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let face = wall(&body);
+    let f = body.get_face(face).unwrap();
+    let surface = body.get_surface(f.surface).unwrap();
+    let reading = topo::test_support::face_reading(&body, face, tol(), 1e-6).unwrap();
+    let whole = geom_brep::props::whole_surface(surface, f.sense).unwrap();
+    close(whole.flux, reading.flux, "the whole torus's flux");
+    close(whole.area, reading.area, "the whole torus's area");
+}
+
+/// **A plane face whose only loop is a lone strut bounds nothing**: its
+/// chart image is empty, and a plane is no closed surface, so its
+/// reading refuses it as a degenerate face rather than answering zero.
+#[test]
+fn a_lone_strut_plane_face_is_degenerate() {
+    use topo::construction::FaceSurface;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: geom::Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev_line(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        Point3::new(1.0, 0.0, 0.0),
+        tol(),
+    )
+    .unwrap();
+    let (full, image) = counts(&body, seed.face);
+    assert_eq!(full, vec![2], "the strut walked out and back");
+    assert!(image.is_empty(), "no chart image: {image:?}");
+    let got = topo::test_support::face_reading(&body, seed.face, tol(), 1e-6);
+    assert!(
+        matches!(
+            got,
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::DegenerateFace,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
 }
 
 /// **A spur built by `mev` is out of the face's chart image.** A
@@ -246,4 +323,18 @@ fn a_built_spur_is_out_of_the_chart_image() {
         .unwrap()
         .area;
     close(lune_area, TAU, "the spurred lune: area");
+    // The lune's cycle read from every half-edge: from the spur's return
+    // half the cycle ends on its way out, which only the pass across the
+    // cycle's start takes out.
+    let (_, cycle) = topo::props::loop_edges(&body, body.get_face(lune).unwrap().outer).unwrap();
+    let want = topo::surface_boundary::chart_image(&body, &cycle).unwrap();
+    for k in 0..cycle.len() {
+        let mut rotated = cycle.clone();
+        rotated.rotate_left(k);
+        let mut got = topo::surface_boundary::chart_image(&body, &rotated).unwrap();
+        assert_eq!(got.len(), 2, "from {k}: the two meridians");
+        let at = got.iter().position(|h| *h == want[0]).unwrap();
+        got.rotate_left(at);
+        assert_eq!(got, want, "from {k}: the same image");
+    }
 }
