@@ -1440,14 +1440,16 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let readers = self.reader_counts();
-        let used = |var: &VarId| readers.contains_key(var) || self.product == Some(*var);
+        // The world is exempt, named or not: one rule both passes read.
+        let used = |var: &VarId| {
+            *var == VarId::WORLD || readers.contains_key(var) || self.product == Some(*var)
+        };
         let mut defines: BTreeMap<RecipeNodeId, Vec<VarId>> = BTreeMap::new();
         for (&var, held) in &self.vars {
             if let Some((node, _)) = held.def().output() {
                 defines.entry(node).or_default().push(var);
             }
         }
-        defines.remove(&RecipeNodeId::WORLD);
         let operations: Vec<RecipeNodeId> = defines
             .iter()
             .filter(|(_, outputs)| !outputs.iter().any(used))

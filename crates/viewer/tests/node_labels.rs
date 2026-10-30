@@ -903,3 +903,53 @@ fn the_checks_window_speaks_from_the_landed_document() {
         "and never the committed label: {row:?}"
     );
 }
+
+/// **An unused variable's row selects the variable**: a named parameter
+/// nothing reads has no node, so its button selects it in the property
+/// panel, said by its name as the sentence says it; an unplaced
+/// construction's row selects its node.
+#[test]
+fn an_unused_variables_row_selects_the_variable() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("checks-window-unused", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::DeclareVar {
+            name: pncad::document::VarName::from_static("spare"),
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::continuous(
+                Dimension::Length,
+                0.01,
+            )),
+        },
+        tol,
+    );
+    let spare = doc.var_named("spare").expect("declared");
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let report =
+        pncad::document::run_checks(&doc, &ev, &pncad::document::ChecksConfig::default(), tol)
+            .expect("the checks run");
+    let rows = viewer::frame::check_rows(&report, &doc);
+    let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
+    assert_eq!(
+        selects,
+        [
+            viewer::Selection::Node(extrude),
+            viewer::Selection::Variable(spare)
+        ],
+        "{rows:?}"
+    );
+    assert_eq!(rows[1].button, "spare");
+    assert!(
+        rows[1]
+            .sentence
+            .contains("check unused: spare: used by nothing"),
+        "{}",
+        rows[1].sentence
+    );
+}

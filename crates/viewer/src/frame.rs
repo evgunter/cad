@@ -2452,7 +2452,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                 FindingSubject::Var(var) => {
                     return CheckRow {
                         select: Selection::Variable(var),
-                        button: landed.spoken_var(var).to_string(),
+                        button: by.read(var),
                         sentence: Said(finding, by).to_string(),
                         cells: Vec::new(),
                     };

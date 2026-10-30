@@ -149,13 +149,11 @@ impl CheckId {
     /// A new variant that is not here fails
     /// `dsc_checks::the_registry_order_is_every_check`, whose match is
     /// the compiler's own walk of the closed set.
-    /// The evaluation-reading residents come FIRST, and that is the
-    /// order's one constraint rather than a convention: a resident
-    /// that reads no subject has answered before [`run_checks_on`]
-    /// can refuse [`ChecksError::Product`] on one that does, so a
-    /// subject-less resident placed after [`Self::UnprovenCoincidence`]
-    /// would lose its findings on exactly the documents that have no
-    /// product.
+    /// The residents that read no subject come FIRST, so their own
+    /// refusals ([`ChecksError::Placement`]) are the ones reported before
+    /// [`run_checks_on`] can refuse [`ChecksError::Product`] on one that
+    /// does. Order decides only which refusal is reported: a refusal
+    /// discards the whole report, every resident's findings with it.
     pub const ALL: [Self; 5] = [
         Self::Connectedness,
         Self::ChartCoherence,
@@ -568,7 +566,11 @@ pub enum CheckEvidence {
     },
     /// The subject is used by nothing: not the product, not an
     /// assertion, and nothing reads it.
-    Unused,
+    Unused {
+        /// An operation's outputs the person named, which are reported
+        /// with it rather than each on its own; empty for a variable.
+        named: Vec<crate::VarId>,
+    },
 }
 
 impl CheckEvidence {
@@ -911,9 +913,14 @@ impl SaidFinding<'_> {
                     crate::spoken::Said(evidence, by)
                 )
             }
-            CheckEvidence::Unused => f.write_str(
-                "used by nothing: not the product, not an assertion, and nothing reads it",
-            ),
+            CheckEvidence::Unused { named } => {
+                f.write_str("used by nothing")?;
+                if !named.is_empty() {
+                    let names: Vec<String> = named.iter().map(|&var| by.read(var)).collect();
+                    write!(f, ", its outputs named {} with it", names.join(", "))?;
+                }
+                f.write_str(": not the product, not an assertion, and nothing reads it")
+            }
         }
     }
 
@@ -925,7 +932,7 @@ impl SaidFinding<'_> {
                  in ChecksConfig::expected_components"
             }
             CheckEvidence::Interference { .. } => INTERFERENCE_RECOURSE,
-            CheckEvidence::Unused => "Recourse: use it, or delete it",
+            CheckEvidence::Unused { .. } => "Recourse: use it, or delete it",
             CheckEvidence::ChartCoherence { .. } => {
                 "a MEASUREMENT, not a refusal: judge the metres against the band; an \
                  imported part usually wants re-exporting at more digits, and a minted one \
@@ -2095,20 +2102,6 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
 /// Placements in document order, and within one copy the door's own
 /// total order — its findings, then its unexamined loops. A pure function of the
 /// evaluation and eps, as the door itself is.
-/// The `unused` check: [`Doc::unused`]'s tips, its operations then its
-/// variables. A part's are the part's, and none is carried here.
-fn unused<P: crate::ProfilePayload>(doc: &Doc<P>, report: &mut ChecksReport) {
-    let tips = doc.unused();
-    let subjects = (tips.operations.into_iter().map(FindingSubject::Node))
-        .chain(tips.vars.into_iter().map(FindingSubject::Var));
-    report.findings.extend(subjects.map(|subject| CheckFinding {
-        check: CheckId::Unused,
-        subject,
-        evidence: CheckEvidence::Unused,
-        quiet: None,
-    }));
-}
-
 fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -2151,6 +2144,31 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
         }
     }
     Ok(())
+}
+
+/// The `unused` check: [`Doc::unused`]'s tips, its operations then its
+/// variables, each operation with the outputs the person named, which
+/// its finding speaks for. A part's are the part's, and none is
+/// carried here.
+fn unused<P: crate::ProfilePayload>(doc: &Doc<P>, report: &mut ChecksReport) {
+    let tips = doc.unused();
+    let operations = tips.operations.into_iter().map(|node| {
+        let named = doc
+            .outputs(node)
+            .into_iter()
+            .filter(|var| doc.var_name(*var).is_some())
+            .collect();
+        (FindingSubject::Node(node), named)
+    });
+    let vars = (tips.vars.into_iter()).map(|var| (FindingSubject::Var(var), Vec::new()));
+    report
+        .findings
+        .extend(operations.chain(vars).map(|(subject, named)| CheckFinding {
+            check: CheckId::Unused,
+            subject,
+            evidence: CheckEvidence::Unused { named },
+            quiet: None,
+        }));
 }
 
 /// **The at-rest resident's pass** (D10 `[assertions]`): each census at

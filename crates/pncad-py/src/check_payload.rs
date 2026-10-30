@@ -238,7 +238,7 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // the answer a caller must not read as a clean body.
         CheckEvidence::ChartCoherenceUnavailable => none,
         // The tag is the whole answer: the subject is what was not used.
-        CheckEvidence::Unused => none,
+        CheckEvidence::Unused { .. } => none,
         // The row's two words, the residual's sentence as the reason
         // (what separates the cells' constructions), and how many fold
         // rows it reports with it. The cells and those rows themselves
