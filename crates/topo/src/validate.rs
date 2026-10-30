@@ -4509,21 +4509,17 @@ impl fmt::Display for ValidationError {
                     ),
                 }
             }
-            Self::WrapTipOffChartSingularity { edge, tip, .. } => write!(
+            Self::WrapTipOffChartSingularity { .. } => write!(
                 f,
-                "{edge:?} is a wrap edge walked out to {tip:?} and back, and {tip:?} does not \
-                 lie on its face's pole or apex. {DEFECT}"
+                "an edge a face walks out to its tip and back stops short of that face's pole \
+                 or apex, where its tip has to lie. {DEFECT}"
             ),
-            Self::WrapTipUndecided {
-                edge, tip, cause, ..
-            } => write!(
+            Self::WrapTipUndecided { cause, .. } => write!(
                 f,
                 "{}",
                 cause.undecided(
-                    format_args!(
-                        "whether the tip {tip:?} of the wrap edge {edge:?} lies on its face's \
-                         pole or apex"
-                    ),
+                    "whether the tip of an edge a face walks out and back lies on that face's \
+                     pole or apex",
                     geom_brep::chart_singularity::ON_BOUNDARY
                         .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
                 )
