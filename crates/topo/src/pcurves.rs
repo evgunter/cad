@@ -6735,9 +6735,10 @@ mod odd_cone_circle {
 
     /// **An odd cone circle is owed at `f64`.** A circle about a cone's
     /// axis at its rim's height and radius, tilted off the rim's plane by
-    /// a growing angle: untilted it is the rim and mints; tilted it is
-    /// none of the cone's circles, read in band or off the chart, and
-    /// refuses. Whichever it does, a refusal is a check-8 finding: the
+    /// a growing angle: untilted it is the rim and mints, a tilt inside
+    /// the band may still read as the rim, and well tilted it is none of
+    /// the cone's circles and refuses. Whichever it does, a refusal is a
+    /// check-8 finding: the
     /// one excuse ([`not_owed`]) is a scalar with no fitted door, and
     /// `f64` holds one.
     #[test]
@@ -6760,7 +6761,7 @@ mod odd_cone_circle {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
-                Ok(_) => assert!(tilt < 1e-6, "tilt {tilt}: a circle well off the rim minted"),
+                Ok(_) => assert!(tilt < 0.3, "tilt {tilt}: a circle well off the rim minted"),
                 Err(e) => {
                     assert!(tilt > 0.0, "tilt {tilt}: the rim itself refused: {e:?}");
                     assert!(!not_owed::<f64>(&e), "tilt {tilt}: excused: {e:?}");

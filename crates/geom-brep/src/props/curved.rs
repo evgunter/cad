@@ -1665,7 +1665,7 @@ pub fn whole_surface<T: Decide>(
     sense: bool,
 ) -> Result<FaceContribution<T>, PropsError> {
     let pi = T::pi();
-    let (flux, area) = match *surface {
+    let (enclosed, area) = match *surface {
         Surface::Sphere { radius, .. } => {
             let area = T::from_f64(4.0) * pi * radius.powi(2);
             (area * radius, area)
@@ -1687,7 +1687,7 @@ pub fn whole_surface<T: Decide>(
         Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
     };
     Ok(FaceContribution {
-        flux: if sense { flux } else { -flux },
+        flux: if sense { enclosed } else { -enclosed },
         area,
     })
 }
