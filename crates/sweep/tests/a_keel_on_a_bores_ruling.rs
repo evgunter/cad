@@ -14,6 +14,9 @@
 //!   `EdgeInFaceGap::CurvedFace` rather than ship the one edge: a slit
 //!   in a curved face is neither meshed nor measured yet
 //!   (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`).
+//!   So does the trench whose closing wall is an arc, a cylinder crossing
+//!   the bore along the keel: only a wall tangent to the bore is left to
+//!   the tangent readings.
 //! - **A cut through the slit caps around the trench.** The slit form,
 //!   built as the union of the block's two sides of the trench, split at
 //!   `z = 3`: each side holds its closed form, and no cap face on the
@@ -229,6 +232,46 @@ fn a_keel_on_the_bores_ruling_refuses_its_one_edge_form_typed() {
                 })
             ),
             "{door}: refuses the parting on the bore: {r:?}"
+        );
+    }
+}
+
+/// The trench with its closing wall, from `(1.6, 0.3)` back to the apex,
+/// an arc of bulge `bulge`: a cylinder wall crossing the bore along the
+/// keel.
+fn curved_trench(bulge: f64) -> AtRestBody<f64> {
+    finished(
+        "the curved trench",
+        extruded(
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
+            vec![bulge_loop(vec![
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(1.6, -0.3), 0.0),
+                (Point2::new(1.6, 0.3), bulge),
+            ])],
+            3.0,
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// **A keel with a curved wall refuses typed too**: the closing wall a
+/// cylinder crossing the bore along the keel, bowed either way, is no
+/// tangent wall, so the keel lies in the bore and its material parts there.
+#[test]
+fn a_keel_with_a_curved_wall_on_the_bores_ruling_refuses_typed() {
+    for bulge in [0.2, -0.2] {
+        let r = subtract(&block(), &curved_trench(bulge), tol());
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::CurvedFace,
+                    ..
+                })
+            ),
+            "bulge {bulge}: refuses the parting on the bore: {r:?}"
         );
     }
 }

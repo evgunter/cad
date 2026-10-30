@@ -10,9 +10,9 @@ cost: E
 
 
 `crates/topo/src/boolean/slit.rs`, `part_riders`, refuses
-`EdgeInFaceGap::CurvedFace` where a line edge between two planar walls
-lies in a cylinder, cone or sphere face and its material parts there (PR
-6061). The parting itself builds on a curved face unchanged, and its
+`EdgeInFaceGap::CurvedFace` where a line edge, no wall of it tangent to
+the face, lies in a cylinder or cone face and its material parts there
+(PR 6061). The parting itself builds on a curved face unchanged, and its
 result passes tiers 3 and 3′; this was measured on PR 6061's first
 commits, where `block ∖ trench`
 (`crates/sweep/tests/a_keel_on_a_bores_ruling.rs`) built two keel edges

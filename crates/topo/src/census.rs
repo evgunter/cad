@@ -83,15 +83,15 @@
 //!   stated once, at arm 2's loop in [`sweep_cross_solid_backstop`].
 //! - **Discovered within one solid**: two faces on distinct carriers
 //!   touching along their closed-form tangent line through both
-//!   interiors ([`sweep_same_solid_tangent_lines`]); a line edge between
-//!   two planar faces lying in a cylinder or cone face, read for whether
-//!   the face runs through its wedge ([`sweep_edge_in_curved_face`]);
+//!   interiors ([`sweep_same_solid_tangent_lines`]); a line edge lying in
+//!   a cylinder or cone face, no wall of it tangent to the face, read for
+//!   whether the face runs through its wedge
+//!   ([`sweep_edge_in_curved_face`]);
 //!   and a point where a solid touches itself whose link there bounds
 //!   no one material ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid), a line
-//!   edge with a curved face of its own lying in a curved face among
-//!   them
+//!   edge lying in a curved face with a wall tangent to it among them
 //!   (`work/restread/census-reads-a-line-edge-in-a-curved-face-only-between-two-planes.md`); a point
 //!   where a solid touches itself with a curved face in its link there,
 //!   a face with a curved edge held at its corner, a planar face with a
@@ -4115,12 +4115,114 @@ fn ef_overlap_lane<T: Decide>(
     }
 }
 
-/// **A line edge between two planar faces lying inside a curved face of
-/// its own solid**, read for sides: pass 4 reads planar faces only, so a
-/// keel on a cylinder's or a cone's ruling, its two walls meeting the
-/// line with the face running on through it, is read here; an edge with
-/// a curved face of its own is [`sweep_same_solid_tangent_lines`]'
-/// where it lies tangent, and unread here otherwise. The edge lies on the carrier
+/// **Whether the line through `p0` and `p1` lies on `surface`**, a
+/// cylinder or a cone: the carriers among the analytic kinds that hold a
+/// line (a plane's is its own reading, and a sphere or a torus holds
+/// none, `None` with any other kind). A quadric that holds three points
+/// of a line holds the line, so the two points and their midpoint each
+/// read their residual (`name`) on the carrier: `Ok(true)` where all
+/// three read `Zero`, `Ok(false)` where one reads off. The argument is
+/// exact; the readings are in band, so `Ok(true)` says the line lies on
+/// the carrier at the band, and a residual the band cannot read is
+/// `Err`.
+pub(crate) fn line_on_quadric_carrier<T: Decide>(
+    surface: &geom::Surface<T>,
+    p0: Point3<T>,
+    p1: Point3<T>,
+    name: &'static str,
+    band: Band,
+) -> Option<Result<bool, Indeterminate>> {
+    if !matches!(
+        surface,
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+    ) {
+        return None;
+    }
+    for q in [p0, p1, p0.lerp(p1, T::from_f64(0.5))] {
+        let r = geom_brep::implicit::implicit_residual(surface, q);
+        match decide(name, Margin::of(r), band) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Some(Ok(false)),
+            Err(cause) => return Some(Err(cause)),
+        }
+    }
+    Some(Ok(true))
+}
+
+/// **Whether face `wall` lies tangent to `surface` at `p`**, or so near
+/// tangent that the band cannot tell: `wall` on a curved carrier whose
+/// normal at `p` and `surface`'s are parallel, levered at `len`. Such a
+/// pair along a line is the tangent readings'
+/// ([`sweep_same_solid_tangent_lines`], the Boolean's cusp lanes), not a
+/// wall that leaves the line transversely. A plane wall is never this:
+/// it leaves a curved face's line on the face's convex side.
+pub(crate) fn tangent_along<T: Decide>(
+    body: &Body<T>,
+    wall: FaceKey,
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    len: T,
+    band: Band,
+) -> bool {
+    let Some(own) = body
+        .get_face(wall)
+        .and_then(|d| body.get_surface(d.surface))
+    else {
+        return false;
+    };
+    if matches!(own, geom::Surface::Plane { .. }) {
+        return false;
+    }
+    let (a, b) = (
+        geom_brep::implicit::implicit_gradient(own, p).normalize(),
+        geom_brep::implicit::implicit_gradient(surface, p).normalize(),
+    );
+    !matches!(
+        decide(
+            "pm_census_wall_tangent_along",
+            Margin::levered(a.cross(b).norm(), len),
+            band
+        ),
+        Ok(Sign::Positive)
+    )
+}
+
+/// **`cuts` put in order along a straight span** by their positions `s`
+/// read through [`tri_cmp`], two at one position ordered by `after`
+/// (`true` where the first goes after the second). `false` where a
+/// comparison escalated (pushed).
+fn order_cuts<X: Copy, T: Decide>(
+    cuts: &mut [X],
+    s: impl Fn(X) -> T,
+    after: impl Fn(X, X) -> bool,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> bool {
+    for i in 1..cuts.len() {
+        let mut j = i;
+        while j > 0 {
+            let swap = match tri_cmp(s(cuts[j - 1]), s(cuts[j]), band, errors) {
+                Some(core::cmp::Ordering::Greater) => true,
+                Some(core::cmp::Ordering::Equal) => after(cuts[j - 1], cuts[j]),
+                Some(core::cmp::Ordering::Less) => false,
+                None => return false,
+            };
+            if !swap {
+                break;
+            }
+            cuts.swap(j - 1, j);
+            j -= 1;
+        }
+    }
+    true
+}
+
+/// **A line edge lying inside a curved face of its own solid**, read for
+/// sides: pass 4 reads planar faces only, so a keel on a cylinder's or a
+/// cone's ruling, its two walls meeting the line with the face running on
+/// through it, is read here. An edge one of whose walls lies tangent to
+/// the face along the line ([`tangent_along`]) is
+/// [`sweep_same_solid_tangent_lines`]' pair, and not read here. The edge lies on the carrier
 /// where its ends and its midpoint do (a quadric meeting a line in three
 /// points holds it; a sphere and a torus hold none); it is cut at the
 /// face's vertices on its interior, and each cell whose midpoint the
@@ -4142,11 +4244,6 @@ fn sweep_edge_in_curved_face<T: Decide>(
         return;
     }
     for (i, e) in geo.edges.iter().enumerate() {
-        // A wall on a curved carrier can lie tangent to the face along
-        // the line: that pair is the tangent-line pass's.
-        if planar_face(geo, e.f_plus).is_none() || planar_face(geo, e.f_minus).is_none() {
-            continue;
-        }
         let solid = census_entity_solid(body, EntityId::Edge(e.key));
         for j in cands
             .trees
@@ -4186,22 +4283,19 @@ fn curved_overlap_cells<T: Decide>(
     let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Vec::new();
     };
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
+    let mid = e.p0 + e.dir * (e.len * T::from_f64(0.5));
+    if [e.f_plus, e.f_minus]
+        .into_iter()
+        .any(|wall| tangent_along(body, wall, surface, mid, e.len, band))
+    {
         return Vec::new();
     }
-    let half = T::from_f64(0.5);
-    for q in [e.p0, e.p1, e.p0 + e.dir * (e.len * half)] {
-        let r = geom_brep::implicit::implicit_residual(surface, q);
-        match decide("pm_census_ef_curved_residual", Margin::of(r), band) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Vec::new(),
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                return Vec::new();
-            }
+    match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
+        Some(Ok(true)) => {}
+        None | Some(Ok(false)) => return Vec::new(),
+        Some(Err(cause)) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            return Vec::new();
         }
     }
     let mut cuts: Vec<T> = vec![T::zero(), e.len];
@@ -4218,16 +4312,8 @@ fn curved_overlap_cells<T: Decide>(
             None => return Vec::new(),
         }
     }
-    for i in 1..cuts.len() {
-        let mut j = i;
-        while j > 0 {
-            match tri_cmp(cuts[j - 1], cuts[j], band, errors) {
-                Some(core::cmp::Ordering::Greater) => cuts.swap(j - 1, j),
-                Some(_) => break,
-                None => return Vec::new(),
-            }
-            j -= 1;
-        }
+    if !order_cuts(&mut cuts, |s| s, |_, _| false, band, errors) {
+        return Vec::new();
     }
     let mut out = Vec::new();
     for pair in cuts.windows(2) {
@@ -4411,21 +4497,14 @@ fn ef_overlap_cells<T: Decide>(
     // Coincident cuts are ordered by what sits there
     // ([`CutAt::rank`]), so which one bounds the cell on either side is
     // a function of the cuts, never of the order they were found in.
-    for i in 1..cuts.len() {
-        let mut j = i;
-        while j > 0 {
-            let swap = match tri_cmp(cuts[j - 1].s, cuts[j].s, band, errors) {
-                Some(core::cmp::Ordering::Greater) => true,
-                Some(core::cmp::Ordering::Equal) => cuts[j - 1].at.rank() > cuts[j].at.rank(),
-                Some(core::cmp::Ordering::Less) => false,
-                None => return out,
-            };
-            if !swap {
-                break;
-            }
-            cuts.swap(j - 1, j);
-            j -= 1;
-        }
+    if !order_cuts(
+        &mut cuts,
+        |c| c.s,
+        |a, b| a.at.rank() > b.at.rank(),
+        band,
+        errors,
+    ) {
+        return out;
     }
     for pair in cuts.windows(2) {
         let (lo, hi) = (pair[0], pair[1]);

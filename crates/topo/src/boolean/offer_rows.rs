@@ -2990,7 +2990,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
-    ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 2),
+    ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
         "sphere_region.rs",

@@ -206,7 +206,7 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 /// and the Boolean refuses that parting on a curved face typed
 /// (`EdgeInFaceGap::CurvedFace`) rather than ship the one edge.
 #[test]
-fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
+fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_typed() {
     let tol = Tol::witness();
     let x = (1.0f64 - 0.09).sqrt();
     let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);

@@ -16,7 +16,7 @@ Found by SPLITDOOR's keel-on-a-ruling lane (PR 6061), ε 1e-9.
 The pipe (radius 1 about z, `z ∈ [−2, 2]`) less the box
 `[−x, x] × [−0.3, 0.3] × [−0.3, 0.3]`, `x = √0.91`, whose four z-edges are
 rulings of the pipe's wall (`crates/sweep/tests/verbs_ga_r2_probes.rs`,
-`r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared`). Each ruling's
+`r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_typed`). Each ruling's
 material is two wedges with the wall between them, so tier 3 has the wall
 carry each ruling as a zero-area ring of two coincident edges
 (`crates/topo/README.md` tier 3). With the Boolean's parting built on a

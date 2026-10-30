@@ -66,7 +66,7 @@ three.
   bore gives a ring; (b) the slit form built by union gives a pinched cap;
   (c) a planar wall gives a pinched cap.
 - **A second witness.** `crates/sweep/tests/verbs_ga_r2_probes.rs`,
-  `r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared`: the pipe
+  `r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_typed`: the pipe
   less a box whose four z-edges are the pipe's rulings pinned the one-edge
   form as valid at tiers 3 and 3′.
 - **Causes.** `crates/topo/src/boolean/slit.rs`, `lies_in`, held plane faces
@@ -79,12 +79,16 @@ three.
 The defect, a one-edge form shipping through every validator, is closed
 on two sides:
 
-- The Boolean reads a line between two planar walls lying on a cylinder,
-  cone or sphere face, and refuses `EdgeInFaceGap::CurvedFace` where the
+- The Boolean reads a line, no wall of it tangent to the face, lying
+  on a cylinder or cone face, and refuses `EdgeInFaceGap::CurvedFace` where the
   parting is due. The slit form is buildable, but it is neither meshed
   (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`) nor
   measured as a ring
   (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+- A transverse curved wall is covered too: the trench whose closing
+  wall is an arc of bulge ±0.2 (a cylinder crossing the bore along the
+  keel) shipped the one-edge form through every validator after the
+  first fix, and refuses now (the review of PR 6061).
 - The census's curved arm (`sweep_edge_in_curved_face`) refuses the
   one-edge form at tier 3′ with `FaceThroughEdgeWedge`, whatever produced
   it.
