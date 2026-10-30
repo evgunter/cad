@@ -347,9 +347,7 @@ fn the_germ_rows_donut_against_its_moved_drum() {
         geom_core::Tol::witness().eps(),
         &[1e-6],
         "the donut against its moved drum",
-        &[
-            "placement 5: Winds(Unseparated)",
-        ],
+        &["placement 5: Winds(Unseparated)"],
         the_germ_rows_donut_against_its_moved_drum_row,
     );
 }

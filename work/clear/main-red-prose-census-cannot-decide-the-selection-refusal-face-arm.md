@@ -23,3 +23,7 @@ The same row is also red on two `CertifyError` sites in geom-brep, filed on SPLI
 **Reproduce.** `cargo nextest run -p pncad-py -E 'test(=prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason)'`
 
 **What closing it takes.** Rewrite the arm so the census can read it (its preferred remedy), or give each site its `UNDECIDED` line with the reason it cannot be decided.
+
+## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
+
+Pinned: both sites are named in `prose_census.rs`'s `UNDECIDED`, under a comment citing this row, with the reason read off the arm. Closing strikes the two lines (the census reds on them once the arm is rewritten). The census reads source and stops on nothing, so un-pinning owes no re-measure. Main after nightly 77 also carries `merge_faces.rs`'s two `GlueRecordBroken` sites (PR 6079), pinned the same way on `contacthold/main-red-prose-census-cannot-decide-the-glue-record-broken-surfaces`.

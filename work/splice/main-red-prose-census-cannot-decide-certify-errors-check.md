@@ -18,3 +18,7 @@ The same row is also red on two `SelectionRefusal` sites in editor-core, filed o
 **Reproduce.** `cargo nextest run -p pncad-py -E 'test(=prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason)'`
 
 **What closing it takes.** Rewrite the two reads so the census can decide them, or give the site its `UNDECIDED` line with the reason.
+
+## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
+
+Pinned: `("crates/geom-brep/src/certify.rs", "CertifyError", "check"): 2` is named in `prose_census.rs`'s `UNDECIDED`, under a comment citing this row. Its reason says where `check` is bound and leaves why the census cannot type it to this row. Closing strikes the line. The census reads source and stops on nothing, so un-pinning owes no re-measure.

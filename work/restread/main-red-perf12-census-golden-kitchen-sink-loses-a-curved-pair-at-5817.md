@@ -18,3 +18,7 @@ Found by ATREST's #5810 delta review (`review/atrest-s5c-delta`) and bisected by
 **What closing it takes.** Decide whether the vanished verdict is a correct consequence of #5817 (the pair is now read apart). If it is, re-bless the three goldens and name the moved line. If not, fix the reading. Either way, run the goldens at all three ε.
 
 **2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): still red at every ε, the drift still at golden line 48. The message is unchanged from 2026-10-29.
+
+## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
+
+Pinned at main's reading, NOT re-blessed as right: the three goldens `perf12_census_{1e-6,1e-9,1e-12}.txt` were re-cut on main `2e1c1bff` (`PERF12_BLESS_CENSUS=1`). Each moves by exactly this row's line: `kitchen_sink` goes 29 → 28 findings, and the `CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(21v1)), … MayOverlap }` is gone. Nothing else moves. Whether that verdict's loss is right is still this row's question. If it is wrong, the fix restores the line, and the golden then reds until the fix re-blesses it. The golden is the whole census, so nothing runs past a stop.
