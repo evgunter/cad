@@ -1328,7 +1328,7 @@ mod small_arc_fuzz {
                             )
                         };
                         let a = rng.next() * TAU;
-                        let verts = if open < 3.14 {
+                        let verts = if open < core::f64::consts::PI {
                             vec![v0, far(a), far(a + open)]
                         } else {
                             vec![v0, far(a), far(a + open * 0.5), far(a + open)]
