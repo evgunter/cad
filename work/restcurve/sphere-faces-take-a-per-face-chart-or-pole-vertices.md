@@ -38,3 +38,13 @@ Ev asked whether a pole vertex must lie on a loop, so that the seam has to becom
    - the top segment's chart image would be synthesised;
    - import would keep `VERTEX_LOOP` rather than split it.
 4. **A per-face stereographic chart from a point off the face.** No pole exists at all, except on the whole sphere. The cone apex stays a real singularity.
+
+## Weighed (pole-form fork, fork-log row 220, 2026-10-30)
+
+The Opus/Fable pair converged on its first reports:
+- **Keep the wrap tip**, one form for both sphere and cone.
+- **A tip is any valence-1 end of a wrap edge.**
+- **The wrap edge is the face's D1 seam, kept to its end.**
+- **The rejected forms:** the one-vertex loop (about 9 special cases against about 6, spread wider, and the cap would be the one seamless closed face), the per-face chart, and two half-meridians.
+
+The recommendation is posted on `[ev]` PR 6085 as decision 3, with the DESIGN diff on that branch. This ruling closes on Ev's answer there.
