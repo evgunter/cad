@@ -1713,6 +1713,7 @@ impl Doc {
         let profile = d::ProfileProgram {
             loops: loops_from_outline(py, outline)?,
             ids: Vec::new(),
+            on: None,
         };
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         let spin = match spin {
@@ -2595,6 +2596,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }
@@ -2622,6 +2624,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }
@@ -2987,6 +2990,26 @@ impl Node {
                 tool: tool.read(),
             },
         }
+    }
+
+    /// **A profile drawn on `frame`, tracing `faces`**: its chain (a
+    /// `Chain`, or a list of them, outer first) reads the trace of each
+    /// face, by its place in `faces`, in the frame's xy plane — a run
+    /// onto a crossing (`TraceTarget.on_trace`), a heading along the
+    /// trace (`Chain.along_trace`). `frame` is a frame pose of a body's
+    /// space and each face a `(body, name)` of that space; the profile,
+    /// and every sweep of it, is in that space. An argument whose
+    /// dimension is not its slot's raises here, naming its loop, step
+    /// and argument; a step whose trace refuses refuses at `evaluate`
+    /// (`trace`), naming the step and the face.
+    #[staticmethod]
+    fn drawn_profile(
+        py: Python<'_>,
+        frame: OperandArg,
+        faces: Vec<(OperandArg, String)>,
+        outline: super::trace::Outline,
+    ) -> PyResult<Self> {
+        super::trace::drawn_profile(py, frame, faces, outline)
     }
 
     /// The mirror image of a body: `body` reflected across `plane` (a

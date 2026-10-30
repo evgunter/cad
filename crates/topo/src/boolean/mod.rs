@@ -147,6 +147,7 @@ mod torn_hop_rows;
 #[cfg(test)]
 mod torus_frame_rows;
 pub(crate) mod torus_region;
+pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
@@ -2083,15 +2084,18 @@ pub struct HalfGerm<T: Real> {
     pub branch: Branch,
 }
 
-/// **Which loop of its face pair's section a germ rides.** A section of
-/// two loops — a plane cutting a torus in two circles or two ovals, two
-/// equal cylinders with intersecting axes in two bisector-plane
-/// ellipses — tells its loops apart by a margin at a point of the
-/// section (`ring_path::LoopSplit`). The margin is decided once, at the
-/// germ's site where the germ is minted, and every reader of the germ
-/// takes its loop from here: the join's matching and frames, and each
-/// side's chord. Both operands' germs of one slot carry the same
-/// branch, read at the A site.
+/// **Which loop of its face pair's section a germ rides.** On a pair the
+/// operation's section table holds, the loop is a component of the
+/// pair's carried section, by its index: the component the germ's site
+/// has its foot on ([`geom_brep::CarriedSection::foot`]). On the pairs
+/// read by a frame, a section of two loops — a plane cutting a torus in
+/// two circles or two ovals, two equal cylinders with intersecting axes
+/// in two bisector-plane ellipses — tells its loops apart by a margin at
+/// a point of the section (`ring_path::LoopSplit`). Either is decided
+/// once, at the germ's site where the germ is minted, and every reader
+/// of the germ takes its loop from here: the join's matching and frames,
+/// and each side's chord. Both operands' germs of one slot carry the
+/// same branch, read at the A site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Branch {
     /// The section is one loop, loops sharing one frame, or straight;
@@ -2101,6 +2105,8 @@ pub enum Branch {
     Positive,
     /// The loop on its negative side.
     Negative,
+    /// The component of the pair's carried section with this index.
+    Component(usize),
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
@@ -2726,9 +2732,16 @@ pub enum SectionUnbuilt {
     },
     /// The march refused.
     March(geom_brep::SsiError),
-    /// The classification does not tell the section's components apart
-    /// at the germ's site, as the note says.
-    Untold(&'static str),
+    /// A marched loop's winding about an operand was not read.
+    Winds(geom_brep::WindsRefusal),
+    /// A marched loop's limb-2 bound stands past the pad its points are
+    /// read within (`geom_brep::CarriedComponent::pad`).
+    PadShort {
+        /// The pad, in metres.
+        pad: f64,
+        /// The certificate's limb-2 bound, in metres.
+        hull_sup: f64,
+    },
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2748,10 +2761,15 @@ impl core::fmt::Display for SectionUnbuilt {
                  {scalar}. Recourse: run the operation at f64"
             ),
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Untold(why) => write!(
+            Self::Winds(why) => write!(
                 f,
-                "{why}, so the germ's component is not named. Recourse: none in this \
-                 operation; the pair's lane is not built"
+                "a marched loop's turns about an operand's axis or core could not be read \
+                 ({why:?})"
+            ),
+            Self::PadShort { pad, hull_sup } => write!(
+                f,
+                "a marched loop's carrier lies {hull_sup:e} m from the surfaces, past the {pad:e} m \
+                 its points are read within"
             ),
             Self::Seat(e) => write!(
                 f,

@@ -212,7 +212,7 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// in it.
 ///
 /// **Spelled by full path**, because this binary also uses
-/// `tess_meter::FaceName` (`main.rs`'s face-name tokens): two
+/// `tess_meter::FaceName` (`lib.rs`'s face-name tokens): two
 /// unrelated types with one short name, and a bare `FaceName` here
 /// would be read as either. `tess-meter`'s is a validated text token
 /// for a mesh report; this one is a `StableName` whose kind is
@@ -462,6 +462,7 @@ fn prism_part(
                 [zero.clone(), height],
             ])],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

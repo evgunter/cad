@@ -564,6 +564,7 @@ fn rod(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle_split(cx, cy, r, 2, start).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

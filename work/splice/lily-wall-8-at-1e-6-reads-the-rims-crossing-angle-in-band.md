@@ -2,11 +2,12 @@
 id: lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band
 kind: issue
 title: Lily wall 8's sheath and blade walls are tangent at two points on their shared rim, so the rim's crossing cannot certify at any ε (first seen at 1e-6 as an in-band sample)
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one, a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary]
+closed: 2026-10-29
 ---
 
 Found by the rim-exact-image lane while measuring where lily stops next.
@@ -78,3 +79,16 @@ A sheath and blade whose walls cross along the whole rim (a model change,
 the scene's to make), or a description for a rim whose walls touch at a
 point on it, which D2 has no form for: a seam that is transverse at some
 stations and tangent at one is certifiable as neither.
+
+## Closed (2026-10-29)
+
+The scene no longer has this rim. Lily's long leaf is one loft from
+sheath to tip, with the shared section an interior station, so there is
+no sheath to graft and no boolean at the section (`[ev]` PR 5990,
+question 3, approved). The finding stands in the sweep row
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+(`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`), which keeps
+the two-lofts graft as the witness that a rim tangent at two points
+refuses. Lily wall 8 is now the leaf grown out of the stem, which
+refuses at the curved crossing lane
+(`splice/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).

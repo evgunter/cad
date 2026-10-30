@@ -17,9 +17,9 @@
 //! - the donut turned 0.9 rad about `(1, 1, 0)` and moved to
 //!   `(0.05, 0.1, 0.02)`, ∪ in both member orders: the ball cuts both
 //!   tube circles of its meridian, two curves about the donut's axis
-//!   that no reading of the classification tells apart at a site, so
-//!   the germ mint refuses `Untold`. How such a section tells its
-//!   components apart is a design question SECT has with its designers.
+//!   that no plane or meridian tells apart; each germ's component is its
+//!   site's foot on the carried section, and the union stops at the same
+//!   volume door.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -155,17 +155,19 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
         let e = topo::union(x, y, tol)
             .err()
             .unwrap_or_else(|| panic!("about the axis, {order}: the union built; re-pin it"));
-        assert!(
-            matches!(
-                e,
-                BooleanError::GermSectionUnbuilt {
-                    a_kind,
-                    b_kind,
-                    why: topo::SectionUnbuilt::Untold(why),
+        let trims = matches!(
+            &e,
+            BooleanError::ResultInvalid { errors } if matches!(
+                errors.as_slice(),
+                [ValidationError::VolumeUncomputable {
+                    source: MassPropsError::Face {
+                        source: geom_brep::PropsError::QuadratureUnsupported { what },
+                        ..
+                    },
                     ..
-                } if (a_kind, b_kind) == kinds && why.starts_with("the sphere cuts both tube circles")
-            ),
-            "about the axis, {order}: {e:?}"
+                }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+            )
         );
+        assert!(trims, "about the axis, {order} ({kinds:?}): {e:?}");
     }
 }

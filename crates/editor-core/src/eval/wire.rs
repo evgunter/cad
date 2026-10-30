@@ -170,12 +170,29 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
+    /// **The nominal document's results**, where this lane is not its
+    /// evaluation and a profile reads a face's trace: an `f64`
+    /// evaluation of the nominal, built beside this one
+    /// ([`Self::nominal_results`]).
+    pub nominal_results: Option<&'a Results<f64>>,
     /// Whether an `f64` lane over the nominal takes the first pass's
     /// form ([`super::PassTwo`]).
     pub pass_two: super::PassTwo,
 }
 
-impl<T: super::ProfileLane> LaneEnv<'_, T> {
+impl<'a, T: super::ProfileLane> LaneEnv<'a, T> {
+    /// **The nominal document's results**, which a profile reading a
+    /// trace resolves its first pass off: `results` where this lane is
+    /// the nominal `f64` evaluation, the evaluation built beside it
+    /// otherwise.
+    pub(crate) fn nominal_results<'r>(&self, results: &'r Results<T>) -> Option<&'r Results<f64>>
+    where
+        'a: 'r,
+        T: Decide,
+    {
+        T::nominal_results(results, self.params, self.nominal).or(self.nominal_results)
+    }
+
     /// **The first pass's validated form as this lane's value**, where
     /// this lane IS the first pass: an `f64` lane whose environment
     /// binds the nominal ([`super::ProfileLane`]). `None` wherever the
@@ -235,6 +252,9 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
         resolved: Vec<Vec<profile::Step<f64>>>,
         pre: Box<ProfilePre>,
         form: ProfileForm<T>,
+        /// The frame the profile is drawn on, at the lane, where it is
+        /// drawn on one.
+        frame: Option<RigidMotion<T>>,
     },
     /// An assertion, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
@@ -317,13 +337,18 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
-    // A profile and an assertion read no operand, so neither has a
-    // read to project.
+    // An assertion reads no operand, and a profile's frame and traced
+    // faces were read ahead of its key (`trace::drawn`), so neither has
+    // a read to project here.
     let node = match input {
         OpInput::Profile {
-            program, pre, form, ..
+            program,
+            pre,
+            form,
+            frame,
+            ..
         } => {
-            let value = wire_profile(program, pre, form, tol)?;
+            let value = wire_profile(program, pre, form, frame.as_ref(), tol)?;
             let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces);
             return Ok(
                 OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
@@ -1418,6 +1443,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     program: &ProfileProgram,
     pre: &ProfilePre,
     form: &ProfileForm<T>,
+    frame: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
     let plane = profile::SketchPlane::xy();
@@ -1436,6 +1462,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
+        frame: frame.map(|f| super::Frame::Map(Arc::new(*f))),
     }))
 }
 
@@ -1525,7 +1552,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(out.body))),
+        ValuePayload::Body(vp.framed(Arc::new(out.body))),
         out.table,
     ))
 }
@@ -4133,6 +4160,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
 
 mod distribute;
 pub(crate) mod pose;
+pub(crate) mod trace;
 
 /// **The full-turn decision**: the sign of `|angle| − whole`, `whole`
 /// a whole number of turns, read by the revolve's full-or-partial
@@ -4243,6 +4271,13 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // where its station carries that plane.
     let mut sections: Vec<profile::ValidatedProfile<T>> = Vec::with_capacity(values.len());
     for (k, value) in values.iter().enumerate() {
+        if k > 0 && value.frame.is_some() {
+            return Err(operand_refusal(
+                profiles[k],
+                super::phrase::FREE_PROFILE,
+                "drawn profile",
+            ));
+        }
         let plane = match k.checked_sub(1) {
             None => profile::SketchPlane::xy(),
             Some(after) => station_plane(k, stations[after], vals)?,
@@ -4261,7 +4296,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // so wall `k` is named by one locator per section.
     let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(built.body))),
+        ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,
     ))
 }

@@ -27,20 +27,21 @@ proves it:
 - the guard raises `CurvedPairUnsupported { site: InteriorLoopGuard }`.
 
 Sound, and blocking: every boolean whose operands' spline faces overlap
-in box refuses there once its edges certify. It is broader than lily:
+in box refuses there once its edges certify. It is broader than the
+sheath-on-blade graft:
 any loft or sweep body against another.
 
 ## Measured (2026-10-28)
 
-Lily's sweep row (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`),
+The sheath-on-blade sweep row (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`),
 blade ∪ sheath, with limb 3 temporarily stubbed to pass (not committed),
 reaches this guard at ε 1e-9, 1e-6 and 1e-12. Every pair the guard reads
 is evented and every one refuses `Reach`: the plane cap of each body
 against the other's two walls, and all four wall × wall pairs. The first
 in arena order, the one the refusal names, is a Plane × NURBS pair
 (`operand: B, kind: Nurbs, other_kind: Plane`), whose arm is
-`germtail/nurbs-plane-section-has-no-component-arm`. So lily needs both
-arms, that one first.
+`germtail/nurbs-plane-section-has-no-component-arm`. So the graft needs
+both arms, that one first.
 
 Stubbing only the one-arc walk is not enough to reach the guard: limb
 3's own margin reading then refuses, `TubeStraddles { Zero(margin 0.0),

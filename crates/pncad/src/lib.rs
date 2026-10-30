@@ -213,4 +213,5 @@ pub mod profile;
 pub mod select;
 pub mod tolerance;
 pub mod topo;
+pub mod trace;
 pub mod workspace;

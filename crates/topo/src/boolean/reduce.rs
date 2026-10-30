@@ -4009,7 +4009,7 @@ fn door_escalates<T: geom_core::Real>(
 
 /// What the certified carrier × wall roots say about ONE edge span.
 #[derive(Debug, Clone, Copy)]
-enum SpanVerdict<T: geom_core::Real> {
+pub(super) enum SpanVerdict<T: geom_core::Real> {
     /// A definite crossing strictly inside the span, which the trim
     /// placed at `at` in this face.
     Pierce {
@@ -4449,12 +4449,12 @@ fn landing<T: Decide>(
 }
 
 /// A root door's answer: its roots, or the count it could not certify.
-type RootsOrUnsettled<T> = Result<CircleRoots<T>, Unsettled>;
+pub(super) type RootsOrUnsettled<T> = Result<CircleRoots<T>, Unsettled>;
 
 /// [`line_wall_roots_of`]'s answer: `None` for a surface with no line
 /// root lane, else the roots or the verdict the roots' shape has no word
 /// for.
-type LineWallRoots<T> = Option<Result<RootsOrUnsettled<T>, SpanVerdict<T>>>;
+pub(super) type LineWallRoots<T> = Option<Result<RootsOrUnsettled<T>, SpanVerdict<T>>>;
 
 /// The certified LINE × wall roots, per kind, in the root doors' answer
 /// shape — or, for the one answer that shape has no word for, the
@@ -4463,7 +4463,7 @@ type LineWallRoots<T> = Option<Result<RootsOrUnsettled<T>, SpanVerdict<T>>>;
 /// of the line's parameter the edge covers: its length is the lever the
 /// wall's axis-parallel rung is metered over, and the cone's apex rung
 /// reads the segment it spans.
-fn line_wall_roots_of<T: Decide>(
+pub(super) fn line_wall_roots_of<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
     (t0, t1): (T, T),

@@ -118,6 +118,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -168,6 +169,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
             [len(0.0), len(1.0)],
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -214,6 +216,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             },
         ],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -251,6 +254,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: p.into(),

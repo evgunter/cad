@@ -364,6 +364,7 @@ fn graze_split_edge_names(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, cylinder) = insert(

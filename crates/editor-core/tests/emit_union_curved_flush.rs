@@ -59,6 +59,7 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

@@ -78,6 +78,7 @@ fn extruded(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

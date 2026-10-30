@@ -2,7 +2,7 @@
 id: sector-decisions-read-at-the-arm-disagree-with-codes-read-at-the-reach
 kind: issue
 title: Sector decisions read at the shorter arm can disagree with side codes read at each bound's reach
-status: open
+status: dispatched
 priority: P2
 cost: M
 opened: 2026-10-29
