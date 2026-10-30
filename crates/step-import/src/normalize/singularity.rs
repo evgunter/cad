@@ -414,6 +414,20 @@ fn image_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
         .loops
         .iter()
         .map(|lp| {
+            if std::env::var_os("PROBE_SLIT").is_some() {
+                let n = lp.uses.len();
+                for i in 0..n {
+                    let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
+                    if n >= 2 && a.edge != b.edge
+                        && use_start(solid, a) == use_end(solid, b)
+                        && use_end(solid, a) == use_start(solid, b)
+                    {
+                        let (sa, sb) = (&solid.edges[&a.edge], &solid.edges[&b.edge]);
+                        let (ma, mb) = (sa.carrier.eval((sa.t0 + sa.t1) * 0.5), sb.carrier.eval((sb.t0 + sb.t1) * 0.5));
+                        eprintln!("PROBE_SLIT face {fi} distinct edges {} {} reversed endpoints; mid gap {}", a.edge, b.edge, (ma - mb).norm());
+                    }
+                }
+            }
             let mut kept: Vec<EdgeUse> = Vec::with_capacity(lp.uses.len());
             for u in &lp.uses {
                 if kept.last().is_some_and(|k| back(k, u)) {
@@ -425,6 +439,9 @@ fn image_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
             while kept.len() >= 2 && back(&kept[kept.len() - 1], &kept[0]) {
                 kept.pop();
                 kept.remove(0);
+            }
+            if kept.len() != lp.uses.len() && std::env::var_os("PROBE_SPUR").is_some() {
+                panic!("PROBE_SPUR step image_edges dropped {} of {}", lp.uses.len() - kept.len(), lp.uses.len());
             }
             use_edges(solid, &kept)
         })

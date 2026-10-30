@@ -77,6 +77,9 @@ pub fn chart_image<T: Real>(body: &Body<T>, cycle: &[HalfEdgeKey]) -> Option<Vec
         kept.pop();
         kept.remove(0);
     }
+    if kept.len() != cycle.len() && std::env::var_os("PROBE_SPUR").is_some() {
+        panic!("PROBE_SPUR topo chart_image dropped {} of {}", cycle.len() - kept.len(), cycle.len());
+    }
     Some(kept)
 }
 

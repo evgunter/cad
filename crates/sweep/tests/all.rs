@@ -74,6 +74,8 @@ mod a_face_across_a_wavy_corner;
 mod a_face_off_the_tangent_ruling;
 #[path = "a_face_reads_its_chart_image.rs"]
 mod a_face_reads_its_chart_image;
+#[path = "zz_review_probe_6088.rs"]
+mod zz_review_probe_6088;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flat_frustum_revolves.rs"]
