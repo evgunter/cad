@@ -1,8 +1,10 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its four residents: the connectedness check (LONGTERM-IDEAS
+//! its five residents: the connectedness check (LONGTERM-IDEAS
 //! I1(0b)), the chart-coherence examination
 //! (`topo::examine_chart_coherence`, read per rest body and default
-//! `Off`), the unproven-coincidence check (D10: each coincidence a
+//! `Off`), the unused check (D10 `[operations]`: what the person made
+//! and nothing uses, read off the recipe, [`Doc::unused`]), the
+//! unproven-coincidence check (D10: each coincidence a
 //! node decided from values that the coincidence door,
 //! [`crate::coincide::prove`], does not prove structural), and the
 //! at-rest check (D10 `[assertions]`: what the census at each `⊔`
@@ -36,7 +38,8 @@
 //!   are two answers and only the first is reversible by changing the
 //!   configuration.
 //! - **Deterministic order** (D9): a body check's findings follow the
-//!   placements' document order; the unproven-coincidence check's
+//!   placements' document order; the unused check's are its operations
+//!   then its variables, each in id order; the unproven-coincidence check's
 //!   follow evaluation order, then each node's decision order; the
 //!   at-rest check's follow the gathers' order, the product first and
 //!   then each other `⊔` in document order, each `⊔`'s in the census's
@@ -100,6 +103,10 @@ pub enum CheckId {
     /// not look at ([`CheckEvidence::AtRest`]). A contact is the
     /// `unproven-coincidence` check's, never this one's.
     AtRest,
+    /// The `unused` check (D10 `[operations]` "The product"): what the
+    /// person made and nothing uses, at the tip of each dead chain
+    /// ([`Doc::unused`]). Read off the recipe; nothing evaluated.
+    Unused,
 }
 
 impl CheckId {
@@ -129,6 +136,9 @@ impl CheckId {
             // what the finding says — never "this holds only at these
             // values", which a later rung may refute.
             Self::UnprovenCoincidence => CheckKind::Certified,
+            // Certified: whether anything reads a variable is a fact of
+            // the recipe, decided by no value.
+            Self::Unused => CheckKind::Certified,
         }
     }
 }
@@ -146,9 +156,10 @@ impl CheckId {
     /// subject-less resident placed after [`Self::UnprovenCoincidence`]
     /// would lose its findings on exactly the documents that have no
     /// product.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Connectedness,
         Self::ChartCoherence,
+        Self::Unused,
         Self::UnprovenCoincidence,
         Self::AtRest,
     ];
@@ -171,6 +182,7 @@ impl CheckId {
             // The rows ride each node's value, and the at-rest census's
             // ride the gathered product.
             Self::UnprovenCoincidence => true,
+            Self::Unused => false,
         }
     }
 }
@@ -186,6 +198,7 @@ impl fmt::Display for CheckId {
             // two entries.
             Self::ChartCoherence => f.write_str("chart-coherence"),
             Self::UnprovenCoincidence => f.write_str("unproven-coincidence"),
+            Self::Unused => f.write_str("unused"),
         }
     }
 }
@@ -359,6 +372,9 @@ pub struct ChecksConfig {
     /// could be written over, and not a pair the census could not look
     /// at.
     pub at_rest: Severity,
+    /// [`CheckId::Unused`]'s severity — [`Advisory`], default `Warn`:
+    /// nothing quiets an unused thing but using it or deleting it.
+    pub unused: Advisory,
 }
 
 impl Default for ChecksConfig {
@@ -369,6 +385,7 @@ impl Default for ChecksConfig {
             chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
             at_rest: Severity::Warn,
+            unused: Advisory::Warn,
         }
     }
 }
@@ -382,6 +399,7 @@ impl ChecksConfig {
             CheckId::AtRest => self.at_rest,
             CheckId::ChartCoherence => self.chart_coherence.severity(),
             CheckId::UnprovenCoincidence => self.unproven_coincidence.severity(),
+            CheckId::Unused => self.unused.severity(),
         }
     }
 
@@ -548,6 +566,9 @@ pub enum CheckEvidence {
         /// Why.
         evidence: at_rest::AtRestEvidence,
     },
+    /// The subject is used by nothing: not the product, not an
+    /// assertion, and nothing reads it.
+    Unused,
 }
 
 impl CheckEvidence {
@@ -599,7 +620,8 @@ pub struct CheckFinding {
 
 /// **What a finding is about.** A body check's subject is a
 /// body-denoting placement output; the unproven-coincidence check's is the
-/// node that decided the row, placement or not, which denotes no one body.
+/// node that decided the row, placement or not, which denotes no one body;
+/// the unused check's is an operation or a named variable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FindingSubject {
     /// A placement output, named as `(placement, output_ix)`, which
@@ -627,6 +649,8 @@ pub enum FindingSubject {
         /// The other copy.
         b: crate::checks::at_rest::CopyRef,
     },
+    /// A variable of the document, said by its name.
+    Var(crate::VarId),
 }
 
 /// A copy as a finding says it: its placement's output, and its member
@@ -726,7 +750,9 @@ impl SaidFinding<'_> {
                     output_ix
                 )
             }
-            FindingSubject::Census { read } => f.write_str(&by.read(read)),
+            FindingSubject::Census { read } | FindingSubject::Var(read) => {
+                f.write_str(&by.read(read))
+            }
             FindingSubject::Copies { a, b } => {
                 write!(f, "copies {} and {}", copy_said(a, by), copy_said(b, by))
             }
@@ -885,6 +911,9 @@ impl SaidFinding<'_> {
                     crate::spoken::Said(evidence, by)
                 )
             }
+            CheckEvidence::Unused => f.write_str(
+                "used by nothing: not the product, not an assertion, and nothing reads it",
+            ),
         }
     }
 
@@ -896,6 +925,7 @@ impl SaidFinding<'_> {
                  in ChecksConfig::expected_components"
             }
             CheckEvidence::Interference { .. } => INTERFERENCE_RECOURSE,
+            CheckEvidence::Unused => "Recourse: use it, or delete it",
             CheckEvidence::ChartCoherence { .. } => {
                 "a MEASUREMENT, not a refusal: judge the metres against the band; an \
                  imported part usually wants re-exporting at more digits, and a minted one \
@@ -1595,6 +1625,11 @@ pub fn run_checks_at_rest_on<
     } else {
         chart_coherence(doc, ev, tol, &mut report)?;
     }
+    if cfg.severity(CheckId::Unused) == Severity::Off {
+        report.skipped.push(CheckId::Unused);
+    } else {
+        unused(doc, &mut report);
+    }
     let mut door = None;
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
@@ -2060,6 +2095,20 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
 /// Placements in document order, and within one copy the door's own
 /// total order — its findings, then its unexamined loops. A pure function of the
 /// evaluation and eps, as the door itself is.
+/// The `unused` check: [`Doc::unused`]'s tips, its operations then its
+/// variables. A part's are the part's, and none is carried here.
+fn unused<P: crate::ProfilePayload>(doc: &Doc<P>, report: &mut ChecksReport) {
+    let tips = doc.unused();
+    let subjects = (tips.operations.into_iter().map(FindingSubject::Node))
+        .chain(tips.vars.into_iter().map(FindingSubject::Var));
+    report.findings.extend(subjects.map(|subject| CheckFinding {
+        check: CheckId::Unused,
+        subject,
+        evidence: CheckEvidence::Unused,
+        quiet: None,
+    }));
+}
+
 fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,

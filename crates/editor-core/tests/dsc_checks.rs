@@ -667,8 +667,11 @@ fn the_registry_order_is_every_check() {
             // `UnprovenCoincidence`, this resident would lose every
             // finding on exactly the documents that do not gather.
             CheckId::ChartCoherence => 1,
-            CheckId::UnprovenCoincidence => 2,
-            CheckId::AtRest => 3,
+            // Before `UnprovenCoincidence` for the same reason: it reads
+            // no subject.
+            CheckId::Unused => 2,
+            CheckId::UnprovenCoincidence => 3,
+            CheckId::AtRest => 4,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -678,7 +681,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        4,
+        5,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );

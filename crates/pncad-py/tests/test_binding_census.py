@@ -3551,6 +3551,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
+    "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",

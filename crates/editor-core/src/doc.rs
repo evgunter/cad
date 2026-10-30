@@ -1426,6 +1426,46 @@ impl<P> Doc<P> {
             .collect()
     }
 
+    /// **What the person made and nothing uses** (D10 `[operations]`
+    /// "The product"), read off the recipe alone. A use is a read (a
+    /// slot, an operand or a definition reading it), being the product,
+    /// or being what an assertion states, which is a read of its slot.
+    /// Reported are the tips: each operation with outputs none of which
+    /// is used, in id order, and then each named variable nothing uses
+    /// and no reported operation defines, in id order. What a tip reads
+    /// is used by it, so deleting a tip surfaces the next. An unnamed
+    /// variable is a byproduct and never reported, and so is the world.
+    pub fn unused(&self) -> Unused
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        let used = |var: &VarId| readers.contains_key(var) || self.product == Some(*var);
+        let mut defines: BTreeMap<RecipeNodeId, Vec<VarId>> = BTreeMap::new();
+        for (&var, held) in &self.vars {
+            if let Some((node, _)) = held.def().output() {
+                defines.entry(node).or_default().push(var);
+            }
+        }
+        defines.remove(&RecipeNodeId::WORLD);
+        let operations: Vec<RecipeNodeId> = defines
+            .iter()
+            .filter(|(_, outputs)| !outputs.iter().any(used))
+            .map(|(&node, _)| node)
+            .collect();
+        let vars = self
+            .var_names
+            .keys()
+            .filter(|var| !used(var))
+            .filter(|var| {
+                self.defined_by(**var)
+                    .is_none_or(|(node, _)| operations.binary_search(&node).is_err())
+            })
+            .copied()
+            .collect();
+        Unused { operations, vars }
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one its one reader's formula reads more than once, which a
     /// written re-insert splits into one per read, and a count read by
@@ -2841,6 +2881,17 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
         stack.extend((0..2).filter_map(|i| at.child(i)));
     }
     total
+}
+
+/// **The tips of a document's dead chains** ([`Doc::unused`]): what
+/// the `unused` check reports.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Unused {
+    /// The operations none of whose outputs is used, in id order.
+    pub operations: Vec<RecipeNodeId>,
+    /// The named variables nothing uses, in id order, but for those a
+    /// listed operation defines.
+    pub vars: Vec<VarId>,
 }
 
 /// **The adjacency of a document's definitions** ([`Doc::definition_edges`]),
