@@ -6,8 +6,9 @@ that produce findings and never change a body (DESIGN
 `src/checks.rs` and `src/checks/` (`run_checks`, `enforce_checks`,
 `CheckId`, `CheckKind`, `Severity`, `Advisory`); the sink is
 `src/finding.rs`. The residents are `Connectedness`, `ChartCoherence`,
-`UnprovenCoincidence`, DESIGN `[coincidence.door]`'s lint, and
-`AtRest`, DESIGN `[assertions]`'s at-rest check.
+`Unused`, DESIGN `[operations]`'s finding of what the person made and
+nothing uses, `UnprovenCoincidence`, DESIGN `[coincidence.door]`'s
+lint, and `AtRest`, DESIGN `[assertions]`'s at-rest check.
 
 The clause ids are the DISCIPLINES-DESIGN family's and keep their
 numbers. DS1, DS2, DS4, DS5 and DS7 described declared-coincidence
@@ -129,6 +130,21 @@ assertion over it speaks for) is outside what the document can yet say
 finding (`CheckFinding::quiet`) is listed with the assertion that quiets
 it and never refuses. The census's own pre-filter is the pair filter;
 the resident adds no box test of its own.
+
+**The unused resident: `CheckId::Unused`.** Kind Certified, it reads
+the recipe alone (`Doc::unused`), nothing evaluated and no subject
+gathered. A use is a read (a slot, an operand or a definition reading
+the variable), being the product, or being what an assertion states.
+It reports what is deliberate and unused at the tip of each dead
+chain: an operation none of whose outputs is used
+(`FindingSubject::Node`), and a named variable nothing uses that no
+reported operation defines (`FindingSubject::Var`, spoken by its
+name). What a tip reads is used by it, so deleting the tip surfaces
+the next. An output nobody named and an anonymous variable are
+byproducts and never reported; the world is exempt; a `Measure` no
+assertion reads is reported. A part's unused things are the part's own
+and are not carried into a host. Its knob is `Advisory`, default Warn:
+nothing quiets an unused thing but using or deleting it.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
 knob (round 3, per Ev: blocking is fine if exceptions are

@@ -2933,6 +2933,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
         CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
+        CheckEvidence::Unused { .. } => "unused",
     }
 }
 

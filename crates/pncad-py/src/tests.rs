@@ -4552,6 +4552,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",
+            "unused",
         ],
         delegates: &[],
     },
@@ -10456,7 +10457,14 @@ mod product_memo_rows {
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
-        assert!(report.findings.is_empty());
+        assert!(
+            report
+                .findings
+                .iter()
+                .map(|f| f.check)
+                .eq([d::CheckId::Unused]),
+            "the sketch nothing reads, and nothing at rest: {report}"
+        );
     }
 
     /// A product is the answer for the tolerance it was gathered at,
