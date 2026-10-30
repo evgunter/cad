@@ -179,7 +179,7 @@ pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_v
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
+    CurveKindSet, ContactPair, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
     EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
     KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable,
     NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,

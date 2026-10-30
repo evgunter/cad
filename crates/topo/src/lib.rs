@@ -636,7 +636,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&[], tol)
+        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the
@@ -1286,8 +1286,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
-    DeclaredContact, GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
+    ContactRefusal, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1302,7 +1302,7 @@ pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
-    chart_region_overlap, declared_pair_overlap,
+    chart_region_overlap, declared_pair_overlap, in_band_premise,
 };
 pub use clearance::ClearanceLane;
 pub use coherence::{

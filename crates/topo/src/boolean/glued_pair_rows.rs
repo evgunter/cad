@@ -7,9 +7,9 @@
 
 use super::carrier_eq;
 use super::carrier_pair::face_carrier;
-use super::{Glue, GluedPairs, Operand, PlaneIdentity, glue, verify_declared_contacts};
+use super::{Glue, GluedPairs, Operand, glue, verify_declared_contacts};
 use crate::AtRestBody;
-use crate::contact::{ContactVerdict, GlueClass};
+use crate::contact::GlueClass;
 use crate::test_support::finished;
 use crate::test_support_fixtures::{
     FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
@@ -37,14 +37,16 @@ fn door(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Glue<f64>, GluedPairs<f64>
 }
 
 /// **A pair the door glued reads, at its consuming site, the relation
-/// the door recorded, and reads it `Definite`, in both operand orders.**
-/// A brick resting on a cube (`Rest`) and two cubes side by side
-/// (continuations, and `Rest` across their shared wall): every
-/// one-carrier pair the door glued, read again through the declared
-/// rung over the extent the door read it on, reads the class's relation
-/// on the geometry's own evidence, with nothing bridged.
+/// the door recorded, in both operand orders, and the face-pair door
+/// over the extent it was decided on agrees.** A brick resting on a
+/// cube (`Rest`) and two cubes side by side (continuations, and `Rest`
+/// across their shared wall): every one-carrier pair the door glued
+/// reads its class's relation from the record
+/// ([`GluedPairs::glued_relation`]) whichever operand is asked first,
+/// and its carriers read over the pair's extent decide the same relation
+/// on a Zero.
 #[test]
-fn a_glued_pair_reads_its_class_definite_in_both_orders() {
+fn a_glued_pair_reads_its_record_in_both_orders() {
     let cube = || {
         finished(
             "the cube",
@@ -86,18 +88,17 @@ fn a_glued_pair_reads_its_class_definite_in_both_orders() {
                 (cb, ca, Operand::B, pair.b, Operand::A, pair.a),
             ] {
                 let extent = declared.consumed(o1, f1, o2, f2).unwrap();
-                let (rel, verdict, _) = carrier_eq::carrier_eq_reading(
-                    &c1,
-                    &c2,
-                    PlaneIdentity::DECLARED,
-                    &extent,
-                    band(),
-                )
-                .unwrap_or_else(|e| panic!("{what}, {o1:?} first: {e:?}"));
+                let (rel, margin) = carrier_eq::pair_door_reading(&c1, &c2, &extent, band())
+                    .unwrap_or_else(|e| panic!("{what}, {o1:?} first: {e:?}"));
                 assert_eq!(
-                    (GlueClass::of_senses(rel), verdict),
-                    (Some(pair.class), ContactVerdict::Definite),
-                    "{what}, {o1:?} first: the consumer reads the door's class, definite"
+                    (
+                        declared.glued_relation(o1, f1, o2, f2),
+                        GlueClass::of_senses(rel),
+                        margin.is_some()
+                    ),
+                    (pair.class.carrier_relation(), Some(pair.class), true),
+                    "{what}, {o1:?} first: the consumer reads the door's record, and the \
+                     carriers agree on a Zero"
                 );
             }
         }

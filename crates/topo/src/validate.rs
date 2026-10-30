@@ -405,7 +405,7 @@ use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactRefusal, DeclaredContact};
+use crate::contact::{ContactPair, ContactRefusal};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
@@ -1938,7 +1938,7 @@ pub enum ValidationError {
     /// wins over every declaration.
     ContactContradicted {
         /// The face pair and class that were declared.
-        declaration: DeclaredContact,
+        declaration: ContactPair,
         /// Where the contradiction holds, as a place read after
         /// "contradicted" in the message, preposition included: across
         /// both faces (the face–face record confirm pass's Door 1,

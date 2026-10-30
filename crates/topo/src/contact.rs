@@ -32,7 +32,7 @@ use crate::entity::FaceKey;
 ///   of the materials: whether the pair is a contact, an overlap, a seam
 ///   or a nested touch is read where it is consumed (C7).
 ///
-/// It is also the class a contact claim names ([`DeclaredContact`]'s
+/// It is also the class a contact pair names ([`ContactPair`]'s
 /// `class`), which the façade's curated lists carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GlueClass {
@@ -240,19 +240,19 @@ impl core::fmt::Display for ContactRefusal {
 
 impl std::error::Error for ContactRefusal {}
 
-/// **A contact CLAIM**: this face pair, asserted to be in contact of
-/// this class. What a declaration says, and what a refusal quotes back.
+/// **A face pair and the contact class it is read as**: what a record
+/// names, what a finding reports, and what a refusal quotes back.
 ///
 /// Key-based because it is the kernel's currency; the recipe layer's
 /// name-based form carries the same class (G1: names cross the
 /// boundary, keys never do).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeclaredContact {
+pub struct ContactPair {
     /// The A-side face.
     pub a: FaceKey,
     /// The B-side face.
     pub b: FaceKey,
-    /// The class the pair is claimed to be in contact of.
+    /// The class the pair is read as.
     pub class: GlueClass,
 }
 
@@ -262,7 +262,7 @@ pub struct DeclaredContact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContactFinding {
     /// What was found.
-    pub pair: DeclaredContact,
+    pub pair: ContactPair,
 }
 
 #[cfg(test)]

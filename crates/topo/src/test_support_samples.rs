@@ -49,7 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactRefusal, DeclaredContact, GlueClass};
+use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -1067,7 +1067,7 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::FaceFaceTangent {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Tangent,
@@ -1076,7 +1076,7 @@ fn census_contacts() -> Vec<CensusContact> {
         },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Rest,
@@ -1709,7 +1709,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         s.push((
             format!("ContactContradicted/{}", class.name()),
             ValidationError::ContactContradicted {
-                declaration: DeclaredContact {
+                declaration: ContactPair {
                     a: face,
                     b: face,
                     class,

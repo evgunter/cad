@@ -499,7 +499,7 @@ pub use topo::{
 // --- 5. The validation ladder ---------------------------------
 // The tier-3′ census vocabulary rides with `ValidationError` for the
 // group-9 reason again, and here the list was already half-persuaded:
-// `DeclaredContact` — the payload of `ValidationError::
+// `ContactPair` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
 // refusal and left its siblings a module hop away. These are
@@ -542,7 +542,7 @@ pub use topo::{
 // contact vocabulary; `ReadbackError::Dangling` carries an
 // `EntityId`, which rides in group 4 with the keys it sums over. What
 // this list still stops at is the rung under THOSE — a
-// `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
+// `ContactFinding` is a `ContactPair` plus a `ContactVerdict`,
 // both already here, a `CensusSubject` is an `EntityId` or two
 // `FaceKey`s, all three already here, and the sums' remaining key
 // kinds are bound out of an arm and never branched on. The rule is
@@ -751,7 +751,7 @@ pub use editor_core::{NameTextError, StableName};
 // module docs carry the worked examples).
 pub use crate::select::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
+    CurveKindSet, ContactPair, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
     MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
     ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
     SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,

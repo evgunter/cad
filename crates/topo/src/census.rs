@@ -6266,7 +6266,7 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
             continue;
         }
         let finding = crate::contact::ContactFinding {
-            pair: crate::contact::DeclaredContact {
+            pair: crate::contact::ContactPair {
                 a: pair.a,
                 b: pair.b,
                 class: crate::contact::GlueClass::Rest,
@@ -6365,7 +6365,7 @@ fn sweep_conformal_patches<T: Decide>(
                     Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {
                         if !declared.faces.contains(&(fa, fb)) {
                             let finding = crate::contact::ContactFinding {
-                                pair: crate::contact::DeclaredContact {
+                                pair: crate::contact::ContactPair {
                                     a: fa,
                                     b: fb,
                                     class: crate::contact::GlueClass::Rest,
@@ -6596,7 +6596,7 @@ fn same_solid_tangent_pair<T: Decide>(
         Ok(_) => errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::FaceFaceTangent {
                 finding: crate::contact::ContactFinding {
-                    pair: crate::contact::DeclaredContact {
+                    pair: crate::contact::ContactPair {
                         a,
                         b,
                         class: crate::contact::GlueClass::Tangent,
@@ -9738,7 +9738,7 @@ fn confirm_face_pair<T: Decide>(
     let refused = |refusal| match refusal {
         crate::contact::ContactRefusal::Contradicted { diag } => {
             ValidationError::ContactContradicted {
-                declaration: crate::contact::DeclaredContact {
+                declaration: crate::contact::ContactPair {
                     a,
                     b,
                     class: crate::contact::GlueClass::Tangent,
@@ -10169,7 +10169,7 @@ fn rest_door_one<T: Decide>(
         match refusal {
             crate::contact::ContactRefusal::Contradicted { diag } => {
                 ValidationError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
+                    declaration: crate::contact::ContactPair {
                         a: face_a,
                         b: face_b,
                         class: crate::contact::GlueClass::Rest,
@@ -17718,7 +17718,7 @@ mod records_by_carrier {
             named(&errors, a, b).iter().any(|e| matches!(
                 e,
                 ValidationError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
+                    declaration: crate::contact::ContactPair {
                         class: crate::contact::GlueClass::Tangent,
                         ..
                     },

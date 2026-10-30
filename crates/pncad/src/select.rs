@@ -91,7 +91,7 @@
 // way is the same name on two lists.
 pub use editor_core::{
     At, CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape,
-    CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKind,
+    CurveKind, CurveKindSet, ContactPair, Denotation, DisagreeShape, DuplicateName, EntityKind,
     EntityNamed, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, PieceRun,
     ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg,
@@ -118,10 +118,10 @@ pub use editor_core::{
 ///
 /// Its two fields are already here, which is what makes the stop
 /// under it a stop rather than a deferral: a finding is a
-/// [`DeclaredContact`] plus the [`ContactVerdict`] that decided it,
+/// [`ContactPair`] plus the [`ContactVerdict`] that decided it,
 /// by composition, and both are carried above.
 pub use topo::ContactFinding;
-/// **The class a contact claim names** — [`DeclaredContact`]'s `class`,
+/// **The class a contact claim names** — [`ContactPair`]'s `class`,
 /// so a caller matching a contact refusal down to its claim can name
 /// the class it holds.
 pub use topo::GlueClass;

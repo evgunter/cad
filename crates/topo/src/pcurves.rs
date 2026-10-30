@@ -5280,11 +5280,6 @@ pub(crate) mod staleness_posture {
         use Posture::{Completes, Maintains, Neither, Transfers};
         &[
             // ---- Maintains, one delegation away from the re-mint. ----
-            (
-                "merge_coplanar_faces",
-                Maintains,
-                "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
-            ),
             // ---- Maintains: the doors that re-mint their own staged
             // result. They carry prose here rather than in
             // `review_m1_pr5_internal::ALLOWED` because they assert
@@ -5292,7 +5287,7 @@ pub(crate) mod staleness_posture {
             // are no longer allowlisted there; the two tables still
             // have to cover this one population between them. ----
             (
-                "merge_coplanar_faces_declared",
+                "merge_coplanar_faces",
                 Maintains,
                 "calls `merge_coplanar_faces_staged`, which re-mints the staged result \
                  before it is adopted, whenever the operand carried rows, and ends with \

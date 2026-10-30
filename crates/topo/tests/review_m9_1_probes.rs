@@ -12,24 +12,19 @@ use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
-    CarrierDesc, CarrierEqError, CarrierRelation, ContactRefusal, ContactVerdict, ValidationError,
-    carrier_eq, validate_pseudomanifold,
+    CarrierDesc, CarrierRelation, ContactRefusal, ValidationError, carrier_eq,
+    validate_pseudomanifold,
 };
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// A ball of radius `arm` about the origin, no point of either face
-/// known: the extent a bare arm names.
-fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+/// A ball of radius `arm` about the origin: the extent a bare arm
+/// names.
+fn at(arm: f64) -> topo::ConsumedExtent<f64> {
     topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
-}
-
-fn declared() -> PlaneIdentity {
-    PlaneIdentity::DECLARED
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
@@ -73,38 +68,25 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let off = sphere([1e-3, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1.0, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &off, PlaneIdentity::NONE, &at(arm), band()).unwrap(),
+            carrier_eq(&a, &off, &at(arm), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite center offset must be Distinct at arm {arm}"
         );
-        // The point of `a` on the offset's far side stands the whole
-        // offset off it.
-        let on = [Point3::new(-2.0, 0.0, 0.0)];
-        let extent = topo::ConsumedExtent {
-            on: [&on, &[]],
-            ..at(arm)
-        };
-        assert!(
-            matches!(
-                carrier_eq(&a, &off, declared(), &extent, band()),
-                Err(CarrierEqError::Contradicted { .. })
-            ),
-            "declared, arm {arm}: contradicted"
-        );
     }
-    // In-band center offset: also arm-independent.
+    // A zero-band center offset: also arm-independent.
     let near = sphere([1e-13, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &near, declared(), &at(arm), band()).unwrap(),
+            carrier_eq(&a, &near, &at(arm), band()).unwrap(),
             CarrierRelation::SameOpposite,
-            "in-band center offset bridges at arm {arm}"
+            "a zero-band center offset is one carrier at arm {arm}"
         );
     }
 }
 
 /// CLAIM 1 — the ANGULAR margin is levered at the arm: a tilt that is
-/// in-band at 1 m must become a definite distinction at a large arm.
+/// in the zero band at 1 m must become a definite distinction at a
+/// large arm.
 #[test]
 fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     let eps = geom_core::Tol::witness().get().eps;
@@ -117,29 +99,21 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
         radius: 3.0,
         outward: false,
     };
-    // Unit arm: in-band tilt bridges under the declaration.
+    // Unit arm: the tilt decides zero.
     assert_eq!(
-        carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
-    // Large arm: the same tilt is a definite misalignment there, at a
-    // point of the face half the arm along the axis.
-    let on = [Point3::new(3.0, 0.0, 5e5)];
-    let extent = topo::ConsumedExtent {
-        on: [&on, &[]],
-        ..at(1e6)
-    };
-    match carrier_eq(&a, &b, declared(), &extent, band()).unwrap_err() {
-        CarrierEqError::Contradicted { diag: d, .. } => {
-            assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
-        }
-        other => panic!("expected Contradicted at 1e6 arm, got {other:?}"),
-    }
+    // Large arm: the same tilt is a definite misalignment there.
+    assert_eq!(
+        carrier_eq(&a, &b, &at(1e6), band()).unwrap(),
+        CarrierRelation::Distinct
+    );
 }
 
 /// CLAIM 1 — mm-vs-metre twin: scaling the MODEL by 1000 must scale
 /// every length margin with it (no dimensionless comparand hides in
-/// the ladder), and the first definite margin in walk order decides.
+/// the ladder), and a definite margin past an in-band one decides.
 #[test]
 fn probe_mm_vs_metre_twin_and_margin_naming() {
     // metre model: radii 3.0 vs 3.001 (definite delta 1e-3 m).
@@ -149,26 +123,22 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k1 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3000.0, true);
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
-        match carrier_eq(a, b, declared(), &at(1.0), band()).unwrap_err() {
-            CarrierEqError::Contradicted { diag: d, .. } => {
-                assert_eq!(d.predicate, Some("carrier_cyl_radius"));
-            }
-            other => panic!("expected radius contradiction, got {other:?}"),
-        }
+        assert_eq!(
+            carrier_eq(a, b, &at(1.0), band()).unwrap(),
+            CarrierRelation::Distinct
+        );
     }
-    // Near-tie walk order: axis-offset in band, radius definite — the
-    // ladder must walk PAST the in-band margin and name the radius.
+    // Near-tie walk order: axis offset in the zero band, radius definite
+    // — the ladder walks PAST the offset to the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
-    match carrier_eq(&m1, &near, declared(), &at(1.0), band()).unwrap_err() {
-        CarrierEqError::Contradicted { diag: d, .. } => {
-            assert_eq!(d.predicate, Some("carrier_cyl_radius"));
-        }
-        other => panic!("expected radius contradiction, got {other:?}"),
-    }
+    assert_eq!(
+        carrier_eq(&m1, &near, &at(1.0), band()).unwrap(),
+        CarrierRelation::Distinct
+    );
 }
 
-/// CLAIM 2 — a DEFINITE separation must beat the declaration: two
-/// parallel planes a definite gap apart, declared tangent along a
+/// CLAIM 2 — a DEFINITE separation contradicts: two parallel planes a
+/// definite gap apart, read tangent along a
 /// line lying on the first. The pair's separation is read before the
 /// witness, so the refusal is the gap (positive: apart), not the
 /// witness's miss on the second plane.
@@ -176,8 +146,8 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let down = plane_s([0.0, 0.0, 1e-3], [0.0, 0.0, 1.0]);
-    let err = tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, true, band())
-        .unwrap_err();
+    let err =
+        tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band()).unwrap_err();
     match err {
         topo::ContactRefusal::Contradicted { diag } => {
             assert_eq!(diag.predicate, Some("contact_tangent_gap"));
@@ -191,61 +161,34 @@ fn probe_tangent_definite_separation_contradicts() {
     }
 }
 
-/// CLAIM 2 — a DEFINITE crossing (two planes at a definite angle,
-/// declared tangent along their intersection line) must beat the
-/// declaration: the bridge must not wave a transverse crossing
-/// through.
+/// CLAIM 2 — a DEFINITE crossing (two planes at a definite angle, read
+/// tangent along their intersection line) contradicts.
 #[test]
 fn probe_tangent_definite_crossing_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let tilted = plane_s([0.0, 0.0, 0.0], [0.0, 1e-3, 1.0]);
-    let out = tangent_locus_relation(&up, true, &tilted, false, &xline(), -1.0, 1.0, true, band());
+    let out = tangent_locus_relation(&up, true, &tilted, false, &xline(), -1.0, 1.0, band());
     assert!(
         matches!(out, Err(topo::ContactRefusal::Contradicted { .. })),
-        "a definite crossing must contradict the declaration, got {out:?}"
+        "a definite crossing must contradict, got {out:?}"
     );
 }
 
-/// FINDING (claim 2 / doc honesty) — the module docs and PR body say
-/// normal opposition and on-surface residual "stay must-verify-
-/// DEFINITE at every sample, so the weakening is confined to the
-/// second-order margin". The code BRIDGES an in-band residual and an
-/// in-band opposition margin under a declaration: this probe pins the
-/// actual behaviour the docs deny.
+/// An in-band on-surface residual escalates: it is on C4's
+/// must-verify-DEFINITE list, so it is neither verified nor
+/// contradicted.
 #[test]
-fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
+fn probe_tangent_escalates_an_inband_residual() {
     let eps = geom_core::Tol::witness().get().eps;
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-    // A genuine (authored) gap of 3 eps: in the sliver band, so not
-    // definite separation — but also NOT the #175 kappa_rel residue.
+    // A genuine (authored) gap of 3 eps: in the sliver band.
     let gapped = plane_s([0.0, 0.0, 3.0 * eps], [0.0, 0.0, 1.0]);
-    // FIXED (M9-1 fix pass, F1). This probe found the defect and now
-    // pins the fix: an in-band on-surface residual is on C4's
-    // must-verify-DEFINITE list, so it is neither verified, nor
-    // bridged, nor contradicted — it ESCALATES, declaration or not.
-    // Red-then-green: this assertion read `Bridged` when the probe was
-    // written.
-    let refusal =
-        tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, true, band())
-            .expect_err("an in-band residual is not something a declaration may bridge");
+    let refusal = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, band())
+        .expect_err("an in-band residual refuses");
     assert!(
         matches!(refusal, ContactRefusal::Escalated { .. }),
-        "in-band residual must escalate, not bridge: {refusal:?}"
+        "in-band residual must escalate: {refusal:?}"
     );
-    // The declaration changes nothing here — that is the point.
-    let undeclared = tangent_locus_relation(
-        &up,
-        true,
-        &gapped,
-        false,
-        &xline(),
-        -1.0,
-        1.0,
-        false,
-        band(),
-    )
-    .expect_err("undeclared, the same in-band residual escalates");
-    assert!(matches!(undeclared, ContactRefusal::Escalated { .. }));
 }
 
 /// CLAIM 4 — the at-rest gate refuses a false edge–face record: a top
@@ -346,26 +289,19 @@ fn probe_records_partialeq_bites_on_mutation() {
     assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
 }
 
-/// CLAIM 7 / AQ6 — the definite verdict beats the declaration in BOTH
-/// directions: exactly-equal declared carriers verify DEFINITE (the
-/// declaration added nothing — it is not credited with a bridge), and
-/// a definite difference contradicts.
+/// CLAIM 7 — exactly-equal carriers are one carrier, and a definite
+/// difference is two.
 #[test]
-fn probe_aq6_definite_beats_declaration_both_directions() {
+fn probe_equal_carriers_are_one_and_a_definite_difference_two() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
-    let (rel, verdict) =
-        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), &at(1.0), band())
-            .unwrap();
-    assert_eq!(rel, CarrierRelation::SameOpposite);
     assert_eq!(
-        verdict,
-        ContactVerdict::Definite,
-        "bit-equal data is the geometry's own evidence, not a bridge"
+        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+        CarrierRelation::SameOpposite
     );
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
-    assert!(matches!(
-        carrier_eq(&a, &off, declared(), &at(1.0), band()),
-        Err(CarrierEqError::Contradicted { .. })
-    ));
+    assert_eq!(
+        carrier_eq(&a, &off, &at(1.0), band()).unwrap(),
+        CarrierRelation::Distinct
+    );
 }

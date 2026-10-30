@@ -1835,7 +1835,7 @@ FAMILIES: dict[str, str] = {
 #: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
-#: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
+#: interior (`ContactPair`, `ContactVerdict`, `ContactRefusal`,
 #: `ContactRecords` — `ContactRecords` is behind
 #: `Body.validate_pseudomanifold`, which takes
 #: one in Rust and captures it here rather than asking a caller for a
@@ -2696,10 +2696,10 @@ NOT_BOUND = {
     # behind it. The finding is a declared pair and a verdict, and
     # projecting it would be projecting a payload's payload; the
     # discriminant is what a curated list owes and it crosses.
-    # `DeclaredContact` and
+    # `ContactPair` and
     # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
     # beside it, which is the sibling test the `CensusContact` entry
-    # names. `GlueClass` is `DeclaredContact`'s class, behind the same
+    # names. `GlueClass` is `ContactPair`'s class, behind the same
     # door.
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
@@ -2740,7 +2740,7 @@ NOT_BOUND = {
     "Convexity": INTERIOR,
     "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
-    "DeclaredContact": INTERIOR,
+    "ContactPair": INTERIOR,
     "GlueClass": INTERIOR,
     "DuplicateName": INTERIOR,
     "EntityNamed": INTERIOR,

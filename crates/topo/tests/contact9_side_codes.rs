@@ -337,10 +337,10 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
 
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a
 /// block's top (20 m square), its bottom tilted so the far end stands
-/// `5·K·ε` below: `0.5·Kε` at a one-metre arm, which the ladder there
-/// bridges, and `5·Kε` at the wedge's far end. The `Rest` door levers
-/// the tilt at the pair's consumed extent (at least the wedge's 10 m)
-/// and contradicts it.
+/// `5·K·ε` below: `0.5·Kε` at a one-metre arm, in band there, and
+/// `5·Kε` at the wedge's far end. The `Rest` door levers the tilt at the
+/// pair's consumed extent (at least the wedge's 10 m), where it reads
+/// two carriers, and contradicts the contact.
 #[test]
 fn a_declared_plane_tilt_is_read_across_the_faces() {
     let tol = Tol::witness();
@@ -360,18 +360,16 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_carrier(&block, top).unwrap(),
         face_carrier(&wedge, bottom).unwrap(),
     );
-    let declared = topo::PlaneIdentity::DECLARED;
-    let metre =
-        topo::boolean::carrier_eq::carrier_eq_verdict(&ca, &cb, declared, &metre_ball(1.0), band);
+    let metre = topo::carrier_eq(&ca, &cb, &metre_ball(1.0), band);
     assert!(
         matches!(
             metre,
-            Ok((
-                topo::PlaneRelation::SameOpposite,
-                topo::ContactVerdict::Bridged
-            ))
+            Err(topo::CarrierEqError::Escalated {
+                rung: topo::PlaneRung::Parallel,
+                ..
+            })
         ),
-        "at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
+        "at a 1 m arm the tilt reads in band: {metre:?}"
     );
     let door = topo::boolean::rest_pair_verdict(&block, top, &wedge, bottom, band);
     assert!(
@@ -386,7 +384,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
 /// ball about the mean of the two faces' box centres, `(2.5, 0.25, 0)`,
 /// out to the top's far corner: radius `√200 + |(2.5, 0.25)| ≈
 /// 16.655 m`.
-fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::ContactVerdict, topo::ContactRefusal> {
+fn wedge_on_the_top(rise: f64, lift: f64) -> Result<geom_core::MarginDiag, topo::ContactRefusal> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let block = common::finished(
@@ -413,12 +411,12 @@ fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::ContactVerdict, topo::
 /// The pair's consumed-extent radius ([`wedge_on_the_top`]).
 const REACH: f64 = 16.655;
 
-/// **The offset and the tilt add.** The wedge's bottom stands `0.9·Kε`
-/// off the top at the extent's centre (`x = 2.5`), and tilts so that
-/// the tilt levered at the extent's radius reads another `0.9·Kε`: each
-/// in band on its own, which a datum-by-datum reading bridged, while the
-/// far corner stands `0.9·Kε + 7.5 m·tilt ≈ 1.3·Kε` off. Read as one
-/// displacement, the far corner contradicts a `Rest`.
+/// **The offset and the tilt in band refuse.** The wedge's bottom
+/// stands `0.9·Kε` off the top at the extent's centre (`x = 2.5`), and
+/// tilts so that the tilt levered at the extent's radius reads another
+/// `0.9·Kε`, while the far corner stands `0.9·Kε + 7.5 m·tilt ≈ 1.3·Kε`
+/// off. Each is in band, so the door decides no carrier and nothing is
+/// bridged: it escalates.
 #[test]
 fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
     let k = Band::linear(Tol::witness()).unwrap().escalate();
@@ -428,38 +426,32 @@ fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
     assert!(far > 1.25 * k, "the far corner stands past the band: {far}");
     let door = wedge_on_the_top(10.0 * slope, lift);
     assert!(
-        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
-        "the far corner contradicts a Rest: {door:?}"
+        matches!(door, Err(topo::ContactRefusal::Escalated { .. })),
+        "the pair in band escalates: {door:?}"
     );
 }
 
-/// **An upper bound past the band is not a contradiction.** The wedge
-/// pivots on its near edge so its far corner stands `d` off the top,
-/// for `d` across `0.3…1.5·Kε`. The door's upper bound is the offset at
-/// the extent's centre plus the tilt levered at its radius,
-/// `d·(2.5 + 16.655)/10 ≈ 1.92·d`; its lower bound is the far corner's
-/// own `d`. So it bridges below `d ≈ 0.52·Kε` (every point in band),
-/// contradicts from `d = Kε` (a corner past the band), and between them
-/// — every point in band, but the ball over-states the faces — refuses
-/// as unsettled rather than contradicting.
+/// **A tilt in band escalates, and a tilt past it contradicts.** The
+/// wedge pivots on its near edge so its far corner stands `d` off the
+/// top, for `d` across `0.3…1.5·Kε`. The door reads the tilt levered at
+/// the extent's radius, `d·16.655/10 ≈ 1.67·d`: in band, so the pair
+/// escalates, below `d ≈ 0.6·Kε`, and past it, two carriers the `Rest`
+/// contact contradicts, above.
 #[test]
 fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
     let k = Band::linear(Tol::witness()).unwrap().escalate();
     for (d, expect) in [
-        (0.3, "bridged"),
-        (0.4, "bridged"),
-        (0.45, "bridged"),
-        (0.6, "unsettled"),
-        (0.75, "unsettled"),
-        (0.9, "unsettled"),
+        (0.3, "escalated"),
+        (0.4, "escalated"),
+        (0.5, "escalated"),
+        (0.75, "contradicted"),
+        (0.9, "contradicted"),
         (1.1, "contradicted"),
-        (1.3, "contradicted"),
         (1.5, "contradicted"),
     ] {
         let door = wedge_on_the_top(d * k, 0.0);
         let read = match door {
-            Ok(topo::ContactVerdict::Bridged) => "bridged",
-            Err(topo::ContactRefusal::Escalated { .. }) => "unsettled",
+            Err(topo::ContactRefusal::Escalated { .. }) => "escalated",
             Err(topo::ContactRefusal::Contradicted { .. }) => "contradicted",
             ref other => panic!("d = {d}·Kε: unexpected {other:?}"),
         };
@@ -638,8 +630,8 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
     }
 }
 
-/// A ball of radius `arm` about the origin, no point of either face
-/// known: the extent a bare arm names.
-fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+/// A ball of radius `arm` about the origin: the extent a bare arm
+/// names.
+fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
     topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }

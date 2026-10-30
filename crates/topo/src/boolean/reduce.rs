@@ -5854,8 +5854,7 @@ mod declaration_order_rows {
         match class {
             GlueClass::Rest => crate::boolean::rest_pair_verdict(x, xw, y, yw, band).is_ok(),
             GlueClass::Tangent => witness.is_some_and(|(carrier, t0, t1)| {
-                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, true, band)
-                    .is_ok()
+                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band).is_ok()
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
         }

@@ -3420,7 +3420,7 @@ pub fn take_output_stage_points() -> Option<Vec<StagePoints>> {
 /// edges plus every boundary edge of a face whose merge group the
 /// merge door SKIPPED), never a post-hoc scan of the body. The
 /// merge-kept faces' boundaries are the door's own: it re-describes
-/// them before it returns ([`Body::merge_coplanar_faces_declared`]).
+/// them before it returns ([`Body::merge_coplanar_faces`]).
 /// Each worklist edge is described by [`describe_edges`].
 pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -6302,6 +6302,15 @@ impl GluedSurfaces {
     /// The pairs, each two surface keys of one carrier.
     pub(crate) fn pairs(&self) -> &[(SurfaceKey, SurfaceKey)] {
         &self.pairs
+    }
+
+    /// `pairs` as a Boolean would glue them, for the merge rows that
+    /// drive its glued path on one body.
+    #[cfg(test)]
+    pub(crate) fn of_pairs(pairs: &[(SurfaceKey, SurfaceKey)]) -> Self {
+        Self {
+            pairs: pairs.to_vec(),
+        }
     }
 
     /// **The glued face pairs lowered to SURVIVING result SURFACE

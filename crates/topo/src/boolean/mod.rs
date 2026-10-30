@@ -3166,56 +3166,23 @@ pub enum BooleanError {
         /// The datum's predicate, with its poisoned margin.
         diag: Indeterminate,
     },
-    /// A declared coincidence contradicts the geometry (the declared
-    /// pair's carriers are definitely distinct) — the recipe's intent
-    /// cannot be realized; refused loudly, never glued (M4 PR 5).
-    DeclarationContradicted {
-        /// The fact that contradicted the declaration.
-        fact: Contradiction,
-    },
-    /// A declared CONTACT meets definite counter-evidence at the op
-    /// (C4's verify-at-use): the pair, the class it claimed, and the
-    /// margin that decided.
-    ///
-    /// Beside [`Self::DeclarationContradicted`] rather than replacing
-    /// it: that variant is the classification ladder's refusal of a
-    /// coincidence claim, this one is the CONTACT tables' refusal of a
-    /// contact claim, and they carry different evidence. The same
-    /// finding fires at the at-rest gate as
-    /// `ValidationError::ContactContradicted` — one story, two gates.
+    /// A tangency the Boolean glued meets definite counter-evidence
+    /// when the op reads it again along its locus: the kernel's own
+    /// readings disagree. The pair and its class, and the margin that
+    /// decided. The same finding about a record fires at the at-rest
+    /// gate as `ValidationError::ContactContradicted`.
     ContactContradicted {
-        /// The face pair and class that were declared.
-        declaration: crate::contact::DeclaredContact,
+        /// The face pair and the class it was glued as.
+        pair: crate::contact::ContactPair,
         /// The fact that contradicted it, where the carrier ladder found
-        /// the two carriers distinct (a `Rest` declaration); `None` where
-        /// the counter-evidence is the tangent lane's, which the
-        /// margin's predicate labels.
+        /// the two faces one carrier; `None` where the counter-evidence
+        /// is the tangent lane's, which the margin's predicate labels.
         fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
-    /// A declared CONTINUATION meets definite counter-evidence at the
-    /// op (C4's continuation clause): the two faces are not one carrier,
-    /// or their senses are opposed — which makes them a `Rest` pair, not
-    /// a continuation.
-    ///
-    /// Beside [`Self::ContactContradicted`] rather than inside it: a
-    /// continuation is not a contact, and that variant's payload is a
-    /// contact claim.
-    ContinuationContradicted {
-        /// The A-operand face.
-        a: FaceKey,
-        /// The B-operand face.
-        b: FaceKey,
-        /// The fact that contradicted it, where the carrier ladder found
-        /// the two carriers distinct; `None` where the senses did, which
-        /// the margin's predicate labels.
-        fact: Option<Contradiction>,
-        /// The margin that decided, and its predicate.
-        margin: Indeterminate,
-    },
-    /// A glued pair names a coincidence in a configuration this op's
-    /// classification cannot act on: a `Tangent` pair with no witness
+    /// A tangency in a configuration this op's classification cannot act
+    /// on: a pair with no witness
     /// locus (neither the DEV-1 closed-form lane — plane×cylinder along a
     /// ruling, parallel cylinders — nor a shared rim circle), a rim
     /// whose junction the routing cannot place, or a locus whose span
@@ -3223,13 +3190,7 @@ pub enum BooleanError {
     /// so no arm can consume it. Refused at the door rather than carried into stages that would
     /// ignore it — the vocabulary is wider than this op's envelope, and
     /// the gap is typed, not silent.
-    UnsupportedDeclarationClass {
-        /// The coincidence glued: `Tangent`, the class verified along a
-        /// witness locus. `Rest` and a continuation are verified on the
-        /// carrier ladder, which always runs, so they never lack a
-        /// witness.
-        class: GlueClass,
-    },
+    TangencyUnsupported,
     /// **A glued shared rim whose carrier pair has no tangent-locus
     /// arm.**
     ///
@@ -3240,7 +3201,7 @@ pub enum BooleanError {
     RimCuspArmUnbuilt {
         /// The glued face pair that carries the rim, as a `Tangent`
         /// contact.
-        pair: crate::contact::DeclaredContact,
+        pair: crate::contact::ContactPair,
         /// Which end of the wedge range the two faces' material
         /// subtends at the rim — the routing's own verdict, taken on the
         /// geometry.
@@ -4254,14 +4215,10 @@ pub enum BooleanErrorKind {
     Escalated,
     /// [`BooleanError::PoisonedCarrierDatum`].
     PoisonedCarrierDatum,
-    /// [`BooleanError::DeclarationContradicted`].
-    DeclarationContradicted,
     /// [`BooleanError::ContactContradicted`].
     ContactContradicted,
-    /// [`BooleanError::ContinuationContradicted`].
-    ContinuationContradicted,
-    /// [`BooleanError::UnsupportedDeclarationClass`].
-    UnsupportedDeclarationClass,
+    /// [`BooleanError::TangencyUnsupported`].
+    TangencyUnsupported,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
     /// [`BooleanError::HeldPierceUnbuilt`].
@@ -4534,12 +4491,8 @@ impl BooleanError {
             Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::PoisonedCarrierDatum { .. } => BooleanErrorKind::PoisonedCarrierDatum,
-            Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
             Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
-            Self::ContinuationContradicted { .. } => BooleanErrorKind::ContinuationContradicted,
-            Self::UnsupportedDeclarationClass { .. } => {
-                BooleanErrorKind::UnsupportedDeclarationClass
-            }
+            Self::TangencyUnsupported => BooleanErrorKind::TangencyUnsupported,
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
             Self::HeldPierceUnbuilt { .. } => BooleanErrorKind::HeldPierceUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
@@ -5072,54 +5025,19 @@ impl core::fmt::Display for BooleanError {
             // door's, or a union step's given verdict), never the user's,
             // so a later reading that contradicts it is the kernel
             // disagreeing with itself.
-            Self::ContactContradicted {
-                declaration, fact, ..
-            } if declaration.class == GlueClass::Tangent => write!(
+            Self::ContactContradicted { fact, .. } => write!(
                 f,
                 "the Boolean read two of the operands' faces tangent along a line or rim, \
                  and a later reading of the same faces contradicts that: {}. {}",
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 KERNEL_DEFECT_ENDING,
             ),
-            // The fact, where the carrier ladder found one; otherwise
-            // the one reason true at every site. Never the margin
-            // payload. The faces are the first and second operands'
-            // (the declaration's own order).
-            Self::ContactContradicted {
-                declaration, fact, ..
-            } => write!(
+            Self::TangencyUnsupported => write!(
                 f,
-                "the declared {} contact between the operands' faces is contradicted: {}. {}",
-                declaration.class.name(),
-                fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
-                crate::contact::CONTRADICTION_RECOURSE,
-            ),
-            Self::ContinuationContradicted { fact, .. } => write!(
-                f,
-                "the declared continuation between the operands' faces is contradicted: {}. {}",
-                fact.map_or(
-                    "the two faces are one surface facing opposite ways, which is a Rest \
-                     contact rather than a continuation",
-                    Contradiction::fact
-                ),
-                crate::contact::CONTRADICTION_RECOURSE,
-            ),
-            Self::DeclarationContradicted { fact } => write!(
-                f,
-                "a declared coincidence contradicts the geometry: {}, and the Boolean never \
-                 glues a lie. {}",
-                fact.fact(),
-                crate::contact::CONTRADICTION_RECOURSE
-            ),
-            Self::UnsupportedDeclarationClass { class } => write!(
-                f,
-                "a glued {} pair lies outside the envelope this op's classification acts \
-                 on (Rest on the plane/sphere/cylinder carrier inventory; Tangent where \
-                 the closed-form witness lane reaches — plane×cylinder along a ruling, \
-                 parallel cylinders — or along a rim circle the two faces share, as a \
-                 smooth seam) — the pair is refused at the door rather than ignored \
-                 inside",
-                class.name()
+                "a glued tangency lies outside the envelope this op's classification acts \
+                 on (the closed-form witness lane — plane×cylinder along a ruling, parallel \
+                 cylinders — or a rim circle the two faces share, as a smooth seam) — the pair \
+                 is refused at the door rather than ignored inside"
             ),
             Self::RimCuspArmUnbuilt { pair, .. } => write!(
                 f,
@@ -6863,8 +6781,8 @@ fn verify_declared_contacts<T: Decide>(
                 // Every refusal is the op's: the door glued this pair on
                 // the same reading.
                 let spent = DeclarationRead::Spent(GlueClass::Tangent);
-                let tangency = glued_tangency(a, fa, b, fb, spent, band)
-                    .map_err(|f| f.refusal(fa, fb, spent))?;
+                let tangency =
+                    glued_tangency(a, fa, b, fb, spent, band).map_err(|f| f.refusal(fa, fb))?;
                 if tangency.interiors? {
                     verified.touches.push(GluedTouch {
                         a: fa,
@@ -6979,31 +6897,22 @@ fn given_verdicts<T: Decide>(
     Ok(verified)
 }
 
-/// The refusal of a glued pair the geometry contradicts: a continuation
-/// as itself, a `Rest` or a tangency as the contact of that class.
-pub(super) fn glue_contradicted(
+/// The refusal of a glued tangency a later reading of the same faces
+/// contradicts ([`BooleanError::ContactContradicted`]).
+pub(super) fn tangency_contradicted(
     fa: FaceKey,
     fb: FaceKey,
-    class: GlueClass,
     fact: Option<Contradiction>,
     margin: Indeterminate,
 ) -> BooleanError {
-    match class {
-        GlueClass::Continuation => BooleanError::ContinuationContradicted {
+    BooleanError::ContactContradicted {
+        pair: crate::contact::ContactPair {
             a: fa,
             b: fb,
-            fact,
-            margin,
+            class: GlueClass::Tangent,
         },
-        GlueClass::Rest | GlueClass::Tangent => BooleanError::ContactContradicted {
-            declaration: crate::contact::DeclaredContact {
-                a: fa,
-                b: fb,
-                class,
-            },
-            fact,
-            margin,
-        },
+        fact,
+        margin,
     }
 }
 
@@ -7100,15 +7009,11 @@ pub(crate) enum TangencyFailure {
 }
 
 impl TangencyFailure {
-    /// The refusal of a glued tangency the check failed, read under `read`.
-    pub(crate) fn refusal(self, fa: FaceKey, fb: FaceKey, read: DeclarationRead) -> BooleanError {
-        let class = match read {
-            DeclarationRead::Spent(class) => class,
-            DeclarationRead::Settles(_) | DeclarationRead::Moot => GlueClass::Tangent,
-        };
+    /// The refusal of a glued tangency the check failed.
+    pub(crate) fn refusal(self, fa: FaceKey, fb: FaceKey) -> BooleanError {
         match self {
-            Self::Contradicted { fact, margin } => glue_contradicted(fa, fb, class, fact, margin),
-            Self::Unsupported => BooleanError::UnsupportedDeclarationClass { class },
+            Self::Contradicted { fact, margin } => tangency_contradicted(fa, fb, fact, margin),
+            Self::Unsupported => BooleanError::TangencyUnsupported,
             Self::Refused(e) | Self::Unrouted(e) => e,
         }
     }
@@ -7390,7 +7295,7 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
     let spent = DeclarationRead::Spent(GlueClass::Tangent);
     glued_tangency(a, fa, b, fb, spent, band)
         .map(|_| ())
-        .map_err(|f| f.refusal(fa, fb, spent))
+        .map_err(|f| f.refusal(fa, fb))
 }
 
 /// A glued face's carrier and orientation bit, read off one lookup: a
@@ -7574,9 +7479,7 @@ fn verify_tangency<T: Decide>(
         // leaves past the band is the lane's to refuse, typed, rather
         // than no tangency: it never meets a later stage unglued (C8).
         Err(Table::SagUnreached) => {
-            return Err(Refused(BooleanError::UnsupportedDeclarationClass {
-                class: GlueClass::Tangent,
-            }));
+            return Err(Refused(BooleanError::TangencyUnsupported));
         }
         Err(Table::Refused(ContactRefusal::NotCertifiable { .. })) => return Err(Unsupported),
     };
@@ -7607,7 +7510,7 @@ fn verify_tangency<T: Decide>(
 /// rim the glue door glues; the cusp family has no locus arm for a
 /// circle ([`BooleanError::RimCuspArmUnbuilt`]); a junction the routing
 /// cannot place is outside what the classification acts on
-/// ([`BooleanError::UnsupportedDeclarationClass`]). The reading is the
+/// ([`BooleanError::TangencyUnsupported`]). The reading is the
 /// operands', the same under every op: the junction the result carries
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
@@ -7623,9 +7526,7 @@ fn route_rim<T: Decide>(
     band: Band,
 ) -> Result<(), TangencyFailure> {
     use TangencyFailure::{Refused, Unrouted};
-    let unplaced = Unrouted(BooleanError::UnsupportedDeclarationClass {
-        class: GlueClass::Tangent,
-    });
+    let unplaced = Unrouted(BooleanError::TangencyUnsupported);
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
@@ -7654,7 +7555,7 @@ fn route_rim<T: Decide>(
             }
         }
         rim_wedge::RimRouting::Cusp(wedge) => Err(Unrouted(BooleanError::RimCuspArmUnbuilt {
-            pair: crate::contact::DeclaredContact {
+            pair: crate::contact::ContactPair {
                 a: fa,
                 b: fb,
                 class: GlueClass::Tangent,
@@ -8984,10 +8885,10 @@ mod tests {
         };
         let face = FaceKey::default();
         let edge = EdgeKey::default();
-        let declaration = crate::contact::DeclaredContact {
+        let pair = crate::contact::ContactPair {
             a: face,
             b: face,
-            class: GlueClass::Rest,
+            class: GlueClass::Tangent,
         };
         vec![
             BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
@@ -9111,31 +9012,12 @@ mod tests {
                 ),
                 diag,
             ),
-            BooleanError::DeclarationContradicted {
-                fact: Contradiction::PlanesApart,
-            },
             BooleanError::ContactContradicted {
-                declaration,
+                pair,
                 margin: diag,
                 fact: None,
             },
-            BooleanError::ContactContradicted {
-                declaration: crate::contact::DeclaredContact {
-                    class: GlueClass::Tangent,
-                    ..declaration
-                },
-                margin: diag,
-                fact: None,
-            },
-            BooleanError::ContinuationContradicted {
-                a: face,
-                b: face,
-                fact: None,
-                margin: diag,
-            },
-            BooleanError::UnsupportedDeclarationClass {
-                class: GlueClass::Tangent,
-            },
+            BooleanError::TangencyUnsupported,
             BooleanError::InvalidInput {
                 operand: Operand::A,
                 what: "a stale key",
@@ -9412,10 +9294,8 @@ mod tests {
                 BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::PoisonedCarrierDatum => "PoisonedCarrierDatum",
-                BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",
-                BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
-                BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
+                BooleanErrorKind::TangencyUnsupported => "TangencyUnsupported",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
                 BooleanErrorKind::HeldPierceUnbuilt => "HeldPierceUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",

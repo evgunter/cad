@@ -895,7 +895,6 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
             face_facing(&block, 1.0),
             &wedge,
             face_facing(&wedge, -1.0),
-            false,
             band,
         )
     };
@@ -2254,10 +2253,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::DeclarationContradicted
         | BooleanErrorKind::ContactContradicted
-        | BooleanErrorKind::ContinuationContradicted
-        | BooleanErrorKind::UnsupportedDeclarationClass
+        | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput

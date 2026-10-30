@@ -7,7 +7,7 @@
 use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Tol};
 use topo::test_support::CylFrame;
-use topo::{ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
+use topo::{ChartOverlap, ChartRegionError, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -87,14 +87,7 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     );
     println!("transferred B band = [{vb0:e}, {vb1:e}] -> overlaps A's [0, {ha:e}]");
 
-    let got = declared_pair_overlap(
-        &body_a,
-        fa_key,
-        &body_b,
-        fb_key,
-        ContactVerdict::Definite,
-        band(),
-    );
+    let got = declared_pair_overlap(&body_a, fa_key, &body_b, fb_key, band(), band());
     println!("ANSWER: {got:?}");
 
     assert!(
@@ -169,22 +162,8 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
         // Same world region, expressed in B's chart:
         // θ_world = d − u_B, z_world = 0.25 − v_B.
         let (b, fbk) = wall_sheet(fb, d - s1, d - s0, 0.25 - 0.7, 0.25 - 0.3);
-        let ab = verdict_class(declared_pair_overlap(
-            &a,
-            fa,
-            &b,
-            fbk,
-            ContactVerdict::Definite,
-            band(),
-        ));
-        let ba = verdict_class(declared_pair_overlap(
-            &b,
-            fbk,
-            &a,
-            fa,
-            ContactVerdict::Definite,
-            band(),
-        ));
+        let ab = verdict_class(declared_pair_overlap(&a, fa, &b, fbk, band(), band()));
+        let ba = verdict_class(declared_pair_overlap(&b, fbk, &a, fa, band(), band()));
         println!("{name}: A→B = {ab}, B→A = {ba}");
         if ab != ba {
             disagreements.push(format!("{name}: {ab} vs {ba}"));
@@ -209,14 +188,7 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     let (b, fbk) = wall_sheet(CylFrame::opposed(0.7), 0.7 - 6.5, 0.7 - 3.3, -0.45, -0.05);
     println!(
         "un-windowable pair: {}",
-        verdict_class(declared_pair_overlap(
-            &a,
-            fa,
-            &b,
-            fbk,
-            ContactVerdict::Definite,
-            band()
-        ))
+        verdict_class(declared_pair_overlap(&a, fa, &b, fbk, band(), band()))
     );
     // A FLUSH seat (shared rim): TouchingBoundary is claimed.
     let (a2, fa2) = wall_sheet(CylFrame::canonical(1.0), 0.2, 1.6, 0.0, 0.5);
@@ -229,14 +201,7 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     );
     println!(
         "flush (rim-sharing) seat: {}",
-        verdict_class(declared_pair_overlap(
-            &a2,
-            fa2,
-            &b2,
-            fb2,
-            ContactVerdict::Definite,
-            band()
-        ))
+        verdict_class(declared_pair_overlap(&a2, fa2, &b2, fb2, band(), band()))
     );
 }
 
@@ -244,21 +209,6 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
 // PROBE 5 (claim 7 + 9): does the arm ignoring `door_one` admit a pair
 // Door 1 would have refused? Run the enclosure at EVERY verdict.
 // =====================================================================
-
-#[test]
-fn probe5_door_one_verdict_is_ignored_at_every_variant() {
-    let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 0.2, 1.6, 0.0, 1.0);
-    let (b, fbk) = wall_sheet(CylFrame::opposed(0.7), 0.7 - 1.3, 0.7 - 0.5, -0.45, -0.05);
-    // NOTE: `ContactVerdict` has only PASSING variants (Definite /
-    // Bridged) — a refusal is `ContactRefusal`, a separate type — so
-    // ignoring `door_one` cannot admit a pair Door 1 refused.
-    for v in [ContactVerdict::Definite, ContactVerdict::Bridged] {
-        println!(
-            "door_one = {v:?} -> {}",
-            verdict_class(declared_pair_overlap(&a, fa, &b, fbk, v, band()))
-        );
-    }
-}
 
 // =====================================================================
 // PROBE 6: what does the unit's OWN `one_axis_tilt_two_extents` short
@@ -275,7 +225,7 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
     ] {
         let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 0.2, 1.6, 0.0, ha);
         let (b, fb) = wall_sheet(CylFrame::tilted(1.0, tilt), 0.2, 1.6, 0.0, ha);
-        let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
+        let r = declared_pair_overlap(&a, fa, &b, fb, band(), band());
         println!("{label}: {r:?}");
     }
     for (label, ha, vb0, vb1, theta) in [
@@ -287,7 +237,7 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
     ] {
         let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 0.2, 1.4, 0.0, ha);
         let (b, fb) = wall_sheet(CylFrame::tilted(1.0, theta), 0.2, 1.4, vb0, vb1);
-        let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
+        let r = declared_pair_overlap(&a, fa, &b, fb, band(), band());
         println!("{label}: {r:?}");
     }
 }
@@ -326,7 +276,7 @@ fn probe7_a_definitely_separated_pair_is_falsely_certified() {
             }
         }
         let gap = 0.0 - b_zmax;
-        let got = declared_pair_overlap(&a, fa, &b, fbk, ContactVerdict::Definite, band());
+        let got = declared_pair_overlap(&a, fa, &b, fbk, band(), band());
         let tag = format!(
             "r={r} theta={theta:e} h={h:e}: true separation = {:.0}*eps, \
              carrier radial residual = {:.2e}*eps, ANSWER = {got:?}",
@@ -375,7 +325,7 @@ fn probe7b_a_definitely_separated_pair_is_falsely_certified() {
             }
         }
         let gap = 0.0 - b_zmax;
-        let got = declared_pair_overlap(&a, fa, &b, fbk, ContactVerdict::Definite, band());
+        let got = declared_pair_overlap(&a, fa, &b, fbk, band(), band());
         let tag = format!(
             "r={r} theta={theta:e} h={h:e} frac={frac}: true separation = \
              {:.0}*eps ({:.1}*k*eps), carrier radial residual = {:.2e}*eps, \
@@ -430,14 +380,7 @@ fn probe1b_transfer_axial_error_is_levered_by_the_radius_not_the_reach() {
     );
     let (a_body, fa_key) = wall_sheet(fa, 0.15, 1.65, 0.0, 1e-3);
     let (b_body, fb_key) = wall_sheet(fb, 0.2, 1.6, 0.0, 1e-3);
-    let got = declared_pair_overlap(
-        &a_body,
-        fa_key,
-        &b_body,
-        fb_key,
-        ContactVerdict::Definite,
-        band(),
-    );
+    let got = declared_pair_overlap(&a_body, fa_key, &b_body, fb_key, band(), band());
     assert!(
         matches!(got, Err(ChartRegionError::CarrierTilt)),
         "the peg-height r = 1 m tilted pair must refuse typed at the \

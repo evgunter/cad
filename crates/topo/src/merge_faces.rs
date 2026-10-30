@@ -929,6 +929,33 @@ impl MergeCoplanarError {
     }
 }
 
+/// **The merge's orientation decision on two glued planes** `(f1,
+/// f2)`: their outward normals' cosine levered at `arm`, the pair's
+/// reach ([`GLUED_ORIENTATION`]). Facing the same way glues; opposite
+/// refuses ([`MergeCoplanarError::GluedOppositeOrientation`]), and a
+/// margin the band does not decide escalates.
+pub(crate) fn glued_planes_continue<T: geom_core::Decide>(
+    (n1, n2): (geom_core::Vec3<T>, geom_core::Vec3<T>),
+    arm: T,
+    (f1, f2): (FaceKey, FaceKey),
+    band: Band,
+) -> Result<bool, MergeCoplanarError> {
+    match crate::validate::decide_nonzero(
+        "bool_plane_orient",
+        geom_core::Margin::levered(n1.dot(n2), arm),
+        band,
+    ) {
+        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(true),
+        Ok(geom_core::k_stats::NonzeroSign::Negative) => {
+            Err(MergeCoplanarError::GluedOppositeOrientation { f1, f2 })
+        }
+        Err(diag) => Err(MergeCoplanarError::Escalated {
+            decision: MergeDecision::GluedOrientation,
+            diag,
+        }),
+    }
+}
+
 /// What the merge does with the ladder's `verdict` on an unglued
 /// pair meeting at a shared edge: it glues one carrier facing the same
 /// way, leaves two carriers and a slit (one carrier, opposed) as they
@@ -1886,6 +1913,18 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         self.merge_coplanar_faces_staged(glued, tol, false)
     }
 
+    /// [`Body::merge_coplanar_faces`] with `glued` read as a Boolean's
+    /// glue ([`GluedSurfaces::of_pairs`]): the merge rows' door onto the
+    /// glued path.
+    #[cfg(test)]
+    pub(crate) fn merge_coplanar_faces_glued(
+        &mut self,
+        glued: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+        self.merge_coplanar_faces_staged(&GluedSurfaces::of_pairs(glued), tol, true)
+    }
+
     /// [`Body::merge_coplanar_faces`]'s body over `glued`, ending with
     /// the join where `join` is set: on the staged result before it is
     /// adopted, so a refusal of either leaves the body untouched.
@@ -2563,20 +2602,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let aligned = match (carrier(f1), carrier(f2)) {
             (C::Plane { normal: n1, .. }, C::Plane { normal: n2, .. }) => {
                 let arm = self.pair_reach(f1, f2, band)?.reach.radius();
-                match crate::validate::decide_nonzero(
-                    "bool_plane_orient",
-                    geom_core::Margin::levered(n1.dot(n2), arm),
-                    band,
-                ) {
-                    Ok(geom_core::k_stats::NonzeroSign::Positive) => true,
-                    Ok(geom_core::k_stats::NonzeroSign::Negative) => false,
-                    Err(diag) => {
-                        return Err(MergeCoplanarError::Escalated {
-                            decision: MergeDecision::GluedOrientation,
-                            diag,
-                        });
-                    }
-                }
+                return glued_planes_continue((n1, n2), arm, (f1, f2), band);
             }
             (C::Sphere { outward: w1, .. }, C::Sphere { outward: w2, .. })
             | (C::Cylinder { outward: w1, .. }, C::Cylinder { outward: w2, .. })
@@ -3081,49 +3107,19 @@ mod tests {
             .expect("a cube has adjacent faces")
     }
 
-    /// **A declared pair's unsettled reach is told undecided, with no
-    /// decided sign's word.** `PlaneEqError::Unsettled` carries the upper
-    /// bound on the pair's displacement where it stands past the band,
-    /// untagged: no gate decided anything, so the payload places it and
-    /// says no more, and the ending is the bound's last resort. Red if a
-    /// reading past the band is told as decided without a gate's tag.
+    /// **The survivor search panics on a ring link that does not
+    /// resolve**, where it stepped over it.
     #[test]
-    fn a_declared_reach_past_the_band_says_no_decided_sign() {
-        let diag = Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-7),
-            band: Band::new(1e-9, 1e-8).unwrap(),
-            predicate: Some("declared_reach_upper"),
-            terminal_sliver: false,
-        };
-        let text =
-            MergeCoplanarError::of_declared_refusal(PlaneEqError::Unsettled { diag }).to_string();
-        assert_eq!(
-            text,
-            format!(
-                "{} is undecided: margin 5e-7 lies past the ambiguity band (1e-9, 1e-8). {}",
-                MergeDecision::DeclaredReach.subject(),
-                geom_core::KERNEL_LIMIT_RECOURSE
-            )
-        );
-    }
-
-    /// **The survivor search and the boundary points panic on a ring
-    /// link that does not resolve**, where they stepped over it.
-    #[test]
-    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+    fn the_survivor_search_panics_on_a_torn_ring_link() {
         use crate::live::OPERATORS_KEEP_LINKS;
         use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
         let mut body = structural_planar_cube(Tol::witness());
         let face = body.faces().next().map(|(k, _)| k).expect("a face");
         assert_eq!(body.outermost_survivor(face, Vec::new()).0, face, "no nest");
-        assert_eq!(body.boundary_points(face).len(), 4, "four corners");
         let named = crate::review_d18::tear_ring(&mut body, face);
         let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
         assert_torn_op_panics("outermost_survivor", &mut body, &premise, |b| {
             b.outermost_survivor(face, Vec::new())
-        });
-        assert_torn_op_panics("boundary_points", &mut body, &premise, |b| {
-            b.boundary_points(face).len()
         });
     }
 
@@ -3304,7 +3300,7 @@ mod tests {
     ) -> EulerOpError {
         let outcome = {
             let _armed = ArmedTear::at(point);
-            body.merge_coplanar_faces_declared(declared, tol)
+            body.merge_coplanar_faces_glued(declared, tol)
         };
         match outcome {
             Err(MergeCoplanarError::Op { error }) => error,
@@ -3507,7 +3503,7 @@ mod tests {
         ];
         for (what, tear) in rows {
             let (mut body, declared) = declared_planar_cube(tol);
-            let mut eq = DeclaredSurfaceEq::default();
+            let mut eq = GluedSurfaceEq::default();
             for &(a, b) in &declared {
                 eq.union(a, b);
             }
@@ -3574,7 +3570,7 @@ mod tests {
             let (mut body, declared) = declared_planar_cube(tol);
             tear(&mut body);
             let before = format!("{body:?}");
-            let got = body.merge_coplanar_faces_declared(&declared, tol);
+            let got = body.merge_coplanar_faces_glued(&declared, tol);
             assert!(
                 matches!(got, Err(MergeCoplanarError::InputNotClosed { .. })),
                 "tearing {what}: {got:?}"
@@ -3887,7 +3883,7 @@ mod tests {
         separate_undeclared(&mut body, &declared);
         assert_eq!(validate_closed(&body), Ok(()));
         let outcome = body
-            .merge_coplanar_faces_declared(&declared, tol)
+            .merge_coplanar_faces_glued(&declared, tol)
             .expect("the plug merges into the face it plugs");
         let [group] = &outcome.groups[..] else {
             panic!("one group: {:?}", outcome.groups)
@@ -4586,17 +4582,6 @@ mod tests {
         assert!(
             group.contains("unmerged") && group.contains("run continues"),
             "a group's own gate says the run survives it: {group}"
-        );
-        let contradicted = rendered(&MergeCoplanarError::DeclarationContradicted {
-            fact: crate::boolean::Contradiction::PlanesApart,
-        });
-        assert!(
-            contradicted.contains("the declared planes are parallel but apart")
-                && contradicted.ends_with(
-                    "Recourse: correct or remove the declaration, or move the geometry so it holds"
-                ),
-            "the declared-pair contradiction names its fact and ends on its recourse: \
-             {contradicted}"
         );
         let split = |other_kind| {
             rendered(&MergeCoplanarError::GroupKindSplit {
@@ -5917,8 +5902,6 @@ mod declared_reach_rows {
     use crate::test_support_fixtures::{line, prism_z};
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::MergeCoplanarError;
-
     /// The half-edge of `face`'s outer loop that starts at `v`.
     fn leaving(
         body: &Body<f64>,
@@ -5935,18 +5918,17 @@ mod declared_reach_rows {
             .find(|&he| body.get_half_edge(he).expect("live").start == v)
     }
 
-    /// **A declared pair glues only where both faces lie in band of one
-    /// plane**, read through the public merge: a dart prism whose top
-    /// is split along its 1 cm inner diagonal, one half re-described
-    /// as a plane tilted about that diagonal by 10, 50 and 90 Kε per
-    /// metre. The other half's far tip stands 10 m off the hinge, so
-    /// the tilted plane passes it 100 to 900 Kε away. Read over the
-    /// shared edge's chord (1 cm), the tilt reads at or under the band
-    /// and the pair glued; read over a ball enclosing both faces, with
-    /// their vertices as the consumed points, the tip contradicts the
-    /// declaration.
+    /// **A pair glues only where both faces lie in band of one plane**,
+    /// read through the public merge: a dart prism whose top is split
+    /// along its 1 cm inner diagonal, one half re-described as a plane
+    /// tilted about that diagonal by 10, 50 and 90 Kε per metre. The
+    /// other half's far tip stands 10 m off the hinge, so the tilted
+    /// plane passes it 100 to 900 Kε away. Read over the shared edge's
+    /// chord (1 cm), the tilt reads at or under the band; read over a
+    /// ball enclosing both faces it is definite, and the two halves stay
+    /// two faces.
     #[test]
-    fn a_tilt_in_band_at_the_shared_edge_but_past_it_across_the_faces_is_contradicted() {
+    fn a_tilt_in_band_at_the_shared_edge_but_past_it_across_the_faces_is_two_planes() {
         let tol = Tol::witness();
         let k_eps = Band::linear(tol).expect("the witness band").escalate();
         for per_metre in [10.0, 50.0, 90.0] {
@@ -6000,13 +5982,9 @@ mod declared_reach_rows {
                 normal: Vec3::new(0.0, -theta, 1.0).normalize(),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
-            let flat_key = body
-                .get_face(if b_side == top { split.face } else { top })
-                .expect("live")
-                .surface;
-            let got = body.merge_coplanar_faces_declared(&[(flat_key, tilted)], tol);
+            let got = body.merge_coplanar_faces(tol);
             assert!(
-                matches!(got, Err(MergeCoplanarError::DeclarationContradicted { .. })),
+                got.as_ref().is_ok_and(|outcome| outcome.groups.is_empty()),
                 "{per_metre} Kε/m: {got:?}"
             );
         }
