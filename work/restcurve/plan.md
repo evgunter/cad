@@ -17,7 +17,6 @@ decides and words its refusals).
 
 | pri | item | cost |
 |---|---|---|
-| P0 | `validity-refuses-an-interior-chart-singularity` | H |
 | P1 | `validate-tier3-curved-boundary-containment` | H |
 | P2 | `ring-and-scaffold-refusals-read-three-ways` | E |
 | P3 | `check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges` | H |
@@ -25,7 +24,8 @@ decides and words its refusals).
 
 ## Order
 
-1. **The chart singularity (P0).** Its trigger (FOREIGN's import door)
+1. **The chart singularity (P0) — closed by PR 6054.** The wrap-tip half (`tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`) stays parked on the shared loop walk.
+   Was: Its trigger (FOREIGN's import door)
    has fired; the row is re-aimed on the region reading and grown by
    `[ev]` PR 6014 (the wrap tip). Read the row's last two sections
    before the spec.
