@@ -2,11 +2,12 @@
 id: the-sketch-tool-authors-a-tangent-continuation
 kind: unit
 title: INTENT stage 6 PR E: the viewer's sketch tool picks a face, shows its trace and writes the tangent-continuation step
-status: open
+status: review
 opened: 2026-10-29
 priority: P0
 cost: M
 blocked_on: []
+pr: 6071
 ---
 
 
