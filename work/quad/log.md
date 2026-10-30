@@ -391,3 +391,15 @@ PR 5568's fix pass.
   - **Residue:** a boundary within about ε_in of the line, on a chart whose speed varies across it, may stop at the floor and refuse typed. The residue row records it.
 
   The PR is held until the per-span unit (PR 6092) merges.
+- 2026-10-30 — **Per-span unit delivered: PR 6092** (head `ae1ba4fa`, green on hosted CI).
+  - **Acceptance, in release:**
+    - Head whole: gate3 2.60 s; measure 17.6 s, `Met`, pad 2.17e-4.
+    - Head plus the split: gate3 1.72 s; measure 5.3 s, `Met`.
+    - Main whole for comparison: gate3 1.86 s; measure stops at `Wall`, pad 2.87e-3.
+  - The split now costs 0.74× the whole in CPU, so no per-face multiplier is left in the quad lanes.
+  - **The trade:** one-span faces are about 2× wider at the wall and in area pads.
+  - **Open risks, carried as review claims:**
+    - The wall per span cell is a nightly debug-time risk on many-span rows.
+    - An unexplained move in `sym_arc_loft` `chk` (99 → 97 of 104).
+  - **Rows filed by the lane:** four in `work/quad/`.
+  - **DUAL review, concurrent arm (H)**, on frozen head `ae1ba4fa97b33afa6a545b04e90270d3fb14fb99`, dispatched together as cloud sessions, with identical briefs. Protocol at `53c781f28`.
