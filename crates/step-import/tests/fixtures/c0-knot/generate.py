@@ -120,7 +120,7 @@ def build(name, top_profile, front_profile, back_profile, swap_uv):
     deg, xz, mults, knots = top_profile
     rows = [["#%d" % s.pt((x, y, z)) for y in (0.0, 1.0)] for x, z in xz]
     if swap_uv:
-        rows = [list(r) for r in zip(*rows)]
+        rows = [list(r) for r in zip(*rows, strict=True)]
         surf = s.add(
             "B_SPLINE_SURFACE_WITH_KNOTS('',1,%d,(%s),.UNSPECIFIED.,.F.,.F.,.F.,(2,2),(%s),(0.,1.),(%s),.UNSPECIFIED.)"
             % (deg, ",".join("(%s)" % ",".join(r) for r in rows), ints(mults), fmt(knots)))
