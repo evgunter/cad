@@ -4207,7 +4207,8 @@ pub enum SingularityLies {
     },
 }
 
-/// A face's loops, flattened: each loop's edges and their half-edges.
+/// A face's loops, flattened: each loop's edges and their half-edges, or
+/// each loop's chart image's.
 type FlatLoops<T> = Vec<(
     Vec<geom_brep::props::LoopEdge<T>>,
     Vec<crate::entity::HalfEdgeKey>,
@@ -8074,7 +8075,7 @@ pub(crate) fn tier3_local_checks_marked<
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere and cone face's loops as this arm flattens them, kept
     // for the chart-singularity arm below.
-    let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
+    let mut flattened: SecondaryMap<FaceKey, (FlatLoops<T>, FlatLoops<T>)> = SecondaryMap::new();
     for region in &regions {
         if let (Some(&face), Some(cover)) = (region.members.first(), region.cover.clone()) {
             errors.extend(census_finding(face, cover));
@@ -8091,26 +8092,33 @@ pub(crate) fn tier3_local_checks_marked<
             // scope.
             continue;
         }
-        // Every loop: a cylinder face reads its side off its whole
-        // boundary's chart Green form, rings included, as its flux does.
-        let Ok(flat) = core::iter::once(face.outer)
+        // Every loop's chart image: a cylinder face reads its side off
+        // its whole boundary's chart Green form, rings included, as its
+        // flux does, each loop that bounds area.
+        let Ok(full) = core::iter::once(face.outer)
             .chain(face.rings.iter().copied())
             .map(|l| crate::props::loop_edges(body, l))
             .collect::<Result<FlatLoops<T>, _>>()
         else {
             continue; // derivation exempt (posture above)
         };
-        let held;
-        let flat = if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
-            flattened.insert(face_key, flat);
-            &flattened[face_key]
-        } else {
-            held = flat;
-            &held
+        let Ok(images) = full
+            .iter()
+            .map(|(_, cycle)| crate::props::image_of_cycle(body, cycle))
+            .collect::<Result<FlatLoops<T>, _>>()
+        else {
+            continue; // derivation exempt (posture above)
         };
-        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
-            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
-        match geom_brep::props::boundary_material_sign_loops(surface, &loops, band) {
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
+            .iter()
+            .map(|(edges, _)| edges.as_slice())
+            .filter(|edges| geom_brep::chart_image::bounds_area(edges))
+            .collect();
+        let side = geom_brep::props::boundary_material_sign_loops(surface, &loops, band);
+        if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
+            flattened.insert(face_key, (full, images));
+        }
+        match side {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
                 // Two exact ±1s: the derived side is definite by
                 // construction, the sense bit is stored — a discrete
@@ -8167,7 +8175,7 @@ pub(crate) fn tier3_local_checks_marked<
     // states no certified winding. The loops are check 6's curved arm's,
     // and "at a vertex" reads each vertex's stored point.
     // ------------------------------------------------------------------
-    for (face_key, flat) in flattened.iter() {
+    for (face_key, (flat, images)) in flattened.iter() {
         use geom_brep::chart_singularity::{FaceLoop, Lies, Undecided, locate};
         let (Some(face), Some(surface)) = (
             body.faces.get(face_key),
@@ -8196,7 +8204,9 @@ pub(crate) fn tier3_local_checks_marked<
             .zip(&corners)
             .map(|((edges, _), corners)| FaceLoop { edges, corners })
             .collect();
-        for located in locate(surface, &loops, face.sense, band) {
+        let images: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            images.iter().map(|(edges, _)| edges.as_slice()).collect();
+        for located in locate(surface, &loops, &images, face.sense, band) {
             let (point, face) = (located.singularity, face_key);
             match located.lies {
                 Ok(Lies::AtVertex { .. } | Lies::Outside) => {}

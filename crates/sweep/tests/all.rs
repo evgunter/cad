@@ -72,6 +72,8 @@ mod a_cylinder_split_just_off_its_rim_vertex;
 mod a_face_across_a_wavy_corner;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
+#[path = "a_face_reads_its_chart_image.rs"]
+mod a_face_reads_its_chart_image;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flat_frustum_revolves.rs"]

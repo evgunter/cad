@@ -243,6 +243,7 @@ pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
 pub(crate) mod strut;
+pub mod surface_boundary;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -617,9 +618,9 @@ pub mod test_support {
             corners, corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
             fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
             nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
-            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
-            pyramid_volumes, shape, single_arch, sunk_on_an_edge, three_wedges, two_wedges, wedge,
-            wedges_on_one_side, zigzag,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid,
+            posed_pyramid_at, poses, pyramid_volumes, shape, single_arch, sunk_on_an_edge,
+            three_wedges, two_wedges, wedge, wedges_on_one_side, zigzag,
         };
     }
 
