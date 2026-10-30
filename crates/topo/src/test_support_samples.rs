@@ -1430,7 +1430,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 geom_brep::chart_singularity::SideUnread::Straddle,
             ),
         },
-        ValidationError::WrapTipOffChartSingularity { face, edge, tip: vertex },
+        ValidationError::WrapTipOffChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
         ValidationError::WrapTipUndecided {
             face,
             edge,

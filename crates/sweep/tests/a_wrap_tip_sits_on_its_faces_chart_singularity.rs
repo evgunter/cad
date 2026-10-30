@@ -102,8 +102,12 @@ fn one_wrap_edge(mut body: Body<f64>, join: bool) -> (Body<f64>, FaceKey, EdgeKe
     let wraps = body.get_half_edge(out[0]).unwrap().edge;
     let face = body.face_of_half_edge(out[0]).unwrap();
     let surface = body.get_face(face).unwrap().surface;
-    body.kef_describing(out[1], &[(wraps, EdgeDescriptionSpec::wrap(surface))], tol())
-        .expect("the survivor restates as the face's wrap edge");
+    body.kef_describing(
+        out[1],
+        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
+        tol(),
+    )
+    .expect("the survivor restates as the face's wrap edge");
     if join {
         body.join_edges(Band::linear(tol()).unwrap(), tol())
             .expect("the rim joins");
@@ -225,7 +229,13 @@ fn a_tip_short_of_the_pole_refuses_at_tier_3() {
     let short = FRAC_PI_2 - 0.5;
     let (mut body, face, _, _) = one_wrap_edge(hemisphere(), false);
     let surface = body.get_face(face).unwrap().surface;
-    let (edge, tip) = spur(&mut body, face, -1.0, short, EdgeDescriptionSpec::wrap(surface));
+    let (edge, tip) = spur(
+        &mut body,
+        face,
+        -1.0,
+        short,
+        EdgeDescriptionSpec::wrap(surface),
+    );
     assert_eq!(
         topo::validate_closed(&body),
         Ok(()),
@@ -243,7 +253,13 @@ fn a_tip_short_of_the_pole_refuses_at_tier_3() {
 
     let (mut body, face) = equator_only();
     let surface = body.get_face(face).unwrap().surface;
-    let (edge, tip) = spur(&mut body, face, 1.0, short, EdgeDescriptionSpec::wrap(surface));
+    let (edge, tip) = spur(
+        &mut body,
+        face,
+        1.0,
+        short,
+        EdgeDescriptionSpec::wrap(surface),
+    );
     assert_eq!(topo::validate_closed(&body), Ok(()), "spur.step: tier 2");
     assert_eq!(
         topo::validate_geometric(&body, tol()),
@@ -266,10 +282,18 @@ fn a_tip_short_of_the_pole_refuses_at_tier_3() {
 fn a_valence_one_vertex_off_a_wrap_tip_is_a_strut() {
     let (mut body, face, _, _) = one_wrap_edge(hemisphere(), false);
     let surface = body.get_face(face).unwrap().surface;
-    let (_, tip) = spur(&mut body, face, -1.0, 0.5, EdgeDescriptionSpec::chart(surface));
+    let (_, tip) = spur(
+        &mut body,
+        face,
+        -1.0,
+        0.5,
+        EdgeDescriptionSpec::chart(surface),
+    );
     assert_eq!(
         topo::validate_closed(&body),
-        Err(vec![ValidationError::ScaffoldingStrutVertex { vertex: tip }]),
+        Err(vec![ValidationError::ScaffoldingStrutVertex {
+            vertex: tip
+        }]),
         "a spur that is not a wrap edge"
     );
 
@@ -284,8 +308,12 @@ fn a_valence_one_vertex_off_a_wrap_tip_is_a_strut() {
     let wraps = ball.get_half_edge(out[0]).unwrap().edge;
     let face = ball.face_of_half_edge(out[0]).unwrap();
     let surface = ball.get_face(face).unwrap().surface;
-    ball.kef_describing(out[1], &[(wraps, EdgeDescriptionSpec::wrap(surface))], tol())
-        .expect("the one-face ball");
+    ball.kef_describing(
+        out[1],
+        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
+        tol(),
+    )
+    .expect("the one-face ball");
     let mut ends = [north, south];
     ends.sort();
     assert_eq!(
@@ -312,7 +340,13 @@ fn the_mint_and_tier_3_read_one_incidence_at_the_tip() {
         let (mut body, face) = equator_only();
         let surface = body.get_face(face).unwrap().surface;
         let top = FRAC_PI_2 - 2.0 * (d / 2.0).asin();
-        let (edge, tip) = spur(&mut body, face, 1.0, top, EdgeDescriptionSpec::wrap(surface));
+        let (edge, tip) = spur(
+            &mut body,
+            face,
+            1.0,
+            top,
+            EdgeDescriptionSpec::wrap(surface),
+        );
         let back = leaving(&body, tip)[0];
         (body, face, edge, tip, back)
     };

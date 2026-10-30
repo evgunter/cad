@@ -4514,7 +4514,9 @@ impl fmt::Display for ValidationError {
                 "{edge:?} is a wrap edge walked out to {tip:?} and back, and {tip:?} does not \
                  lie on its face's pole or apex. {DEFECT}"
             ),
-            Self::WrapTipUndecided { edge, tip, cause, .. } => write!(
+            Self::WrapTipUndecided {
+                edge, tip, cause, ..
+            } => write!(
                 f,
                 "{}",
                 cause.undecided(
