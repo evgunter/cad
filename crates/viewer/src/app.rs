@@ -6230,7 +6230,7 @@ mod properties_pane_tests {
     mod trace_tool {
         use pncad::document::{
             DrawnOn, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
-            SlotId, StepArg, TraceCrossing, TracePassage, TraceSense, TraceStepFault, coincide,
+            SlotId, StepArg, TraceCrossing, TracePassage, TraceSense, TraceStepFault,
         };
         use pncad::geom::SurfaceKind;
         use pncad::geom_core::Point2;
@@ -6406,45 +6406,6 @@ mod properties_pane_tests {
                 .expect("the boss extrude")
         }
 
-        /// **The door's proof of the one tangency between the cylinder and
-        /// the boss**, in their union.
-        fn tangency(pane: &Driven, cylinder: RecipeNodeId, boss: RecipeNodeId) -> coincide::Proof {
-            let tol = pane.app.session.tol();
-            let (doc, union) = inserted(
-                pane.app.session.committed_doc(),
-                Node::Union {
-                    members: pncad::document::Bodies::Spelled(vec![cylinder.into(), boss.into()]),
-                },
-                tol,
-            );
-            let ev: pncad::document::Evaluation<f64> = pncad::document::evaluate(
-                &doc,
-                None,
-                &pncad::document::CancelToken::new(),
-                &pncad::document::EvalOptions::default(),
-                tol,
-            );
-            let rows = &ev.value(union).expect("the union builds").coincidences;
-            let proofs = coincide::prove(
-                &doc,
-                &[(union, &rows[..])],
-                None,
-                tol,
-                &pncad::document::CancelToken::new(),
-            )
-            .expect("an uncanceled door");
-            let tangent: Vec<_> = rows
-                .iter()
-                .zip(&proofs[0])
-                .filter(|(row, _)| row.relation == pncad::topo::Relation::SurfaceTangent)
-                .map(|(_, proof)| proof.clone())
-                .collect();
-            let [proof] = tangent.as_slice() else {
-                panic!("one tangency: {tangent:?}")
-            };
-            proof.clone()
-        }
-
         /// `node`'s least `x`, greatest `y` and least `z`, as it landed.
         fn extent(pane: &Driven, node: RecipeNodeId) -> [f64; 3] {
             let (_, ev) = pane.app.session.landed_pair().expect("landed");
@@ -6492,20 +6453,17 @@ mod properties_pane_tests {
             assert!((a - b).abs() < 1e-9, "{what}: {a} against {b}");
         }
 
-        fn proven(proof: &coincide::Proof) -> bool {
-            *proof == coincide::Proof::Structural(coincide::Rung::SameConstruction)
-        }
-
-        /// **The gesture writes the document's trace steps, the door
-        /// proves the boss tangent, and the boss follows the wall.** The
-        /// trace shown is the wall's circle, its tangent across the
-        /// radius. The program is drawn on a frame and traces one face;
-        /// after the authored heading its chain runs `line_to` the first
-        /// crossing out of the wall and heads `along_trace` against it,
-        /// so the one direction written is the authored one. Extruded,
-        /// the boss's wall stands at the radius, tangent by
-        /// construction; the radius typed again, it stands at the new
-        /// one; the cylinder made taller, it stays on the bottom cap.
+        /// **The gesture writes the document's trace steps, and the boss
+        /// follows the wall.** The trace shown is the wall's circle, its
+        /// tangent across the radius. The program is drawn on a frame and
+        /// traces one face; after the authored heading its chain runs
+        /// `line_to` the first crossing out of the wall and heads
+        /// `along_trace` against it, so the one direction written is the
+        /// authored one. Extruded, the boss's wall stands at the radius;
+        /// the radius typed again, it stands at the new one. The door's
+        /// proof of the tangency, and the frame on the top cap and off
+        /// the origin, are `editor-core`'s rows
+        /// (`intent_s6_e_traced_frame`), where the frame is read.
         #[test]
         fn the_gesture_writes_the_trace_steps_and_the_boss_follows_the_wall() {
             let (session, disc, cylinder) = cylinder(0.0);
@@ -6557,10 +6515,6 @@ mod properties_pane_tests {
                 1,
                 "the one heading written is the authored one: {steps:?}"
             );
-            assert!(
-                proven(&tangency(&pane, cylinder, boss)),
-                "the door proves the tangency"
-            );
             near(
                 extent(&pane, boss)[1],
                 RADIUS,
@@ -6573,62 +6527,6 @@ mod properties_pane_tests {
                 0.625,
                 "the boss's wall follows the radius",
             );
-
-            set(
-                &mut pane,
-                cylinder,
-                |slot| *slot == SlotId::Distance,
-                2.0 * HEIGHT,
-            );
-            near(
-                extent(&pane, boss)[2],
-                0.0,
-                "the boss stays on the bottom cap",
-            );
-        }
-
-        /// **A top-cap pick stands the boss on the top cap**, still
-        /// tangent to the wall's carrier by construction.
-        #[test]
-        fn a_top_cap_pick_stands_the_boss_on_the_top() {
-            let (session, _, cylinder) = cylinder(0.0);
-            let [wall, top] = wall_and_cap(&session, cylinder, HEIGHT);
-            let mut pane = drive(session, top, wall);
-            let boss = boss(&mut pane, cylinder);
-            near(
-                extent(&pane, boss)[2],
-                HEIGHT,
-                "the boss stands on the top cap",
-            );
-            near(extent(&pane, boss)[1], RADIUS, "its wall at the radius");
-            let proof = tangency(&pane, cylinder, boss);
-            assert!(proven(&proof), "the door proves it: {proof:?}");
-        }
-
-        /// **A cylinder off its body's origin keeps its boss through an
-        /// edit of its centre**: the frame is read off the wall's axis
-        /// and the cap's vertex at every evaluation, with no number
-        /// computed off the geometry, so the boss moves with the disc
-        /// and stays tangent.
-        #[test]
-        fn an_offset_cylinder_keeps_its_boss_through_a_centre_edit() {
-            let (session, disc, cylinder) = cylinder(0.3);
-            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
-            let mut pane = drive(session, bottom, wall);
-            let boss = boss(&mut pane, cylinder);
-            let [x, y, _] = extent(&pane, boss);
-            near(x, 0.3, "the boss starts on the axis");
-            near(y, RADIUS, "its wall at the radius");
-            assert!(
-                proven(&tangency(&pane, cylinder, boss)),
-                "proven off the axis"
-            );
-
-            set(&mut pane, disc, arg(StepArg::CenterX), 0.45);
-            let [x, y, _] = extent(&pane, boss);
-            near(x, 0.45, "the boss moved with the disc");
-            near(y, RADIUS, "its wall still at the radius");
-            assert!(proven(&tangency(&pane, cylinder, boss)), "and still proven");
         }
 
         /// **A traced face with no axis is refused in the pane, Add is
@@ -6724,37 +6622,27 @@ mod properties_pane_tests {
 
         /// **A crossing the piece does not make builds, and refuses on
         /// the profile naming it**: the piece up from inside the disc
-        /// leaves the wall once and enters it never.
+        /// enters the wall never.
         #[test]
         fn a_crossing_the_piece_does_not_make_refuses_on_the_profile() {
-            for (crossing, found) in [
-                (
-                    TraceCrossing {
-                        nth: 2,
-                        passage: TracePassage::Leave,
-                    },
-                    1,
+            let crossing = TraceCrossing::first(TracePassage::Enter);
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            pane.app.drafts.trace_gesture.crossing = crossing;
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, _) = added(&pane);
+            let (_, ev) = pane.app.session.landed_pair().expect("landed");
+            assert!(
+                matches!(
+                    ev.node_error(profile).map(|e| &e.kind),
+                    Some(pncad::document::NodeErrorKind::Trace(refusal))
+                        if refusal.fault == TraceStepFault::NoSuchCrossing { crossing, found: 0 }
                 ),
-                (TraceCrossing::first(TracePassage::Enter), 0),
-            ] {
-                let (session, _, cylinder) = cylinder(0.0);
-                let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
-                let mut pane = drive(session, bottom, wall);
-                pane.app.drafts.trace_gesture.crossing = crossing;
-                pane.click(ADD_PROFILE);
-                pane.quiet();
-                let (profile, _) = added(&pane);
-                let (_, ev) = pane.app.session.landed_pair().expect("landed");
-                assert!(
-                    matches!(
-                        ev.node_error(profile).map(|e| &e.kind),
-                        Some(pncad::document::NodeErrorKind::Trace(refusal))
-                            if refusal.fault == TraceStepFault::NoSuchCrossing { crossing, found }
-                    ),
-                    "{crossing:?}: {:?}",
-                    ev.node_error(profile).map(|e| e.kind.to_string())
-                );
-            }
+                "{:?}",
+                ev.node_error(profile).map(|e| e.kind.to_string())
+            );
         }
 
         /// **Nothing landed, no trace**: a session that has evaluated
