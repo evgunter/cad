@@ -403,3 +403,15 @@ PR 5568's fix pass.
     - An unexplained move in `sym_arc_loft` `chk` (99 → 97 of 104).
   - **Rows filed by the lane:** four in `work/quad/`.
   - **DUAL review, concurrent arm (H)**, on frozen head `ae1ba4fa97b33afa6a545b04e90270d3fb14fb99`, dispatched together as cloud sessions, with identical briefs. Protocol at `53c781f28`.
+- 2026-10-30 — **PR 6092 dual review delivered** (frozen head `ae1ba4fa`). R1: APPROVE-WITH-FIXES. R2: NOT-MERGEABLE-AS-IS. Both pushed probes: R1 `650a6da4`, R2 `a13c027b`.
+  - **Correspondence pre-note.**
+    - **Bilateral MAJOR, measured by both:** the wall per span cell. The 12+12-knot row at 1e-12 takes 8.9 s on main and 2698–3124 s on the head, a nightly timeout risk.
+    - **Bilateral MINOR:** the precision trade is 2–4.6×, not the stated 2×. The A2 hypar margin is now 31% of the ceiling.
+    - **Bilateral style:** stale block-edge premises in the cert5 rows; three spellings of a span list.
+    - **Unilateral MINORs, R1:** the polynomial lane reads the C⁰-knot cell end off the next span, so whole is 1.1% wider than tiled (red probe); the trimmed lane's chord-area cost grows with chart spans, unpriced; the digest bits did move; the lens-blade backstop row flips direction.
+    - **Unilateral, R2:** `AreaSlice` is a third spelling of `FluxSlice`'s ladders; the exact-v arm is chosen per face.
+    - **Tally candidates:** none (no unilateral MAJOR).
+  - **Ruled:** the wall goes back to one per-face bound, keeping the per-span cells, because DESIGN `[tolerance.measure]` ratifies "the per-face work bound (one bound, in one unit, for every lane)". That costs nothing for the split's tiles, which are one span each, and that is what PR 6013 waits on.
+  - Whether the whole multi-span patch may stop at the bound short of its tiles' enclosure is the tension between `[tolerance.measure]` and Ev's 6014 ruling. It goes to a **design fork**, `measure-work-bound-per-face-or-per-span`, with an Opus/Fable pair dispatched concurrently. Blinding is on `analysis/design-fork/measure-work-bound-per-face-or-per-span`. Acceptance 1's "the whole patch no longer stops at Wall" moves to that fork.
+  - **Fix pass** sent to the per-span lane: the wall, the polynomial per-span read, the trimmed lane, stale premises, the style findings, PR body corrections, the lens-blade check and the four-thread golden.
+  - **Not 6092's:** the nine local reds and `sym_arc_loft` 97/104 are red on main's nightly 41008276467, not caused by 6092.
