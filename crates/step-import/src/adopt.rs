@@ -786,7 +786,7 @@ fn iso_curve_candidates(
             // carries the file's parameterization, where `u = 1` is
             // an interior column — a description naming a locus the
             // carrier is not on.
-            let (du0, du1) = wp.knots_u_f64_interim().domain();
+            let (du0, du1) = wp.knot_values_u().domain();
             let u = if end { du1 } else { du0 };
             match spec.carrier {
                 Curve3::Nurbs(ref nurbs_carrier) => {
@@ -859,9 +859,9 @@ fn iso_curve_candidates(
             if !bitwise_iso_match(nurbs_carrier, &row) {
                 continue;
             }
-            let (dv0, dv1) = wp.knots_v_f64_interim().domain();
+            let (dv0, dv1) = wp.knot_values_v().domain();
             let v = if end { dv1 } else { dv0 };
-            let (u0, u1) = wp.knots_u_f64_interim().domain();
+            let (u0, u1) = wp.knot_values_u().domain();
             let slope = (u1 - u0) / (spec.t1 - spec.t0);
             candidates.push((
                 AdoptionCandidate::IsoCurve,

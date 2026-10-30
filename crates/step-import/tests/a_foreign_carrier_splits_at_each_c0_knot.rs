@@ -29,10 +29,10 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
-/// Whether a knot vector holds an interior run of multiplicity at
-/// least its degree.
-fn creased(kv: &geom_core::spline::KnotVector) -> bool {
-    kv.structure().crease_runs().next().is_some()
+/// Whether a carrier's knots hold an interior run of multiplicity at
+/// least the degree.
+fn creased(knots: &geom_core::spline::Knots<f64>) -> bool {
+    knots.structure().crease_runs().next().is_some()
 }
 
 /// The ridge prism, stated either way round, imports split: the top is
@@ -69,7 +69,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
             if let Some(geom::Surface::Nurbs(s)) = b.get_surface(face.surface) {
                 walls += 1;
                 assert!(
-                    !creased(s.knots_u_f64_interim()) && !creased(s.knots_v_f64_interim()),
+                    !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
                     "{name}: a wall chart still carries a C⁰ knot"
                 );
             }
@@ -82,7 +82,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
             {
                 spline_edges += 1;
                 assert!(
-                    !creased(n.knots_f64_interim()),
+                    !creased(n.knot_values()),
                     "{name}: an edge carrier still carries a C⁰ knot"
                 );
             }
@@ -279,7 +279,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     for (_, face) in b.faces() {
         if let Some(geom::Surface::Nurbs(s)) = b.get_surface(face.surface) {
             assert!(
-                !creased(s.knots_u_f64_interim()) && !creased(s.knots_v_f64_interim()),
+                !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
                 "a wall chart still carries a C⁰ knot"
             );
         }

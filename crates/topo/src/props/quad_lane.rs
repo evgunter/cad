@@ -1194,7 +1194,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
         // Traversal order: the loop walks he_plus-forward edges
         // start→end and reversed ones end→start.
-        let (sa, sb) = (end_slack(image, t0), end_slack(image, t1));
+        let mag = |x: T| Interval::from_certified(x).mag();
+        let (sa, sb) = (end_slack(image, t0, mag), end_slack(image, t1, mag));
         if le.forward {
             segments.push(((ax, ay), (bx, by)));
             slacks.push((sa, sb));
@@ -1285,9 +1286,8 @@ type SegmentSlack = ((f64, f64), (f64, f64));
 /// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
 /// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
 /// which rounds `g` itself by a few ulps of one. NaN for any other kind,
-/// which joins nothing.
-fn end_slack<T: Decide + Bounds + CertifiedEnclosure>(image: &Pcurve<T>, t: T) -> (f64, f64) {
-    let m = |x: T| Interval::from_certified(x).mag();
+/// which joins nothing. `m` reads a scalar's magnitude, upward.
+fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
     let ulps = |x: f64| 4.0 * f64::EPSILON * x;
     match image {
         Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
@@ -2337,7 +2337,7 @@ mod tests {
             assert_ne!(segments[0].1, segments[1].0, "the two images round apart");
             let slacks: Vec<SegmentSlack> = walk
                 .iter()
-                .map(|&(c, a, b)| (end_slack(c, a), end_slack(c, b)))
+                .map(|&(c, a, b)| (end_slack(c, a, f64::abs), end_slack(c, b, f64::abs)))
                 .collect();
             assert_eq!(
                 rectangle_winding(&segments, &slacks, (0.0, 0.7, 0.0, 1.0)),

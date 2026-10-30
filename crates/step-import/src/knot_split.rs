@@ -31,7 +31,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_core::spline::KnotVector;
+use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Bounds as _, Interval, Point3, Vec3};
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
@@ -362,11 +362,11 @@ fn split_at_all(
 /// each child spans, the row interpolated at `k` shared. A partition,
 /// so exact.
 fn split_net_u(s: &NurbsSurface<f64>, k: f64) -> Option<(NurbsSurface<f64>, NurbsSurface<f64>)> {
-    let kv = s.knots_u_f64_interim();
-    let (p, knots) = (kv.degree(), kv.knots());
+    let kv = s.knot_values_u();
+    let (p, knots) = (kv.degree(), kv.values());
     let first = knots.iter().position(|&x| x == k)?;
     let (_, nv) = s.control_counts();
-    let (control, weights) = (s.control(), s.weights_f64_interim());
+    let (control, weights) = (s.control(), s.weights());
     let lo_knots: Vec<f64> = knots[..first + p].iter().copied().chain([k]).collect();
     let hi_knots: Vec<f64> = [k]
         .into_iter()
@@ -532,7 +532,7 @@ fn clear_of(
     if !setback.is_finite() {
         return false;
     }
-    let (du, dv) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());
+    let (du, dv) = (s.knot_values_u(), s.knot_values_v());
     let across = if along_v { dv } else { du };
     let (lo, hi) = across.domain();
     let side = if high {
@@ -544,9 +544,9 @@ fn clear_of(
         return true;
     }
     // The region's knot cells: an enclosure is tightest inside one.
-    let breaks = |kv: &KnotVector, (a, b): (f64, f64)| -> Vec<f64> {
+    let breaks = |kv: &Knots<f64>, (a, b): (f64, f64)| -> Vec<f64> {
         let mut out = vec![a];
-        out.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.extend(kv.runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
         out.push(b);
         out
     };
@@ -637,11 +637,11 @@ fn clear_of(
 /// its crease knot `knot`: the iso line's own control points.
 fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3<f64>>> {
     let kv = if along_v {
-        s.knots_v_f64_interim()
+        s.knot_values_v()
     } else {
-        s.knots_u_f64_interim()
+        s.knot_values_u()
     };
-    let first = kv.knots().iter().position(|&x| x == knot)?;
+    let first = kv.values().iter().position(|&x| x == knot)?;
     let (nu, nv) = s.control_counts();
     let control = s.control();
     Some(if along_v {
@@ -677,7 +677,7 @@ fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
 fn on_the_line(spec: &EdgeSpec, ends: (Point3<f64>, Point3<f64>), bent: f64, eps_in: f64) -> bool {
     let hull: Vec<Point3<f64>> = match spec.carrier {
         Curve3::Line { .. } => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
-        Curve3::Nurbs(ref c) if c.knots_f64_interim().domain() == (spec.t0, spec.t1) => {
+        Curve3::Nurbs(ref c) if c.knot_values().domain() == (spec.t0, spec.t1) => {
             c.control().to_vec()
         }
         _ => return false,
@@ -962,7 +962,7 @@ fn split_face_once(
             ));
         }
     };
-    let (t0, t1) = iso.knots_f64_interim().domain();
+    let (t0, t1) = iso.knot_values().domain();
     let e = mint();
     solid.edges.insert(
         e,
