@@ -478,13 +478,6 @@ fn feet(solid: &SolidSpec, f: usize, s: &NurbsSurface<f64>) -> Vec<[f64; 4]> {
     out
 }
 
-/// How far past a knot line, in `ε_in`, a boundary point may reach and
-/// still be read as on the line by [`clear_of`]: the boundary stands
-/// within `ε_in` of its chart, and the chart region past the line it is
-/// kept clear of, inflated by that `ε_in`, must still leave a gap of
-/// `ε_in` before a point on the line.
-const CLEAR_REACH: f64 = 4.0;
-
 /// The enclosures [`clear_of`] may form for one side of one line
 /// before it answers "not certified": a constant of the selection,
 /// spent where the boundary meets the region or runs along its rim.
@@ -504,15 +497,20 @@ struct Cell {
 /// Whether face `f`'s boundary is CERTIFIED clear of the chart past the
 /// line `knot` on one side: above it where `high`, below it otherwise.
 ///
-/// The region is the chart's parameter rectangle on that side, set back
-/// from the line by [`CLEAR_REACH`]`·ε_in` over the chart's speed bound
-/// across it, so every chart point the setback leaves out is within that
-/// distance of the line. Each boundary edge stands within `ε_in` of the
-/// chart, so an edge whose every point is farther than `ε_in` from the
+/// The bound that holds where it answers `true`: every boundary point
+/// either lies within `ε_in` of the iso line ([`on_the_line`]), or has
+/// its foot on the chart on the near side of the line or within `ε_in`
+/// of it in space, where the boundary stands within `ε_in` of its chart.
+/// The region is the chart's parameter rectangle on the far side, set
+/// back from the line by `ε_in` over the chart's speed bound across it,
+/// so every chart point the setback leaves out is within `ε_in` of the
+/// line. An edge whose every point is farther than `ε_in` from the
 /// region's image has no foot in it. Read by enclosure alone: the
 /// region's image cell by cell ([`NurbsSurface::rect_enclosure`]), and
 /// each edge piece's box ([`piece_box`]), the two halved together where
-/// they meet, until they part or [`CLEAR_BUDGET`] is spent.
+/// they meet, until they part or [`CLEAR_BUDGET`] is spent. What it
+/// cannot certify, the boundary running along the line among it, is
+/// left to the split.
 #[allow(clippy::too_many_arguments)]
 fn clear_of(
     solid: &SolidSpec,
@@ -526,7 +524,7 @@ fn clear_of(
 ) -> bool {
     let (sup_u, sup_v) = s.stretch_sup();
     let speed = if along_v { sup_v.get() } else { sup_u.get() };
-    let setback = CLEAR_REACH * eps_in / speed;
+    let setback = eps_in / speed;
     if !setback.is_finite() {
         return false;
     }
@@ -563,6 +561,22 @@ fn clear_of(
             .all(|c| c.lo() <= c.hi())
             .then_some(Cell { u, v, image })
     };
+    // A box within `ε_in` of the line at every point: its centre's
+    // distance from a point of the line, plus its half diagonal.
+    let near = |bx: &[Interval; 3]| {
+        let mid = |c: &Interval| 0.5 * (c.lo() + c.hi());
+        let centre = Point3::new(mid(&bx[0]), mid(&bx[1]), mid(&bx[2]));
+        let half = worst(bx.iter().map(|c| 0.5 * (c.hi() - c.lo())));
+        let Ok(foot) = s.project(centre) else {
+            return false;
+        };
+        let on = if along_v {
+            s.eval(foot.u, knot)
+        } else {
+            s.eval(knot, foot.v)
+        };
+        (centre - on).norm() + half * 3f64.sqrt() <= eps_in
+    };
     let (bu, bv) = (breaks(du, ru), breaks(dv, rv));
     let mut cells = Vec::new();
     for u in bu.windows(2) {
@@ -575,6 +589,9 @@ fn clear_of(
     }
     solid.faces[f].loops.iter().flat_map(|l| &l.uses).all(|u| {
         let spec = &solid.edges[&u.edge];
+        if on_the_line(spec, s, knot, along_v, eps_in) {
+            return true;
+        }
         let lifted_edge = match spec.carrier {
             Curve3::Nurbs(ref c) => Some(c.map_scalar(|x| Interval::from_bounds(x, x))),
             _ => None,
@@ -582,6 +599,7 @@ fn clear_of(
         let piece = |a: f64, b: f64| piece_box(&spec.carrier, lifted_edge.as_ref(), a, b);
         parts(
             &piece,
+            &near,
             (spec.t0, spec.t1),
             cells.clone(),
             eps_in,
@@ -591,12 +609,69 @@ fn clear_of(
     })
 }
 
+/// Whether `spec` lies within `eps_in` of the iso line `knot` of the
+/// chart `s` (along `v` where `along_v`) at every point, by structure:
+/// the line is the net's row (column) the spline interpolates at the
+/// knot, and where that row's control points lie within `d` of the chord
+/// between its ends, the line runs within `d` of every chord point (its
+/// foot on the chord runs from one end to the other). An edge whose
+/// convex hull (a line's two ends, a spline's control points over its
+/// whole domain) lies within `e` of the chord then lies within `e + d`
+/// of the line. `false` for a curved line or any other edge.
+fn on_the_line(
+    spec: &EdgeSpec,
+    s: &NurbsSurface<f64>,
+    knot: f64,
+    along_v: bool,
+    eps_in: f64,
+) -> bool {
+    let kv = if along_v {
+        s.knots_v_f64_interim()
+    } else {
+        s.knots_u_f64_interim()
+    };
+    let Some(first) = kv.knots().iter().position(|&x| x == knot) else {
+        return false;
+    };
+    let (nu, nv) = s.control_counts();
+    let control = s.control();
+    let row: Vec<Point3<f64>> = if along_v {
+        (0..nu).map(|i| control[i * nv + first - 1]).collect()
+    } else {
+        control[(first - 1) * nv..first * nv].to_vec()
+    };
+    let (Some(&a), Some(&b)) = (row.first(), row.last()) else {
+        return false;
+    };
+    let chord = b - a;
+    let off = |p: Point3<f64>| {
+        let t = ((p - a).dot(chord) / chord.dot(chord)).clamp(0.0, 1.0);
+        (p - (a + chord * t)).norm()
+    };
+    let bent = worst(row.iter().map(|&p| off(p)));
+    let hull: Vec<Point3<f64>> = match spec.carrier {
+        Curve3::Line { .. } => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
+        Curve3::Nurbs(ref c) if c.knots_f64_interim().domain() == (spec.t0, spec.t1) => {
+            c.control().to_vec()
+        }
+        _ => return false,
+    };
+    worst(hull.iter().map(|&p| off(p))) + bent <= eps_in
+}
+
+/// The largest of `xs`, NaN where any is: a poisoned reading certifies
+/// nothing.
+fn worst(xs: impl Iterator<Item = f64>) -> f64 {
+    xs.fold(0.0, |m, x| if x.is_nan() { f64::NAN } else { m.max(x) })
+}
+
 /// Whether the edge pieces over `t` keep farther than `pad` from every
-/// one of `cells`, halving a piece and quartering each cell it meets
-/// until they part; `false` where a piece has no box, the budget `cell`
+/// one of `cells`, or lie within `ε_in` of the line (`near`), halving a
+/// piece and quartering each cell it meets until one holds; `false` where a piece has no box, the budget `cell`
 /// spends runs out, or the piece is [`CLEAR_DEPTH`] halvings deep.
 fn parts(
     piece: &dyn Fn(f64, f64) -> Option<[Interval; 3]>,
+    near: &dyn Fn(&[Interval; 3]) -> bool,
     (a, b): (f64, f64),
     cells: Vec<Cell>,
     pad: f64,
@@ -613,7 +688,7 @@ fn parts(
             .all(|(i, e)| i.lo() - pad <= e.hi() && e.lo() <= i.hi() + pad)
     };
     let hit: Vec<Cell> = cells.into_iter().filter(meets).collect();
-    if hit.is_empty() {
+    if hit.is_empty() || near(&bx) {
         return true;
     }
     if depth == CLEAR_DEPTH {
@@ -632,8 +707,8 @@ fn parts(
         }
     }
     let m = 0.5 * (a + b);
-    parts(piece, (a, m), finer.clone(), pad, cell, depth + 1)
-        && parts(piece, (m, b), finer, pad, cell, depth + 1)
+    parts(piece, near, (a, m), finer.clone(), pad, cell, depth + 1)
+        && parts(piece, near, (m, b), finer, pad, cell, depth + 1)
 }
 
 /// An enclosure of `carrier` over `[a, b]`: a line's two ends, a conic
@@ -1029,6 +1104,29 @@ mod tests {
                 Err(StepImportError::C0KnotUnsplit { face: 10, knot, .. }) if knot == 0.5
             ),
             "the uncertified line refuses typed: {refused:?}"
+        );
+    }
+
+    /// A circle about `(0.3 + 2ε_in, 0.5)` crosses the line by `2ε_in`,
+    /// between samples: farther than the `ε_in` the import may move a
+    /// boundary, so it is kept, and its split refuses typed rather than
+    /// absorb the crossing as on the line.
+    #[test]
+    fn a_trim_crossing_by_twice_eps_in_is_kept_and_refuses_typed() {
+        let mut solid = solid(0.3 + 2.0 * EPS_IN);
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
+        let mut n = 100;
+        let mut mint = || {
+            n += 1;
+            n
+        };
+        let refused = split_faces(&mut solid, EPS_IN, &mut mint, &mut Vec::new());
+        assert!(
+            matches!(
+                refused,
+                Err(StepImportError::C0KnotUnsplit { face: 10, .. })
+            ),
+            "the crossing refuses typed: {refused:?}"
         );
     }
 
