@@ -415,3 +415,13 @@ PR 5568's fix pass.
   - Whether the whole multi-span patch may stop at the bound short of its tiles' enclosure is the tension between `[tolerance.measure]` and Ev's 6014 ruling. It goes to a **design fork**, `measure-work-bound-per-face-or-per-span`, with an Opus/Fable pair dispatched concurrently. Blinding is on `analysis/design-fork/measure-work-bound-per-face-or-per-span`. Acceptance 1's "the whole patch no longer stops at Wall" moves to that fork.
   - **Fix pass** sent to the per-span lane: the wall, the polynomial per-span read, the trimmed lane, stale premises, the style findings, PR body corrections, the lens-blade check and the four-thread golden.
   - **Not 6092's:** the nine local reds and `sym_arc_loft` 97/104 are red on main's nightly 41008276467, not caused by 6092.
+- 2026-10-30 — **Work-bound fork, first reports: a split.**
+  - **A:** one budget per question, spent widest-first across faces.
+  - **B:** F × the face's round-zero cost, which on the rectangle lanes is 6092's per-span wall.
+  - **Both agree on:**
+    - the per-face clause is agent text from PR 5574, so 6014 is the redesign to keep;
+    - a per-face bound breaks the torus acceptance when the target is out of reach;
+    - recalibration is owed.
+  - **Round 2 dispatched:** each designer has the other's report. The question beneath both is whether a face's enclosure may depend on what else the question measures (`[intrinsic.contingent]`).
+  - **Noted for 6092's interim (B, computed):** under one per-face wall the whole torus stops at round 3, at `Wall`, so its `Met` assertion goes back to main's posture. That is accepted for the interim: after 6013 the fixture imports as tiles.
+  - **Off-question filings owed** (from A): `walk_set` refines every refinable face rather than the widest; `Settle::Resolution` is read per face, which makes it cut-dependent. Filed once the fork settles, so its framing does not leak into the reconciliation.
