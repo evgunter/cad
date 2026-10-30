@@ -1568,11 +1568,12 @@ not. Being one construction is the equivalence the document's
 constructions and mates generate, so a wall each part builds through
 the edge of a flag that a flag mate equates is one construction read
 over both, and that mate establishes the flush pair the two walls
-make. A traced profile is that rung's statement too, by the same
-symmetry the verdicts read: a piece drawn along a face's trace and
-swept by a motion in that face's kind's symmetry is tangent to the face
-along the swept curve, and one whose frame's plane contains an axis of
-that symmetry is tangent at the crossing. The second reads each output
+make. A traced profile is that rung's statement too: a piece drawn
+along a face's trace and swept by a motion in the symmetry that face's
+construction states (an extrude's wall slides along its generators, a
+revolve's band turns about its axis) is tangent to the face along the
+swept curve, and one whose frame's plane contains an axis of that
+symmetry is tangent at the crossing. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1602,8 +1603,8 @@ finding quiet ([intent.structural]).
 directly or as projections of one construction; tangency is
 constructed: a profile drawn on a frame reads another surface's trace
 in its plane and continues tangent to it, and a sweep of it stays
-tangent to the surface wherever its motion follows that surface's
-symmetry.
+tangent to the surface wherever its motion follows the symmetry the
+surface's construction states.
 
 **The door and the lint.** `[coincidence.door]` Every coincidence the
 kernel infers from values — a boolean's glue, a split's ON verdict
