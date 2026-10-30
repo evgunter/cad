@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-23
 priority: P2
 cost: M
-refs: [assemble-is-an-operator-and-the-product-is-a-slot]
+refs: [5636]
 ---
 
 Found by D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`), closing `the-viewer-authors-no-read-of-one-copy`. An instance defines one body, the copy of its part's product, and a body of several parts is an ordinary operand, so every form the viewer offers over an instance now reads its copy whole and is admitted. Reading ONE piece of that copy needs a pick (`Operand::Pick { placement, of }`, `VarDef::Pick`): the path from the copy through the part's placements and `⊔` operands to the piece. No viewer gesture writes one. `crates/viewer/src/world.rs:155` (`on_body`) answers the operand a form reads from the node a face pick lands on, and that is always the copy whole.

@@ -7,7 +7,7 @@ opened: 2026-10-29
 closed: 2026-10-30
 priority: P4
 cost: C
-refs: [d10-exit-walk]
+refs: [5997]
 ---
 
 
