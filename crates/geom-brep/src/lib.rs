@@ -56,6 +56,8 @@
 mod carrier_net;
 pub mod carrier_resolution;
 pub mod certify;
+pub mod chart_image;
+pub mod chart_singularity;
 pub mod conic_bend;
 pub mod curve_face;
 pub mod curve_pair;

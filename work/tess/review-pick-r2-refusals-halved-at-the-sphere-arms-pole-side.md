@@ -42,3 +42,5 @@ with that reading. If not, fix the mesh.
 Reproduce at each commit: `cargo test -p viewer --test all --
 --nocapture review_pick_r2::the_certified_determinant` (prints the tally).
 
+
+**2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`). The line above saying "main is green on it" was wrong. #6023's pin `(431064, 143421, 27618, 9216)` carries the pre-#5920 refusal level: 27618 is about 26058 plus the new scenes. #6023's tree never produced it. Run in debug, its pin commit `a5bc5a82`, both main merges into the branch (`6d79817a`, `6982d9dd`), its head `5e72ec90` and its merge `78ca7fcb` all read `(431064, 143483, 14556, 7266)`, which is tonight's nightly reading too. The refusals sit at about half again, as they did after #5920. The nightly triage PR re-pins at that reading. This row's question, whether #5920's mesh is the one the arm should produce, is untouched by the re-pin.

@@ -1509,10 +1509,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
-        BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
-        BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
+        BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
@@ -2155,6 +2153,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
+        StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
@@ -2935,6 +2934,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
         CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
+        CheckEvidence::Unused { .. } => "unused",
     }
 }
 
@@ -3105,6 +3105,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
         ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
+        ValidationError::ChartSingularityNotAVertex { .. } => "chart_singularity_not_a_vertex",
+        ValidationError::ChartSingularityUndecided { .. } => "chart_singularity_undecided",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

@@ -526,10 +526,13 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // over the decision lane has to spell it. The trait says which lanes
 // carry a chart-coherence examination — `f64` does, and a lane that
 // does not reports that as a finding rather than as a clean body.
+// `Unused` is what `Doc::unused` answers: the tips the `unused` check
+// reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
+    subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of

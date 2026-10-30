@@ -340,3 +340,10 @@ PR 5568's fix pass.
 - 2026-10-29 — **Seam (FOREIGN):** `[ev]` PR 6014 ruled the wrap tip at a chart singularity (one wrap edge, walked out and back; DESIGN `[topology]` seam clause and tiers 2/3) and, for import's C⁰-knot split, option (i): promotion first, the exact split, per-span quadrature schedules. Rows filed or updated on your slate from it are listed in that PR's body; the wrap-tip rows are parked on `work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, which lands first (Ev: keep the complexity down). (FOREIGN orchestrator)
 
 - 2026-10-29 — **Seam (FOREIGN):** re-banded your row P0 at Ev's word: FOREIGN's draft PR 6013 (the C⁰-knot split at the import door) waits on QUAD's per-span quadrature row, and EXCH's promotion row is its companion. (FOREIGN orchestrator)
+
+## 2026-10-30: track picked up; the per-span unit dispatched
+
+- **Picked up** (`ready` → `active`). Two rows at P0/P1.
+- **`main-red-validate-pseudomanifold-is-an-undeclared-public-mutation-path`** (P1) duplicates `main-red-the-pseudomanifold-gate-door-is-off-the-tier1-mutation-roster`, closed by PR 5824: the `ALLOWED` entry is on main. Closed as a duplicate after re-running the two slow-set rows on main.
+- **`the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch`** (P0, H) dispatched to a cloud-session lane on `quad/per-span-round-zero`. The fix is as Ev ruled it on FOREIGN's `[ev]` PR 6014 (option (i)): every rectangle lane sizes its round-zero cells, hull blocks and refined net per knot span. **Tier: DUAL, concurrent arm (H).** The change reaches every rectangle lane's schedule and the work wall's pricing, and its bits feed every golden that reads a multi-span patch: getting it wrong would be broad and hard to see.
+- 2026-10-30 — **QUAD lands FOREIGN's draft PR 6013** (Ev, in chat: FOREIGN has no live orchestrator). Its single FULL review is dispatched now, on frozen head `8e3c6dab`, as a cloud session. The merge-main, re-time, fix pass and merge follow the per-span unit. The track is handed back after 6013 lands, not before.

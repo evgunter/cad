@@ -1835,7 +1835,7 @@ FAMILIES: dict[str, str] = {
 #: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
-#: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
+#: interior (`ContactPair`, `ContactRefusal`,
 #: `ContactRecords` — `ContactRecords` is behind
 #: `Body.validate_pseudomanifold`, which takes
 #: one in Rust and captures it here rather than asking a caller for a
@@ -2693,17 +2693,14 @@ NOT_BOUND = {
     # and `CensusContact` itself reaches Python as
     # `ValidationFinding.contact_kind` — `conformal_patch` or
     # `face_face_tangent`, the word — while what that arm CARRIES stays
-    # behind it. The finding is a declared pair and a verdict, and
-    # projecting it would be projecting a payload's payload; the
-    # discriminant is what a curated list owes and it crosses.
-    # `DeclaredContact` and
-    # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
-    # beside it, which is the sibling test the `CensusContact` entry
-    # names. `GlueClass` is `DeclaredContact`'s class, behind the same
+    # behind it. The finding is a contact pair, and projecting it
+    # would be projecting a payload's payload; the discriminant is what
+    # a curated list owes and it crosses. `ContactPair` — this type's
+    # field — sits at `INTERIOR` beside it, which is the sibling test
+    # the `CensusContact` entry names. `GlueClass` is `ContactPair`'s class, behind the same
     # door.
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
-    "ContactVerdict": INTERIOR,
     # THE PROFILE REFUSALS' PAYLOAD VOCABULARY, curated at the prelude
     # so a prelude-carried `ProfileError`, `CornerReason` or
     # `PathError` is matchable THROUGH the prelude rather than only
@@ -2740,7 +2737,7 @@ NOT_BOUND = {
     "Convexity": INTERIOR,
     "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
-    "DeclaredContact": INTERIOR,
+    "ContactPair": INTERIOR,
     "GlueClass": INTERIOR,
     "DuplicateName": INTERIOR,
     "EntityNamed": INTERIOR,
@@ -3054,6 +3051,9 @@ NOT_BOUND = {
     "run_checks_at_rest_on": INTERIOR,
     "DoorJob": INTERIOR,
     "DoorFindings": INTERIOR,
+    # `Doc::unused`'s answer: Python reads the same tips as the `unused`
+    # check's findings, through `run_checks`.
+    "Unused": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
@@ -3551,6 +3551,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
+    "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
@@ -3867,6 +3868,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
+    "StepImportError::SingularitySideUndecided": "StepImportError.variant",
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
@@ -3936,6 +3938,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
     "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
     "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
+    "ValidationError::ChartSingularityNotAVertex": "ValidationFinding.variant",
+    "ValidationError::ChartSingularityUndecided": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",

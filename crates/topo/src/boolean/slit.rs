@@ -48,8 +48,10 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, and an arc leaves two coincident arcs the census does not read
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]). The reading
+//! built, an arc leaves two coincident arcs the census does not read,
+//! and a curved face would carry a slit or a ring that is neither meshed
+//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! finds an edge only where its ends lie on the face, by structure or by
 //! a record, or an edge-on-face record names the pair and the face holds
 //! the edge's midpoint. An edge it does not find stays one edge: the
@@ -152,6 +154,13 @@ pub enum EdgeInFaceGap {
     /// that no contact record backs
     /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
+    /// The face is no plane: the parting would leave a slit or a
+    /// zero-area ring in a curved face, which the chart walk does not
+    /// mesh and the curved mass-properties lane does not measure
+    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
+    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when both read it: the parting itself builds there.
+    CurvedFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -232,6 +241,10 @@ impl EdgeInFaceGap {
             Self::Curved => {
                 "the edge is an arc, which would leave two coincident arcs that no contact record \
                  backs (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            }
+            Self::CurvedFace => {
+                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
+                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -370,6 +383,13 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
+        }
+        if !matches!(
+            body.get_face(face)
+                .and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. })
+        ) {
+            return Err(refused(EdgeInFaceGap::CurvedFace));
         }
         if partly {
             if pieces.contains(&(edge, face)) {
@@ -658,11 +678,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
-    let one_face = |body: &Body<T>, edge: EdgeKey| {
-        let e = body.get_edge(edge)?;
-        let face = body.face_of_half_edge(e.he_plus)?;
-        (body.face_of_half_edge(e.he_minus)? == face).then_some(face)
-    };
+    let one_face = |body: &Body<T>, edge: EdgeKey| body.both_sides_face(edge).flatten();
     let mut closed = Vec::new();
     loop {
         let open: Vec<(EdgeKey, FaceKey)> = candidates
@@ -816,19 +832,19 @@ fn riders<T: Decide>(
     Ok(out)
 }
 
-/// Whether edge `e`, both of whose ends lie on the plane face `f`, lies
-/// in it: a line whose midpoint `f` holds (two points of a plane hold
-/// the line between them), or a conic in `f`'s plane whose midpoint `f`
-/// holds. A face that is no plane holds nothing here.
+/// Whether edge `e`, both of whose ends lie on face `f`, lies in it,
+/// its midpoint held by `f`: on a plane, a line (two points of a plane
+/// hold the line between them) or a conic in `f`'s plane; on a cylinder
+/// or a cone, a line on the carrier
+/// ([`crate::census::line_on_quadric_carrier`]), whatever its walls. A
+/// face on any other carrier holds nothing here.
 fn lies_in<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     f: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let Some(&geom::Surface::Plane { origin, normal, .. }) =
-        body.get_face(f).and_then(|d| body.get_surface(d.surface))
-    else {
+    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Ok(false);
     };
     let Some(curve) = body
@@ -837,6 +853,35 @@ fn lies_in<T: Decide>(
         .and_then(|c| c.certified())
     else {
         return Ok(false);
+    };
+    let (origin, normal) = match *surface {
+        geom::Surface::Plane { origin, normal, .. } => (origin, normal),
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+            if matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
+        {
+            let (t0, t1) = curve.params();
+            let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
+            let mid = curve.mid_point();
+            return match crate::census::line_on_quadric_carrier(
+                surface,
+                p0,
+                p1,
+                "bool_line_face_carrier_offset",
+                band,
+            ) {
+                Some(Ok(true)) => Ok(matches!(
+                    piece_reading(body, f, mid, band, DoorInBand::Containment)?,
+                    PieceRead::In
+                )),
+                None | Some(Ok(false)) => Ok(false),
+                Some(Err(diag)) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnCurvedFace,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+            };
+        }
+        _ => return Ok(false),
     };
     let mid = match curve.carrier() {
         geom::Curve3::Line { .. } => curve.mid_point(),
@@ -913,9 +958,33 @@ fn walls_inside<T: Decide>(
         .carrier()
         .deriv((t0 + t1) * T::from_f64(0.5))
         .normalize();
-    let floor = crate::face_normal::face_outward_normal(body, f)
-        .ok_or_else(desync)?
-        .vec();
+    let normal_at =
+        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
+            Ok(Some(n)) => Ok(n.vec()),
+            Ok(None) => Err(desync()),
+            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::of_normal(decision),
+                    diag,
+                })
+            }
+            Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+        };
+    let floor = normal_at(f)?;
+    let floor_surface = body
+        .get_face(f)
+        .and_then(|d| body.get_surface(d.surface))
+        .ok_or_else(desync)?;
+    // The direction from `mid` toward a curved carrier's centre of
+    // curvature; `None` on a plane.
+    let bend = |surface: &geom::Surface<T>| match *surface {
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            Some(origin + axis * (mid - origin).dot(axis) - mid)
+        }
+        geom::Surface::Cone { apex, axis, .. } => Some(apex + axis * (mid - apex).dot(axis) - mid),
+        geom::Surface::Sphere { center, .. } => Some(center - mid),
+        _ => None,
+    };
     let mut inside = [false; 2];
     let mut flat = [false; 2];
     for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
@@ -923,17 +992,7 @@ fn walls_inside<T: Decide>(
         .enumerate()
     {
         let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
-        let normal = match crate::face_normal::face_outward_normal_at(body, wall, mid, band) {
-            Ok(Some(n)) => n.vec(),
-            Ok(None) => return Err(desync()),
-            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::of_normal(decision),
-                    diag,
-                });
-            }
-            Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
-        };
+        let normal = normal_at(wall)?;
         let into = normal.cross(dir);
         // How far the wall leaves the floor grows across the line: the
         // lever is the wall's own reach from the line's middle, as a
@@ -959,14 +1018,12 @@ fn walls_inside<T: Decide>(
                     .get_face(wall)
                     .and_then(|d| body.get_surface(d.surface))
                     .ok_or_else(desync)?;
-                let toward = match *surface {
-                    geom::Surface::Cylinder { origin, axis, .. } => {
-                        origin + axis * (mid - origin).dot(axis) - mid
-                    }
-                    geom::Surface::Cone { apex, axis, .. } => {
-                        apex + axis * (mid - apex).dot(axis) - mid
-                    }
-                    geom::Surface::Sphere { center, .. } => center - mid,
+                // A wall tangent to a curved floor: whichever side its sheet
+                // bends to, the parting is one on a curved face.
+                if bend(floor_surface).is_some() {
+                    return Err(refused(EdgeInFaceGap::CurvedFace));
+                }
+                let toward = match surface {
                     // A plane wall tangent along the line lies in the
                     // floor's plane. Glued to the floor from outside
                     // (outward normals opposed), its material is across
@@ -994,7 +1051,10 @@ fn walls_inside<T: Decide>(
                             }
                         }
                     }
-                    _ => return Err(refused(EdgeInFaceGap::Tangent)),
+                    curved => match bend(curved) {
+                        Some(toward) => toward,
+                        None => return Err(refused(EdgeInFaceGap::Tangent)),
+                    },
                 };
                 match crate::validate::decide_nonzero(
                     "bool_rider_wall_bend",

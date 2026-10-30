@@ -882,7 +882,10 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 /// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
 /// `A ∪ B` and `B ∩ A` refuse typed
 /// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
-/// At rest and turned.
+/// Where `A`'s seam ruling lies on the tangent line, a difference carries
+/// it as one edge lying in `B`'s wall, where the crescent's two cusps owe
+/// two (`crates/topo/README.md` tier 3), and refuses
+/// `EdgeInFaceGap::CurvedFace` rather than ship it. At rest and turned.
 #[test]
 fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
     let va = 0.09 * PI;
@@ -917,7 +920,8 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
                 } else {
                     let line = outcome(r, want, tol());
                     assert!(
-                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" }),
+                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" })
+                            || line.contains("gap: CurvedFace"),
                         "{row}: {line}"
                     );
                 }

@@ -243,6 +243,7 @@ pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
 pub(crate) mod strut;
+pub mod surface_boundary;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -636,7 +637,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&[], tol)
+        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the
@@ -1248,7 +1249,7 @@ pub use boolean::{
     JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
     NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
-    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
     SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
@@ -1286,8 +1287,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
-    ContactVerdict, DeclaredContact, GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
+    ContactRefusal, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1301,8 +1302,8 @@ pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
 pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
-    chart_region_overlap, declared_pair_overlap,
+    CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
+    WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::ClearanceLane;
 pub use coherence::{
@@ -1382,10 +1383,10 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
-    validate, validate_closed, validate_geometric, validate_geometric_certificate,
-    validate_geometric_certificate_structural, validate_geometric_structural,
-    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, SingularityLies,
+    StaleDeclaration, Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks,
+    contact_marks_structural, validate, validate_closed, validate_geometric,
+    validate_geometric_certificate, validate_geometric_certificate_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

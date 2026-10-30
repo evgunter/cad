@@ -240,9 +240,13 @@ pub(crate) enum Scaffolding {
 /// loop order, each on its certified carrier. `None` where a carrier's
 /// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
 /// the boundary no reading may step over, and null scaffolding is as
-/// `scaffolding` says. An edge both of whose sides are the face (a seam,
-/// both its half-edges in the face's loops) is no boundary of it and is
-/// left out.
+/// `scaffolding` says. Past those, an edge the face lies on both sides of
+/// ([`Body::both_sides_face`]: a seam, a wrap edge, a spur) is no
+/// boundary of it and is left out. The edges kept are the set the
+/// surface boundary's walk reaches
+/// ([`crate::surface_boundary::surface_cycles`]), by construction: both
+/// drop exactly the edges the predicate names. They are listed in loop
+/// order, not walk order; none for a face that covers its surface.
 ///
 /// # Errors
 ///
@@ -291,6 +295,13 @@ pub(crate) fn boundary<T: Decide>(
             if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
             }
+            if body
+                .both_sides_face(edge_key)
+                .ok_or_else(corrupt)?
+                .is_some()
+            {
+                continue;
+            }
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
                 edge: edge_key,
@@ -303,9 +314,6 @@ pub(crate) fn boundary<T: Decide>(
             });
         }
     }
-    let seam = |e: EdgeKey| edges.iter().filter(|a| a.edge == e).count() > 1;
-    let seams: Vec<EdgeKey> = edges.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
-    edges.retain(|a| !seams.contains(&a.edge));
     Ok(Some(edges))
 }
 
