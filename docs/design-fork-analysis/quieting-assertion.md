@@ -63,3 +63,10 @@ A (Opus, byte 142 even) first report, 09:18Z.
 - **New:** the cross-part residue (a stack-up pose coincidence that no mate may carry and no construction reaches) is reported with the recourse "mate the part at this feature, or split it". Opposed vs aligned tangency: aligned is a continuation, construction-only like flush.
 - **Corrections:** the box turn is Unreplayed::Numeric, not Budget; split ON via a plane through the vertex is NOT proven at rung one today (a rung to add, COINCIDE).
 - A and B crossed, so round 2 follows (Ev 2026-09-30: a crossover is not a split). Each is shown the other's revised report.
+
+## Round 2 of reconciliation, A (09:33Z)
+- **Core unchanged since round 1:** pose assertions with `= 0` quiet, now framed by the freedom left. If a freedom remains, the instrument is a mate (add the kind; PR 5555's flag and pivot). If the coincidence lies beyond what the mates fix (true redundancy), it is an assertion (FORK-S3O row 96, approved #4325: "the recourse for an agreement beyond what the mates fix being an assertion").
+- **Flush:** the free slide takes the flag; flush by stack-up on a pinned part takes `Gap = 0`. 5555 and row 96 do not conflict.
+- **B's cross-part recourse** ("mate at this feature or split") only moves the residue.
+- **Checked:** the box turn is Numeric replay with Budget recourse (both); split ON via a plane through a vertex is unproven at rung one (accepted, a door gap).
+- **Provenance:** in the 5555 thread, "closed under what a mate can read" is orchestrator text; Ev's words are "flush by number…", "are there other kinds of mate…?", "nice!".
