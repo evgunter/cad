@@ -233,3 +233,46 @@ fn two_slanted_rims_tangent_on_the_ruling_refuse_at_their_touch() {
         }
     }
 }
+
+/// **Review probe: two rims slanted by different tilts** cross
+/// transversally at `(2, 0, 0)`, both ellipses, in two planes. Neither
+/// direction's boundary edge is a line or a circle, so neither masks
+/// the other. Shared volume `(2/3)|tan t₁ − tan t₂|`.
+#[test]
+fn review_probe_two_ellipse_rims_in_two_planes() {
+    let (va, vb) = (3.0 * PI, 12.0 * PI);
+    for (t1, t2) in [(0.3, -0.4), (0.5, 0.2), (-0.3, 0.6)] {
+        let a = cut(&rod(1.0, 1.0), t1, true);
+        let b = cut(&rod(2.0, 0.0), t2, false);
+        let shared = 2.0 / 3.0 * (t1.tan() - t2.tan()).abs();
+        for (o, name, closed, x, y) in [
+            (BooleanOp::Subtract, "A−B", va - shared, &a, &b),
+            (BooleanOp::Intersect, "A∩B", shared, &a, &b),
+            (BooleanOp::Union, "A∪B", va + vb - shared, &a, &b),
+            (BooleanOp::Subtract, "B−A", vb - shared, &b, &a),
+        ] {
+            let what = format!("tilts {t1} {t2} {name}");
+            match op(o, x, y) {
+                Ok(BooleanResult::Body(res)) => {
+                    let body = &res.body;
+                    let t3 = topo::validate_geometric(body, tol()).map_err(|e| format!("{e:?}"));
+                    let m = topo::test_support::pinned_volume(&what, body, tol());
+                    let t3p = topo::validate_pseudomanifold(body, &res.contacts, tol())
+                        .map_err(|e| format!("{e:?}").chars().take(160).collect::<String>());
+                    eprintln!(
+                        "PROBE {what}: BUILT vol {} ± {} closed {closed} dv {:e} t3 {:?} t3' {:?}",
+                        m.volume,
+                        m.volume_pad,
+                        (m.volume - closed).abs(),
+                        t3.is_ok(),
+                        t3p
+                    );
+                }
+                other => eprintln!(
+                    "PROBE {what}: {}",
+                    format!("{other:?}").chars().take(220).collect::<String>()
+                ),
+            }
+        }
+    }
+}
