@@ -258,6 +258,8 @@ mod review_m6_3_chart_probes;
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
 mod review_pr12_meridian_probe;
+#[path = "review_6092_probes.rs"]
+mod review_6092_probes;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
 #[path = "revolved_point_anchor.rs"]
