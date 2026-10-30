@@ -567,6 +567,31 @@ pub enum SessionOp {
         /// The turn about the face's normal (`Angle`).
         spin: Formula,
     },
+    /// **A profile drawn on a frame, continuing tangent to a face's
+    /// trace** (D10, "Constructing a coincidence"): `chains` drawn on the
+    /// frame `Through` the first traced face's own axis and a vertex of
+    /// `plane`, a plane face square to that axis — its origin the
+    /// vertex's foot on the axis — tracing `traced`, by place
+    /// ([`pncad::trace::traced_frame`], [`pncad::trace::drawn_profile`]).
+    /// One `InsertNode`, in the frame's space.
+    ///
+    /// What is proven: a sweep up the frame's `z` of a chain that leaves
+    /// a traced wall's trace along its tangent (`OnTrace`, then
+    /// `AlongTrace`) is tangent to that wall by construction, and the
+    /// coincidence door reports the union's row `SameConstruction`.
+    ///
+    /// A traced face with no axis, or a picked face that is no plane
+    /// square to it, refuses [`Refusal::Frame`]; an argument of the
+    /// wrong dimension [`Refusal::Edit`]. A crossing the piece does not
+    /// make builds, and refuses at evaluation on the profile's badge.
+    AddDrawnProfile {
+        /// The plane face the frame's origin is stood in.
+        plane: FaceSelection,
+        /// The faces the profile traces, by place.
+        traced: Vec<FaceSelection>,
+        /// The loops, outer first, in the document's vocabulary.
+        chains: Vec<pncad::trace::Chain>,
+    },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
     /// it is opened on an existing node instead of on nothing. A
@@ -1173,6 +1198,7 @@ impl SessionOp {
         match self {
             Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -1291,6 +1317,7 @@ impl SessionOp {
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1515,6 +1542,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1643,6 +1671,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }

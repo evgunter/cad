@@ -4,7 +4,8 @@ kind: issue
 title: A traced profile costs an extra nominal evaluation per analysis evaluation, and each pen replays its whole prefix
 status: open
 opened: 2026-10-29
-priority: P3
+priority: P4
+cost: M
 ---
 
 
