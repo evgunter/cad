@@ -365,3 +365,6 @@ the text-only option's wording. Both found
   - Their wrong clears were built by hand-pushed declaration records, which main no longer allows.
   - What is left is the census's record-only reading, which is ATREST's ground.
   - Both moved to `work/atrest/` by `git mv`. `CONTACT-13` closed into the issue row, which is now one P2 re-read (Ev in chat).
+- **2026-10-30, picked up by (INTENT orchestrator)** for its one P0, `a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band`. It is the last row D10's umbrella (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`) waits on, and stage 6 is closing.
+  - The row is `design: true`, so the designer pair is dispatched first (one Opus, one Fable, identical briefs, 05:16Z). Its blinding byte is on `analysis/design-fork/glued-pair-reread`.
+  - An `[ev]` PR follows if the fork is Ev's. The track is handed back once the P0 is done.
