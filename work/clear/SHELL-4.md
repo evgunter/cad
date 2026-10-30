@@ -35,3 +35,31 @@ sentence above. `shell` reads `T::clearance_lane()`:
 The wording "over its non-adjacent face pairs" defers to the
 self-intersection row's design. Witness verification without a
 document is SHELL-3's spec question, above.
+
+## Parked (CLEAR orchestrator, 2026-10-29)
+
+Parked on `departure-reads-no-curved-corner`. CURVEDEP (#5991)
+certifies closed curved edges only. Read at `origin/main`, the cavity
+clone keeps the operand's topology: `shell.rs` clones the body and
+moves its charts in place. So:
+- **Tube** (`shell_operands.rs` `tube`): every curved shared edge is a
+  closed rim circle, so the gate would hold.
+- **Vessel** (`shell_operands.rs` `vessel`, a full revolve that
+  touches the axis): each disc meets the cylinder along open
+  semicircles (`sweep/src/revolve/full.rs`'s merged π-bands), which
+  is a curved corner. Today the gate would refuse a valid vessel
+  `Uncertified { Departure }`, a regression `shell::<Interval>` must
+  not ship.
+- **The OFF-D dumbbell's curved twin**: no such fixture is built yet.
+  The OFF-D dumbbell itself is planar
+  (`sweep/tests/offd2_r1_probes.rs`). An extruded twin with arc necks
+  would have curved corners.
+
+## Unparked (CLEAR orchestrator, 2026-10-30)
+
+The parking note above was wrong about the vessel. It already held at
+base, with `cornered = 0`, because the disc's plane implicit, read as
+the carrier arm's ψ, certifies its half-rims; CORNER's lane measured
+this and both reviews confirmed it. CORNER (#6045) has landed anyway,
+so a curved twin with arc necks would also be read at its convex
+corners.
