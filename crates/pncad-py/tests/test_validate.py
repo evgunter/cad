@@ -608,7 +608,7 @@ def polygonal_loft():
 
 
 def oversized_round_loft():
-    """A tapered round tube 8 km long: RATIONAL walls, and a part big
+    """A tapered round tube 64 km long: RATIONAL walls, and a part big
     enough that the certified quadrature cannot reach its target.
 
     The size is the point rather than an accident. The reporting
@@ -616,18 +616,16 @@ def oversized_round_loft():
     tolerance, while the width a rational wall reaches by the face
     work wall (`FACE_WORK_WALL`) is a length that grows with the
     PART — so at the suite's own eps the two cross only on a part
-    this large. Measured on this tube at the default eps: at 125 m it
-    certifies, at 1 km (8x) it certifies, and at 8 km (64x) each wall
-    stops at the work wall after 11 rounds, 1.400e-6 m wide against
-    the 1.024e-6 m target. The crossing is near 47x, so 64x is the
-    first power of two clear of it.
+    this large. Measured on this tube at the default eps (the sweep
+    suite's `round_tube`, the same loft): at 8 km (64x) it certifies,
+    and at 64 km (512x) each wall stops at the work wall.
     """
     return stacked_loft(
         Doc(),
         2,
-        8000.0,
+        64000.0,
         lambda t: circle_split(
-            (0.0 * m, 0.0 * m), (1497.6 * (1 - t) + 748.8 * t) * m, 2, 0.0 * rad
+            (0.0 * m, 0.0 * m), (11980.8 * (1 - t) + 5990.4 * t) * m, 2, 0.0 * rad
         ),
     )
 
@@ -733,10 +731,10 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(e.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
-        # tube of radii 1497.6 m and 748.8 m over an 8 km spine
+        # tube of radii 11980.8 m and 5990.4 m over a 64 km spine
         # encloses the frustum on those radii, and the rational walls
         # the loft fits sit around it.
-        frustum = math.pi * 8000.0 * (1497.6**2 + 1497.6 * 748.8 + 748.8**2) / 3.0
+        frustum = math.pi * 64000.0 * (11980.8**2 + 11980.8 * 5990.4 + 5990.4**2) / 3.0
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
         # A deciding predicate the walk runs out on is THE quadrature

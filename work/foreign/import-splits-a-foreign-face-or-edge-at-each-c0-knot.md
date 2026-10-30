@@ -2,12 +2,13 @@
 id: import-splits-a-foreign-face-or-edge-at-each-c0-knot
 kind: issue
 title: STEP import splits a foreign face or edge at each interior C⁰ knot at its door, so nothing imported carries a crease inside a cell
-status: parked
+status: review
 opened: 2026-10-28
 priority: P0
 cost: M
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
-blocked_on: [the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch]
+pr: 6013
+branch: foreign/c0-knot-split
 ---
 
 
