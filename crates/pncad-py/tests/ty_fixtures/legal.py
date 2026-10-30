@@ -849,7 +849,7 @@ table: dict[VarName, FreeVar] = doc.params
 # ordinary formula over the measures' outputs.
 reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+which_pair: tuple[tuple[NodeId, str] | PoseDef | Var, tuple[NodeId, str] | PoseDef | Var] = reach.refs
 measured_kind: str = reach.dimension
 recorded: Measured = doc.measure([reach])
 spans: list[NodeId] = recorded.measures

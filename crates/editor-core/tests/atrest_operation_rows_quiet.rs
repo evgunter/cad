@@ -3,14 +3,17 @@
 //! `docs/INTENT-STAGE5-SPEC.md` §4, "The contact half of the quieting
 //! rule", §11 Q1).
 //!
-//! The contact half is one rule over a row's two cells, whatever node
+//! The row half is one rule over a row's two cells, whatever node
 //! decided it, and it quiets a row only by an assertion that says what
 //! the row decided (`[assertions.quiet]`). A boolean's glue is quiet
 //! under a holding `Gap = 0` over its two cells, selected on the
 //! deciding node's input reads, and loud under one over any other pair.
 //! A flush pair and a tangency read on their faces' sides are quiet the
-//! same way. A row no assertion says — a blend's turn — is loud and
-//! never refuses (CHECKS DS6).
+//! same way, and a coincidence of poses under a `Distance = 0` between
+//! the poses read off its cells (a split's tool, under a `Gap = 0` to
+//! its vertex). A row no assertion says — a blend's turn, two radii
+//! written apart — is loud, never refuses (CHECKS DS6), and names the
+//! construction.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -169,7 +172,10 @@ fn quiet_only_under(
         let (doc, assertion) = measured_by(doc, primitive, [a.clone(), b.clone()], relation, bound);
         let report = checks(&doc, Some(assertion));
         let found = finding_over(&report, subject, row);
-        assert_eq!(found.quiet, None, "{what}: {variant} quiets nothing: {report}");
+        assert_eq!(
+            found.quiet, None,
+            "{what}: {variant} quiets nothing: {report}"
+        );
     }
 }
 
@@ -378,7 +384,7 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
 /// order, and says the flush pair (`[assertions]`); a `Gap ≥ 0` or a
 /// `Gap ≤ 0.01` over them holds and says nothing.
 ///
-/// *Breaks if* the contact half reads no flush row, or a bound quiets.
+/// *Breaks if* the row half reads no flush row, or a bound quiets.
 #[test]
 fn a_flush_glue_is_quiet_under_its_gap() {
     let doc = ProfileDoc::empty_derived("atrest-op-flush", Tol::witness());
@@ -474,7 +480,8 @@ fn face_through(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 
 /// plane, read off the split's tool). The notched prism split through
 /// its tip edge by a turned plane, and by `y = 1`: the row's cells are
 /// the operand's tip vertex and the split's tool, and a `Gap` from the
-/// tool read as a plane to the vertex says it. A `Gap = 0` from the
+/// tool read as a plane to the vertex says it, as a `Distance = 0`
+/// between them does (DESIGN's spelling). A `Gap = 0` from the
 /// vertex to a face it lies on, the notch's flank or the face `y = 1`
 /// lies on, holds and says nothing of the tool.
 ///
@@ -510,7 +517,10 @@ fn a_splits_on_row_is_quiet_under_its_tool_gap() {
             (row.relation, row.site),
             (Relation::OnCarrier, DecisionSite::SplitOn)
         );
-        let [NamedCell::Entity { .. }, NamedCell::Tool { input: tool, .. }] = row.cells.as_slice()
+        let [
+            NamedCell::Entity { .. },
+            NamedCell::Tool { input: tool, .. },
+        ] = row.cells.as_slice()
         else {
             panic!("{id}: an operand vertex on the tool: {row:?}")
         };
@@ -537,8 +547,21 @@ fn a_splits_on_row_is_quiet_under_its_tool_gap() {
             FindingSubject::Node(split),
             row,
             MeasurePrimitive::Gap { outer: 0, inner: 1 },
-            [Operand::Var(*tool), vertex.into()],
+            [Operand::Var(*tool), vertex.clone().into()],
             id,
+        );
+        let (doc, assertion) = measured_by(
+            &doc,
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+            [Operand::Var(*tool), vertex.into()],
+            AssertionRelation::Equal,
+            0.0,
+        );
+        let report = checks(&doc, Some(assertion));
+        assert_eq!(
+            finding_of(&report, split, row).quiet,
+            Some(assertion),
+            "{id}: a Distance = 0 between the tool and the vertex says it too: {report}"
         );
     }
 }
@@ -641,7 +664,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
 /// the two faces read on their sides says it in either role order.
 ///
 /// *Breaks if* the plane and the cylinder have no `Gap` arm, the arm
-/// reads the rod as a bore, or the contact half reads no tangency.
+/// reads the rod as a bore, or the row half reads no tangency.
 #[test]
 fn a_rod_on_a_plate_is_quiet_under_its_gap() {
     let doc = ProfileDoc::empty_derived("atrest-op-tangent", Tol::witness());
@@ -659,7 +682,12 @@ fn a_rod_on_a_plate_is_quiet_under_its_gap() {
         .iter()
         .find(|r| r.site == DecisionSite::TangentWitness)
         .unwrap_or_else(|| panic!("a tangency row: {got:?}"));
-    quiet_only_under_its_gap_zero(&doc, FindingSubject::Node(union), tangent, "a rod on a plate");
+    quiet_only_under_its_gap_zero(
+        &doc,
+        FindingSubject::Node(union),
+        tangent,
+        "a rod on a plate",
+    );
 }
 
 /// **Two rods touching side by side read `Gap = 0`, not `−2r`**: two
@@ -677,8 +705,11 @@ fn two_rods_side_by_side_read_a_gap_of_zero() {
     let (doc, a) = rod(doc, (0.0, 0.0), r1, QUARTER, 1.0);
     let (doc, b) = rod(doc, (0.0, 0.0), r2, QUARTER, 1.0);
     let (doc, p) = crate::fixture::place(doc, a);
-    let (doc, q) =
-        crate::fixture::in_world(doc, b, &editor_core::Frame::translation([r1 + r2, 0.0, 0.0]));
+    let (doc, q) = crate::fixture::in_world(
+        doc,
+        b,
+        &editor_core::Frame::translation([r1 + r2, 0.0, 0.0]),
+    );
     let wall = |doc: &ProfileDoc, node| {
         crate::fixture::fname(
             node,
@@ -819,7 +850,10 @@ fn ball(doc: ProfileDoc, r: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// `meridian` revolved a full turn about its own y axis.
-fn revolved(doc: ProfileDoc, meridian: LoopProgram<editor_core::Formula>) -> (ProfileDoc, RecipeNodeId) {
+fn revolved(
+    doc: ProfileDoc,
+    meridian: LoopProgram<editor_core::Formula>,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -915,8 +949,8 @@ fn row_over(
 /// pose as the cell it was read off, or a pose of the wrong kind quiets.
 #[test]
 fn a_coincidence_of_poses_is_quiet_under_its_distance() {
-    use geom::SurfaceKind as S;
     use editor_core::test_support::{quiet_row, row_quietable};
+    use geom::SurfaceKind as S;
     let ring = |doc, major: f64, minor: f64| {
         revolved(
             doc,
@@ -988,7 +1022,12 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
                 "a blend's supports on one axis",
             ),
         ] {
-            if !on_axis && !matches!(site, DecisionSite::CoaxialSphere | DecisionSite::SphereOnTorusAxis) {
+            if !on_axis
+                && !matches!(
+                    site,
+                    DecisionSite::CoaxialSphere | DecisionSite::SphereOnTorusAxis
+                )
+            {
                 continue;
             }
             let row = row_over(&doc, site, relation, cells);
@@ -1000,7 +1039,10 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
             );
             let [a, b] = refs;
             let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
-            for (refs, order) in [([a.clone(), b.clone()], "in order"), ([b.clone(), a.clone()], "swapped")] {
+            for (refs, order) in [
+                ([a.clone(), b.clone()], "in order"),
+                ([b.clone(), a.clone()], "swapped"),
+            ] {
                 let (doc, assertion) =
                     measured_by(&doc, distance, refs, AssertionRelation::Equal, 0.0);
                 let ev = run(&doc);
@@ -1012,7 +1054,10 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
                     ev.value(assertion).map(|v| &v.payload)
                 );
             }
-            for (relation, bound) in [(AssertionRelation::AtLeast, 0.0), (AssertionRelation::AtMost, 0.01)] {
+            for (relation, bound) in [
+                (AssertionRelation::AtLeast, 0.0),
+                (AssertionRelation::AtMost, 0.01),
+            ] {
                 let (doc, _) = measured_by(&doc, distance, [a.clone(), b.clone()], relation, bound);
                 let ev = run(&doc);
                 assert_eq!(
@@ -1059,15 +1104,28 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
     );
     let (doc, union) = union_over(doc, &[a_copy, b]);
     let ev = run(&doc);
-    let meet = row_at(&ev, union, DecisionSite::CrossingCylinders, Relation::AxesMeet);
-    let radius = row_at(&ev, union, DecisionSite::CrossingCylinders, Relation::SameRadius);
+    let meet = row_at(
+        &ev,
+        union,
+        DecisionSite::CrossingCylinders,
+        Relation::AxesMeet,
+    );
+    let radius = row_at(
+        &ev,
+        union,
+        DecisionSite::CrossingCylinders,
+        Relation::SameRadius,
+    );
     let [wa, wb] = sites(&doc, &meet);
     quiet_only_under(
         &doc,
         FindingSubject::Node(union),
         &meet,
         MeasurePrimitive::Distance { a: 0, b: 1 },
-        [crate::fixture::axis(wa.clone()), crate::fixture::axis(wb.clone())],
+        [
+            crate::fixture::axis(wa.clone()),
+            crate::fixture::axis(wb.clone()),
+        ],
         "crossing axes",
     );
     let (doc, assertion) = measured_by(

@@ -22,10 +22,13 @@
 //! of faces of the two copies, admitting only negative values (`≤ b` or
 //! `= b`, `b` decided negative), whose two faces both bound the overlap,
 //! and between whose carriers the overlap lies, which the kernel's
-//! boolean decides (`beyond`). **What quiets a contact**
-//! ([`quiet_row`]): a holding `Gap = 0` between the row's two cells,
-//! at whatever dimension they are, an at-rest row's or an operation's
-//! alike. Both read the assertion's verdict,
+//! boolean decides (`beyond`). **What quiets an unproven row**
+//! ([`quiet_row`]): a holding `= 0` over the measure that says what it
+//! decided, an at-rest row's or an operation's alike: a `Gap` between
+//! its two cells for a contact, a flush pair or a tangency, read on
+//! their sides at whatever dimension they are, and a `Distance` between
+//! the poses read off them, or the split's tool, for a coincidence of
+//! poses. Both read the assertion's verdict,
 //! never its measure's value, and an assertion speaks for nothing but
 //! its own site: every other finding is loud.
 //!
@@ -283,7 +286,7 @@ pub(crate) fn quiet_row<P, T: Decide>(
     let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
     holding_measures(doc, evaluation).find_map(|held| {
-        if held.verb != said.verb
+        if !said.verbs.contains(&held.verb)
             || held.relation != AssertionRelation::Equal
             || decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*held.bound), band) != Ok(Sign::Zero)
         {
@@ -296,16 +299,17 @@ pub(crate) fn quiet_row<P, T: Decide>(
         let kinds = |p: Option<crate::VarKind>, q: Option<crate::VarKind>| {
             (p, q) == (said.kinds[0], said.kinds[1]) || (q, p) == (said.kinds[0], said.kinds[1])
         };
-        let cells = (x.0.reads(doc, c) && y.0.reads(doc, d)) || (x.0.reads(doc, d) && y.0.reads(doc, c));
+        let cells =
+            (x.0.reads(doc, c) && y.0.reads(doc, d)) || (x.0.reads(doc, d) && y.0.reads(doc, c));
         (cells && kinds(x.1, y.1)).then_some(held.id)
     })
 }
 
-/// **What says a row** ([`saying`]): the measure, the row's two cells,
-/// and the pose kind each is read as, `None` for the cell itself, in no
-/// order between the two.
+/// **What says a row** ([`saying`]): the measures that say it, the
+/// row's two cells, and the pose kind each is read as, `None` for the
+/// cell itself, in no order between the two.
 struct Saying {
-    verb: crate::measure::MeasureVerb,
+    verbs: &'static [crate::measure::MeasureVerb],
     cells: [RowCell; 2],
     kinds: [Option<crate::VarKind>; 2],
 }
@@ -409,7 +413,8 @@ pub(crate) fn row_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPo
         .into_iter()
         .enumerate()
         .map(|(i, (read, name))| {
-            let slot = crate::OperandSlot::Measured(said.verb, u8::try_from(i).unwrap_or(u8::MAX));
+            let slot =
+                crate::OperandSlot::Measured(said.verbs[0], u8::try_from(i).unwrap_or(u8::MAX));
             let at = crate::eval::resolve_name(doc, &evaluation.nodes, slot, read, name, |error| {
                 crate::eval::NodeErrorKind::SelectResolve {
                     slot,
@@ -451,7 +456,7 @@ pub(crate) fn row_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPo
             return false;
         };
         [(&a, &b), (&b, &a)].into_iter().any(|(x, y)| {
-            measure_sign(said.verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+            measure_sign(said.verbs[0], x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
         })
     })
 }
@@ -505,7 +510,7 @@ fn measure_sign<T: Decide>(
 /// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the two axes |
 /// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
 /// | `CrossingCylinders` | `SameRadius` | nothing: two radii written apart |
-/// | `SplitOn` | `OnCarrier`, over the tool | `Gap` between the tool's plane and the vertex |
+/// | `SplitOn` | `OnCarrier`, over the tool | `Gap` or `Distance` between the tool's plane and the vertex |
 /// | `BatteryTurn` | `CommonFoot` | nothing: two feet only the blend computes |
 /// | `BatteryJoint` | `Tangent` | nothing |
 /// | `ProfileJunction` | `SameOriented`, `Tangent`, over pieces | nothing |
@@ -517,20 +522,19 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
     use crate::VarKind as K;
     use crate::measure::MeasureVerb as M;
     use topo::{DecisionSite as Site, Relation as R};
-    let (verb, kinds) = match (row.site, row.relation) {
+    let (verbs, kinds): (&'static [M], _) = match (row.site, row.relation) {
         (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
         | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
         | (Site::VertexFusion, R::OnCarrier | R::Meet)
-        | (Site::TangentWitness, _)
-        | (Site::SplitOn, _) => (M::Gap, [None, None]),
+        | (Site::TangentWitness, _) => (&[M::Gap], [None, None]),
+        (Site::SplitOn, _) => (&[M::Gap, M::Distance], [None, None]),
         (Site::CoaxialSphere | Site::SphereOnTorusAxis, _) => {
-            (M::Distance, [Some(K::Point), Some(K::Axis)])
+            (&[M::Distance], [Some(K::Point), Some(K::Axis)])
         }
-        (
-            Site::CoaxialCylinderTorus | Site::CoaxialTori | Site::BatterySupportAxis,
-            _,
-        )
-        | (Site::CrossingCylinders, R::AxesMeet) => (M::Distance, [Some(K::Axis), Some(K::Axis)]),
+        (Site::CoaxialCylinderTorus | Site::CoaxialTori | Site::BatterySupportAxis, _)
+        | (Site::CrossingCylinders, R::AxesMeet) => {
+            (&[M::Distance], [Some(K::Axis), Some(K::Axis)])
+        }
         _ => return None,
     };
     let cell = |c: &crate::coincide::NamedCell| match c {
@@ -552,14 +556,15 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
     };
     let cells = [cell(a)?, cell(b)?];
     // A tool is a split's alone, and a split's row has one.
-    let tools = cells.iter().filter(|c| matches!(c, RowCell::Tool(_))).count();
-    (tools == usize::from(row.site == Site::SplitOn)).then_some(Saying { verb, cells, kinds })
-}
-
-/// Whether some assertion says what `row` decided ([`saying`]): the
-/// recourse a finding over it names is chosen by this.
-pub(crate) fn sayable(row: &crate::coincide::NamedCoincidence) -> bool {
-    saying(row).is_some()
+    let tools = cells
+        .iter()
+        .filter(|c| matches!(c, RowCell::Tool(_)))
+        .count();
+    (tools == usize::from(row.site == Site::SplitOn)).then_some(Saying {
+        verbs,
+        cells,
+        kinds,
+    })
 }
 
 /// **A holding assertion that reads a `Gap`'s or a `Distance`'s output
@@ -877,14 +882,14 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide>(
     for gap in holding_measures(doc, evaluation) {
         if gap.verb != crate::measure::MeasureVerb::Gap
             || !matches!(
-            gap.relation,
-            AssertionRelation::AtMost | AssertionRelation::Equal
-        ) || decide(AT_REST_QUIET_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Negative)
+                gap.relation,
+                AssertionRelation::AtMost | AssertionRelation::Equal
+            )
+            || decide(AT_REST_QUIET_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Negative)
         {
             continue;
         }
-        let (Some(outer), Some(inner)) = (face_of(gap.a, &gap.at), face_of(gap.b, &gap.at))
-        else {
+        let (Some(outer), Some(inner)) = (face_of(gap.a, &gap.at), face_of(gap.b, &gap.at)) else {
             continue;
         };
         if outer.0 == inner.0 || !opposed(aggregate, outer.1, inner.1, band) {

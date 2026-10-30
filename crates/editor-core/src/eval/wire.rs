@@ -2310,8 +2310,9 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
             Some(computing) => read.read_into(computing.frame(), b)?,
             None => read.in_its_space(b)?,
         };
-        let pose = super::measure::Pose::of(&value)
-            .unwrap_or_else(|| unreachable!("a measure admits a point, an axis, a plane or a frame"));
+        let pose = super::measure::Pose::of(&value).unwrap_or_else(|| {
+            unreachable!("a measure admits a point, an axis, a plane or a frame")
+        });
         posed.push((index, pose, reach));
     }
     let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = bodies

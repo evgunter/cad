@@ -37,7 +37,10 @@ use crate::node::SitedRef;
 )]
 #[serde(deny_unknown_fields)]
 pub enum MeasurePrimitive<R = SitedRef> {
-    /// The distance between two referenced entities → [`Dimension::Length`].
+    /// The distance between two referenced entities → [`Dimension::Length`]:
+    /// a face, an edge or a vertex, or a pose (a point, an axis, a plane,
+    /// a frame as its xy plane) read off a cell or a split's tool. Two
+    /// axes read as one scalar, zero where they are one line or meet.
     Distance {
         /// The first entity.
         a: R,
@@ -78,19 +81,22 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// C5's SIGNED gap between a mating pair → [`Dimension::Length`].
     ///
     /// **Argument order is the mating ROLE**, not a symmetry: `outer`
-    /// is the containing carrier (the socket, the bore, the plane the
-    /// offset is measured FROM) and `inner` is the contained one (the
-    /// ball, the pin). C5's formulas are asymmetric in exactly that
-    /// way — `g = R − r − ‖Δc‖` is not `r − R − ‖Δc‖` — so the roles
-    /// are authored rather than inferred from which radius is larger.
+    /// is the containing carrier (the plane the offset is measured
+    /// FROM, the outer of two nested faces) and `inner` the contained
+    /// one, authored rather than inferred from which radius is larger.
+    /// Two faces are read by both material sides: an opposed pair (a
+    /// rod on a plate, two rods side by side, a pin in a bore) reads the
+    /// same in either order, and an aligned one (a flush pair, two
+    /// coaxial rods end to end) negates.
     ///
     /// Each reference is a face, an edge or a vertex, so a gap is taken
     /// between two cells at whatever dimension they are
-    /// (`[assertions.quiet]`). Between a face and a lower-dimensional
-    /// cell, or an edge and a vertex, the higher-dimensional cell's
-    /// material reads the other in either seat; between two edges or
-    /// two vertices the outer's reads the inner
-    /// ([`mod@crate::eval::measure`]).
+    /// (`[assertions.quiet]`), or a plane pose (a split's tool, a frame
+    /// as its xy plane) against a point. Between a face and a
+    /// lower-dimensional cell, or an edge and a vertex, the
+    /// higher-dimensional cell's material reads the other in either
+    /// seat; between two edges or two vertices the outer's reads the
+    /// inner ([`mod@crate::eval::measure`]).
     Gap {
         /// The containing carrier.
         outer: R,
@@ -222,7 +228,7 @@ impl MeasureVerb {
         match self {
             Self::Distance => matches!(
                 kind,
-                K::Face | K::Edge | K::Vertex | K::Point | K::Axis | K::Plane
+                K::Face | K::Edge | K::Vertex | K::Point | K::Axis | K::Plane | K::Frame
             ),
             Self::Angle => matches!(kind, K::Face | K::Edge),
             Self::MinClearance => matches!(kind, K::Body | K::Face),
@@ -245,13 +251,13 @@ impl MeasureVerb {
             K::Plane,
             K::Frame,
         ]
-            .into_iter()
-            .filter(|&kind| self.admits(kind))
-            .map(|kind| {
-                let word = kind.to_string();
-                format!("{} {word}", crate::sentence::article(&word))
-            })
-            .collect();
+        .into_iter()
+        .filter(|&kind| self.admits(kind))
+        .map(|kind| {
+            let word = kind.to_string();
+            format!("{} {word}", crate::sentence::article(&word))
+        })
+        .collect();
         match said.as_slice() {
             [] => String::new(),
             [one] => one.clone(),

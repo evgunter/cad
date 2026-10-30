@@ -16,6 +16,8 @@
 //! | `distance` | vertex x plane face | `\|(p − o)·n̂\|` | none — a metre projection on a unit normal |
 //! | `distance` | plane face x plane face | `\|(o_b − o_a)·n̂_a\|`, PARALLEL required | `bool_plane_parallel` at the centre separation |
 //! | `distance` | cylinder face x cylinder face | axis-line distance minus nothing: `‖Δo − (Δo·â)â‖`, PARALLEL required | `carrier_cyl_axis_parallel` at the axis separation |
+//! | `distance` | point (a vertex or a point pose) x point, axis or plane pose | `‖q − p‖`, the point's offset from the line, `\|(p − o)·n̂\|` | none |
+//! | `distance` | axis pose x axis pose | their separation where parallel, else their common perpendicular's length | `carrier_cyl_axis_parallel` levered over the faces they were read off |
 //! | `angle` | plane face x plane face | `atan2(‖n̂_a × n̂_b‖, n̂_a·n̂_b)` | none — a ratio of unit quantities |
 //! | `angle` | line edge x line edge | `atan2(‖d̂_a × d̂_b‖, d̂_a·d̂_b)` | none |
 //! | `gap` | plane face x plane face | `(o_i − o_o)·ŵ_o` (SIGNED), `ŵ_o` the outer face's OUTWARD normal (S10 sense folded, not the chart normal) | `bool_plane_parallel` |
@@ -27,6 +29,7 @@
 //! | `gap` | line edge x sphere or cylinder face, either seat | the edge's lowest offset from the carrier, `±(d − r)` at the least of `d` along it or an end | none |
 //! | `gap` | line edge x vertex, either seat | the vertex's offset from the edge's link (below) | `topo::link`'s door |
 //! | `gap` | line edge x line edge | the inner's lowest offset from the outer's link | `topo::link`'s door |
+//! | `gap` | plane pose (a split's tool; a frame as its xy plane) x point, either seat | the point's signed offset along the plane's normal | none |
 //! | `gap` | vertex x vertex | the inner's offset from the outer's link | `topo::link`'s door |
 //!
 //! Two round faces read by their senses: a convex face and a concave
@@ -1181,7 +1184,10 @@ fn plane_round<T: Decide>(
     let (centre, radius, convex) = match round {
         Carrier::Sphere { center, round, .. } => (*center, round.radius(), round.convex()),
         Carrier::Cylinder {
-            origin: on, axis, round: r, ..
+            origin: on,
+            axis,
+            round: r,
+            ..
         } => {
             let tilt = Margin::levered(axis.dot(*outward), arm(plane, round));
             match decide(GAP_AXIS_IN_PLANE, tilt, band) {
@@ -1858,7 +1864,12 @@ mod tests {
         );
     }
 
-    fn pin(origin: Point3<f64>, axis: Vec3<f64>, radius: f64, convex: bool) -> Carrier<'static, f64> {
+    fn pin(
+        origin: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        convex: bool,
+    ) -> Carrier<'static, f64> {
         Carrier::Cylinder {
             origin,
             axis,
@@ -1896,12 +1907,36 @@ mod tests {
         // (what, the round face for a standoff `s`, opposed)
         type Round = fn(f64, f64) -> Carrier<'static, f64>;
         let on_the_plate: [(&str, Round, bool); 6] = [
-            ("a rod on a plate", |r, s| pin(p(0.0, 0.0, r + s), v(1.0, 0.0, 0.0), r, true), true),
-            ("a ball on a plate", |r, s| ball(p(0.0, 0.0, r + s), r, true), true),
-            ("a key under a bore's crown", |r, s| pin(p(0.0, 0.0, s - r), v(1.0, 0.0, 0.0), r, false), true),
-            ("a stadium's flat into its round end", |r, s| pin(p(0.0, 0.0, s - r), v(1.0, 0.0, 0.0), r, true), false),
-            ("a slot's flat into its round end", |r, s| pin(p(0.0, 0.0, r + s), v(1.0, 0.0, 0.0), r, false), false),
-            ("a socket's flat into its round", |r, s| ball(p(0.0, 0.0, r + s), r, false), false),
+            (
+                "a rod on a plate",
+                |r, s| pin(p(0.0, 0.0, r + s), v(1.0, 0.0, 0.0), r, true),
+                true,
+            ),
+            (
+                "a ball on a plate",
+                |r, s| ball(p(0.0, 0.0, r + s), r, true),
+                true,
+            ),
+            (
+                "a key under a bore's crown",
+                |r, s| pin(p(0.0, 0.0, s - r), v(1.0, 0.0, 0.0), r, false),
+                true,
+            ),
+            (
+                "a stadium's flat into its round end",
+                |r, s| pin(p(0.0, 0.0, s - r), v(1.0, 0.0, 0.0), r, true),
+                false,
+            ),
+            (
+                "a slot's flat into its round end",
+                |r, s| pin(p(0.0, 0.0, r + s), v(1.0, 0.0, 0.0), r, false),
+                false,
+            ),
+            (
+                "a socket's flat into its round",
+                |r, s| ball(p(0.0, 0.0, r + s), r, false),
+                false,
+            ),
         ];
         for (what, round, opposed) in on_the_plate {
             for s in [0.0, 0.1, -0.1] {
@@ -1909,17 +1944,33 @@ mod tests {
                 // The key, the stadium and the socket stand off as their
                 // crown rises; the others as their centre does.
                 let want = s;
-                close(read(&top, &face), want, &format!("{what} at {s}, the plate outer"));
+                close(
+                    read(&top, &face),
+                    want,
+                    &format!("{what} at {s}, the plate outer"),
+                );
                 let swapped = if opposed { want } else { -want };
-                close(read(&face, &top), swapped, &format!("{what} at {s}, the round outer"));
+                close(
+                    read(&face, &top),
+                    swapped,
+                    &format!("{what} at {s}, the round outer"),
+                );
             }
         }
         let (r1, r2) = (0.5, 0.3);
         for s in [0.0, 0.1, -0.1] {
             let d = r1 + r2 + s;
             for (a, b, what) in [
-                (pin(p(0.0, 0.0, 0.0), z, r1, true), pin(p(d, 0.0, 0.0), z, r2, true), "two rods side by side"),
-                (ball(p(0.0, 0.0, 0.0), r1, true), ball(p(d, 0.0, 0.0), r2, true), "two balls"),
+                (
+                    pin(p(0.0, 0.0, 0.0), z, r1, true),
+                    pin(p(d, 0.0, 0.0), z, r2, true),
+                    "two rods side by side",
+                ),
+                (
+                    ball(p(0.0, 0.0, 0.0), r1, true),
+                    ball(p(d, 0.0, 0.0), r2, true),
+                    "two balls",
+                ),
             ] {
                 close(read(&a, &b), s, &format!("{what} at {s}"));
                 close(read(&b, &a), s, &format!("{what} at {s}, swapped"));
@@ -1928,15 +1979,31 @@ mod tests {
             let bore = pin(p(0.0, 0.0, 0.0), z, r1 + s, false);
             let inside = pin(p(r1 - r2, 0.0, 0.0), z, r2, true);
             close(read(&bore, &inside), s, &format!("a pin in a bore at {s}"));
-            close(read(&inside, &bore), s, &format!("a pin in a bore at {s}, swapped"));
+            close(
+                read(&inside, &bore),
+                s,
+                &format!("a pin in a bore at {s}, swapped"),
+            );
             // Nested and aligned: the inner sticks out by `s`.
             let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
             let thin = pin(p(0.7 + s, 0.0, 0.0), z, 0.3, true);
-            close(read(&fat, &thin), s, &format!("a thin rod inside a fat one at {s}"));
+            close(
+                read(&fat, &thin),
+                s,
+                &format!("a thin rod inside a fat one at {s}"),
+            );
             let end = pin(p(0.0, 0.0, 0.0), x, r1, true);
             let on = pin(p(3.0, 0.0, 0.0), x, r1 + s, true);
-            close(read(&end, &on), s, &format!("two coaxial rods end to end at {s}"));
-            close(read(&on, &end), -s, &format!("two coaxial rods end to end at {s}, swapped"));
+            close(
+                read(&end, &on),
+                s,
+                &format!("two coaxial rods end to end at {s}"),
+            );
+            close(
+                read(&on, &end),
+                -s,
+                &format!("two coaxial rods end to end at {s}, swapped"),
+            );
         }
     }
 
@@ -1949,8 +2016,16 @@ mod tests {
         let z = v(0.0, 0.0, 1.0);
         let top = plane(p(0.0, 0.0, 0.0), z);
         for (outer, inner, what) in [
-            (top.clone(), ball(p(0.0, 0.0, 1e-12), 0.5, true), "a ball centred on a plate"),
-            (pin(p(0.0, 0.0, 0.0), z, 1.0, true), pin(p(1.0, 0.0, 0.0), z, 0.3, true), "a rod's axis on another's wall"),
+            (
+                top.clone(),
+                ball(p(0.0, 0.0, 1e-12), 0.5, true),
+                "a ball centred on a plate",
+            ),
+            (
+                pin(p(0.0, 0.0, 0.0), z, 1.0, true),
+                pin(p(1.0, 0.0, 0.0), z, 0.3, true),
+                "a rod's axis on another's wall",
+            ),
         ] {
             assert!(
                 gap(&outer, &inner, band()).is_err(),

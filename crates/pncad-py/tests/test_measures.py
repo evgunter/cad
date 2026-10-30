@@ -54,6 +54,7 @@ from pncad import (
     MeasurePrimitive,
     NamePat,
     Node,
+    PoseDef,
     VarName,
     Selector,
     SurfaceKind,
@@ -265,6 +266,23 @@ class TestTheClosedForms(unittest.TestCase):
         # A Length measure answers through the typed quantity too.
         self.assertAlmostEqual(answer.length.meters, 2 * offset, places=12)
 
+    def test_a_distance_reads_two_axes_read_off_the_walls(self):
+        """A reference may be a pose read off a cell: the axes of two
+        parallel walls read their separation, which is what an
+        assertion `= 0` over an unproven coaxiality says. The
+        references come back as they were passed."""
+        doc = Doc()
+        offset = 0.30
+        left = cylinder(doc, -offset, 0.2)
+        right = cylinder(doc, offset, 0.2)
+        ev = evaluate(doc)
+        a = PoseDef.axis(left, wall(ev, left))
+        b = PoseDef.axis(right, wall(ev, right))
+        primitive = MeasurePrimitive.distance(a, b)
+        self.assertIsInstance(primitive.refs[0], PoseDef)
+        node = doc.insert(Node.measure(primitive))
+        self.assertAlmostEqual(measured(doc, node).value, 2 * offset, places=12)
+
     def test_the_angle_between_opposed_caps_is_a_straight_angle(self):
         """An extruded prism's caps are parallel with OPPOSED chart
         normals, so the angle between their carriers is pi. The oracle
@@ -304,9 +322,11 @@ class TestTheClosedForms(unittest.TestCase):
                 self.assertAlmostEqual(measured(doc, node).value, air, places=12)
 
     def test_the_gap_sign_convention_walks_all_three_regimes(self):
-        """A bore and a pin on ONE axis, so the axis offset is zero and
-        the signed gap is exactly `r_bore - r_pin` — clearance, contact
-        and interference from one document shape."""
+        """Two solid rods on ONE axis, so the axis offset is zero. Their
+        walls are both convex, a nested pair, so the signed gap is how
+        far the inner wall stands out of the outer rod's material,
+        exactly `r_pin - r_bore`: all three signs from one document
+        shape."""
         for bore_r, pin_r in ((0.51, 0.50), (0.50, 0.50), (0.49, 0.50)):
             with self.subTest(bore=bore_r, pin=pin_r):
                 doc = Doc()
@@ -318,7 +338,7 @@ class TestTheClosedForms(unittest.TestCase):
                 )
                 answer = measured(doc, node)
                 self.assertEqual(answer.dimension, "Length")
-                self.assertAlmostEqual(answer.value, bore_r - pin_r, places=12)
+                self.assertAlmostEqual(answer.value, pin_r - bore_r, places=12)
 
     def test_the_authors_own_arithmetic_spells_the_web(self):
         """The worked example's shape: the web between two holes is
