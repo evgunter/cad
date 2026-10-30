@@ -36,3 +36,12 @@ Opus designer: session_01VyvYnJ1HGjffH7GAsKVEUH; Fable designer: session_01VyvYn
 - Split on one point: A also reports named variables nothing reads; B leaves them out until a need is shown.
 - Measure: both are unsure.
 - No reconciliation round: it is one stated sub-point, not a crossover. It goes to Ev as an [ev] PR because ratified text changes.
+
+## Round 2 (after Ev's comment on #6075, 06:09Z: "deliberately made" vs "byproduct"). Both designers were shown Ev's comment verbatim, not each other's reports.
+### A, round 2 (06:12Z)
+- **Deliberate** means inserted (InsertNode) or named (VR2); byproducts are unnamed output ports. Nothing new is stored.
+- **Used** means reaching an end: the product or an assertion. These are ends, not readers, and `reader_counts` is unchanged.
+- **What is reported:** the last deliberate thing in an unused chain.
+- **Named variables are in.** A named split half fires; an unnamed one is a byproduct and stays quiet.
+- **Unchanged:** certified, Advisory, Warn. There is new DESIGN wording.
+- **Moved from round 1:** the product is an end, not a reader; used means reaching an end; deliberate means inserted or named; named variables are firmly in.
