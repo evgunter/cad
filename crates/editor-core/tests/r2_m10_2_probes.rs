@@ -1132,9 +1132,8 @@ fn unused(_: Axis3, _: FreeValue, _: NodeErrorKind) {}
 // ===============================================================
 
 /// **The reviewer's own measured document**, different geometry from
-/// the unit's two-hole plate: a BALL IN A SOCKET, which is C5's
-/// concentric-sphere fit and the arm the shipped suites never
-/// evaluate.
+/// the unit's two-hole plate: a small ball nested in a large one,
+/// the sphere arm on real revolved faces.
 ///
 /// Both are solid balls, so their faces are both convex, a nested pair
 /// whose gap is how far the ball stands out of the larger one: R = 1.0
@@ -1146,7 +1145,7 @@ fn unused(_: Axis3, _: FreeValue, _: NodeErrorKind) {}
 /// The document is written to `target/r2_fit.pncad` so the Python half
 /// of the e2e can read the verdict as a consumer.
 #[test]
-fn r2_e2e_ball_in_socket_authored_and_saved() {
+fn r2_e2e_nested_balls_authored_and_saved() {
     for (offset, want_gap, want_holds) in [(0.05_f64, -0.05_f64, true), (0.15, 0.05, false)] {
         let d0 = empty("r2-fit");
         let (d1, socket) = sphere(&d0, None, 1.0, 0.0);

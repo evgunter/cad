@@ -589,32 +589,39 @@ impl Recourse {
     /// (`[intent.checked]`).
     #[must_use]
     pub const fn words(self, sayable: bool) -> &'static str {
-        match (self, sayable) {
-            (Self::OneConstruction, true) => {
-                "Recourse: build the cells as one construction of the same variables, so \
-                 the coincidence holds whatever their values, or assert it at its site"
+        // Each reason once, behind the assertion where one can say the
+        // row and behind the construction where none can.
+        macro_rules! either {
+            ($why:literal) => {
+                if sayable {
+                    concat!("Recourse: assert the coincidence at its site; ", $why)
+                } else {
+                    concat!(
+                        "Recourse: build the cells as one construction the door reads; ",
+                        $why
+                    )
+                }
+            };
+        }
+        macro_rules! one_construction {
+            ($($or:literal)?) => {
+                concat!(
+                    "Recourse: build the cells as one construction of the same variables, so \
+                     the coincidence holds whatever their values"
+                    $(, $or)?
+                )
+            };
+        }
+        match self {
+            Self::OneConstruction if sayable => one_construction!(", or assert it at its site"),
+            Self::OneConstruction => one_construction!(),
+            Self::Assert => {
+                either!("the door cannot read what decided it as a function of the variables")
             }
-            (Self::OneConstruction, false) => {
-                "Recourse: build the cells as one construction of the same variables, so \
-                 the coincidence holds whatever their values"
-            }
-            (Self::Assert, true) => {
-                "Recourse: assert the coincidence at its site; the door cannot read what decided it \
-                 as a function of the variables"
-            }
-            (Self::Assert, false) => {
-                "Recourse: build the cells as one construction the door reads; it cannot read what \
-                 decided this one as a function of the variables"
-            }
-            (Self::Budget, true) => {
-                "Recourse: assert the coincidence at its site; what decided it, read as a function \
-                 of the variables, outgrew the door's budget"
-            }
-            (Self::Budget, false) => {
-                "Recourse: build the cells as one construction; what decided it, read as a function \
-                 of the variables, outgrew the door's budget"
-            }
-            (Self::ReadTheAxis, _) => {
+            Self::Budget => either!(
+                "what decided it, read as a function of the variables, outgrew the door's budget"
+            ),
+            Self::ReadTheAxis => {
                 "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
                  keeps the tangency the profile draws whatever the values"
             }

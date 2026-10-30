@@ -21,9 +21,9 @@
 //! | `angle` | plane face x plane face | `atan2(‖n̂_a × n̂_b‖, n̂_a·n̂_b)` | none — a ratio of unit quantities |
 //! | `angle` | line edge x line edge | `atan2(‖d̂_a × d̂_b‖, d̂_a·d̂_b)` | none |
 //! | `gap` | plane face x plane face | `(o_i − o_o)·ŵ_o` (SIGNED), `ŵ_o` the outer face's OUTWARD normal (S10 sense folded, not the chart normal) | `bool_plane_parallel` |
-//! | `gap` | sphere face x sphere face | by their material sides, `d = ‖Δc‖` (below) | `gap_round_side` for two balls |
-//! | `gap` | cylinder face x cylinder face | by their material sides, `d` the axes' separation (below) | `carrier_cyl_axis_parallel`; `gap_round_side` for two pins |
-//! | `gap` | plane face x sphere or cylinder face, either seat | `h ∓ r`, `h` the centre's or axis's offset along the plane's outward normal | `gap_round_side`; `gap_axis_in_plane` for a cylinder |
+//! | `gap` | sphere face x sphere face | the inner's touching point, `d = ‖Δc‖` (below) | `gap_round_side`, `gap_round_larger` |
+//! | `gap` | cylinder face x cylinder face | the inner's touching point, `d` the axes' separation (below) | `carrier_cyl_axis_parallel`, `gap_round_side`, `gap_round_larger` |
+//! | `gap` | plane face x sphere or cylinder face, either seat | `h ∓ r`, `h` the centre's or axis's offset along the plane's outward normal | `gap_round_side`; `gap_axis_parallel_to_plane` for a cylinder |
 //! | `gap` | vertex x plane, sphere or cylinder face, either seat | the vertex's signed offset from the face's carrier, positive away from its material | none |
 //! | `gap` | line edge x plane face, either seat | the lower end's offset `min((e − o)·ŵ)` | none |
 //! | `gap` | line edge x sphere or cylinder face, either seat | the edge's lowest offset from the carrier, `±(d − r)` at the least of `d` along it or an end | none |
@@ -32,15 +32,16 @@
 //! | `gap` | plane pose (a split's tool; a frame as its xy plane) x point, either seat | the point's signed offset along the plane's normal | none |
 //! | `gap` | vertex x vertex | the inner's offset from the outer's link | `topo::link`'s door |
 //!
-//! Two round faces read by their senses: a convex face and a concave
-//! one are a fit, the socket's radius less the ball's and `d`; two
-//! concave ones nested hollows, `r_out − r_in − d`; two convex ones
-//! external, `d − r_out − r_in`, where the inner's centre lies outside
-//! the outer's carrier, and nested, `d + r_in − r_out`, where it lies
-//! inside. A plane reads a round face at the round carrier's point
-//! nearest it, `h − r` with the centre beyond the plane and `h + r`
-//! behind it. The senses leave those two configurations open, and
-//! `gap_round_side` decides them, its margin a radius at every touch.
+//! A face pair reads the inner carrier's point that touches the outer
+//! at a tangency, along the outer's outward normal. Which point that is
+//! is the configuration the two meet in, decided from the values at
+//! `gap_round_side` (and, for two nested round carriers, which is the
+//! larger at `gap_round_larger`): two round carriers apart or nested, by
+//! whether the smaller one's centre or axis lies inside the larger, and
+//! a round carrier against a plane by which side of it the centre or
+//! axis lies. At every tangency the margin is a radius, so a touch
+//! never lands in band. The roles stay authored: the decision reads the
+//! configuration, never which face is the socket.
 //!
 //! A vertex's or an edge's material is its link ([`topo::Link`]): the
 //! cone its faces bound at the point, convex, concave or a saddle alike.
@@ -90,8 +91,12 @@
 //! carrier with no extent is refused structurally rather than floored.
 //!
 //! The C5 sign convention is binding and lives in exactly one place:
-//! [`gap`]. `g > 0` is clearance, `g = 0` contact, `g < 0`
-//! interference, for every pair of cells.
+//! [`gap`]. `g = 0` is a touch for every pair of cells. Over an OPPOSED
+//! pair, each face facing the other's material, `g > 0` is clearance and
+//! `g < 0` interference. Over an ALIGNED pair, both facing one way (a
+//! flush pair, an aligned tangency, two rods nested), the sign says
+//! which face stands outside the other, positive where the inner stands
+//! out of the outer's material: no clearance and no interference.
 
 use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
@@ -737,12 +742,24 @@ fn distance<T: Decide>(
     match (a, b) {
         // Vertex x vertex: an exact norm, no decision.
         (Carrier::Point { at: p, .. }, Carrier::Point { at: q, .. }) => Ok((*q - *p).norm()),
-        // Vertex x plane face: the point's coordinate along the unit
-        // normal, in metres by construction.
-        (Carrier::Point { at: p, .. }, Carrier::Plane { origin, normal, .. })
-        | (Carrier::Plane { origin, normal, .. }, Carrier::Point { at: p, .. }) => {
-            Ok(magnitude((*p - *origin).dot(*normal)))
-        }
+        // A vertex or a point pose x plane face: the point's coordinate
+        // along the unit normal, in metres by construction.
+        (
+            Carrier::Point { at: p, .. }
+            | Carrier::Pose {
+                pose: Pose::Point(p),
+                ..
+            },
+            Carrier::Plane { origin, normal, .. },
+        )
+        | (
+            Carrier::Plane { origin, normal, .. },
+            Carrier::Point { at: p, .. }
+            | Carrier::Pose {
+                pose: Pose::Point(p),
+                ..
+            },
+        ) => Ok(magnitude((*p - *origin).dot(*normal))),
         // Plane x plane: defined ONLY between parallel planes — the
         // distance between non-parallel planes is zero along their
         // line of intersection and unbounded away from it, so there is
@@ -850,11 +867,39 @@ fn pose_distance<T: Decide>(
     if ra.is_none() || rb.is_none() {
         return unsupported_as("distance", NO_LEVER, b.class());
     }
-    if parallel("carrier_cyl_axis_parallel", da, db, arm(a, b), band)? {
+    if parallel(AXES_PARALLEL, da, db, arm(a, b), band)? {
         return Ok(axis_offset(oa, da, ob));
     }
     let across = da.cross(db);
     Ok(magnitude((ob - oa).dot(across)) / across.norm())
+}
+
+/// The site two axes are decided parallel at, the cylinder pair's own.
+const AXES_PARALLEL: &str = "carrier_cyl_axis_parallel";
+
+/// **Whether two axis poses read parallel** at the two-axes arm's own
+/// site and lever ([`pose_distance`]): the reading a coaxial row is said
+/// by (`checks::at_rest::quiet_row`). `None` for a pair that is not two
+/// axes read off faces, or a decision that escalates.
+pub(crate) fn axes_parallel<T: Decide>(
+    a: &Carrier<'_, T>,
+    b: &Carrier<'_, T>,
+    band: Band,
+) -> Option<bool> {
+    let (
+        Carrier::Pose {
+            pose: Pose::Axis { dir: da, .. },
+            reach: Some(_),
+        },
+        Carrier::Pose {
+            pose: Pose::Axis { dir: db, .. },
+            reach: Some(_),
+        },
+    ) = (a, b)
+    else {
+        return None;
+    };
+    parallel(AXES_PARALLEL, *da, *db, arm(a, b), band).ok()
 }
 
 /// The class a refusal names for two axes with no face to lever their
@@ -906,16 +951,16 @@ fn angle<T: Decide>(a: &Carrier<'_, T>, b: &Carrier<'_, T>) -> Result<T, Primiti
 /// interference — the ONE sign convention, defined here and nowhere
 /// else.
 ///
-/// Argument order is the mating ROLE: `outer` contains, `inner` is
-/// contained. It is authored rather than inferred from which radius is
-/// larger — inferring it would be a decided comparison dressed as a
-/// definition, and it would silently flip the sign of an interference
-/// fit, which is exactly the case C6 exists for. **Two faces are read
-/// by both material sides**: an OPPOSED pair, each facing the other's
-/// material (a rod on a plate, two rods side by side, a pin in a bore),
-/// reads the same in either order; an ALIGNED pair, both facing one way
-/// (a flush pair, a stadium's flat into its round end, two coaxial rods
-/// end to end), negates, and its `outer` is the one it is read from.
+/// Argument order is the ROLE: `outer` is the face the gap is read
+/// from, `inner` the face read. It is authored, never inferred from
+/// which radius is larger; what the values decide is the configuration
+/// the two meet in ([`round_pair`], [`plane_round`]). **Two faces are
+/// read by both material sides**: an OPPOSED pair, each facing the
+/// other's material (a rod on a plate, two rods side by side, a pin in
+/// a bore), reads the same in either order, its sign clearance or
+/// interference; an ALIGNED pair, both facing one way (a flush pair, a
+/// stadium's flat into its round end, two rods nested), negates, its
+/// sign which face stands outside the other.
 ///
 /// **A vertex or an edge is read by one cell's material.** A face's
 /// material is the half-space of its carrier. A vertex's or an edge's is
@@ -1064,13 +1109,21 @@ fn gap<T: Decide>(
         (Carrier::Line { ends: None, .. }, other) | (other, Carrier::Line { ends: None, .. }) => {
             unsupported_as("gap", "a line edge whose ends do not read", other.class())
         }
-        // A face and a vertex: the face reads it.
+        // A face and a vertex, or a point pose: the face reads it.
         (
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
-            Carrier::Point { at, .. },
-        ) => face_offset(face, *at),
-        (
-            Carrier::Point { at, .. },
+            Carrier::Point { at, .. }
+            | Carrier::Pose {
+                pose: Pose::Point(at),
+                ..
+            },
+        )
+        | (
+            Carrier::Point { at, .. }
+            | Carrier::Pose {
+                pose: Pose::Point(at),
+                ..
+            },
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
         ) => face_offset(face, *at),
         // A face and a line edge: the face reads the edge.
@@ -1095,24 +1148,25 @@ fn gap<T: Decide>(
     }
 }
 
-/// The funnel site name of the decision which side of the outer
-/// carrier a round face's centre or axis lies: of a plane, along its
-/// outward normal; of a convex round face, outside or inside it.
+/// The funnel site name of the decision which side of a carrier a round
+/// face's centre or axis lies: of a plane, along its outward normal; of
+/// the larger of two round carriers, outside or inside it.
 pub(crate) const GAP_ROUND_SIDE: &str = "gap_round_side";
 
 /// The funnel site name of the decision that a cylinder's axis lies
 /// parallel to a plane.
-pub(crate) const GAP_AXIS_IN_PLANE: &str = "gap_axis_in_plane";
+pub(crate) const GAP_AXIS_PARALLEL_TO_PLANE: &str = "gap_axis_parallel_to_plane";
 
 /// The class a refusal names for a round face whose centre or axis the
 /// side decision reads on the other carrier.
 const ON_THE_CARRIER: &str = "a round face whose centre or axis lies on the other carrier";
 
-/// **Whether a round face's centre or axis lies beyond the outer
-/// carrier**, `margin` its signed offset from it: the configuration the
-/// senses leave open, decided at [`GAP_ROUND_SIDE`]. At a touch the
-/// margin is a radius, so a tangency never lands in band; a centre or
-/// an axis on the carrier refuses.
+/// **Whether a round face's centre or axis lies beyond a carrier**,
+/// `margin` its signed offset from it: the configuration a pair meets
+/// in, decided at [`GAP_ROUND_SIDE`]. At a touch the margin is the
+/// smaller radius, `±r` against a plane and `±r_small` against the
+/// larger of two round carriers, so a tangency never lands in band; a
+/// centre or an axis on the carrier refuses.
 fn beyond<T: Decide>(
     margin: T,
     outer: &Carrier<'_, T>,
@@ -1129,17 +1183,29 @@ fn beyond<T: Decide>(
     }
 }
 
-/// **Two round faces of one kind**, `d` apart at their centres or
-/// axes, read by their material sides:
+/// The funnel site name of the decision which of two nested round
+/// carriers is the larger, the outer's radius against the inner's.
+pub(crate) const GAP_ROUND_LARGER: &str = "gap_round_larger";
+
+/// **Two round faces of one kind**, `d` apart at their centres or axes,
+/// read as every face pair is: the inner carrier's point that touches
+/// the outer at a tangency, read along the outer's outward normal
+/// ([`topo::Round::offset`]'s sign, out of a ball or a pin, into a
+/// socket's or a bore's hollow). Which point that is is the
+/// configuration, decided from the values and not from the roles:
 ///
-/// - a convex face and a concave one, in either seat, are a fit, the
-///   socket's radius less the ball's and `d`, the same either way round;
-/// - two concave faces are nested hollows, `r_out − r_in − d`, the
-///   outer containing;
-/// - two convex faces are external where the inner's centre lies outside
-///   the outer's carrier, `d − r_out − r_in`, the same either way round,
-///   and nested where it lies inside, `d + r_in − r_out`: how far the
-///   inner stands out of the outer ([`beyond`]).
+/// - apart, the smaller carrier's centre outside the larger
+///   ([`beyond`], margin `d − r_large`): the inner's point nearest the
+///   outer's centre, at `d − r_in` from it;
+/// - nested, the inner inside the outer: its farthest point, `d + r_in`;
+/// - nested, the outer inside the inner: its nearest point, `r_in − d`
+///   ([`GAP_ROUND_LARGER`]; of one radius, a fit's convex face is the
+///   one inside, and of two faces of one sense the inner).
+///
+/// A pair whose two faces face each other's material (two rods or two
+/// bores side by side, a pin in a bore) reads the same in either role
+/// order; an aligned pair (two rods nested, nested hollows, a rod in a
+/// bore's wall) negates.
 fn round_pair<T: Decide>(
     outer: &topo::Round<T>,
     inner: &topo::Round<T>,
@@ -1148,16 +1214,28 @@ fn round_pair<T: Decide>(
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
     let (r_out, r_in) = (outer.radius(), inner.radius());
-    Ok(match (outer.convex(), inner.convex()) {
-        (false, true) | (false, false) => r_out - r_in - d,
-        (true, false) => r_in - r_out - d,
-        (true, true) => {
-            if beyond(d - r_out, outer_face, band)? {
-                d - r_out - r_in
-            } else {
-                d + r_in - r_out
+    let at = if beyond(d - r_out.max(r_in), outer_face, band)? {
+        d - r_in
+    } else {
+        // One radius: a fit's convex face is the one inside; two of one
+        // sense read the inner inside.
+        let inner_inside = match decide(GAP_ROUND_LARGER, Margin::of(r_out - r_in), band) {
+            Ok(Sign::Positive) => true,
+            Ok(Sign::Negative) => false,
+            Ok(Sign::Zero) => inner.convex() || !outer.convex(),
+            Err(source) => {
+                return Err(PrimitiveRefusal::Escalated {
+                    predicate: GAP_ROUND_LARGER,
+                    source,
+                });
             }
-        }
+        };
+        if inner_inside { d + r_in } else { r_in - d }
+    };
+    Ok(if outer.convex() {
+        at - r_out
+    } else {
+        r_out - at
     })
 }
 
@@ -1190,12 +1268,12 @@ fn plane_round<T: Decide>(
             ..
         } => {
             let tilt = Margin::levered(axis.dot(*outward), arm(plane, round));
-            match decide(GAP_AXIS_IN_PLANE, tilt, band) {
+            match decide(GAP_AXIS_PARALLEL_TO_PLANE, tilt, band) {
                 Ok(Sign::Zero) => {}
-                Ok(_) => return not_parallel("gap", GAP_AXIS_IN_PLANE, plane, round),
+                Ok(_) => return not_parallel("gap", GAP_AXIS_PARALLEL_TO_PLANE, plane, round),
                 Err(source) => {
                     return Err(PrimitiveRefusal::Escalated {
-                        predicate: GAP_AXIS_IN_PLANE,
+                        predicate: GAP_AXIS_PARALLEL_TO_PLANE,
                         source,
                     });
                 }
@@ -1239,36 +1317,6 @@ pub(crate) fn value_of<T: Decide>(
             unreachable!("the quieting rule asks a Gap or a Distance")
         }
     }
-}
-
-/// **The pose `kind` read off face `ent` of `body`**, as a measure's
-/// pose reference read off it reads it (`eval::wire::pose`): a
-/// cylinder's, a cone's or a torus's axis, a sphere's, a torus's or a
-/// cone's centre, with the face's reach. `None` for any other cell or
-/// carrier.
-pub(crate) fn pose_read_off<T: Decide>(
-    body: &Body<T>,
-    ent: EntityRef,
-    kind: crate::VarKind,
-) -> Option<Carrier<'_, T>> {
-    use geom::SurfaceKind as S;
-    let EntityKey::Face(face) = ent.key else {
-        return None;
-    };
-    let surface = topo::readback::face_carrier_kind(body, face).ok()?;
-    let read = topo::readback::face_pose(body, face).ok()?;
-    let pose = match (kind, surface) {
-        (crate::VarKind::Axis, S::Cylinder | S::Cone | S::Torus) => Pose::Axis {
-            through: read.origin,
-            dir: read.axis.normalize(),
-        },
-        (crate::VarKind::Point, S::Sphere | S::Torus | S::Cone) => Pose::Point(read.origin),
-        _ => return None,
-    };
-    Some(Carrier::Pose {
-        pose,
-        reach: reach_of(body, face, read.origin),
-    })
 }
 
 /// The class a refusal names for a vertex whose link does not read.
@@ -2007,6 +2055,66 @@ mod tests {
         }
     }
 
+    /// **A role swap keeps an opposed round pair and negates an aligned
+    /// one, off the axis**, for every pair of senses in every
+    /// configuration, each read where it neither touches nor sits on one
+    /// axis (`d ≠ 0`). Red if an arm reads a pair by its senses alone,
+    /// or the swap of a nested pair is read as an external one.
+    #[test]
+    fn a_role_swap_keeps_an_opposed_round_pair_and_negates_an_aligned_one() {
+        let z = v(0.0, 0.0, 1.0);
+        let at = |x: f64, r: f64, convex: bool| pin(p(x, 0.0, 0.0), z, r, convex);
+        for (what, a, b, opposed) in [
+            (
+                "two rods apart",
+                at(0.0, 0.5, true),
+                at(1.0, 0.3, true),
+                true,
+            ),
+            (
+                "two bores apart",
+                at(0.0, 0.5, false),
+                at(1.0, 0.3, false),
+                true,
+            ),
+            (
+                "a rod in a bore's wall",
+                at(0.0, 0.5, false),
+                at(1.0, 0.3, true),
+                false,
+            ),
+            (
+                "a thin rod in a fat one",
+                at(0.0, 1.0, true),
+                at(0.2, 0.3, true),
+                false,
+            ),
+            (
+                "a small hollow in a big one",
+                at(0.0, 1.0, false),
+                at(0.2, 0.3, false),
+                false,
+            ),
+            (
+                "a pin in a bore",
+                at(0.0, 1.0, false),
+                at(0.2, 0.3, true),
+                true,
+            ),
+            (
+                "a hole through a rod",
+                at(0.0, 1.0, true),
+                at(0.2, 0.3, false),
+                true,
+            ),
+        ] {
+            let (ab, ba) = (read(&a, &b), read(&b, &a));
+            assert!(ab.abs() > 1e-6, "{what}: a reading off the touch, {ab}");
+            let want = if opposed { ab } else { -ab };
+            close(ba, want, &format!("{what}: swapped against {ab}"));
+        }
+    }
+
     /// **A round face's centre or axis on the other carrier refuses**:
     /// which side of it the centre lies is the configuration the gap
     /// reads, and in band it is not decided. Red if a centre on a plane,
@@ -2033,5 +2141,198 @@ mod tests {
                 gap(&outer, &inner, band())
             );
         }
+    }
+
+    // --- R1 review probes (PR 6103) -----------------------------------
+
+    /// R1 probe: a thin rod internally tangent inside a fat one is an
+    /// ALIGNED (nested) pair, so the PR's role-swap rule says reading it
+    /// with the thin rod as `outer` negates the fat-outer reading (0 at
+    /// the touch). Red: the swapped read classifies the pair "external"
+    /// (the fat's axis lies outside the thin's carrier) and reads −2r.
+    #[test]
+    fn r1_probe_a_nested_rod_read_thin_outer_reads_zero_at_its_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+        let thin = pin(p(0.7, 0.0, 0.0), z, 0.3, true);
+        close(read(&fat, &thin), 0.0, "fat outer");
+        close(
+            read(&thin, &fat),
+            0.0,
+            "thin outer: nested is aligned, -0 = 0",
+        );
+    }
+
+    /// R1 probe: the same for two balls.
+    #[test]
+    fn r1_probe_a_nested_ball_read_small_outer_reads_zero_at_its_touch() {
+        let big = ball(p(0.0, 0.0, 0.0), 1.0, true);
+        let small = ball(p(0.7, 0.0, 0.0), 0.3, true);
+        close(read(&big, &small), 0.0, "big outer");
+        close(read(&small, &big), 0.0, "small outer");
+    }
+
+    /// R1 probe: the ruling's margin at a tangency is ±r, so a real
+    /// touch never lands in band. A thin rod of r = 0.5 internally
+    /// tangent inside a fat one of R = 1 (d = 0.5), read thin-outer:
+    /// `gap_round_side`'s margin is d − r_out = 0.5 − 0.5 = 0. Red: a
+    /// real tangency refuses in band.
+    #[test]
+    fn r1_probe_a_real_touch_never_lands_in_band() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+        let thin = pin(p(0.5, 0.0, 0.0), z, 0.5, true);
+        close(read(&fat, &thin), 0.0, "fat outer");
+        let swapped = gap(&thin, &fat, band());
+        assert!(swapped.is_ok(), "thin outer, a real touch: {swapped:?}");
+    }
+
+    /// R1 probe: two bores side by side, tangent (a figure-eight hole):
+    /// the concave twin of "two rods side by side". Red: two concave
+    /// faces always read `r_out − r_in − d`, so the touch reads −2r_in,
+    /// the very −2r the PR fixes for rods.
+    #[test]
+    fn r1_probe_two_bores_side_by_side_read_zero_at_their_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let (r1, r2) = (0.5, 0.3);
+        let a = pin(p(0.0, 0.0, 0.0), z, r1, false);
+        let b = pin(p(r1 + r2, 0.0, 0.0), z, r2, false);
+        close(read(&a, &b), 0.0, "two bores side by side");
+        close(read(&b, &a), 0.0, "two bores side by side, swapped");
+    }
+
+    /// R1 probe: nested hollows (a small bore internally tangent inside a
+    /// big one) are aligned, so the swap negates: 0 at the touch either
+    /// way. Red: the small-outer read is r_small − r_big − d = −2d.
+    #[test]
+    fn r1_probe_nested_hollows_swapped_read_zero_at_their_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let big = pin(p(0.0, 0.0, 0.0), z, 1.0, false);
+        let small = pin(p(0.7, 0.0, 0.0), z, 0.3, false);
+        close(read(&big, &small), 0.0, "big outer");
+        close(read(&small, &big), 0.0, "small outer");
+    }
+
+    /// R1 probe (claim 3), re-pinned to the ruling: `Distance(axis,
+    /// axis)` is the distance between two lines, zero for two axes that
+    /// meet at a right angle as for two that are one. A coaxial row is
+    /// said only by the parallel reading, which the quieting rule asks
+    /// (`atrest_operation_rows_quiet.rs`
+    /// `r2_probe_meeting_axes_do_not_say_coaxial`); parallel axes apart
+    /// read their separation.
+    #[test]
+    fn r1_probe_two_meeting_axes_read_zero_and_not_parallel() {
+        let axis = |through, dir| Carrier::Pose {
+            pose: Pose::Axis { through, dir },
+            reach: Some(1.0),
+        };
+        let a = axis(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
+        let b = axis(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0));
+        let got = distance(&a, &b, band()).expect("reads");
+        close(got, 0.0, "two axes that meet");
+        assert_eq!(
+            axes_parallel(&a, &b, band()),
+            Some(false),
+            "and not parallel"
+        );
+        let c = axis(p(0.0, 0.3, 0.0), v(0.0, 0.0, 1.0));
+        close(
+            distance(&a, &c, band()).expect("reads"),
+            0.3,
+            "two parallel axes apart",
+        );
+        assert_eq!(axes_parallel(&a, &c, band()), Some(true), "parallel");
+    }
+
+    /// **R2 probe: an aligned nested pair negates under a role swap.**
+    /// A thin rod inside a fat one, touching inside (and standing out
+    /// by `s`), read with the THIN one as outer: aligned, so the swap of
+    /// `a_round_face_reads_by_both_material_sides`'s `s` is `-s`. The
+    /// same for two balls nested and two bores nested.
+    #[test]
+    fn r2_probe_nested_pair_swapped_reads_minus_s() {
+        let z = v(0.0, 0.0, 1.0);
+        for s in [0.0, 0.1, -0.1] {
+            let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+            let thin = pin(p(0.7 + s, 0.0, 0.0), z, 0.3, true);
+            let got = gap(&thin, &fat, band());
+            assert!(
+                matches!(&got, Ok(g) if (g + s).abs() < 1e-12),
+                "thin rod inside a fat one at {s}, thin outer: {got:?}, want {}",
+                -s
+            );
+        }
+    }
+
+    #[test]
+    fn r2_probe_nested_balls_swapped_reads_minus_s() {
+        for s in [0.0, 0.1, -0.1] {
+            let fat = ball(p(0.0, 0.0, 0.0), 1.0, true);
+            let small = ball(p(0.7 + s, 0.0, 0.0), 0.3, true);
+            let got = gap(&small, &fat, band());
+            assert!(
+                matches!(&got, Ok(g) if (g + s).abs() < 1e-12),
+                "small ball inside a fat one at {s}, small outer: {got:?}"
+            );
+        }
+    }
+
+    /// Two bores nested (a small hole inside a big hole, tangent inside):
+    /// aligned like the thin rod in the fat one; touching reads 0 in
+    /// both orders.
+    #[test]
+    fn r2_probe_nested_bores_touch_reads_zero_either_way() {
+        let z = v(0.0, 0.0, 1.0);
+        let big = pin(p(0.0, 0.0, 0.0), z, 1.0, false);
+        let small = pin(p(0.7, 0.0, 0.0), z, 0.3, false);
+        let a = gap(&big, &small, band());
+        let b = gap(&small, &big, band());
+        assert!(
+            matches!((&a, &b), (Ok(x), Ok(y)) if x.abs() < 1e-12 && y.abs() < 1e-12),
+            "nested bores touching: big outer {a:?}, small outer {b:?}"
+        );
+    }
+
+    /// Two bores side by side, their walls touching (the web between
+    /// them zero): opposed, locally a face-to-face touch; reads 0.
+    #[test]
+    fn r2_probe_bores_side_by_side_touch_reads_zero() {
+        let z = v(0.0, 0.0, 1.0);
+        let a = pin(p(0.0, 0.0, 0.0), z, 0.5, false);
+        let b = pin(p(0.8, 0.0, 0.0), z, 0.3, false);
+        let x = gap(&a, &b, band());
+        let y = gap(&b, &a, band());
+        assert!(
+            matches!((&x, &y), (Ok(x), Ok(y)) if x.abs() < 1e-12 && y.abs() < 1e-12),
+            "two bores side by side touching: {x:?}, swapped {y:?}"
+        );
+    }
+
+    /// A rod outside a bore, tangent to the hole from within the wall
+    /// (the bore's material around it): the configuration the senses
+    /// leave open for a convex x concave pair as well.
+    #[test]
+    fn r2_probe_rod_in_the_wall_touching_the_hole_reads_zero() {
+        let z = v(0.0, 0.0, 1.0);
+        let bore = pin(p(0.0, 0.0, 0.0), z, 0.5, false);
+        let rod = pin(p(0.8, 0.0, 0.0), z, 0.3, true);
+        let x = gap(&bore, &rod, band());
+        assert!(
+            matches!(&x, Ok(x) if x.abs() < 1e-12),
+            "a rod in a bore's wall touching the hole: {x:?}"
+        );
+    }
+
+    /// **R2 probe: a real touch lands in `gap_round_side`'s band.** A
+    /// rod of 0.3 inside one of 0.6, touching inside, read with the thin
+    /// one as outer: the margin `d − r_out` is `0.3 − 0.3 = 0`, so the
+    /// gap refuses at a tangency. Red if it refuses.
+    #[test]
+    fn r2_probe_a_nested_touch_is_not_in_band() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 0.6, true);
+        let thin = pin(p(0.3, 0.0, 0.0), z, 0.3, true);
+        let got = gap(&thin, &fat, band());
+        assert!(got.is_ok(), "a touch refuses: {got:?}");
     }
 }

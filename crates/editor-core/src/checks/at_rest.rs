@@ -267,24 +267,53 @@ pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_boun
 /// *Selections*), so a cell the result merged away is still selected
 /// on its operand.
 ///
-/// An assertion quiets a row when it relates the measure that says what
+/// An assertion quiets a row when it relates a measure that says what
 /// the row decided ([`saying`]) by `=` to a bound decided zero, read
-/// directly, its two references are the row's two cells in either
-/// order, each read as the row's kind reads it, and its verdict in
-/// `evaluation` is `Holds`. A reference is a cell where it is the
+/// directly, its verdict in `evaluation` is `Holds`, and its two
+/// references are the row's two cells, each paired with the cell it
+/// reads, in either order. A reference reads a cell where it is the
 /// cell's read (or a pick of that read's piece) and the cell's name
-/// there, and a pose where it is read directly off such a cell or is a
-/// split's tool read. The rule matches cells, so another contact between
-/// the same two reads stays loud, and it reads verdicts only, so an
-/// assertion that failed or did not evaluate quiets nothing.
-pub(crate) fn quiet_row<P, T: Decide>(
+/// there, or a pose read directly off such a cell of the kind the cell's
+/// carrier has ([`pose_kind`]: an axis off a cylinder, a cone or a
+/// torus, a centre off a sphere); it reads a split's tool where it is
+/// the tool's read, whatever pose that is.
+///
+/// **Two axes one.** `Distance(axis, axis)` is the distance between two
+/// lines, zero where they coincide or meet. A coaxial row is said by it
+/// only where the reading takes the parallel arm: the rule decides the
+/// two cells' axes parallel at the measure's own site
+/// (`carrier_cyl_axis_parallel`, levered by the faces' reach), so a
+/// `Distance = 0` over two axes that only meet quiets no coaxial row.
+/// The kernel records a coaxial row only over axes it decided one, so
+/// this costs a document nothing; after an edit that tilts the axes
+/// until they only meet, the kernel records the meeting instead, which
+/// the same assertion says.
+///
+/// The rule matches cells, so another contact between the same two
+/// reads stays loud, and it reads verdicts only, so an assertion that
+/// failed or did not evaluate quiets nothing.
+pub(crate) fn quiet_row<P, T>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
-) -> Option<RecipeNodeId> {
+) -> Option<RecipeNodeId>
+where
+    P: crate::ProfilePayload,
+    T: crate::mate::SolveScalar + topo::AtRestPolicy,
+{
     let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
+    let kinds = if said.poses {
+        let read = said.read(doc, evaluation, tol)?;
+        let kinds = [pose_kind(&read.cells[0])?, pose_kind(&read.cells[1])?];
+        if said.coaxial && kinds == [crate::VarKind::Axis; 2] && !axes_parallel(&read, band)? {
+            return None;
+        }
+        kinds.map(Some)
+    } else {
+        [None, None]
+    };
     holding_measures(doc, evaluation).find_map(|held| {
         if !said.verbs.contains(&held.verb)
             || held.relation != AssertionRelation::Equal
@@ -292,26 +321,26 @@ pub(crate) fn quiet_row<P, T: Decide>(
         {
             return None;
         }
-        let (Some(x), Some(y)) = (read_as(doc, held.a), read_as(doc, held.b)) else {
+        let (Some(x), Some(y)) = (said.reference(doc, held.a), said.reference(doc, held.b)) else {
             return None;
         };
-        let [c, d] = &said.cells;
-        let kinds = |p: Option<crate::VarKind>, q: Option<crate::VarKind>| {
-            (p, q) == (said.kinds[0], said.kinds[1]) || (q, p) == (said.kinds[0], said.kinds[1])
+        let reads = |r: &(RowCell, Option<crate::VarKind>), i: usize| {
+            r.0.reads(doc, &said.cells[i]) && r.1 == kinds[i]
         };
-        let cells =
-            (x.0.reads(doc, c) && y.0.reads(doc, d)) || (x.0.reads(doc, d) && y.0.reads(doc, c));
-        (cells && kinds(x.1, y.1)).then_some(held.id)
+        ((reads(&x, 0) && reads(&y, 1)) || (reads(&x, 1) && reads(&y, 0))).then_some(held.id)
     })
 }
 
-/// **What says a row** ([`saying`]): the measures that say it, the
-/// row's two cells, and the pose kind each is read as, `None` for the
-/// cell itself, in no order between the two.
+/// **What says a row** ([`saying`]): the measures that say it and the
+/// row's two cells; whether each cell is read as the pose its carrier
+/// has, and whether the row decided two axes one.
 struct Saying {
     verbs: &'static [crate::measure::MeasureVerb],
     cells: [RowCell; 2],
-    kinds: [Option<crate::VarKind>; 2],
+    poses: bool,
+    coaxial: bool,
+    /// The role a split's tool is read through.
+    tool_role: Option<crate::pose::PoseRole>,
 }
 
 /// **A cell of a row, or a reference of an assertion**: an entity's
@@ -348,117 +377,195 @@ impl RowCell {
     }
 }
 
-/// **An assertion's reference as the quieting rule matches it**: a
-/// selection as its cell; a point, an axis or a plane read directly off
-/// a selection as that cell, with its kind; any other read as a tool.
-fn read_as<P>(doc: &Doc<P>, var: VarId) -> Option<(RowCell, Option<crate::VarKind>)> {
-    let selected = |var: VarId| {
-        let select = doc.selection(var)?;
-        let [name] = select.names.as_slice() else {
-            return None;
+/// **A row's entity cells, read as a measure reads its references**: in
+/// one computing frame (`Framed::computing_among`), the other read into
+/// it through `relative`.
+struct ReadCells<'e, T: Decide> {
+    cells: Vec<(std::sync::Arc<Body<T>>, EntityRef)>,
+    computing: &'e crate::eval::Framed<T>,
+}
+
+impl Saying {
+    /// The row's entity cells read ([`ReadCells`]); `None` where a name
+    /// does not resolve or a frame refuses to read, which is no
+    /// assertion either.
+    fn read<'e, P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &'e Evaluation<T>,
+        tol: Tol,
+    ) -> Option<ReadCells<'e, T>> {
+        let mut framed = Vec::with_capacity(2);
+        for (i, cell) in self.cells.iter().enumerate() {
+            let RowCell::Entity(read, name) = cell else {
+                continue;
+            };
+            let slot = crate::OperandSlot::Measured(self.verbs[0], u8::try_from(i).ok()?);
+            let at =
+                crate::eval::resolve_name(doc, &evaluation.nodes, slot, *read, name, |error| {
+                    crate::eval::NodeErrorKind::SelectResolve {
+                        slot,
+                        var: *read,
+                        reference: 0,
+                        error,
+                    }
+                })
+                .ok()?;
+            let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
+            framed.push((body, at.1));
+        }
+        let computing = crate::eval::Framed::computing_among(framed.iter().map(|(f, _)| *f))?;
+        let cells = framed
+            .iter()
+            .map(|(f, ent)| Some((computing.read_in(f, tol).ok()?, *ent)))
+            .collect::<Option<Vec<_>>>()?;
+        Some(ReadCells { cells, computing })
+    }
+
+    /// **An assertion's reference as the rule matches it**: the row's
+    /// tool where it is the tool's read, whatever pose that is; else a
+    /// selection as its cell, a point, an axis or a plane read directly
+    /// off a selection as that cell with its kind
+    /// (`eval::read_directly_off`), and any other read as
+    /// a tool it is not.
+    fn reference<P>(&self, doc: &Doc<P>, var: VarId) -> Option<(RowCell, Option<crate::VarKind>)> {
+        if self.cells.contains(&RowCell::Tool(var)) {
+            return Some((RowCell::Tool(var), None));
+        }
+        let selected = |var: VarId| {
+            let select = doc.selection(var)?;
+            let [name] = select.names.as_slice() else {
+                return None;
+            };
+            Some(RowCell::Entity(select.body, name.clone()))
         };
-        Some(RowCell::Entity(select.body, name.clone()))
+        if let Some(cell) = selected(var) {
+            return Some((cell, None));
+        }
+        match crate::eval::read_directly_off(doc, var) {
+            Some((cell, kind)) => Some((selected(cell)?, Some(kind))),
+            None => Some((RowCell::Tool(var), None)),
+        }
+    }
+}
+
+/// **The pose a cell's carrier has**, as a coincidence of poses reads
+/// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
+/// `None` for any other cell.
+fn pose_kind<T: Decide>(
+    (body, ent): &(std::sync::Arc<Body<T>>, EntityRef),
+) -> Option<crate::VarKind> {
+    use geom::SurfaceKind as S;
+    let EntityKey::Face(face) = ent.key else {
+        return None;
     };
-    if let Some(cell) = selected(var) {
-        return Some((cell, None));
+    match topo::readback::face_carrier_kind(body, face).ok()? {
+        S::Cylinder | S::Cone | S::Torus => Some(crate::VarKind::Axis),
+        S::Sphere => Some(crate::VarKind::Point),
+        _ => None,
     }
-    let held = doc.var(var)?;
-    match held.def() {
-        crate::VarDef::Pose(
-            crate::pose::PoseDef::Axis { of }
-            | crate::pose::PoseDef::Point { of }
-            | crate::pose::PoseDef::Plane { face: of },
-        ) => Some((selected(*of)?, Some(held.kind()))),
-        _ => Some((RowCell::Tool(var), None)),
-    }
+}
+
+/// **Whether two cells' axes read parallel**, at the site and lever the
+/// measure's own two-axes arm decides them (`carrier_cyl_axis_parallel`):
+/// the reading a coaxial row is said by. `None` where an axis does not
+/// read or the decision escalates.
+fn axes_parallel<T: crate::mate::SolveScalar>(read: &ReadCells<'_, T>, band: Band) -> Option<bool> {
+    let axis = |i: usize| {
+        let (body, ent) = &read.cells[i];
+        crate::eval::read_off_cell(body, *ent, crate::VarKind::Axis, band).ok()
+    };
+    let (a, b) = (axis(0)?, axis(1)?);
+    crate::eval::measure::axes_parallel(&a, &b, band)
 }
 
 /// **Whether an assertion could quiet `row`** under the row half
 /// ([`quiet_row`]), in `evaluation`, asked of the rule itself: some
 /// measure says what the row decided ([`saying`]), and that measure,
 /// over the row's two cells resolved and read as the measure resolves
-/// and reads them ([`crate::eval::resolve_name`]), each as the pose the
-/// row's kind reads it as, is decided zero in some order at the site the
-/// rule decides its bound at. A split's ON row reads its tool's plane,
-/// which the split itself decided the vertex on by that signed offset,
-/// so it is quietable wherever its tool is a plain read. A cell the
-/// measure has no form for, a name that does not resolve, and a
-/// measure read non-zero are none of them: no assertion over the row
-/// holds, so the finding never refuses (CHECKS DS6).
-pub(crate) fn row_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+/// and reads them ([`crate::eval::resolve_name`]), each read as the
+/// pose its carrier has where the row is one of poses, a split's tool
+/// read as its plane, is decided zero in some order at the site the
+/// rule decides its bound at. A cell the measure has no form for, a
+/// name that does not resolve, and a measure read non-zero are none of
+/// them: no assertion over the row holds, so the finding never refuses
+/// (CHECKS DS6), and its recourse names the construction alone.
+pub(crate) fn row_quietable<P, T>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
-) -> bool {
-    let Ok(band) = Band::linear(tol) else {
-        return false;
-    };
-    let Some(said) = saying(row) else {
-        return false;
-    };
-    let entities: Vec<(VarId, &StableName)> = said
-        .cells
-        .iter()
-        .filter_map(|c| match c {
-            RowCell::Entity(read, name) => Some((*read, name)),
-            RowCell::Tool(_) => None,
-        })
-        .collect();
-    let [(read_a, name_a), (read_b, name_b)] = entities.as_slice() else {
-        // A split's ON row: one entity cell and the tool.
-        return entities.len() == 1;
-    };
-    let mut reads = [(*read_a, *name_a), (*read_b, *name_b)]
-        .into_iter()
-        .enumerate()
-        .map(|(i, (read, name))| {
-            let slot =
-                crate::OperandSlot::Measured(said.verbs[0], u8::try_from(i).unwrap_or(u8::MAX));
-            let at = crate::eval::resolve_name(doc, &evaluation.nodes, slot, read, name, |error| {
-                crate::eval::NodeErrorKind::SelectResolve {
-                    slot,
-                    var: read,
-                    reference: 0,
-                    error,
-                }
+) -> bool
+where
+    P: crate::ProfilePayload,
+    T: crate::mate::SolveScalar + topo::AtRestPolicy,
+{
+    let quietable = || -> Option<bool> {
+        let band = Band::linear(tol).ok()?;
+        let said = saying(row)?;
+        let read = said.read(doc, evaluation, tol)?;
+        let zero = |a: &crate::eval::measure::Carrier<'_, T>,
+                    b: &crate::eval::measure::Carrier<'_, T>| {
+            said.verbs.iter().any(|&verb| {
+                [(a, b), (b, a)].into_iter().any(|(x, y)| {
+                    measure_sign(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+                })
             })
-            .ok()?;
-            let body = crate::eval::reference_body(&evaluation.nodes, slot, read, at).ok()?;
-            Some((body, at.1))
-        });
-    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) =
-        (reads.next(), reads.next())
-    else {
-        return false;
-    };
-    // The two cells are read as the measure reads its two references: in
-    // one computing frame (`Framed::computing_among`), the other read
-    // into it through `relative`. A frame that refuses to read is no
-    // assertion either.
-    let Some(computing) = crate::eval::Framed::computing_among([framed_a, framed_b]) else {
-        return false;
-    };
-    let (Ok(body_a), Ok(body_b)) = (
-        computing.read_in(framed_a, tol),
-        computing.read_in(framed_b, tol),
-    ) else {
-        return false;
-    };
-    use crate::eval::measure::{carrier_of, pose_read_off};
-    let read = |body, ent, kind: Option<crate::VarKind>| match kind {
-        None => Some(carrier_of(body, ent)),
-        Some(kind) => pose_read_off(body, ent, kind),
-    };
-    let [k0, k1] = said.kinds;
-    [(k0, k1), (k1, k0)].into_iter().any(|(ka, kb)| {
-        let (Some(a), Some(b)) = (read(&body_a, ent_a, ka), read(&body_b, ent_b, kb)) else {
-            return false;
         };
-        [(&a, &b), (&b, &a)].into_iter().any(|(x, y)| {
-            measure_sign(said.verbs[0], x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
-        })
-    })
+        let tool = said.cells.iter().find_map(|c| match c {
+            RowCell::Tool(var) => Some(*var),
+            RowCell::Entity(..) => None,
+        });
+        if let Some(tool) = tool {
+            // A split's ON row: its tool read as its plane, in its
+            // space's coordinates, against the vertex.
+            let [(body, ent)] = read.cells.as_slice() else {
+                return None;
+            };
+            let crate::eval::measure::Carrier::Point { at, .. } =
+                crate::eval::measure::carrier_of(body, *ent)
+            else {
+                return None;
+            };
+            let roled = crate::pose::RoleRead {
+                read: tool,
+                role: said.tool_role,
+            };
+            let plane = crate::eval::read_pose(
+                P::evaluable(doc)?,
+                &evaluation.nodes,
+                roled,
+                &evaluation.env,
+                tol,
+            )
+            .ok()?;
+            let plane = crate::eval::measure::Carrier::Pose {
+                pose: crate::eval::measure::Pose::of(&plane)?,
+                reach: None,
+            };
+            let vertex = crate::eval::measure::Carrier::Pose {
+                pose: crate::eval::measure::Pose::Point(read.computing.point_in_space(at)),
+                reach: None,
+            };
+            return Some(zero(&plane, &vertex));
+        }
+        let carrier = |i: usize| {
+            let (body, ent) = &read.cells[i];
+            if !said.poses {
+                return Some(crate::eval::measure::carrier_of(body, *ent));
+            }
+            let kind = pose_kind(&read.cells[i])?;
+            crate::eval::read_off_cell(body, *ent, kind, band).ok()
+        };
+        let (a, b) = (carrier(0)?, carrier(1)?);
+        let axes = said.poses
+            && [0, 1].map(|i| pose_kind(&read.cells[i])) == [Some(crate::VarKind::Axis); 2];
+        if said.coaxial && axes && !axes_parallel(&read, band)? {
+            return Some(false);
+        }
+        Some(zero(&a, &b))
+    };
+    quietable() == Some(true)
 }
 
 /// **The sign a `Gap` assertion's measure reads over two carriers**,
@@ -495,10 +602,11 @@ fn measure_sign<T: Decide>(
 /// A `Gap = 0` over two faces read on their sides says they touch,
 /// opposed, or lie one on the other, aligned, so it says what a row
 /// decided where that is that its two cells meet, rest flush or touch
-/// tangent. A `Distance = 0` between poses read off the two cells says a
-/// coincidence of poses, and a `Gap = 0` between a split's tool plane and
-/// a vertex says the vertex lies on it. By the kinds of row the kernel
-/// decides:
+/// tangent. A `Distance = 0` between the poses read off the two cells
+/// (an axis off a cylinder, a cone or a torus, a centre off a sphere)
+/// says a coincidence of poses, and a `Gap = 0` or a `Distance = 0`
+/// between a split's tool and a vertex says the vertex lies on it. By
+/// the kinds of row the kernel decides:
 ///
 /// | site | relation | what says it |
 /// |---|---|---|
@@ -506,11 +614,11 @@ fn measure_sign<T: Decide>(
 /// | `CensusAtRest` | `SameOpposite`, `SameOriented`, `OnCarrier` | `Gap` over the two cells |
 /// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | `Gap` over the two cells |
 /// | `TangentWitness` | `SurfaceTangent` | `Gap` over the two faces: an opposed tangency is a contact, an aligned one a continuation |
-/// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` from the sphere's centre to the other's axis |
-/// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the two axes |
+/// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` between the poses read off the two cells |
+/// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the poses, two axes read parallel (a sphere's support its centre) |
 /// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
 /// | `CrossingCylinders` | `SameRadius` | nothing: two radii written apart |
-/// | `SplitOn` | `OnCarrier`, over the tool | `Gap` or `Distance` between the tool's plane and the vertex |
+/// | `SplitOn` | `OnCarrier`, over the tool | `Gap` or `Distance` between the tool and the vertex |
 /// | `BatteryTurn` | `CommonFoot` | nothing: two feet only the blend computes |
 /// | `BatteryJoint` | `Tangent` | nothing |
 /// | `ProfileJunction` | `SameOriented`, `Tangent`, over pieces | nothing |
@@ -519,35 +627,36 @@ fn measure_sign<T: Decide>(
 /// through a role other than a frame's xy plane are no pair an
 /// assertion is written over.
 fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
-    use crate::VarKind as K;
     use crate::measure::MeasureVerb as M;
     use topo::{DecisionSite as Site, Relation as R};
-    let (verbs, kinds): (&'static [M], _) = match (row.site, row.relation) {
+    let (verbs, poses, coaxial): (&'static [M], _, _) = match (row.site, row.relation) {
         (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
         | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
         | (Site::VertexFusion, R::OnCarrier | R::Meet)
-        | (Site::TangentWitness, _) => (&[M::Gap], [None, None]),
-        (Site::SplitOn, _) => (&[M::Gap, M::Distance], [None, None]),
-        (Site::CoaxialSphere | Site::SphereOnTorusAxis, _) => {
-            (&[M::Distance], [Some(K::Point), Some(K::Axis)])
-        }
-        (Site::CoaxialCylinderTorus | Site::CoaxialTori | Site::BatterySupportAxis, _)
-        | (Site::CrossingCylinders, R::AxesMeet) => {
-            (&[M::Distance], [Some(K::Axis), Some(K::Axis)])
+        | (Site::TangentWitness, _) => (&[M::Gap], false, false),
+        (Site::SplitOn, _) => (&[M::Gap, M::Distance], false, false),
+        (Site::CoaxialSphere | Site::SphereOnTorusAxis, _)
+        | (Site::CrossingCylinders, R::AxesMeet) => (&[M::Distance], true, false),
+        (Site::CoaxialCylinderTorus | Site::CoaxialTori | Site::BatterySupportAxis, _) => {
+            (&[M::Distance], true, true)
         }
         _ => return None,
     };
-    let cell = |c: &crate::coincide::NamedCell| match c {
+    let mut tool_role = None;
+    let mut cell = |c: &crate::coincide::NamedCell| match c {
         crate::coincide::NamedCell::Entity { input, name } => Some(RowCell::Entity(
             *input,
             keyed_by(name, *input).unwrap_or(name).clone(),
         )),
         // A tool read plainly, or a frame read as its xy plane, which a
-        // `Gap` reads a frame as.
+        // measure reads a frame as.
         crate::coincide::NamedCell::Tool {
             input,
-            role: None | Some(crate::pose::PoseRole::Xy),
-        } => Some(RowCell::Tool(*input)),
+            role: role @ (None | Some(crate::pose::PoseRole::Xy)),
+        } => {
+            tool_role = *role;
+            Some(RowCell::Tool(*input))
+        }
         crate::coincide::NamedCell::Tool { role: Some(_), .. }
         | crate::coincide::NamedCell::Piece { .. } => None,
     };
@@ -563,7 +672,9 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
     (tools == usize::from(row.site == Site::SplitOn)).then_some(Saying {
         verbs,
         cells,
-        kinds,
+        poses,
+        coaxial,
+        tool_role,
     })
 }
 
@@ -1034,7 +1145,7 @@ fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Poin
 /// bracket a scalar carries, and the check reads no bracket anywhere
 /// else. `f64` is the one lane; the analysis scalars the check is also
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
-pub trait LocalizeLane: Decide + AtRestPolicy {
+pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
     /// The findings of the copies `a` and `b` of `product`, which the
     /// census decided interfere ([`partition`]): by default one
     /// [`Unlocalized::Lane`] finding, the scalar having no lane.
@@ -1081,9 +1192,15 @@ impl LocalizeLane for geom_core::Probe {}
 
 impl LocalizeLane for geom_core::Interval {}
 
-impl<T> LocalizeLane for geom_core::Dual<T> where geom_core::Dual<T>: Decide + AtRestPolicy {}
+impl<T> LocalizeLane for geom_core::Dual<T> where
+    geom_core::Dual<T>: Decide + AtRestPolicy + crate::mate::SolveScalar
+{
+}
 
-impl<T> LocalizeLane for geom_core::Sym<T> where geom_core::Sym<T>: Decide + AtRestPolicy {}
+impl<T> LocalizeLane for geom_core::Sym<T> where
+    geom_core::Sym<T>: Decide + AtRestPolicy + crate::mate::SolveScalar
+{
+}
 
 impl LocalizeLane for f64 {
     fn localize(

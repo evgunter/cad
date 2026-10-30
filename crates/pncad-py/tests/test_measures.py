@@ -321,24 +321,24 @@ class TestTheClosedForms(unittest.TestCase):
                 )
                 self.assertAlmostEqual(measured(doc, node).value, air, places=12)
 
-    def test_the_gap_sign_convention_walks_all_three_regimes(self):
+    def test_the_gap_sign_convention_walks_all_three_regimes_on_two_coaxial_rods(self):
         """Two solid rods on ONE axis, so the axis offset is zero. Their
         walls are both convex, a nested pair, so the signed gap is how
         far the inner wall stands out of the outer rod's material,
-        exactly `r_pin - r_bore`: all three signs from one document
+        exactly `r_inner - r_outer`: all three signs from one document
         shape."""
-        for bore_r, pin_r in ((0.51, 0.50), (0.50, 0.50), (0.49, 0.50)):
-            with self.subTest(bore=bore_r, pin=pin_r):
+        for outer_r, inner_r in ((0.51, 0.50), (0.50, 0.50), (0.49, 0.50)):
+            with self.subTest(outer=outer_r, inner=inner_r):
                 doc = Doc()
-                bore = cylinder(doc, 0.0, bore_r)
-                pin = cylinder(doc, 0.0, pin_r)
+                outer = cylinder(doc, 0.0, outer_r)
+                inner = cylinder(doc, 0.0, inner_r)
                 ev = evaluate(doc)
                 node = doc.insert(
-                    Node.measure(MeasurePrimitive.gap((bore, wall(ev, bore)), (pin, wall(ev, pin))))
+                    Node.measure(MeasurePrimitive.gap((outer, wall(ev, outer)), (inner, wall(ev, inner))))
                 )
                 answer = measured(doc, node)
                 self.assertEqual(answer.dimension, "Length")
-                self.assertAlmostEqual(answer.value, pin_r - bore_r, places=12)
+                self.assertAlmostEqual(answer.value, inner_r - outer_r, places=12)
 
     def test_the_authors_own_arithmetic_spells_the_web(self):
         """The worked example's shape: the web between two holes is

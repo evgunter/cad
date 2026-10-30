@@ -2247,18 +2247,21 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
             primitive.kind(),
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
         );
-        // A pose reference (D10 `[assertions.quiet]`): a point, an axis or
-        // a plane, read off a cell or a split's tool, with the reach of
-        // the face it was read off.
-        if doc.var(var).is_some_and(|v| {
-            matches!(
-                v.kind(),
-                crate::VarKind::Point
-                    | crate::VarKind::Axis
-                    | crate::VarKind::Plane
-                    | crate::VarKind::Frame
-            )
-        }) {
+        // A pose reference (D10 `[assertions.quiet]`): one read directly
+        // off a cell is read off that cell ([`pose::read_off_cell`]); any
+        // other (a split's tool, a construction) is evaluated.
+        let off_cell = pose::read_directly_off(doc, var);
+        if off_cell.is_none()
+            && doc.var(var).is_some_and(|v| {
+                matches!(
+                    v.kind(),
+                    crate::VarKind::Point
+                        | crate::VarKind::Axis
+                        | crate::VarKind::Plane
+                        | crate::VarKind::Frame
+                )
+            })
+        {
             let posed = pose::eval_posed(
                 doc,
                 results,
@@ -2267,14 +2270,14 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
                 params,
                 tol,
             )?;
-            let reach = pose::source_reach(doc, results, slot, var, &posed);
-            poses.push((index, posed, reach));
+            poses.push((index, posed));
             continue;
         }
-        let (at, ent) = if doc.selection(var).is_some() {
-            select_one(doc, results, slot, var)?
+        let (read, kind) = off_cell.map_or((var, None), |(cell, kind)| (cell, Some(kind)));
+        let (at, ent) = if doc.selection(read).is_some() {
+            select_one(doc, results, slot, read)?
         } else {
-            let at = super::read_at(doc, slot, var)?;
+            let at = super::read_at(doc, slot, read)?;
             (
                 at,
                 names::EntityRef {
@@ -2283,8 +2286,8 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
                 },
             )
         };
-        let body = reference_body(results, slot, var, (at, ent))?;
-        cells.push((index, at, ent, body));
+        let body = reference_body(results, slot, read, (at, ent))?;
+        cells.push((index, at, ent, kind, body));
     }
     // Its two references are in one space (D′1): it measures in the
     // first cell's frame, or the second's where only that one is in its
@@ -2295,17 +2298,17 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         .or_else(|| cells.first().map(|(.., framed)| *framed));
     let bodies = cells
         .iter()
-        .map(|(index, at, ent, framed)| {
+        .map(|(index, at, ent, kind, framed)| {
             let body = match computing {
                 Some(computing) => computing.read_in(framed, tol)?,
                 None => unreachable!("a cell gives the computing frame"),
             };
-            Ok((*index, *at, *ent, body))
+            Ok((*index, *at, *ent, *kind, body))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let b = band(tol)?;
     let mut posed = Vec::with_capacity(poses.len());
-    for (index, read, reach) in poses {
+    for (index, read) in poses {
         let value = match computing {
             Some(computing) => read.read_into(computing.frame(), b)?,
             None => read.in_its_space(b)?,
@@ -2313,17 +2316,23 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         let pose = super::measure::Pose::of(&value).unwrap_or_else(|| {
             unreachable!("a measure admits a point, an axis, a plane or a frame")
         });
-        posed.push((index, pose, reach));
+        posed.push((index, pose));
     }
-    let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = bodies
-        .iter()
-        .map(|(index, _, ent, body)| (*index, super::measure::carrier_of(body, *ent)))
-        .chain(
-            posed
-                .into_iter()
-                .map(|(index, pose, reach)| (index, super::measure::Carrier::Pose { pose, reach })),
-        )
-        .collect();
+    let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = Vec::with_capacity(2);
+    for (index, _, ent, kind, body) in &bodies {
+        carriers.push((
+            *index,
+            match kind {
+                None => super::measure::carrier_of(body, *ent),
+                Some(kind) => pose::read_off_cell(body, *ent, *kind, b)?,
+            },
+        ));
+    }
+    carriers.extend(
+        posed
+            .into_iter()
+            .map(|(index, pose)| (index, super::measure::Carrier::Pose { pose, reach: None })),
+    );
     carriers.sort_by_key(|(index, _)| *index);
     let [(_, ca), (_, cb)] = carriers.as_slice() else {
         unreachable!("a primitive reads two references")
@@ -2351,7 +2360,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
             ));
         };
         let measured = |i: usize| {
-            let (_, at, ent, body) = &bodies[i];
+            let (_, at, ent, _, body) = &bodies[i];
             Measured {
                 at: *at,
                 index: ent.body,
@@ -2677,7 +2686,11 @@ fn body_rows(
 ) -> Vec<(crate::OperandSlot, crate::VarId)> {
     node.operand_rows()
         .into_iter()
-        .map(|(seat, var)| (seat, doc.selection(var).map_or(var, |select| select.body)))
+        .map(|(seat, var)| {
+            // A pose read directly off a cell reads that cell's body.
+            let cell = pose::read_directly_off(doc, var).map_or(var, |(cell, _)| cell);
+            (seat, doc.selection(cell).map_or(var, |select| select.body))
+        })
         .collect()
 }
 

@@ -137,10 +137,13 @@ operation's or an at-rest census's (DESIGN `[coincidence]`). A row is
 quiet under a holding `= 0` over the measure that says what it decided
 (`checks::at_rest::quiet_row`): a `Gap` over its two cells, read on
 their sides, for a contact, a flush pair or a tangency; a `Distance`
-between the poses read off its cells for a centre on an axis or two
-axes one or meeting; a `Gap` or a `Distance` between a split's tool and
-its vertex. Only `= 0` quiets, since a bound is a tolerance. A finding refuses
-only where such an assertion could hold (`row_quietable`). A row no
+between the poses its cells' carriers have (an axis, a centre) for a
+centre on an axis, two axes meeting, or two axes one, where the two
+axes read parallel; a `Gap` or a `Distance` between a split's tool and
+its vertex. Only `= 0` quiets, since a bound is a tolerance; and only an
+opposed pair's `Gap` quiets an interference. A finding refuses only
+where such an assertion could hold, which the rule evaluates
+(`row_quietable`). A row no
 assertion says (a blend turn's two feet, two radii written apart, a
 profile junction, a blend's joint) is loud, refuses at no severity, and
 its recourse names the construction alone (`coincide::Recourse::words`).

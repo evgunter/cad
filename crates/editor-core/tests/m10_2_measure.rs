@@ -660,23 +660,23 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
 /// and asserted its sign: it called nothing under test and could not
 /// have failed for any bug in `gap`.
 #[test]
-fn the_gap_sign_convention_walks_all_three_regimes() {
+fn the_gap_sign_convention_walks_all_three_regimes_on_two_coaxial_rods() {
     // Two rods on ONE axis, so the axis offset d is 0 and the sign is
-    // exactly r_pin - r_bore.
-    for (bore_r, pin_r, expect) in [
+    // exactly r_inner - r_outer.
+    for (outer_r, inner_r, expect) in [
         (0.51_f64, 0.50_f64, -1_i32),
         (0.50, 0.50, 0),
         (0.49, 0.50, 1),
     ] {
-        let (doc, bore, pin) = coaxial_pair(bore_r, pin_r);
+        let (doc, outer, inner) = coaxial_pair(outer_r, inner_r);
         let ev = eval(&doc);
-        let refs = vec![hole_wall_of(&ev, bore), hole_wall_of(&ev, pin)];
+        let refs = vec![hole_wall_of(&ev, outer), hole_wall_of(&ev, inner)];
         let doc =
             crate::fixture::measure_node(&doc, MeasurePrimitive::Gap { outer: 0, inner: 1 }, refs)
                 .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
-        let want = pin_r - bore_r;
+        let want = inner_r - outer_r;
         assert!(
             (g - want).abs() < 1e-12,
             "coaxial g = r_pin - r_bore = {want}, got {g}"
@@ -688,7 +688,7 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
         } else {
             0
         };
-        assert_eq!(sign, expect, "C5 regime for bore {bore_r} pin {pin_r}");
+        assert_eq!(sign, expect, "the sign for outer {outer_r} inner {inner_r}");
     }
 }
 

@@ -1792,7 +1792,7 @@ pub(crate) struct DoorRow {
 /// or an at-rest one, is quiet under the row half of the quieting
 /// rule ([`at_rest::quiet_row`]), read here, where the evaluation
 /// that decided it is in hand.
-pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+pub(crate) fn door_rows<P: crate::ProfilePayload, T: crate::mate::SolveScalar + AtRestPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,

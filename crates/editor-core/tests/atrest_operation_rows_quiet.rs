@@ -934,9 +934,10 @@ fn row_over(
 /// **A coincidence of poses is quiet under a `Distance = 0` between the
 /// poses read off its two cells, and only there** (`[assertions.quiet]`):
 /// a sphere's centre on a cylinder's or a torus's axis, a cylinder's or
-/// a torus's axis on a torus's, and a blend's supports on one axis, each
-/// asserted with the centre read off the ball and the axis off each
-/// wall or ring. A `Distance ≥ 0` or `≤ 0.01` over the same poses says
+/// a torus's axis on a torus's, and a blend's supports on one axis (a
+/// ball's support by its centre, against a wall's axis or another
+/// ball's centre), each asserted with the pose each cell's carrier has:
+/// the centre off a ball, the axis off a wall or a ring. A `Distance ≥ 0` or `≤ 0.01` over the same poses says
 /// nothing; and with the ball moved off the axis, the `Distance = 0`
 /// fails and no assertion could quiet the row.
 ///
@@ -971,17 +972,20 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
         let (doc, ring_a) = ring(doc, 0.5, 0.2);
         let (doc, ring_b) = ring(doc, 0.9, 0.15);
         let (doc, ball) = ball(doc, 0.5);
+        let (doc, bead) = self::ball(doc, 0.2);
         let at = turned([0.3, -0.2, 0.5]);
         let (doc, post) = against(doc, anchor, Operand::output(post, 0), &at);
         let (doc, ring_a) = against(doc, anchor, Operand::output(ring_a, 0), &at);
         let (doc, ring_b) = against(doc, anchor, Operand::output(ring_b, 0), &at);
         let moved = turned([0.3 + off, -0.2, 0.5]);
         let (doc, ball) = against(doc, anchor, Operand::output(ball, 0), &moved);
+        let (doc, bead) = against(doc, anchor, Operand::output(bead, 0), &at);
         let ev = run(&doc);
         let wall = (post, face_of_kind(&ev, post, S::Cylinder));
         let torus_a = (ring_a, face_of_kind(&ev, ring_a, S::Torus));
         let torus_b = (ring_b, face_of_kind(&ev, ring_b, S::Torus));
         let sphere = (ball, face_of_kind(&ev, ball, S::Sphere));
+        let small = (bead, face_of_kind(&ev, bead, S::Sphere));
         let sited = |(copy, name): &(RecipeNodeId, StableName)| SitedRef::new(*copy, name.clone());
         use crate::fixture::{axis, point_of};
         let on_axis = off == 0.0;
@@ -1021,13 +1025,23 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
                 [axis(sited(&wall)), axis(sited(&torus_b))],
                 "a blend's supports on one axis",
             ),
+            (
+                DecisionSite::BatterySupportAxis,
+                Relation::Coaxial,
+                [wall.clone(), sphere.clone()],
+                [axis(sited(&wall)), point_of(sited(&sphere))],
+                "a blend's ball support centred on its wall's axis",
+            ),
+            (
+                DecisionSite::BatterySupportAxis,
+                Relation::Coaxial,
+                [small.clone(), sphere.clone()],
+                [point_of(sited(&small)), point_of(sited(&sphere))],
+                "a blend's two ball supports about one centre",
+            ),
         ] {
-            if !on_axis
-                && !matches!(
-                    site,
-                    DecisionSite::CoaxialSphere | DecisionSite::SphereOnTorusAxis
-                )
-            {
+            let moves = cells.iter().any(|(copy, _)| *copy == ball);
+            if !on_axis && !moves {
                 continue;
             }
             let row = row_over(&doc, site, relation, cells);
@@ -1137,4 +1151,235 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
     );
     let report = checks(&doc, Some(assertion));
     loud_with_a_construction_recourse(&report, &finding_of(&report, union, &radius));
+}
+
+/// **R1 probe (PR 6103): a split whose tool is a face read as a plane**
+/// (`PoseDef::Plane { face }`, the first spelling `Node::Split`'s doc
+/// names: "a `Plane` read"). The notched prism split at `y = 1` by its
+/// own face there read as a plane: the row's tool cell is that plane
+/// var, read plainly, so the row is quietable and loud refuses at
+/// `Error`; a holding `Gap(tool, vertex) = 0` must then quiet it. Red:
+/// `read_as` reads a `Plane { face }` var as the face's cell with kind
+/// `Plane`, never as the tool, so no assertion can quiet a row the rule
+/// calls quietable.
+#[test]
+fn r1_probe_a_split_by_a_face_plane_is_quiet_under_its_tool_gap() {
+    let id = "r1-probe-split-face-plane";
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, p) = crate::fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![NOTCHED.to_vec()],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
+    let ev0 = run(&doc);
+    let face = face_through(&ev0, prism, [6.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
+    let tool = Operand::Pose(Box::new(editor_core::pose::PoseDef::Plane {
+        face: Operand::select(Operand::output(prism, 0), vec![face]),
+    }));
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool: tool.into(),
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, split);
+    let row = got
+        .iter()
+        .find(|r| r.site == DecisionSite::SplitOn)
+        .unwrap_or_else(|| panic!("a SplitOn row: {got:?}"))
+        .clone();
+    let [
+        NamedCell::Entity { .. },
+        NamedCell::Tool { input: tool, .. },
+    ] = row.cells.as_slice()
+    else {
+        panic!("an operand vertex on the tool: {row:?}")
+    };
+    let tool = *tool;
+    let vertex = site(&doc, &row.cells[0]);
+    let loud = checks(&doc, None);
+    let found = finding_of(&loud, split, &row);
+    let refuses = refuses_at_error(&loud, &found);
+    let doc = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::RenameVar {
+            var: tool.into(),
+            name: Some(editor_core::VarName::from_static("cut")),
+        },
+    )
+    .0;
+    let (doc_a, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        [Operand::Var(tool), vertex.into()],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let report = checks(&doc_a, Some(assertion));
+    assert_eq!(
+        finding_of(&report, split, &row).quiet,
+        Some(assertion),
+        "loud refuses at Error: {refuses}; a holding Gap(tool, vertex) = 0 quiets nothing: {report}"
+    );
+}
+
+/// **R2 probe: a split whose tool is a plane read off a face.** The
+/// notched prism split by the plane of its own notch floor on `y = 1`
+/// (`PoseDef::Plane { face }`, the common way to name a cutting plane).
+/// The row's tool cell is that plane variable; a `Gap(tool, vertex) = 0`
+/// holds. Red if the finding refuses at `Error` (quietable) and yet
+/// that assertion does not quiet it.
+#[test]
+fn r2_probe_a_split_by_a_faces_plane_is_quiet_under_its_tool_gap() {
+    let doc = ProfileDoc::empty_derived("r2-split-face-plane", Tol::witness());
+    let (doc, p) = crate::fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![NOTCHED.to_vec()],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    // The notch's floor, on `y = 1`, the plane the existing
+    // `atrest-op-split-on-a-face` case cuts along, read off the face.
+    let face = SitedRef::new(
+        prism,
+        face_through(&ev, prism, [6.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let tool = editor_core::pose::RoleRead::plain(crate::fixture::plane(face));
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, split);
+    let row = got
+        .iter()
+        .find(|r| r.site == DecisionSite::SplitOn)
+        .unwrap_or_else(|| panic!("a SplitOn row: {got:?}"))
+        .clone();
+    let NamedCell::Tool { input: tool, .. } = &row.cells[1] else {
+        panic!("vertex, tool: {row:?}")
+    };
+    let tool = *tool;
+    let vertex = site(&doc, &row.cells[0]);
+    let doc = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::RenameVar {
+            var: tool.into(),
+            name: Some(editor_core::VarName::from_static("cut")),
+        },
+    )
+    .0;
+    let loud = checks(&doc, None);
+    let found = finding_of(&loud, split, &row);
+    let refuses = refuses_at_error(&loud, &found);
+    let (doc, assertion) = gap_zero_var(&doc, tool, &vertex);
+    let report = checks(&doc, Some(assertion));
+    let quiet = finding_of(&report, split, &row).quiet;
+    assert!(
+        !refuses || quiet == Some(assertion),
+        "loud it refuses at Error ({refuses}) with recourse {found}, yet a holding \
+         Gap(tool, vertex) = 0 quiets nothing: {quiet:?}"
+    );
+}
+
+fn gap_zero_var(
+    doc: &ProfileDoc,
+    tool: editor_core::VarId,
+    vertex: &SitedRef,
+) -> (ProfileDoc, RecipeNodeId) {
+    measured_by(
+        doc,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        [Operand::Var(tool), vertex.clone().into()],
+        AssertionRelation::Equal,
+        0.0,
+    )
+}
+
+/// **R2 probe: a Coaxial row is quieted by a `Distance = 0` between
+/// two axes that only meet.** Two rings about axes at right angles
+/// through one point: the `Distance` between their axes reads the skew
+/// arm, zero, and holds. A `CoaxialTori` row over the two torus faces
+/// (the row the kernel records, as `a_coincidence_of_poses_...` asks
+/// it) should not be said by it: red if it quiets.
+#[test]
+fn r2_probe_meeting_axes_do_not_say_coaxial() {
+    use editor_core::test_support::{quiet_row, row_quietable};
+    use geom::SurfaceKind as S;
+    let ring = |doc, major: f64, minor: f64| {
+        revolved(
+            doc,
+            LoopProgram::Circle {
+                centre: crate::fixture::len2([major, 0.0]),
+                radius: len(minor),
+            },
+        )
+    };
+    let doc = ProfileDoc::empty_derived("r2-meeting-axes", Tol::witness());
+    let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
+    let (doc, ring_a) = ring(doc, 0.5, 0.2);
+    let (doc, ring_b) = ring(doc, 0.9, 0.15);
+    let at = turned([0.3, -0.2, 0.5]);
+    let crossed = at.compose(
+        &editor_core::Frame::rotate_then_translate(
+            [1.0, 0.0, 0.0],
+            std::f64::consts::FRAC_PI_2,
+            [0.0; 3],
+            crate::fixture::band(),
+        )
+        .expect("a literal axis"),
+    );
+    let (doc, ring_a) = against(doc, anchor, Operand::output(ring_a, 0), &at);
+    let (doc, ring_b) = against(doc, anchor, Operand::output(ring_b, 0), &crossed);
+    let ev = run(&doc);
+    let torus_a = (ring_a, face_of_kind(&ev, ring_a, S::Torus));
+    let torus_b = (ring_b, face_of_kind(&ev, ring_b, S::Torus));
+    let sited = |(copy, name): &(RecipeNodeId, StableName)| SitedRef::new(*copy, name.clone());
+    let row = row_over(
+        &doc,
+        DecisionSite::CoaxialTori,
+        Relation::Coaxial,
+        [torus_a.clone(), torus_b.clone()],
+    );
+    let quietable = row_quietable(&doc, &ev, &row, Tol::witness());
+    let (doc, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        [
+            crate::fixture::axis(sited(&torus_a)),
+            crate::fixture::axis(sited(&torus_b)),
+        ],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let ev = run(&doc);
+    let verdict = ev.value(assertion).map(|v| v.payload.clone());
+    let quiet = quiet_row(&doc, &ev, &row, Tol::witness());
+    assert!(
+        quiet.is_none(),
+        "axes at right angles quiet a Coaxial row: quietable {quietable}, verdict {verdict:?}"
+    );
 }

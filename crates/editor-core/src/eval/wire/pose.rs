@@ -567,33 +567,43 @@ fn read_off<T: crate::mate::SolveScalar>(
     })
 }
 
-/// **The reach of the face a pose is read off**, from the pose's own
-/// point ([`crate::eval::measure::reach_of`]): the lever a measure prices
-/// a tilt between two axes over. `None` for a pose read off no face (an
-/// edge's or a vertex's, a construction's, a datum's).
-pub(crate) fn source_reach<T: crate::mate::SolveScalar>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    slot: OperandSlot,
+/// **The cell a pose is read directly off**: the selection a point, an
+/// axis or a plane definition reads, and the pose's kind. `None` for
+/// any other variable. A measure reads such a pose off its cell
+/// ([`read_off_cell`]), and the quieting rule sees it as that cell.
+pub(crate) fn read_directly_off<P>(
+    doc: &crate::doc::Doc<P>,
     var: VarId,
-    posed: &Posed<T>,
-) -> Option<T> {
+) -> Option<(VarId, VarKind)> {
+    let held = doc.var(var)?;
     let VarDef::Pose(PoseDef::Axis { of } | PoseDef::Point { of } | PoseDef::Plane { face: of }) =
-        doc.var(var)?.def()
+        held.def()
     else {
         return None;
     };
-    let body_var = doc.selection(*of)?.body;
-    let projected = super::project_ports(&[body_var], doc, results).ok()?;
-    let results = projected.as_ref().unwrap_or(results);
-    let (at, ent) = select_one(doc, results, slot, *of).ok()?;
-    let whole = doc
-        .selection(*of)
-        .is_some_and(|select| crate::repetition::names_members(doc, select));
-    let framed = super::read_named_body(results, at, ent.body, whole).ok()?;
-    let face = names::EntityKey::face(ent.key)?;
-    let from = crate::eval::measure::Pose::of(&posed.value)?.at();
-    crate::eval::measure::reach_of(framed.body(), face, from)
+    doc.selection(*of).map(|_| (*of, held.kind()))
+}
+
+/// **The pose `kind` read off the entity `ent` of `body`**, as a
+/// measure's reference: [`read_off_body`]'s table, with the reach of the
+/// face it is read off as the lever a tilt between two axes is priced
+/// over (`None` off an edge or a vertex).
+///
+/// # Errors
+///
+/// [`read_off_body`]'s, where the cell has no such pose.
+pub(crate) fn read_off_cell<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    ent: names::EntityRef,
+    kind: VarKind,
+    band: geom_core::Band,
+) -> Result<crate::eval::measure::Carrier<'_, T>, NodeErrorKind> {
+    let value = read_off_body(body, ent.key, kind, band)?;
+    let pose = crate::eval::measure::Pose::of(&value)
+        .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"));
+    let reach = names::EntityKey::face(ent.key)
+        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at()));
+    Ok(crate::eval::measure::Carrier::Pose { pose, reach })
 }
 
 /// [`read_off`]'s read of the entity `key` of `body`, in the body's
