@@ -54,8 +54,28 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
 }
 
-/// Every sphere-carrying body this reviewer could build.
-fn corpus() -> Vec<(String, AB)> {
+/// A part of the corpus, one row each, so that each fits the nightly's
+/// ε rows on its own: a ball's booleans with a cylinder build their
+/// chords on the carried section and certify them before the result
+/// gate reads them, and cost seconds each where the rest cost
+/// milliseconds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Part {
+    /// The balls, the domes, the booleans with balls and boxes, the
+    /// hollows and voids, and the fuzzed balls.
+    Rest,
+    /// Both balls with the upright rod.
+    Rod,
+    /// The unit ball with the turned rod.
+    UnitTurnedRod,
+    /// The tilted ball with the turned rod.
+    TiltTurnedRod,
+    /// Both balls with the stub.
+    Stub,
+}
+
+/// Every sphere-carrying body this reviewer could build, in `part`.
+fn corpus(part: Part) -> Vec<(String, AB)> {
     let tol = Tol::witness();
     let mut out: Vec<(String, AB)> = Vec::new();
     let mut push = |name: String, b: Option<AB>| {
@@ -73,38 +93,41 @@ fn corpus() -> Vec<(String, AB)> {
             ("b-a", g(topo::boolean::subtract(b, a, tol))),
         ]
     };
-    for &r in &[1e-3, 0.37, 1.0, 250.0] {
-        for (pi, pole) in [v(0.0, 0.0, 1.0), v(0.3, -0.5, 0.8), v(1.0, 0.0, 0.0)]
-            .iter()
-            .enumerate()
-        {
-            let p = *pole / pole.norm();
-            let c = v(0.7 * r + 3.0, -2.0, 1.5);
-            push(
-                format!("ball r={r} pole{pi}"),
-                Some(finished("b", ball_poled(r, c, p, tol), tol)),
-            );
+    let rest = part == Part::Rest;
+    if rest {
+        for &r in &[1e-3, 0.37, 1.0, 250.0] {
+            for (pi, pole) in [v(0.0, 0.0, 1.0), v(0.3, -0.5, 0.8), v(1.0, 0.0, 0.0)]
+                .iter()
+                .enumerate()
+            {
+                let p = *pole / pole.norm();
+                let c = v(0.7 * r + 3.0, -2.0, 1.5);
+                push(
+                    format!("ball r={r} pole{pi}"),
+                    Some(finished("b", ball_poled(r, c, p, tol), tol)),
+                );
+            }
         }
+        push(
+            "ball_y".into(),
+            Some(finished("b", ball_poled_y(1.0, v(0.2, 0.0, 0.0), tol), tol)),
+        );
+        push(
+            "ball_z".into(),
+            Some(finished(
+                "b",
+                ball_poled_z(1.0, v(0.0, 0.3, -1.0), tol),
+                tol,
+            )),
+        );
+        push("dome".into(), Some(at_rest(&dome(1.0, tol), tol)));
+        push("lantern".into(), Some(at_rest(&lantern(tol), tol)));
+        push(
+            "domed_cavity".into(),
+            Some(at_rest(&domed_cavity(tol), tol)),
+        );
+        push("waisted".into(), Some(at_rest(&waisted(tol), tol)));
     }
-    push(
-        "ball_y".into(),
-        Some(finished("b", ball_poled_y(1.0, v(0.2, 0.0, 0.0), tol), tol)),
-    );
-    push(
-        "ball_z".into(),
-        Some(finished(
-            "b",
-            ball_poled_z(1.0, v(0.0, 0.3, -1.0), tol),
-            tol,
-        )),
-    );
-    push("dome".into(), Some(at_rest(&dome(1.0, tol), tol)));
-    push("lantern".into(), Some(at_rest(&lantern(tol), tol)));
-    push(
-        "domed_cavity".into(),
-        Some(at_rest(&domed_cavity(tol), tol)),
-    );
-    push("waisted".into(), Some(at_rest(&waisted(tol), tol)));
     let unit = finished(
         "a",
         ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
@@ -159,52 +182,64 @@ fn corpus() -> Vec<(String, AB)> {
             ("stub", &stub),
             ("eqbrick", &eqbrick),
         ] {
+            let of = match (an, bn) {
+                (_, "rod") => Part::Rod,
+                ("unit", "rodx") => Part::UnitTurnedRod,
+                (_, "rodx") => Part::TiltTurnedRod,
+                (_, "stub") => Part::Stub,
+                _ => Part::Rest,
+            };
+            if of != part {
+                continue;
+            }
             for (op, r) in bool3(a, b) {
                 push(format!("{an} {op} {bn}"), r);
             }
         }
     }
-    // A hollow ball with a rod through it, a void in a brick next to a ball.
-    if let Some(hollow) = g(topo::boolean::subtract(&unit, &small_in, tol)) {
-        push(
-            "hollow - rod".into(),
-            g(topo::boolean::subtract(&hollow, &rod, tol)),
-        );
-        push(
-            "hollow u far".into(),
-            g(topo::boolean::union(&hollow, &far, tol)),
-        );
-    }
-    if let Some(void) = g(topo::boolean::subtract(&bigbrick, &small_in, tol)) {
-        push(
-            "void - unit?".into(),
-            g(topo::boolean::subtract(&void, &off, tol)),
-        );
-        push(
-            "void u far".into(),
-            g(topo::boolean::union(&void, &far, tol)),
-        );
-    }
-    if let Some(two) = g(topo::boolean::union(&unit, &far, tol)) {
-        push(
-            "two - rod".into(),
-            g(topo::boolean::subtract(&two, &rod, tol)),
-        );
-    }
-    let mut rng = test_utils::fuzz::start("review_5556");
-    for i in 0..12 {
-        let rb = rng.range(0.4, 1.2);
-        let dx = rng.range(-1.5, 1.5);
-        let dy = rng.range(-1.5, 1.5);
-        let dz = rng.range(-1.5, 1.5);
-        let p = v(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(0.1, 1.0),
-        );
-        let b = finished("b", ball_poled(rb, v(dx, dy, dz), p / p.norm(), tol), tol);
-        for (op, r) in bool3(&tilt, &b) {
-            push(format!("fuzz{i} {op}"), r);
+    if rest {
+        // A hollow ball with a rod through it, a void in a brick next to a ball.
+        if let Some(hollow) = g(topo::boolean::subtract(&unit, &small_in, tol)) {
+            push(
+                "hollow - rod".into(),
+                g(topo::boolean::subtract(&hollow, &rod, tol)),
+            );
+            push(
+                "hollow u far".into(),
+                g(topo::boolean::union(&hollow, &far, tol)),
+            );
+        }
+        if let Some(void) = g(topo::boolean::subtract(&bigbrick, &small_in, tol)) {
+            push(
+                "void - unit?".into(),
+                g(topo::boolean::subtract(&void, &off, tol)),
+            );
+            push(
+                "void u far".into(),
+                g(topo::boolean::union(&void, &far, tol)),
+            );
+        }
+        if let Some(two) = g(topo::boolean::union(&unit, &far, tol)) {
+            push(
+                "two - rod".into(),
+                g(topo::boolean::subtract(&two, &rod, tol)),
+            );
+        }
+        let mut rng = test_utils::fuzz::start("review_5556");
+        for i in 0..12 {
+            let rb = rng.range(0.4, 1.2);
+            let dx = rng.range(-1.5, 1.5);
+            let dy = rng.range(-1.5, 1.5);
+            let dz = rng.range(-1.5, 1.5);
+            let p = v(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(0.1, 1.0),
+            );
+            let b = finished("b", ball_poled(rb, v(dx, dy, dz), p / p.norm(), tol), tol);
+            for (op, r) in bool3(&tilt, &b) {
+                push(format!("fuzz{i} {op}"), r);
+            }
         }
     }
     out
@@ -226,12 +261,49 @@ fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
 /// (`topo::props::seam_refusals`).
 #[test]
 fn the_door_names_the_flipped_face_tier_3_names() {
+    the_door_names_the_flipped_face_in(Part::Rest);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on both balls'
+/// booleans with the upright rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_against_the_rod() {
+    the_door_names_the_flipped_face_in(Part::Rod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on the unit ball's
+/// booleans with the turned rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_the_unit_ball_against_the_turned_rod() {
+    the_door_names_the_flipped_face_in(Part::UnitTurnedRod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on the tilted ball's
+/// booleans with the turned rod.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_the_tilted_ball_against_the_turned_rod() {
+    the_door_names_the_flipped_face_in(Part::TiltTurnedRod);
+}
+
+/// [`the_door_names_the_flipped_face_tier_3_names`] on both balls'
+/// booleans with the stub.
+#[test]
+fn the_door_names_the_flipped_face_tier_3_names_against_the_stub() {
+    the_door_names_the_flipped_face_in(Part::Stub);
+}
+
+/// The door names the flipped face tier 3 names on every valid body of
+/// `part`. A part none of whose bodies is valid says so in the log: it
+/// asserts nothing at this build.
+fn the_door_names_the_flipped_face_in(part: Part) {
     let tol = Tol::witness();
     let mut misnamed = Vec::new();
-    for (name, b) in corpus() {
+    let mut valid = 0usize;
+    for (name, b) in corpus(part) {
         if topo::validate_geometric(&b, tol).is_err() {
             continue;
         }
+        valid += 1;
         for (f, _) in sphere_faces(&b) {
             let fl = flipped(&b, &[f]);
             let errs = topo::validate_geometric(&fl, tol).err().unwrap_or_default();
@@ -254,6 +326,9 @@ fn the_door_names_the_flipped_face_tier_3_names() {
                 ));
             }
         }
+    }
+    if valid == 0 {
+        eprintln!("VACUOUS: no body of this part of the corpus is valid at this build");
     }
     assert!(
         misnamed.is_empty(),

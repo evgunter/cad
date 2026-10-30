@@ -55,3 +55,17 @@ spline carrier, so the integrand has no closed form in the image's own
 channels and the lane needs a certified quadrature of it over the
 carrier's knot spans, as the fitted lanes on a spline chart have. The rows go SOUND against the fixture's volume oracle once it
 lands and the join does.
+
+## Four door rows wait on it too (SECT `sect-seamslow`, 2026-10-30)
+
+The seam-region door rows
+(`crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs`)
+build a ball's booleans with three cylinders. On main `25d3906bca` all
+20 that pass the join refuse at the result gate's volume or before it:
+9 at a curved-cut half-edge with no harmonic form (a projected image),
+5 at a conic trim on the sphere's chart, 4 at `RingOnCurvedFace`, and 2
+at the spline edge join (`JoinCarrierUnsupported`). The four rows
+holding them (`…_against_the_rod`, `…_the_unit_ball_against_the_turned_rod`,
+`…_the_tilted_ball_against_the_turned_rod`, `…_against_the_stub`) log
+`VACUOUS` and assert nothing until those bodies build; they start
+reading the door on chord-bounded sphere faces when this lane lands.

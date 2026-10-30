@@ -480,11 +480,6 @@ jobs:
             r=0
             if [ "$eps" = default ]; then
               cargo nextest run --profile ci --ignore-default-filter --workspace --no-fail-fast || r=$?
-            elif [ "$eps" = 1e-12 ]; then
-              # Held out at 1e-12 only: it ran past 960 s there and cancelled
-              # the job (work/sect/main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord.md).
-              CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci --ignore-default-filter --workspace --no-fail-fast \
-                -E 'not (binary_id(sweep::all) & test(=the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names))' || r=$?
             else
               CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci --ignore-default-filter --workspace --no-fail-fast || r=$?
             fi
