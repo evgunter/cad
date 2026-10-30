@@ -265,6 +265,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `CensusUnsupportedCause`'s shape: the argument sits beside the
     # declaration, and the carry is the façade crate's row.
+    # `ValidationError::ChartSingularityNotAVertex`'s `lies`: where the
+    # point lies, argued beside the declaration as `WedgeCheck` is.
+    "SingularityLies": ("argued", "non-carriage with its falsifier, beside the declaration "
+                        "in crates/topo/src/validate.rs"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),

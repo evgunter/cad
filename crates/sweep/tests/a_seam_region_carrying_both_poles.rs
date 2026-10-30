@@ -6,7 +6,9 @@
 //! (`geom_brep::props::sphere_region_cover`).
 //!
 //! `mass_properties` runs no tier 3, and reads the same census at the
-//! door: it refuses the flip by the same finding.
+//! door: it refuses the flip by the same finding, except where the
+//! region's boundary encodes its side (the dimple below at ε = 1e-12),
+//! when it reads the contradicted bit first (`SenseContradicted`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::seam_region_common::{flipped, sphere_faces, split_at_meridian, v};
@@ -100,13 +102,20 @@ fn two_faces_whose_region_carries_both_poles_flip_into_a_double_cover() {
     overcovered("both halves flipped", &flipped(&body, &faces), tol);
 }
 
-/// A brick less a ball whose polar axis lies 1e-11 off the brick's face
-/// plane. At ε = 1e-12 the dimple is two faces of one sphere, its
-/// boundary carries both poles within the band, and both flipped are
-/// refused as covering it twice, by tier 3 and the door; the door once
-/// measured 48 + 2π against 48 − 2π/3. At a coarser ε the
-/// plane holds the axis, the dimple is one lune, and its flip is the
-/// boss, a valid body.
+/// A brick less a ball whose polar axis lies 2e-11 off the brick's face
+/// plane: past the band's escalation at ε = 1e-12 (`1e-11`), so the
+/// distance is decided there (in band, the boolean itself escalates and
+/// no dimple is built), and inside the zero at any coarser ε. At
+/// ε = 1e-12 the dimple is two faces of one sphere, each with both poles
+/// at its vertices, so neither encodes a side alone; their region's
+/// boundary passes the poles 2e-11 off, so a pole on the seam between
+/// them reads the region's side. Both flipped are refused as covering it twice by tier
+/// 3 (the door once measured 48 + 2π against 48 − 2π/3), and each
+/// flipped bit against the side its region's
+/// boundary encodes (`CurvedSenseInverted`), which the door reads first
+/// (`SenseContradicted`). At a coarser ε the plane
+/// holds the axis, the dimple is one lune, and its flip is the boss, a
+/// valid body.
 #[test]
 fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
     let tol = Tol::witness();
@@ -117,7 +126,7 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
     );
     let block = finished(
         "block",
-        brick((-3.0, 1e-11), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick((-3.0, 2e-11), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let body = Body::clone(
@@ -143,7 +152,50 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
                 "the lone lune flipped is the boss, measures {got}"
             );
         }
-        2 => overcovered("both halves flipped", &both, tol),
+        2 => {
+            let errs = topo::validate_geometric(&both, tol).unwrap_err();
+            let mut inverted: Vec<topo::FaceKey> = errs
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::CurvedSenseInverted { face } => Some(*face),
+                    _ => None,
+                })
+                .collect();
+            inverted.sort();
+            let mut want = faces.clone();
+            want.sort();
+            assert_eq!(
+                inverted, want,
+                "each flipped bit contradicts its region: {errs:?}"
+            );
+            assert!(
+                errs.iter().all(|e| matches!(
+                    e,
+                    ValidationError::SeamRegionOvercovered { times: 2, .. }
+                        | ValidationError::CurvedSenseInverted { .. }
+                )) && errs
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::SeamRegionOvercovered { times: 2, .. })),
+                "refused as covered twice and inverted, and nothing else: {errs:?}"
+            );
+            // Raw door: tier 3 refuses this flip (SeamRegionOvercovered).
+            let door = topo::test_support::measure_unvalidated(
+                &both,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            );
+            // The door reads the contradicted bit before the census.
+            assert!(
+                matches!(
+                    door,
+                    Err(topo::MassPropsError::Face {
+                        source: PropsError::SenseContradicted,
+                        ..
+                    })
+                ),
+                "the door refuses the bit its region contradicts: {door:?}"
+            );
+        }
         n => panic!("the dimple is {n} faces"),
     }
 }

@@ -18,3 +18,14 @@ Signed: (FOREIGN orchestrator)
 ## First in the wrap-tip sequence (Ev, `[ev]` PR 6014, 2026-10-29)
 
 Ev approved the wrap tip "if the complexity it adds is tolerable", asking that keeping it down be investigated. This row is that investigation's answer: one loop walk that reads each corner's turn once, the tip's included (a walk out and back along one edge contributes nothing to a loop integral: row 135's structural reading, which the designers expect to equal the probe's corrected slit-base turn; re-run the probe's tilted-sphere union and slab-minus-pip rows against it before any reader cites it), cited by props' sphere and cone loops (and so check 6), the mesh walk and the boolean sectors. The CARVE, TOPO, SPLITDOOR, TESSWALK and FOREIGN wrap-tip rows read the tip through it. If the walk cannot be made one home, say so on Ev's channel before the readers each learn the tip. Raised to the first step; still P1. (FOREIGN orchestrator)
+
+## One more walker (RESTCURVE, PR 6054, 2026-10-30)
+
+`geom_brep::chart_singularity::walk_loop` walks a face's loop through
+its chart to read which side of it a pole or apex lies on (tier 3's
+chart-singularity arm and step-import's normalization), for the loops
+props' closed form does not read. It reads a corner only as the azimuth
+step across it. Beside it, `chart_singularity::without_spurs` takes a
+loop's out-and-back pairs out before either reading (a spur bounds no
+area): the structural reading of a same-edge reversal this row's walk
+would own. Both are this row's to absorb. (RESTCURVE implementer)
