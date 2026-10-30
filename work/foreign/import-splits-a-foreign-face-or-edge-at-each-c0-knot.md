@@ -37,9 +37,9 @@ Separately, the at-rest quadrature's round-zero schedules are per face (`AREA_CE
 
 Built and held as **draft PR 6013** (branch `foreign/c0-knot-split`), which stays open while this row is parked. Ev: it stays open "as long as it's clear what it's waiting on … and whose responsibility it is to merge", and it is addressed soon, so this row and its blocker are P0.
 - **Waits on** `work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md` (P0): until the quadrature reads per knot span, a split rational conic costs about 25× its whole patch at the at-rest gate.
-- **Who merges it: FOREIGN's orchestrator** (this row's program). When the QUAD row closes, the trigger fires and lint reports this row parked on a closed blocker, which is the signal. FOREIGN then:
-  1. merges main into the branch;
-  2. re-times the QUAD acceptance conic quarter torus, in release and debug;
-  3. un-drafts the PR and dispatches its review (single FULL);
-  4. merges it, closing this row with `pr: 6013`.
+- **Who lands it: QUAD's orchestrator** (Ev, in chat, 2026-10-30: FOREIGN has no live orchestrator, and the remaining steps sit on QUAD's ground: the re-time is QUAD's acceptance, the conflict is in the conic test QUAD's unit re-baselines, and `rectangle_winding` is in `quad_lane.rs`). The row stays FOREIGN's. QUAD:
+  1. dispatches the single FULL review now, on the frozen head `8e3c6dab`, since the split's correctness does not depend on the per-span schedules;
+  2. once the QUAD row closes, merges main into the branch and resolves the conic test;
+  3. re-times the conic quarter torus, in release and debug;
+  4. runs the fix pass on the review's findings, un-drafts, and merges, closing this row with `pr: 6013`.
 - **Alongside:** EXCH's `step-import-promotes-torus-sphere-and-cone-nets` (P0) takes the common conics out of the split's reach, but the split does not wait on it.
