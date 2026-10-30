@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P2
 cost: E
-refs: [tangent-and-coaxial-scenes-are-in-the-corpus, main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664]
+refs: [6023, main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664]
 ---
 
 Two of INTENT stage 6's corpus scenes stand beside the registry

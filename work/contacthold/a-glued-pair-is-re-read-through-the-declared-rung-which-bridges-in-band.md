@@ -7,7 +7,7 @@ opened: 2026-10-29
 closed: 2026-10-30
 priority: P0
 cost: H
-refs: [d10-exit-walk]
+refs: [5997]
 pr: 6079
 branch: contacthold/glued-pair-reads-its-record
 ---

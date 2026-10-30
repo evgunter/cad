@@ -20,13 +20,10 @@ holds it.
 
 ## State of the build
 
-**The intent refactor is in progress, and much of what
-[intent], [variables], [operations], [repetition], [placement],
-[coincidence] and [assertions] describe is not built yet.** The INTENT
-program builds it in stages (`work/intent/plan.md`), with COINCIDE,
-REFS and INLANE as its successors; every other program holds off
-starting units that meaningfully touch dependency, placement or
-intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
+**The intent refactor is built.** The INTENT program built D10 in six
+stages, with COINCIDE, REFS and INLANE as its successors, and closed on
+2026-10-30 (`docs/doc-ledger/intent-leaves-the-tracker.md`). The hold it
+carried on dependency, placement and intent is released.
 
 - **Built:** variables (stage 1); operations that read and define
   variables, selections as definitions, the product as a list
@@ -75,8 +72,8 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   sink rule, and A12's
   reading edges.
 
-The program's exit walk checks that list against the code
-(`work/intent/plan.md`, "Exit criteria").
+The program's exit walk checked that list against the code
+(`docs/doc-ledger/intent-leaves-the-tracker.md`).
 
 ## Vision
 

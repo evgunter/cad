@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
-refs: [the-from-f64-gate-reads-every-generic-crate]
+refs: [4596]
 closed: 2026-10-17
 ---
 

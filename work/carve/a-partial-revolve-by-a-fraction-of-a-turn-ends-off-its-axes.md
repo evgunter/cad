@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-20
 priority: P3
 cost: M
-refs: [a-turn-by-the-nearest-quarter-turn-rounds, transform-retires-into-a-placement]
+refs: [5506]
 ---
 
 Found by INTENT stage 3 D's exact-turn lane. A rotation fed by an angle the recipe writes as a rational fraction of a turn now takes its sine and cosine from the fraction (`geom_core::Angle`, `Turns`), in every lane: pose and world-read spins, loft station spins, a revolve's `axis_heading`, a circular pattern's steps and a placement's spins (`crates/editor-core/src/expr.rs` `eval_angle`, `crates/editor-core/src/eval/slots.rs` `angle`).

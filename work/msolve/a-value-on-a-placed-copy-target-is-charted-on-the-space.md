@@ -7,8 +7,7 @@ closed: 2026-10-28
 opened: 2026-10-17
 priority: P2
 cost: M
-refs: [a-mate-relates-two-poses, transform-retires-into-a-placement, patterns-are-index-variables]
-parent: patterns-are-index-variables
+refs: [5506, 5954]
 ---
 
 
