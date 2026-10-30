@@ -45,8 +45,8 @@ census: Ok
 rows: 0
 ## kitchen_sink
 solids=8 faces=48 edges=96 vertices=64
-at rest: 0 interference, 29 could not look
-census: 29 findings
+at rest: 0 interference, 28 could not look
+census: 28 findings
 UnrecordedContact { contact: VertexVertex { a: VertexKey(5v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 UnrecordedContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(21v1), edge: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.625)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
@@ -61,7 +61,6 @@ CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(14v1)), what: "a cur
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(17v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(18v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(19v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
-CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(21v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(22v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(23v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(24v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }

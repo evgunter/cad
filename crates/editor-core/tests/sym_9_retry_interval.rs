@@ -670,13 +670,19 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // With the ladder and without it still read alike. Then PR 5952
     // (the profile's simplicity pass reads no gap on a line pair that
     // shares a vertex) took 8 numeric decisions off the plate and 10 off
-    // the bracket.
+    // the bracket. PR 5954's rule H proves the bracket +2 and the link +8
+    // (its cost table): bare [1535, 1157] -> [1537, 1155], the link
+    // [954, 813] -> [962, 805] both ways. With the ladder the bracket is
+    // +8 and retries 6: rule G under H costs `carrier_matches_mapped_source`
+    // four per attempt and the ladder recovers them and two more, the
+    // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
+    // never-loses (`work/green/g-moves-four-main-reds-messages.md`).
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1149, 824], [1149, 824], 0),
         ("r1_annulus", [654, 555], [654, 555], 0),
         ("r1_segment_boss", [651, 531], [651, 531], 0),
-        ("r2_filleted_bracket", [1535, 1157], [1535, 1157], 0),
-        ("r2_link", [954, 813], [954, 813], 0),
+        ("r2_filleted_bracket", [1537, 1155], [1543, 1149], 6),
+        ("r2_link", [962, 805], [962, 805], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -829,9 +835,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // explained: [1421, 1386, 34] -> [1463, 1380, 34]. #5542's merge
     // moved it first, to [1421, 1378, 34]; the rest is unbisected
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+    // Pinned at main's value, not explained: `symbolic` -2 since PR 5954
+    // (`work/green/g-moves-four-main-reds-messages.md`).
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1463, 1380, 34],
+        [1461, 1382, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -844,8 +852,8 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     );
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
-    // [1429, 1414, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1429, 1414, 0]);
+    // [1429, 1414, 0] -> [1427, 1416, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1427, 1416, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

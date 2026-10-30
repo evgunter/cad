@@ -1,7 +1,7 @@
 ---
 id: g-moves-four-main-reds-messages
 kind: issue
-title: Six rows red on main read G's numbers (four slow rows, the m10_sym_profile plate digest, the sweep thread-count digest at 1e-12); whoever greens them pins G's
+title: INTENT G (PR 5954) moved six slow rows on main; all are now pinned or re-blessed, and two moves stay unexplained: R2's rounded pad loses two symbolic decisions outside the bracket-only DECIDE-3 trade, and the m10_sym_profile plate digest and sweep thread-count line moved without a stated cause
 status: open
 opened: 2026-10-29
 priority: P1
@@ -29,3 +29,25 @@ These four rows are red on main, and under G they stay red with the same message
 - Red at 1e-12 only and unchanged: the `sweep` thread-count digest (`sym_arc_loft chk=97/104` against `99/104`).
 - `deny_unknown_fields_census` is red again for a new reason. PR 6043 added three sites to `crates/editor-core/src/program.rs` (`ProgramTarget`, `TraceCrossing`, `DrawnOn`), taking it from 4 to 7. The nightly triage PR re-syncs it; that move is not G's.
 - `review_pick_r2` reads `(431064, 143483, 14556, 7266)` against #6023's pin `(431064, 143421, 27618, 9216)`. That pin was never measured on #6023's tree: its pin commit, head and merge all read tonight's tally (see `pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement`). The nightly triage PR re-pins it, so this row's `review_pick_r2` red is closed.
+
+**2026-10-30, GREEN (lane `green/nightly-77-pins`)**, on main `2e1c1bff`, run locally at the ε rows the nightly reported:
+
+- **Re-blessed** as G's deliberate change: `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`. PR 5954's cost table has rule H proving the bracket +2 and the link +8. The row reads the bracket bare `[1535, 1157]` → `[1537, 1155]` and the link `[954, 813]` → `[962, 805]` both ways. With the ladder the bracket reads `[1543, 1149]`, +8, and retries 0 → 6. That is the DECIDE-3 trade PR 5954 rules: rule G under H costs `carrier_matches_mapped_source` four decisions per attempt, the ladder recovers them and two more, and the exemption from never-loses names that one predicate on the bracket alone.
+- **Pinned at main's value, not explained** (exact-value pins citing this row):
+  - `sym_9_the_drive_writes_the_ladders_receipt`. Its document is R2's rounded pad (`pad_first_leg_by_angle`), not the bracket, and PR 5954's cost table shows no proof change for the pad. Yet the pad loses two `symbolic` decisions on both dials: shipped `[1463, 1380, 34]` → `[1461, 1382, 34]`, bare `[1429, 1414, 0]` → `[1427, 1416, 0]`. The bare value was measured on main (this lane's run, with only the shipped pin moved); no nightly reached it past the shipped red.
+  - `m10_sym_profile_interval`'s plate `Early/Decision` digest, `9ff98070…` → `38b61e2e…`, every count holding.
+  - The `sweep` 1e-12 thread-count table's `sym_arc_loft validate_geometric chk=99/104` → `97/104`.
+
+  None of the three stops a row early, so un-pinning owes only an explanation of the move.
+
+**2026-10-30, for INTENT.** The pad's two lost `symbolic` decisions under G are unexplained: G's cost table claims nothing for the pad, and DECIDE-3's exemption names the bracket alone. This row stays open for them, beside the plate digest and the `sym_arc_loft` checks.
+
+## Re-homed to INTENT (2026-10-30, GREEN)
+
+GREEN pinned or re-blessed every red this row lists (#6093), so main is
+green on them. What remains is the cause, which is INTENT's: the pad's
+loss of two `symbolic` decisions in `sym_9_the_drive_writes_the_ladders_receipt`
+(pinned at main's value as not explained), the plate digest, and the
+thread-count `chk 97/104` line. Moved to INTENT per GREEN's charter (the
+fix row goes on the program that owns the code that moved). Un-pinning
+each owes the re-measure its pin site names.
