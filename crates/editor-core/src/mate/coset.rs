@@ -336,22 +336,6 @@ impl SubgroupFamily {
         (self.codimension() + added.codimension() == met.codimension()).then_some(met)
     }
 
-    /// **Whether a subgroup of this family about a line holds every one
-    /// of `motion`'s about the same line**: the cylindrical group holds
-    /// the slide along its line and the spin about it, and the revolute
-    /// group the spin.
-    #[must_use]
-    pub fn holds_on_its_line(self, motion: Self) -> bool {
-        matches!(
-            (self, motion),
-            (
-                Self::Cylindrical,
-                Self::Prismatic | Self::Revolute | Self::Cylindrical
-            ) | (Self::Revolute, Self::Revolute)
-                | (Self::Prismatic, Self::Prismatic)
-        )
-    }
-
     /// Whether the family holds every translation.
     pub(crate) fn frees_every_translation(self) -> bool {
         matches!(self, Self::Se3 | Self::Parallel | Self::Translation)

@@ -245,30 +245,75 @@ impl Stated {
 /// revolve). Any other cell's axis is its own. A part's entity is named
 /// in the part's ids, which this document does not hold, so a band
 /// the walk stopped at an instance for is its own wall's: a curved
-/// wall's two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are
-/// one carrier.
+/// wall's faces are one carrier ([`carrier`]).
 pub(crate) fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Construction {
-    let in_a_part = matches!(
-        cell.maps.last(),
-        Some(Map::World(at)) if matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
-    );
+    let cell = carrier(cell);
+    let Origin::Minted(name) = &cell.origin else {
+        return cell;
+    };
+    if !matches!(name.path.as_slice(), [RoleSeg::Band(_)]) || in_a_part(doc, &cell) {
+        return cell;
+    }
+    match axis_output(doc, name.node) {
+        Some(axis) => Construction {
+            origin: Origin::Pose(axis, None),
+            maps: cell.maps,
+        },
+        None => cell,
+    }
+}
+
+/// **The carrier a swept face is on, named once**: a revolve's band's
+/// two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are one
+/// carrier, and so are the faces an extrude or a revolve sweeps over the
+/// pieces of one carrier-form loop (a circle's, every one an arc of one
+/// carrier), named by the loop's first piece. Any other cell is its own.
+pub(crate) fn carrier(cell: &Construction) -> Construction {
+    use crate::names::ProfileEdgeRef;
+    use profile::PieceRole;
     let Origin::Minted(name) = &cell.origin else {
         return cell.clone();
     };
-    let [RoleSeg::Band(run) | RoleSeg::BandPi(run)] = name.path.as_slice() else {
-        return cell.clone();
+    // A carrier form's piece is its loop's first.
+    let first = |run: &crate::names::PieceRun| {
+        crate::names::PieceRun::new(
+            run.pieces()
+                .iter()
+                .map(|piece| match piece {
+                    ProfileEdgeRef::Piece {
+                        step,
+                        role: PieceRole::Piece(_),
+                    } => ProfileEdgeRef::Piece {
+                        step: *step,
+                        role: PieceRole::Piece(0),
+                    },
+                    other => *other,
+                })
+                .collect(),
+        )
+        .unwrap_or_else(|| run.clone())
     };
-    let origin = match axis_output(doc, name.node).filter(|_| !in_a_part) {
-        Some(axis) => Origin::Pose(axis, None),
-        None => Origin::Minted(crate::names::StableName {
-            path: vec![RoleSeg::Band(run.clone())],
-            ..name.clone()
-        }),
+    let path = match name.path.as_slice() {
+        [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => vec![RoleSeg::Band(first(run))],
+        [RoleSeg::Lateral(run)] => vec![RoleSeg::Lateral(first(run))],
+        _ => return cell.clone(),
     };
     Construction {
-        origin,
+        origin: Origin::Minted(crate::names::StableName {
+            path,
+            ..name.clone()
+        }),
         maps: cell.maps.clone(),
     }
+}
+
+/// **Whether the walk to `cell` stopped at a part's instance**, so its
+/// name is in the part's ids, which this document does not hold.
+pub(crate) fn in_a_part<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> bool {
+    matches!(
+        cell.maps.last(),
+        Some(Map::World(at)) if matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
+    )
 }
 
 /// **The `axis` output of the node `node`**: a revolve's.
