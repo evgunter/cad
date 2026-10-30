@@ -368,3 +368,4 @@ the text-only option's wording. Both found
 - **2026-10-30, picked up by (INTENT orchestrator)** for its one P0, `a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band`. It is the last row D10's umbrella (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`) waits on, and stage 6 is closing.
   - The row is `design: true`, so the designer pair is dispatched first (one Opus, one Fable, identical briefs, 05:16Z). Its blinding byte is on `analysis/design-fork/glued-pair-reread`.
   - An `[ev]` PR follows if the fork is Ev's. The track is handed back once the P0 is done.
+- **2026-10-30, designers agreed** on the P0 (no `[ev]`; the answer is in the row). It was dispatched as one unit, with the at-rest confirm, declaration names and README C4 rows folded in. Review tier: dual H.
