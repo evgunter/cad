@@ -3446,7 +3446,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 const READ_DOORS: [&str; 20] = [
     "face_carrier",
     "carrier_pair_relation",
-    "carrier_pair_verdict",
+    "carrier_pair_decided",
     "flush_pair_relation",
     "mint_pcurves",
     "mint_pcurves_of",
@@ -3478,7 +3478,7 @@ const PREMISE_DOORS: [&str; 8] = [
     "contfp",
     "classify_neighborhood",
     "face_carrier",
-    "carrier_pair_verdict",
+    "carrier_pair_decided",
     "flush_pair_relation",
     "face_azimuth_window_traces",
     "revert",
@@ -3629,7 +3629,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
     for (face, data) in body.faces() {
         use crate::boolean::{
-            PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+            PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
             flush_pair_relation,
         };
         let outside = || match body.get_surface(data.surface) {
@@ -3654,13 +3654,13 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             },
         );
         judge_read(capture, &mut census, "carrier_pair_relation", || {
-            pair(carrier_pair_relation(body, face, &sound, sound_face, false, band).err())
+            pair(carrier_pair_relation(body, face, &sound, sound_face, band).err())
         });
-        judge_read(capture, &mut census, "carrier_pair_verdict", || {
-            pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        judge_read(capture, &mut census, "carrier_pair_decided", || {
+            pair(carrier_pair_decided(body, face, &sound, sound_face, band).err())
         });
         judge_read(capture, &mut census, "flush_pair_relation", || {
-            pair(flush_pair_relation(body, face, &sound, sound_face, false, band).err())
+            pair(flush_pair_relation(body, face, &sound, sound_face, band).err())
         });
     }
     // The mints write their body, so each runs on a clone, and a

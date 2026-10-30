@@ -1244,6 +1244,7 @@ impl<T: Real> GluedPair<T> {
     /// Where the face-pair door does not decide the pair one carrier on
     /// a margin: the glue door would not glue it.
     #[cfg(test)]
+    #[allow(clippy::panic)]
     pub(crate) fn read(
         (a, fa): (&Body<T>, FaceKey),
         (b, fb): (&Body<T>, FaceKey),
