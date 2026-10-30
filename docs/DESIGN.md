@@ -18,63 +18,6 @@ resolve against this file at commit `95c77e152a`, and
 Update an old citation as a drive-by when touching the text that
 holds it.
 
-## State of the build
-
-**The intent refactor is built.** The INTENT program built D10 in six
-stages, with COINCIDE, REFS and INLANE as its successors, and closed on
-2026-10-30 (`docs/doc-ledger/intent-leaves-the-tracker.md`). The hold it
-carried on dependency, placement and intent is released.
-
-- **Built:** variables (stage 1); operations that read and define
-  variables, selections as definitions, the product as a list
-  (stage 2); poses as defined variables, read off geometry, read
-  through their roles and moved by lengths and angles, a revolve's
-  axis a point and a heading, and a lone `0` the constant zero
-  (stage 3 A and A′); a placement as the bundle of its mates, the
-  world a node and spaces as kinds, with gauges, offsets and the
-  mates' spanning tree retired (stage 3 B); a mate relating two poses,
-  `Transform` retired into a placement, a placement naming its target
-  space with mates reading only geometry and values charted on it,
-  `assemble` as the `⊔` operator and the product a slot, an operation
-  computing in a frame of its reads, a mate on a pinned copy refusing,
-  and repetition by index with patterns retired (stage 3 C–G); the
-  coincidence door with its rungs and the `unproven-coincidence` lint,
-  with declared pairs, a mate's `ContactClass` and the undeclared
-  refusals retired (stage 4); booleans gluing on a Zero verdict
-  and the boolean declare surface retired (stage 4 E and F); assertions
-  relating by `=`, interference at rest as a finding, and the at-rest
-  census as a check whose contacts a holding `Gap = 0` quiets, with A5's
-  at-rest gate (`assemble` and its refusal) and CHECKS DS6's
-  product-separation resident (`Separation`) retired (stage 5); an
-  operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way; coaxiality read at the door as one `Axis` read
-  twice, and tangency constructions, a sketch drawn on a frame
-  continuing tangent to a face's trace, proven at the door and written
-  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
-  its record at every consuming site, with the declared rung and its
-  bridged verdict retired (CONTACTHOLD); `Gap`'s curved arms reading
-  each face's material side, with a plane against a curved face, a
-  measure's reference reading a pose, and each finding's recourse
-  chosen by whether an assertion can say the row ([assertions.quiet],
-  [intent.checked]).
-- **What retires as the build reaches it.** Where a companion clause
-  disagrees with these sections, these govern, and the companion
-  clause retires when the program reaches it: the declared-contact
-  seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a
-  mate's `ContactClass`, C6's `Fit` as a class); the
-  undeclared-coincidence, undeclared-contact and undeclared-tangency
-  refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; the axis
-  declaration channel;
-  `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
-  `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's gathered product and
-  sink rule, and A12's
-  reading edges.
-
-The program's exit walk checked that list against the code
-(`docs/doc-ledger/intent-leaves-the-tracker.md`).
-
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the
@@ -2504,7 +2447,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D7 | [import] |
 | D8 | [recipe]; "The recipe keeps the form that was written" is [recipe.forms] |
 | D9 | [failure] (the never-panic rule and the bug-vs-invalid-state taxonomy, [failure.taxonomy]); [determinism] (bit-identity, libm, replay with kills, deterministic parallelism, the GPU boundary, equivariance as [determinism.equivariance]); [engineering] (the other engineering conventions) |
-| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the retirement list is in [State of the build](#state-of-the-build) |
+| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the clauses it superseded are retired (`docs/doc-ledger/intent-leaves-the-tracker.md`) |
 | Q1 | [scalars] and [verdicts] |
 | Q2, Q4, Q6, Q7, Q8 (resolved) | [tolerance], [tolerance.units] and [units], [recipe], [determinism], OFFSET-DESIGN O1–O6 |
 | Q3 | [open.sketch-solver] |

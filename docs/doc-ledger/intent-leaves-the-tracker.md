@@ -44,7 +44,7 @@ mechanisms and not new requirements, were found unbuilt and built:
   that assertions quiet every row they can say, flush included. Built in
   ATREST #6103.
 
-DESIGN's State of the build lists nothing unbuilt.
+With nothing of D10 left unbuilt, DESIGN's "State of the build" section, which tracked the refactor, is removed (Ev, PR 6109).
 
 ## Where the rows went
 
