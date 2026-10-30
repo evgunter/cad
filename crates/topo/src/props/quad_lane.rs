@@ -1148,6 +1148,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut segments: Vec<ChartSegment> = Vec::with_capacity(outer.len());
+    let mut slacks: Vec<SegmentSlack> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
     let lifted = crate::pcurves::lifted_images(body, hes);
@@ -1193,10 +1194,13 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
         // Traversal order: the loop walks he_plus-forward edges
         // start→end and reversed ones end→start.
+        let (sa, sb) = (end_slack(image, t0), end_slack(image, t1));
         if le.forward {
             segments.push(((ax, ay), (bx, by)));
+            slacks.push((sa, sb));
         } else {
             segments.push(((bx, by), (ax, ay)));
+            slacks.push((sb, sa));
         }
         // Metric boundary length bound + the map-residual defect.
         let len = carrier_metric_length(&le.carrier, t0, t1)?;
@@ -1223,7 +1227,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    let winding = rectangle_winding(&segments, (u0, u1, v0, v1)).ok_or(
+    let winding = rectangle_winding(&segments, &slacks, (u0, u1, v0, v1)).ok_or(
         PropsError::QuadratureUnsupported {
             what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
                    once — a trimmed or multiply-wound region is outside the rectangle \
@@ -1272,6 +1276,29 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
 /// One trim edge's chart image as `(start, end)` in traversal order.
 type ChartSegment = ((f64, f64), (f64, f64));
 
+/// How far each end of a [`ChartSegment`] may stand from the vertex it
+/// images, per chart axis, `(start, end)`: [`end_slack`].
+type SegmentSlack = ((f64, f64), (f64, f64));
+
+/// How far an iso image's point at `t` may round from the vertex it
+/// images, per chart axis, from what it is computed from: an `IsoLine`
+/// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
+/// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
+/// which rounds `g` itself by a few ulps of one. NaN for any other kind,
+/// which joins nothing.
+fn end_slack<T: Decide + Bounds + CertifiedEnclosure>(image: &Pcurve<T>, t: T) -> (f64, f64) {
+    let m = |x: T| Interval::from_certified(x).mag();
+    let ulps = |x: f64| 4.0 * f64::EPSILON * x;
+    match image {
+        Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
+        Pcurve::IsoArc { p0, pd, .. } => (
+            ulps(m(p0.x) + m(pd.x)) + 4.0 * ulps(m(pd.x)),
+            ulps(m(p0.y) + m(pd.y)) + 4.0 * ulps(m(pd.y)),
+        ),
+        _ => (f64::NAN, f64::NAN),
+    }
+}
+
 /// Whether the trim's iso segments, each `(start, end)` in traversal
 /// order, walk the boundary of the rectangle `(u0, u1, v0, v1)` exactly
 /// once: `+1.0` counter-clockwise, `−1.0` clockwise, `None` otherwise.
@@ -1287,6 +1314,7 @@ type ChartSegment = ((f64, f64), (f64, f64));
 /// one run.
 fn rectangle_winding(
     segments: &[ChartSegment],
+    slacks: &[SegmentSlack],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
 ) -> Option<f64> {
     if u0 >= u1 || v0 >= v1 {
@@ -1296,17 +1324,18 @@ fn rectangle_winding(
     // counter-clockwise order) and whether it runs counter-clockwise.
     let mut sides = Vec::with_capacity(segments.len());
     let mut ccw = None;
-    // Each segment starts where the one before it ended. The two are one
-    // vertex's images on two iso pcurves, each the affine `p₀ + l·t` at
-    // an end parameter, two roundings of terms no larger than the
-    // rectangle's coordinates: they agree within a few ulps of those,
-    // and a wider gap is two vertices.
-    let slack = |a: f64, b: f64| 4.0 * f64::EPSILON * a.abs().max(b.abs());
-    let (su, sv) = (slack(u0, u1), slack(v0, v1));
-    let joined = segments
-        .iter()
-        .zip(segments.iter().cycle().skip(1))
-        .all(|(&(_, (ex, ey)), &((sx, sy), _))| (ex - sx).abs() <= su && (ey - sy).abs() <= sv);
+    // Each segment starts where the one before it ended: the two are one
+    // vertex's images, each within its own slack of it, and a wider gap
+    // is two vertices.
+    if slacks.len() != segments.len() {
+        return None;
+    }
+    let ends = segments.iter().zip(slacks);
+    let joined = ends.clone().zip(ends.cycle().skip(1)).all(
+        |((&(_, (ex, ey)), &(_, (rx, ry))), (&((sx, sy), _), &((qx, qy), _)))| {
+            (ex - sx).abs() <= rx + qx && (ey - sy).abs() <= ry + qy
+        },
+    );
     if !joined {
         return None;
     }
@@ -2171,9 +2200,18 @@ mod tests {
     /// `rectangle_winding` on hand-built walks of the unit square.
     #[allow(clippy::float_cmp)]
     mod rectangle_winding {
-        use super::super::{ChartSegment, rectangle_winding};
+        use super::super::{ChartSegment, SegmentSlack, end_slack, rectangle_winding};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
 
         const R: (f64, f64, f64, f64) = (0.0, 1.0, 0.0, 1.0);
+
+        /// The slack of a walk on the unit square read off unit-sized
+        /// terms: four ulps of one at every end.
+        fn unit(w: &[ChartSegment]) -> Vec<SegmentSlack> {
+            let e = 4.0 * f64::EPSILON;
+            vec![((e, e), (e, e)); w.len()]
+        }
 
         const ONCE: [ChartSegment; 4] = [
             ((0.0, 0.0), (1.0, 0.0)),
@@ -2184,11 +2222,23 @@ mod tests {
 
         #[test]
         fn once_around_reads_its_direction_and_twice_around_refuses() {
-            assert_eq!(rectangle_winding(&ONCE, R), Some(1.0), "counter-clockwise");
+            assert_eq!(
+                rectangle_winding(&ONCE, &unit(&ONCE), R),
+                Some(1.0),
+                "counter-clockwise"
+            );
             let cw: Vec<ChartSegment> = ONCE.iter().rev().map(|&(a, b)| (b, a)).collect();
-            assert_eq!(rectangle_winding(&cw, R), Some(-1.0), "clockwise");
+            assert_eq!(
+                rectangle_winding(&cw, &unit(&cw), R),
+                Some(-1.0),
+                "clockwise"
+            );
             let twice: Vec<ChartSegment> = ONCE.iter().chain(&ONCE).copied().collect();
-            assert_eq!(rectangle_winding(&twice, R), None, "twice around");
+            assert_eq!(
+                rectangle_winding(&twice, &unit(&twice), R),
+                None,
+                "twice around"
+            );
         }
 
         /// A vertex whose two images round apart by an ulp along their
@@ -2199,7 +2249,7 @@ mod tests {
             let mut w = ONCE;
             w[0].1 = (below_one, 0.0);
             w[2].0 = (below_one, 1.0);
-            assert_eq!(rectangle_winding(&w, R), Some(1.0));
+            assert_eq!(rectangle_winding(&w, &unit(&w), R), Some(1.0));
         }
 
         /// Walks the segment sides and directions alone would read as
@@ -2209,24 +2259,28 @@ mod tests {
             let mut gap = ONCE;
             gap[1].0 = (1.0, 0.5);
             assert_eq!(
-                rectangle_winding(&gap, R),
+                rectangle_winding(&gap, &unit(&gap), R),
                 None,
                 "the right side starts half way up"
             );
             let mut short = ONCE;
             short[1].1 = (1.0, 0.5);
             assert_eq!(
-                rectangle_winding(&short, R),
+                rectangle_winding(&short, &unit(&short), R),
                 None,
                 "the right side stops short"
             );
             let mut hair = ONCE;
             hair[1].0 = (1.0, 1e-9);
-            assert_eq!(rectangle_winding(&hair, R), None, "a gap of 1e-9");
+            assert_eq!(
+                rectangle_winding(&hair, &unit(&hair), R),
+                None,
+                "a gap of 1e-9"
+            );
             let mut more = ONCE.to_vec();
             more.push(((0.0, 0.0), (0.5, 0.0)));
             assert_eq!(
-                rectangle_winding(&more, R),
+                rectangle_winding(&more, &unit(&more), R),
                 None,
                 "five quarters round, unclosed"
             );
@@ -2243,7 +2297,52 @@ mod tests {
                 ((1.0, 1.0), (0.0, 1.0)),
                 ((0.0, 1.0), (0.0, 0.0)),
             ];
-            assert_eq!(rectangle_winding(&w, R), None);
+            assert_eq!(rectangle_winding(&w, &unit(&w), R), None);
+        }
+
+        /// An `IsoLine` read at parameters about 100 rounds at ulps of
+        /// 100, not of the rectangle: the bottom side `x = −100 + t` ends
+        /// at `t = 100.7` some ulps of 100 off the right side's
+        /// `x = 0.7`, and is one vertex.
+        #[test]
+        fn an_image_at_offset_parameters_joins_within_its_own_slack() {
+            let bottom = Pcurve::IsoLine {
+                p0: Point2::new(-100.0, 0.0),
+                pl: Vec2::new(1.0, 0.0),
+            };
+            let at = |c: &Pcurve<f64>, t: f64| {
+                let p = c.eval(t);
+                (p.x, p.y)
+            };
+            let right = Pcurve::IsoLine {
+                p0: Point2::new(0.7, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            };
+            let top = Pcurve::IsoLine {
+                p0: Point2::new(0.7, 1.0),
+                pl: Vec2::new(-1.0, 0.0),
+            };
+            let left = Pcurve::IsoLine {
+                p0: Point2::new(0.0, 1.0),
+                pl: Vec2::new(0.0, -1.0),
+            };
+            let walk = [
+                (&bottom, 100.0, 100.7),
+                (&right, 0.0, 1.0),
+                (&top, 0.0, 0.7),
+                (&left, 0.0, 1.0),
+            ];
+            let segments: Vec<ChartSegment> =
+                walk.iter().map(|&(c, a, b)| (at(c, a), at(c, b))).collect();
+            assert_ne!(segments[0].1, segments[1].0, "the two images round apart");
+            let slacks: Vec<SegmentSlack> = walk
+                .iter()
+                .map(|&(c, a, b)| (end_slack(c, a), end_slack(c, b)))
+                .collect();
+            assert_eq!(
+                rectangle_winding(&segments, &slacks, (0.0, 0.7, 0.0, 1.0)),
+                Some(1.0)
+            );
         }
     }
 }

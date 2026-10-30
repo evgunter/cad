@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds as _, Interval, Point3};
+use geom_core::{Bounds as _, Interval, Point3, Vec3};
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
@@ -481,10 +481,9 @@ fn feet(solid: &SolidSpec, f: usize, s: &NurbsSurface<f64>) -> Vec<[f64; 4]> {
 /// The enclosures [`clear_of`] may form for one side of one line
 /// before it answers "not certified": a constant of the selection,
 /// spent where the boundary meets the region or runs along its rim.
+/// It bounds the halving too: each halving that does not settle a piece
+/// quarters at least one cell.
 const CLEAR_BUDGET: usize = 4096;
-
-/// The deepest [`clear_of`] halves an edge piece.
-const CLEAR_DEPTH: u32 = 40;
 
 /// A parameter rectangle of the chart and an enclosure of its image.
 #[derive(Clone, Copy)]
@@ -511,6 +510,11 @@ struct Cell {
 /// they meet, until they part or [`CLEAR_BUDGET`] is spent. What it
 /// cannot certify, the boundary running along the line among it, is
 /// left to the split.
+///
+/// The premise the inflation rests on, unchecked here: every boundary
+/// edge lies within `ε_in` of the face's chart, as the file states and
+/// tier 3 certifies only at rest
+/// (`work/foreign/import-splits-knot-lines-on-an-unchecked-incidence-premise.md`).
 #[allow(clippy::too_many_arguments)]
 fn clear_of(
     solid: &SolidSpec,
@@ -522,8 +526,8 @@ fn clear_of(
     high: bool,
     eps_in: f64,
 ) -> bool {
-    let (sup_u, sup_v) = s.stretch_sup();
-    let speed = if along_v { sup_v.get() } else { sup_u.get() };
+    let (sup_u, sup_v) = lifted.stretch_sup();
+    let speed = if along_v { sup_v.get() } else { sup_u.get() }.hi();
     let setback = eps_in / speed;
     if !setback.is_finite() {
         return false;
@@ -561,21 +565,42 @@ fn clear_of(
             .all(|c| c.lo() <= c.hi())
             .then_some(Cell { u, v, image })
     };
-    // A box within `ε_in` of the line at every point: its centre's
-    // distance from a point of the line, plus its half diagonal.
+    // A box within `ε_in` of the line at every point, read two ways.
+    // Across a chord: the line runs within `bent` of its chord (see
+    // `on_the_line`), and a box's distance from the chord, convex, is
+    // greatest at a corner, so a long piece lying along the line
+    // settles whole. Or from one point of the line, which bounds the
+    // distance from the line however it bends: the point is the line's
+    // at the foot of the box's centre, a float choice, enclosed by the
+    // chart's own enclosure, so how the foot rounds cannot matter.
+    let row = iso_row(s, knot, along_v);
+    let ends = row.as_ref().and_then(|r| Some((*r.first()?, *r.last()?)));
+    let bent = match (&row, ends) {
+        (Some(r), Some(ends)) => worst(r.iter().map(|&p| segment_reach(p, ends))),
+        _ => f64::NAN,
+    };
     let near = |bx: &[Interval; 3]| {
-        let mid = |c: &Interval| 0.5 * (c.lo() + c.hi());
-        let centre = Point3::new(mid(&bx[0]), mid(&bx[1]), mid(&bx[2]));
-        let half = worst(bx.iter().map(|c| 0.5 * (c.hi() - c.lo())));
-        let Ok(foot) = s.project(centre) else {
-            return false;
-        };
-        let on = if along_v {
-            s.eval(foot.u, knot)
-        } else {
-            s.eval(knot, foot.v)
-        };
-        (centre - on).norm() + half * 3f64.sqrt() <= eps_in
+        let across = ends.is_some_and(|ends| {
+            let corners = (0..8).map(|i: u8| {
+                let pick = |c: &Interval, bit: u8| if i & bit == 0 { c.lo() } else { c.hi() };
+                Point3::new(pick(&bx[0], 1), pick(&bx[1], 2), pick(&bx[2], 4))
+            });
+            worst(corners.map(|c| segment_reach(c, ends))) + bent <= eps_in
+        });
+        across || {
+            let mid = |c: &Interval| 0.5 * (c.lo() + c.hi());
+            let centre = Point3::new(mid(&bx[0]), mid(&bx[1]), mid(&bx[2]));
+            let Ok(foot) = s.project(centre) else {
+                return false;
+            };
+            let on = if along_v {
+                lifted.rect_enclosure((foot.u, foot.u), (knot, knot))
+            } else {
+                lifted.rect_enclosure((knot, knot), (foot.v, foot.v))
+            };
+            let gap = Vec3::new(bx[0] - on.x, bx[1] - on.y, bx[2] - on.z);
+            gap.norm().hi() <= eps_in
+        }
     };
     let (bu, bv) = (breaks(du, ru), breaks(dv, rv));
     let mut cells = Vec::new();
@@ -589,7 +614,7 @@ fn clear_of(
     }
     solid.faces[f].loops.iter().flat_map(|l| &l.uses).all(|u| {
         let spec = &solid.edges[&u.edge];
-        if on_the_line(spec, s, knot, along_v, eps_in) {
+        if ends.is_some_and(|ends| on_the_line(spec, ends, bent, eps_in)) {
             return true;
         }
         let lifted_edge = match spec.carrier {
@@ -604,51 +629,52 @@ fn clear_of(
             cells.clone(),
             eps_in,
             &mut cell,
-            0,
         )
     })
 }
 
-/// Whether `spec` lies within `eps_in` of the iso line `knot` of the
-/// chart `s` (along `v` where `along_v`) at every point, by structure:
-/// the line is the net's row (column) the spline interpolates at the
-/// knot, and where that row's control points lie within `d` of the chord
-/// between its ends, the line runs within `d` of every chord point (its
-/// foot on the chord runs from one end to the other). An edge whose
-/// convex hull (a line's two ends, a spline's control points over its
-/// whole domain) lies within `e` of the chord then lies within `e + d`
-/// of the line. `false` for a curved line or any other edge.
-fn on_the_line(
-    spec: &EdgeSpec,
-    s: &NurbsSurface<f64>,
-    knot: f64,
-    along_v: bool,
-    eps_in: f64,
-) -> bool {
+/// The net's row (column, where `along_v`) the chart interpolates at
+/// its crease knot `knot`: the iso line's own control points.
+fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3<f64>>> {
     let kv = if along_v {
         s.knots_v_f64_interim()
     } else {
         s.knots_u_f64_interim()
     };
-    let Some(first) = kv.knots().iter().position(|&x| x == knot) else {
-        return false;
-    };
+    let first = kv.knots().iter().position(|&x| x == knot)?;
     let (nu, nv) = s.control_counts();
     let control = s.control();
-    let row: Vec<Point3<f64>> = if along_v {
+    Some(if along_v {
         (0..nu).map(|i| control[i * nv + first - 1]).collect()
     } else {
         control[(first - 1) * nv..first * nv].to_vec()
-    };
-    let (Some(&a), Some(&b)) = (row.first(), row.last()) else {
-        return false;
-    };
+    })
+}
+
+/// An upper bound on `p`'s distance from the segment `ends`: its
+/// distance from one point of the segment, chosen in `f64` (any point
+/// bounds it), measured in interval arithmetic. NaN for a segment of no
+/// length.
+fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     let chord = b - a;
-    let off = |p: Point3<f64>| {
-        let t = ((p - a).dot(chord) / chord.dot(chord)).clamp(0.0, 1.0);
-        (p - (a + chord * t)).norm()
-    };
-    let bent = worst(row.iter().map(|&p| off(p)));
+    let t = ((p - a).dot(chord) / chord.dot(chord)).clamp(0.0, 1.0);
+    if !t.is_finite() {
+        return f64::NAN;
+    }
+    let i = |x: f64| Interval::from_bounds(x, x);
+    let lift = |q: Point3<f64>| Vec3::new(i(q.x), i(q.y), i(q.z));
+    let gap = lift(p) - (lift(a) + (lift(b) - lift(a)) * i(t));
+    gap.norm().hi()
+}
+
+/// Whether `spec` lies within `eps_in` of the iso line at every point,
+/// by structure: the line's control row lies within `bent` of the chord
+/// `ends` between its ends, so the line runs within `bent` of every
+/// chord point (its foot on the chord runs from one end to the other).
+/// An edge whose convex hull (a line's two ends, a spline's control
+/// points over its whole domain) lies within `e` of the chord then lies
+/// within `e + bent` of the line. `false` for any other edge.
+fn on_the_line(spec: &EdgeSpec, ends: (Point3<f64>, Point3<f64>), bent: f64, eps_in: f64) -> bool {
     let hull: Vec<Point3<f64>> = match spec.carrier {
         Curve3::Line { .. } => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
         Curve3::Nurbs(ref c) if c.knots_f64_interim().domain() == (spec.t0, spec.t1) => {
@@ -656,7 +682,7 @@ fn on_the_line(
         }
         _ => return false,
     };
-    worst(hull.iter().map(|&p| off(p))) + bent <= eps_in
+    worst(hull.iter().map(|&p| segment_reach(p, ends))) + bent <= eps_in
 }
 
 /// The largest of `xs`, NaN where any is: a poisoned reading certifies
@@ -667,8 +693,9 @@ fn worst(xs: impl Iterator<Item = f64>) -> f64 {
 
 /// Whether the edge pieces over `t` keep farther than `pad` from every
 /// one of `cells`, or lie within `ε_in` of the line (`near`), halving a
-/// piece and quartering each cell it meets until one holds; `false` where a piece has no box, the budget `cell`
-/// spends runs out, or the piece is [`CLEAR_DEPTH`] halvings deep.
+/// piece and quartering each cell it meets until one holds; `false`
+/// where a piece has no box, a piece no wider than `pad` still meets a
+/// cell, or the budget `cell` spends runs out.
 fn parts(
     piece: &dyn Fn(f64, f64) -> Option<[Interval; 3]>,
     near: &dyn Fn(&[Interval; 3]) -> bool,
@@ -676,7 +703,6 @@ fn parts(
     cells: Vec<Cell>,
     pad: f64,
     cell: &mut dyn FnMut((f64, f64), (f64, f64)) -> Option<Cell>,
-    depth: u32,
 ) -> bool {
     let Some(bx) = piece(a, b) else {
         return false;
@@ -691,7 +717,11 @@ fn parts(
     if hit.is_empty() || near(&bx) {
         return true;
     }
-    if depth == CLEAR_DEPTH {
+    // A piece no wider than `pad` that still meets the region, and is
+    // not on the line, is where the boundary may reach the far side: at
+    // that size the boundary's own distance from its chart, `pad`, is
+    // the larger uncertainty, and a finer cut buys nothing.
+    if bx.iter().all(|c| c.hi() - c.lo() <= pad) {
         return false;
     }
     let mut finer = Vec::with_capacity(4 * hit.len());
@@ -707,40 +737,38 @@ fn parts(
         }
     }
     let m = 0.5 * (a + b);
-    parts(piece, near, (a, m), finer.clone(), pad, cell, depth + 1)
-        && parts(piece, near, (m, b), finer, pad, cell, depth + 1)
+    parts(piece, near, (a, m), finer.clone(), pad, cell)
+        && parts(piece, near, (m, b), finer, pad, cell)
 }
 
-/// An enclosure of `carrier` over `[a, b]`: a line's two ends, a conic
-/// arc's certified box ([`geom::curves::boxes::conic_arc_aabb`]), a
-/// spline's restricted control hull (`lifted`, its net as intervals).
-/// `None` for any other carrier, or a box the door poisons.
+/// An enclosure of `carrier` over `[a, b]`: a line's `origin + dir·t`
+/// over the interval `[a, b]`, a conic arc's certified box
+/// ([`geom::curves::boxes::conic_arc_aabb`]), a spline's restricted
+/// control hull (`lifted`, its net as intervals). `None` for a box the
+/// door poisons. Its own mapping rather than `topo`'s edge box, which
+/// reads a body's certified edge curve: there is no body yet.
 fn piece_box(
     carrier: &Curve3<f64>,
     lifted: Option<&NurbsCurve3<Interval>>,
     a: f64,
     b: f64,
 ) -> Option<[Interval; 3]> {
-    let hull = |lo: [f64; 3], hi: [f64; 3]| -> Option<[Interval; 3]> {
-        let out = [0, 1, 2].map(|i| Interval::from_bounds(lo[i], hi[i]));
-        out.iter().all(|c| c.lo() <= c.hi()).then_some(out)
-    };
+    let proper = |out: [Interval; 3]| out.iter().all(|c| c.lo() <= c.hi()).then_some(out);
     match carrier {
         Curve3::Nurbs(_) => {
             let p = lifted?.span_enclosure(a, b)?;
-            let out = [p.x, p.y, p.z];
-            out.iter().all(|c| c.lo() <= c.hi()).then_some(out)
+            proper([p.x, p.y, p.z])
         }
-        Curve3::Line { .. } => {
-            let (p, q) = (carrier.eval(a), carrier.eval(b));
-            // Two rounded evaluations: pad each by a few ulps of its
-            // size, outward.
-            let ulp = |x: f64| 4.0 * f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
-            let lo = [p.x.min(q.x), p.y.min(q.y), p.z.min(q.z)];
-            let hi = [p.x.max(q.x), p.y.max(q.y), p.z.max(q.z)];
-            hull(lo.map(|x| x - ulp(x)), hi.map(|x| x + ulp(x)))
+        Curve3::Line { origin, dir } => {
+            let i = |x: f64| Interval::from_bounds(x, x);
+            let t = Interval::from_bounds(a, b);
+            proper([
+                i(origin.x) + i(dir.x) * t,
+                i(origin.y) + i(dir.y) * t,
+                i(origin.z) + i(dir.z) * t,
+            ])
         }
-        _ => {
+        Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
             let bx = geom::curves::boxes::conic_arc_aabb(
                 carrier,
                 a,
@@ -748,10 +776,11 @@ fn piece_box(
                 carrier.eval(a),
                 carrier.eval(b),
             )?;
-            hull(
-                [bx.min_x, bx.min_y, bx.min_z],
-                [bx.max_x, bx.max_y, bx.max_z],
-            )
+            proper([
+                Interval::from_bounds(bx.min_x, bx.max_x),
+                Interval::from_bounds(bx.min_y, bx.max_y),
+                Interval::from_bounds(bx.min_z, bx.max_z),
+            ])
         }
     }
 }
@@ -1083,6 +1112,96 @@ mod tests {
         assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), Vec::<f64>::new());
     }
 
+    /// The left half of a chart curved along `v` (degree 2, bulging to
+    /// `z = 1/4`), bounded on its right by the knot line itself. The
+    /// line is not straight, so no chord certifies the edge on it whole,
+    /// and piece by piece it would take pieces `ε_in` long: the budget
+    /// runs out, the face is kept, and its split refuses typed. The
+    /// residue of `work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md`.
+    #[test]
+    fn a_face_along_a_curved_knot_line_runs_out_its_budget_and_refuses_typed() {
+        let s = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            [0.0, 0.5, 1.0]
+                .into_iter()
+                .flat_map(|x| {
+                    [(0.0, 0.0), (0.5, 0.5), (1.0, 0.0)].map(|(y, z)| Point3::new(x, y, z))
+                })
+                .collect(),
+            vec![1.0; 9],
+        )
+        .unwrap();
+        let iso = |x: f64, down: bool| {
+            let mut c = vec![
+                Point3::new(x, 0.0, 0.0),
+                Point3::new(x, 0.5, 0.5),
+                Point3::new(x, 1.0, 0.0),
+            ];
+            if down {
+                c.reverse();
+            }
+            Curve3::Nurbs(Arc::new(
+                geom::NurbsCurve3::new(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                    c,
+                    vec![1.0; 3],
+                )
+                .unwrap(),
+            ))
+        };
+        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::Line {
+            origin: a,
+            dir: b - a,
+        };
+        let corners =
+            [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
+        let carriers = [
+            line(corners[0], corners[1]),
+            iso(0.5, false),
+            line(corners[2], corners[3]),
+            iso(0.0, true),
+        ];
+        let mut solid = solid(0.25);
+        solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
+        solid.vertices = (0..4).map(|i| (30 + i, corners[i as usize])).collect();
+        solid.edges = carriers
+            .into_iter()
+            .zip(0..4u64)
+            .map(|(carrier, i)| {
+                let spec = EdgeSpec {
+                    start: 30 + i,
+                    end: 30 + (i + 1) % 4,
+                    carrier,
+                    t0: 0.0,
+                    t1: 1.0,
+                    reversed: false,
+                };
+                (20 + i, spec)
+            })
+            .collect();
+        solid.faces[0].loops[0].uses = (0..4)
+            .map(|i| EdgeUse {
+                edge: 20 + i,
+                forward: true,
+            })
+            .collect();
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
+        let mut n = 100;
+        let mut mint = || {
+            n += 1;
+            n
+        };
+        let refused = split_faces(&mut solid, EPS_IN, &mut mint, &mut Vec::new());
+        assert!(
+            matches!(
+                refused,
+                Err(StepImportError::C0KnotUnsplit { face: 10, .. })
+            ),
+            "the uncertified face refuses typed: {refused:?}"
+        );
+    }
+
     /// A circle about `(0.31, 0.5)` reaches `x = 0.51`, past the knot
     /// line by `0.01`, but its nine samples, from `π/8` in steps of
     /// `π/4`, reach only `0.31 + 0.2 cos(π/8) ≈ 0.4948`: the samples see
@@ -1147,10 +1266,10 @@ mod tests {
         assert_eq!((solid.faces.len(), sink.len()), (1, 0));
     }
 
-    /// Review probes (6013 delta): the side test against crossings
-    /// built between the samples. Each `kept` row asserts the line is
-    /// never left out; each `info` row prints what happens.
-    mod review_probes {
+    /// The side test against crossings built between the samples: each
+    /// `kept` row asserts a line crossed by more than ε_in is never left
+    /// out.
+    mod crossings_between_samples {
         use std::collections::{BTreeMap, BTreeSet};
         use std::sync::Arc;
 
@@ -1317,10 +1436,24 @@ mod tests {
                                 .unwrap();
                         NurbsCurve3::new(knots, ctrl, vec![1.0; 5]).unwrap()
                     };
+                    // The peak: a coarse grid, then golden sections about
+                    // its best sample (the tip is one smooth bump).
                     let max_x = |c: &NurbsCurve3<f64>| {
-                        (0..=200_000)
-                            .map(|i| c.eval(f64::from(i) / 200_000.0).x)
-                            .fold(f64::MIN, f64::max)
+                        let x = |t: f64| c.eval(t).x;
+                        let best = (0..=1000)
+                            .map(|i| f64::from(i) / 1000.0)
+                            .fold(0.0, |b, t| if x(t) > x(b) { t } else { b });
+                        let (mut lo, mut hi) = ((best - 1e-3).max(0.0), (best + 1e-3).min(1.0));
+                        let g = 0.5 * (5f64.sqrt() - 1.0);
+                        for _ in 0..80 {
+                            let (m1, m2) = (hi - g * (hi - lo), lo + g * (hi - lo));
+                            if x(m1) < x(m2) {
+                                lo = m1;
+                            } else {
+                                hi = m2;
+                            }
+                        }
+                        x(best).max(x(0.5 * (lo + hi)))
                     };
                     // Bisect the tip's control x so the curve peaks at 0.5 + d.
                     let (mut lo, mut hi) = (0.3, 2.0);
@@ -1343,10 +1476,6 @@ mod tests {
                         vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],
                     );
                     let got = crossing_knots(&s, 0, false, EPS_IN);
-                    eprintln!(
-                        "spline k={k} tip={tip} max_x-0.5={:e} -> {got:?}",
-                        max_x - 0.5
-                    );
                     if max_x - 0.5 > EPS_IN && got != vec![0.5] {
                         bad.push((k, tip));
                     }
@@ -1356,8 +1485,7 @@ mod tests {
         }
 
         /// Trims that touch, stop short of, or poke past the line by less
-        /// than ε_in. A `[0.5]` here is a face kept for the split, which
-        /// refuses `C0KnotUnsplit` though the crossing is within ε_in.
+        /// than ε_in certify clear.
         #[test]
         fn pinned_near_misses() {
             for &k in &[-1e5, -100.0, -2.0, -1.0, -0.5, 0.0, 0.5, 0.999] {
@@ -1371,19 +1499,14 @@ mod tests {
                             core::f64::consts::FRAC_PI_8 + core::f64::consts::TAU,
                         )],
                     );
-                    let t = std::time::Instant::now();
-                    let got = crossing_knots(&s, 0, false, EPS_IN);
-                    eprintln!("near-miss k={k} r={r} -> {got:?} in {:?}", t.elapsed());
-                    // Pinned as observed at e5c46713: a trim stopping short
-                    // or touching certifies clear; a large trim poking past
-                    // the STRAIGHT line by less than ε_in is uncertified,
-                    // kept, and so refused at the split.
-                    if k <= 0.0 {
-                        assert_eq!(got, Vec::<f64>::new(), "k={k} r={r}");
-                    }
-                    if r == 0.2 && k > 0.0 {
-                        assert_eq!(got, vec![0.5], "k={k} r={r}");
-                    }
+                    // Stopping short, touching, or poking past the line by
+                    // less than ε_in: on the line, so the face keeps its
+                    // chart, a shallow tangency included.
+                    assert_eq!(
+                        crossing_knots(&s, 0, false, EPS_IN),
+                        Vec::<f64>::new(),
+                        "k={k} r={r}"
+                    );
                 }
             }
         }
