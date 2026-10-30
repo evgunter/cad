@@ -400,3 +400,68 @@ fn a_boss_on_a_spheres_small_circle_is_not_proven_tangent() {
         }
     }
 }
+
+// ---- R2 review probes (review/intent-s6d-R2) ----
+
+/// R2: the wall-read frame wrapped in `wrap`, the boss traced on it.
+fn r2_wrapped(
+    wrap: impl FnOnce(
+        editor_core::pose::RoleRead<Operand>,
+        editor_core::pose::RoleRead<Operand>,
+    ) -> editor_core::pose::PoseDef<Operand, editor_core::Formula>,
+    about_rim: bool,
+) -> Proof {
+    use editor_core::pose::{PoseDef, RoleRead};
+    let (doc, cylinder) = standing(RADIUS, None);
+    let ev = eval(&doc);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let rim = bottom_rim(&doc, cylinder);
+    let frame = frame_off(&doc, cylinder, wall.clone());
+    let about = RoleRead::plain(Operand::Pose(Box::new(PoseDef::Axis {
+        of: read_off(cylinder, if about_rim { rim } else { wall }),
+    })));
+    let wrapped = Operand::Pose(Box::new(wrap(RoleRead::plain(frame), about)));
+    tangency(boss_on(doc, cylinder, wrapped, boss_steps()))
+}
+
+#[test]
+fn r2_spin_about_the_walls_axis_is_proven() {
+    use editor_core::pose::PoseDef;
+    let p = r2_wrapped(
+        |pose, about| PoseDef::Spin {
+            pose,
+            about,
+            by: editor_core::test_support::ang(0.0),
+        },
+        false,
+    );
+    assert_eq!(p, Proof::Structural(Rung::SameConstruction), "{p:?}");
+}
+
+#[test]
+fn r2_slide_along_the_walls_axis_is_proven() {
+    use editor_core::pose::PoseDef;
+    let p = r2_wrapped(
+        |pose, along| PoseDef::Slide {
+            pose,
+            along,
+            by: len(0.0),
+        },
+        false,
+    );
+    assert_eq!(p, Proof::Structural(Rung::SameConstruction), "{p:?}");
+}
+
+#[test]
+fn r2_spin_about_the_rims_axis_is_not_proven() {
+    use editor_core::pose::PoseDef;
+    let p = r2_wrapped(
+        |pose, about| PoseDef::Spin {
+            pose,
+            about,
+            by: editor_core::test_support::ang(0.0),
+        },
+        true,
+    );
+    assert!(unproven(&p), "{p:?}");
+}
