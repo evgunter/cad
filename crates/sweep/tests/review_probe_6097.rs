@@ -374,3 +374,52 @@ fn probe_plain_hemisphere_across() {
     let e = body.edges().count();
     eprintln!("PROBE tip hemisphere edges {e}");
 }
+
+fn one_face_ball() -> (Body<f64>, EdgeKey) {
+    let mut ball = revolved_about_y(
+        vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
+        Revolution::Full,
+        tol(),
+    );
+    let north = vertex_at(&ball, NORTH);
+    let out = leaving(&ball, north);
+    let wraps = ball.get_half_edge(out[0]).unwrap().edge;
+    let face = ball.face_of_half_edge(out[0]).unwrap();
+    let surface = ball.get_face(face).unwrap().surface;
+    ball.kef_describing(out[1], &[(wraps, EdgeDescriptionSpec::wrap(surface))], tol()).unwrap();
+    (ball, wraps)
+}
+
+/// Kill the edge of `e` that runs to `tip`, with `tip`.
+fn kill_to(body: &mut Body<f64>, e: EdgeKey, tip: VertexKey) {
+    let d = body.get_edge(e).unwrap();
+    let toward = if body.get_half_edge(d.he_plus).unwrap().start == tip { d.he_minus } else { d.he_plus };
+    body.kev_describing(toward, &[], tol()).expect("kev");
+}
+
+/// C7: the one-face ball, and a short lone wrap strut cut from it.
+#[test]
+fn probe_c7_one_face_ball_and_short_lone_strut() {
+    let (ball, _) = one_face_ball();
+    report("c7 one-face ball", &ball);
+    let (flux, area) = measured(&ball, "c7 ball");
+    eprintln!("PROBE c7 one-face ball volume {} area {}", flux / 3.0, area);
+
+    // The meridian runs north (t=0) to south (t=pi) about axis -z.
+    let (mut b, wraps) = one_face_ball();
+    let north = vertex_at(&b, NORTH);
+    let south = vertex_at(&b, Point3::new(0.0, -1.0, 0.0));
+    let s1 = b.split_edge(wraps, 0.3, tol()).expect("split near north");
+    eprintln!("PROBE c7 split1 {s1:?}");
+    // find the edges at each pole and kill them with the pole
+    let en = b.get_half_edge(leaving(&b, north)[0]).unwrap().edge;
+    kill_to(&mut b, en, north);
+    let es = b.get_half_edge(leaving(&b, south)[0]).unwrap().edge;
+    let s2 = b.split_edge(es, PI - 0.3, tol());
+    eprintln!("PROBE c7 split2 {:?}", s2.as_ref().map(|_| ()));
+    let es = b.get_half_edge(leaving(&b, south)[0]).unwrap().edge;
+    kill_to(&mut b, es, south);
+    let ends: Vec<_> = b.vertices().map(|(v, _)| (point(&b, v), leaving(&b, v).len())).collect();
+    eprintln!("PROBE c7 short strut vertices {ends:?}, edges {}", b.edges().count());
+    report("c7 short lone strut", &b);
+}
