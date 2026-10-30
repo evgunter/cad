@@ -1408,6 +1408,28 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::CurvedSenseInverted { face },
         ValidationError::SeamRegionOvercovered { face, times: 2 },
         ValidationError::SeamRegionCoverUnresolved { face },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            lies: crate::SingularityLies::Interior,
+        },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::Apex,
+            lies: crate::SingularityLies::InsideEdge { edge },
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::South,
+            reading: geom_brep::chart_singularity::Undecided::Boundary(diag()),
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            reading: geom_brep::chart_singularity::Undecided::Side(
+                geom_brep::chart_singularity::SideUnread::Straddle,
+            ),
+        },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {

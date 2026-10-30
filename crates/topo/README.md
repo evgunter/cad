@@ -647,7 +647,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    vertex whose regularity reading lands in the sliver band, so that
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
-   a pole or apex), **prefer-intrinsic enforcement** ([edges]) and the
+   a pole or apex), **chart singularities as vertices** (every sphere
+   pole and cone apex in a face's closure is a vertex of it, read off
+   the face's region by `geom_brep::chart_singularity::locate`, the
+   reading STEP import normalizes by; one in the interior or inside an
+   edge is `ChartSingularityNotAVertex`, and one whose distance to the
+   boundary is in band, or whose side of a loop its reading cannot clear
+   of its own error bound, is `ChartSingularityUndecided`),
+   **prefer-intrinsic
+   enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
    it, read by the reader of a shell's role, [coincidence.booleans]: a ray
    aimed at one of its faces, the certified signed volume where no ray

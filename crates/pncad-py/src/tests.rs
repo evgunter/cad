@@ -4550,6 +4550,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",
+            "unused",
         ],
         delegates: &[],
     },
@@ -5927,6 +5928,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_side_undecided",
             "singularity_undecided",
             "structure",
             "syntax",
@@ -6093,6 +6095,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "chart_singularity_not_a_vertex",
+            "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
             "component_euler_violation",
@@ -10454,7 +10458,14 @@ mod product_memo_rows {
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
-        assert!(report.findings.is_empty());
+        assert!(
+            report
+                .findings
+                .iter()
+                .map(|f| f.check)
+                .eq([d::CheckId::Unused]),
+            "the sketch nothing reads, and nothing at rest: {report}"
+        );
     }
 
     /// A product is the answer for the tolerance it was gathered at,

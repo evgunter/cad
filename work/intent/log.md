@@ -1121,3 +1121,10 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - The unread-body sentence is reworded: what the person made (inserted or named) and nothing uses is a finding, and byproducts never are. Ev's deliberate-vs-byproduct comment drove round 2.
   - An unasserted `Measure` is reported ("simplest; maybe drop later"). Fork-log row 218 is filled.
   - `an-unread-body-is-no-finding` is dispatched, single FULL review.
+- **2026-10-30, the unused check merged (#6081).** It is the last D10 sentence: what the person made (inserted or named) and nothing uses is a certified, advisory finding, default Warn. The corpus count was 5 over 50 documents; the gallery's two are filed as `the-gallery-documents-carry-what-nothing-uses`.
+  - Review: single FULL (`session_01VyvYnH4`, probes `review/intent-unused-6081` @ e751f844), APPROVE-WITH-FIXES 0/3/4.
+    - A named world was reported (the exemption sat on one pass of two).
+    - The claim that "it answers when evaluation refuses" was false under the default config: any check's refusal discards the whole report. Filed as `coincide/a-checks-refusal-discards-every-residents-findings`.
+    - A misplaced doc block.
+  - One fix pass. The orchestrator's read accepted it: one "used" closure, with the world exempt there.
+  - The lane pushed two census-only commits (the façade re-export and the binding census) after the freeze; the reviewed code is the frozen head's.

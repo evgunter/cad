@@ -166,7 +166,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, on=outer)
-        doc.insert(Node.subtract(outer, inner))
+        doc.place(doc.insert(Node.subtract(outer, inner)), doc.world)
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
@@ -240,6 +240,7 @@ class TestTheReportGateSplit(unittest.TestCase):
         """REPORTS, NEVER GATES. The finding says the almost-right
         picture is wrong; it stops nothing."""
         doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         self.assertEqual(len(run_checks(doc, ev)), 1)
         # Evaluated, measurable, exportable — all of it after the
@@ -278,6 +279,7 @@ class TestTheReportGateSplit(unittest.TestCase):
         """"Checked and fine" and "not checked" are different
         answers, and `skipped` is the difference."""
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         off = ChecksConfig(connectedness=Severity.Off)
         report = run_checks(doc, ev, off)
@@ -329,6 +331,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         tag — and `repr()` keeps the full id. A label set after
         `evaluate` is not the evaluated document's, so it is not said."""
         doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
         doc.apply(DocEdit.set_label(placement, "joined"))
         evaluation = evaluate(doc)
         doc.apply(DocEdit.set_label(placement, "renamed"))
@@ -380,9 +383,33 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertIn("no findings", str(run_checks(clean, evaluate(clean))))
 
 
+class TestTheUnusedResident(unittest.TestCase):
+    def test_what_nothing_uses_is_reported_by_node_and_by_name(self):
+        """An operation none of whose outputs is used is a `node`
+        finding; a named variable nothing reads is a `var` one, spoken
+        by its name."""
+        doc, _ = one_box()
+        assemble_world_copies(doc)
+        spare = slab(doc, 3.0, 4.0)
+        doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.scalar(0.0)))
+        report = run_checks(doc, evaluate(doc))
+        self.assertEqual([f.check for f in report.findings], [CheckId.Unused] * 2)
+        node, var = report.findings
+        self.assertEqual((node.node, node.var), (spare, None))
+        self.assertEqual((var.node, var.var), (None, doc.var(VarName("gap"))))
+        self.assertEqual(var.evidence.variant, "unused")
+        self.assertIn("check unused: gap: used by nothing", str(var))
+        self.assertEqual(CheckId.Unused.kind, CheckKind.Certified)
+        self.assertEqual(ChecksConfig().unused, Advisory.Warn, "the default")
+        off = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Off))
+        self.assertEqual(off.findings, [])
+        self.assertIn(CheckId.Unused, off.skipped)
+
+
 class TestSubjectBody(unittest.TestCase):
     def test_a_findings_attribution_resolves_to_the_flagged_body(self):
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         (finding,) = run_checks(doc, ev).findings
         body = subject_body(ev, finding.placement, finding.output_ix)
@@ -573,6 +600,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
             connectedness=Severity.Off,
             at_rest=Severity.Off,
             unproven_coincidence=Advisory.Warn,
+            unused=Advisory.Off,
         )
         report = run_checks(doc, ev, cfg)
         self.assertEqual(len(report.findings), 5)

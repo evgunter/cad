@@ -4066,20 +4066,21 @@ fn singular_at<T: Decide>(
     band: Band,
 ) -> Singular {
     let reach = match *chart.surface() {
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
-            let pole = axis * radius;
-            Margin::of(
-                vertex
-                    .distance(center + pole)
-                    .min(vertex.distance(center - pole)),
-            )
+        // The singular points, from their one home.
+        Surface::Sphere { .. } | Surface::Cone { .. } => {
+            let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
+                return Singular::Off;
+            };
+            let points = geom_brep::chart_singularity::singular_points(&inverse);
+            let Some(nearest) = points
+                .iter()
+                .map(|&(_, p)| vertex.distance(p))
+                .reduce(|a, b| a.min(b))
+            else {
+                return Singular::Off;
+            };
+            Margin::of(nearest)
         }
-        Surface::Cone { apex, .. } => Margin::of(vertex.distance(apex)),
         Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Plane { .. } => {
             return Singular::Off;
         }

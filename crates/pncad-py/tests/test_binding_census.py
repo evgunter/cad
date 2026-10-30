@@ -3051,6 +3051,9 @@ NOT_BOUND = {
     "run_checks_at_rest_on": INTERIOR,
     "DoorJob": INTERIOR,
     "DoorFindings": INTERIOR,
+    # `Doc::unused`'s answer: Python reads the same tips as the `unused`
+    # check's findings, through `run_checks`.
+    "Unused": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
@@ -3548,6 +3551,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
+    "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
@@ -3864,6 +3868,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
+    "StepImportError::SingularitySideUndecided": "StepImportError.variant",
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
@@ -3933,6 +3938,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
     "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
     "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
+    "ValidationError::ChartSingularityNotAVertex": "ValidationFinding.variant",
+    "ValidationError::ChartSingularityUndecided": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",

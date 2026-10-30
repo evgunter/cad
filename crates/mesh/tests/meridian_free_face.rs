@@ -27,6 +27,7 @@ use common::*;
 use core::f64::consts::{FRAC_PI_4, PI};
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
+use geom_brep::chart_singularity::Singularity;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::TessellateError;
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -96,12 +97,19 @@ fn assert_refuses_meridian_free(name: &str, body: &Body<f64>, kind: SurfaceKind,
     );
 }
 
-/// Tier 3's verdict on a hand-built rim-only body: check 11 at each of
-/// its rim's vertices, and nothing else.
-fn rim_vertices(body: &Body<f64>) -> Vec<topo::ValidationError> {
-    body.vertices()
-        .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
-        .collect()
+/// Tier 3's verdict on a hand-built rim-only body: the sphere face holds
+/// `pole` inside it, and check 11 refuses each of its rim's vertices.
+fn pole_inside(body: &Body<f64>, pole: Singularity) -> Vec<topo::ValidationError> {
+    core::iter::once(topo::ValidationError::ChartSingularityNotAVertex {
+        face: first_face_on(body, SurfaceKind::Sphere),
+        point: pole,
+        lies: topo::SingularityLies::Interior,
+    })
+    .chain(
+        body.vertices()
+            .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex }),
+    )
+    .collect()
 }
 
 /// **The sphere cap closed by its disc, at both poles and four
@@ -110,12 +118,13 @@ fn rim_vertices(body: &Body<f64>) -> Vec<topo::ValidationError> {
 /// cap past the equator all refuse alike, because nothing about the
 /// refusal reads the latitude.
 ///
-/// Each body passes tier 3 but for its rim's two vertices — the rim is
-/// two half arcs, which the join would take into one closed edge, so
-/// the hand-built body is construction state (check 11) — and measures
-/// its closed-form volume as the kernel stands, and both are asserted:
-/// that is why the mesh lane has to refuse the face itself — no door in
-/// front of it does yet.
+/// Tier 3 refuses each body for the pole inside its sphere face, and
+/// for its rim's two vertices (the rim is two half arcs, which the join
+/// would take into one closed edge, so the hand-built body is
+/// construction state, check 11). The Euler doors state it all the
+/// same, `tessellate` does not re-validate, and the body measures its
+/// closed-form volume as the kernel stands; all three are asserted,
+/// which is why the mesh lane refuses the face itself.
 #[test]
 fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     let tol = Tol::witness();
@@ -123,7 +132,7 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
         let above = one_circle_cut(&unit_rim(z), sphere(1.0), Some(plane(z, false)));
         assert_eq!(
             topo::validate_geometric(&above, tol),
-            Err(rim_vertices(&above)),
+            Err(pole_inside(&above, Singularity::North)),
             "z = {z}"
         );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
@@ -152,7 +161,7 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
         let below = one_circle_cut(&unit_rim(z), plane(z, true), Some(sphere(1.0)));
         assert_eq!(
             topo::validate_geometric(&below, tol),
-            Err(rim_vertices(&below)),
+            Err(pole_inside(&below, Singularity::South)),
             "z = {z}"
         );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;

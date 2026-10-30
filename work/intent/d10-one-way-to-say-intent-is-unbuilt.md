@@ -7,7 +7,6 @@ opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
-blocked_on: [an-unread-body-is-no-finding]
 ---
 
 

@@ -25,18 +25,17 @@
 //! band's zero, splitting the edge past its escalation, and refused
 //! between.
 //!
-//! **Where it lies** is decided at the file's band ([`crate::chart`]):
-//! within ε_in of a vertex or an edge it is on it, past the band's
-//! escalation distance it is off, and between the two it refuses. Off
-//! the boundary, the face's side of each loop is its sense bit, and
-//! which side of a loop holds the point is the loop's winding about
-//! the surface axis read through the kernel's own chart inverse: a loop
-//! that winds separates the sphere's poles (or rings the cone's apex),
-//! and one that does not leaves them on the side its chart image does
-//! not enclose.
+//! **Where it lies** is the kernel's one reading of it,
+//! [`geom_brep::chart_singularity::locate`], which tier 3 refuses the
+//! same faces by; this pass keeps its dispositions and the band it reads
+//! at, the coarser of the file's and the run's, so a point the kernel
+//! reads as one with a vertex is not cut a sub-tolerance edge away from
+//! it, and one the file cannot place is not placed finer.
 
-use geom::{Curve3, Surface};
-use geom_core::{Point2, Point3, Vec3};
+use geom::{ChartInverse, Curve3, Surface};
+use geom_brep::chart_singularity::{self as home, Lies, Unread};
+use geom_brep::props::LoopEdge;
+use geom_core::{Point3, Vec3};
 
 use super::{expand_split_uses, face_boundary_census, split_at_param, use_start, valences};
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
@@ -112,20 +111,44 @@ impl Chart {
         }
     }
 
-    /// The singular points, exact from the surface's own fields.
-    fn singular(self) -> Vec<Point3<f64>> {
+    /// The surface the chart reads.
+    fn surface(self) -> Surface<f64> {
         match self {
             Self::Sphere {
                 center,
                 radius,
                 axis,
-                ..
-            } => vec![
-                crate::signed_zero::plus_zero_point(center + axis * radius),
-                crate::signed_zero::plus_zero_point(center - axis * radius),
-            ],
-            Self::Cone { apex, .. } => vec![apex],
+                u_ref,
+            } => Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            },
+            Self::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            },
         }
+    }
+
+    /// The singular points, the kernel's one list of them
+    /// ([`geom_brep::chart_singularity::singular_points`]), in its order,
+    /// with signed zeros normalized as every point this pass mints is.
+    fn singular(self) -> Vec<Point3<f64>> {
+        ChartInverse::of(&self.surface())
+            .map(|chart| home::singular_points(&chart))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, p)| crate::signed_zero::plus_zero_point(p))
+            .collect()
     }
 }
 
@@ -167,8 +190,8 @@ pub(super) fn singularity_vertices(
         eps,
         escalate,
         band: chart_band,
-        run: run_band,
         file: geom_core::FileCoincidence::new(eps_in),
+        coarser: Read::coarser(eps, escalate),
     };
     // Each action makes one singular point a vertex with an edge on
     // each side, which no later scan re-finds, so the pass ends; the
@@ -193,54 +216,86 @@ pub(super) fn singularity_vertices(
     })
 }
 
-/// The file's band, as the pass reads it.
+/// The pass's bands, as it reads them.
 #[derive(Clone, Copy)]
 struct Read {
-    /// ε_in: on a vertex or an edge within this distance.
+    /// On a vertex or an edge within this distance: the coarser zero of
+    /// ε_in, the file's band and the run's.
     eps: f64,
-    /// Off it past this distance; between the two, undecided.
+    /// Off it past this distance, the coarser escalation; between the
+    /// two, undecided.
     escalate: f64,
-    /// The band the chart is read at.
+    /// The file's band, `(ε_in, K·ε_in)`.
     band: Option<geom_core::Band>,
-    /// The run's own linear band, the on-or-off decision's other band.
-    run: Option<geom_core::Band>,
     /// The file's ε_in, the door a refusal ends at.
     file: geom_core::FileCoincidence,
+    /// The band every on-or-off and side decision is taken at: zero at
+    /// `eps`, escalating at `escalate`.
+    coarser: geom_core::Band,
 }
 
-/// Whether the singular point lies on the boundary feature `d` metres
-/// from it, at the coarser of the run's band and the file's
-/// (`chart_band`, `(ε_in, K·ε_in)`): on it where either reads zero, off
-/// it where both read a clear distance, and otherwise the typed refusal
-/// with the margin of the band that could not call it
-/// ([`StepImportError::SingularityUndecided`]). The run's band is asked
-/// first, so a distance the kernel reads as zero is never refused for
-/// the file's.
+impl Read {
+    /// The coarser of the file's band and the run's, as one band: zero
+    /// at `eps` (on where either reads zero) and escalating at
+    /// `escalate` (off where both read clear). A degenerate pair (no
+    /// band at all) reads on within `eps` and off past it.
+    fn coarser(eps: f64, escalate: f64) -> geom_core::Band {
+        use geom_core::Band;
+        // With no band at all the two meet: the escalation one value
+        // past the zero, so nothing lies between them.
+        Band::new(eps, escalate)
+            .or_else(|_| Band::new(eps, eps.next_up()))
+            .unwrap_or(Band::least())
+    }
+
+    /// The typed refusal of a distance `d` [`Self::coarser`] could not
+    /// call, naming the band that could not: the file's where it too
+    /// reads `d` in band, the run's otherwise.
+    fn refuse(&self, cause: geom_core::Indeterminate, d: f64, id: u64) -> StepImportError {
+        let file = self
+            .band
+            .is_some_and(|band| home::on_boundary(d, band).is_err());
+        self.refusal(cause, file, id)
+    }
+
+    fn refusal(&self, cause: geom_core::Indeterminate, file: bool, id: u64) -> StepImportError {
+        use crate::error::SingularityBand;
+        StepImportError::SingularityUndecided {
+            id,
+            cause,
+            band: if file {
+                SingularityBand::File
+            } else {
+                SingularityBand::Run
+            },
+            file: self.file,
+        }
+    }
+
+    /// The kernel's reading's failure to place a point, as this pass
+    /// refuses it. A side is no distance either band decides, so its
+    /// refusal names no band ([`StepImportError::SingularitySideUndecided`]).
+    fn unread(&self, why: Unread<f64>, id: u64) -> StepImportError {
+        match why {
+            Unread::Boundary { cause, distance } => self.refuse(cause, distance, id),
+            Unread::Side { why, .. } => StepImportError::SingularitySideUndecided {
+                id,
+                side: why,
+                file: self.file,
+            },
+            Unread::Carrier { .. } => foreign_carrier(id),
+            Unread::Loop { .. } => unreadable(id),
+        }
+    }
+}
+
+/// Whether a point lies on the boundary feature `d` metres from it,
+/// at the pass's band ([`Read::coarser`]), through the kernel's one
+/// decision of it ([`geom_brep::chart_singularity::on_boundary`]); a
+/// distance in band is the typed refusal naming the band that could not
+/// call it ([`StepImportError::SingularityUndecided`]).
 fn on_boundary(d: f64, read: &Read, id: u64) -> Result<bool, StepImportError> {
-    use crate::error::SingularityBand;
-    use geom_core::{Margin, Sign, k_stats::decide};
-    const NAME: &str = "import_singularity_on_boundary";
-    let refuse = |cause, band| StepImportError::SingularityUndecided {
-        id,
-        cause,
-        band,
-        file: read.file,
-    };
-    let run = read.run.map(|band| decide(NAME, Margin::of(d), band));
-    if let Some(Ok(Sign::Zero)) = run {
-        return Ok(true);
-    }
-    match read.band.map(|band| decide(NAME, Margin::of(d), band)) {
-        Some(Ok(Sign::Zero)) => return Ok(true),
-        Some(Err(cause)) => return Err(refuse(cause, SingularityBand::File)),
-        Some(Ok(_)) => {}
-        None if d <= read.eps => return Ok(true),
-        None => {}
-    }
-    match run {
-        Some(Err(cause)) => Err(refuse(cause, SingularityBand::Run)),
-        _ => Ok(false),
-    }
+    home::on_boundary(d, read.coarser).map_err(|cause| read.refuse(cause, d, id))
 }
 
 fn unreadable(id: u64) -> StepImportError {
@@ -274,135 +329,109 @@ fn inverted(id: u64) -> StepImportError {
     }
 }
 
-/// The disposition the face `fi` owes, if any (module docs).
+/// The disposition the face `fi` owes, if any (module docs): the first
+/// singular point, in the kernel's order, that the kernel's reading
+/// places inside an edge or inside the face, or at a valence-1 vertex
+/// the face uses as a strut tip.
 fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, StepImportError> {
     let face = &solid.faces[fi];
-    let Some(chart) = Chart::of(&face.surface) else {
+    if Chart::of(&face.surface).is_none() {
         return Ok(None);
-    };
+    }
     let valence = valences(solid);
-    for (k, x) in chart.singular().into_iter().enumerate() {
-        // On a vertex of the face?
-        let mut nearest: Option<(u64, f64)> = None;
-        for lp in &face.loops {
-            for u in &lp.uses {
-                let v = use_start(solid, *u);
-                let d = (solid.vertices[&v] - x).norm();
-                if nearest.is_none_or(|(_, best)| d < best) {
-                    nearest = Some((v, d));
+    let loops = loop_edges(solid, fi);
+    // Each vertex's stored point: what "at a vertex" reads.
+    let corners: Vec<Vec<Point3<f64>>> = face
+        .loops
+        .iter()
+        .map(|lp| {
+            lp.uses
+                .iter()
+                .map(|u| solid.vertices[&use_start(solid, *u)])
+                .collect()
+        })
+        .collect();
+    let views: Vec<home::FaceLoop<'_, f64>> = loops
+        .iter()
+        .zip(&corners)
+        .map(|(edges, corners)| home::FaceLoop { edges, corners })
+        .collect();
+    for (k, located) in home::locate(&face.surface, &views, face.sense, read.coarser)
+        .into_iter()
+        .enumerate()
+    {
+        match located.lies.map_err(|why| read.unread(why, face.id))? {
+            Lies::AtVertex { r#loop, edge } => {
+                let v = use_start(solid, face.loops[r#loop].uses[edge]);
+                if valence.get(&v) == Some(&1) && strut_uses(solid, fi, v).is_some() {
+                    return Ok(Some(Action::StrutTip { fi, vertex: v }));
                 }
             }
-        }
-        if let Some((v, d)) = nearest
-            && on_boundary(d, read, face.id)?
-        {
-            if valence.get(&v) == Some(&1) && strut_uses(solid, fi, v).is_some() {
-                return Ok(Some(Action::StrutTip { fi, vertex: v }));
-            }
-            continue;
-        }
-        // Inside an edge of the face?
-        for lp in &face.loops {
-            for u in &lp.uses {
-                let spec = &solid.edges[&u.edge];
-                match nearest_on_edge(spec, x, read)? {
-                    Near::Off => {}
-                    Near::On { t, d } => {
-                        if on_boundary(d, read, face.id)? {
-                            return Ok(Some(Action::InsideEdge {
-                                fi,
-                                edge: u.edge,
-                                t,
-                                point: x,
-                            }));
-                        }
-                    }
-                    Near::Unread => return Err(foreign_carrier(face.id)),
+            Lies::InsideEdge { r#loop, edge, t } => {
+                // This pass cuts lines and circles alone.
+                if !matches!(
+                    loops[r#loop][edge].carrier,
+                    Curve3::Line { .. } | Curve3::Circle { .. }
+                ) {
+                    return Err(foreign_carrier(face.id));
                 }
+                return Ok(Some(Action::InsideEdge {
+                    fi,
+                    edge: face.loops[r#loop].uses[edge].edge,
+                    t,
+                    point: crate::signed_zero::plus_zero_point(located.point),
+                }));
             }
-        }
-        // Inside the face?
-        if holds(solid, fi, chart, k, read)? {
-            return Ok(Some(Action::Interior { fi, k }));
+            Lies::Interior => return Ok(Some(Action::Interior { fi, k })),
+            Lies::Outside => {}
         }
     }
     Ok(None)
 }
 
-/// Where a point lies against one edge.
-enum Near {
-    /// Farther than the band's escalation distance.
-    Off,
-    /// Within the band's escalation distance of the edge's closest
-    /// interior point `t`, `d` away: on or off is the decision's.
-    On { t: f64, d: f64 },
-    /// A carrier this pass reads no distance to, near enough to matter.
-    Unread,
+/// Face `fi`'s loops as the kernel's reading takes them: each use's
+/// carrier, its stored interval and its traversal, with loop-local
+/// vertex tags.
+fn loop_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
+    solid.faces[fi]
+        .loops
+        .iter()
+        .map(|lp| {
+            let mut tags: Vec<u64> = Vec::new();
+            let mut tag = |v: u64| {
+                let i = tags.iter().position(|&t| t == v).unwrap_or_else(|| {
+                    tags.push(v);
+                    tags.len() - 1
+                });
+                u32::try_from(i).unwrap_or(u32::MAX)
+            };
+            lp.uses
+                .iter()
+                .map(|u| {
+                    let spec = &solid.edges[&u.edge];
+                    let (start, end) = (use_start(solid, *u), use_end(solid, *u));
+                    LoopEdge::hand_built(
+                        spec.carrier.clone(),
+                        spec.t0,
+                        spec.t1,
+                        u.forward,
+                        tag(start),
+                        tag(end),
+                    )
+                })
+                .collect()
+        })
+        .collect()
 }
 
-/// **The parameter at which `carrier` passes nearest `x`**, the one
-/// reading of it this pass takes: a line's projection, or a circle's
-/// angle about its centre in its own frame (the convention
+/// **The parameter at which `carrier` passes nearest `x`**, where a
+/// minted meridian meets the boundary: a line's projection, or a
+/// circle's angle about its centre in its own frame (the convention
 /// [`crate::geometry::endpoint_params`] derives edge intervals in),
 /// brought to the representative at or past `from` and short of a turn
 /// beyond it. `None` for any other carrier.
 fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
-    match *carrier {
-        Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let w = x - center;
-            let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
-            let tau = core::f64::consts::TAU;
-            Some(from + (t - from).rem_euclid(tau))
-        }
-        _ => None,
-    }
-}
-
-/// The distance from `x` to the interior of the edge `spec`.
-fn nearest_on_edge(spec: &EdgeSpec, x: Point3<f64>, read: &Read) -> Result<Near, StepImportError> {
-    let (t0, t1) = (spec.t0, spec.t1);
-    let t = match param_at(&spec.carrier, x, t0) {
-        Some(t) => t,
-        None => {
-            // No closed-form foot: sampled, and refused only where a
-            // sample comes near enough that the sampling could decide.
-            let n = 256;
-            let mut best = f64::INFINITY;
-            let mut step = 0.0_f64;
-            let mut prev = spec.carrier.eval(t0);
-            for i in 0..=n {
-                let p = spec
-                    .carrier
-                    .eval(t0 + (t1 - t0) * f64::from(i) / f64::from(n));
-                best = best.min((p - x).norm());
-                step = step.max((p - prev).norm());
-                prev = p;
-            }
-            return Ok(if best > read.escalate + step {
-                Near::Off
-            } else {
-                Near::Unread
-            });
-        }
-    };
-    if !(t > t0 && t < t1) {
-        // The closest point of the carrier is outside the edge; the
-        // edge's nearest point is an end, which the vertex test read.
-        return Ok(Near::Off);
-    }
-    let d = (spec.carrier.eval(t) - x).norm();
-    if d > read.escalate {
-        return Ok(Near::Off);
-    }
-    // Its ends are the face's vertices, which the vertex test read: a
-    // point within the band of one was taken or refused there.
-    Ok(Near::On { t, d })
+    home::foot(carrier, x, from)
 }
 
 /// The two uses of the single edge at `vertex` in face `fi`'s loop: the
@@ -430,121 +459,9 @@ fn use_end(solid: &SolidSpec, use_: EdgeUse) -> u64 {
     if use_.forward { spec.end } else { spec.start }
 }
 
-/// One loop read through the chart: its winding about the surface axis
-/// (in turns), the signed area of its chart image, and its sample of
-/// largest `|v|`, whose sign is the cone's nappe the loop runs on.
-struct LoopReading {
-    winding: i64,
-    area: f64,
-    /// The chart `v` of the loop's sample farthest from `v = 0`.
-    farthest_v: f64,
-}
-
-/// [`LoopReading`] of one loop. A sample at a singular point has no
-/// chart preimage and is skipped: the step across it is read as the
-/// nearest representative, which stands for a detour round that point
-/// on one side or the other — and so leaves the side of every OTHER
-/// singular point as it is, which is all this reading is asked.
-fn read_loop(
-    solid: &SolidSpec,
-    surface: &Surface<f64>,
-    lp: &LoopSpec,
-    singular: &[Point3<f64>],
-    read: &Read,
-    id: u64,
-) -> Result<LoopReading, StepImportError> {
-    use core::f64::consts::{PI, TAU};
-    let wrap = |d: f64| {
-        let (s, c) = d.sin_cos();
-        s.atan2(c)
-    };
-    let mut charted: Vec<Point2<f64>> = Vec::new();
-    for u in &lp.uses {
-        let spec = &solid.edges[&u.edge];
-        let (a, b) = if u.forward {
-            (spec.t0, spec.t1)
-        } else {
-            (spec.t1, spec.t0)
-        };
-        // Parameter samples, refined where the chart azimuth steps by
-        // more than a sixteenth of a turn. The end is the next use's
-        // start, so it is left to that use.
-        let at = |t: f64| -> Result<Option<Point2<f64>>, StepImportError> {
-            let p = spec.carrier.eval(t);
-            match crate::chart::uv_of(surface, p, read.band) {
-                Some(uv) => Ok(Some(uv)),
-                None if singular.iter().any(|s| (*s - p).norm() <= read.escalate) => Ok(None),
-                None => Err(unreadable(id)),
-            }
-        };
-        let n = 16;
-        let mut ts: Vec<f64> = (0..=n)
-            .map(|i| a + (b - a) * f64::from(i) / f64::from(n))
-            .collect();
-        let mut uvs: Vec<Option<Point2<f64>>> =
-            ts.iter().map(|&t| at(t)).collect::<Result<_, _>>()?;
-        for _ in 0..60 {
-            let mut refined = false;
-            let mut i = 0;
-            while i + 1 < ts.len() {
-                if let (Some(p), Some(q)) = (uvs[i], uvs[i + 1])
-                    && wrap(q.x - p.x).abs() > PI / 8.0
-                    && (ts[i + 1] - ts[i]).abs() > 1e-15 * (1.0 + ts[i].abs())
-                {
-                    let tm = 0.5 * (ts[i] + ts[i + 1]);
-                    ts.insert(i + 1, tm);
-                    uvs.insert(i + 1, at(tm)?);
-                    refined = true;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-            if !refined || ts.len() > 1 << 16 {
-                break;
-            }
-        }
-        charted.extend(uvs[..uvs.len() - 1].iter().flatten());
-    }
-    if charted.len() < 3 {
-        return Err(unreadable(id));
-    }
-    let mut lifted = Vec::with_capacity(charted.len());
-    let mut total = 0.0;
-    for (i, p) in charted.iter().enumerate() {
-        if i == 0 {
-            lifted.push(*p);
-            continue;
-        }
-        let step = wrap(p.x - charted[i - 1].x);
-        total += step;
-        lifted.push(Point2::new(lifted[i - 1].x + step, p.y));
-    }
-    total += wrap(charted[0].x - charted[charted.len() - 1].x);
-    let turns = total / TAU;
-    #[allow(clippy::cast_possible_truncation)] // a turn count, checked whole below
-    let winding = turns.round() as i64;
-    if (turns - turns.round()).abs() > 1e-6 || winding.abs() > 1 {
-        return Err(unreadable(id));
-    }
-    let mut area = 0.0;
-    for i in 0..lifted.len() {
-        let (p, q) = (lifted[i], lifted[(i + 1) % lifted.len()]);
-        area += p.x * q.y - q.x * p.y;
-    }
-    let v_extreme = charted
-        .iter()
-        .map(|p| p.y)
-        .fold(0.0_f64, |acc, v| if v.abs() > acc.abs() { v } else { acc });
-    Ok(LoopReading {
-        winding,
-        area: area / 2.0,
-        farthest_v: v_extreme,
-    })
-}
-
 /// Whether the singular point `k` of `chart` lies on the face's side of
-/// every one of its loops (module docs), the point being off them.
+/// every one of its loops, the point being off them: the kernel's
+/// reading ([`geom_brep::chart_singularity::holds`]).
 fn holds(
     solid: &SolidSpec,
     fi: usize,
@@ -553,34 +470,36 @@ fn holds(
     read: &Read,
 ) -> Result<bool, StepImportError> {
     let face = &solid.faces[fi];
-    let singular = chart.singular();
-    for lp in &face.loops {
-        let r = read_loop(solid, &face.surface, lp, &singular, read, face.id)?;
-        if r.winding == 0 && r.area == 0.0 {
-            return Err(unreadable(face.id));
-        }
-        let left = match chart {
-            Chart::Sphere { .. } => match r.winding {
-                0 => r.area < 0.0,
-                w => (w == 1) == (k == 0),
-            },
-            // A loop that does not ring the apex leaves it on the side
-            // that runs to infinity, which bounds no face.
-            Chart::Cone { .. } => match r.winding {
-                0 => return Ok(false),
-                w => {
-                    if r.farthest_v == 0.0 {
-                        return Err(unreadable(face.id));
-                    }
-                    (w == 1) == (r.farthest_v < 0.0)
-                }
-            },
-        };
-        if left != face.sense {
-            return Ok(false);
-        }
+    let surface = chart.surface();
+    let Some(&(singularity, _)) = ChartInverse::of(&surface)
+        .map(|c| home::singular_points(&c))
+        .unwrap_or_default()
+        .get(k)
+    else {
+        return Err(unreadable(face.id));
+    };
+    let loops = loop_edges(solid, fi);
+    let views: Vec<&[LoopEdge<f64>]> = loops.iter().map(Vec::as_slice).collect();
+    home::holds(&surface, &views, face.sense, singularity, read.coarser)
+        .map_err(|why| read.unread(why, face.id))
+}
+
+/// The nappe face `fi`'s outer loop runs on, `±1`, read off its walk
+/// ([`geom_brep::chart_singularity::nappe`]).
+fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64, StepImportError> {
+    let face_id = solid.faces[fi].id;
+    let Ok(inverse) = ChartInverse::of(&chart.surface()) else {
+        return Err(unreadable(face_id));
+    };
+    let points = home::singular_points(&inverse);
+    let loops = loop_edges(solid, fi);
+    let walk =
+        home::walk_loop(&inverse, &points, &loops[0], read.coarser).ok_or(unreadable(face_id))?;
+    match home::nappe(&walk) {
+        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
+        Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
+        Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
-    Ok(true)
 }
 
 /// Applies one disposition, reporting it.
@@ -1114,20 +1033,7 @@ fn interior(
             .ok_or(unreadable(face_id))?;
     }
     let nappe = match chart {
-        Chart::Cone { .. } => {
-            let r = read_loop(
-                solid,
-                &solid.faces[fi].surface,
-                &solid.faces[fi].loops[0],
-                &singular,
-                read,
-                face_id,
-            )?;
-            if r.farthest_v == 0.0 {
-                return Err(unreadable(face_id));
-            }
-            r.farthest_v.signum()
-        }
+        Chart::Cone { .. } => nappe(solid, fi, chart, read)?,
         Chart::Sphere { .. } => 1.0,
     };
     let pole = mint();
@@ -1345,8 +1251,10 @@ fn cut(
 }
 
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod review_on_boundary {
     use super::{Read, on_boundary};
+    use crate::error::{SingularityBand, StepImportError};
 
     /// The three-step decision, swept over d at the eps rows with ε_in
     /// above and below ε: "on" only within the coarser zero, "off" only
@@ -1364,12 +1272,16 @@ mod review_on_boundary {
                 };
                 let zero = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::zero);
                 let esc = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::escalate);
+                let (eps, escalate) = (
+                    eps_in.max(zero(file)).max(zero(run)),
+                    eps_in.max(esc(file)).max(esc(run)),
+                );
                 let read = Read {
-                    eps: eps_in.max(zero(file)).max(zero(run)),
-                    escalate: eps_in.max(esc(file)).max(esc(run)),
+                    eps,
+                    escalate,
                     band: file,
-                    run,
                     file: geom_core::FileCoincidence::new(eps_in),
+                    coarser: Read::coarser(eps, escalate),
                 };
                 let top = 100.0 * eps.max(eps_in);
                 for i in 0..=4000 {
@@ -1383,10 +1295,28 @@ mod review_on_boundary {
                             d >= esc(run).max(esc(file)) || d >= esc(run) && d >= esc(file),
                             "eps {eps} eps_in {eps_in}: off at d = {d}"
                         ),
-                        Err(e) => assert!(
-                            (d > zero(run) && d < esc(run)) || (d > zero(file) && d < esc(file)),
-                            "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
-                        ),
+                        Err(e) => {
+                            assert!(
+                                (d > zero(run) && d < esc(run))
+                                    || (d > zero(file) && d < esc(file)),
+                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
+                            );
+                            // The file's band is named where it, too,
+                            // reads the distance in band.
+                            let StepImportError::SingularityUndecided { band, .. } = e else {
+                                panic!("eps {eps} eps_in {eps_in}: refused at d = {d}: {e}")
+                            };
+                            let in_file = d > zero(file) && d < esc(file);
+                            assert_eq!(
+                                band,
+                                if in_file {
+                                    SingularityBand::File
+                                } else {
+                                    SingularityBand::Run
+                                },
+                                "eps {eps} eps_in {eps_in}: the band named at d = {d}"
+                            );
+                        }
                     }
                 }
             }
@@ -1405,7 +1335,7 @@ mod side_through_a_pole {
     use super::{Chart, Read, holds};
     use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 
-    /// **`read_loop`'s claim, pinned**: a loop passing THROUGH one pole
+    /// **The kernel's walk's claim, pinned**: a loop passing THROUGH one pole
     /// (its samples there skipped) still reads the side of the OTHER.
     /// The half-cap of a unit sphere above latitude 0.5 in `y ≥ 0`,
     /// bounded by its rim half and the meridian arc over the north pole
@@ -1462,8 +1392,8 @@ mod side_through_a_pole {
             eps: 1e-9,
             escalate: 1e-8,
             band: geom_core::Band::new(1e-9, 1e-8).ok(),
-            run: geom_core::Band::new(1e-9, 1e-8).ok(),
             file: geom_core::FileCoincidence::new(1e-9),
+            coarser: Read::coarser(1e-9, 1e-8),
         };
         let chart = Chart::of(&surface).unwrap();
         for (sense, south_inside) in [(true, false), (false, true)] {
