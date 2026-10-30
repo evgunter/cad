@@ -4115,6 +4115,204 @@ fn ef_overlap_lane<T: Decide>(
     }
 }
 
+/// **A line edge between two planar faces lying inside a curved face of
+/// its own solid**, read for sides: pass 4 reads planar faces only, so a
+/// keel on a cylinder's or a cone's ruling, its two walls meeting the
+/// line with the face running on through it, is read here; an edge with
+/// a curved face of its own is [`sweep_same_solid_tangent_lines`]'
+/// where it lies tangent, and unread here otherwise. The edge lies on the carrier
+/// where its ends and its midpoint do (a quadric meeting a line in three
+/// points holds it; a sphere and a torus hold none); it is cut at the
+/// face's vertices on its interior, and each cell whose midpoint the
+/// face holds `In` is read at that midpoint: the face's two sheets there
+/// and its material direction against the edge's material wedge
+/// ([`wedge`], [`strictly_inside`]). Any of the three strictly inside is
+/// a [`ValidationError::FaceThroughEdgeWedge`]; a wall tangent to the
+/// face, or a reading in band, its undecided twin. A wedge clear of the
+/// face's material is a touch from outside, which this arm leaves to the
+/// records.
+fn sweep_edge_in_curved_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    band: Band,
+    cands: &Candidates,
+    errors: &mut Vec<ValidationError>,
+) {
+    if geo.curved_faces.is_empty() {
+        return;
+    }
+    for (i, e) in geo.edges.iter().enumerate() {
+        // A wall on a curved carrier can lie tangent to the face along
+        // the line: that pair is the tangent-line pass's.
+        if planar_face(geo, e.f_plus).is_none() || planar_face(geo, e.f_minus).is_none() {
+            continue;
+        }
+        let solid = census_entity_solid(body, EntityId::Edge(e.key));
+        for j in cands
+            .trees
+            .every_face
+            .overlapping(cands.trees.edges.query(i))
+        {
+            let f = cands.every_face[j];
+            if f == e.f_plus
+                || f == e.f_minus
+                || !geo.curved_faces.contains(&f)
+                || solid.is_none()
+                || census_entity_solid(body, EntityId::Face(f)) != solid
+            {
+                continue;
+            }
+            for mid in curved_overlap_cells(body, geo, e, f, band, errors) {
+                errors.extend(edge_in_curved_face(body, e, f, mid, band));
+            }
+        }
+    }
+}
+
+/// The midpoints of the cells of line edge `e` lying in curved face
+/// `f`'s interior ([`sweep_edge_in_curved_face`]): none where the edge
+/// is off `f`'s carrier, or the carrier holds no line; otherwise the
+/// edge cut at its ends and at every vertex of `f` on its interior, each
+/// cell whose midpoint `f` holds `In`. A residual, a cut's order, or a
+/// containment the door leaves unread refuses (pushed).
+fn curved_overlap_cells<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    e: &EdgeGeo<T>,
+    f: FaceKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Vec<Point3<T>> {
+    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
+        return Vec::new();
+    };
+    if !matches!(
+        surface,
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+    ) {
+        return Vec::new();
+    }
+    let half = T::from_f64(0.5);
+    for q in [e.p0, e.p1, e.p0 + e.dir * (e.len * half)] {
+        let r = geom_brep::implicit::implicit_residual(surface, q);
+        match decide("pm_census_ef_curved_residual", Margin::of(r), band) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Vec::new(),
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                return Vec::new();
+            }
+        }
+    }
+    let mut cuts: Vec<T> = vec![T::zero(), e.len];
+    for (&w, faces) in &geo.vertex_faces {
+        if !faces.contains(&f) {
+            continue;
+        }
+        let Some(&pw) = geo.vmap.get(&w) else {
+            continue;
+        };
+        match on_edge_interior_reading(pw, e, band, errors) {
+            Some(Some((s, _))) => cuts.push(s),
+            Some(None) => {}
+            None => return Vec::new(),
+        }
+    }
+    for i in 1..cuts.len() {
+        let mut j = i;
+        while j > 0 {
+            match tri_cmp(cuts[j - 1], cuts[j], band, errors) {
+                Some(core::cmp::Ordering::Greater) => cuts.swap(j - 1, j),
+                Some(_) => break,
+                None => return Vec::new(),
+            }
+            j -= 1;
+        }
+    }
+    let mut out = Vec::new();
+    for pair in cuts.windows(2) {
+        match decide("pm_census_span_gap", Margin::of(pair[1] - pair[0]), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => continue,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                continue;
+            }
+        }
+        let mid = e.p0 + e.dir * geom::mid_param(pair[0], pair[1]);
+        match face_holds(body, f, mid, band, "pm_census_ef_curved_contain", errors) {
+            Some(Some(FaceContainment::In)) => out.push(mid),
+            Some(Some(_)) | None => {}
+            Some(None) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(f)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a line edge on a curved face's ruling whose trim the \
+                               containment door does not read",
+                    },
+                ),
+            }),
+        }
+    }
+    out
+}
+
+/// **Line edge `e` lying in curved face `f` of its own solid**, read for
+/// sides at `p`, a point of both ([`sweep_edge_in_curved_face`]): `None`
+/// for a wedge clear of the face's material.
+fn edge_in_curved_face<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    f: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Option<ValidationError> {
+    let undecided = |why| ValidationError::FaceThroughEdgeWedgeUndecided {
+        edge: e.key,
+        face: f,
+        witness: witness(p),
+        why,
+    };
+    let floor = match crate::face_normal::face_outward_normal_at(body, f, p, band) {
+        Ok(Some(n)) => n.vec(),
+        Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
+            return Some(undecided(TouchUnread::InBand));
+        }
+        Ok(None) | Err(_) => return Some(undecided(TouchUnread::Unreadable)),
+    };
+    let w = match wedge(body, e, p, band) {
+        Ok(w) => w,
+        Err(WedgeRefusal::Undecided(_)) => return Some(undecided(TouchUnread::InBand)),
+        Err(WedgeRefusal::Unread(_, why)) => return Some(undecided(why)),
+    };
+    // A wall tangent to the face leaves its side to second order.
+    for sheet in [w.own, w.next] {
+        match decide(
+            "pm_census_ef_curved_wall_side",
+            Margin::levered(sheet.dot(floor), w.arm),
+            band,
+        ) {
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Zero) | Err(_) => return Some(undecided(TouchUnread::InBand)),
+        }
+    }
+    let ray = floor.cross(e.dir).normalize();
+    for v in [ray, -ray, -floor] {
+        match strictly_inside(&w, v, band) {
+            Ok(false) => {}
+            Ok(true) => {
+                return Some(ValidationError::FaceThroughEdgeWedge {
+                    edge: e.key,
+                    face: f,
+                    witness: witness(p),
+                });
+            }
+            Err(_) => return Some(undecided(TouchUnread::InBand)),
+        }
+    }
+    None
+}
+
 /// Where a cut of an edge's span in a face's plane sits.
 #[derive(Clone, Copy, Debug)]
 enum CutAt {
@@ -8028,204 +8226,6 @@ fn edge_in_own_face<T: Decide>(
             why,
         }),
     }
-}
-
-/// **A line edge between two planar faces lying inside a curved face of
-/// its own solid**, read for sides: pass 4 reads planar faces only, so a
-/// keel on a cylinder's or a cone's ruling, its two walls meeting the
-/// line with the face running on through it, is read here; an edge with
-/// a curved face of its own is [`sweep_same_solid_tangent_lines`]'
-/// where it lies tangent, and unread here otherwise. The edge lies on the carrier
-/// where its ends and its midpoint do (a quadric meeting a line in three
-/// points holds it; a sphere and a torus hold none); it is cut at the
-/// face's vertices on its interior, and each cell whose midpoint the
-/// face holds `In` is read at that midpoint: the face's two sheets there
-/// and its material direction against the edge's material wedge
-/// ([`wedge`], [`strictly_inside`]). Any of the three strictly inside is
-/// a [`ValidationError::FaceThroughEdgeWedge`]; a wall tangent to the
-/// face, or a reading in band, its undecided twin. A wedge clear of the
-/// face's material is a touch from outside, which this arm leaves to the
-/// records.
-fn sweep_edge_in_curved_face<T: Decide>(
-    body: &Body<T>,
-    geo: &Geo<T>,
-    band: Band,
-    cands: &Candidates,
-    errors: &mut Vec<ValidationError>,
-) {
-    if geo.curved_faces.is_empty() {
-        return;
-    }
-    for (i, e) in geo.edges.iter().enumerate() {
-        // A wall on a curved carrier can lie tangent to the face along
-        // the line: that pair is the tangent-line pass's.
-        if planar_face(geo, e.f_plus).is_none() || planar_face(geo, e.f_minus).is_none() {
-            continue;
-        }
-        let solid = census_entity_solid(body, EntityId::Edge(e.key));
-        for j in cands
-            .trees
-            .every_face
-            .overlapping(cands.trees.edges.query(i))
-        {
-            let f = cands.every_face[j];
-            if f == e.f_plus
-                || f == e.f_minus
-                || !geo.curved_faces.contains(&f)
-                || solid.is_none()
-                || census_entity_solid(body, EntityId::Face(f)) != solid
-            {
-                continue;
-            }
-            for mid in curved_overlap_cells(body, geo, e, f, band, errors) {
-                errors.extend(edge_in_curved_face(body, e, f, mid, band));
-            }
-        }
-    }
-}
-
-/// The midpoints of the cells of line edge `e` lying in curved face
-/// `f`'s interior ([`sweep_edge_in_curved_face`]): none where the edge
-/// is off `f`'s carrier, or the carrier holds no line; otherwise the
-/// edge cut at its ends and at every vertex of `f` on its interior, each
-/// cell whose midpoint `f` holds `In`. A residual, a cut's order, or a
-/// containment the door leaves unread refuses (pushed).
-fn curved_overlap_cells<T: Decide>(
-    body: &Body<T>,
-    geo: &Geo<T>,
-    e: &EdgeGeo<T>,
-    f: FaceKey,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Vec<Point3<T>> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
-        return Vec::new();
-    };
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
-        return Vec::new();
-    }
-    let half = T::from_f64(0.5);
-    for q in [e.p0, e.p1, e.p0 + e.dir * (e.len * half)] {
-        let r = geom_brep::implicit::implicit_residual(surface, q);
-        match decide("pm_census_ef_curved_residual", Margin::of(r), band) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Vec::new(),
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                return Vec::new();
-            }
-        }
-    }
-    let mut cuts: Vec<T> = vec![T::zero(), e.len];
-    for (&w, faces) in &geo.vertex_faces {
-        if !faces.contains(&f) {
-            continue;
-        }
-        let Some(&pw) = geo.vmap.get(&w) else {
-            continue;
-        };
-        match on_edge_interior_reading(pw, e, band, errors) {
-            Some(Some((s, _))) => cuts.push(s),
-            Some(None) => {}
-            None => return Vec::new(),
-        }
-    }
-    for i in 1..cuts.len() {
-        let mut j = i;
-        while j > 0 {
-            match tri_cmp(cuts[j - 1], cuts[j], band, errors) {
-                Some(core::cmp::Ordering::Greater) => cuts.swap(j - 1, j),
-                Some(_) => break,
-                None => return Vec::new(),
-            }
-            j -= 1;
-        }
-    }
-    let mut out = Vec::new();
-    for pair in cuts.windows(2) {
-        match decide("pm_census_span_gap", Margin::of(pair[1] - pair[0]), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => continue,
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                continue;
-            }
-        }
-        let mid = e.p0 + e.dir * geom::mid_param(pair[0], pair[1]);
-        match face_holds(body, f, mid, band, "pm_census_ef_curved_contain", errors) {
-            Some(Some(FaceContainment::In)) => out.push(mid),
-            Some(Some(_)) | None => {}
-            Some(None) => errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(f)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a line edge on a curved face's ruling whose trim the \
-                               containment door does not read",
-                    },
-                ),
-            }),
-        }
-    }
-    out
-}
-
-/// **Line edge `e` lying in curved face `f` of its own solid**, read for
-/// sides at `p`, a point of both ([`sweep_edge_in_curved_face`]): `None`
-/// for a wedge clear of the face's material.
-fn edge_in_curved_face<T: Decide>(
-    body: &Body<T>,
-    e: &EdgeGeo<T>,
-    f: FaceKey,
-    p: Point3<T>,
-    band: Band,
-) -> Option<ValidationError> {
-    let undecided = |why| ValidationError::FaceThroughEdgeWedgeUndecided {
-        edge: e.key,
-        face: f,
-        witness: witness(p),
-        why,
-    };
-    let floor = match crate::face_normal::face_outward_normal_at(body, f, p, band) {
-        Ok(Some(n)) => n.vec(),
-        Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
-            return Some(undecided(TouchUnread::InBand));
-        }
-        Ok(None) | Err(_) => return Some(undecided(TouchUnread::Unreadable)),
-    };
-    let w = match wedge(body, e, p, band) {
-        Ok(w) => w,
-        Err(WedgeRefusal::Undecided(_)) => return Some(undecided(TouchUnread::InBand)),
-        Err(WedgeRefusal::Unread(_, why)) => return Some(undecided(why)),
-    };
-    // A wall tangent to the face leaves its side to second order.
-    for sheet in [w.own, w.next] {
-        match decide(
-            "pm_census_ef_curved_wall_side",
-            Margin::levered(sheet.dot(floor), w.arm),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) | Err(_) => return Some(undecided(TouchUnread::InBand)),
-        }
-    }
-    let ray = floor.cross(e.dir).normalize();
-    for v in [ray, -ray, -floor] {
-        match strictly_inside(&w, v, band) {
-            Ok(false) => {}
-            Ok(true) => {
-                return Some(ValidationError::FaceThroughEdgeWedge {
-                    edge: e.key,
-                    face: f,
-                    witness: witness(p),
-                });
-            }
-            Err(_) => return Some(undecided(TouchUnread::InBand)),
-        }
-    }
-    None
 }
 
 /// **Every point where a solid touches itself, read for sides**: one

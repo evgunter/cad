@@ -48,8 +48,10 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, and an arc leaves two coincident arcs the census does not read
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]). The reading
+//! built, an arc leaves two coincident arcs the census does not read,
+//! and a curved face would carry a slit or a ring that is neither meshed
+//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! finds an edge only where its ends lie on the face, by structure or by
 //! a record, or an edge-on-face record names the pair and the face holds
 //! the edge's midpoint. An edge it does not find stays one edge: the
@@ -152,6 +154,11 @@ pub enum EdgeInFaceGap {
     /// that no contact record backs
     /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
+    /// The face is no plane: the parting would leave a slit or a
+    /// zero-area ring in a curved face, which the chart walk does not
+    /// mesh and the curved mass-properties lane does not measure
+    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`).
+    CurvedFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -232,6 +239,10 @@ impl EdgeInFaceGap {
             Self::Curved => {
                 "the edge is an arc, which would leave two coincident arcs that no contact record \
                  backs (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            }
+            Self::CurvedFace => {
+                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
+                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -370,6 +381,13 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
+        }
+        if !matches!(
+            body.get_face(face)
+                .and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. })
+        ) {
+            return Err(refused(EdgeInFaceGap::CurvedFace));
         }
         if partly {
             if pieces.contains(&(edge, face)) {
@@ -820,9 +838,9 @@ fn riders<T: Decide>(
 /// its midpoint held by `f`: on a plane, a line (two points of a plane
 /// hold the line between them) or a conic in `f`'s plane; on a
 /// cylinder, cone or sphere, a line whose midpoint lies on the carrier
-/// too (a quadric meeting a line in three points holds it: a ruling).
-/// A torus holds no line, and a face on any other carrier holds nothing
-/// here.
+/// too (a quadric meeting a line in three points holds it: a ruling),
+/// the edge between two planar faces ([`planar_walls`]). A torus holds
+/// no line, and a face on any other carrier holds nothing here.
 fn lies_in<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
@@ -844,7 +862,7 @@ fn lies_in<T: Decide>(
         geom::Surface::Cylinder { .. }
         | geom::Surface::Cone { .. }
         | geom::Surface::Sphere { .. }
-            if matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
+            if matches!(curve.carrier(), geom::Curve3::Line { .. }) && planar_walls(body, e) =>
         {
             let mid = curve.mid_point();
             return match crate::validate::decide(
@@ -899,6 +917,21 @@ fn lies_in<T: Decide>(
         piece_reading(body, f, mid, band, DoorInBand::Containment)?,
         PieceRead::In
     ))
+}
+
+/// Whether both faces of edge `e` lie on planes. A curved wall can lie
+/// tangent to a curved face along the line, which the tangent-line
+/// readings own.
+fn planar_walls<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
+    crate::readback::edge_sides(body, e).is_ok_and(|sides| {
+        let (a, b) = sides.faces();
+        [a, b].into_iter().all(|f| {
+            matches!(
+                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+                Some(geom::Surface::Plane { .. })
+            )
+        })
+    })
 }
 
 /// Whether both faces of edge `e` leave its line on the material side of

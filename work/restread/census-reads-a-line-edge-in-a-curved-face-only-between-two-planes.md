@@ -16,7 +16,7 @@ Found by SPLITDOOR's keel-on-a-ruling triage (branch
 edge lying in a cylinder or cone face of its own solid against the
 face's sheets and material direction, and refuses
 `FaceThroughEdgeWedge` where the face runs through the edge's wedge
-(`crates/sweep/tests/a_keel_on_a_bores_ruling_subtracts_as_a_slit.rs`,
+(`crates/sweep/tests/a_keel_on_a_bores_ruling.rs`,
 the one-edge row). What it does not read:
 
 1. **An edge with a curved face of its own.** It reads only edges
@@ -38,7 +38,9 @@ the one-edge row). What it does not read:
    planar lane does (`ef_overlap_lane`, `ef_bound_backed`).
 4. **Spline faces.** A face on a `Nurbs` or `Approx` carrier has no
    implicit residual, so the arm does not read it; the Boolean's rider
-   reading (`boolean/slit.rs`, `lies_in`) holds it nothing either.
+   reading (`boolean/slit.rs`, `lies_in`) holds it nothing either, and
+   reads a curved face only for an edge between two planar faces, the
+   same restriction as item 1.
 
 The fix for each: a reading of the case, or a typed refusal
 (`CensusUnsupported`) where none exists, never a silent pass.

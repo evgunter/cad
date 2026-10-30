@@ -1,18 +1,21 @@
-//! **A keel resting on a bore's ruling subtracts as a slit of the
-//! bore.** The block `[0, 4] × [−2, 2] × [0, 4]` with a half-bore of
-//! radius 1 about the z axis in its `x = 0` face, less the V-trench over
-//! the triangle `(1, 0)`, `(1.6, ±0.3)` from `z = 2` up out of the top:
-//! the trench's keel lies on the bore's ruling through `(1, 0)`, its
-//! walls leaving the bore outward. About the keel the material is two
-//! wedges, bore | wall a and wall b | bore, so the bore's face carries
-//! the keel as a slit of two coincident edges (`crates/topo/README.md`,
-//! tier 3: no face passes through an edge's material wedge), as the
-//! planar floor does (`crates/topo/tests/a_keel_on_the_floor_subtracts_as_a_slit.rs`).
+//! **A keel resting on a bore's ruling.** The block
+//! `[0, 4] × [−2, 2] × [0, 4]` with a half-bore of radius 1 about the z
+//! axis in its `x = 0` face, less the V-trench over the triangle
+//! `(1, 0)`, `(1.6, ±0.3)` from `z = 2` up out of the top: the trench's
+//! keel lies on the bore's ruling through `(1, 0)`, its walls leaving
+//! the bore outward. About the keel the material is two wedges, bore |
+//! wall a and wall b | bore, so the bore's face carries the keel as a
+//! slit of two coincident edges (`crates/topo/README.md`, tier 3: no face
+//! passes through an edge's material wedge).
 //!
-//! - **The Boolean builds the slit.** `block ∖ trench`, and
-//!   `block ∩ (box ∖ trench)`, hold the closed form, pass tiers 3 and
-//!   3′, and carry two keel edges, each bounding the bore's face.
-//! - **A cut through the keel caps around the trench.** The split at
+//! - **The Boolean refuses typed.** `block ∖ trench`, and
+//!   `block ∩ (box ∖ trench)`, read the keel as an edge lying in the
+//!   bore's face whose material parts it, and refuse
+//!   `EdgeInFaceGap::CurvedFace` rather than ship the one edge: a slit
+//!   in a curved face is neither meshed nor measured yet
+//!   (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`).
+//! - **A cut through the slit caps around the trench.** The slit form,
+//!   built as the union of the block's two sides of the trench, split at
 //!   `z = 3`: each side holds its closed form, and no cap face on the
 //!   plane covers the trench, read by winding over the cap faces' own
 //!   vertices, not by the kernel's classification.
@@ -31,9 +34,9 @@ use sweep::test_support::{extruded, finished};
 use topo::construction::{Construct, MefSite};
 use topo::euler::FaceSurface;
 use topo::{
-    AtRestBody, Body, BooleanResult, Cell, EdgeKey, FaceKey, LoopBoundary, SplitPart,
-    ValidationError, VertexKey, intersect, split, subtract, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanError, BooleanResult, Cell, EdgeInFaceGap, EdgeKey, FaceKey,
+    LoopBoundary, SplitPart, ValidationError, VertexKey, intersect, split, subtract, union,
+    validate_geometric, validate_pseudomanifold,
 };
 
 fn tol() -> Tol {
@@ -141,52 +144,119 @@ fn holds(what: &str, b: &AtRestBody<f64>, want: f64) {
     assert_eq!(validate_geometric(b, tol()), Ok(()), "{what}: tier 3");
 }
 
-/// **The Boolean builds the slit**: two keel edges from the top to the
-/// tip, each bounding the bore's face and one wall, and the body holds
-/// its closed form and passes tiers 3 and 3′.
-#[test]
-fn a_keel_on_the_bores_ruling_subtracts_as_a_slit_of_the_bore() {
-    let holed = match subtract(
-        &prism(
-            "the box",
-            &[(-1.0, -3.0), (5.0, -3.0), (5.0, 3.0), (-1.0, 3.0)],
-            -1.0,
-            6.0,
-        ),
-        &trench(),
-        tol(),
-    ) {
+fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> AtRestBody<f64> {
+    match r {
         Ok(BooleanResult::Body(b)) => b.body,
-        other => panic!("the box less the trench: {other:?}"),
-    };
+        other => panic!("{what}: {other:?}"),
+    }
+}
+
+/// The slit form: the union of the block's two sides of the trench,
+/// each the block cut by a prism, the lower one holding the V below
+/// `z = 2`.
+fn slit_block() -> AtRestBody<f64> {
+    let upper = prism(
+        "the upper tool",
+        &[
+            (1.0, 0.0),
+            (1.6, 0.3),
+            (1.6, -5.0),
+            (5.0, -5.0),
+            (5.0, 5.0),
+            (-5.0, 5.0),
+            (-5.0, 0.0),
+        ],
+        -1.0,
+        6.0,
+    );
+    let lower = body_of(
+        union(
+            &prism(
+                "the lower tool",
+                &[
+                    (1.0, 0.0),
+                    (-5.0, 0.0),
+                    (-5.0, -5.0),
+                    (1.6, -5.0),
+                    (1.6, -0.3),
+                ],
+                -1.0,
+                6.0,
+            ),
+            &prism("the V", &TRENCH, -1.0, 3.0),
+            tol(),
+        ),
+        "the lower tool",
+    );
+    body_of(
+        union(
+            &body_of(intersect(&block(), &upper, tol()), "the upper side"),
+            &body_of(intersect(&block(), &lower, tol()), "the lower side"),
+            tol(),
+        ),
+        "the two sides",
+    )
+}
+
+/// **The Boolean refuses typed**: the keel lies in the bore's face, its
+/// material parts there, and the parting is not built on a curved face.
+#[test]
+fn a_keel_on_the_bores_ruling_refuses_its_one_edge_form_typed() {
+    let holed = body_of(
+        subtract(
+            &prism(
+                "the box",
+                &[(-1.0, -3.0), (5.0, -3.0), (5.0, 3.0), (-1.0, 3.0)],
+                -1.0,
+                6.0,
+            ),
+            &trench(),
+            tol(),
+        ),
+        "the box less the trench",
+    );
     for (door, r) in [
         ("block ∖ trench", subtract(&block(), &trench(), tol())),
         ("block ∩ (box ∖ trench)", intersect(&block(), &holed, tol())),
     ] {
-        let Ok(BooleanResult::Body(b)) = r else {
-            panic!("{door}: {r:?}");
-        };
-        holds(door, &b.body, whole());
-        assert_eq!(
-            validate_pseudomanifold(&b.body, &b.contacts, tol()),
-            Ok(()),
-            "{door}: tier 3′"
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::CurvedFace,
+                    ..
+                })
+            ),
+            "{door}: refuses the parting on the bore: {r:?}"
         );
-        let bore = bore_face(&b.body);
-        let keel = keel_edges(&b.body);
-        assert_eq!(keel.len(), 2, "{door}: two keel edges: {keel:?}");
-        for e in keel {
-            assert!(
-                faces_of(&b.body, e).contains(&bore),
-                "{door}: keel edge {e:?} bounds the bore's face"
-            );
-            assert!(
-                ends(&b.body, e)
-                    .iter()
-                    .any(|&v| at(&b.body, v).distance(TIP) < 1e-12),
-                "{door}: keel edge {e:?} ends at the tip"
-            );
-        }
+    }
+}
+
+/// **The slit form holds**: two keel edges from the top to the tip, each
+/// bounding the bore's face, the closed form, and tiers 3 and 3′.
+#[test]
+fn the_slit_form_holds_its_closed_form() {
+    let body = slit_block();
+    holds("the slit block", &body, whole());
+    assert_eq!(
+        validate_pseudomanifold(&body, &topo::ContactRecords::default(), tol()),
+        Ok(()),
+        "tier 3′"
+    );
+    let bore = bore_face(&body);
+    let keel = keel_edges(&body);
+    assert_eq!(keel.len(), 2, "two keel edges: {keel:?}");
+    for e in keel {
+        assert!(
+            faces_of(&body, e).contains(&bore),
+            "keel edge {e:?} bounds the bore's face"
+        );
+        assert!(
+            ends(&body, e)
+                .iter()
+                .any(|&v| at(&body, v).distance(TIP) < 1e-12),
+            "keel edge {e:?} ends at the tip"
+        );
     }
 }
 
@@ -223,18 +293,16 @@ fn rings(body: &Body<f64>, face: FaceKey) -> Vec<Vec<Point3<f64>>> {
         .collect()
 }
 
-/// **A cut through the keel caps around the trench**: the split at
+/// **A cut through the slit caps around the trench**: the split at
 /// `z = 3` holds each side's closed form, and the trench's middle on
 /// the plane lies in no cap face, its loops wound over their own
 /// vertices.
 #[test]
 fn a_split_through_the_keel_caps_around_the_trench() {
-    let Ok(BooleanResult::Body(b)) = subtract(&block(), &trench(), tol()) else {
-        panic!("block ∖ trench");
-    };
+    let slit = slit_block();
     let z = 3.0;
     let plane = topo::test_support::split_plane(Point3::new(1.0, 0.0, z), Vec3::unit_z(), tol());
-    let r = split(&b.body, &plane, tol()).unwrap_or_else(|e| panic!("the split: {e:?}"));
+    let r = split(&slit, &plane, tol()).unwrap_or_else(|e| panic!("the split: {e:?}"));
     let in_trench = Point3::new(1.3, 0.0, z);
     for (side, part, want) in [
         ("above", &r.above, (4.0 - z) * section() - TRENCH_AREA),
@@ -265,10 +333,7 @@ fn a_split_through_the_keel_caps_around_the_trench() {
 /// through its wedge.
 #[test]
 fn the_keel_as_one_edge_through_the_bore_refuses_at_tier_3_prime() {
-    let Ok(BooleanResult::Body(b)) = subtract(&block(), &trench(), tol()) else {
-        panic!("block ∖ trench");
-    };
-    let mut body: Body<f64> = (*b.body).clone();
+    let mut body: Body<f64> = (*slit_block()).clone();
     let bore = bore_face(&body);
     // The bore's loop passes the top twice, one vertex per wedge: fuse
     // them across the face, which cuts off the two keel edges' face.
