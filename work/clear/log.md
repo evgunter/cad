@@ -226,3 +226,4 @@ Signed: (CARVE orchestrator)
     - Fix pass 2 (`c140ecc3`), read and accepted: the audit row; `v` and in-band rows; the hang-prone rows bounded by a nextest timeout; N3 as an explicit refusal; `graph_read`'s whole-turn check gated by `periodic`, with every `whole_turn` caller swept.
   - **Moved to CLEARTAIL:** its P2 and P3 filings.
   - **SHELL-4 is unparked.** Its parking note was wrong: the vessel already held, via the carrier arm. SHELL-4 is CLEAR's last P1.
+- 2026-10-30 — **SHELL-4 dispatched** (`docs/SHELL4-SPEC.md`, branch `clear/shell4`, cloud lane). This is CLEAR's last P1. Review: a single FULL review, not DUAL. The design was ruled by Ev on #1737, and the unit wires the reviewed injectivity certificate into one verb, so the risk is placement, typing and cost, which one reviewer with claims to falsify covers.
