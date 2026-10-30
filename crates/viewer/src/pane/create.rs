@@ -946,12 +946,15 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.label("after row");
             let mut row = gesture.after + 1;
-            ui.add(egui::DragValue::new(&mut row).range(1..=rows));
+            ui.add(number_field(&mut row, COUNT_DRAG_SPEED).range(1..=rows));
             gesture.after = row.saturating_sub(1);
         });
         ui.horizontal(|ui| {
             ui.label("to crossing");
-            ui.add(egui::DragValue::new(&mut gesture.crossing.nth).range(1..=MAX_TRACE_CROSSING));
+            ui.add(
+                number_field(&mut gesture.crossing.nth, COUNT_DRAG_SPEED)
+                    .range(1..=MAX_TRACE_CROSSING),
+            );
             for passage in [TracePassage::Leave, TracePassage::Enter] {
                 ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
             }
