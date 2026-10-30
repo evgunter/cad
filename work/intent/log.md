@@ -1097,3 +1097,9 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - six P3s filed.
   - The fix-pass head's `test (app)` was red only on the fast-set budget for two untouched m10_6 rows (1.052 s and 1.002 s). The re-run on the row commit was green.
 - **Stage 6 D dispatched** (`session_01VyvYnKSgWzCxCxYDXAhVSQ`), curve tier only, per #6006. Stage 6 now waits on D and E (the viewer's tool).
+- **2026-10-30, Ev answered #6064** ("this at least makes sense to start? ... we probably should treat cylinders the same way regardless of how they were made eventually but it doesn't have to be now"). It merges as written. The eventual direction is filed as `a-cylinder-reads-its-symmetry-by-how-it-was-made` (P3, design: the kind-by-value vs constructed-parallel question goes to the designer pair first).
+- **2026-10-30, stage 6 D merged (#6060)**, dual H, tally 0, no MAJOR (row `PR-6060.md`).
+  - One fix pass: traces compared by carrier, a red row per arm, the unreachable leg check and the symmetry lattice dropped for what they decide, and the `ReadTheAxis` prose corrected.
+  - The reviewers found that the #6006 premise ("that face's kind's symmetry") is not what the code reads. It went to Ev as `[ev]` #6064, which is open.
+  - `intent-stage6-is-built` waits on E alone. D10's umbrella waits on stage 6 and on CONTACTHOLD's declared-rung P0.
+- **2026-10-30, stage 6 E dispatched** (`session_01VyvYnLgN4x5RNGfT71WRpC`), single FULL review. E is an INTENT row at P0 on the viewer's ground, so the sitting continues rather than handing the track back; check-in 103 had planned the handback. The crossing is announced on DOORS', VGEOM's and FORMS' logs, none of which has an orchestrator.
