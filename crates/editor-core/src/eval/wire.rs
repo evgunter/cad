@@ -549,7 +549,7 @@ where
                     .and_then(Option::as_ref)
                     .unwrap_or(unprojected)
             };
-            wire_measure(primitive, doc, &at, tol)
+            wire_measure(primitive, doc, &at, env.lane.params, tol)
         }
         Node::InstantiatePart {
             doc_ref,
@@ -2062,7 +2062,7 @@ fn select_one<T: Decide>(
 /// holds it, then the name through that value's table under the
 /// [`ladder`], into an entity of the name's own kind. [`select_one`]
 /// resolves a selection's one name here, and so does the quieting
-/// rule's [`crate::checks::at_rest::contact_quietable`] for a row's
+/// rule's [`crate::checks::at_rest::row_quietable`] for a row's
 /// cell, so the two read one entity.
 ///
 /// # Errors
@@ -2229,14 +2229,16 @@ impl<'v, T: Decide> Measured<'v, T> {
 /// states. The body
 /// read is what makes the answer the placed carrier: a selection of a
 /// transform's output names the moved geometry.
-fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
+fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     primitive: &crate::measure::MeasurePrimitive<crate::VarId>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results_at: &dyn Fn(usize) -> &'r Results<T>,
+    params: &crate::expr::VarEnv<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let dim = primitive.dim();
-    let mut sides = Vec::with_capacity(2);
+    let mut cells = Vec::with_capacity(2);
+    let mut poses = Vec::with_capacity(2);
     for (index, &var) in primitive.refs().into_iter().enumerate() {
         // Each reference reads its own body: two ports of one split are
         // two bodies (`reads_projected`).
@@ -2245,6 +2247,30 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             primitive.kind(),
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
         );
+        // A pose reference (D10 `[assertions.quiet]`): a point, an axis or
+        // a plane, read off a cell or a split's tool, with the reach of
+        // the face it was read off.
+        if doc.var(var).is_some_and(|v| {
+            matches!(
+                v.kind(),
+                crate::VarKind::Point
+                    | crate::VarKind::Axis
+                    | crate::VarKind::Plane
+                    | crate::VarKind::Frame
+            )
+        }) {
+            let posed = pose::eval_posed(
+                doc,
+                results,
+                slot,
+                crate::pose::RoleRead::plain(var),
+                params,
+                tol,
+            )?;
+            let reach = pose::source_reach(doc, results, slot, var, &posed);
+            poses.push((index, posed, reach));
+            continue;
+        }
         let (at, ent) = if doc.selection(var).is_some() {
             select_one(doc, results, slot, var)?
         } else {
@@ -2258,33 +2284,49 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             )
         };
         let body = reference_body(results, slot, var, (at, ent))?;
-        sides.push((at, ent, body));
+        cells.push((index, at, ent, body));
     }
-    let [(at_a, ent_a, framed_a), (at_b, ent_b, framed_b)] = sides.as_slice() else {
+    // Its two references are in one space (D′1): it measures in the
+    // first cell's frame, or the second's where only that one is in its
+    // space's coordinates ([`super::Framed::computing_among`]), and reads
+    // the other cell into it through `relative`, a pose through its own
+    // relative map. Two poses measure in their space's coordinates.
+    let computing = super::Framed::computing_among(cells.iter().map(|(.., framed)| *framed))
+        .or_else(|| cells.first().map(|(.., framed)| *framed));
+    let bodies = cells
+        .iter()
+        .map(|(index, at, ent, framed)| {
+            let body = match computing {
+                Some(computing) => computing.read_in(framed, tol)?,
+                None => unreachable!("a cell gives the computing frame"),
+            };
+            Ok((*index, *at, *ent, body))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let b = band(tol)?;
+    let mut posed = Vec::with_capacity(poses.len());
+    for (index, read, reach) in poses {
+        let value = match computing {
+            Some(computing) => read.read_into(computing.frame(), b)?,
+            None => read.in_its_space(b)?,
+        };
+        let pose = super::measure::Pose::of(&value)
+            .unwrap_or_else(|| unreachable!("a measure admits a point, an axis, a plane or a frame"));
+        posed.push((index, pose, reach));
+    }
+    let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = bodies
+        .iter()
+        .map(|(index, _, ent, body)| (*index, super::measure::carrier_of(body, *ent)))
+        .chain(
+            posed
+                .into_iter()
+                .map(|(index, pose, reach)| (index, super::measure::Carrier::Pose { pose, reach })),
+        )
+        .collect();
+    carriers.sort_by_key(|(index, _)| *index);
+    let [(_, ca), (_, cb)] = carriers.as_slice() else {
         unreachable!("a primitive reads two references")
     };
-    // Its two references are in one space (D′1): it measures in the
-    // first's frame, or the second's where only that one is in its space's
-    // coordinates
-    // ([`super::Framed::computing_among`]), and reads the other into it
-    // through `relative`.
-    let computing = super::Framed::computing_among([*framed_a, *framed_b]).unwrap_or(*framed_a);
-    let body_a = computing.read_in(framed_a, tol)?;
-    let body_b = computing.read_in(framed_b, tol)?;
-    let measured_at = |at, ent: &names::EntityRef, body| {
-        (
-            Measured {
-                at,
-                index: ent.body,
-                body,
-                key: ent.key,
-            },
-            super::measure::carrier_of(body, *ent),
-        )
-    };
-    let (a, ca) = measured_at(*at_a, ent_a, body_a.as_ref());
-    let (b, cb) = measured_at(*at_b, ent_b, body_b.as_ref());
-    let (a, b, ca, cb) = (&a, &b, &ca, &cb);
     let measured = if matches!(
         primitive,
         crate::measure::MeasurePrimitive::MinClearance { .. }
@@ -2307,6 +2349,19 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
                 names::empty(),
             ));
         };
+        let measured = |i: usize| {
+            let (_, at, ent, body) = &bodies[i];
+            Measured {
+                at: *at,
+                index: ent.body,
+                body: body.as_ref(),
+                key: ent.key,
+            }
+        };
+        let [_, _] = bodies.as_slice() else {
+            unreachable!("a min_clearance reference reads a body or a face, never a pose")
+        };
+        let (a, b) = (measured(0), measured(1));
         let (oa, ob) = (a.clearance_operand(), b.clearance_operand());
         // The pair budget is the engine's small default: a drive of a few
         // hundred leaves pays this search a few hundred times.

@@ -652,19 +652,21 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
 
 /// **C5's three regimes, through the door under test** — coaxial
 /// cylinders at a shared axis, with the radii driven so one document
-/// walks clearance, contact and interference.
+/// walks all three signs. The two are solid rods, so their walls are
+/// both convex, a nested pair: the gap is how far the inner wall stands
+/// out of the outer rod's material, `r_inner − r_outer` on one axis.
 ///
 /// The row this replaces computed `let g = bore - pin;` in the test
 /// and asserted its sign: it called nothing under test and could not
 /// have failed for any bug in `gap`.
 #[test]
 fn the_gap_sign_convention_walks_all_three_regimes() {
-    // A bore and a pin on ONE axis, so the axis offset d is 0 and the
-    // sign is exactly r_bore - r_pin.
+    // Two rods on ONE axis, so the axis offset d is 0 and the sign is
+    // exactly r_pin - r_bore.
     for (bore_r, pin_r, expect) in [
-        (0.51_f64, 0.50_f64, 1_i32),
+        (0.51_f64, 0.50_f64, -1_i32),
         (0.50, 0.50, 0),
-        (0.49, 0.50, -1),
+        (0.49, 0.50, 1),
     ] {
         let (doc, bore, pin) = coaxial_pair(bore_r, pin_r);
         let ev = eval(&doc);
@@ -674,10 +676,10 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
                 .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
-        let want = bore_r - pin_r;
+        let want = pin_r - bore_r;
         assert!(
             (g - want).abs() < 1e-12,
-            "coaxial g = r_bore - r_pin = {want}, got {g}"
+            "coaxial g = r_pin - r_bore = {want}, got {g}"
         );
         let sign = if g > 1e-12 {
             1

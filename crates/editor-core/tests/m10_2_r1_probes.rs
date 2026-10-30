@@ -419,13 +419,13 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     )
 }
 
-/// `gap(socket, ball) = R − r − ‖Δc‖` in all three regimes, on real
-/// revolved sphere faces: R = 1 socket at the origin, r = 0.25 ball
-/// offset `c` up the axis — clearance at c = 0.3, contact at c = 0.75,
-/// interference at c = 0.9.
+/// Two solid balls, the smaller inside the larger, are a nested pair:
+/// `gap(large, small) = ‖Δc‖ + r − R` on real revolved sphere faces,
+/// R = 1 at the origin, r = 0.25 offset `c` up the axis — inside at
+/// c = 0.3, touching from inside at c = 0.75, out of it at c = 0.9.
 #[test]
 fn r1_sphere_gap_three_regimes_on_revolved_balls() {
-    for (c, expect) in [(0.3, 0.45), (0.75, 0.0), (0.9, -0.15)] {
+    for (c, expect) in [(0.3, -0.45), (0.75, 0.0), (0.9, 0.15)] {
         let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-balls"), Tol::witness());
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
@@ -454,7 +454,7 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         assert_eq!(dim, Dimension::Length);
         assert!(
             (g - expect).abs() < 1e-9,
-            "R − r − Δc = 1 − 0.25 − {c} = {expect}, got {g}"
+            "Δc + r − R = {c} + 0.25 − 1 = {expect}, got {g}"
         );
     }
 }
@@ -524,15 +524,17 @@ fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> (RecipeNodeId, StableName) 
         .clone()
 }
 
-/// `gap(bore, pin) = r_b − r_p − d` across clearance / contact /
-/// interference, with the axis offset exercised too.
+/// Two solid rods, the thinner inside the wider: their walls are both
+/// convex, a nested pair, so `gap(wide, thin) = d + r_thin − r_wide`,
+/// how far the thin wall stands out of the wide rod's material, inside,
+/// on and out of it, with the axis offset exercised too.
 #[test]
 fn r1_cylinder_gap_three_regimes_on_real_geometry() {
     for (bore_r, pin_r, off, expect) in [
-        (0.3, 0.2, 0.0, 0.1),    // clearance, structural coaxial
-        (0.3, 0.3, 0.0, 0.0),    // contact, exact arithmetic
-        (0.3, 0.35, 0.0, -0.05), // interference
-        (0.3, 0.2, 0.04, 0.06),  // clearance eaten by axis offset
+        (0.3, 0.2, 0.0, -0.1),   // inside, structural coaxial
+        (0.3, 0.3, 0.0, 0.0),    // on, exact arithmetic
+        (0.3, 0.35, 0.0, 0.05),  // out of it
+        (0.3, 0.2, 0.04, -0.06), // inside, brought out by the axis offset
     ] {
         let (doc, bore, pin) = cylinders(bore_r, pin_r, off);
         let ev = eval(&doc);
@@ -552,10 +554,8 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
     }
 }
 
-/// Swapping the gap's roles NEGATES it for cylinders at zero offset
-/// (`r_p − r_b − d`), which is why the roles are authored: an
-/// interference fit read with swapped roles would silently claim
-/// clearance.
+/// Swapping the gap's roles NEGATES it for two coaxial solid rods, a
+/// nested and so aligned pair, which is why the roles are authored.
 #[test]
 fn r1_cylinder_gap_role_swap_negates() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.0);
@@ -575,7 +575,7 @@ fn r1_cylinder_gap_role_swap_negates() {
     let (f, _) = measured(&ev, fwd);
     let (r, _) = measured(&ev, rev);
     assert!(
-        (f - 0.1).abs() < 1e-12 && (r + 0.1).abs() < 1e-12,
+        (f + 0.1).abs() < 1e-12 && (r - 0.1).abs() < 1e-12,
         "{f} vs {r}"
     );
 }

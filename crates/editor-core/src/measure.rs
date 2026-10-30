@@ -220,10 +220,13 @@ impl MeasureVerb {
     pub const fn admits(self, kind: crate::VarKind) -> bool {
         use crate::VarKind as K;
         match self {
-            Self::Distance => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Distance => matches!(
+                kind,
+                K::Face | K::Edge | K::Vertex | K::Point | K::Axis | K::Plane
+            ),
             Self::Angle => matches!(kind, K::Face | K::Edge),
             Self::MinClearance => matches!(kind, K::Body | K::Face),
-            Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex | K::Plane | K::Frame),
         }
     }
 
@@ -232,7 +235,16 @@ impl MeasureVerb {
     #[must_use]
     pub fn admitted(self) -> String {
         use crate::VarKind as K;
-        let said: Vec<String> = [K::Body, K::Face, K::Edge, K::Vertex]
+        let said: Vec<String> = [
+            K::Body,
+            K::Face,
+            K::Edge,
+            K::Vertex,
+            K::Point,
+            K::Axis,
+            K::Plane,
+            K::Frame,
+        ]
             .into_iter()
             .filter(|&kind| self.admits(kind))
             .map(|kind| {

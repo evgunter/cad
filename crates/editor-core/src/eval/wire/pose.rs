@@ -567,6 +567,35 @@ fn read_off<T: crate::mate::SolveScalar>(
     })
 }
 
+/// **The reach of the face a pose is read off**, from the pose's own
+/// point ([`crate::eval::measure::reach_of`]): the lever a measure prices
+/// a tilt between two axes over. `None` for a pose read off no face (an
+/// edge's or a vertex's, a construction's, a datum's).
+pub(crate) fn source_reach<T: crate::mate::SolveScalar>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: OperandSlot,
+    var: VarId,
+    posed: &Posed<T>,
+) -> Option<T> {
+    let VarDef::Pose(PoseDef::Axis { of } | PoseDef::Point { of } | PoseDef::Plane { face: of }) =
+        doc.var(var)?.def()
+    else {
+        return None;
+    };
+    let body_var = doc.selection(*of)?.body;
+    let projected = super::project_ports(&[body_var], doc, results).ok()?;
+    let results = projected.as_ref().unwrap_or(results);
+    let (at, ent) = select_one(doc, results, slot, *of).ok()?;
+    let whole = doc
+        .selection(*of)
+        .is_some_and(|select| crate::repetition::names_members(doc, select));
+    let framed = super::read_named_body(results, at, ent.body, whole).ok()?;
+    let face = names::EntityKey::face(ent.key)?;
+    let from = crate::eval::measure::Pose::of(&posed.value)?.at();
+    crate::eval::measure::reach_of(framed.body(), face, from)
+}
+
 /// [`read_off`]'s read of the entity `key` of `body`, in the body's
 /// coordinates.
 fn read_off_body<T: crate::mate::SolveScalar>(

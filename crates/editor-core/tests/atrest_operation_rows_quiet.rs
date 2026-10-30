@@ -8,8 +8,8 @@
 //! the row decided (`[assertions.quiet]`). A boolean's glue is quiet
 //! under a holding `Gap = 0` over its two cells, selected on the
 //! deciding node's input reads, and loud under one over any other pair.
-//! A row no `Gap = 0` says — a split's ON row, whose second cell is its
-//! tool's pose, a flush pair, a blend's turn, a tangency — is loud and
+//! A flush pair and a tangency read on their faces' sides are quiet the
+//! same way. A row no assertion says — a blend's turn — is loud and
 //! never refuses (CHECKS DS6).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -20,7 +20,7 @@ use crate::fixture::{against, axes_at, insert, len, union_over};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CheckEvidence, CheckFinding, CheckId, ChecksConfig,
     EntityKey, Entry, Evaluation, FindingSubject, LoopProgram, MeasurePrimitive, NamedCell,
-    NamedCoincidence, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, SitedRef,
+    NamedCoincidence, Node, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, SitedRef,
     StableName, ValuePayload, enforce_checks,
 };
 use geom_core::Tol;
@@ -66,20 +66,126 @@ fn up(origin: [f64; 3], t: f64) -> [f64; 3] {
 /// selection of its read makes: the document after it, and the
 /// assertion.
 fn gap_zero(doc: &ProfileDoc, outer: &SitedRef, inner: &SitedRef) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, measure) = crate::fixture::measure_node(
+    gap_by(doc, outer, inner, AssertionRelation::Equal, 0.0)
+}
+
+/// A `Gap(outer, inner)` related to `bound` by `relation`: the document
+/// after it, and the assertion.
+fn gap_by(
+    doc: &ProfileDoc,
+    outer: &SitedRef,
+    inner: &SitedRef,
+    relation: AssertionRelation,
+    bound: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    measured_by(
         doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
-        vec![outer.clone(), inner.clone()],
-    );
+        [outer.clone().into(), inner.clone().into()],
+        relation,
+        bound,
+    )
+}
+
+/// `primitive` over `refs`, related to `bound` by `relation`: the
+/// document after it, and the assertion.
+fn measured_by(
+    doc: &ProfileDoc,
+    primitive: MeasurePrimitive<u32>,
+    refs: [Operand; 2],
+    relation: AssertionRelation,
+    bound: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, measure) = crate::fixture::measure_node(doc, primitive, refs.to_vec());
     let value = crate::fixture::value_of(&doc, measure);
     insert(
         doc,
         Node::Assertion {
             value,
-            bound: len(0.0),
-            relation: AssertionRelation::Equal,
+            bound: len(bound),
+            relation,
         },
     )
+}
+
+/// **The row's `Gap = 0` quiets it, and a holding `Gap ≥ 0` or
+/// `Gap ≤ 0.01` over the same cells does not** ([`quiet_only_under`],
+/// over the row's two cells).
+fn quiet_only_under_its_gap_zero(
+    doc: &ProfileDoc,
+    subject: FindingSubject,
+    row: &NamedCoincidence,
+    what: &str,
+) {
+    let [a, b] = sites(doc, row);
+    quiet_only_under(
+        doc,
+        subject,
+        row,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        [a.into(), b.into()],
+        what,
+    );
+}
+
+/// **`primitive = 0` over `refs` quiets the finding over `row`, in
+/// either order, and a holding `≥ 0` or `≤ 0.01` does not**: only a
+/// relation against zero says the row, and a bound is a tolerance
+/// (`[assertions.quiet]`). The finding, of `subject`, is loud and
+/// refuses at `Error` with nothing asserted, and quiet and refusing
+/// nothing under its assertion.
+fn quiet_only_under(
+    doc: &ProfileDoc,
+    subject: FindingSubject,
+    row: &NamedCoincidence,
+    primitive: MeasurePrimitive<u32>,
+    [a, b]: [Operand; 2],
+    what: &str,
+) {
+    let loud = checks(doc, None);
+    let found = finding_over(&loud, subject, row);
+    assert!(found.quiet.is_none(), "{what}: nothing asserted: {found}");
+    assert!(
+        refuses_at_error(&loud, &found),
+        "{what}: an assertion could quiet it, so loud it refuses at Error: {found}"
+    );
+    for (refs, order) in [
+        ([a.clone(), b.clone()], "in the row's order"),
+        ([b.clone(), a.clone()], "swapped"),
+    ] {
+        let (doc, assertion) = measured_by(doc, primitive, refs, AssertionRelation::Equal, 0.0);
+        let report = checks(&doc, Some(assertion));
+        let found = finding_over(&report, subject, row);
+        assert_eq!(found.quiet, Some(assertion), "{what}, {order}: {report}");
+        assert!(
+            !refuses_at_error(&report, &found),
+            "{what}, {order}: a quiet finding refuses nothing"
+        );
+    }
+    for (relation, bound, variant) in [
+        (AssertionRelation::AtLeast, 0.0, "the opposite sense, ≥ 0"),
+        (AssertionRelation::AtMost, 0.01, "a tolerance, ≤ 0.01"),
+    ] {
+        let (doc, assertion) = measured_by(doc, primitive, [a.clone(), b.clone()], relation, bound);
+        let report = checks(&doc, Some(assertion));
+        let found = finding_over(&report, subject, row);
+        assert_eq!(found.quiet, None, "{what}: {variant} quiets nothing: {report}");
+    }
+}
+
+/// **A finding no assertion says stays loud and never refuses**, with a
+/// recourse that names the construction and asks for no assertion.
+fn loud_with_a_construction_recourse(report: &editor_core::ChecksReport, found: &CheckFinding) {
+    assert_eq!(found.quiet, None, "{report}");
+    assert!(
+        !refuses_at_error(report, found),
+        "none could quiet it, so it never refuses: {found}"
+    );
+    let said = found.to_string();
+    assert!(
+        said.contains("Recourse: ") && !said.contains("assert"),
+        "the recourse names the construction alone: {said}"
+    );
 }
 
 /// The selection reference a row's entity cell is: its name, read at
@@ -123,12 +229,21 @@ fn finding_of(
     node: RecipeNodeId,
     row: &NamedCoincidence,
 ) -> CheckFinding {
+    finding_over(report, FindingSubject::Node(node), row)
+}
+
+/// The lint's finding over `row`, of `subject`.
+fn finding_over(
+    report: &editor_core::ChecksReport,
+    subject: FindingSubject,
+    row: &NamedCoincidence,
+) -> CheckFinding {
     let found: Vec<&CheckFinding> = report
         .findings
         .iter()
         .filter(|f| {
             f.check == CheckId::UnprovenCoincidence
-                && f.subject == FindingSubject::Node(node)
+                && f.subject == subject
                 && matches!(&f.evidence, CheckEvidence::UnprovenCoincidence { row: r, .. } if **r == *row)
         })
         .collect();
@@ -256,18 +371,16 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
     }
 }
 
-/// **A flush pair stays loud under a `Gap = 0` that holds over its
-/// cells, and never refuses.** Two turned blocks side by side, unioned:
-/// their tops are one carrier, both material sides facing the same way,
-/// a `SameOriented` row. The `Gap` between them reads zero and holds,
-/// and the row stays loud: a flush pair is no contact, and only a flag
-/// mate or the replay establishes it (`[assertions]`). It refuses at no
-/// severity.
+/// **A flush pair is quiet under a `Gap = 0` over its cells, read on
+/// their sides.** Two turned blocks side by side, unioned: their tops
+/// are one carrier, both material sides facing the same way, a
+/// `SameOriented` row. The `Gap` between them reads zero in either role
+/// order, and says the flush pair (`[assertions]`); a `Gap ≥ 0` or a
+/// `Gap ≤ 0.01` over them holds and says nothing.
 ///
-/// *Breaks if* the contact half reads a flush row, or a flush finding
-/// refuses.
+/// *Breaks if* the contact half reads no flush row, or a bound quiets.
 #[test]
-fn a_flush_glue_stays_loud_under_a_holding_gap() {
+fn a_flush_glue_is_quiet_under_its_gap() {
     let doc = ProfileDoc::empty_derived("atrest-op-flush", Tol::witness());
     let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
     let (doc, left) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
@@ -282,16 +395,7 @@ fn a_flush_glue_stays_loud_under_a_holding_gap() {
         .filter(|r| r.relation == Relation::SameOriented)
         .collect();
     assert!(!flush.is_empty(), "the tops and bottoms are flush");
-    let row = &flush[0];
-    let [a, b] = sites(&doc, row);
-    let (doc, assertion) = gap_zero(&doc, &a, &b);
-    let report = checks(&doc, Some(assertion));
-    let found = finding_of(&report, union, row);
-    assert_eq!(found.quiet, None, "a flush pair is no contact: {report}");
-    assert!(
-        !refuses_at_error(&report, &found),
-        "no assertion could quiet it, so it never refuses: {found}"
-    );
+    quiet_only_under_its_gap_zero(&doc, FindingSubject::Node(union), &flush[0], "a flush glue");
 }
 
 /// The notched prism of `coincide-pinch`: its tip `(4, 1)` has both
@@ -365,19 +469,19 @@ fn face_through(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 
         .unwrap_or_else(|| panic!("a face of {node:?} on the plane through {p:?}, {n:?}"))
 }
 
-/// **A split's ON row is loud and never refuses: no `Gap` reads a
-/// pose.** Its cells are the operand's vertex and the split's tool, a
-/// pose and no cell of any body, so no assertion the quieting rule
-/// accepts is written over them (`[assertions.quiet]`). The notched
-/// prism split through its tip edge by a turned plane, and by `y = 1`:
-/// a `Gap = 0` from a tip vertex to a face it lies on — the notch's
-/// flank, or the face `y = 1` itself lies on — holds, and the row stays
-/// loud and refuses at no severity.
+/// **A split's ON row is quiet under a `Gap = 0` between its tool's
+/// plane and the vertex** (`[assertions.quiet]`: a vertex on a split's
+/// plane, read off the split's tool). The notched prism split through
+/// its tip edge by a turned plane, and by `y = 1`: the row's cells are
+/// the operand's tip vertex and the split's tool, and a `Gap` from the
+/// tool read as a plane to the vertex says it. A `Gap = 0` from the
+/// vertex to a face it lies on, the notch's flank or the face `y = 1`
+/// lies on, holds and says nothing of the tool.
 ///
-/// *Breaks if* the contact half reads a tool cell as the operand's, or
-/// a split's row refuses.
+/// *Breaks if* a measure cannot read a split's tool, the rule reads a
+/// tool cell as the operand's, or a face's gap quiets the tool's row.
 #[test]
-fn a_splits_on_row_is_loud_and_never_refuses() {
+fn a_splits_on_row_is_quiet_under_its_tool_gap() {
     let (s, c) = 0.17f64.sin_cos();
     let flank_normal = {
         let n = 2f64.sqrt();
@@ -406,22 +510,35 @@ fn a_splits_on_row_is_loud_and_never_refuses() {
             (row.relation, row.site),
             (Relation::OnCarrier, DecisionSite::SplitOn)
         );
-        assert!(
-            matches!(
-                row.cells.as_slice(),
-                [NamedCell::Entity { .. }, NamedCell::Tool { .. }]
-            ),
-            "{id}: an operand vertex on the tool: {row:?}"
-        );
+        let [NamedCell::Entity { .. }, NamedCell::Tool { input: tool, .. }] = row.cells.as_slice()
+        else {
+            panic!("{id}: an operand vertex on the tool: {row:?}")
+        };
         let vertex = site(&doc, &row.cells[0]);
         let face = SitedRef::new(prism, face_through(&ev, prism, face_at, face_normal));
-        let (doc, assertion) = gap_zero(&doc, &face, &vertex);
-        let report = checks(&doc, Some(assertion));
-        let found = finding_of(&report, split, row);
-        assert_eq!(found.quiet, None, "{id}: no Gap reads the tool: {report}");
-        assert!(
-            !refuses_at_error(&report, &found),
-            "{id}: so none could quiet it, and it never refuses: {found}"
+        let (doc_face, assertion) = gap_zero(&doc, &face, &vertex);
+        let report = checks(&doc_face, Some(assertion));
+        assert_eq!(
+            finding_of(&report, split, row).quiet,
+            None,
+            "{id}: a face's gap says nothing of the tool: {report}"
+        );
+        // A variable two readers share is named.
+        let doc = crate::fixture::step(
+            doc,
+            editor_core::DocEdit::RenameVar {
+                var: (*tool).into(),
+                name: Some(editor_core::VarName::from_static("cut")),
+            },
+        )
+        .0;
+        quiet_only_under(
+            &doc,
+            FindingSubject::Node(split),
+            row,
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
+            [Operand::Var(*tool), vertex.into()],
+            id,
         );
     }
 }
@@ -433,10 +550,12 @@ fn a_splits_on_row_is_loud_and_never_refuses() {
 /// third edge are one point, which a `Gap = 0` does not say
 /// (`[assertions.quiet]`: an assertion that says the same). The two
 /// edges share the corner, so a `Gap = 0` over them holds at every value
-/// of the box, and it quiets nothing.
+/// of the box, and it quiets nothing. Its recourse is the construction
+/// alone (`[intent.checked]`: two feet only the blend computes).
 ///
-/// *Breaks if* the contact half quiets a row by an assertion that does
-/// not say what it decided, or a turn refuses.
+/// *Breaks if* the row half quiets a row by an assertion that does not
+/// say what it decided, a turn refuses, or its recourse asks for an
+/// assertion.
 #[test]
 fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     let doc = ProfileDoc::empty_derived("atrest-op-turn", Tol::witness());
@@ -511,21 +630,20 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     for row in &turns {
         let found = finding_of(&report, fillet, row);
         assert_eq!(found.quiet, None, "a Gap = 0 says no common foot: {report}");
-        assert!(
-            !refuses_at_error(&report, &found),
-            "and none could quiet it, so it never refuses: {found}"
-        );
+        loud_with_a_construction_recourse(&report, &found);
     }
 }
 
-/// **A tangency is quieted by no `Gap = 0`, and never refuses.** A
-/// rod resting on a plate's side face, both turned, unioned: the
-/// tangency witness's row decided the rod's wall and the plate's face
-/// tangent along a ruling, which no `Gap = 0` says.
+/// **A rod resting on a plate is quiet under its `Gap = 0`.** A rod
+/// lying on a plate's side face, both turned, unioned: the tangency
+/// witness's row decided the rod's wall and the plate's face tangent
+/// along a ruling, opposed, which is a contact, and a `Gap = 0` over
+/// the two faces read on their sides says it in either role order.
 ///
-/// *Breaks if* a tangency row refuses.
+/// *Breaks if* the plane and the cylinder have no `Gap` arm, the arm
+/// reads the rod as a bore, or the contact half reads no tangency.
 #[test]
-fn a_tangency_is_quieted_by_no_gap_and_never_refuses() {
+fn a_rod_on_a_plate_is_quiet_under_its_gap() {
     let doc = ProfileDoc::empty_derived("atrest-op-tangent", Tol::witness());
     let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
     let (doc, plate) = block(doc, (-2.0, 2.0), (-2.0, 2.0), 1.0);
@@ -541,12 +659,55 @@ fn a_tangency_is_quieted_by_no_gap_and_never_refuses() {
         .iter()
         .find(|r| r.site == DecisionSite::TangentWitness)
         .unwrap_or_else(|| panic!("a tangency row: {got:?}"));
-    let report = checks(&doc, None);
-    let found = finding_of(&report, union, tangent);
-    assert!(
-        !refuses_at_error(&report, &found),
-        "a tangency is no contact a Gap = 0 says: {found}"
+    quiet_only_under_its_gap_zero(&doc, FindingSubject::Node(union), tangent, "a rod on a plate");
+}
+
+/// **Two rods touching side by side read `Gap = 0`, not `−2r`**: two
+/// world copies whose walls are two convex faces externally tangent,
+/// which the gap reads at `d − r_a − r_b` in either role order. A
+/// `Gap = 0` over the two walls holds and a `Gap ≤ −0.01` does not. (The
+/// census has no lane for two curved faces of different parts yet, so
+/// the pair is a could-not-look finding, not a contact row.)
+///
+/// *Breaks if* two convex walls read as a pin in a bore.
+#[test]
+fn two_rods_side_by_side_read_a_gap_of_zero() {
+    let (r1, r2) = (0.5, 0.3);
+    let doc = ProfileDoc::empty_derived("atrest-op-two-rods", Tol::witness());
+    let (doc, a) = rod(doc, (0.0, 0.0), r1, QUARTER, 1.0);
+    let (doc, b) = rod(doc, (0.0, 0.0), r2, QUARTER, 1.0);
+    let (doc, p) = crate::fixture::place(doc, a);
+    let (doc, q) =
+        crate::fixture::in_world(doc, b, &editor_core::Frame::translation([r1 + r2, 0.0, 0.0]));
+    let wall = |doc: &ProfileDoc, node| {
+        crate::fixture::fname(
+            node,
+            editor_core::RoleSeg::Lateral(crate::fixture::piece(doc, node, 0, 0).into()),
+        )
+    };
+    let (wa, wb) = (
+        SitedRef::new(p, wall(&doc, a)),
+        SitedRef::new(q, wall(&doc, b)),
     );
+    for (outer, inner, order) in [(&wa, &wb, "a outer"), (&wb, &wa, "b outer")] {
+        for (relation, bound, holds) in [
+            (AssertionRelation::Equal, 0.0, true),
+            (AssertionRelation::AtMost, -0.01, false),
+        ] {
+            let (doc, assertion) = gap_by(&doc, outer, inner, relation, bound);
+            let got = run(&doc);
+            let held = matches!(
+                got.value(assertion).map(|v| &v.payload),
+                Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. }))
+            );
+            assert_eq!(
+                held,
+                holds,
+                "{order}, {relation:?} {bound}: {:?}",
+                got.value(assertion).map(|v| &v.payload)
+            );
+        }
+    }
 }
 
 /// A rod of radius `r` about `(cx, cy)` on its own xy, `h` up its own
@@ -640,4 +801,282 @@ fn every_refusing_finding_has_a_holding_gap(doc: &ProfileDoc, what: &str) {
             "{what}: {row:?} refuses at Error, and no Gap = 0 over its cells holds"
         );
     }
+}
+
+/// A ball of radius `r` about the origin of its own y axis: a semicircle
+/// revolved a full turn about y.
+fn ball(doc: ProfileDoc, r: f64) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::{ProgramArcData, ProgramStep, ProgramTarget};
+    let meridian = LoopProgram::Chain(vec![
+        ProgramStep::At(crate::fixture::len2([0.0, -r])),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(crate::fixture::len2([0.0, r])),
+            b: crate::fixture::scl(1.0),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    revolved(doc, meridian)
+}
+
+/// `meridian` revolved a full turn about its own y axis.
+fn revolved(doc: ProfileDoc, meridian: LoopProgram<editor_core::Formula>) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![meridian],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    insert(
+        doc,
+        crate::fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            crate::fixture::ang(std::f64::consts::TAU),
+        ),
+    )
+}
+
+/// The union `node`'s first row decided at `site` with `relation`.
+fn row_at(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    site: DecisionSite,
+    relation: Relation,
+) -> NamedCoincidence {
+    let got = rows(ev, node);
+    got.iter()
+        .find(|r| (r.site, r.relation) == (site, relation))
+        .unwrap_or_else(|| panic!("a {relation:?} row at {site:?}: {got:?}"))
+        .clone()
+}
+
+/// The name of `node`'s first face on a `kind` carrier (a full revolve
+/// mints two bands).
+fn face_of_kind(ev: &Evaluation<f64>, node: RecipeNodeId, kind: geom::SurfaceKind) -> StableName {
+    let faces = editor_core::select_where(
+        ev,
+        node,
+        &editor_core::Selector::of(editor_core::NamePat::of_kind(editor_core::EntityKind::Face)),
+        &[editor_core::GeomPred::SurfaceKind(
+            editor_core::SurfaceKindSet::just(kind),
+        )],
+        &ProfileDoc::empty_derived("atrest-op-no-params", Tol::witness()).var_env::<f64>(),
+        Tol::witness(),
+    )
+    .expect("a surface-kind selection is exact");
+    faces
+        .first()
+        .unwrap_or_else(|| panic!("a {kind:?} face of {node:?}"))
+        .clone()
+}
+
+/// **A row of `site` deciding `relation`** over two cells, each a face
+/// of a copy: what the kernel would record over those two faces.
+fn row_over(
+    doc: &ProfileDoc,
+    site: DecisionSite,
+    relation: Relation,
+    cells: [(RecipeNodeId, StableName); 2],
+) -> NamedCoincidence {
+    NamedCoincidence {
+        cells: cells
+            .into_iter()
+            .map(|(copy, name)| NamedCell::Entity {
+                input: doc.output(copy, 0).expect("a placement's copy"),
+                name,
+            })
+            .collect(),
+        relation,
+        site,
+        margin: geom_core::MarginDiag::value(0.0),
+        discharge: topo::Discharge::Numeric,
+        origin: editor_core::coincide::RowOrigin::Node,
+    }
+}
+
+/// **A coincidence of poses is quiet under a `Distance = 0` between the
+/// poses read off its two cells, and only there** (`[assertions.quiet]`):
+/// a sphere's centre on a cylinder's or a torus's axis, a cylinder's or
+/// a torus's axis on a torus's, and a blend's supports on one axis, each
+/// asserted with the centre read off the ball and the axis off each
+/// wall or ring. A `Distance ≥ 0` or `≤ 0.01` over the same poses says
+/// nothing; and with the ball moved off the axis, the `Distance = 0`
+/// fails and no assertion could quiet the row.
+///
+/// The kernel's boolean refuses these curved pairs today, so no document
+/// reaches the rows: each is the row the kernel records over the two
+/// faces, asked of the rule over two placed copies (a rod, a ball, two
+/// rings, all turned about one axis).
+///
+/// *Breaks if* a measure cannot read a pose, the rule does not see a
+/// pose as the cell it was read off, or a pose of the wrong kind quiets.
+#[test]
+fn a_coincidence_of_poses_is_quiet_under_its_distance() {
+    use geom::SurfaceKind as S;
+    use editor_core::test_support::{quiet_row, row_quietable};
+    let ring = |doc, major: f64, minor: f64| {
+        revolved(
+            doc,
+            LoopProgram::Circle {
+                centre: crate::fixture::len2([major, 0.0]),
+                radius: len(minor),
+            },
+        )
+    };
+    for off in [0.0, 0.05] {
+        let doc = ProfileDoc::empty_derived("atrest-op-poses", Tol::witness());
+        let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
+        let (doc, post) = revolved(
+            doc,
+            LoopProgram::polygon([(0.0, -0.6), (0.4, -0.6), (0.4, 0.6), (0.0, 0.6)])
+                .expect("finite corners"),
+        );
+        let (doc, ring_a) = ring(doc, 0.5, 0.2);
+        let (doc, ring_b) = ring(doc, 0.9, 0.15);
+        let (doc, ball) = ball(doc, 0.5);
+        let at = turned([0.3, -0.2, 0.5]);
+        let (doc, post) = against(doc, anchor, Operand::output(post, 0), &at);
+        let (doc, ring_a) = against(doc, anchor, Operand::output(ring_a, 0), &at);
+        let (doc, ring_b) = against(doc, anchor, Operand::output(ring_b, 0), &at);
+        let moved = turned([0.3 + off, -0.2, 0.5]);
+        let (doc, ball) = against(doc, anchor, Operand::output(ball, 0), &moved);
+        let ev = run(&doc);
+        let wall = (post, face_of_kind(&ev, post, S::Cylinder));
+        let torus_a = (ring_a, face_of_kind(&ev, ring_a, S::Torus));
+        let torus_b = (ring_b, face_of_kind(&ev, ring_b, S::Torus));
+        let sphere = (ball, face_of_kind(&ev, ball, S::Sphere));
+        let sited = |(copy, name): &(RecipeNodeId, StableName)| SitedRef::new(*copy, name.clone());
+        use crate::fixture::{axis, point_of};
+        let on_axis = off == 0.0;
+        for (site, relation, cells, refs, poses) in [
+            (
+                DecisionSite::CoaxialSphere,
+                Relation::OnCarrier,
+                [wall.clone(), sphere.clone()],
+                [axis(sited(&wall)), point_of(sited(&sphere))],
+                "a centre on a cylinder's axis",
+            ),
+            (
+                DecisionSite::SphereOnTorusAxis,
+                Relation::OnCarrier,
+                [torus_a.clone(), sphere.clone()],
+                [axis(sited(&torus_a)), point_of(sited(&sphere))],
+                "a centre on a torus's axis",
+            ),
+            (
+                DecisionSite::CoaxialCylinderTorus,
+                Relation::Coaxial,
+                [wall.clone(), torus_a.clone()],
+                [axis(sited(&wall)), axis(sited(&torus_a))],
+                "a cylinder's axis on a torus's",
+            ),
+            (
+                DecisionSite::CoaxialTori,
+                Relation::Coaxial,
+                [torus_a.clone(), torus_b.clone()],
+                [axis(sited(&torus_a)), axis(sited(&torus_b))],
+                "two tori on one axis",
+            ),
+            (
+                DecisionSite::BatterySupportAxis,
+                Relation::Coaxial,
+                [wall.clone(), torus_b.clone()],
+                [axis(sited(&wall)), axis(sited(&torus_b))],
+                "a blend's supports on one axis",
+            ),
+        ] {
+            if !on_axis && !matches!(site, DecisionSite::CoaxialSphere | DecisionSite::SphereOnTorusAxis) {
+                continue;
+            }
+            let row = row_over(&doc, site, relation, cells);
+            let what = format!("{poses}, off by {off}");
+            assert_eq!(
+                row_quietable(&doc, &ev, &row, Tol::witness()),
+                on_axis,
+                "{what}: whether a Distance = 0 over its poses could hold"
+            );
+            let [a, b] = refs;
+            let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
+            for (refs, order) in [([a.clone(), b.clone()], "in order"), ([b.clone(), a.clone()], "swapped")] {
+                let (doc, assertion) =
+                    measured_by(&doc, distance, refs, AssertionRelation::Equal, 0.0);
+                let ev = run(&doc);
+                let quiet = quiet_row(&doc, &ev, &row, Tol::witness());
+                assert_eq!(
+                    quiet,
+                    on_axis.then_some(assertion),
+                    "{what}, {order}: {:?}",
+                    ev.value(assertion).map(|v| &v.payload)
+                );
+            }
+            for (relation, bound) in [(AssertionRelation::AtLeast, 0.0), (AssertionRelation::AtMost, 0.01)] {
+                let (doc, _) = measured_by(&doc, distance, [a.clone(), b.clone()], relation, bound);
+                let ev = run(&doc);
+                assert_eq!(
+                    quiet_row(&doc, &ev, &row, Tol::witness()),
+                    None,
+                    "{what}: {relation:?} {bound} quiets nothing"
+                );
+            }
+        }
+    }
+}
+
+/// **Two crossing cylinders: their meeting axes are quiet under a
+/// `Distance = 0` between the axes, and their one radius is quiet under
+/// nothing.** Two rods of radius 0.5 each written apart, crossing at
+/// right angles, both spun about their own axes off the section's
+/// nodes, unioned. `AxesMeet` reads the skew arm of the axes'
+/// distance; `SameRadius` is two written values, which the construction
+/// says (one variable for both) and no assertion does: loud, never
+/// refusing, its recourse the construction.
+///
+/// *Breaks if* the skew arm is no arm, or a radius row asks for an
+/// assertion.
+#[test]
+fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
+    use std::f64::consts::PI;
+    let turn = |axis: [f64; 3], angle: f64| {
+        editor_core::Frame::rotate_then_translate(axis, angle, [0.0; 3], crate::fixture::band())
+            .expect("a literal axis")
+    };
+    let doc = ProfileDoc::empty_derived("atrest-op-crossing", Tol::witness());
+    let (doc, a) = rod(doc, (0.0, 0.0), 0.5, 0.0, 2.4);
+    let (doc, b) = rod(doc, (0.0, 0.0), 0.5, 0.0, 2.4);
+    let down = editor_core::Frame::translation([0.0, 0.0, -1.2]);
+    let phi = PI / 4.0;
+    let (doc, a_copy) = against(doc, a, a, &turn([0.0, 0.0, 1.0], phi).compose(&down));
+    let (doc, b) = against(
+        doc,
+        a,
+        b,
+        &turn([0.0, 1.0, 0.0], phi)
+            .compose(&turn([1.0, 0.0, 0.0], PI / 2.0))
+            .compose(&down),
+    );
+    let (doc, union) = union_over(doc, &[a_copy, b]);
+    let ev = run(&doc);
+    let meet = row_at(&ev, union, DecisionSite::CrossingCylinders, Relation::AxesMeet);
+    let radius = row_at(&ev, union, DecisionSite::CrossingCylinders, Relation::SameRadius);
+    let [wa, wb] = sites(&doc, &meet);
+    quiet_only_under(
+        &doc,
+        FindingSubject::Node(union),
+        &meet,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        [crate::fixture::axis(wa.clone()), crate::fixture::axis(wb.clone())],
+        "crossing axes",
+    );
+    let (doc, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        [crate::fixture::axis(wa), crate::fixture::axis(wb)],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let report = checks(&doc, Some(assertion));
+    loud_with_a_construction_recourse(&report, &finding_of(&report, union, &radius));
 }

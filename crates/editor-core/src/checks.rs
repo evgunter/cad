@@ -532,7 +532,7 @@ pub enum CheckEvidence {
             crate::coincide::Recourse,
         )>,
         /// Whether an assertion could quiet the row
-        /// ([`at_rest::contact_quietable`]): it decided what a `Gap = 0`
+        /// ([`at_rest::row_quietable`]): it decided what a `Gap = 0`
         /// says, and a `Gap` over its two cells reads zero. A row no
         /// assertion could quiet never refuses ([`Self::never_refuses`]).
         quietable: bool,
@@ -588,7 +588,7 @@ impl CheckEvidence {
     /// could not intersect, or one whose bounding faces offer no pair an
     /// assertion the quieting rule accepts could be written over; or a
     /// coincidence no assertion could quiet
-    /// ([`at_rest::contact_quietable`]). Loud, and refused by
+    /// ([`at_rest::row_quietable`]). Loud, and refused by
     /// [`enforce_checks`] at no severity: a refusal there would have no
     /// recourse but changing geometry.
     #[must_use]
@@ -954,7 +954,11 @@ impl SaidFinding<'_> {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \
                  off rather than reading its silence as a clean body"
             }
-            CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
+            CheckEvidence::UnprovenCoincidence {
+                recourse,
+                quietable,
+                ..
+            } => recourse.words(*quietable),
             // The story ends in the part's own recourse, in the part.
             CheckEvidence::CarriedInterference { .. }
             | CheckEvidence::CarriedCoincidence { .. } => "",
@@ -1769,10 +1773,10 @@ pub(crate) type DoorRows = (FindingSubject, RecipeNodeId, Vec<DoorRow>);
 pub(crate) struct DoorRow {
     /// The row.
     pub row: crate::coincide::NamedCoincidence,
-    /// The assertion that quiets it ([`at_rest::quiet_contact`]), if one
+    /// The assertion that quiets it ([`at_rest::quiet_row`]), if one
     /// does.
     pub quiet: Option<RecipeNodeId>,
-    /// Whether one could ([`at_rest::contact_quietable`]).
+    /// Whether one could ([`at_rest::row_quietable`]).
     pub quietable: bool,
 }
 
@@ -1784,7 +1788,7 @@ pub(crate) struct DoorRow {
 /// under the subject it is reported against — the node that decided it,
 /// or the two copies the census found in contact. Every row, a node's
 /// or an at-rest one, is quiet under the contact half of the quieting
-/// rule ([`at_rest::quiet_contact`]), read here, where the evaluation
+/// rule ([`at_rest::quiet_row`]), read here, where the evaluation
 /// that decided it is in hand.
 pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
@@ -1823,8 +1827,8 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     };
     let judged = |row: &crate::coincide::NamedCoincidence| DoorRow {
         row: row.clone(),
-        quiet: at_rest::quiet_contact(doc, ev, row, tol),
-        quietable: at_rest::contact_quietable(doc, ev, row, tol),
+        quiet: at_rest::quiet_row(doc, ev, row, tol),
+        quietable: at_rest::row_quietable(doc, ev, row, tol),
     };
     ev.order
         .iter()

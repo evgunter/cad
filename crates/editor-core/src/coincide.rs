@@ -553,19 +553,21 @@ impl Residual {
 /// **What would make an unproven row structural.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
-    /// Build the cells as one construction of the same variables,
-    /// or assert the coincidence at its site: the residual the replay
-    /// read whole is a function of the variables alone that the door did
-    /// not show zero.
+    /// Build the cells as one construction of the same variables, or
+    /// assert the coincidence where an assertion says it: the residual
+    /// the replay read whole is a function of the variables alone that
+    /// the door did not show zero.
     OneConstruction,
-    /// Assert the coincidence at its site: the door has no form of the
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as a construction the door reads: the door has no form of the
     /// row's residual to read ([`Unreplayed`] other than
     /// [`Unreplayed::Numeric`]), or the one it read keeps a value
     /// computed apart from the variables
     /// ([`geom_core::sym::deferred::Undischarged::KeepsAnOpaqueAtom`]).
     Assert,
-    /// Assert the coincidence at its site: the form the replay read
-    /// outgrew the door's budget
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as one construction: the form the replay read outgrew the door's
+    /// budget
     /// ([`geom_core::sym::deferred::Undischarged::OverTheBudget`]), so
     /// whether it is zero is not decided there.
     Budget,
@@ -579,23 +581,40 @@ pub enum Recourse {
 }
 
 impl Recourse {
-    /// The recourse as a sentence's ending.
+    /// **The recourse as a sentence's ending**, `sayable` whether an
+    /// assertion could quiet the row (`checks::at_rest::row_quietable`):
+    /// the assertion is offered only where one can say the row, and a
+    /// row no assertion says (a blend turn's two feet, two radii written
+    /// apart, a cell no measure reads) names the construction alone
+    /// (`[intent.checked]`).
     #[must_use]
-    pub const fn words(self) -> &'static str {
-        match self {
-            Self::OneConstruction => {
+    pub const fn words(self, sayable: bool) -> &'static str {
+        match (self, sayable) {
+            (Self::OneConstruction, true) => {
                 "Recourse: build the cells as one construction of the same variables, so \
                  the coincidence holds whatever their values, or assert it at its site"
             }
-            Self::Assert => {
+            (Self::OneConstruction, false) => {
+                "Recourse: build the cells as one construction of the same variables, so \
+                 the coincidence holds whatever their values"
+            }
+            (Self::Assert, true) => {
                 "Recourse: assert the coincidence at its site; the door cannot read what decided it \
                  as a function of the variables"
             }
-            Self::Budget => {
+            (Self::Assert, false) => {
+                "Recourse: build the cells as one construction the door reads; it cannot read what \
+                 decided this one as a function of the variables"
+            }
+            (Self::Budget, true) => {
                 "Recourse: assert the coincidence at its site; what decided it, read as a function \
                  of the variables, outgrew the door's budget"
             }
-            Self::ReadTheAxis => {
+            (Self::Budget, false) => {
+                "Recourse: build the cells as one construction; what decided it, read as a function \
+                 of the variables, outgrew the door's budget"
+            }
+            (Self::ReadTheAxis, _) => {
                 "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
                  keeps the tangency the profile draws whatever the values"
             }
