@@ -276,6 +276,81 @@ fn a_keel_with_a_curved_wall_on_the_bores_ruling_refuses_typed() {
     }
 }
 
+/// A trench over `pts`, each corner `(x, y, bulge)`, from `z = 2` up 3.
+fn bulged_trench(pts: &[(f64, f64, f64)]) -> AtRestBody<f64> {
+    finished(
+        "the trench",
+        extruded(
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
+            vec![bulge_loop(
+                pts.iter()
+                    .map(|&(x, y, b)| (Point2::new(x, y), b))
+                    .collect(),
+            )],
+            3.0,
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// The bulge of the closing wall from `(1, 0) + s·(0.6, 0.3)` back to
+/// the apex that meets the bore's ruling at `δ` off tangent, its sheet
+/// outside the bore.
+fn closing_bulge(d: f64) -> f64 {
+    ((core::f64::consts::FRAC_PI_2 - 0.3f64.atan2(0.6) - d) / 2.0).tan()
+}
+
+/// Whether `r` refuses: the parting on the bore, or a reading before it
+/// that a wall at or near tangency leaves in band or unsupported. Never
+/// a body.
+fn refused_typed(r: &Result<BooleanResult<f64>, BooleanError>) -> bool {
+    r.is_err()
+}
+
+/// **A wall tangent to the bore along the keel refuses typed**: the
+/// closing wall an arc meeting the bore's ruling at `δ` off tangent, from
+/// tangent out, and the first wall tangent instead. A wall tangent there
+/// reads its side to second order, which the parting on a curved face
+/// does not build either way.
+#[test]
+fn a_keel_with_a_wall_tangent_to_the_bore_refuses_typed() {
+    for d in [0.0, 1e-12, 1e-9, 1e-6, 1e-3] {
+        let pts = [
+            (1.0, 0.0, 0.0),
+            (1.6, -0.3, 0.0),
+            (1.6, 0.3, closing_bulge(d)),
+        ];
+        let r = subtract(&block(), &bulged_trench(&pts), tol());
+        assert!(refused_typed(&r), "closing wall δ {d:e}: {r:?}");
+    }
+    for d in [0.0, 1e-9] {
+        let first = ((core::f64::consts::FRAC_PI_2 + (-0.3f64).atan2(0.6) - d) / 2.0).tan();
+        let pts = [(1.0, 0.0, first), (1.6, -0.3, 0.0), (1.6, 0.3, 0.0)];
+        let r = subtract(&block(), &bulged_trench(&pts), tol());
+        assert!(refused_typed(&r), "first wall δ {d:e}: {r:?}");
+    }
+}
+
+/// **Near tangency, in band, refuses typed**: a narrow trench (its wall's
+/// reach about half the keel's length) whose closing wall meets the bore
+/// at `δ` from `0.3 ε` up a ladder of ratio 1.25, past the band.
+#[test]
+fn a_keel_with_a_wall_near_tangent_to_the_bore_refuses_typed() {
+    let s = 0.1;
+    let eps = tol().eps();
+    for k in 0..40 {
+        let d = eps * 0.3 * 1.25f64.powi(k);
+        let pts = [
+            (1.0, 0.0, 0.0),
+            (1.0 + 0.6 * s, -0.3 * s, 0.0),
+            (1.0 + 0.6 * s, 0.3 * s, closing_bulge(d)),
+        ];
+        let r = subtract(&block(), &bulged_trench(&pts), tol());
+        assert!(refused_typed(&r), "δ/ε {:.3}: {r:?}", d / eps);
+    }
+}
+
 /// **The slit form holds**: two keel edges from the top to the tip, each
 /// bounding the bore's face, the closed form, and tiers 3 and 3′.
 #[test]

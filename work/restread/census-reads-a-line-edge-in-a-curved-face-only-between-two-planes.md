@@ -1,7 +1,7 @@
 ---
 id: census-reads-a-line-edge-in-a-curved-face-only-between-two-planes
 kind: issue
-title: The census leaves a line edge in a curved face unread where a wall is tangent to it, cuts it at vertices only, and leaves its outside touch unrecorded
+title: The census cuts a line edge lying in a curved face at the face's vertices only, leaves its outside touch unrecorded, and reads no spline face
 status: open
 opened: 2026-10-30
 priority: P3
@@ -19,17 +19,9 @@ face's sheets and material direction, and refuses
 (`crates/sweep/tests/a_keel_on_a_bores_ruling.rs`,
 the one-edge row). What it does not read:
 
-1. **A wall tangent to the face.** An edge one of whose walls lies
-   tangent to the face along the line, or in band of it
-   (`census::tangent_along`), is left to the tangent readings, and the
-   Boolean's rider reading leaves it too. But
-   `sweep_same_solid_tangent_lines` reads two faces touching along a
-   line through both interiors, and here the line is the wall's own
-   boundary, so neither reads its sides. That is a cusp configuration
-   (README tier 3's second-order arm); whether a one-edge form there
-   ships with the face through its wedge is unmeasured. A transverse
-   curved wall (a cylinder crossing the bore along the keel) is read,
-   since PR 6061's fix pass.
+1. **A wall tangent to the face** — closed by PR 6061's second fix
+   pass: the arm reads every wall, and a tangent one reads its side in
+   band and refuses as `FaceThroughEdgeWedgeUndecided`.
 2. **A crossing of the face's boundary away from its vertices.** The
    edge is cut at its ends and at the face's vertices on its interior
    only, and each cell is read at its midpoint; pass 4's planar lane

@@ -84,15 +84,12 @@
 //! - **Discovered within one solid**: two faces on distinct carriers
 //!   touching along their closed-form tangent line through both
 //!   interiors ([`sweep_same_solid_tangent_lines`]); a line edge lying in
-//!   a cylinder or cone face, no wall of it tangent to the face, read for
-//!   whether the face runs through its wedge
-//!   ([`sweep_edge_in_curved_face`]);
+//!   a cylinder or cone face, read for whether the face runs through its
+//!   wedge ([`sweep_edge_in_curved_face`]);
 //!   and a point where a solid touches itself whose link there bounds
 //!   no one material ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid), a line
-//!   edge lying in a curved face with a wall tangent to it among them
-//!   (`work/restread/census-reads-a-line-edge-in-a-curved-face-only-between-two-planes.md`); a point
+//!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face in its link there,
 //!   a face with a curved edge held at its corner, a planar face with a
 //!   spline edge, or the point tied inside a curved edge, which
@@ -4149,44 +4146,6 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     Some(Ok(true))
 }
 
-/// **Whether face `wall` lies tangent to `surface` at `p`**, or so near
-/// tangent that the band cannot tell: `wall` on a curved carrier whose
-/// normal at `p` and `surface`'s are parallel, levered at `len`. Such a
-/// pair along a line is the tangent readings'
-/// ([`sweep_same_solid_tangent_lines`], the Boolean's cusp lanes), not a
-/// wall that leaves the line transversely. A plane wall is never this:
-/// it leaves a curved face's line on the face's convex side.
-pub(crate) fn tangent_along<T: Decide>(
-    body: &Body<T>,
-    wall: FaceKey,
-    surface: &geom::Surface<T>,
-    p: Point3<T>,
-    len: T,
-    band: Band,
-) -> bool {
-    let Some(own) = body
-        .get_face(wall)
-        .and_then(|d| body.get_surface(d.surface))
-    else {
-        return false;
-    };
-    if matches!(own, geom::Surface::Plane { .. }) {
-        return false;
-    }
-    let (a, b) = (
-        geom_brep::implicit::implicit_gradient(own, p).normalize(),
-        geom_brep::implicit::implicit_gradient(surface, p).normalize(),
-    );
-    !matches!(
-        decide(
-            "pm_census_wall_tangent_along",
-            Margin::levered(a.cross(b).norm(), len),
-            band
-        ),
-        Ok(Sign::Positive)
-    )
-}
-
 /// **`cuts` put in order along a straight span** by their positions `s`
 /// read through [`tri_cmp`], two at one position ordered by `after`
 /// (`true` where the first goes after the second). `false` where a
@@ -4220,9 +4179,8 @@ fn order_cuts<X: Copy, T: Decide>(
 /// **A line edge lying inside a curved face of its own solid**, read for
 /// sides: pass 4 reads planar faces only, so a keel on a cylinder's or a
 /// cone's ruling, its two walls meeting the line with the face running on
-/// through it, is read here. An edge one of whose walls lies tangent to
-/// the face along the line ([`tangent_along`]) is
-/// [`sweep_same_solid_tangent_lines`]' pair, and not read here. The edge lies on the carrier
+/// through it, is read here, whatever its walls: a wall tangent to the
+/// face reads its side in band, and refuses as the undecided twin. The edge lies on the carrier
 /// where its ends and its midpoint do (a quadric meeting a line in three
 /// points holds it; a sphere and a torus hold none); it is cut at the
 /// face's vertices on its interior, and each cell whose midpoint the
@@ -4283,13 +4241,6 @@ fn curved_overlap_cells<T: Decide>(
     let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Vec::new();
     };
-    let mid = e.p0 + e.dir * (e.len * T::from_f64(0.5));
-    if [e.f_plus, e.f_minus]
-        .into_iter()
-        .any(|wall| tangent_along(body, wall, surface, mid, e.len, band))
-    {
-        return Vec::new();
-    }
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
         Some(Ok(true)) => {}
         None | Some(Ok(false)) => return Vec::new(),
@@ -20593,8 +20544,11 @@ mod same_solid_tangent_lines {
     /// A unit cylinder holding a bore of radius 1 − δ tangent to it from
     /// inside, δ three escalation bands: κ_rel = δ / (1 − δ) reads in
     /// band, and with no record to bridge it the pass escalates on the
-    /// second order and finds nothing. Red when the pass reads the pair
-    /// in the declared posture, which bridges the residue into a touch.
+    /// second order and finds nothing. The bore's two line edges lie in
+    /// band of the cylinder's carrier, so whether each lies in it
+    /// escalates too ([`sweep_edge_in_curved_face`]). Red when the pass
+    /// reads the pair in the declared posture, which bridges the residue
+    /// into a touch.
     #[test]
     fn a_near_equal_bore_in_one_solid_escalates_on_its_second_order() {
         let d = 3.0 * Band::linear(Tol::witness()).unwrap().escalate();
@@ -20605,7 +20559,11 @@ mod same_solid_tangent_lines {
         );
         assert_eq!(
             said,
-            ["escalated contact_tangent_second_order"],
+            [
+                "escalated pm_census_ef_curved_residual",
+                "escalated pm_census_ef_curved_residual",
+                "escalated contact_tangent_second_order"
+            ],
             "δ = {d}: {errors:?}"
         );
     }

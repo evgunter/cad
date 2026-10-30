@@ -79,8 +79,8 @@ three.
 The defect, a one-edge form shipping through every validator, is closed
 on two sides:
 
-- The Boolean reads a line, no wall of it tangent to the face, lying
-  on a cylinder or cone face, and refuses `EdgeInFaceGap::CurvedFace` where the
+- The Boolean reads a line lying on a cylinder or cone face, whatever
+  its walls, and refuses `EdgeInFaceGap::CurvedFace` where the
   parting is due. The slit form is buildable, but it is neither meshed
   (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`) nor
   measured as a ring
@@ -89,6 +89,12 @@ on two sides:
   wall is an arc of bulge ±0.2 (a cylinder crossing the bore along the
   keel) shipped the one-edge form through every validator after the
   first fix, and refuses now (the review of PR 6061).
+- So is a wall tangent to the bore along the keel, and one in band of
+  tangency (a closing arc of bulge ≈ 0.618, and δ·len ≲ 1.2 ε): the
+  first fix pass left both to the tangent readings, which do not build
+  this body, and both shipped the one-edge form (the second review of
+  PR 6061). Every wall now refuses typed: `CurvedFace`, or an earlier
+  reading's typed refusal near tangency.
 - The census's curved arm (`sweep_edge_in_curved_face`) refuses the
   one-edge form at tier 3′ with `FaceThroughEdgeWedge`, whatever produced
   it.

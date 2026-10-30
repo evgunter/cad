@@ -838,13 +838,10 @@ fn riders<T: Decide>(
 
 /// Whether edge `e`, both of whose ends lie on face `f`, lies in it,
 /// its midpoint held by `f`: on a plane, a line (two points of a plane
-/// hold the line between them) or a conic in `f`'s plane; on a
-/// cylinder, cone or sphere, a line whose midpoint lies on the carrier
-/// on a cylinder or a cone, a line on the carrier
-/// ([`crate::census::line_on_quadric_carrier`]), unless a wall of it lies
-/// tangent to the face along it, which is the tangent readings'
-/// ([`crate::census::tangent_along`]). A sphere and a torus hold no line,
-/// and a face on any other carrier holds nothing here.
+/// hold the line between them) or a conic in `f`'s plane; on a cylinder
+/// or a cone, a line on the carrier
+/// ([`crate::census::line_on_quadric_carrier`]), whatever its walls. A
+/// face on any other carrier holds nothing here.
 fn lies_in<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
@@ -869,17 +866,6 @@ fn lies_in<T: Decide>(
             let (t0, t1) = curve.params();
             let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
             let mid = curve.mid_point();
-            let Ok(sides) = crate::readback::edge_sides(body, e) else {
-                return Ok(false);
-            };
-            let (wa, wb) = sides.faces();
-            let len = p0.distance(p1);
-            if [wa, wb]
-                .into_iter()
-                .any(|wall| crate::census::tangent_along(body, wall, surface, mid, len, band))
-            {
-                return Ok(false);
-            }
             return match crate::census::line_on_quadric_carrier(
                 surface,
                 p0,
@@ -1036,19 +1022,12 @@ fn walls_inside<T: Decide>(
                     .get_face(wall)
                     .and_then(|d| body.get_surface(d.surface))
                     .ok_or_else(desync)?;
-                let toward = match (surface, bend(floor_surface)) {
-                    // A plane wall tangent to a curved floor lies on the
-                    // floor's convex side, away from its centre of
-                    // curvature.
-                    (geom::Surface::Plane { .. }, Some(floor_bend)) => -floor_bend,
-                    // A curved wall tangent to a curved floor is left to the
-                    // tangent readings before this ([`lies_in`]); this side
-                    // reading, levered at the wall's reach, can still land
-                    // on zero where that one read the wall transverse.
-                    (_, Some(_)) => return Err(refused(EdgeInFaceGap::Tangent)),
-                    (wall_surface, None) if bend(wall_surface).is_some() => {
-                        bend(wall_surface).ok_or_else(desync)?
-                    }
+                // A wall tangent to a curved floor: whichever side its sheet
+                // bends to, the parting is one on a curved face.
+                if bend(floor_surface).is_some() {
+                    return Err(refused(EdgeInFaceGap::CurvedFace));
+                }
+                let toward = match surface {
                     // A plane wall tangent along the line lies in the
                     // floor's plane. Glued to the floor from outside
                     // (outward normals opposed), its material is across
@@ -1059,7 +1038,7 @@ fn walls_inside<T: Decide>(
                     // its side was, so the reading is in metres: how far
                     // the wall's normal, carried across the wall, stands
                     // off the floor's.
-                    (geom::Surface::Plane { .. }, None) => {
+                    geom::Surface::Plane { .. } => {
                         match crate::validate::decide_nonzero(
                             "bool_rider_wall_coplanar",
                             Margin::levered(normal.dot(floor), arm),
@@ -1076,7 +1055,10 @@ fn walls_inside<T: Decide>(
                             }
                         }
                     }
-                    _ => return Err(refused(EdgeInFaceGap::Tangent)),
+                    curved => match bend(curved) {
+                        Some(toward) => toward,
+                        None => return Err(refused(EdgeInFaceGap::Tangent)),
+                    },
                 };
                 match crate::validate::decide_nonzero(
                     "bool_rider_wall_bend",
