@@ -235,3 +235,4 @@ Signed: (CARVE orchestrator)
   - **Class, recorded:** a fix that adds a concession must show a verdict that needs it. The reviewer's test, reverting the concession alone and diffing verdicts, goes into future briefs for any unit that adds an ε.
   - **Filed:** the drum divergence (CLEARTAIL, P2); the home of `angle_rate` (PCERT, P3).
   - **SHELL-4 is unparked.**
+- 2026-10-30 — **SHELL-4 parked again; CAVITYDIAG dispatched** (`docs/CAVITYDIAG-SPEC.md`, branch `clear/cavitydiag`, diagnosis first). SHELL-4's lane finished its rows (`7d97070458`), but the gate over-refuses three valid bodies: the corpus pot at Interval (sphere/cylinder vertex), and the cavities of the klein elbow (Departure) and the cone frustum (budget). Filed as `shell-cavity-gate-over-refuses-three-valid-bodies` (P1). Over-refusing legitimate shells is ruled out, so the gate cannot ship until these are fixed or the design question is put.
