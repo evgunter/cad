@@ -1746,7 +1746,8 @@ fn sphere_window<T: Decide>(
     ) {
         return SphereWindow::Ball;
     }
-    let outer = match crate::props::loop_edges(body, f.outer) {
+    let outer = match crate::props::chart_image_edges(body, f.outer) {
+        Ok((outer, _)) if outer.is_empty() => return SphereWindow::Ball,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
