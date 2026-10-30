@@ -381,3 +381,13 @@ PR 5568's fix pass.
   - **N3:** the ε_in boundary premise of `clear_of` is unstated and unchecked.
   - **Style:** `piece_box` duplicates the `edge_box` mapping.
   - **Class finding, to be filed in `work/issues/`:** about 20 hand-written `4ε·|x|` pads across the crates.
+- 2026-10-30 — **6013 delta fixes accepted** (head `6989b927`):
+  - **M1:** a distance measured across the line now certifies near misses within ε_in.
+  - **M2:** `CLEAR_DEPTH` is gone. An ε_in size floor and the budget are both reached, as mutation checks show.
+  - **N1:** the certificate is interval-enclosed throughout.
+  - **N2:** each endpoint carries its own slack (`end_slack`), with an offset-parameter test.
+  - **N3:** the premise is stated, and filed as `import-splits-knot-lines-on-an-unchecked-incidence-premise` (FOREIGN, P3).
+  - **Class row:** `work/issues/hand-written-ulp-pads-stand-in-for-interval-arithmetic.md` (61 hits).
+  - **Residue:** a boundary within about ε_in of the line, on a chart whose speed varies across it, may stop at the floor and refuse typed. The residue row records it.
+
+  The PR is held until the per-span unit (PR 6092) merges.
