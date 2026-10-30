@@ -510,7 +510,9 @@ fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
         // The wider sliver's area clears the walk's bound: decided.
         if w >= 1e-2 {
             assert!(
-                sides.iter().any(|ls| ls.iter().all(|l| matches!(l, Ok(Lies::Outside)))),
+                sides
+                    .iter()
+                    .any(|ls| ls.iter().all(|l| matches!(l, Ok(Lies::Outside)))),
                 "w {w}: the walk decides the sliver: {sides:?}"
             );
         }
@@ -583,10 +585,7 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
 fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
-    let Curve3::Circle {
-        center, u_ref, ..
-    } = rim.clone()
-    else {
+    let Curve3::Circle { center, u_ref, .. } = rim.clone() else {
         unreachable!()
     };
     let p0 = center + u_ref * 0.8;
