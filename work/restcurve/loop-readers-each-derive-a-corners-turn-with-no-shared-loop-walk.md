@@ -2,12 +2,14 @@
 id: loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk
 kind: issue
 title: props, tier 3's check 6, the mesh walk and the boolean's sectors each walk a face's loop and derive a corner's turn on their own; nothing shares the walk
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: H
 design: true
 branch: restcurve/surface-cycles
+closed: 2026-10-30
+pr: 6088
 ---
 
 
@@ -89,3 +91,20 @@ Both designers were shown the probe and chose **option (b)**: one predicate, two
 - **Out of scope:**
   - The mesher (`mesh::walk::loop_polygon`) takes the chart image with its reset at the tip. That lands in a later unit with the wrap tip, and is not needed now because no tip exists yet.
   - The drive-bys stand as specced.
+
+## Closed (PR 6088, 2026-10-30)
+
+Readers now share structure, not a turn. One structural predicate, `Body::both_sides_face` (`crates/topo/src/surface_boundary.rs`), gives two views of a face's loops:
+- `surface_cycles` drops every both-sides edge. It is for region and point placement.
+- `chart_image` drops only spurs, through one reducer, `geom_brep::chart_image::without_reversals`, which step-import cites too. It is read by every integrator (`props::flat_loops`), by check 6 and by the chart-singularity sides.
+
+An empty chart image on a closed surface is the whole surface. `closed_surface` and `whole_surface` dispatch that once, in `curved_face_loops`. A spur, a wrap tip included, never reaches a turn reader. `without_spurs` and `retraces` are retired.
+
+Residue lives where it was already filed, and each row is released by this close:
+- the mesher reading the chart image with its reset at the tip: TESSWALK `the-mesh-walk-places-a-one-face-ball`;
+- the sectors citing the predicate: SPLITDOOR `the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip`;
+- the revolve's one band: CARVE;
+- import's tip: FOREIGN;
+- the tier rules: `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`.
+
+`walk_loop` retires with the region arm, which `validate-tier3-curved-boundary-containment` parks on `[ev]` PR 6085. `region::boundary` reads through `surface_cycles` in that unit.
