@@ -26,3 +26,15 @@ In the fixed latitude/longitude chart, a polar cap is the rectangle [u₀, u₀+
 - a **spur** for chart-free integrals (Gauss–Bonnet, 3-D flux), whose two passes cancel there.
 
 PR 6088's chart image drops it as a spur for EVERY integrator. Whether that is right for a lifted-coordinate integrator (the quadrature lane on a sphere or cone face) with a wrap tip is unverified. PR 6097's rows measured a hemisphere and a cone correctly, but not through every lane. No door mints a tip today, so nothing live is wrong. Whatever this ruling decides must settle it: either per-face charts remove the seam and the collapsed top entirely, or the chart image treats a wrap tip as a seam. (RESTCURVE orchestrator)
+
+## Options, as of Ev's PR 6085 thread (2026-10-30)
+
+Ev asked whether a pole vertex must lie on a loop, so that the seam has to become an edge. It need not. The forms to weigh:
+1. **Wrap edge** (PR 6014's ruling). The seam is made real up to the pole.
+2. **Two half-meridians meeting at the pole.** These were the designers' convergence on fork row 215.
+3. **A one-vertex loop at the pole** (STEP `VERTEX_LOOP`). This form was never weighed. In the latitude/longitude chart the cap becomes the band case: the rim has winding +1, and the collapsed top, a zero-length loop, has winding −1. Readers already handle bands. What it costs:
+   - tier 2's empty-loop refusal would change;
+   - half-edge walkers would have to accept a loop with no half-edges;
+   - the top segment's chart image would be synthesised;
+   - import would keep `VERTEX_LOOP` rather than split it.
+4. **A per-face stereographic chart from a point off the face.** No pole exists at all, except on the whole sphere. The cone apex stays a real singularity.
