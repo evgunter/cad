@@ -45,3 +45,20 @@ Opus designer: session_01VyvYnJ1HGjffH7GAsKVEUH; Fable designer: session_01VyvYn
 - **Named variables are in.** A named split half fires; an unnamed one is a byproduct and stays quiet.
 - **Unchanged:** certified, Advisory, Warn. There is new DESIGN wording.
 - **Moved from round 1:** the product is an end, not a reader; used means reaching an end; deliberate means inserted or named; named variables are firmly in.
+### B, round 2 (06:14Z)
+- **Deliberate** means inserted, named, the product slot, or an assertion; byproducts are unnamed outputs and anonymous variables.
+- **Used** is one step: something reads it, or it is the product, an assertion's claim, or a measure's readout. `reader_counts` is unchanged.
+- **The check, `unused`,** has two arms: an operation none of whose outputs is read or is the product, and a named variable unread and not the product. Naming a split half makes it deliberate.
+- **A Measure is exempt** (its readout is its use). A sketch as a finding: unsure.
+- **Unchanged:** certified, Advisory, Warn.
+- **Moved from round 1:** the product is a use, not a reader; named variables are in; a named output is a new case; a Measure is exempt; the name is now `unused`.
+
+## Round 2 agreement
+- Both agree:
+  - deliberate means inserted or named, and byproducts are never findings;
+  - the product is a use, not a reader, and `reader_counts` is unchanged;
+  - named variables, named outputs included, are in;
+  - the finding sits at the tip of a dead chain;
+  - certified, Advisory, Warn.
+- The split: an unasserted Measure (A: fires, unsure; B: exempt, likely).
+- A minor difference in definitions: A's "used" is transitive reach to an end, reporting the last deliberate thing; B's is one step, reporting the tip. On a DAG both put findings at the same tips. A's reach is the tint's query.
