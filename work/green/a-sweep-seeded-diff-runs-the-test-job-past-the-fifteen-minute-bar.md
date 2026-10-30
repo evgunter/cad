@@ -2,12 +2,13 @@
 id: a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar
 kind: issue
 title: A diff that seeds sweep runs the per-PR test job for over 21 minutes, past the 15-minute bar
-status: open
+status: closed
 opened: 2026-10-11
 refs: [5001, 5011]
 cost: M
 priority: P0
 parent: pr-ci-wall-clock-root-cause-measured
+closed: 2026-10-30
 ---
 
 ## Measured
@@ -162,3 +163,17 @@ into two package-group jobs, to be re-measured with the queue included.
 - **Still open.** This
   closes when a sweep-seeding PR's `test (kernel)` measures under 15 min
   over several runs after #5941 merges.
+
+## Closed (2026-10-30)
+
+Measured over ci.yml `pull_request` runs from 2026-10-29T20:09Z to 2026-10-30T11:09Z, after #6019 and #6039 (n=116, success or failure, first attempts):
+- run wall: median 14.3 min, p90 24.1;
+- by tier: closure median 14.6 / p90 19.4 (n=68); all median 24.1 / p90 25.3 (n=15); docs 6.4 (n=33);
+- test shards at the closure tier, paired (n=52): kernel 13.4 against app 12.2; kernel longer in 39;
+- `demos` when it runs: median 22.8, p90 23.7 (n=22).
+
+The nightly alarm read a median of 14.7 min on nightly 77. That is inside the 15-min bar at the median. The all tier, which builds the whole workspace, sits inside the 25-min bar `memories/orchestration-model.md` sets for a diff that seeds the deep kernel crates.
+
+The kernel shard at the closure tier reads median 13.4 and p90 15.2,
+down from a single 21.5-min `test` job. A sweep-seeded diff now fits
+the 15-min bar at the median.
