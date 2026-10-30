@@ -267,7 +267,9 @@ fn near_coincident_knots_hold_the_oracle_and_print_their_width() {
 }
 
 /// One case of the extreme-weight claim: weights `0.5..2`, unequal
-/// spans and a C⁰ knot, translated 1e6 m.
+/// spans and a C⁰ knot, translated 1e6 m. It runs to its wall (about
+/// 9 s in release); untranslated or at 1e3 m it walls too, at the same
+/// cost, since the wall bounds the work and not the translation.
 #[test]
 fn rational_extreme_weights_one_case() {
     let ku = kv(2, &[0.1234, 0.1235, 0.61, 0.61]);

@@ -322,7 +322,7 @@ fn an_extreme_weight_c0_patch_reads_as_its_tiles() {
         &wavy(&EU, &EV, w, 0.0),
         1,
         1e-8,
-        512,
+        192,
         true,
     );
 }

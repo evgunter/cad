@@ -17,7 +17,8 @@ use super::cells::{
     knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cells,
 };
 use super::net::{
-    Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, newton_cotes_weights, widen,
+    Collapse, GridSlice, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, grid_slice,
+    grid_slice_at, newton_cotes_weights, widen,
 };
 use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use crate::props::PropsError;
@@ -67,7 +68,7 @@ impl Ladder {
 /// One ladder's three grids (`A`, `A_u`, `A_v`) collapsed in u at one
 /// column ([`PatchGrid::slice_u`] for why), `None` where the ladder has
 /// run out of degree.
-type LadderSlice = [Option<[Vec<Interval>; 3]>; 3];
+type LadderSlice = [GridSlice; 3];
 
 /// **One composite column**: the homogeneous ladder's slice and the
 /// weight ladder's, the one u collapse every cell of the column reads,
@@ -80,21 +81,24 @@ struct ColumnSlice {
 impl Ladder {
     /// The three grids' slices at one u collapse.
     fn slice(&self, u: Collapse<'_>) -> LadderSlice {
-        [
-            Some(self.a.slice_u(u)),
-            self.au.as_ref().map(|g| g.slice_u(u)),
-            self.av.as_ref().map(|g| g.slice_u(u)),
-        ]
+        self.grids().map(|g| grid_slice(g, u))
+    }
+
+    /// The base grid's slice alone, its derivatives left unread.
+    fn slice_base(&self, u: Collapse<'_>) -> LadderSlice {
+        [grid_slice(Some(&self.a), u), None, None]
     }
 
     /// The three grids at one v collapse of `sl`, the identically-zero
     /// derivative where the ladder has run out.
     fn slice_at(&self, sl: &LadderSlice, v: Collapse<'_>) -> [RVec3; 3] {
-        let grids = [Some(&self.a), self.au.as_ref(), self.av.as_ref()];
-        core::array::from_fn(|k| match (grids[k], sl[k].as_ref()) {
-            (Some(g), Some(s)) => g.at_v(s, v),
-            _ => [Interval::zero(), Interval::zero(), Interval::zero()],
-        })
+        let grids = self.grids();
+        core::array::from_fn(|k| grid_slice_at(grids[k], sl[k].as_ref(), v))
+    }
+
+    /// The ladder's three grids, `None` where its degree ran out.
+    fn grids(&self) -> [Option<&PatchGrid>; 3] {
+        [Some(&self.a), self.au.as_ref(), self.av.as_ref()]
     }
 
     /// The base grid alone at one v collapse of `sl`.
@@ -105,11 +109,21 @@ impl Ladder {
         }
     }
 
-    /// This ladder's and the weight ladder's slices at one u collapse.
+    /// This ladder's and the weight ladder's slices at one u collapse:
+    /// the area column, which reads the weight's derivatives.
     fn column(&self, w: &Self, u: Collapse<'_>) -> ColumnSlice {
         ColumnSlice {
             a: self.slice(u),
             w: w.slice(u),
+        }
+    }
+
+    /// The flux column: the weight ladder's base grid alone, the only
+    /// one the flux reads.
+    fn flux_column(&self, w: &Self, u: Collapse<'_>) -> ColumnSlice {
+        ColumnSlice {
+            a: self.slice(u),
+            w: w.slice_base(u),
         }
     }
 
@@ -453,8 +467,10 @@ pub(super) fn rational_patch_face<T: Decide>(
         .iter()
         .flat_map(|u| cells_v.iter().map(|v| measure.area_bounds(u, v)))
         .collect::<Result<Vec<_>, _>>()?;
-    // One u collapse per area column: the pass walks `u` outermost.
+    // One u collapse per area column: the pass walks `u` outermost, and
+    // each column's cells `v` upward, so the blocks advance in step.
     let mut column: Option<(f64, ColumnSlice)> = None;
+    let (mut bu, mut bv) = (0usize, 0usize);
     let area = area_midpoint_taylor(
         rect,
         AREA_CELLS_PER_SPAN,
@@ -463,6 +479,7 @@ pub(super) fn rational_patch_face<T: Decide>(
         |b| {
             if column.as_ref().is_none_or(|(u, _)| *u != b.umid) {
                 column = Some((b.umid, a.column(&w, Collapse::At(b.umid))));
+                bv = 0;
             }
             let Some((_, sl)) = column.as_ref() else {
                 unreachable!("the column was just sliced")
@@ -471,7 +488,6 @@ pub(super) fn rational_patch_face<T: Decide>(
             let cm = a.cross_num_at(&w, sl, vm);
             let wm = w.base_at(&sl.w, vm)[0];
             let g_mid = (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt() / wm.powi(3);
-            let (mut bu, mut bv) = (0, 0);
             advance_block(&mut bu, b.u.start(), &edges_u);
             advance_block(&mut bv, b.v.start(), &edges_v);
             let (g_u, g_v, g_hull) = area_blocks[bu * nbv + bv];
@@ -554,7 +570,7 @@ pub(super) fn rational_patch_face<T: Decide>(
             // enclosing too.
             let hu = pt(c_uhi) - pt(c_ulo);
             let um = cell_midpoint(c_ulo, c_uhi);
-            let slice = a.column(
+            let slice = a.flux_column(
                 &w,
                 Collapse::AtSpan {
                     mid: um.0,

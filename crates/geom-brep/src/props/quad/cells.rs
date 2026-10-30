@@ -24,11 +24,11 @@ use crate::props::bracket::pt;
 /// cell). Per span, not per face, so a patch and its per-span tiles
 /// are read on the same cells ([`knot_aligned_cuts`]).
 pub(super) const SPAN_INIT_PIECES: usize = 8;
-/// Blocks per knot span, per axis, for the rational lane's
-/// Taylor-remainder hulls. [`SPAN_INIT_PIECES`] is a multiple of it,
-/// and its edges are cut points at every round ([`knot_aligned_cuts`]),
-/// so every block owns whole cells at every refinement level
-/// ([`rational_patch_face`](super::rational::rational_patch_face)).
+/// Blocks per knot span, per axis, for both rectangle lanes'
+/// Taylor-remainder hulls and the rational lane's area pads. Its edges
+/// are cut points of every cell list that reads a block
+/// ([`block_aligned_cuts`]), so every block owns whole cells at every
+/// refinement level.
 pub(super) const HULL_BLOCKS_PER_SPAN: usize = 4;
 /// Pieces per knot span the RATIONAL lane refines its bracketed net to
 /// before hulling it — see [`RefinedNet`].
@@ -154,11 +154,12 @@ impl MeasureCells {
         u: &SpanCell,
         v: &SpanCell,
     ) -> Result<(&CellMeasureQuotients<Interval>, CellCuts), PropsError> {
+        // Built in ascending `(u, v)` span order, so a lookup is a
+        // search, not a walk: the reads stay linear in the span cells.
         self.cells
-            .iter()
-            .find(|(k, _)| *k == (u.span, v.span))
-            .map(|(_, q)| (q, (u.cut(), v.cut())))
-            .ok_or(Self::REFUSED_CUT)
+            .binary_search_by_key(&(u.span, v.span), |(k, _)| *k)
+            .map(|i| (&self.cells[i].1, (u.cut(), v.cut())))
+            .map_err(|_| Self::REFUSED_CUT)
     }
 
     /// The `(f_uu, f_vv)` hull of every block `u × v`, row-major in `u`
@@ -334,9 +335,14 @@ pub(super) fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) 
 /// at `pieces`, merged with the hull blocks' own edges (the same rule at
 /// [`HULL_BLOCKS_PER_SPAN`]). The block edges are in the list for a
 /// soundness reason, not a tightness one: each cell reads its hulls from
-/// ONE block, which is only valid if the block contains it. Cutting
-/// there makes that containment structural rather than an arithmetic
-/// coincidence of `pieces` being a multiple of the block count.
+/// ONE block, which is only valid if the block contains it. While the
+/// cell counts ([`SPAN_INIT_PIECES`] doubled, the area pass's) are
+/// multiples of the block count the merge adds nothing, since
+/// `split_points` at `k/n` and `2k/2n` round alike; it stays so the
+/// containment does not rest on that arithmetic, and a count that
+/// stopped dividing would cut a cell across a block edge, where the
+/// cell's hull read from one block would not bound it, and nothing
+/// downstream would say so.
 pub(super) fn block_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     let mut cuts = knot_aligned_cuts(lo, hi, pieces, knots);
     cuts.extend(knot_aligned_cuts(lo, hi, HULL_BLOCKS_PER_SPAN, knots));
@@ -348,7 +354,7 @@ pub(super) fn block_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64])
 /// The hull block a cell reads its `f_dd` hulls from: the one that
 /// CONTAINS it (a hull over a superset contains every sub-cell's
 /// own). The block edges are cut points at every refinement level
-/// ([`knot_aligned_cuts`]), so advancing while the cell starts past
+/// ([`block_aligned_cuts`]), so advancing while the cell starts past
 /// the current block's top lands on the block that does.
 pub(super) fn advance_block(b: &mut usize, cell_lo: f64, edges: &[f64]) {
     while *b + 1 < edges.len() - 1 && cell_lo >= edges[*b + 1] {

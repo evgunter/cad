@@ -864,10 +864,10 @@ pub fn refine_plan_homogeneous(
 /// [`refine_plan_homogeneous`] to refine uniformly within spans
 /// ([`equal_split_plan`] is the latter composition).
 ///
-/// A point floating point collapses onto a span end is skipped rather
-/// than inserted: refinement is a tightening, never a correctness
+/// A point floating point collapses onto a span end, or onto the point
+/// before it, is skipped rather than inserted: refinement is a tightening, never a correctness
 /// condition, so a dropped point costs a wider piece and never an
-/// invalid one, while an inserted collapse would raise an end knot's
+/// invalid one, while an inserted collapse would raise a knot's
 /// multiplicity. Points come out in ascending span order, ascending
 /// within a span; `splits` of 0 or 1 yields none.
 #[must_use]
@@ -884,14 +884,20 @@ pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
 }
 
 /// The points cutting `[lo, hi]` into `splits` equal pieces,
-/// `lo + (hi − lo)·(k/splits)` for `0 < k < splits`, ascending, less any
-/// that floating point collapses onto an end: [`equal_split_points`]'
-/// schedule on one interval. `splits` of 0 or 1 yields none.
+/// `lo + (hi − lo)·(k/splits)` for `0 < k < splits`, strictly ascending:
+/// a point floating point collapses onto an end or onto the point
+/// before it (on an interval a few ulps wide) is dropped.
+/// [`equal_split_points`]' schedule on one interval. `splits` of 0 or 1
+/// yields none.
 pub fn split_points(lo: f64, hi: f64, splits: usize) -> impl Iterator<Item = f64> {
+    let mut last = lo;
     (1..splits).filter_map(move |k| {
         #[allow(clippy::cast_precision_loss)]
         let u = lo + (hi - lo) * (k as f64 / splits as f64);
-        (u > lo && u < hi).then_some(u)
+        (u > last && u < hi).then(|| {
+            last = u;
+            u
+        })
     })
 }
 

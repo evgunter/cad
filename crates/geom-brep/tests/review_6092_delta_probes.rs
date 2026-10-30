@@ -66,37 +66,34 @@ fn wavy(x: f64, y: f64) -> [f64; 3] {
     ]
 }
 
-/// **A many-span face's per-span set-up is under no wall.** The work
-/// wall prices the composite rounds' cells only. The polynomial lane's
-/// area pass (`AREA_CELLS_PER_SPAN` = 32 a span per axis, each cell a
-/// `PatchGrid::channel` collapse of every row) and the rational lane's
-/// per-span-cell statements, blocks and area pass run before any round
-/// and are priced nowhere, so the face's time grows with its span count
-/// past anything `FACE_WORK_WALL` admits. Measured in release, one
-/// thread, this box (`DELTA_SPANS` × `DELTA_SPANS` uniform biquadratic
-/// spans; `DELTA_W` the odd-node weight, 1 polynomial):
+/// **A many-span face's per-span set-up is linear in its span cells.**
+/// The work wall prices the composite rounds' cells only; the area
+/// pass, the hull blocks and the rational lane's statements run before
+/// any round, so a set-up that grew faster than the span cells would
+/// pass any wall. Each loop collapses u once per column and v per cell
+/// (`net::grid_slice`). Measured in release, one thread, this box
+/// (`DELTA_SPANS` × `DELTA_SPANS` uniform biquadratic spans; `DELTA_W`
+/// the odd-node weight, 1 polynomial):
 ///
 /// ```text
-/// spans  w    main 9d79b921            head 4aeb53a3
-/// 10     1    0.67 s (exact, Floor)    6.9 s
-/// 20     1    —                        49.6 s
-/// 30     1    9.7 s                    160 s
-/// 90     1    222 s                    > 520 s (killed)
-/// 12     1.5  6.8 s, Wall after 7      16.3 s, Wall after 4
+/// spans  w    main        head, a row collapse per cell   head
+/// 10     1    0.51 s      6.9 s                           0.80 s
+/// 30     1    6.6 s       160 s                           10.3 s
+/// 12     1.5  4.6 s       16.3 s                          11.0 s
 /// ```
 ///
-/// Red on head at the default 30 spans against a 60 s budget main meets
-/// six times over.
+/// The gate runs 10 × 10 against a 60 s budget, which the per-cell row
+/// collapse (≈ N³) misses by about ten times in a dev build; other sizes
+/// by `DELTA_SPANS`/`DELTA_W`.
 #[test]
-#[ignore = "PR 6092 delta review: a many-span face's set-up is under no wall (about 160 s on head)"]
-fn a_many_span_faces_set_up_is_under_no_wall() {
+fn a_many_span_faces_set_up_is_linear_in_its_span_cells() {
     let env = |k: &str, d: f64| -> f64 {
         std::env::var(k)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(d)
     };
-    let spans = env("DELTA_SPANS", 30.0) as usize;
+    let spans = env("DELTA_SPANS", 10.0) as usize;
     let w = env("DELTA_W", 1.0);
     let k = uniform(2, spans);
     let t = std::time::Instant::now();
@@ -145,24 +142,24 @@ fn a_full_multiplicity_interior_knot_is_answered_or_refused() {
     }
 }
 
-/// **The per-span split mints duplicate cuts on a three-ulp span.**
-/// `knot_aligned_cuts` (no longer sorted and deduplicated) extends
-/// `split_points` per span, and `split_points` drops only points that
-/// collapse onto an END: on `[1, 1 + 3 ulp]` in four pieces the second
-/// and third points both round to `1 + 2 ulp`. The hull-block edge
-/// lists (`knot_aligned_cuts` at `HULL_BLOCKS_PER_SPAN`, read raw in
-/// `patch.rs` and `rational.rs`) then hold a zero-width block, against
-/// `knot_aligned_cuts`' own "sorted, deduplicated" doc.
+/// **The per-span split mints no duplicate cut on a three-ulp span.**
+/// On `[1, 1 + 3 ulp]` in four pieces the second and third points both
+/// round to `1 + 2 ulp`; `split_points` keeps one, so the cut lists and
+/// the hull-block edges built on it hold no zero-width cell. Red while
+/// it dropped only points collapsing onto an END.
 #[test]
 fn split_points_collapse_onto_each_other_on_a_three_ulp_span() {
     let lo = 1.0_f64;
     let hi = f64::from_bits(lo.to_bits() + 3);
     let pts: Vec<f64> = split_points(lo, hi, 4).collect();
-    let mut dedup = pts.clone();
-    dedup.dedup();
-    println!("delta-6092 split_points(1, 1+3ulp, 4) = {pts:?}");
-    assert_eq!(pts.len(), 3);
-    assert_ne!(pts, dedup, "two interior points coincide");
+    assert_eq!(
+        pts,
+        [
+            f64::from_bits(lo.to_bits() + 1),
+            f64::from_bits(lo.to_bits() + 2)
+        ],
+        "the collapsed point is dropped, the two distinct ones kept"
+    );
 }
 
 /// The patch door on a degree-2 patch with a three-ulp interior span:
