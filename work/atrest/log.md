@@ -340,3 +340,4 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - a new P1, `run-checks-panics-on-a-cut-of-an-instances-copy`: `checks.rs:1709`'s `unreachable!` is reachable from ordinary documents;
   - evidence folded into `a-boolean-over-an-instance-drops-its-parts-census-findings`, whose pick half the carry fixed.
 - 2026-10-28 — **Filed by SPLITDOOR:** `the-census-cannot-settle-a-curved-edge-edge-count-on-a-splits-sliver-sides` (P1). It blocks SPLITDOOR's tier-3′ split gate: the census reports `CensusUnsupported` NotCertifiable on split sliver, graze and near-seam sides that tier 3 passes. Test list on the row. (SPLITDOOR orchestrator)
+- **2026-10-30 (INTENT orchestrator):** `a-gap-over-adjacent-cells-states-nothing-of-the-row` raised P2 → P0. It is D10's last unbuilt item per DESIGN's state-of-the-build, and D10's umbrella waits on it. The INTENT orchestrator takes it (designer pair first) unless ATREST has an orchestrator on it.

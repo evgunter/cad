@@ -822,11 +822,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
                 }),
         };
-        let extent =
-            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(at, arm));
+        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(at, arm));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
-        match super::oriented_plane_eq(&p1, &p2, super::PlaneIdentity::NONE, &extent, band) {
+        match super::oriented_plane_eq(&p1, &p2, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -845,19 +844,6 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    super::PlaneDoor::Neighbours,
-                    diag,
-                ));
-            }
-            // Unreachable with `declared: false`; kept typed.
-            Err(super::PlaneEqError::Contradicted { fact, .. }) => {
-                return Err(BooleanError::DeclarationContradicted { fact });
-            }
-            // Unreachable with `declared: false` (only a declared
-            // reading is unsettled); kept typed as the gate's in-band.
-            Err(super::PlaneEqError::Unsettled { diag }) => {
-                return Err(BooleanError::plane_identity(
-                    super::PlaneRung::Parallel,
                     super::PlaneDoor::Neighbours,
                     diag,
                 ));
@@ -4003,7 +3989,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             matches!(
-                super::carrier_pair::carrier_pair_relation(x, pf, y, face, false, band),
+                super::carrier_pair::carrier_pair_relation(x, pf, y, face, band),
                 Ok(Ok(super::carrier_eq::CarrierRelation::Distinct))
             )
         })
@@ -4744,7 +4730,7 @@ pub(super) enum Placement {
 }
 
 impl Placement {
-    /// **The declared rungs' one rule**, in one place because all of
+    /// **The covered rungs' one rule**, in one place because all of
     /// them apply it: given each of an edge's endpoints as
     /// `Some(placement)` when the residual put it ON the carrier and
     /// `None` when it is honestly not this arm's business (definitely
@@ -5868,8 +5854,7 @@ mod declaration_order_rows {
         match class {
             GlueClass::Rest => crate::boolean::rest_pair_verdict(x, xw, y, yw, band).is_ok(),
             GlueClass::Tangent => witness.is_some_and(|(carrier, t0, t1)| {
-                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, true, band)
-                    .is_ok()
+                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band).is_ok()
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
         }
@@ -6055,9 +6040,9 @@ mod declaration_order_rows {
     /// Each circle edge of a sheet of the cylinder `frame` over
     /// `angles` (heights 0.25 to 0.5), its sense reversed, through
     /// `curved_face_arm` against the canonical unit wall over angles
-    /// (0, 3), the sheet declared against the wall as `class`
-    /// (`one_carrier`: the door called the two one carrier); with what
-    /// the declaration door answers `class` on the pair.
+    /// (0, 3), the sheet offered to the door against the wall as `class`
+    /// and glued only where the door verifies it; with what the door
+    /// answers `class` on the pair.
     ///
     /// Adopted from the review of PR 3513's fix pass
     /// (`zz_coincfr_rows.rs`, its `run`).
@@ -6065,7 +6050,6 @@ mod declaration_order_rows {
         frame: CylFrame,
         angles: (f64, f64),
         class: Option<GlueClass>,
-        one_carrier: bool,
     ) -> (Option<bool>, Vec<Result<CurvedEvent<f64>, BooleanError>>) {
         let tol = Tol::witness();
         let b = Band::linear(tol).expect("the witness band");
@@ -6082,19 +6066,21 @@ mod declaration_order_rows {
             tol,
         );
         crate::test_support_fixtures::set_sheet_sense(&mut y, yw, true, tol);
+        let door = class.map(|class| contact_door((&x, xw), (&y, yw), class, None, b));
+        // The index holds what the door glued, and nothing it refused.
+        let glued = class.filter(|_| door == Some(true));
         let decls = Glue {
-            pairs: class
+            pairs: glued
                 .map(|class| vec![GluedPair::new(xw, yw, class)])
                 .unwrap_or_default(),
             ..Glue::none()
         };
-        let one = if one_carrier {
-            [(xw, yw)].into_iter().collect()
-        } else {
-            Default::default()
-        };
+        let one = glued
+            .filter(|class| class.is_one_carrier())
+            .map(|_| (xw, yw))
+            .into_iter()
+            .collect();
         let declared = GluedPairs::<f64>::without_struts(&decls, one);
-        let door = class.map(|class| contact_door((&x, xw), (&y, yw), class, None, b));
         let edges: Vec<_> = x.edges().map(|(k, e)| (k, e.clone())).collect();
         let mut out = Vec::new();
         for (edge_key, edge) in edges {
@@ -6134,59 +6120,32 @@ mod declaration_order_rows {
 
     /// **The uncovered circle's clearance offers no declaration**, on
     /// the review's executed raise: a sheet of radius `1 + mid` against
-    /// the unit wall. Undeclared, the escalated clearance hands the arc
-    /// to the root lane as a sphere's or a torus's does, and the
-    /// endpoint sides that guard it read the same in-band pose. Declared `Rest`, which the door verifies,
-    /// with the door calling the two one carrier, the rung reads the
-    /// clearance zero, and the covered arm's endpoint sides refuse the
-    /// same in-band pose. Not called one carrier, or declared `Tangent`
-    /// the door does not verify, the pair carries no certificate, so the
-    /// circle is uncovered and its clearance refuses as the undeclared
-    /// one's does. No posture passes, so no refusal offers a
+    /// the unit wall. The escalated clearance hands the arc to the root
+    /// lane as a sphere's or a torus's does, and the endpoint sides that
+    /// guard it read the same in-band pose. The door reads the pair in
+    /// band and glues neither `Rest` nor `Tangent`, so whatever the pair
+    /// is offered as, the circle is uncovered and its clearance refuses as
+    /// the unoffered one's does. No posture passes, so no refusal offers a
     /// declaration, and each states what its door read.
     #[test]
     fn an_uncovered_circle_clearance_offers_no_declaration() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let frame = CylFrame::canonical(1.0 + (b.zero() + b.escalate()) / 2.0);
-        let uncovered = Coincide::VertexOnCurvedFace;
-        let postures = [
-            (
-                None,
-                false,
-                None,
-                Coincide::VertexOnCurvedFace,
-                DeclarationRead::Moot,
-            ),
-            (
-                Some(GlueClass::Rest),
-                true,
-                Some(true),
-                Coincide::VertexOnCoveredFace,
-                DeclarationRead::Spent(GlueClass::Rest),
-            ),
-            (
-                Some(GlueClass::Rest),
-                false,
-                Some(true),
-                uncovered,
-                DeclarationRead::Spent(GlueClass::Rest),
-            ),
-            (
-                Some(GlueClass::Tangent),
-                false,
-                Some(false),
-                uncovered,
-                DeclarationRead::Spent(GlueClass::Tangent),
-            ),
-        ];
-        for (class, one, door, which, read) in postures {
-            let label = format!("{class:?}, one carrier {one}");
-            let (verdict, runs) = circle_run(frame, (0.5, 1.0), class, one);
-            assert_eq!(verdict, door, "{label}: what the door answers");
+        for class in [None, Some(GlueClass::Rest), Some(GlueClass::Tangent)] {
+            let label = format!("{class:?}");
+            let (verdict, runs) = circle_run(frame, (0.5, 1.0), class);
+            assert_eq!(
+                verdict,
+                class.map(|_| false),
+                "{label}: the door glues nothing in band"
+            );
             for got in &runs {
                 assert_eq!(
                     decision_of(&label, got),
-                    BooleanDecision::Coincidence(which, read),
+                    BooleanDecision::Coincidence(
+                        Coincide::VertexOnCurvedFace,
+                        DeclarationRead::Moot
+                    ),
                     "{label}"
                 );
                 let text = got.as_ref().expect_err("it refuses").to_string();
@@ -6205,10 +6164,8 @@ mod declaration_order_rows {
     /// declaration either: the door refuses `Rest` (the axes are apart).
     /// Undeclared it is the circle × cylinder root lane's pierce, at the
     /// two unit circles' meeting point `(0.15, √(1 − 0.15²))`, and so it
-    /// is under a `Tangent` the door does not verify, which carries no
-    /// certificate. A pair called one carrier past the door is covered,
-    /// and the covered arm keeps the frontier on a crossing (it reads
-    /// its clearance zero by that certificate, and refuses all the same).
+    /// is under a `Rest` or `Tangent` the door does not verify, which it
+    /// leaves unglued.
     #[test]
     fn the_circle_rungs_zero_arm_takes_a_declaration_and_its_crossing_arm_takes_none() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
@@ -6219,10 +6176,10 @@ mod declaration_order_rows {
             );
         };
         let zero = CylFrame::canonical(1.0 + 0.5 * b.zero());
-        for got in circle_run(zero, (0.5, 1.0), None, false).1 {
+        for got in circle_run(zero, (0.5, 1.0), None).1 {
             frontier("zero arm, undeclared", &got);
         }
-        let (door, runs) = circle_run(zero, (0.5, 1.0), Some(GlueClass::Rest), true);
+        let (door, runs) = circle_run(zero, (0.5, 1.0), Some(GlueClass::Rest));
         assert_eq!(door, Some(true), "the door takes the zero arm's Rest");
         for got in runs {
             assert!(got.is_ok(), "zero arm, declared Rest: recorded: {got:?}");
@@ -6231,23 +6188,13 @@ mod declaration_order_rows {
             origin: Point3::new(0.3, 0.0, 0.0),
             ..CylFrame::canonical(1.0)
         };
-        for (class, one) in [
-            (None, false),
-            (Some(GlueClass::Rest), true),
-            (Some(GlueClass::Tangent), false),
-        ] {
-            let (door, runs) = circle_run(crossing, (1.5, 2.5), class, one);
+        for class in [None, Some(GlueClass::Rest), Some(GlueClass::Tangent)] {
+            let (door, runs) = circle_run(crossing, (1.5, 2.5), class);
             assert_ne!(
                 door,
                 Some(true),
                 "{class:?}: the door takes no declaration here"
             );
-            if one {
-                for got in &runs {
-                    frontier(&format!("crossing arm, {class:?}"), got);
-                }
-                continue;
-            }
             let mut heights = Vec::new();
             for got in &runs {
                 let Ok(CurvedEvent::Pierce { p, at, .. }) = got else {

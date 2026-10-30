@@ -1575,8 +1575,12 @@ impl<'a> Resolver<'a> {
         // meridians (`geom::pole_form`), through u = 0 and u = π, each
         // starting AT the north pole (angle 0) and reaching the south
         // at angle π.
-        let north = signed_zero::plus_zero_point(center + axis * radius);
-        let south = signed_zero::plus_zero_point(center - axis * radius);
+        let [(_, north), (_, south)] =
+            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let (north, south) = (
+            signed_zero::plus_zero_point(north),
+            signed_zero::plus_zero_point(south),
+        );
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);

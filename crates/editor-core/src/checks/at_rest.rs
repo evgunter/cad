@@ -1170,6 +1170,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::CurvedSenseInverted { .. }
         | E::SeamRegionOvercovered { .. }
         | E::SeamRegionCoverUnresolved { .. }
+        | E::ChartSingularityNotAVertex { .. }
+        | E::ChartSingularityUndecided { .. }
         | E::NegativeVolume { .. }
         | E::SliverInsideOut { .. }
         | E::VolumeUncomputable { .. }

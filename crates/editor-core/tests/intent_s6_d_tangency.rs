@@ -117,7 +117,7 @@ fn boss_tracing(
 }
 
 /// **The union of `members`' one tangency and the door's proof of it.**
-fn tangency(doc: ProfileDoc, members: Vec<Operand>) -> Proof {
+pub(crate) fn tangency(doc: ProfileDoc, members: Vec<Operand>) -> Proof {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
@@ -174,7 +174,7 @@ fn off_the_wall(doc: &ProfileDoc, cylinder: RecipeNodeId) -> Operand {
     frame_off(doc, cylinder, wall(doc, cylinder))
 }
 
-fn proven(proof: &Proof) -> bool {
+pub(crate) fn proven(proof: &Proof) -> bool {
     *proof == Proof::Structural(Rung::SameConstruction)
 }
 

@@ -42,13 +42,9 @@ lands half of a representation change.
 6. **Tangency constructions.** A surface's trace in a sketch plane and
    continuation tangent to it; coaxiality through one axis variable.
 
-**State (2026-10-29):**
-- **Stages 1–5 are built.** Stage 3 closed 2026-10-29 with G (#5954). Stage 4 I and stage 5 C were built and closed under ATREST.
-- **Stage 6 is sliced** in `docs/INTENT-STAGE6-SPEC.md` and ruled on #6004 and #6006. Its umbrella is `intent-stage6-is-built`.
-  - Merged: A (#6023), B (#6041).
-  - In flight: C (#6043), then D.
-  - E is the viewer's tool.
-- **The exit walk ran on 2026-10-29** (#5997). What remains is listed on `d10-one-way-to-say-intent-is-unbuilt`.
+**State (2026-10-30):**
+- **Stages 1–6 are built.** Stage 3 closed 2026-10-29 with G (#5954). Stage 4 I and stage 5 C were built and closed under ATREST. Stage 6 (`docs/INTENT-STAGE6-SPEC.md`, ruled on #6004, #6006 and #6064) closed 2026-10-30: A (#6023), B (#6041), C (#6043), D (#6060), E (#6071).
+- **The exit walk ran on 2026-10-29** (#5997). What remains is listed on `d10-one-way-to-say-intent-is-unbuilt`: CONTACTHOLD's bridging-rung row alone.
 
 ## Successors (2026-10-11)
 

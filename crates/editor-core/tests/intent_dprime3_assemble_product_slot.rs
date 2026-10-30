@@ -386,7 +386,18 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
         Tol::witness(),
     )
     .expect("the checks run");
-    assert!(report.findings.is_empty(), "the cut is proved: {report}");
+    assert_eq!(
+        report
+            .findings
+            .iter()
+            .map(|f| (f.check, f.subject))
+            .collect::<Vec<_>>(),
+        [(
+            editor_core::CheckId::Unused,
+            editor_core::FindingSubject::Node(glued)
+        )],
+        "the cut is proved, and the union beside the product is used by nothing: {report}"
+    );
 }
 
 /// A bolt standing on a plate, `bolt ⊔ plate`: two pieces that meet
@@ -664,7 +675,8 @@ fn three_pieces(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// those three pieces and nothing else, however many other bodies are
 /// placed in the world; a slot reading nothing is the empty product.
 ///
-/// *Breaks if* the product is derived from which bodies go unread.
+/// *Breaks if* the product is derived from which bodies go unread, or
+/// an unread body is no finding.
 #[test]
 fn the_product_is_what_the_slot_reads() {
     let (doc, _, unread) = three_pieces("dprime3-slot");
@@ -678,6 +690,11 @@ fn the_product_is_what_the_slot_reads() {
     assert!(
         ev.value(unread).is_some(),
         "the unread placement evaluates all the same"
+    );
+    assert_eq!(
+        doc.unused().operations,
+        vec![unread],
+        "the unread placement is the `unused` check's finding"
     );
     let empty = set_product(&doc, None);
     let ev = run(&empty, &EvalOptions::default());

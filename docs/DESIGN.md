@@ -50,13 +50,14 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   at-rest gate (`assemble` and its refusal) and CHECKS DS6's
   product-separation resident (`Separation`) retired (stage 5); an
   operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way.
-- **Not built:** a glued pair re-read through the declared rung, which
-  bridges an in-band displacement where D10 refuses one
-  (`work/contacthold/a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band.md`);
-  an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict); coaxiality read
-  at the door and tangency constructions (stage 6).
+  quieted the same way; coaxiality read at the door as one `Axis` read
+  twice, and tangency constructions, a sketch drawn on a frame
+  continuing tangent to a face's trace, proven at the door and written
+  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
+  its record at every consuming site, with the declared rung and its
+  bridged verdict retired (CONTACTHOLD).
+- **Not built:** an assertion quieting an unproven row no `Gap = 0` says (a tangency,
+  a coaxiality, a blend's turn, a split's ON verdict).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -1188,6 +1189,7 @@ constant rather than a variable.
 **Names.** A variable without a name is read by exactly one slot or
 definition, which is how it is spoken; a variable two readers share
 has a name the person gave it; an output is spoken by its operation.
+A name is also the mark that a value is wanted for itself.
 
 **Poses.** `[variables.poses]` A pose is only ever defined: read off a
 body's geometry (a face's plane, a carrier's axis or centre, a
@@ -1284,9 +1286,14 @@ measurement.
 
 **The product.** A document has one product slot, which reads a body
 in its world space ([placement.world]): `product: p ⊔ bolt ⊔ nut`.
-Nothing is derived from which bodies go unread: an unread body is an
-unread variable, a finding, and a document whose slot reads nothing
-has an empty product.
+Nothing is derived from which bodies go unread: the slot says what
+the product is, and being the product is a use, as being what an
+assertion states is. What the person made and nothing uses is a
+finding: an operation they inserted none of whose outputs is used,
+and a variable they named that nothing uses. What a door minted on
+their behalf (an output nobody named, an anonymous variable) is a
+byproduct of what it was minted for, never a finding of its own. A
+document whose slot reads nothing has an empty product.
 
 ### Repetition `[repetition]`
 
@@ -2364,7 +2371,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
 | `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
-| `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
+| `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |

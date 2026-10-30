@@ -9,7 +9,7 @@
 //! Two doors leave struts and delete them here:
 //!
 //! - the coplanar merge, whose absorption leaves the dangling legs of a
-//!   seam on its survivor (`Body::merge_coplanar_faces_declared`);
+//!   seam on its survivor (`Body::merge_coplanar_faces`);
 //! - the Boolean, whose zip glues a slit's face to itself where the
 //!   result keeps that face on both sides of the slit's line
 //!   (`boolean::slit::close_struts`).

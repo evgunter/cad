@@ -5534,6 +5534,24 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
+    def traced_frame(
+        self,
+        plane: tuple[_Operand, str],
+        traced: tuple[_Operand, str],
+    ) -> PoseDef:
+        """The frame a sketch tracing a face stands on: `Through` the
+        traced face's own axis and a vertex of the plane face `plane`,
+        square to it, its origin that vertex's foot on the axis. Each is a
+        `(body, name)` of this evaluation's document; pass the answer as
+        `Node.drawn_profile`'s `frame`. A boss swept up the axis from a
+        piece leaving the traced wall's trace along its tangent is tangent
+        to the wall by construction.
+
+        Raises `ValueError` naming why no frame reads off the two: the
+        traced face has no axis, the plane face is no plane square to it,
+        or has no vertex off the axis.
+        """
+        ...
     def face_frame(self, node: NodeId | Var, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
@@ -6692,12 +6710,15 @@ class CheckId:
     structurally by an argument the door does not yet make), an at-rest
     contact between two operands of a `⊔` included; `AtRest` reports,
     at each `⊔`, each overlap of two arrivals' material and each pair
-    its census could not look at."""
+    its census could not look at; `Unused` reports what the person made
+    and nothing uses: an operation none of whose outputs is used, and a
+    named variable nothing uses, at the tip of each dead chain."""
 
     Connectedness: Final[CheckId]
     ChartCoherence: Final[CheckId]
     UnprovenCoincidence: Final[CheckId]
     AtRest: Final[CheckId]
+    Unused: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -6739,9 +6760,9 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    Two of the knobs are `Advisory` rather than `Severity`, which is
-    DS6's waiver rule made static: neither `chart_coherence` nor
-    `unproven_coincidence` can be set to `Severity.Error`. `at_rest` is
+    Three of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: none of `chart_coherence`,
+    `unproven_coincidence` and `unused` can be set to `Severity.Error`. `at_rest` is
     a `Severity`, because an assertion quiets every interference the
     kernel can bound; at `Error`, `enforce_checks` refuses a loud
     interference and nothing else the check reports.
@@ -6759,6 +6780,7 @@ class ChecksConfig:
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
         at_rest: Severity = ...,
+        unused: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -6768,6 +6790,8 @@ class ChecksConfig:
     def unproven_coincidence(self) -> Advisory: ...
     @property
     def at_rest(self) -> Severity: ...
+    @property
+    def unused(self) -> Advisory: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -6809,6 +6833,9 @@ class CheckEvidence:
     payload) — this evaluation's decision lane has no chart-coherence
     examination, so nothing was read; do not take the silence for a
     clean body.
+
+    `unused` (no payload) — the finding's subject is used by nothing:
+    not the product, not an assertion, and nothing reads it.
 
     `unproven_coincidence` (`relation`, `site`, `reason`, the row as
     `coincidence`, and `restated`) — a node decided a coincidence of
@@ -6923,8 +6950,8 @@ class CheckFinding:
     coincidence — two copies the at-rest census found touching with no
     mate between them (`copies`), or the body a census at rest was
     taken over (`census`: a `⊔`'s output, or the body the product slot
-    reads), which every `AtRest` finding is about. Whichever it is not
-    answers `None`.
+    reads), which every `AtRest` finding is about, or a named variable
+    nothing uses (`var`). Whichever it is not answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -6960,6 +6987,10 @@ class CheckFinding:
         first, each as its placement's output and its member there (as
         `InterferenceFinding.a` spells one); `None` for any other
         subject."""
+    @property
+    def var(self) -> Var | None:
+        """The variable an `Unused` finding is about, spoken by its name;
+        `None` for any other subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     @property
