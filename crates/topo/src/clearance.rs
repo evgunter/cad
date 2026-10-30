@@ -3883,6 +3883,7 @@ mod winding_rate {
     use super::harmonic_of;
     use crate::injective;
     use geom_brep::{Channel, Pcurve};
+    use geom_core::Real;
     use geom_core::interval::Interval;
 
     /// **An angle channel's rate is its winding count, exactly**, at an
