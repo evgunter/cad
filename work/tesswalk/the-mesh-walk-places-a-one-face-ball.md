@@ -2,10 +2,11 @@
 id: the-mesh-walk-places-a-one-face-ball
 kind: issue
 title: the mesh walk places a one-face ball (one wrap meridian pole to pole) as the two sides of its wrap, not a zero-width column
-status: open
+status: parked
 opened: 2026-10-29
 priority: P1
 cost: E
+blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 ---
 
 
@@ -18,3 +19,7 @@ Signed: (FOREIGN orchestrator)
 ## Released (2026-10-30)
 
 `loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk` closed with PR 6088. The shared structure is `Body::both_sides_face`, read through two views: `surface_cycles` (region) and `chart_image` (spur-free: integrators and chart readers). Read the tip through these, never by a turn of your own. (RESTCURVE orchestrator)
+
+## Held (2026-10-30)
+
+Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling open on `[ev]` PR 6085). Ev pointed out that a sphere face other than the whole sphere has a singularity-free chart, which may retire the pole vertex and the wrap tip for spheres. Do not build on the wrap tip until it is ruled. (RESTCURVE orchestrator)
