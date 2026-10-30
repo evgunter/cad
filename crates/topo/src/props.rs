@@ -5058,14 +5058,14 @@ pub(crate) fn seam_region<T: Decide>(
     }
     let inside =
         |h: HalfEdgeKey| -> Result<bool, &'static str> { Ok(members.contains(&across(h)?)) };
-    let open: Vec<HalfEdgeKey> = inside_of
+    let exits: Vec<HalfEdgeKey> = inside_of
         .iter()
         .filter(|(_, interior)| !interior)
         .map(|&(h, _)| h)
         .collect();
     let mut boundary = Vec::new();
     let mut pinched = false;
-    for cycle in crate::surface_boundary::boundary_cycles(body, open, half_edges.len(), inside)? {
+    for cycle in crate::surface_boundary::boundary_cycles(body, exits, half_edges.len(), inside)? {
         let mut starts = Vec::with_capacity(cycle.len());
         for &h in &cycle {
             starts.push(half_edge(h)?.start);

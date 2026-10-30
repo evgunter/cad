@@ -240,7 +240,7 @@ pub(crate) enum Scaffolding {
 /// loop order, each on its certified carrier. `None` where a carrier's
 /// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
 /// the boundary no reading may step over, and null scaffolding is as
-/// `scaffolding` says. An edge the face lies on both sides of
+/// `scaffolding` says. Past those, an edge the face lies on both sides of
 /// ([`Body::both_sides_face`]: a seam, a wrap edge, a spur) is no
 /// boundary of it and is left out, so the edges kept are the face's
 /// surface boundary ([`crate::surface_boundary::surface_cycles`]), in
@@ -274,13 +274,6 @@ pub(crate) fn boundary<T: Decide>(
         };
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            if body
-                .both_sides_face(edge_key)
-                .ok_or_else(corrupt)?
-                .is_some()
-            {
-                continue;
-            }
             let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
                 if let Scaffolding::Skipped = scaffolding {
@@ -299,6 +292,13 @@ pub(crate) fn boundary<T: Decide>(
             };
             if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
+            }
+            if body
+                .both_sides_face(edge_key)
+                .ok_or_else(corrupt)?
+                .is_some()
+            {
+                continue;
             }
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
