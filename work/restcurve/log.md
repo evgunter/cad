@@ -15,3 +15,8 @@
   - To stay at 30, moved to RESTFRONT `the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties` (it sits beside `a-corner-is-a-slice-has-three-homes`) and `ring-and-scaffold-refusals-read-three-ways`.
   - Both P1s carry `design: true` and are weighed by one designer pair, since the problem is one.
 - 2026-10-30 — Unit 1 of the shared loop walk (`surface_cycles`, the both-sides predicate) specced in its item and dispatched (branch `restcurve/surface-cycles`). Both designers agreed on it in every round. The remaining fork (who reads point-in-face) does not touch it. Tier: dual, M; arm drawn byte 83, so SEQUENTIAL.
+- 2026-10-30 — **Design fork: one reading of a curved face's region** (both P1s). The Opus/Fable pair is labelled A/B by byte 248, on branch `analysis/design-fork/restcurve-curved-region`.
+  - Three rounds, two crossovers. The question beneath them was which fact each instrument caches. Totality was not it: the lift is total at rest, and `not_owed` excuses only a dual scalar.
+  - **Converged:** the `surface_cycles` core. Tier 3's region arm (simple and disjoint, then each cycle's side, open ends, torus windings, chart singularities) asks the closest-crossing point-in-face doors cycle by cycle. The lift answers only chart questions. `walk_loop`, `without_spurs` and `retraces` retire.
+  - **To Ev as `[ev]` PR 6085:** the DESIGN tier-3 clause, and replacing PR 4822's chart-polygon instrument. Fork-log row 219 (recommendation half).
+  - `validate-tier3-curved-boundary-containment` is parked on 6085. Unit 1 (`surface_cycles`) does not wait: both agreed on it in every round.
