@@ -18,7 +18,8 @@
 //!   built as the union of the block's two sides of the trench, split at
 //!   `z = 3`: each side holds its closed form, and no cap face on the
 //!   plane covers the trench, read by winding over the cap faces' own
-//!   vertices, not by the kernel's classification.
+//!   vertices, not by the kernel's classification. So do the controls:
+//!   the trench's apex off the bore, and the keel on a planar wall.
 //! - **The one-edge form refuses at tier 3′.** The slit zipped shut by
 //!   Euler surgery (the two top vertices fused across the bore's face,
 //!   and the two-edge face left between the keel edges folded into wall
@@ -293,25 +294,23 @@ fn rings(body: &Body<f64>, face: FaceKey) -> Vec<Vec<Point3<f64>>> {
         .collect()
 }
 
-/// **A cut through the slit caps around the trench**: the split at
-/// `z = 3` holds each side's closed form, and the trench's middle on
-/// the plane lies in no cap face, its loops wound over their own
-/// vertices.
-#[test]
-fn a_split_through_the_keel_caps_around_the_trench() {
-    let slit = slit_block();
-    let z = 3.0;
-    let plane = topo::test_support::split_plane(Point3::new(1.0, 0.0, z), Vec3::unit_z(), tol());
-    let r = split(&slit, &plane, tol()).unwrap_or_else(|e| panic!("the split: {e:?}"));
-    let in_trench = Point3::new(1.3, 0.0, z);
-    for (side, part, want) in [
-        ("above", &r.above, (4.0 - z) * section() - TRENCH_AREA),
-        ("below", &r.below, z * section() - TRENCH_AREA),
-    ] {
+/// The split of `body` at `z = 3`: each side holds `[above, below]`,
+/// and no cap face on the plane covers `in_trench`, its loops wound over
+/// their own vertices.
+fn caps_around_the_trench(
+    what: &str,
+    body: &AtRestBody<f64>,
+    want: [f64; 2],
+    in_trench: Point3<f64>,
+) {
+    let z = in_trench.z;
+    let plane = topo::test_support::split_plane(in_trench, Vec3::unit_z(), tol());
+    let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: the split: {e:?}"));
+    for (side, part, want) in [("above", &r.above, want[0]), ("below", &r.below, want[1])] {
         let SplitPart::Body(body) = part else {
-            panic!("nothing {side}");
+            panic!("{what}: nothing {side}");
         };
-        holds(&format!("the split, {side}"), body, want);
+        holds(&format!("{what}, {side}"), body, want);
         let covering: Vec<FaceKey> = body
             .faces()
             .map(|(f, _)| f)
@@ -323,9 +322,52 @@ fn a_split_through_the_keel_caps_around_the_trench() {
             .collect();
         assert!(
             covering.is_empty(),
-            "the split, {side}: cap faces {covering:?} cover the trench at {in_trench:?}"
+            "{what}, {side}: cap faces {covering:?} cover the trench at {in_trench:?}"
         );
     }
+}
+
+/// **A cut through the slit caps around the trench**, and so do the
+/// controls: the trench's apex off the bore, `(1.2, 0)`, which the
+/// Boolean builds as a hole of the block (a ring of the cap), and the
+/// keel on a planar wall, `x = 1`, which it builds as a slit of the wall
+/// (a pinched cap).
+#[test]
+fn a_split_through_the_keel_caps_around_the_trench() {
+    let (above, below) = (section() - TRENCH_AREA, 3.0 * section() - TRENCH_AREA);
+    caps_around_the_trench(
+        "the slit form",
+        &slit_block(),
+        [above, below],
+        Point3::new(1.3, 0.0, 3.0),
+    );
+    let off = prism(
+        "the trench off the bore",
+        &[(1.2, 0.0), (1.8, -0.3), (1.8, 0.3)],
+        2.0,
+        3.0,
+    );
+    caps_around_the_trench(
+        "the trench off the bore",
+        &body_of(subtract(&block(), &off, tol()), "the block less it"),
+        [above, below],
+        Point3::new(1.5, 0.0, 3.0),
+    );
+    let walled = prism(
+        "the walled block",
+        &[(1.0, -2.0), (4.0, -2.0), (4.0, 2.0), (1.0, 2.0)],
+        0.0,
+        4.0,
+    );
+    caps_around_the_trench(
+        "the keel on a planar wall",
+        &body_of(
+            subtract(&walled, &trench(), tol()),
+            "the walled block less the trench",
+        ),
+        [12.0 - TRENCH_AREA, 36.0 - TRENCH_AREA],
+        Point3::new(1.3, 0.0, 3.0),
+    );
 }
 
 /// **The one-edge form refuses at tier 3′**: the slit zipped shut is one

@@ -157,7 +157,9 @@ pub enum EdgeInFaceGap {
     /// The face is no plane: the parting would leave a slit or a
     /// zero-area ring in a curved face, which the chart walk does not
     /// mesh and the curved mass-properties lane does not measure
-    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`).
+    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
+    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when both read it: the parting itself builds there.
     CurvedFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
