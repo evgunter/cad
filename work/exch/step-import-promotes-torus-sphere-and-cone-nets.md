@@ -4,7 +4,7 @@ kind: issue
 title: STEP surface promotion reaches torus, sphere and cone (and open circular arcs for curves) on the whole patch before the C0-knot split
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P0
 cost: H
 ---
 
