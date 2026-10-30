@@ -81,6 +81,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

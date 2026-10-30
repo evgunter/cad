@@ -88,6 +88,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),

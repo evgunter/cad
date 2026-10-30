@@ -1,4 +1,4 @@
-Profile(ProfileProgram { loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
+Profile(ProfileProgram { loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [], on: None })
   #0 Profile { loop_: 0, step: 0, arg: PointX }
   #1 Profile { loop_: 0, step: 0, arg: PointY }
   #2 Profile { loop_: 0, step: 1, arg: TargetX }

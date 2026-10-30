@@ -47,6 +47,8 @@ pub enum NodeErrorClass {
     ProfileReplay,
     /// [`NodeErrorKind::ProfileLaneReplay`].
     ProfileLaneReplay,
+    /// [`NodeErrorKind::Trace`].
+    Trace,
     /// [`NodeErrorKind::Extrude`].
     Extrude,
     /// [`NodeErrorKind::Revolve`].
@@ -220,6 +222,7 @@ impl NodeErrorKind {
             Self::Profile(_) => C::Profile,
             Self::ProfileReplay { .. } => C::ProfileReplay,
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
+            Self::Trace(_) => C::Trace,
             Self::Extrude(_) => C::Extrude,
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
@@ -358,6 +361,7 @@ mod tests {
         Profile,
         ProfileReplay,
         ProfileLaneReplay,
+        Trace,
         Extrude,
         Revolve,
         Tube,
@@ -526,6 +530,12 @@ mod tests {
                 step: 2,
                 structure: None,
             },
+            C::Trace => K::Trace(crate::trace::TraceRefusal {
+                loop_: 0,
+                step: 2,
+                face: Some(0),
+                fault: crate::trace::TraceStepFault::NoTrace,
+            }),
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),

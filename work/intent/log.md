@@ -1087,3 +1087,13 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - `d10-one-way-to-say-intent-is-unbuilt` now states where the build stands. Its old text said the code still had every mechanism D10 retires.
   - `plan.md`'s stage state is updated.
   - A lane re-reads the ~26 rows held on the hold (`session_01VyvYnH4C7X55BN67GaEqMo`). It releases those whose ground is built and re-parks the rest on the specific remainder.
+- 2026-10-29 23:30 — **Stage 6 C merged (#6043).** A profile drawn on a frame reads a face's trace, with the crossing vocabulary and typed refusals; the façade is `pncad::trace`.
+  - Review: dual H, tally 0. Row `docs/dual-review-log/rows/PR-6043.md`.
+  - Fix pass:
+    - pncad-py's word parsing and dimension checks moved into the façade;
+    - free AtX/AtY;
+    - torus, Sym, loft and refusal rows;
+    - one outward normal and one extent table;
+    - six P3s filed.
+  - The fix-pass head's `test (app)` was red only on the fast-set budget for two untouched m10_6 rows (1.052 s and 1.002 s). The re-run on the row commit was green.
+- **Stage 6 D dispatched** (`session_01VyvYnKSgWzCxCxYDXAhVSQ`), curve tier only, per #6006. Stage 6 now waits on D and E (the viewer's tool).

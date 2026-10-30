@@ -1618,6 +1618,7 @@ fn arc_prism(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -1780,6 +1781,7 @@ fn a_carrier_loop_is_answered_at_every_edge() {
                 phase: fixture::ang(0.3),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let ev = run(&doc);
@@ -1917,6 +1919,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Profile(ProfileProgram {
             loops: vec![filleted],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2033,6 +2036,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Profile(ProfileProgram {
             loops: vec![chain],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2301,6 +2305,7 @@ fn rotated_arc_prism(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2529,6 +2534,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
         Node::Profile(ProfileProgram {
             loops: vec![program],
             ids: Vec::new(),
+            on: None,
         }),
     );
     doc
@@ -2580,6 +2586,7 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -2693,6 +2700,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![program],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -2801,6 +2809,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Profile(ProfileProgram {
             loops: vec![program],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(

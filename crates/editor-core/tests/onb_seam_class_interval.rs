@@ -285,6 +285,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
