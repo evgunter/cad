@@ -1097,9 +1097,10 @@ fn spiric_wall(
 /// Structure checks are EXACT `f64` (C6: the minted chart values
 /// are exact by construction; a non-exact or non-rectangular
 /// boundary refuses typed, naming the trimmed-NURBS lane as the
-/// cut-loft unit's). The traversal's shoelace sign IS the S10
-/// orientation input — winding-derived end to end, like the
-/// cylinder lane; no sense bit is read.
+/// cut-loft unit's). The direction the traversal walks its rectangle
+/// ([`rectangle_winding`]) IS the S10 orientation input —
+/// winding-derived end to end, like the cylinder lane; no sense bit is
+/// read.
 #[allow(clippy::too_many_arguments)]
 fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -1146,7 +1147,6 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             })
         }
     };
-    let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
     let mut segments: Vec<ChartSegment> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
@@ -1194,10 +1194,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         // Traversal order: the loop walks he_plus-forward edges
         // start→end and reversed ones end→start.
         if le.forward {
-            polygon.push((ax, ay));
             segments.push(((ax, ay), (bx, by)));
         } else {
-            polygon.push((bx, by));
             segments.push(((bx, by), (ax, ay)));
         }
         // Metric boundary length bound + the map-residual defect.
@@ -1205,18 +1203,18 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         perimeter += len;
         boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
     }
-    // The rectangle certificate: hull of the traversal polygon, every
-    // vertex on its boundary, and the polygon walking that boundary
+    // The rectangle certificate: hull of the segments' starts, every
+    // start on its boundary, and the segments walking that boundary
     // once — the direction IS the S10 winding.
     let (mut u0, mut u1) = (f64::INFINITY, f64::NEG_INFINITY);
     let (mut v0, mut v1) = (f64::INFINITY, f64::NEG_INFINITY);
-    for &(x, y) in &polygon {
+    for &((x, y), _) in &segments {
         u0 = u0.min(x);
         u1 = u1.max(x);
         v0 = v0.min(y);
         v1 = v1.max(y);
     }
-    for &(x, y) in &polygon {
+    for &((x, y), _) in &segments {
         if (x != u0 && x != u1) && (y != v0 && y != v1) {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a NURBS-face boundary vertex sits strictly inside the UV \
@@ -1281,10 +1279,12 @@ type ChartSegment = ((f64, f64), (f64, f64));
 /// (a sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
 /// which a shoelace in `f64` cannot promise.
 ///
-/// Each segment is axis-aligned, so it lies on one side of the
-/// rectangle (or inside it, which refuses) and runs one way along it.
-/// A once-around walk runs every moving segment the same way round and
-/// visits the four sides in their order, each in one run.
+/// A once-around walk is closed and connected, each segment starting
+/// where the one before it ended. Each segment is axis-aligned, so it
+/// lies on one side of the rectangle (or inside it, which refuses) and
+/// runs one way along it. A once-around walk runs every moving segment
+/// the same way round and visits the four sides in their order, each in
+/// one run.
 fn rectangle_winding(
     segments: &[ChartSegment],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
@@ -1296,6 +1296,20 @@ fn rectangle_winding(
     // counter-clockwise order) and whether it runs counter-clockwise.
     let mut sides = Vec::with_capacity(segments.len());
     let mut ccw = None;
+    // Each segment starts where the one before it ended. The two are one
+    // vertex's images on two iso pcurves, each the affine `p₀ + l·t` at
+    // an end parameter, two roundings of terms no larger than the
+    // rectangle's coordinates: they agree within a few ulps of those,
+    // and a wider gap is two vertices.
+    let slack = |a: f64, b: f64| 4.0 * f64::EPSILON * a.abs().max(b.abs());
+    let (su, sv) = (slack(u0, u1), slack(v0, v1));
+    let joined = segments
+        .iter()
+        .zip(segments.iter().cycle().skip(1))
+        .all(|(&(_, (ex, ey)), &((sx, sy), _))| (ex - sx).abs() <= su && (ey - sy).abs() <= sv);
+    if !joined {
+        return None;
+    }
     for &((ax, ay), (bx, by)) in segments {
         let (side, forward) = if ay == by && ax != bx {
             match ay {
@@ -2154,64 +2168,73 @@ mod tests {
         }
     }
 
-    /// Review probes for PR 6013: `rectangle_winding` against the
-    /// shoelace check it replaced, on hand-built walks of the unit
-    /// square.
+    /// `rectangle_winding` on hand-built walks of the unit square.
     #[allow(clippy::float_cmp)]
-    mod review_6013_winding {
+    mod rectangle_winding {
         use super::super::{ChartSegment, rectangle_winding};
 
         const R: (f64, f64, f64, f64) = (0.0, 1.0, 0.0, 1.0);
 
-        /// The replaced check: every start on the hull's boundary and
-        /// the start polygon's shoelace exactly ±the area.
-        fn shoelace(segs: &[ChartSegment]) -> Option<f64> {
-            let p: Vec<(f64, f64)> = segs.iter().map(|s| s.0).collect();
-            let mut a = 0.0;
-            for i in 0..p.len() {
-                let ((xa, ya), (xb, yb)) = (p[i], p[(i + 1) % p.len()]);
-                a += xa * yb - xb * ya;
-            }
-            match a * 0.5 {
-                x if x == 1.0 => Some(1.0),
-                x if x == -1.0 => Some(-1.0),
-                _ => None,
-            }
+        const ONCE: [ChartSegment; 4] = [
+            ((0.0, 0.0), (1.0, 0.0)),
+            ((1.0, 0.0), (1.0, 1.0)),
+            ((1.0, 1.0), (0.0, 1.0)),
+            ((0.0, 1.0), (0.0, 0.0)),
+        ];
+
+        #[test]
+        fn once_around_reads_its_direction_and_twice_around_refuses() {
+            assert_eq!(rectangle_winding(&ONCE, R), Some(1.0), "counter-clockwise");
+            let cw: Vec<ChartSegment> = ONCE.iter().rev().map(|&(a, b)| (b, a)).collect();
+            assert_eq!(rectangle_winding(&cw, R), Some(-1.0), "clockwise");
+            let twice: Vec<ChartSegment> = ONCE.iter().chain(&ONCE).copied().collect();
+            assert_eq!(rectangle_winding(&twice, R), None, "twice around");
         }
 
-        /// A walk whose right side starts half way up, not where the
-        /// bottom ended: a gap of half a side. The shoelace refused it;
-        /// the segment walk reads it as once around.
+        /// A vertex whose two images round apart by an ulp along their
+        /// side, as a degree-1 path sweep's wall closes, is one vertex.
         #[test]
-        fn a_walk_with_a_gap_is_read_as_once_around() {
-            let w = [
-                ((0.0, 0.0), (1.0, 0.0)),
-                ((1.0, 0.5), (1.0, 1.0)),
-                ((1.0, 1.0), (0.0, 1.0)),
-                ((0.0, 1.0), (0.0, 0.0)),
-            ];
-            assert_eq!(shoelace(&w), None);
+        fn a_vertex_an_ulp_apart_on_its_two_images_is_one_vertex() {
+            let below_one = 1.0 - f64::EPSILON / 2.0;
+            let mut w = ONCE;
+            w[0].1 = (below_one, 0.0);
+            w[2].0 = (below_one, 1.0);
             assert_eq!(rectangle_winding(&w, R), Some(1.0));
         }
 
-        /// A walk that never reaches the right side's top: right ends
-        /// at v = 0.5 and the top starts at the corner.
+        /// Walks the segment sides and directions alone would read as
+        /// once around, each with a gap between two segments.
         #[test]
-        fn a_walk_whose_side_stops_short_is_read_as_once_around() {
-            let w = [
-                ((0.0, 0.0), (1.0, 0.0)),
-                ((1.0, 0.0), (1.0, 0.5)),
-                ((1.0, 1.0), (0.0, 1.0)),
-                ((0.0, 1.0), (0.0, 0.0)),
-            ];
-            assert_eq!(shoelace(&w), Some(1.0));
-            assert_eq!(rectangle_winding(&w, R), Some(1.0));
+        fn a_walk_with_a_gap_refuses() {
+            let mut gap = ONCE;
+            gap[1].0 = (1.0, 0.5);
+            assert_eq!(
+                rectangle_winding(&gap, R),
+                None,
+                "the right side starts half way up"
+            );
+            let mut short = ONCE;
+            short[1].1 = (1.0, 0.5);
+            assert_eq!(
+                rectangle_winding(&short, R),
+                None,
+                "the right side stops short"
+            );
+            let mut hair = ONCE;
+            hair[1].0 = (1.0, 1e-9);
+            assert_eq!(rectangle_winding(&hair, R), None, "a gap of 1e-9");
+            let mut more = ONCE.to_vec();
+            more.push(((0.0, 0.0), (0.5, 0.0)));
+            assert_eq!(
+                rectangle_winding(&more, R),
+                None,
+                "five quarters round, unclosed"
+            );
         }
 
-        /// A spur on the bottom side (out to 1, back to 1/2, out to 1
-        /// again) passed the shoelace and is refused now: newly refused.
+        /// A spur on the bottom side, out to 1, back to 1/2, out again.
         #[test]
-        fn a_spur_on_one_side_was_accepted_and_is_refused() {
+        fn a_spur_on_one_side_refuses() {
             let w = [
                 ((0.0, 0.0), (1.0, 0.0)),
                 ((1.0, 0.0), (0.5, 0.0)),
@@ -2220,29 +2243,7 @@ mod tests {
                 ((1.0, 1.0), (0.0, 1.0)),
                 ((0.0, 1.0), (0.0, 0.0)),
             ];
-            assert_eq!(shoelace(&w), Some(1.0));
             assert_eq!(rectangle_winding(&w, R), None);
-        }
-
-        /// Twice around, closed, and clockwise once around: refused and
-        /// −1 respectively, as before.
-        #[test]
-        fn twice_around_refuses_and_clockwise_reads_minus_one() {
-            let once = [
-                ((0.0, 0.0), (1.0, 0.0)),
-                ((1.0, 0.0), (1.0, 1.0)),
-                ((1.0, 1.0), (0.0, 1.0)),
-                ((0.0, 1.0), (0.0, 0.0)),
-            ];
-            let twice: Vec<ChartSegment> = once.iter().chain(&once).copied().collect();
-            assert_eq!(rectangle_winding(&twice, R), None);
-            let cw: Vec<ChartSegment> = once.iter().rev().map(|&(a, b)| (b, a)).collect();
-            assert_eq!(rectangle_winding(&cw, R), Some(-1.0));
-            // Five-quarters round, unclosed: bottom again to 1/2.
-            let mut more = once.to_vec();
-            more.push(((0.0, 0.0), (0.5, 0.0)));
-            assert_eq!(shoelace(&more), Some(1.0));
-            assert_eq!(rectangle_winding(&more, R), Some(1.0));
         }
     }
 }

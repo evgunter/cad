@@ -3,7 +3,7 @@
 //! strictly inside its cell, and import splits at its door).
 //!
 //! A foreign B-spline carrier may hold an interior knot run of
-//! multiplicity equal to its degree ([`KnotStructure::crease_runs`]).
+//! multiplicity at least its degree (`Knots::crease_values`).
 //! Across that run the spline has no derivative by its structure,
 //! whether or not the locus is smooth there, so the door cuts the cell
 //! at it:
@@ -13,7 +13,7 @@
 //! - **a face chart** is split along the knot's iso line into its two
 //!   sub-patches, the iso curve minted as the edge between them.
 //!
-//! Both splits are exact. At a run of full multiplicity the net already
+//! Both splits are exact. At such a run the net already
 //! separates the two sub-nets: each child is a partition of the
 //! parent's knots, control points and weights, sharing the row (or the
 //! point) the spline interpolates at the knot, and no arithmetic is
@@ -31,8 +31,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_core::Point3;
-use geom_core::spline::{KnotStructure, KnotVector};
+use geom_core::spline::KnotVector;
+use geom_core::{Bounds as _, Interval, Point3};
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
@@ -48,13 +48,6 @@ pub(crate) fn split_c0_knots(
 ) -> Result<(), StepImportError> {
     split_edges(solid, mint, sink)?;
     split_faces(solid, eps_in, mint, sink)
-}
-
-/// The knot values of `kv`'s crease runs, ascending.
-fn crease_knots(kv: &KnotVector) -> Vec<f64> {
-    let runs: Vec<f64> = kv.knot_runs().map(|(value, _)| value).collect();
-    let structure: &KnotStructure = kv.structure();
-    structure.crease_runs().map(|r| runs[r]).collect()
 }
 
 /// The least `ADVANCED_FACE` id whose loops use `edge`.
@@ -77,6 +70,9 @@ fn least_face_using(solid: &SolidSpec, edge: u64) -> Option<u64> {
 fn expand_uses(solid: &mut SolidSpec, edge: u64, pieces: &[u64]) {
     for face in &mut solid.faces {
         for lp in &mut face.loops {
+            if !lp.uses.iter().any(|u| u.edge == edge) {
+                continue;
+            }
             lp.uses = lp
                 .uses
                 .iter()
@@ -115,7 +111,7 @@ fn expand_uses(solid: &mut SolidSpec, edge: u64, pieces: &[u64]) {
 /// strictly inside the edge. Each sub-arc is the carrier's
 /// [`NurbsCurve3::split_at`] child on the parent's own parameter, and
 /// the new vertex is the control point the sub-arcs share, which the
-/// spline interpolates at a run of full multiplicity.
+/// spline interpolates at a crease run.
 fn split_edges(
     solid: &mut SolidSpec,
     mint: &mut dyn FnMut() -> u64,
@@ -127,7 +123,7 @@ fn split_edges(
             continue;
         };
         let carrier = Arc::clone(carrier);
-        let knots = crease_knots(carrier.knots_f64_interim());
+        let knots = carrier.knot_values().crease_values();
         if knots.is_empty() {
             continue;
         }
@@ -277,7 +273,10 @@ fn boundary_census(solid: &SolidSpec, faces: &[usize]) -> (usize, usize) {
 }
 
 /// Splits every B-spline face chart along each of its crease knots' iso
-/// lines, each split face splitting again until no sub-patch holds one.
+/// lines that cross it: along `u` first, at every crossing knot of the
+/// face, then along `v`, at every crossing knot of each `u` tile. A
+/// tile inherits the knots that cross it from the face it was cut from,
+/// so each face's boundary is read once per direction.
 fn split_faces(
     solid: &mut SolidSpec,
     eps_in: f64,
@@ -290,12 +289,13 @@ fn split_faces(
         }
         let (edges, vertices) = boundary_census(solid, &[fi]);
         let mut made = vec![fi];
-        let mut work = vec![fi];
-        while let Some(f) = work.pop() {
-            if let Some(new) = split_face_once(solid, f, eps_in, mint)? {
-                work.extend([f, new]);
-                made.push(new);
+        for along_v in [false, true] {
+            let mut tiles = Vec::with_capacity(made.len());
+            for f in made {
+                let knots = crossing_knots(solid, f, along_v, eps_in);
+                split_at_all(solid, f, &knots, along_v, eps_in, mint, &mut tiles)?;
             }
+            made = tiles;
         }
         if made.len() > 1 {
             let (kernel_edges, kernel_vertices) = boundary_census(solid, &made);
@@ -316,6 +316,44 @@ fn split_faces(
         }
     }
     Ok(())
+}
+
+/// Splits face `f` along each of `knots` (ascending, every one
+/// crossing it), halving the run at its middle knot so each piece of
+/// the loop is walked once per halving, and pushes every tile.
+#[allow(clippy::too_many_arguments)]
+fn split_at_all(
+    solid: &mut SolidSpec,
+    f: usize,
+    knots: &[f64],
+    along_v: bool,
+    eps_in: f64,
+    mint: &mut dyn FnMut() -> u64,
+    tiles: &mut Vec<usize>,
+) -> Result<(), StepImportError> {
+    let Some(&knot) = knots.get(knots.len() / 2) else {
+        tiles.push(f);
+        return Ok(());
+    };
+    let high = split_face_once(solid, f, knot, along_v, eps_in, mint)?;
+    split_at_all(
+        solid,
+        f,
+        &knots[..knots.len() / 2],
+        along_v,
+        eps_in,
+        mint,
+        tiles,
+    )?;
+    split_at_all(
+        solid,
+        high,
+        &knots[knots.len() / 2 + 1..],
+        along_v,
+        eps_in,
+        mint,
+        tiles,
+    )
 }
 
 /// A clamped net's two children at the crease knot `k` along `u`: the
@@ -360,17 +398,6 @@ struct NetSplit {
     hi: NurbsSurface<f64>,
 }
 
-/// The chart's crease knots, along `u` before `v`: `(knot, along_v)`.
-fn crease_lines(s: &NurbsSurface<f64>) -> Vec<(f64, bool)> {
-    let u = crease_knots(s.knots_u_f64_interim())
-        .into_iter()
-        .map(|k| (k, false));
-    let v = crease_knots(s.knots_v_f64_interim())
-        .into_iter()
-        .map(|k| (k, true));
-    u.chain(v).collect()
-}
-
 /// The chart split at its crease knot `knot`, along `v` where
 /// `along_v`; `None` where the partition refused.
 fn split_net(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<NetSplit> {
@@ -385,38 +412,273 @@ fn split_net(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<NetSplit
     })
 }
 
-/// Which sides of the iso line `knot` (along `v` where `along_v`) the
-/// face's boundary reaches: `(below, above)`. Each edge is sampled at
-/// nine points and each sample's foot read on the chart by projection;
-/// a foot within `eps_in` of the line, carried into the chart by the
-/// local metric, is on it and on neither side. A SELECTION of which
-/// cell the line lies in, never a geometry: the split it gates is exact.
-fn sides(
-    solid: &SolidSpec,
-    fi: usize,
-    s: &NurbsSurface<f64>,
-    knot: f64,
-    along_v: bool,
-    eps_in: f64,
-) -> Option<(bool, bool)> {
-    let (mut below, mut above) = (false, false);
-    for u in solid.faces[fi].loops.iter().flat_map(|l| &l.uses) {
+/// The crease knots of face `f`'s chart along `u` (along `v` where
+/// `along_v`) whose iso line crosses the face, ascending: a line
+/// outside the face's trimmed domain, or along its boundary, lies inside
+/// no cell, and the face keeps its chart there.
+///
+/// A SELECTION, sound in the direction the rule forbids: a line is left
+/// out only where the face's boundary is certified clear of it on one
+/// side ([`clear_of`]). The boundary's projected samples are evidence
+/// alone ([`feet`]): a line they see the boundary reach past on both
+/// sides crosses, and a side they do not see reached is certified
+/// clear before the line is left out. A line neither seen crossing nor
+/// certified clear is kept, and its split places it or refuses typed.
+fn crossing_knots(solid: &SolidSpec, f: usize, along_v: bool, eps_in: f64) -> Vec<f64> {
+    let Surface::Nurbs(ref s) = solid.faces[f].surface else {
+        return Vec::new();
+    };
+    let knots = if along_v {
+        s.knot_values_v().crease_values()
+    } else {
+        s.knot_values_u().crease_values()
+    };
+    if knots.is_empty() {
+        return knots;
+    }
+    let feet = feet(solid, f, s);
+    let lifted = s.map_scalar(|x| Interval::from_bounds(x, x));
+    knots
+        .into_iter()
+        .filter(|&knot| {
+            let (mut below, mut above) = (false, false);
+            for foot in &feet {
+                let (c, speed) = if along_v {
+                    (foot[1], foot[3])
+                } else {
+                    (foot[0], foot[2])
+                };
+                let reach = eps_in / speed;
+                below |= c < knot - reach;
+                above |= c > knot + reach;
+            }
+            let clear = |high| clear_of(solid, f, s, &lifted, knot, along_v, high, eps_in);
+            !((!below && clear(false)) || (!above && clear(true)))
+        })
+        .collect()
+}
+
+/// Face `f`'s boundary samples on its chart `s`: each edge at nine
+/// points, each read by projection as `[u, v, |S_u|, |S_v|]` at its
+/// foot. A sample whose projection fails is no evidence, and is left
+/// out.
+fn feet(solid: &SolidSpec, f: usize, s: &NurbsSurface<f64>) -> Vec<[f64; 4]> {
+    let mut out = Vec::new();
+    for u in solid.faces[f].loops.iter().flat_map(|l| &l.uses) {
         let spec = &solid.edges[&u.edge];
         for i in 0..=8 {
             let t = spec.t0 + (spec.t1 - spec.t0) * f64::from(i) / 8.0;
-            let foot = s.project(spec.carrier.eval(t)).ok()?;
-            let jet = s.ders(foot.u, foot.v);
-            let (c, metric) = if along_v {
-                (foot.v, jet.dv.norm())
-            } else {
-                (foot.u, jet.du.norm())
+            let Ok(foot) = s.project(spec.carrier.eval(t)) else {
+                continue;
             };
-            let reach = eps_in / metric;
-            below |= c < knot - reach;
-            above |= c > knot + reach;
+            let jet = s.ders(foot.u, foot.v);
+            out.push([foot.u, foot.v, jet.du.norm(), jet.dv.norm()]);
         }
     }
-    Some((below, above))
+    out
+}
+
+/// How far past a knot line, in `ε_in`, a boundary point may reach and
+/// still be read as on the line by [`clear_of`]: the boundary stands
+/// within `ε_in` of its chart, and the chart region past the line it is
+/// kept clear of, inflated by that `ε_in`, must still leave a gap of
+/// `ε_in` before a point on the line.
+const CLEAR_REACH: f64 = 4.0;
+
+/// The enclosures [`clear_of`] may form for one side of one line
+/// before it answers "not certified": a constant of the selection,
+/// spent where the boundary meets the region or runs along its rim.
+const CLEAR_BUDGET: usize = 4096;
+
+/// The deepest [`clear_of`] halves an edge piece.
+const CLEAR_DEPTH: u32 = 40;
+
+/// A parameter rectangle of the chart and an enclosure of its image.
+#[derive(Clone, Copy)]
+struct Cell {
+    u: (f64, f64),
+    v: (f64, f64),
+    image: [Interval; 3],
+}
+
+/// Whether face `f`'s boundary is CERTIFIED clear of the chart past the
+/// line `knot` on one side: above it where `high`, below it otherwise.
+///
+/// The region is the chart's parameter rectangle on that side, set back
+/// from the line by [`CLEAR_REACH`]`·ε_in` over the chart's speed bound
+/// across it, so every chart point the setback leaves out is within that
+/// distance of the line. Each boundary edge stands within `ε_in` of the
+/// chart, so an edge whose every point is farther than `ε_in` from the
+/// region's image has no foot in it. Read by enclosure alone: the
+/// region's image cell by cell ([`NurbsSurface::rect_enclosure`]), and
+/// each edge piece's box ([`piece_box`]), the two halved together where
+/// they meet, until they part or [`CLEAR_BUDGET`] is spent.
+#[allow(clippy::too_many_arguments)]
+fn clear_of(
+    solid: &SolidSpec,
+    f: usize,
+    s: &NurbsSurface<f64>,
+    lifted: &NurbsSurface<Interval>,
+    knot: f64,
+    along_v: bool,
+    high: bool,
+    eps_in: f64,
+) -> bool {
+    let (sup_u, sup_v) = s.stretch_sup();
+    let speed = if along_v { sup_v.get() } else { sup_u.get() };
+    let setback = CLEAR_REACH * eps_in / speed;
+    if !setback.is_finite() {
+        return false;
+    }
+    let (du, dv) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());
+    let across = if along_v { dv } else { du };
+    let (lo, hi) = across.domain();
+    let side = if high {
+        (knot + setback, hi)
+    } else {
+        (lo, knot - setback)
+    };
+    if side.0 >= side.1 {
+        return true;
+    }
+    // The region's knot cells: an enclosure is tightest inside one.
+    let breaks = |kv: &KnotVector, (a, b): (f64, f64)| -> Vec<f64> {
+        let mut out = vec![a];
+        out.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.push(b);
+        out
+    };
+    let (ru, rv) = if along_v {
+        (du.domain(), side)
+    } else {
+        (side, dv.domain())
+    };
+    let mut budget = CLEAR_BUDGET;
+    let mut cell = |u: (f64, f64), v: (f64, f64)| -> Option<Cell> {
+        budget = budget.checked_sub(1)?;
+        let p = lifted.rect_enclosure(u, v);
+        let image = [p.x, p.y, p.z];
+        image
+            .iter()
+            .all(|c| c.lo() <= c.hi())
+            .then_some(Cell { u, v, image })
+    };
+    let (bu, bv) = (breaks(du, ru), breaks(dv, rv));
+    let mut cells = Vec::new();
+    for u in bu.windows(2) {
+        for v in bv.windows(2) {
+            let Some(c) = cell((u[0], u[1]), (v[0], v[1])) else {
+                return false;
+            };
+            cells.push(c);
+        }
+    }
+    solid.faces[f].loops.iter().flat_map(|l| &l.uses).all(|u| {
+        let spec = &solid.edges[&u.edge];
+        let lifted_edge = match spec.carrier {
+            Curve3::Nurbs(ref c) => Some(c.map_scalar(|x| Interval::from_bounds(x, x))),
+            _ => None,
+        };
+        let piece = |a: f64, b: f64| piece_box(&spec.carrier, lifted_edge.as_ref(), a, b);
+        parts(
+            &piece,
+            (spec.t0, spec.t1),
+            cells.clone(),
+            eps_in,
+            &mut cell,
+            0,
+        )
+    })
+}
+
+/// Whether the edge pieces over `t` keep farther than `pad` from every
+/// one of `cells`, halving a piece and quartering each cell it meets
+/// until they part; `false` where a piece has no box, the budget `cell`
+/// spends runs out, or the piece is [`CLEAR_DEPTH`] halvings deep.
+fn parts(
+    piece: &dyn Fn(f64, f64) -> Option<[Interval; 3]>,
+    (a, b): (f64, f64),
+    cells: Vec<Cell>,
+    pad: f64,
+    cell: &mut dyn FnMut((f64, f64), (f64, f64)) -> Option<Cell>,
+    depth: u32,
+) -> bool {
+    let Some(bx) = piece(a, b) else {
+        return false;
+    };
+    let meets = |c: &Cell| {
+        c.image
+            .iter()
+            .zip(&bx)
+            .all(|(i, e)| i.lo() - pad <= e.hi() && e.lo() <= i.hi() + pad)
+    };
+    let hit: Vec<Cell> = cells.into_iter().filter(meets).collect();
+    if hit.is_empty() {
+        return true;
+    }
+    if depth == CLEAR_DEPTH {
+        return false;
+    }
+    let mut finer = Vec::with_capacity(4 * hit.len());
+    for c in &hit {
+        let (um, vm) = (0.5 * (c.u.0 + c.u.1), 0.5 * (c.v.0 + c.v.1));
+        for u in [(c.u.0, um), (um, c.u.1)] {
+            for v in [(c.v.0, vm), (vm, c.v.1)] {
+                let Some(q) = cell(u, v) else {
+                    return false;
+                };
+                finer.push(q);
+            }
+        }
+    }
+    let m = 0.5 * (a + b);
+    parts(piece, (a, m), finer.clone(), pad, cell, depth + 1)
+        && parts(piece, (m, b), finer, pad, cell, depth + 1)
+}
+
+/// An enclosure of `carrier` over `[a, b]`: a line's two ends, a conic
+/// arc's certified box ([`geom::curves::boxes::conic_arc_aabb`]), a
+/// spline's restricted control hull (`lifted`, its net as intervals).
+/// `None` for any other carrier, or a box the door poisons.
+fn piece_box(
+    carrier: &Curve3<f64>,
+    lifted: Option<&NurbsCurve3<Interval>>,
+    a: f64,
+    b: f64,
+) -> Option<[Interval; 3]> {
+    let hull = |lo: [f64; 3], hi: [f64; 3]| -> Option<[Interval; 3]> {
+        let out = [0, 1, 2].map(|i| Interval::from_bounds(lo[i], hi[i]));
+        out.iter().all(|c| c.lo() <= c.hi()).then_some(out)
+    };
+    match carrier {
+        Curve3::Nurbs(_) => {
+            let p = lifted?.span_enclosure(a, b)?;
+            let out = [p.x, p.y, p.z];
+            out.iter().all(|c| c.lo() <= c.hi()).then_some(out)
+        }
+        Curve3::Line { .. } => {
+            let (p, q) = (carrier.eval(a), carrier.eval(b));
+            // Two rounded evaluations: pad each by a few ulps of its
+            // size, outward.
+            let ulp = |x: f64| 4.0 * f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
+            let lo = [p.x.min(q.x), p.y.min(q.y), p.z.min(q.z)];
+            let hi = [p.x.max(q.x), p.y.max(q.y), p.z.max(q.z)];
+            hull(lo.map(|x| x - ulp(x)), hi.map(|x| x + ulp(x)))
+        }
+        _ => {
+            let bx = geom::curves::boxes::conic_arc_aabb(
+                carrier,
+                a,
+                b,
+                carrier.eval(a),
+                carrier.eval(b),
+            )?;
+            hull(
+                [bx.min_x, bx.min_y, bx.min_z],
+                [bx.max_x, bx.max_y, bx.max_z],
+            )
+        }
+    }
 }
 
 /// The vertex a use starts at.
@@ -425,11 +687,10 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
     if u.forward { spec.start } else { spec.end }
 }
 
-/// Splits face `fi` once, along its first crease knot's iso line, and
-/// answers the index of the new face, or `None` where no crease knot's
-/// iso line crosses the face ([`sides`]): a line outside the face's
-/// trimmed domain, or along its boundary, lies inside no cell, and the
-/// face keeps its chart.
+/// Splits face `fi` once, along the iso line of its crease knot `knot`
+/// (along `v` where `along_v`), which crosses it ([`crossing_knots`]),
+/// and answers the index of the new face: the low sub-patch stays at
+/// `fi`, the high one is pushed.
 ///
 /// The iso line runs across the whole chart, from `Q₀` on the low
 /// boundary of the other direction to `Q₁` on the high one; both are
@@ -447,11 +708,13 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
 fn split_face_once(
     solid: &mut SolidSpec,
     fi: usize,
+    knot: f64,
+    along_v: bool,
     eps_in: f64,
     mint: &mut dyn FnMut() -> u64,
-) -> Result<Option<usize>, StepImportError> {
+) -> Result<usize, StepImportError> {
     let Surface::Nurbs(ref s) = solid.faces[fi].surface else {
-        return Ok(None);
+        unreachable!("only a B-spline chart has crease knots to split at")
     };
     let s = Arc::clone(s);
     let face_id = solid.faces[fi].id;
@@ -459,23 +722,6 @@ fn split_face_once(
         face: face_id,
         knot,
         what,
-    };
-    // The first knot whose line crosses the face. A line outside the
-    // face's trimmed domain, or along its boundary, lies in no cell's
-    // interior, and the face keeps its chart as stated.
-    let mut crossing = None;
-    for (knot, along_v) in crease_lines(&s) {
-        let (below, above) = sides(solid, fi, &s, knot, along_v, eps_in).ok_or(refuse(
-            knot,
-            "a point of the face's boundary did not invert onto its chart",
-        ))?;
-        if below && above {
-            crossing = Some((knot, along_v));
-            break;
-        }
-    }
-    let Some((knot, along_v)) = crossing else {
-        return Ok(None);
     };
     let NetSplit { lo, hi, .. } = split_net(&s, knot, along_v).ok_or(refuse(
         knot,
@@ -654,15 +900,12 @@ fn split_face_once(
         loops: high_loop,
         band: false,
     });
-    Ok(Some(solid.faces.len() - 1))
+    Ok(solid.faces.len() - 1)
 }
 
-/// Review probe for PR 6013: the side test's nine samples per edge
-/// miss a trim that crosses the knot line between two of them, and the
-/// face keeps its crease inside its cell.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
-mod review_6013_side_test {
+mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::sync::Arc;
 
@@ -670,16 +913,16 @@ mod review_6013_side_test {
     use geom_core::spline::KnotVector;
     use geom_core::{Point3, Vec3};
 
-    use super::{sides, split_face_once};
+    use super::{crossing_knots, split_faces};
     use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+    use crate::error::StepImportError;
+
+    const EPS_IN: f64 = 1e-7;
 
     /// The flat unit square `z = 0`, degree 1 in `u` with a knot at
     /// `u = 1/2` (multiplicity 1 = degree: a crease run by structure),
-    /// trimmed by one circle of radius `0.2` about `(0.31, 0.5)`. The
-    /// circle reaches `x = 0.51`, past the knot line by `0.01`, but its
-    /// nine samples, from `π/8` in steps of `π/4`, reach only
-    /// `0.31 + 0.2 cos(π/8) ≈ 0.4948`.
-    fn solid() -> SolidSpec {
+    /// trimmed by one circle of radius `0.2` about `(cx, 0.5)`.
+    fn solid(cx: f64) -> SolidSpec {
         let s = NurbsSurface::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -691,7 +934,7 @@ mod review_6013_side_test {
         )
         .unwrap();
         let circle = Curve3::Circle {
-            center: Point3::new(0.31, 0.5, 0.0),
+            center: Point3::new(cx, 0.5, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: 0.2,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
@@ -729,33 +972,80 @@ mod review_6013_side_test {
         }
     }
 
+    /// The square's left half, `[0, 1/2] × [0, 1]`, bounded by four
+    /// lines, its right side on the knot line: one face of a surface an
+    /// exporter split at its knot. The line lies along its boundary, in
+    /// no cell, and the face keeps its chart.
     #[test]
-    fn a_trim_crossing_between_samples_reads_as_one_side_and_keeps_its_crease() {
-        let mut solid = solid();
-        let Surface::Nurbs(ref s) = solid.faces[0].surface else {
-            unreachable!()
-        };
-        let s = Arc::clone(s);
-        // The circle truly reaches past the line.
-        let reach = (0..=10_000)
+    fn a_face_bounded_along_the_knot_line_keeps_its_chart() {
+        let mut solid = solid(0.25);
+        let corners =
+            [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
+        solid.vertices = (0..4).map(|i| (30 + i, corners[i as usize])).collect();
+        solid.edges = (0..4u64)
             .map(|i| {
-                let t =
-                    core::f64::consts::FRAC_PI_8 + core::f64::consts::TAU * f64::from(i) / 10_000.0;
-                solid.edges[&20].carrier.eval(t).x
+                let (a, b) = (corners[i as usize], corners[(i as usize + 1) % 4]);
+                let spec = EdgeSpec {
+                    start: 30 + i,
+                    end: 30 + (i + 1) % 4,
+                    carrier: Curve3::Line {
+                        origin: a,
+                        dir: b - a,
+                    },
+                    t0: 0.0,
+                    t1: 1.0,
+                    reversed: false,
+                };
+                (20 + i, spec)
             })
-            .fold(f64::NEG_INFINITY, f64::max);
-        assert!(reach > 0.509, "the trim crosses u = 1/2: {reach}");
-        // The side test reads it below the line only.
-        assert_eq!(sides(&solid, 0, &s, 0.5, false, 1e-7), Some((true, false)));
-        // So the face is not split and keeps the crease in its cell.
+            .collect();
+        solid.faces[0].loops[0].uses = (0..4)
+            .map(|i| EdgeUse {
+                edge: 20 + i,
+                forward: true,
+            })
+            .collect();
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), Vec::<f64>::new());
+    }
+
+    /// A circle about `(0.31, 0.5)` reaches `x = 0.51`, past the knot
+    /// line by `0.01`, but its nine samples, from `π/8` in steps of
+    /// `π/4`, reach only `0.31 + 0.2 cos(π/8) ≈ 0.4948`: the samples see
+    /// one side, nothing certifies the other clear, so the line is kept
+    /// and its split, which this trim cannot place, refuses typed.
+    #[test]
+    fn a_trim_crossing_between_samples_is_kept_and_refuses_typed() {
+        let mut solid = solid(0.31);
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
         let mut n = 100;
         let mut mint = || {
             n += 1;
             n
         };
-        assert_eq!(
-            split_face_once(&mut solid, 0, 1e-7, &mut mint).unwrap(),
-            None
+        let refused = split_faces(&mut solid, EPS_IN, &mut mint, &mut Vec::new());
+        assert!(
+            matches!(
+                refused,
+                Err(StepImportError::C0KnotUnsplit { face: 10, knot, .. }) if knot == 0.5
+            ),
+            "the uncertified line refuses typed: {refused:?}"
         );
+    }
+
+    /// The same circle about `(0.25, 0.5)` stops at `x = 0.45`, short of
+    /// the line by `0.05`: the side the samples do not see is certified
+    /// clear, and the face keeps its chart.
+    #[test]
+    fn a_trim_clear_of_the_line_is_certified_and_kept_whole() {
+        let mut solid = solid(0.25);
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), Vec::<f64>::new());
+        let mut n = 100;
+        let mut mint = || {
+            n += 1;
+            n
+        };
+        let mut sink = Vec::new();
+        split_faces(&mut solid, EPS_IN, &mut mint, &mut sink).unwrap();
+        assert_eq!((solid.faces.len(), sink.len()), (1, 0));
     }
 }

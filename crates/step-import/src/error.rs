@@ -377,8 +377,9 @@ pub enum StepImportError {
         source: Box<topo::BooleanError>,
     },
     /// A face whose chart has an interior C⁰ knot whose iso line crosses
-    /// the face, where the import door's split cannot place the line
-    /// (`crate::knot_split`): every face chart is C¹ by its knot
+    /// the face, or is not certified clear of it, where the import
+    /// door's split cannot place the line (`crate::knot_split`): every
+    /// face chart is C¹ by its knot
     /// structure strictly inside its cell (`docs/DESIGN.md` [topology]),
     /// and the split needs the line to part the face's single loop at
     /// two points of its boundary, one chain on each sub-patch. A trim
@@ -547,7 +548,8 @@ impl fmt::Display for StepImportError {
             Self::C0KnotUnsplit { face, knot, what } => write!(
                 f,
                 "step import: face #{face}: its B-spline chart has a C⁰ knot at {knot:e} whose \
-                 iso line crosses the face, where the import splits it so that no cell \
+                 iso line crosses the face, or is not certified clear of it, where the import \
+                 splits it so that no cell \
                  carries a crease, and the split cannot be placed: {what} \
                  (work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),

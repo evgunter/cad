@@ -453,7 +453,6 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-
 /// dm1's frontier at every band: the pcurve mint on the l-bracket
 /// wall's arc rim, split at its C⁰ knots into one-span sub-patches
 /// whose rows state the circle with end weights 1 and 2, and the
@@ -524,7 +523,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 89] = [
+const CORPUS: [(&str, Disposition); 91] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -769,6 +768,16 @@ const CORPUS: [(&str, Disposition); 89] = [
     ),
     (
         "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    // `split_axis` with one collinear half of its cylinder-side edge a
+    // straight degree-1 spline: the line is kept and the two join.
+    (
+        "tests/fixtures/line-beside-spline/mixed_lower.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/line-beside-spline/mixed_upper.step",
         Pass(1, 1, 4, 6, 4),
     ),
     (

@@ -267,6 +267,30 @@ fn face_is_upper(text: &str, face: &str) -> bool {
     panic!("the band carries a rim semicircle")
 }
 
+/// The walls the file's spline surfaces split into at their C⁰ knots:
+/// per surface, one more than its crease runs (interior multiplicity at
+/// least the degree) along each direction, multiplied.
+fn one_span_walls(text: &str) -> usize {
+    text.lines()
+        .filter_map(|l| {
+            let (_, head) = l.split_once("B_SPLINE_SURFACE(")?;
+            let mut degrees = head.split(',').map(|d| d.trim().parse::<usize>().unwrap());
+            let (p, q) = (degrees.next()?, degrees.next()?);
+            let (_, knots) = l.split_once("B_SPLINE_SURFACE_WITH_KNOTS(")?;
+            let mut lists = knots.split(')').map(|m| {
+                m.trim_start_matches([',', ' ', '('])
+                    .split(',')
+                    .map(|k| k.trim().parse::<usize>().unwrap())
+                    .collect::<Vec<_>>()
+            });
+            let (mu, mv) = (lists.next()?, lists.next()?);
+            let tiles =
+                |m: &[usize], d: usize| 1 + m[1..m.len() - 1].iter().filter(|&&k| k >= d).count();
+            Some(tiles(&mu, p) * tiles(&mv, q))
+        })
+        .sum()
+}
+
 /// **The conic quarter torus answers a bracket at the wall that holds
 /// Pappus** under a resolution of 1.024e-6 m, at every ε.
 #[test]
@@ -287,10 +311,12 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
             )
         })
         .count();
-    // Re-baselined after the C⁰-knot split (FOREIGN): 162 one-span walls; this test runs ~259 s in release (import ~125-146 s) and the import alone ~1044 s in debug, against 19 s / 90 s at 2 walls.
+    // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
+    // [topology]); the measure then reads one-span walls.
     assert_eq!(
-        walls, 162,
-        "each half band's 9 × 9 conic spans import as one wall per span"
+        walls,
+        one_span_walls(&text),
+        "each half band's conic spans import as one wall per span"
     );
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))

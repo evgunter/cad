@@ -48,13 +48,17 @@
 //!   an `Intersection`. The joined edge is asked the must-carry rule
 //!   again over its own span.
 //!
-//! Two spline carriers that meet at a knot of multiplicity at least
-//! their degree, a clamped end or an interior crease run, are never
-//! joined, whatever arm their faces take: the joined edge's carrier
-//! would carry that crease inside its cell, and every face chart and
+//! The joined edge runs on the kept edge's carrier through the vertex,
+//! so the kept edge is one whose carrier has no crease there
+//! ([`crease_at`]: a spline carrier at its clamped end, or at an
+//! interior knot of multiplicity at least its degree). A spline that
+//! ends at the vertex beside a line or a circle on the same locus is
+//! the edge the join kills. Where both carriers crease there, as two
+//! spline pieces meeting at a knot of full multiplicity do, the vertex
+//! is never joined, whatever arm their faces take: every face chart and
 //! edge carrier is C¹ by its knot structure strictly inside its cell
-//! (Ev's PR 5913 ruling), so such a vertex is one the knot structure
-//! puts there ([`crease_at`]).
+//! (Ev's PR 5913 ruling), so it is the vertex the knot structure puts
+//! there.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
@@ -442,20 +446,27 @@ fn joinable<T: Decide>(
     if e1 == e2 {
         return Ok(None);
     }
-    let d1 = linked(
-        &body.edges,
-        e1,
-        EntityId::Edge,
-        EntityId::HalfEdge(*h1),
-        "edge",
-    );
-    let d2 = linked(
-        &body.edges,
-        e2,
-        EntityId::Edge,
-        EntityId::HalfEdge(*h2),
-        "edge",
-    );
+    let link = |e: EdgeKey, h: HalfEdgeKey| {
+        linked(
+            &body.edges,
+            e,
+            EntityId::Edge,
+            EntityId::HalfEdge(h),
+            "edge",
+        )
+    };
+    // The joined edge runs on the kept carrier through `w`, so `kept`
+    // is an edge whose carrier has no crease there; where both have
+    // one, `w` is the vertex the knot structure puts there.
+    let (h1, h2, e1, e2) = match (
+        crease_at(body, e1, link(e1, *h1), w),
+        crease_at(body, e2, link(e2, *h2), w),
+    ) {
+        (true, true) => return Ok(None),
+        (false, true) => (h2, h1, e2, e1),
+        _ => (h1, h2, e1, e2),
+    };
+    let (d1, d2) = (link(e1, *h1), link(e2, *h2));
     let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
     let pair = |s: crate::readback::EdgeSides| {
         let (f, g) = s.faces();
@@ -463,11 +474,6 @@ fn joinable<T: Decide>(
     };
     let (f, g) = pair(s1);
     if f == g || pair(s2) != (f, g) {
-        return Ok(None);
-    }
-    // Two spline pieces meeting at a knot of full multiplicity: the
-    // joined carrier would carry a crease run inside its cell.
-    if crease_at(body, e1, d1, w) || crease_at(body, e2, d2, w) {
         return Ok(None);
     }
     let Some(he) = body.mate(*h1) else {
