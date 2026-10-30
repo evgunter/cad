@@ -1781,6 +1781,15 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// is an Euler operator, so tier 1 holds throughout and χ is
     /// conserved at every step.
     ///
+    /// No caller states a coincidence to this door: two faces on two
+    /// keys glue on their margins, and a pair a Boolean glued on its
+    /// record, which only the Boolean hands the merge.
+    ///
+    /// ```compile_fail,E0599
+    /// let mut body = topo::Body::<f64>::new();
+    /// let _ = body.merge_coplanar_faces_declared(&[], geom_core::Tol::witness());
+    /// ```
+    ///
     /// A body with nothing to merge returns `Ok` with no merge groups,
     /// and is changed only by the join the door ends with (reported in
     /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to

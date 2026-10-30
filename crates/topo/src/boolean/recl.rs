@@ -2644,7 +2644,7 @@ mod tests {
             let corner = |face| [sector(z, x, arm, face), sector(x, z, arm, face)];
             let decls = Glue {
                 pairs: class
-                    .map(|class| vec![GluedPair::new(a.1, b.1, class)])
+                    .map(|class| vec![GluedPair::read(a, b, class, band)])
                     .unwrap_or_default(),
                 ..Glue::none()
             };

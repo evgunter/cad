@@ -6121,8 +6121,9 @@ mod declaration_order_rows {
     /// the review's executed raise: a sheet of radius `1 + mid` against
     /// the unit wall. Undeclared, the escalated clearance hands the arc
     /// to the root lane as a sphere's or a torus's does, and the
-    /// endpoint sides that guard it read the same in-band pose. Declared `Rest`, which the door verifies,
-    /// with the door calling the two one carrier, the rung reads the
+    /// endpoint sides that guard it read the same in-band pose. Glued
+    /// `Rest` (which the `Rest` door, reading the pair in band, does not
+    /// verify), with the index calling the two one carrier, the rung reads the
     /// clearance zero, and the covered arm's endpoint sides refuse the
     /// same in-band pose. Not called one carrier, or declared `Tangent`
     /// the door does not verify, the pair carries no certificate, so the
@@ -6145,14 +6146,14 @@ mod declaration_order_rows {
             (
                 Some(GlueClass::Rest),
                 true,
-                Some(true),
+                Some(false),
                 Coincide::VertexOnCoveredFace,
                 DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(GlueClass::Rest),
                 false,
-                Some(true),
+                Some(false),
                 uncovered,
                 DeclarationRead::Spent(GlueClass::Rest),
             ),

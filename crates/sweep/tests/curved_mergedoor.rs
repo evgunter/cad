@@ -1,9 +1,9 @@
 //! The merge door and a glued pair on a CYLINDER carrier.
 //!
-//! A glued pair whose faces both survive a boolean is handed to
-//! `merge_coplanar_faces_declared` whatever its carrier, and the door
-//! reads every meeting edge on the carrier ladder, planar and curved
-//! alike: faces their margins decide one carrier facing the same way
+//! A glued pair whose faces both survive a boolean is handed to the
+//! merge whatever its carrier, and the public door
+//! (`merge_coplanar_faces`) reads every meeting edge on the carrier
+//! ladder, planar and curved alike: faces their margins decide one carrier facing the same way
 //! glue. A curved run whose glue would close its
 //! carrier's full period stays in its cut form and is recorded as a
 //! `SkippedMerge` carrying `PeriodClosure` — visible in
@@ -23,9 +23,7 @@ use crate::mate2_common;
 use geom::SurfaceKind;
 use geom_core::Point3;
 use geom_core::{Point2, Tol, Vec2};
-use mate2_common::{
-    assert_additive, boolean_body, collar, collar_at, peg_at, plane_face, volume, walls_at,
-};
+use mate2_common::{assert_additive, boolean_body, collar, collar_at, peg_at, volume, walls_at};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -228,8 +226,8 @@ fn on_a_key_of_its_own(
 }
 
 /// A peg whose three wall sectors each sit on their OWN surface key
-/// (same description): no hard rung fires anywhere, so the door has
-/// nothing to merge and only the declaration to answer.
+/// (same description): no one-key rung fires anywhere, so the door
+/// glues them on their margins alone.
 fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
     let mut body = peg_at(0.0, 0.0, 1.0);
     let mut keys = Vec::new();
@@ -245,18 +243,16 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
     (body, keys)
 }
 
-/// Row 1′ (public door): a declared cylinder pair on a peg whose three
-/// wall sectors sit on keys of their own is read on the carrier ladder,
-/// and the three sectors are one run whose glue would close the full
-/// period: the door records that `PeriodClosure`, naming every sector,
-/// commits nothing, and copies of the pair change nothing.
+/// Row 1′ (public door): a peg whose three wall sectors sit on keys of
+/// their own is read on the carrier ladder, and the three sectors are
+/// one run whose glue would close the full period: the door records
+/// that `PeriodClosure`, naming every sector, and commits nothing.
 #[test]
 fn a_declared_full_period_pair_is_recorded_as_its_period_closure() {
-    let (mut body, keys) = peg_with_split_wall_keys();
+    let (mut body, _) = peg_with_split_wall_keys();
     let before = format!("{body:?}");
-    let pair = (keys[0], keys[1]);
     let outcome = body
-        .merge_coplanar_faces_declared(&[pair, pair, pair], Tol::witness())
+        .merge_coplanar_faces(Tol::witness())
         .expect("a full-period run is recorded, never refused");
     assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
     let [skip] = &outcome.skipped[..] else {
@@ -279,25 +275,18 @@ fn a_declared_full_period_pair_is_recorded_as_its_period_closure() {
     );
 }
 
-/// Row 1″ (public door): a planar pair and a cylinder pair in ONE
-/// call, in either order, are each read by their own carriers — the
-/// planar pair (two cap planes that never meet) licenses nothing, and
-/// the cylinder pair's run is recorded as its period closure.
+/// Row 1″ (public door): the planar pairs and the cylinder pairs of
+/// one body are each read by their own carriers — the two cap planes,
+/// which never meet, glue nothing, and the cylinder sectors' run is
+/// recorded as its period closure.
 #[test]
 fn mixed_list_classifies_each_pair_by_its_own_kind() {
-    let (mut body, keys) = peg_with_split_wall_keys();
-    let caps = (
-        body.get_face(plane_face(&body, 0.0, false))
-            .unwrap()
-            .surface,
-        body.get_face(plane_face(&body, 1.0, true)).unwrap().surface,
-    );
-    let cyl = (keys[0], keys[1]);
+    let (mut body, _) = peg_with_split_wall_keys();
     let before = format!("{body:?}");
-    for declared in [[caps, cyl], [cyl, caps]] {
+    {
         let outcome = body
-            .merge_coplanar_faces_declared(&declared, Tol::witness())
-            .unwrap_or_else(|e| panic!("{declared:?}: each pair is its own kind: {e:?}"));
+            .merge_coplanar_faces(Tol::witness())
+            .unwrap_or_else(|e| panic!("each pair is its own kind: {e:?}"));
         assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
         assert!(
             matches!(
@@ -307,7 +296,7 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
                     ..
                 }]
             ),
-            "{declared:?}: the run's period closure: {:?}",
+            "the run's period closure: {:?}",
             outcome.skipped
         );
         assert_eq!(
@@ -445,15 +434,16 @@ fn distinct_keys(
 }
 
 /// Row 1‴ (public door): a `(Plane, Plane)` pair and a
-/// `(Cylinder, Cylinder)` pair that each genuinely meet at an edge BOTH
-/// glue — the D-prism's split `y = 0` wall and its arc run, short of a
-/// full period — in one call, nothing recorded.
+/// `(Cylinder, Cylinder)` pair on keys of their own that each genuinely
+/// meet at an edge BOTH glue on their margins — the D-prism's split
+/// `y = 0` wall and its arc run, short of a full period — in one call,
+/// nothing recorded.
 #[test]
 fn planar_and_cylinder_pairs_glue_in_one_call() {
-    let (mut body, walls, cyls) = d_prism_with_split_keys();
+    let (mut body, _, _) = d_prism_with_split_keys();
     let faces_before = body.faces().count();
     let outcome = body
-        .merge_coplanar_faces_declared(&[walls, cyls], Tol::witness())
+        .merge_coplanar_faces(Tol::witness())
         .unwrap_or_else(|e| panic!("{e:?}"));
     assert_eq!(outcome.groups.len(), 2, "{:?}", outcome.groups);
     for group in &outcome.groups {
@@ -468,9 +458,8 @@ fn planar_and_cylinder_pairs_glue_in_one_call() {
     assert_eq!(validate_closed(&body), Ok(()));
 }
 
-/// Row 1⁗ (public door): a declared pair across two keys of one peg
-/// wall — two sectors on `k`, the third on `k2` — is one run with the
-/// same-key sectors, and the three close the full period: no group
+/// Row 1⁗ (public door): two keys of one peg wall — two sectors on
+/// `k`, the third on `k2` — are one run, and the three close the full period: no group
 /// commits, and the one record names the three live sectors.
 /// (Construction after the R1 review probe and R2's MAJOR 1.)
 #[test]
@@ -482,7 +471,7 @@ fn a_run_across_keys_is_recorded_whole() {
     let k2 = on_a_key_of_its_own(&mut body, walls[2], described);
     let faces_before = body.faces().count();
     let outcome = body
-        .merge_coplanar_faces_declared(&[(k, k2)], Tol::witness())
+        .merge_coplanar_faces(Tol::witness())
         .unwrap_or_else(|e| panic!("{e:?}"));
     assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
     assert_eq!(body.faces().count(), faces_before);
@@ -504,12 +493,10 @@ fn a_run_across_keys_is_recorded_whole() {
     );
 }
 
-/// Row 1⁵ (public door): a declared pair with NO live face on either
-/// surface — a surface kept alive only by an edge description after
-/// every face left it — licenses nothing: the door's outcome and body
-/// are the undeclared door's, whose only records are the body's own
-/// wall runs' period closures; and so is a pair of that surface with a
-/// live key. (Construction after the R1/R2 review probes: scene C's
+/// Row 1⁵ (public door): a surface with NO live face — kept alive only
+/// by an edge description after every face left it — glues nothing:
+/// the door's only records are the body's own wall runs' period
+/// closures. (Construction after the R1/R2 review probes: scene C's
 /// shipped body with every peg-wall face re-keyed.)
 #[test]
 fn pair_with_no_live_faces_is_the_undeclared_merge() {
@@ -522,20 +509,17 @@ fn pair_with_no_live_faces_is_the_undeclared_merge() {
             .iter()
             .all(|&f| body.get_face(f).unwrap().surface == pk)
     );
-    let mut fresh = Vec::new();
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
-        fresh.push(
-            // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
-            body.set_face_surface_unvouched_for_tests(
-                f,
-                FaceSurface::New {
-                    surface: described,
-                    sense: true,
-                },
-            )
-            .unwrap(),
-        );
+        // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
+        body.set_face_surface_unvouched_for_tests(
+            f,
+            FaceSurface::New {
+                surface: described,
+                sense: true,
+            },
+        )
+        .unwrap();
     }
     assert!(
         body.get_surface(pk).is_some(),
@@ -547,32 +531,15 @@ fn pair_with_no_live_faces_is_the_undeclared_merge() {
     // At rest: the re-charted walls store their rows again, so the
     // door's closing mint has nothing to change.
     topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
-    let mut plain = body.clone();
-    let want = plain.merge_coplanar_faces(Tol::witness()).unwrap();
+    let want = body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert!(
         want.groups.is_empty()
             && want
                 .skipped
                 .iter()
                 .all(|r| matches!(r.reason, MergeCoplanarError::PeriodClosure { .. })),
-        "the undeclared door records only period closures: {want:?}"
+        "the door records only period closures: {want:?}"
     );
-    for pair in [(pk, pk), (pk, fresh[0])] {
-        let mut declared = body.clone();
-        let got = declared
-            .merge_coplanar_faces_declared(&[pair], Tol::witness())
-            .unwrap_or_else(|e| panic!("{pair:?}: {e:?}"));
-        assert_eq!(
-            format!("{got:?}"),
-            format!("{want:?}"),
-            "{pair:?}: the undeclared door's outcome"
-        );
-        assert_eq!(
-            format!("{declared:?}"),
-            format!("{plain:?}"),
-            "{pair:?}: the undeclared door's body"
-        );
-    }
 }
 
 /// A ball of radius `r` (a revolved semicircle).
@@ -605,52 +572,24 @@ fn frustum() -> Body<f64> {
         .body
 }
 
-/// Row 4: a declared plane×cone pair takes the same refusal as a
-/// declared plane×cylinder pair: two kinds are a torn argument, refused
-/// at the gate naming the second key, whatever the ladder could read.
+/// Row 4: a plane meeting a cone and a plane meeting a cylinder glue
+/// alike: never, inside and outside the ladder. Two kinds are no one
+/// carrier at any margin.
 #[test]
 fn a_declared_pair_of_two_kinds_refuses_alike_inside_and_outside_the_ladder() {
-    let mut frustum = frustum();
-    let plane = body_key_of(&frustum, SurfaceKind::Plane);
-    let cone = body_key_of(&frustum, SurfaceKind::Cone);
-    let mut peg = peg_at(0.0, 0.0, 1.0);
-    let (peg_plane, cyl) = plane_and_cylinder_keys(&peg);
-    for (label, body, keys) in [
-        ("plane, cone", &mut frustum, [(plane, cone), (cone, plane)]),
-        (
-            "plane, cylinder",
-            &mut peg,
-            [(peg_plane, cyl), (cyl, peg_plane)],
-        ),
+    for (label, mut body) in [
+        ("plane, cone", frustum()),
+        ("plane, cylinder", peg_at(0.0, 0.0, 1.0)),
     ] {
-        let before = format!("{body:?}");
-        for (k1, k2) in keys {
-            let got = body.merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness());
-            assert!(
-                matches!(
-                    got,
-                    Err(MergeCoplanarError::InvalidInput {
-                        surface,
-                        what: "declared surfaces are not one kind",
-                    }) if surface == k2
-                ),
-                "{label} ({k1:?}, {k2:?}): {got:?}"
-            );
-            assert_eq!(
-                format!("{body:?}"),
-                before,
-                "{label}: the body is untouched"
-            );
-        }
+        let outcome = body
+            .merge_coplanar_faces(Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        assert!(
+            outcome.groups.is_empty(),
+            "{label}: two kinds never glue: {:?}",
+            outcome.groups
+        );
     }
-}
-
-/// The key of `body`'s first face of `kind`.
-fn body_key_of(body: &Body<f64>, kind: SurfaceKind) -> topo::SurfaceKey {
-    body.faces()
-        .map(|(_, f)| f.surface)
-        .find(|&k| body.get_surface(k).map(geom::Surface::kind) == Some(kind))
-        .unwrap_or_else(|| panic!("no {kind:?} face"))
 }
 
 /// A donut (a revolved circle off the axis).
@@ -695,11 +634,11 @@ fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, to
     distinct_keys(body, faces[0], faces[1])
 }
 
-/// Row 1⁶ (public door): a declared sphere pair, a declared torus pair
-/// and a declared cone pair — a ball's two faces, a donut's two, a
-/// frustum's two wall faces — are each one run closing its carrier's
-/// full period: the record is that `PeriodClosure`, naming both faces,
-/// the undeclared door's outcome and body. (After the R1 review probe.)
+/// Row 1⁶ (public door): a sphere pair, a torus pair and a cone pair on
+/// keys of their own — a ball's two faces, a donut's two, a frustum's
+/// two wall faces — are each one run closing its carrier's full period:
+/// the record is that `PeriodClosure`, naming both faces. (After the R1
+/// review probe.)
 #[test]
 fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     for (label, mut body, kind) in [
@@ -709,21 +648,9 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     ] {
         assert_eq!(validate_closed(&body), Ok(()), "{label}: tier 2");
         let (k1, k2) = two_keys_of(&mut body, kind);
-        let mut plain = body.clone();
-        let want = plain.merge_coplanar_faces(Tol::witness()).unwrap();
         let outcome = body
-            .merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness())
+            .merge_coplanar_faces(Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-        assert_eq!(
-            format!("{outcome:?}"),
-            format!("{want:?}"),
-            "{label}: the undeclared door's outcome"
-        );
-        assert_eq!(
-            format!("{body:?}"),
-            format!("{plain:?}"),
-            "{label}: the undeclared door's body"
-        );
         assert!(outcome.groups.is_empty(), "{label}: {:?}", outcome.groups);
         let [skip] = &outcome.skipped[..] else {
             panic!("{label}: one record: {:?}", outcome.skipped);
@@ -814,100 +741,24 @@ fn consumed_side_of_the_pair_leaves_only_period_closures() {
     assert_eq!(assert_period_closures("D", &bb).len(), 1, "D: one wall run");
 }
 
-/// A peg body's planar cap key and one cylinder wall key.
-fn plane_and_cylinder_keys(body: &Body<f64>) -> (topo::SurfaceKey, topo::SurfaceKey) {
-    let plane = body.get_face(plane_face(body, 0.0, false)).unwrap().surface;
-    let cyl = body.get_face(walls_at(body, BORE_R)[0]).unwrap().surface;
-    (plane, cyl)
-}
-
-/// Row 4: a pair of two KINDS is a torn argument and keeps refusing at
-/// the public door, typed, naming the SECOND key (the one whose kind
-/// disagrees with the first's), with the body untouched — never
-/// swallowed as a carrier record; and a torn pair anywhere in a longer
-/// list refuses the whole call.
+/// Row 4: a peg's planar caps and cylinder walls meet at edges and
+/// never glue: two kinds are no one carrier, and the door leaves both
+/// as they are, its only records the walls' own period closure.
 #[test]
 fn mixed_kind_declared_pair_still_refuses_typed() {
     let mut body = peg_at(0.0, 0.0, 1.0);
-    let (plane, cyl) = plane_and_cylinder_keys(&body);
-    let before = format!("{body:?}");
-    for (k1, k2) in [(plane, cyl), (cyl, plane)] {
-        let err = body
-            .merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness())
-            .expect_err("a plane/cylinder pair refuses");
-        assert!(
-            matches!(
-                err,
-                MergeCoplanarError::InvalidInput {
-                    surface,
-                    what: "declared surfaces are not one kind",
-                } if surface == k2
-            ),
-            "({k1:?}, {k2:?}): {err:?}"
-        );
-        assert_eq!(format!("{body:?}"), before, "body untouched on refusal");
-    }
-    let caps = (
-        plane,
-        body.get_face(plane_face(&body, 1.0, true)).unwrap().surface,
-    );
-    for list in [
-        vec![(plane, cyl), caps, (cyl, cyl)],
-        vec![caps, (plane, cyl), (cyl, cyl)],
-        vec![caps, (cyl, cyl), (plane, cyl)],
-    ] {
-        let err = body
-            .merge_coplanar_faces_declared(&list, Tol::witness())
-            .expect_err("a torn pair anywhere in the list refuses");
-        assert!(
-            matches!(
-                err,
-                MergeCoplanarError::InvalidInput {
-                    surface,
-                    what: "declared surfaces are not one kind",
-                } if surface == cyl
-            ),
-            "{list:?}: {err:?}"
-        );
-        assert_eq!(format!("{body:?}"), before, "body untouched on refusal");
-    }
-}
-
-/// Row 5: a key that does not resolve refuses BEFORE any kind is
-/// read, whichever kind its partner has.
-#[test]
-fn unresolved_declared_key_still_refuses() {
-    let mut body = peg_at(0.0, 0.0, 1.0);
-    let (plane, cyl) = plane_and_cylinder_keys(&body);
-    // The collar has more surfaces than the peg, so its highest key
-    // names a slot the peg's arena does not have.
-    let dangling = collar().surfaces().map(|(k, _)| k).max().unwrap();
+    let outcome = body
+        .merge_coplanar_faces(Tol::witness())
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
     assert!(
-        body.get_surface(dangling).is_none(),
-        "{dangling:?} must not resolve in the peg"
+        outcome
+            .skipped
+            .iter()
+            .all(|r| matches!(r.reason, MergeCoplanarError::PeriodClosure { .. })),
+        "{:?}",
+        outcome.skipped
     );
-    let before = format!("{body:?}");
-    for pair in [
-        (dangling, plane),
-        (plane, dangling),
-        (dangling, cyl),
-        (cyl, dangling),
-    ] {
-        let err = body
-            .merge_coplanar_faces_declared(&[pair], Tol::witness())
-            .expect_err("an unresolved key refuses");
-        assert!(
-            matches!(
-                err,
-                MergeCoplanarError::InvalidInput {
-                    surface,
-                    what: "declared surface key does not resolve",
-                } if surface == dangling
-            ),
-            "{pair:?}: {err:?}"
-        );
-        assert_eq!(format!("{body:?}"), before, "body untouched on refusal");
-    }
 }
 
 /// Row 7 (E, F): two equal pegs stacked end to end, their walls one

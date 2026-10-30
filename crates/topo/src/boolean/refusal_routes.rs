@@ -810,7 +810,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
 /// declared-`Tangent` pair's conformal screen ([`Coincide::Planes`]):
 /// parallel goes on to the offset rung, which contradicts a `Tangent`
 /// claim (`ContactContradicted`), and a clear tilt to the witness lane,
-/// which has no locus for two planes (`UnsupportedDeclarationClass`).
+/// which has no locus for two planes (`TangencyUnsupported`).
 /// No move of the parts passes under that declaration, so no lever is
 /// named.
 const PLANES_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
@@ -3718,12 +3718,11 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **A declared pair's parallelism, and the maximal-faces gate's
-    /// rungs, each end where their own door can reach** (D4 ¶1 (i)).
-    /// At a declared door the parallelism rung bridges an in-band
-    /// margin, so its one escalation is a norm it could not read
-    /// (`plane_eq::unreadable_norm`, the rung's own raise): the merge and
-    /// the Boolean both end it as a defect, with no declaration. The
+    /// **An unreadable norm, and the maximal-faces gate's rungs, each
+    /// end where their own door can reach** (D4 ¶1 (i)). A norm the
+    /// parallelism rung could not read (`plane_eq::unreadable_norm`, the
+    /// rung's own raise) ends as a defect at every Boolean door, with no
+    /// declaration. The
     /// maximal-faces gate compares two faces of one operand, which no
     /// declaration names: a real in-band parallelism raise there (two
     /// neighbours bent by an in-band angle over a unit extent) and a
@@ -3761,14 +3760,9 @@ pub(in crate::boolean) mod tests {
             PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::Tangent)),
             PlaneDoor::Neighbours,
         ];
-        let merge = MergeCoplanarError::Escalated {
-            decision: crate::merge_faces::MergeDecision::Neighbours(PlaneRung::Norm),
-            diag,
-        }
-        .to_string();
         let texts =
             doors.map(|door| BooleanError::plane_identity(PlaneRung::Norm, door, diag).to_string());
-        for text in texts.iter().chain([&merge]) {
+        for text in &texts {
             let problems = short_of_the_guard(text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
             assert_eq!(

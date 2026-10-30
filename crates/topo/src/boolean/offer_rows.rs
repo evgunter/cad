@@ -223,10 +223,11 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    // Declared `Rest` through the door, the walls are one carrier and the
-    // arc's ends are read; a smaller tolerance decides the radii apart.
+    // Glued `Rest` in the index, the walls are one carrier and the arc's
+    // ends are read; a smaller tolerance decides the radii apart, and the
+    // arc crosses a curved face the arm cannot settle.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("ContactContradicted")) =>
+        Withdrawn(Because::Refuses("CurvedPierceUnsupported")) =>
         arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
@@ -727,9 +728,9 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 }
 
 /// The rim arcs of a radius-`r` wall sheet against a unit wall sheet
-/// sharing its axis, the pair declared `class` through the Boolean's
-/// declaration door (`verify_declared_contacts`, which also says whether
-/// the two are one carrier): the first arc's raise.
+/// sharing its axis, the pair glued `class` in the index the covered arm
+/// reads (one carrier for `Rest`), whatever the glue door would make of
+/// it: the first arc's raise.
 fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
@@ -750,8 +751,12 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
             .unwrap_or_default(),
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &x, &y, Default::default(), band())?;
+    let one_carrier = class
+        .filter(|class| class.is_one_carrier())
+        .map(|_| (xw, yw))
+        .into_iter()
+        .collect();
+    let declared = GluedPairs::without_struts(&decls, one_carrier);
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -1573,7 +1578,12 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
-            vec![GluedPair::new(fa, fb, GlueClass::Rest)]
+            vec![GluedPair::read(
+                (&pa.body, fa),
+                (&pb.body, fb),
+                GlueClass::Rest,
+                band(),
+            )]
         } else {
             Vec::new()
         },
@@ -3047,12 +3057,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConicBend",
         1,
     ),
-    (
-        "vtxfac.rs",
-        "classify_vertex_on_face",
-        "Coincide::Sectors",
-        1,
-    ),
+    ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
@@ -3125,12 +3130,13 @@ lever_rows! {
     // only touch there, at a clear arm.
     curved_flank_reshaped_to_touching_planes: None => planar_flank_membership_at(true, false, 1e-3);
     // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex moved
-    // clearly onto the face it is declared to touch (the arc's ends with
-    // it) passes; moved clearly clear of it, the declaration is
-    // contradicted, which is why the lever no longer names that side.
+    // clearly onto the face it is glued to touch (the arc's ends with it)
+    // passes; moved clearly clear of it, the arc crosses a curved face
+    // the arm cannot settle, which is why the lever no longer names that
+    // side.
     covered_vertex_moved_onto_its_face: None =>
         arc_against_a_wall(1.0, Some(GlueClass::Rest));
-    covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
+    covered_vertex_moved_clear_of_its_face: Some("CurvedPierceUnsupported") =>
         arc_against_a_wall(1.1, Some(GlueClass::Rest));
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,

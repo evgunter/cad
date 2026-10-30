@@ -281,17 +281,14 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
     let crate::NaryEnd::Refused(crate::NaryRefusal::Step { member: 2, error }) = &run.end else {
         panic!("the second step refuses: {:?}", run.end);
     };
-    let super::BooleanError::Escalated {
-        decision:
-            super::BooleanDecision::Coincidence(
-                super::Coincide::VertexOnFace,
-                super::DeclarationRead::Spent(GlueClass::Continuation),
-            ),
-        diag,
-    } = **error
-    else {
+    let super::BooleanError::Escalated { decision, diag } = **error else {
         panic!("a vertex on the merged top, in band: {error:?}");
     };
+    assert_eq!(
+        format!("{decision:?}"),
+        "Coincidence(VertexOnFace, Spent(Continuation))",
+        "the vertex on the glued top, read by value"
+    );
     assert_eq!(
         diag.predicate,
         Some("bool_vertex_face_side"),

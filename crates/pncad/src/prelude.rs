@@ -542,8 +542,7 @@ pub use topo::{
 // contact vocabulary; `ReadbackError::Dangling` carries an
 // `EntityId`, which rides in group 4 with the keys it sums over. What
 // this list still stops at is the rung under THOSE — a
-// `ContactFinding` is a `ContactPair` plus a `ContactVerdict`,
-// both already here, a `CensusSubject` is an `EntityId` or two
+// `ContactFinding` is a `ContactPair`, already here, a `CensusSubject` is an `EntityId` or two
 // `FaceKey`s, all three already here, and the sums' remaining key
 // kinds are bound out of an arm and never branched on. The rule is
 // unchanged and only
@@ -750,14 +749,14 @@ pub use editor_core::{NameTextError, StableName};
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, ContactPair, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
-    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
-    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
-    SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
-    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
-    face_name, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactPair, ContactRefusal, CurveKind,
+    CurveKindSet, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError, MeridianEnd,
+    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose, ProfileEdgeRef,
+    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side, SplitHalf, StepId,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, denotation,
+    edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name, select,
+    select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

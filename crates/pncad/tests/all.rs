@@ -446,13 +446,6 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::ConformalPatch { finding } => {
             named::<ContactFinding>(finding);
             named::<ContactPair>(finding.pair);
-            let _bridgeable = match finding.verdict {
-                // A finding is only minted on definite evidence, so
-                // this is the arm that arrives; the other is the
-                // shape of the verdict type and not of this payload.
-                ContactVerdict::Definite => false,
-                ContactVerdict::Bridged => true,
-            };
             false
         }
     }

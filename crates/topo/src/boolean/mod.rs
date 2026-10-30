@@ -1234,6 +1234,34 @@ impl<T: Real> GluedPair<T> {
         }
     }
 
+    /// The pair `fa`, `fb` under `class` as the glue door reads it: a
+    /// one-carrier class on the margin the face-pair door decides it on,
+    /// a tangency as it stands. For the rows that hand a pair to the
+    /// declaration door themselves.
+    ///
+    /// # Panics
+    ///
+    /// Where the face-pair door does not decide the pair one carrier on
+    /// a margin: the glue door would not glue it.
+    #[cfg(test)]
+    pub(crate) fn read(
+        (a, fa): (&Body<T>, FaceKey),
+        (b, fb): (&Body<T>, FaceKey),
+        class: GlueClass,
+        band: Band,
+    ) -> Self
+    where
+        T: Decide,
+    {
+        if !class.is_one_carrier() {
+            return Self::new(fa, fb, class);
+        }
+        match carrier_pair::carrier_pair_decided(a, fa, b, fb, band) {
+            Ok(Ok((_, Some(margin)))) => Self::decided(fa, fb, class, margin),
+            other => panic!("the glue door glues no {class:?} pair on {other:?}"),
+        }
+    }
+
     /// A one-carrier pair the glue door decided under `class` on
     /// `margin`.
     pub(crate) fn decided(a: FaceKey, b: FaceKey, class: GlueClass, margin: MarginDiag) -> Self {

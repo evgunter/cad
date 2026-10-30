@@ -378,13 +378,12 @@ mod lever_rows {
 
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
     /// `y` through the shared centre. At `θ = 0.6·Kε`, in band at one
-    /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`
-    /// while no corner of the patch stands past the band: the door
-    /// refuses unsettled rather than bridging. At `2·Kε` a corner stands
-    /// past it, and the door contradicts.
+    /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`,
+    /// past the band: the door reads two carriers and contradicts, as it
+    /// does at `2·Kε`.
     #[test]
     fn a_torus_tilt_is_read_at_the_ring() {
-        for (k, unsettled) in [(0.6, true), (2.0, false)] {
+        for k in [0.6, 2.0] {
             let theta = k * band().escalate();
             let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
             let (a, fa) = torus_wall(
@@ -413,17 +412,10 @@ mod lever_rows {
                 "{k}·Kε: the twin is the opposed face"
             );
             let read = door(&a, fa, &b, fb);
-            if unsettled {
-                assert!(
-                    matches!(read, Err(ContactRefusal::Escalated { .. })),
-                    "{k}·Kε: the swing at the ring is unsettled: {read:?}"
-                );
-            } else {
-                assert!(
-                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
-                    "{k}·Kε: a corner past the band contradicts: {read:?}"
-                );
-            }
+            assert!(
+                matches!(read, Err(ContactRefusal::Contradicted { .. })),
+                "{k}·Kε: the swing at the ring is past the band: {read:?}"
+            );
         }
     }
 
@@ -444,17 +436,17 @@ mod lever_rows {
         let read = door(&a, fa, &b, fb);
         assert!(
             matches!(read, Err(ContactRefusal::Contradicted { .. })),
-            "the tilt at the far rim contradicts the declaration: {read:?}"
+            "the tilt at the far rim contradicts the contact: {read:?}"
         );
     }
 
-    /// **The offset and the tilt add.** A 1 m band of cylinder wall at
-    /// `9 ≤ v ≤ 10` against its twin tilted by `0.105·K·ε` about `y`
-    /// through the axis' foot at the origin: the axis offset at the
-    /// patch's middle reads `≈ 1.0·Kε` (just in band), the tilt over the
-    /// patch's extent another fraction of it, each in band on its own,
-    /// while the rim stands `1.05·Kε` off. Read datum by datum it
-    /// bridged; read as one displacement it does not.
+    /// **The offset and the tilt in band refuse.** A 1 m band of
+    /// cylinder wall at `9 ≤ v ≤ 10` against its twin tilted by
+    /// `0.105·K·ε` about `y` through the axis' foot at the origin: the
+    /// axis offset at the patch's middle reads `≈ 1.0·Kε` (just in band),
+    /// the tilt over the patch's extent another fraction of it, each in
+    /// band, while the rim stands `1.05·Kε` off. The door decides no
+    /// carrier, and bridges nothing: it escalates.
     #[test]
     fn an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum() {
         let tol = Tol::witness();
@@ -468,8 +460,8 @@ mod lever_rows {
         b.set_face_sense(fb, !sense).unwrap();
         let read = door(&a, fa, &b, fb);
         assert!(
-            matches!(read, Err(ContactRefusal::Contradicted { .. })),
-            "the rim stands past the band, so the declaration does not bridge: {read:?}"
+            matches!(read, Err(ContactRefusal::Escalated { .. })),
+            "the pair in band escalates: {read:?}"
         );
     }
 }

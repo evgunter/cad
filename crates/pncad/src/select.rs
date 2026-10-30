@@ -90,23 +90,23 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape,
-    CurveKind, CurveKindSet, ContactPair, Denotation, DisagreeShape, DuplicateName, EntityKind,
-    EntityNamed, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg,
-    RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle,
-    SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf, StepId,
-    SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
-    edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name, leaf_role,
-    meridian_vertex, role_leaf, select, select_where, vertex_position,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactRefusal, CrossingSensesShape, CurveKind,
+    CurveKindSet, Denotation, DisagreeShape, DuplicateName, EntityKind, EntityNamed, GeomPred,
+    InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef,
+    NameTable, NamingError, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces,
+    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
+    SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,
+    Selector, Sense, ShortTie, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, UnionNameShape,
+    WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
-/// class, on this evidence" — the fourth quarter of a vocabulary this
-/// list already carried three quarters of.
+/// class" — the last part of a vocabulary this list already carried the
+/// rest of.
 ///
-/// [`ContactRefusal`] and [`ContactVerdict`] are above, lifted from
+/// [`ContactRefusal`] and [`ContactPair`] are above, lifted from
 /// `editor_core`, and [`GlueClass`] below; the finding itself is `topo`'s
 /// and was reachable only one module hop away. It is what
 /// `CensusContact::ConformalPatch` and `CensusContact::FaceFaceTangent`
@@ -116,10 +116,9 @@ pub use editor_core::{
 /// detector's own vocabulary is built from, since a
 /// `FlushFinding` is a finding plus the pair it was found on.
 ///
-/// Its two fields are already here, which is what makes the stop
-/// under it a stop rather than a deferral: a finding is a
-/// [`ContactPair`] plus the [`ContactVerdict`] that decided it,
-/// by composition, and both are carried above.
+/// Its field is already here, which is what makes the stop under it a
+/// stop rather than a deferral: a finding is a [`ContactPair`], by
+/// composition, carried above.
 pub use topo::ContactFinding;
 /// **The class a contact claim names** — [`ContactPair`]'s `class`,
 /// so a caller matching a contact refusal down to its claim can name
