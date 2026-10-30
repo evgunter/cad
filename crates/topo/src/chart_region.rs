@@ -565,7 +565,7 @@ pub struct RegionLane<T: Decide> {
         FaceKey,
         &Body<T>,
         FaceKey,
-        Band,
+        CarrierPremise,
         Band,
     ) -> Result<ChartOverlap, ChartRegionError>,
 }
@@ -624,7 +624,7 @@ impl<T: Decide> RegionLane<T> {
         face_a: FaceKey,
         body_b: &Body<T>,
         face_b: FaceKey,
-        premise: Band,
+        premise: CarrierPremise,
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
         (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
@@ -786,13 +786,39 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     )
 }
 
+/// **What Door 1 read of a pair's carriers**, the premise
+/// [`glued_pair_overlap`] runs on: one carrier on a margin decided Zero,
+/// or a coincidence in band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarrierPremise {
+    /// Door 1 decided the carriers one: the gates run on the run's own
+    /// band.
+    Decided,
+    /// Door 1 read the carriers in band: the gates run on
+    /// [`in_band_premise`]'s tighter band, and no interior witness is
+    /// read.
+    InBand,
+}
+
+impl CarrierPremise {
+    /// The band the premise's gates decide against, over the run's
+    /// `band`.
+    #[must_use]
+    pub fn band(self, band: Band) -> Band {
+        match self {
+            Self::Decided => band,
+            Self::InBand => in_band_premise(band),
+        }
+    }
+}
+
 /// **The premise band of a pair whose carriers Door 1 read in band**:
 /// `band` with its zero edge halved, its escalate edge kept. A carrier
 /// coincidence in band has already spent part of the ε budget at Door
 /// 1's own rows, so the gates [`glued_pair_overlap`] runs on its
 /// premise decide against this tighter band.
 #[must_use]
-pub fn in_band_premise(band: Band) -> Band {
+fn in_band_premise(band: Band) -> Band {
     match Band::new(band.zero() / 2.0, band.escalate()) {
         Ok(tight) => tight,
         // Halving a valid band's zero edge keeps 0 < zero/2 < escalate:
@@ -858,7 +884,7 @@ pub fn glued_pair_overlap<T: Decide + CertifiedBounds>(
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
-    premise: Band,
+    premise: CarrierPremise,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
     // INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
@@ -1462,14 +1488,14 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
-    premise: Band,
+    premise: CarrierPremise,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
     let a = cyl_frame(body_a, face_a)?;
     let b = cyl_frame(body_b, face_b)?;
 
     // --- Door 1's premise, CONSUMED (doc above).
-    let gate_band = premise;
+    let gate_band = premise.band(band);
 
     // --- The carrier gates, at the pair's own extent (doc above).
     //     `reach` is the axial reach (largest |axial coordinate| of a
@@ -1957,10 +1983,10 @@ fn interior_witness<T: Decide + Bounds>(
     carrier: &Surface<T>,
     uv_a: &FaceUv<T>,
     uv_b: &FaceUv<T>,
-    premise: Band,
+    premise: CarrierPremise,
     band: Band,
 ) -> WitnessOutcome {
-    if premise != band {
+    if premise == CarrierPremise::InBand {
         return WitnessOutcome::Declined;
     }
     let Surface::Plane {
@@ -6086,7 +6112,14 @@ mod from_computed_rows {
             )
             .bottom
             .face;
-            let got = glued_pair_overlap(&post, top, &over, under, band, band);
+            let got = glued_pair_overlap(
+                &post,
+                top,
+                &over,
+                under,
+                super::CarrierPremise::Decided,
+                band,
+            );
             assert_eq!(
                 got,
                 Ok(ChartOverlap::PositiveArea),

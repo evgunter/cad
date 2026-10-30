@@ -7702,7 +7702,14 @@ pub(crate) mod pole_slit_tests {
             );
             let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
             let outcome = |a: usize, b: usize, f: FaceKey| {
-                crate::glued_pair_overlap(&bodies[a], f, &bodies[b], f, band, band)
+                crate::glued_pair_overlap(
+                    &bodies[a],
+                    f,
+                    &bodies[b],
+                    f,
+                    crate::CarrierPremise::Decided,
+                    band,
+                )
             };
             // Each body against itself: the copies the rounding named
             // are the only difference across the cut (bodies turned an
@@ -7849,7 +7856,14 @@ pub(crate) mod pole_slit_tests {
                 );
             }
             for (f, _) in body.faces() {
-                let o = crate::glued_pair_overlap(&body, f, &body, f, band, band);
+                let o = crate::glued_pair_overlap(
+                    &body,
+                    f,
+                    &body,
+                    f,
+                    crate::CarrierPremise::Decided,
+                    band,
+                );
                 assert!(
                     matches!(o, Ok(crate::ChartOverlap::PositiveArea)),
                     "{label}, {f:?}: {o:?}"

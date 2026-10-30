@@ -48,7 +48,14 @@ fn a_face_walked_from_a_far_stated_arc_reads_in_the_window_and_folds_onto_its_tw
                 far += 1;
             }
             assert_eq!(
-                super::cylinder_pair_overlap(&body, face, &twin, face, band, band),
+                super::cylinder_pair_overlap(
+                    &body,
+                    face,
+                    &twin,
+                    face,
+                    super::CarrierPremise::Decided,
+                    band
+                ),
                 Ok(ChartOverlap::PositiveArea),
                 "{periods} periods, walked from {start:?}"
             );

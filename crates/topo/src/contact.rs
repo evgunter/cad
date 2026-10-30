@@ -46,7 +46,6 @@ pub enum GlueClass {
 
 impl GlueClass {
     /// Every class.
-    #[cfg(test)]
     pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
 
     /// The class's name, for messages.
@@ -65,9 +64,9 @@ impl GlueClass {
         matches!(self, Self::Rest | Self::Continuation)
     }
 
-    /// The relation that glues a face pair under this class: the
-    /// inverse of [`crate::Relation::glued_class`] on the relations
-    /// that glue.
+    /// **The relation that glues a face pair under this class**: the one
+    /// table between classes and relations. [`crate::Relation::glued_class`],
+    /// [`Self::of_senses`] and [`Self::carrier_relation`] read it.
     #[must_use]
     pub const fn relation(self) -> crate::Relation {
         match self {
@@ -78,21 +77,19 @@ impl GlueClass {
     }
 
     /// **The one-carrier class two faces' senses make them**, the one
-    /// place a sense is read as a class: opposed senses are a `Rest`
-    /// contact, aligned senses a continuation (C4). Two distinct
-    /// carriers are neither, and name no class.
+    /// place a sense is read as a class: the class whose
+    /// [`Self::carrier_relation`] it is. Two distinct carriers are
+    /// neither, and name no class.
     pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
-        match relation {
-            crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
-            crate::boolean::CarrierRelation::SameOpposite => Some(Self::Rest),
-            crate::boolean::CarrierRelation::Distinct => None,
-        }
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|class| class.carrier_relation() == Some(relation))
     }
 
     /// The carrier relation a one-carrier class glues under: its
-    /// [`Self::relation`] as the carrier ladder spells it, the inverse of
-    /// [`Self::of_senses`]. `None` for a tangency, whose carriers are
-    /// distinct.
+    /// [`Self::relation`] as the carrier ladder spells it. `None` for a
+    /// tangency, whose carriers are distinct.
     pub(crate) const fn carrier_relation(self) -> Option<crate::boolean::CarrierRelation> {
         match self.relation() {
             crate::Relation::SameOriented => Some(crate::boolean::CarrierRelation::SameOriented),

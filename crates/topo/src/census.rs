@@ -1748,7 +1748,14 @@ fn pair_region_verified<T: Decide>(
         return false;
     }
     matches!(
-        region.map(|lane| lane.declared_overlap(body, fa, body, fb, band, band)),
+        region.map(|lane| lane.declared_overlap(
+            body,
+            fa,
+            body,
+            fb,
+            crate::chart_region::CarrierPremise::Decided,
+            band
+        )),
         Some(Ok(crate::chart_region::ChartOverlap::PositiveArea))
     )
 }
@@ -6095,7 +6102,7 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 ///   overlap thicker than the band: its two materials lie on either
 ///   side. Aligned, both materials lie behind both faces, so the area
 ///   they share decides: a positive area is an overlap as above, read
-///   on Door 1's in-band premise ([`crate::chart_region::in_band_premise`]);
+///   on Door 1's in-band premise ([`crate::chart_region::CarrierPremise::InBand`]);
 ///   an empty one hides none
 ///   (`ThinInBand`); an area the region door does not decide may hide
 ///   one ([`Undecidable::MayOverlap`]). A Door 1 that escalated, or read
@@ -6167,7 +6174,14 @@ fn planar_face_pairs<T: Decide>(
                 crate::boolean::CarrierRelation::SameOpposite => {
                     let area = |x, y| {
                         matches!(
-                            lane.declared_overlap(body, x, body, y, band, band),
+                            lane.declared_overlap(
+                                body,
+                                x,
+                                body,
+                                y,
+                                crate::chart_region::CarrierPremise::Decided,
+                                band
+                            ),
                             Ok(crate::chart_region::ChartOverlap::PositiveArea)
                         )
                     };
@@ -6180,7 +6194,15 @@ fn planar_face_pairs<T: Decide>(
                     }
                 }
                 crate::boolean::CarrierRelation::SameOriented => {
-                    if let Ok(true) = same_side_overlap(body, geo, lane, fa, fb, band, band) {
+                    if let Ok(true) = same_side_overlap(
+                        body,
+                        geo,
+                        lane,
+                        fa,
+                        fb,
+                        crate::chart_region::CarrierPremise::Decided,
+                        band,
+                    ) {
                         found.same_side.push(FoundPair {
                             a: fa.key,
                             b: fb.key,
@@ -6345,7 +6367,7 @@ fn in_band_reading<T: Decide>(
     match relation {
         CarrierRelation::SameOpposite => InBand::Unread(Undecidable::ThinInBand),
         CarrierRelation::SameOriented => {
-            let premise = crate::chart_region::in_band_premise(band);
+            let premise = crate::chart_region::CarrierPremise::InBand;
             match same_side_overlap(body, geo, lane, fa, fb, premise, band) {
                 Ok(true) => InBand::Overlap(diag.margin),
                 Ok(false) => InBand::Unread(Undecidable::ThinInBand),
@@ -6429,7 +6451,7 @@ enum SameSideUnread {
 
 /// **Whether two planar faces on one carrier, facing the same way, share
 /// interior**, on Door 1's premise band (`premise`, the run's own where
-/// Door 1 decided the carrier, [`crate::chart_region::in_band_premise`]
+/// Door 1 decided the carrier, [`crate::chart_region::CarrierPremise::InBand`]
 /// where it read it in band): the region door's positive area or
 /// empty intersection in either frame order, as [`pair_verified`] reads
 /// it, and where its walk refuses at a shared boundary, the faces' own
@@ -6445,7 +6467,7 @@ fn same_side_overlap<T: Decide>(
     lane: RegionLane<T>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
-    premise: Band,
+    premise: crate::chart_region::CarrierPremise,
     band: Band,
 ) -> Result<bool, SameSideUnread> {
     let read = |x: &FaceGeo<T>, y: &FaceGeo<T>| {
@@ -6468,7 +6490,7 @@ fn same_side_overlap<T: Decide>(
     let arcs = either
         .iter()
         .any(|r| matches!(r, Err(ChartRegionError::NonPlanarTrim { .. })));
-    let exact = premise == band;
+    let exact = premise == crate::chart_region::CarrierPremise::Decided;
     if touching && (exact || fa.polygon && fb.polygon) {
         return face_interiors_meet(body, geo, fa.key, fb.key, band)
             .map_err(SameSideUnread::Interiors);
@@ -10766,7 +10788,15 @@ fn flush_pairs<T: Decide>(
                         });
                         continue;
                     };
-                    same_side_overlap(body, geo, lane, x, y, band, band)
+                    same_side_overlap(
+                        body,
+                        geo,
+                        lane,
+                        x,
+                        y,
+                        crate::chart_region::CarrierPremise::Decided,
+                        band,
+                    )
                 }
                 None => {
                     face_interiors_meet(body, geo, fa, fb, band).map_err(SameSideUnread::Interiors)
@@ -11545,7 +11575,16 @@ fn confirm_patch<T: Decide>(
     // positive (the PR-1 predicate through the region door the
     // pass holds), the chart being either the structural one or
     // the declared pair's shared world carrier.
-    match region.map(|lane| lane.declared_overlap(body, face_a, body, face_b, band, band)) {
+    match region.map(|lane| {
+        lane.declared_overlap(
+            body,
+            face_a,
+            body,
+            face_b,
+            crate::chart_region::CarrierPremise::Decided,
+            band,
+        )
+    }) {
         // The pass holds no certified region door, exactly as at
         // the sweep arm and split from the geometry refusals below
         // for the same reason: this absence is a fact about the

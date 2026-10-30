@@ -127,7 +127,7 @@ fn a_declared_cylinder_pair_with_divergent_descriptions_certifies() {
         other => panic!("the structural rung must still refuse: {other:?}"),
     }
     assert_eq!(
-        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
     );
 }
@@ -142,7 +142,7 @@ fn an_axially_disjoint_declared_cylinder_pair_is_definitely_empty() {
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 0.4);
     let (b, fb) = sheet_b(0.5, 1.3, 0.6, 1.0);
     assert_eq!(
-        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::Empty,
     );
 }
@@ -188,8 +188,22 @@ fn the_verdict_does_not_depend_on_which_description_is_representative() {
         ),
     ];
     for (name, expected, (a, fa), (b, fb)) in cases {
-        let ab = verdict_class(glued_pair_overlap(&a, fa, &b, fb, band(), band()));
-        let ba = verdict_class(glued_pair_overlap(&b, fb, &a, fa, band(), band()));
+        let ab = verdict_class(glued_pair_overlap(
+            &a,
+            fa,
+            &b,
+            fb,
+            topo::CarrierPremise::Decided,
+            band(),
+        ));
+        let ba = verdict_class(glued_pair_overlap(
+            &b,
+            fb,
+            &a,
+            fa,
+            topo::CarrierPremise::Decided,
+            band(),
+        ));
         assert_eq!(ab, expected, "{name}: wrong verdict class");
         assert_eq!(ab, ba, "{name}: the two orders disagree");
         println!("{name}: {ab} (both orders)");
@@ -226,7 +240,14 @@ fn one_axis_tilt_two_levers_two_answers() {
     // the seat CERTIFIES through the tilt.
     let (a_s, fa_s) = small(0.2, 1.4, 0.0, 1e-3);
     let (b_s, fb_s) = tilted(1e-3, 0.4, 1.2, 2e-4, 8e-4);
-    let short = glued_pair_overlap(&a_s, fa_s, &b_s, fb_s, band(), band());
+    let short = glued_pair_overlap(
+        &a_s,
+        fa_s,
+        &b_s,
+        fb_s,
+        topo::CarrierPremise::Decided,
+        band(),
+    );
     if fixture_minted_outside_inventory(&short) {
         println!("peg fixture minted outside the inventory at this ε — standing down");
         return;
@@ -242,7 +263,14 @@ fn one_axis_tilt_two_levers_two_answers() {
     // 1 mm wall on a 1 m cylinder is NOT a peg.)
     let (a_l, fa_l) = sheet_a(0.15, 1.65, 0.0, 1e-3);
     let (b_l, fb_l) = tilted(1.0, 0.2, 1.6, 0.0, 1e-3);
-    let long = glued_pair_overlap(&a_l, fa_l, &b_l, fb_l, band(), band());
+    let long = glued_pair_overlap(
+        &a_l,
+        fa_l,
+        &b_l,
+        fb_l,
+        topo::CarrierPremise::Decided,
+        band(),
+    );
     match long {
         Err(ChartRegionError::CarrierTilt) => {}
         // The tilt gate runs BEFORE extraction, so an
@@ -261,12 +289,26 @@ fn radius_disagreement_is_three_outcome_honest() {
     let eps = Tol::witness().eps();
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
     let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3);
-    match glued_pair_overlap(&a, fa, &b_far, fb_far, band(), band()) {
+    match glued_pair_overlap(
+        &a,
+        fa,
+        &b_far,
+        fb_far,
+        topo::CarrierPremise::Decided,
+        band(),
+    ) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("a definite radius disagreement refuses typed: {other:?}"),
     }
     let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps);
-    match glued_pair_overlap(&a, fa, &b_sliver, fb_sliver, band(), band()) {
+    match glued_pair_overlap(
+        &a,
+        fa,
+        &b_sliver,
+        fb_sliver,
+        topo::CarrierPremise::Decided,
+        band(),
+    ) {
         Err(ChartRegionError::Escalated(d)) => {
             assert_eq!(d.predicate, Some("chart_region_cyl_radius"));
         }
@@ -290,7 +332,7 @@ fn the_fold_windows_a_seam_wrapping_pair_and_certifies() {
     let (a, fa) = sheet_a(0.0, 3.0, 0.0, 1.0);
     let (b, fb) = sheet_b(3.5, 6.5, 0.2, 0.8);
     assert_eq!(
-        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
     );
 }
@@ -311,7 +353,7 @@ fn a_pair_no_single_window_serves_declines_typed() {
     // period-wide window holds both trims and the walk declines.
     let (a, fa) = sheet_a(0.0, 3.5, 0.0, 1.0);
     let (b, fb) = sheet_b(3.3, 6.5, 0.2, 0.8);
-    match glued_pair_overlap(&a, fa, &b, fb, band(), band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()) {
         Err(ChartRegionError::SeamBranch) => {}
         other => panic!("the un-windowable pair declines typed: {other:?}"),
     }
@@ -336,11 +378,11 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
     let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps);
     assert_eq!(
-        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
         "at the run band a 0.7·eps radius residue is Zero and the seat certifies",
     );
-    match glued_pair_overlap(&a, fa, &b, fb, topo::in_band_premise(band()), band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::InBand, band()) {
         Err(ChartRegionError::Escalated(d)) => {
             assert_eq!(d.predicate, Some("chart_region_cyl_radius"));
         }
@@ -349,13 +391,20 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
     // The clean seat: both verdicts agree (the tightening bites only
     // at the edge).
     let (b2, fb2) = sheet_b(0.5, 1.3, 0.3, 0.7);
-    let definite = verdict_class(glued_pair_overlap(&a, fa, &b2, fb2, band(), band()));
+    let definite = verdict_class(glued_pair_overlap(
+        &a,
+        fa,
+        &b2,
+        fb2,
+        topo::CarrierPremise::Decided,
+        band(),
+    ));
     let bridged = verdict_class(glued_pair_overlap(
         &a,
         fa,
         &b2,
         fb2,
-        topo::in_band_premise(band()),
+        topo::CarrierPremise::InBand,
         band(),
     ));
     assert_eq!(definite, bridged);
@@ -486,7 +535,14 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
                 },
             )
             .unwrap();
-        match glued_pair_overlap(&a_body, a.top_face, &b_body, b.bottom_face, band(), band()) {
+        match glued_pair_overlap(
+            &a_body,
+            a.top_face,
+            &b_body,
+            b.bottom_face,
+            topo::CarrierPremise::Decided,
+            band(),
+        ) {
             Err(ChartRegionError::ChartDivergence { .. }) => {}
             other => panic!("a declared {kind} cross-instance pair stays refused: {other:?}"),
         }
@@ -524,7 +580,14 @@ fn tie_pair<T: geom_core::Decide + topo::AtRestPolicy + geom_core::real::Certifi
         (-0.3, 0.3),
         Tol::witness(),
     );
-    glued_pair_overlap(&body_a, fa, &body_b, fb, band(), band())
+    glued_pair_overlap(
+        &body_a,
+        fa,
+        &body_b,
+        fb,
+        topo::CarrierPremise::Decided,
+        band(),
+    )
 }
 
 /// **A fold astride a half-period mark answers on both branches.** Two
