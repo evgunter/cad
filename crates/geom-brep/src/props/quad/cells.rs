@@ -328,6 +328,9 @@ pub(super) fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) 
         cuts.extend(algebra::split_points(a, b, pieces));
         cuts.push(b);
     }
+    // Ascending by construction; on a span a few ulps wide two split
+    // points can round together, which would mint a zero-width cell.
+    cuts.dedup();
     cuts
 }
 
@@ -543,6 +546,26 @@ mod tests {
             "the refined nets' count is the refined vector's"
         );
         (rkv, count)
+    }
+
+    /// **A cut list holds no repeat**, on a three-ulp span where
+    /// `split_points` rounds two of its points together: a repeat would
+    /// be a zero-width cell, or a zero-width hull block. Red while the
+    /// split points were extended unchecked.
+    #[test]
+    fn knot_aligned_cuts_hold_no_repeat_on_a_three_ulp_span() {
+        let lo = 1.0_f64;
+        let hi = f64::from_bits(lo.to_bits() + 3);
+        let cuts = knot_aligned_cuts(lo, hi, 4, &[]);
+        assert!(
+            cuts.windows(2).all(|w| w[0] < w[1]),
+            "the cuts strictly ascend: {cuts:?}"
+        );
+        assert_eq!(
+            cuts.len(),
+            4,
+            "the ends and the two distinct points: {cuts:?}"
+        );
     }
 
     /// `knot_aligned_cuts` pinned bit for bit, the values written out by

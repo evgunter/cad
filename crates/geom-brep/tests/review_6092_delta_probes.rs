@@ -142,11 +142,10 @@ fn a_full_multiplicity_interior_knot_is_answered_or_refused() {
     }
 }
 
-/// **The per-span split mints no duplicate cut on a three-ulp span.**
-/// On `[1, 1 + 3 ulp]` in four pieces the second and third points both
-/// round to `1 + 2 ulp`; `split_points` keeps one, so the cut lists and
-/// the hull-block edges built on it hold no zero-width cell. Red while
-/// it dropped only points collapsing onto an END.
+/// **`split_points` collapses two points on a three-ulp span.** On
+/// `[1, 1 + 3 ulp]` in four pieces its second and third points both
+/// round to `1 + 2 ulp`. The quad lanes' cut lists drop the repeat
+/// (`props::quad::cells`' `knot_aligned_cuts_hold_no_repeat_on_a_three_ulp_span`).
 #[test]
 fn split_points_collapse_onto_each_other_on_a_three_ulp_span() {
     let lo = 1.0_f64;
@@ -156,9 +155,10 @@ fn split_points_collapse_onto_each_other_on_a_three_ulp_span() {
         pts,
         [
             f64::from_bits(lo.to_bits() + 1),
+            f64::from_bits(lo.to_bits() + 2),
             f64::from_bits(lo.to_bits() + 2)
         ],
-        "the collapsed point is dropped, the two distinct ones kept"
+        "split_points keeps the collapsed pair; the cut list is what dedups"
     );
 }
 
