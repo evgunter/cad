@@ -150,23 +150,26 @@
 //! curved wall (below) and the corner solves' own refusals, which are
 //! the offset doors'.
 //!
-//! **The curved residue is an open window, and it is not caught by
-//! anything downstream.** A curved thin neck — two facing cylinder or
-//! spline walls closer than `2t` — still shells to a self-intersecting
-//! cavity, silently. **Tier-3 validation does NOT catch it**: every
-//! per-face loop stays simple and consistently wound while the walls
-//! cross, so the body validates and its volume is wrong (measured on a
-//! planar dumbbell before the gate above existed; the same construction
-//! with curved necks is still reachable). A box-based curved gate is
-//! not the answer either — a shelled tube's concentric walls overlap
-//! boxes by construction, so such a gate would refuse the verb's own
-//! acceptance fixtures. The general clearance certificate over a
-//! parameter box is M10's machinery; the window is issue #1055. **On a
-//! hollow operand the window is the whole moved clone**: a void's
-//! dilated twin can march into the eroded outer wall, or into another
-//! void's twin, exactly as two outer walls can, so a certificate that
-//! closes it reads every non-adjacent pair of the moved body across its
-//! shells, not the outer shell's pairs alone.
+//! **The curved residue: closed where the scalar certifies, open at
+//! `f64`.** A curved thin neck — two facing cylinder or spline walls
+//! closer than `2t`, or a void dilated through a curved wall — moves to
+//! a self-intersecting cavity that no per-face margin and no planar
+//! read sees, and **tier 3 does NOT catch it**: every per-face loop
+//! stays simple and consistently wound while the walls cross, so the
+//! body validates and its volume is wrong. A box-based curved gate is
+//! not the answer — a shelled tube's concentric walls overlap boxes by
+//! construction. What closes it is per scalar
+//! ([`crate::AtRestPolicy::clearance_lane`]):
+//!
+//! - **`Interval` and `Sym` over it** ask E7's self-intersection
+//!   question of the whole moved clone, every face pair across its
+//!   shells, before the void door grafts it ([`cavity_embedded`]): a
+//!   crossing refuses [`ShellError::CavityCrosses`] with its witness,
+//!   and a cavity the engine cannot certify refuses
+//!   [`ShellError::CavityUncertified`]. The planar gates above run first
+//!   there too, as the closed-form refusal.
+//! - **`f64`, `Probe` and `Dual`** hold no lane, and there the window is
+//!   open: a curved crossing shells silently wrong.
 //!
 //! **Where the loud cases actually refuse.** A wall past a curved
 //! face's own reach refuses at the offset door's realized-radius floor,
@@ -725,15 +728,13 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "two of the thin solid's inner walls meet where the material is thinner than \
                  two walls, so the cavity would self-intersect. Recourse: {THINNER_WALL}"
             ),
-            Self::CavityUncertified { refusal } => {
-                write!(
-                    f,
-                    "whether the thin solid's inner walls stay clear of each other could not be \
-                     certified: "
-                )?;
-                refusal.say(f, [&"the cavity", &"the cavity"])?;
-                write!(f, ". {}", cavity_refusal_ending(refusal))
-            }
+            Self::CavityUncertified { refusal } => write!(
+                f,
+                "whether the thin solid's inner walls stay clear of each other could not be \
+                 certified: {}. {}",
+                cavity_refusal_said(refusal),
+                cavity_refusal_ending(refusal)
+            ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
                 "two faces share a surface but not an orientation, so \"inward\" is not one \
@@ -836,6 +837,34 @@ struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
+
+/// A refusal of the cavity's self-intersection question in words, its
+/// faces unnamed: the payload names them, and they are keys the user
+/// never saw.
+fn cavity_refusal_said(
+    refusal: &crate::clearance::EngineRefusal,
+) -> std::borrow::Cow<'static, str> {
+    use crate::clearance::EngineRefusal as R;
+    match refusal {
+        R::Sliver { .. } => "a separation sits wholly inside the ambiguity band".into(),
+        R::Budget(_) => "the search spent its budget with pairs of walls still undecided".into(),
+        R::Unsupported { carrier, .. } => {
+            format!("a wall is {carrier}, which the certificate does not read").into()
+        }
+        R::PoisonEnclosure { .. } => "a separation between two walls did not evaluate".into(),
+        R::WitnessUnverified { .. } => {
+            "a crossing the interval pass found was not confirmed".into()
+        }
+        R::Uncertified { arm, .. } => format!(
+            "two walls touch where the {} certificate does not discharge them",
+            arm.name()
+        )
+        .into(),
+        R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
+        R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
+        R::EmptyScope { .. } => "the cavity has no face".into(),
+    }
+}
 
 /// The ending of a refusal of the cavity's self-intersection question:
 /// a refinement the band or a budget stopped is the geometry's lever, a

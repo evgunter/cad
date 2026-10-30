@@ -5718,6 +5718,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "shell_error_tag",
         values: &[
             "band",
+            "cavity_crosses",
+            "cavity_uncertified",
             "chart_sense_mixed",
             "escalated",
             "face",

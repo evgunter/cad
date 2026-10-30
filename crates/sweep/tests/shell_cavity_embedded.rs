@@ -3,23 +3,28 @@
 //! engine's door, the moved clone is asked E7's self-intersection
 //! question before it is inserted.
 //!
-//! - the planar dumbbell's curved twin — its neck two arcs — refuses
-//!   `CavityCrosses` at `Interval` and at `Sym<Interval>` with one
-//!   witness on the two neck walls, and shells Ok at `f64`, where no
-//!   lane answers and the curved window stays open;
-//! - a box whose cylindrical void dilates past the cavity's planar wall
-//!   refuses `CavityCrosses` at `Interval`, the pair curved × planar;
-//! - the tube and the vessel shell Ok at `Interval`, the self-
-//!   intersection site decided during the build, so a gate that stopped
-//!   running goes red here too;
+//! - a vessel holding a coaxial void whose dilation reaches past the
+//!   eroded wall refuses `CavityCrosses` at `Interval` and at
+//!   `Sym<Interval>`, the witness on the vessel's wall and the void's
+//!   cap, and shells Ok at `f64`, where no lane answers and the curved
+//!   window stays open;
+//! - the tube and the vessel shell Ok at `Interval`, and the vessel at
+//!   `Sym<Interval>`, with the self-intersection site decided during
+//!   the build and nothing refused, so a gate that stopped running goes
+//!   red here too;
 //! - the planar dumbbell still refuses at the planar gate, at both
-//!   scalars.
+//!   scalars;
+//! - two rows refuse before the gate is reached, each typed: the
+//!   planar dumbbell's curved twin, which the general offset door
+//!   cannot build at `Interval`, and the box whose cylindrical void
+//!   dilates past the cavity's planar wall, which the planar
+//!   `moved_walls_cross` reads first.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::time::Instant;
 
 use geom_core::k_stats::Bracket;
-use geom_core::{Decide, Interval, Point2, Point3, Real, Sign, Sym, Tol, Vec2};
+use geom_core::{Decide, Interval, Point2, Point3, Sign, Sym, Tol, Vec2};
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, finished, prism};
@@ -32,6 +37,7 @@ use topo::clearance::{
 use topo::{Body, FaceKey, ShellError, Shelled};
 
 use crate::common::shell_operands::{tube_at, vessel_at};
+use sweep::test_support::revolved_about_y_at;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -77,7 +83,7 @@ fn dumbbell<T: Decide + topo::AtRestPolicy>(bulge: f64) -> Body<T> {
 /// `t = 0.1` the dilated void reaches `x = 3.95`, past the cavity's
 /// planar wall at `x = 3.9`.
 fn box_with_void<T: Decide + topo::AtRestPolicy>() -> Body<T> {
-    let mut dst: Body<T> = brick((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), tol());
+    let dst: Body<T> = brick((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), tol());
     let lp = bulge_loop(
         [(3.2, 1.0), (3.85, 1.0), (3.85, 3.0), (3.2, 3.0)]
             .iter()
@@ -95,6 +101,13 @@ fn box_with_void<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     let cavity = revolve(&profile, axis, Revolution::Full, tol())
         .expect("the meridian revolves")
         .body;
+    with_void(dst, cavity)
+}
+
+/// `cavity` inserted into `dst`'s solid as a void, with the carried
+/// evidence the shell verb itself hands the door: the fixture puts it
+/// strictly inside.
+fn with_void<T: Decide>(mut dst: Body<T>, cavity: Body<T>) -> Body<T> {
     let (solid, _) = dst.solids().next().expect("one solid");
     let evidence = VoidEvidence {
         shells: cavity
@@ -140,33 +153,60 @@ fn crossing<T: Decide>(
     }
 }
 
-/// **The curved dumbbell refuses with a witness on its two neck
-/// walls**: bulge 0.2 narrows the neck to 0.2 at `x = 2.5`, two walls
-/// of 0.15 need 0.3, and every planar pair stands at least 0.4 apart,
-/// so the planar gate passes it and the cavity gate is what refuses.
-/// At `f64`, where no lane answers, the same call shells Ok: the
-/// curved window the module docs state.
-#[test]
-fn the_curved_dumbbell_refuses_with_a_witness() {
-    let operand: Body<Interval> = dumbbell(0.2);
-    let (face, other, stations, distance) =
-        crossing("the curved dumbbell", shell(operand.clone(), 0.15));
-    assert!(
-        face != other && is_cylinder(&operand, face) && is_cylinder(&operand, other),
-        "the witness is on the two neck arcs: {face:?} and {other:?}"
-    );
-    for (f, (u, v)) in [(face, stations[0]), (other, stations[1])] {
-        let p = surface(&operand, f).eval(Interval::from_f64(u), Interval::from_f64(v));
-        let x = geom_core::Bounds::hi(p.x);
-        assert!(
-            (2.0..=3.0).contains(&x),
-            "a witness point stands over the neck, x in [2, 3]: {x} on {f:?}"
-        );
-    }
-    assert!(distance <= 1e-6, "the witness pair coincides: {distance}");
-    println!("[shell4] curved dumbbell at Interval: {face:?} {other:?} {stations:?} {distance}");
+/// **A vessel holding a coaxial void**: the vessel of radius 1 and
+/// height 2, and inside it a void of radius 0.95 for `y ∈ [0.5, 1.5]`.
+/// At `t = 0.1` the dilated void reaches radius 1.05 and the eroded
+/// wall stands at 0.9, so the void's dilated caps run through the
+/// cavity's wall. Every planar pair is parallel and far apart, so
+/// neither planar gate reads it.
+fn vessel_with_void<T: Decide + topo::AtRestPolicy>() -> Body<T> {
+    let v = |x: f64, y: f64| (Point2::new(x, y).map(T::from_f64), T::zero());
+    with_void(
+        vessel_at(1.0, 2.0),
+        revolved_about_y_at(
+            vec![v(0.0, 0.5), v(0.95, 0.5), v(0.95, 1.5), v(0.0, 1.5)],
+            Revolution::Full,
+            tol(),
+        ),
+    )
+}
 
-    let at_f64 = shell(dumbbell::<f64>(0.2), 0.15);
+/// The coaxial void's crossing: the witness on the vessel's cylinder
+/// wall and one of the void's planar caps.
+fn coaxial_crossing<T: Decide>(
+    what: &str,
+    operand: &Body<T>,
+    r: Result<Shelled<T>, ShellError<T>>,
+) -> (FaceKey, FaceKey) {
+    let (face, other, _, distance) = crossing(what, r);
+    let plane = |f: FaceKey| matches!(surface(operand, f), geom::Surface::Plane { .. });
+    assert!(
+        (is_cylinder(operand, face) && plane(other))
+            || (is_cylinder(operand, other) && plane(face)),
+        "{what}: the witness is on a wall and a cap: {face:?} {other:?}"
+    );
+    assert!(
+        distance <= 1e-6,
+        "{what}: the witness pair coincides: {distance}"
+    );
+    (face, other)
+}
+
+/// **A void dilated through a curved cavity wall refuses with a
+/// witness** at `Interval`, and the certifying `Sym` rebuild refuses
+/// on the same pair of operand faces. At `f64` no lane answers and the
+/// same call shells Ok: the curved window the module docs state.
+#[test]
+fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
+    let operand: Body<Interval> = vessel_with_void();
+    let at_interval = coaxial_crossing("at Interval", &operand, shell(operand.clone(), 0.1));
+    let sym: Body<Sym<Interval>> = vessel_with_void();
+    let at_sym = coaxial_crossing("at Sym<Interval>", &sym, shell(sym.clone(), 0.1));
+    assert_eq!(
+        at_sym, at_interval,
+        "the Sym rebuild's witness is on the Interval rebuild's faces"
+    );
+    let at_f64 = shell(vessel_with_void::<f64>(), 0.1);
     assert!(
         at_f64.is_ok(),
         "at f64 no lane answers, so the curved window is open: {:?}",
@@ -174,43 +214,53 @@ fn the_curved_dumbbell_refuses_with_a_witness() {
     );
 }
 
-/// **The certifying `Sym` rebuild runs the same gate**: the curved
-/// dumbbell at `Sym<Interval>` refuses on the same pair of operand
-/// faces as at `Interval`.
+/// **The planar dumbbell's curved twin** — bulge 0.2 narrows the neck
+/// to 0.2 at `x = 2.5`, and two walls of 0.15 need 0.3 — shells Ok at
+/// `f64`, the curved window, and at `Interval` refuses in the general
+/// offset door before the cavity is built, an escalation at
+/// `offset_corner_on_surface`. It waits on
+/// `work/offset/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
+/// whose fix turns this row's second half into a `CavityCrosses` row.
 #[test]
-fn the_sym_rebuild_gives_the_same_verdict() {
-    let (face, other, ..) = crossing("at Interval", shell(dumbbell::<Interval>(0.2), 0.15));
-    let (sym_face, sym_other, ..) = crossing(
-        "at Sym<Interval>",
-        shell(dumbbell::<Sym<Interval>>(0.2), 0.15),
+fn the_curved_dumbbell_is_the_window_at_f64_and_waits_on_the_offset_door_at_interval() {
+    let at_f64 = shell(dumbbell::<f64>(0.2), 0.15);
+    assert!(
+        at_f64.is_ok(),
+        "at f64 no lane answers, so the curved window is open: {:?}",
+        at_f64.err()
     );
-    assert_eq!(
-        (sym_face, sym_other),
-        (face, other),
-        "the Sym rebuild's witness is on the Interval rebuild's faces"
-    );
+    match shell(dumbbell::<Interval>(0.2), 0.15) {
+        Err(ShellError::Face { error, .. })
+            if matches!(
+                &*error,
+                topo::ReplaceFaceError::Escalated { source }
+                    if source.predicate == Some("offset_corner_on_surface")
+            ) => {}
+        other => panic!(
+            "the general offset door refuses the curved twin at Interval, typed; got {:?}",
+            other.map(|_| ())
+        ),
+    }
 }
 
-/// **A void dilated through the cavity's planar wall refuses**: the
-/// pair is the void's cylinder and the box's `x = 4` wall, which no
-/// planar gate reads.
+/// **The box with a cylindrical void refuses at both scalars before
+/// the cavity gate**: its dilated void crosses the cavity's planar
+/// `x = 3.9` wall at an angle the planar `moved_walls_cross` reads, so
+/// `f64` refuses `OffsetsCross`, and at `Interval` that read's overlap
+/// encloses zero and escalates at `shell_moved_walls_overlap`.
 #[test]
-fn a_void_dilated_through_the_cavity_wall_refuses() {
-    let operand: Body<Interval> = box_with_void();
-    let (face, other, ..) = crossing("the box with a void", shell(operand.clone(), 0.1));
-    let plane_at_x4 = |f: FaceKey| {
-        matches!(
-            surface(&operand, f),
-            geom::Surface::Plane { origin, normal, .. }
-                if (geom_core::Bounds::hi(origin.x) - 4.0).abs() < 1e-9
-                    && geom_core::Bounds::hi(normal.x).abs() > 0.5
-        )
-    };
+fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
+    let at_f64 = shell(box_with_void::<f64>(), 0.1);
     assert!(
-        (is_cylinder(&operand, face) && plane_at_x4(other))
-            || (is_cylinder(&operand, other) && plane_at_x4(face)),
-        "the witness is on the void's wall and the box's x = 4 wall: {face:?} {other:?}"
+        matches!(at_f64, Err(ShellError::OffsetsCross { .. })),
+        "at f64: {:?}",
+        at_f64.err()
     );
+    match shell(box_with_void::<Interval>(), 0.1) {
+        Err(ShellError::Escalated { source })
+            if source.predicate == Some("shell_moved_walls_overlap") => {}
+        other => panic!("at Interval: {:?}", other.map(|_| ())),
+    }
 }
 
 /// **The planar dumbbell still refuses at the planar gate**, which
@@ -275,6 +325,7 @@ fn holds(what: &str, operand: Body<Interval>, t: f64) {
         report.verdict
     );
     assert!(report.receipt.holds(), "{what}: the receipt adds up");
+    assert_eq!(report.receipt.refused, 0, "{what}: nothing refused");
     println!(
         "[shell4] {what}: shell {built:?}, cavity sweep {swept:?}, {gap} gap decides, {:?}",
         report.receipt
@@ -289,4 +340,10 @@ fn the_tube_holds() {
 #[test]
 fn the_vessel_holds() {
     holds("the vessel", vessel_at(1.0, 2.0), 0.1);
+    let at_sym = shell(vessel_at::<Sym<Interval>>(1.0, 2.0), 0.1);
+    assert!(
+        at_sym.is_ok(),
+        "the Sym rebuild shells the vessel: {:?}",
+        at_sym.err()
+    );
 }
