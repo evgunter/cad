@@ -774,10 +774,15 @@ const PLATE_MAX_TERMS: usize = 28;
 /// #5542's `segment_gap` moved it first, and PR 5952 took the
 /// `*/Report` lines #5542 brought away again
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+///
+/// **Pinned at what main measures** (2026-10-30), not explained: the
+/// `Early/Decision` digest `9ff98070…` -> `38b61e2e…` at every ε row,
+/// every count holding, with INTENT stage 3 G (PR 5954), attributed by
+/// reading (`work/green/g-moves-four-main-reds-messages.md`).
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1149 forms 20618 frozen 36 digest 5b68ab11cb6a6488e4a842bd68fd8b54\n\
      Plain/Assertion calls 824 forms 9331 frozen 193 digest 3b9e5da836f18dc5a35a3a4ece119754\n\
-     Early/Decision calls 342 forms 11649 frozen 0 digest 9ff98070a7578f2caaee1b066b8b10b0\n\
+     Early/Decision calls 342 forms 11649 frozen 0 digest 38b61e2e3311ab58939c93cd540bd52b\n\
      Early/Assertion calls 824 forms 10745 frozen 0 digest bfcde6cb8486b98883080e5e22c9cf20\n\
      Door/Decision calls 557 forms 13569 frozen 0 digest 07819a3c990e37a0b06cfef06cbc955d";
 

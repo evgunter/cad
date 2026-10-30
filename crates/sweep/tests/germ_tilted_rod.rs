@@ -335,6 +335,24 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
+    // Pinned red at 1e-6 since PR 6011: all eight poses, β 0.5 spin 0
+    // to β 0.7 spin π/2, refuse their germ section's winding
+    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the other spins and steeper tilts",
+        &[
+            "at ε 1e-6:\nβ 0.5, spin 0: [\"GermSectionUnbuilt {",
+            "\nβ 0.7, spin 1.5707963267948966: [\"GermSectionUnbuilt {",
+            "why: Winds(Unseparated) }",
+        ],
+        other_spins_and_steeper_tilts_refuse_at_their_germs_row,
+    );
+}
+
+/// The row [`other_spins_and_steeper_tilts_refuse_at_their_germs`] runs, under its pin.
+fn other_spins_and_steeper_tilts_refuse_at_their_germs_row() {
     let h = half_donut();
     let poses = [
         (0.5, 0.0),

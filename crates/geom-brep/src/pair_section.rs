@@ -1853,6 +1853,23 @@ mod wiring {
     /// loops each, from `δ = 3e-2` down to `3e-4`.
     #[test]
     fn close_rings_carry_counted_and_marched() {
+        // Pinned red at 1e-6 since PR 6011: the counted section decides
+        // the closest ring on a zero margin
+        // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
+        test_utils::pinned_red::row(
+            geom_core::Tol::witness().eps(),
+            &[1e-6],
+            "the close rings",
+            &[
+                "δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0",
+                "boxes: 206 })",
+            ],
+            close_rings_carry_counted_and_marched_row,
+        );
+    }
+
+    /// The row [`close_rings_carry_counted_and_marched`] runs, under its pin.
+    fn close_rings_carry_counted_and_marched_row() {
         use super::{Components, SsiLane};
         for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
             let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);
