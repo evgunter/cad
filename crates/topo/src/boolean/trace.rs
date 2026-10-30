@@ -124,10 +124,9 @@ impl core::error::Error for TraceFault {}
 fn unsettled_words(why: Unsettled) -> &'static str {
     match why {
         Unsettled::Tangency => "a double root",
-        Unsettled::SignInBand => "a sign read in the band",
         Unsettled::Meter => "a residual the band cannot meter",
         Unsettled::Exhausted => "the walk ran past its piece budget",
-        Unsettled::ImpossibleCount => "a count the residual cannot have",
+        Unsettled::Floor => "a piece at the walk's floor the band does not read past",
         Unsettled::Resolvent => "a resolvent with no positive root",
         Unsettled::CountDisagrees { .. } => "the built roots disagree with the certified count",
         Unsettled::AtApex => "a root at a cone's apex",

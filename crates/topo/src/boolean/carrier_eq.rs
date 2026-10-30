@@ -15,6 +15,7 @@
 //! | sphere | centre, radius | `carrier_sphere_center`, `carrier_sphere_radius` |
 //! | cylinder | axis line, radius | `carrier_cyl_axis_parallel` (·arm), `carrier_cyl_axis_offset`, `carrier_cyl_radius` |
 //! | torus | centre, axis line, both radii | the pair's own coincidence ([`geom_brep::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
+//! | cone | apex, axis line, half-angle | `carrier_cone_apex`, `carrier_cone_axis_parallel` (·arm), `carrier_cone_half_angle` (·arm) |
 //!
 //! The lever arms are the honest ones: an ANGULAR margin (two
 //! normalized directions crossed) is dimensionless, so it is metered
@@ -37,9 +38,10 @@
 //!
 //! **Orientation across kinds.** The plane arm's Same± verdict is a
 //! statement about MATERIAL SIDES, and so is every other arm's: a
-//! sphere's or cylinder's description carries the `outward` bit
-//! saying whether the face's outward normal agrees with the surface's
-//! outward radial direction (S10's sense fold, one dimension curved).
+//! sphere's, cylinder's, torus's or cone's description carries the
+//! `outward` bit saying whether the face's outward normal points away
+//! from the centre, the axis or the tube's spine circle (S10's sense
+//! fold, one dimension curved).
 //! `Rest` contact is precisely [`CarrierRelation::SameOpposite`] — a
 //! peg's convex wall against a bore's concave wall is the curved
 //! spelling of two boxes' opposed faces. Aligned coincidence is
@@ -247,6 +249,23 @@ pub enum CarrierDesc<T: geom_core::Real> {
         /// pipe wall) rather than into it (a toroidal cavity).
         outward: bool,
     },
+    /// A cone, by apex, the unit axis direction, and the half-angle. The
+    /// carrier is the DOUBLE cone: a face's chart may place it on either
+    /// nappe, so the axis is a LINE and its direction sign carries no
+    /// material information. Angular data are metered from the apex,
+    /// where the two carriers' displacement is the apexes' alone.
+    Cone {
+        /// The apex.
+        apex: Point3<T>,
+        /// The unit axis direction.
+        axis: Vec3<T>,
+        /// The half-angle between the axis and the generators, radians.
+        half_angle: T,
+        /// Whether the face's outward normal points AWAY from the axis
+        /// (a spike) rather than toward it (a countersink). The chart
+        /// normal points away from the axis on both nappes.
+        outward: bool,
+    },
 }
 
 impl<T: geom_core::Real> CarrierDesc<T> {
@@ -258,6 +277,7 @@ impl<T: geom_core::Real> CarrierDesc<T> {
             Self::Sphere { .. } => geom::SurfaceKind::Sphere,
             Self::Cylinder { .. } => geom::SurfaceKind::Cylinder,
             Self::Torus { .. } => geom::SurfaceKind::Torus,
+            Self::Cone { .. } => geom::SurfaceKind::Cone,
         }
         .name()
     }
@@ -299,9 +319,47 @@ impl<T: geom_core::Real> ConsumedExtent<'static, T> {
     }
 }
 
+/// The ladder's inventory as its refusals name it: a literal, so a
+/// refusal can `concat!` it, which [`INVENTORY`]'s row checks.
+macro_rules! inventory_named {
+    () => {
+        "plane, sphere, cylinder, torus, cone"
+    };
+}
+
+/// **The surface kinds the ladder carries a description for**
+/// ([`CarrierDesc`]): the `Rest` table's inventory. A face on any other
+/// kind (a spline, a fitted surface) has no description to compare
+/// (`carrier_pair::PairUnread::OutsideInventory`), and is not
+/// declarable.
+pub(crate) const INVENTORY: [geom::SurfaceKind; 5] = [
+    geom::SurfaceKind::Plane,
+    geom::SurfaceKind::Sphere,
+    geom::SurfaceKind::Cylinder,
+    geom::SurfaceKind::Torus,
+    geom::SurfaceKind::Cone,
+];
+
+/// Is `kind` in the ladder's [`INVENTORY`]?
+pub(crate) fn in_inventory(kind: geom::SurfaceKind) -> bool {
+    INVENTORY.contains(&kind)
+}
+
+/// The refusal of a declared face outside [`INVENTORY`], at the
+/// declaration door and in the contact lane.
+pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
+    "a declared face's surface kind is outside the Rest ladder's inventory (",
+    inventory_named!(),
+    ")"
+);
+
 /// **The curved kinds the undeclared ladder decides exactly**, on its
 /// sphere and cylinder data rungs: the curved surfaces whose aligned
-/// pairs the census reads as one carrier.
+/// pairs the census reads as one carrier. A subset of [`INVENTORY`]:
+/// the census's same-side arm reads a pair's shared interior through
+/// the faces' tangent cones at its witnesses, which it reads for these
+/// two kinds; a torus or cone pair stays the census's
+/// (`work/atrest/curved-copies-filling-one-volume-read-as-undecidable.md`).
 pub(crate) fn exact_curved<T: geom_core::Real>(s: &geom::Surface<T>) -> bool {
     matches!(
         s,
@@ -527,6 +585,24 @@ fn undeclared_ladder<T: Decide>(
                 }
             }
         }
+        (
+            CarrierDesc::Cone {
+                apex: p1,
+                axis: a1,
+                half_angle: t1,
+                outward: w1,
+            },
+            CarrierDesc::Cone {
+                apex: p2,
+                axis: a2,
+                half_angle: t2,
+                outward: w2,
+            },
+        ) => data_rungs(
+            &cone_data((*p1, *a1, *t1), (*p2, *a2, *t2), arm),
+            *w1 == *w2,
+            band,
+        ),
         // Different kinds: definitely different carriers. A plane is
         // not a cylinder at any radius, so this needs no numerics.
         _ => Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None)),
@@ -577,6 +653,33 @@ fn cylinder_data<T: Decide>(
             "carrier_cyl_radius",
             Contradiction::CylinderRadiiDiffer,
             Margin::of(r1 - r2),
+        ),
+    ]
+}
+
+/// The cone's data: the apexes' separation, and the axis lines'
+/// parallelism and the half-angles' difference, each levered at `arm`,
+/// the reach from the apex.
+fn cone_data<T: Decide>(
+    (p1, a1, t1): (Point3<T>, Vec3<T>, T),
+    (p2, a2, t2): (Point3<T>, Vec3<T>, T),
+    arm: T,
+) -> Vec<Datum<T>> {
+    vec![
+        (
+            "carrier_cone_apex",
+            Contradiction::ConeApexesDiffer,
+            Margin::norm3(p1 - p2),
+        ),
+        (
+            "carrier_cone_axis_parallel",
+            Contradiction::ConeAxesNotParallel,
+            Margin::levered(a1.cross(a2).norm(), arm),
+        ),
+        (
+            "carrier_cone_half_angle",
+            Contradiction::ConeHalfAnglesDiffer,
+            Margin::levered(t1 - t2, arm),
         ),
     ]
 }
@@ -656,7 +759,9 @@ pub(crate) use geom_brep::line_tilt;
 ///   axis point, which moves along its axis to the foot of the
 ///   extent's centre;
 /// - torus — the pair's coincidence reads no extent
-///   ([`geom_brep::tori_coincide`]), and the pair passes through.
+///   ([`geom_brep::tori_coincide`]), and the pair passes through;
+/// - cone — the angular data are read from the first apex, widened by
+///   the apexes' separation so the arm holds from either.
 ///
 /// Sphere pairs and mixed kinds carry no angular datum; they pass
 /// through with the arm read from the extent's centre.
@@ -687,6 +792,9 @@ fn at_consumed_extent<T: geom_core::Real>(
                 },
                 foot,
             )
+        }
+        (CarrierDesc::Cone { apex: p1, .. }, CarrierDesc::Cone { apex: p2, .. }) => {
+            return (*c1, *c2, reach.lever_from(p1) + (p1 - p2).norm());
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -734,7 +842,14 @@ fn definite(predicate: &'static str, band: Band) -> Indeterminate {
 ///   so it holds from either axis), plus the radius difference;
 /// - torus — the pair's own displacement bound
 ///   ([`geom_brep::TorusDisplacement`]), which holds at every point of
-///   the torus, whatever the ball.
+///   the torus, whatever the ball;
+/// - cone — the apexes' separation plus `t` and the half-angles'
+///   difference, times the reach from the first apex widened by that
+///   separation: a point at distance `s` from one apex has a partner on
+///   the other cone at the same distance from its apex, on the nappe
+///   `t` turns its own to, its generator turned by no more than those
+///   two angles. No reading holds across the whole ball, since near the
+///   apexes the angular data move nothing.
 ///
 /// The verdict, its trilean, and the margin its upper bound was decided
 /// on: Zero for a [`ContactVerdict::Definite`], in band for a
@@ -808,7 +923,8 @@ pub(super) fn declared_reading<T: Decide>(
         }
         (CarrierDesc::Sphere { outward: w1, .. }, CarrierDesc::Sphere { outward: w2, .. })
         | (CarrierDesc::Cylinder { outward: w1, .. }, CarrierDesc::Cylinder { outward: w2, .. })
-        | (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => (
+        | (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. })
+        | (CarrierDesc::Cone { outward: w1, .. }, CarrierDesc::Cone { outward: w2, .. }) => (
             T::one(),
             if w1 == w2 {
                 CarrierRelation::SameOriented
@@ -1069,6 +1185,30 @@ fn reading<T: Decide>(
                 torus_data(&d),
             )
         }
+        (
+            CarrierDesc::Cone {
+                apex: p1,
+                axis: a1,
+                half_angle: t1,
+                ..
+            },
+            CarrierDesc::Cone {
+                apex: p2,
+                axis: a2,
+                half_angle: t2,
+                ..
+            },
+        ) => {
+            let apart = (p1 - p2).norm();
+            let arm = reach.lever_from(p1) + apart;
+            let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
+            (
+                ["carrier_cone_reach", "carrier_cone_reach_floor"],
+                core,
+                -core,
+                cone_data((p1, a1, t1), (p2, a2, t2), arm),
+            )
+        }
         _ => return None,
     };
     Some(Reading {
@@ -1121,6 +1261,19 @@ fn distance_to<T: geom_core::Real>(c: &CarrierDesc<T>, v: Point3<T>) -> T {
             let height = d.dot(axis);
             let ring = perpendicular(d, axis).norm() - major_radius;
             ((ring.powi(2) + height.powi(2)).sqrt() - minor_radius).abs()
+        }
+        // In the half-plane through the axis and `v`, the double cone is
+        // the two generator rays from the apex, and the nearer is the one
+        // on `v`'s side of the apex.
+        CarrierDesc::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let d = v - apex;
+            let (height, rho) = (d.dot(axis).abs(), perpendicular(d, axis).norm());
+            (rho * half_angle.cos() - height * half_angle.sin()).abs()
         }
     }
 }
@@ -1226,6 +1379,15 @@ pub(crate) fn points_on(c: &CarrierDesc<f64>) -> Vec<Point3<f64>> {
                 ]
             })
             .collect(),
+        CarrierDesc::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => square(axis)
+            .into_iter()
+            .map(|d| apex + (axis * half_angle.cos() + d * half_angle.sin()))
+            .collect(),
     }
 }
 
@@ -1264,6 +1426,95 @@ mod tests {
             minor_radius: minor,
             outward,
         }
+    }
+
+    fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
+        CarrierDesc::Cone {
+            apex: Point3::from_array(apex),
+            axis: Vec3::from_array(a),
+            half_angle,
+            outward,
+        }
+    }
+
+    /// **Two cone descriptions are one carrier when they describe one
+    /// double cone**: its axis reversed is the same carrier, since a
+    /// face's chart may put it on either nappe. An axis tilted so the
+    /// generators part by a thousand bands across the extent is another
+    /// carrier, and a half-angle off by a few bands is in band.
+    /// **The inventory's refusals name the inventory**: the literal the
+    /// refusals `concat!` is [`INVENTORY`] in its order, and each kind
+    /// in it has a description.
+    #[test]
+    fn the_inventory_named_is_the_inventory() {
+        let names: Vec<&str> = INVENTORY.iter().map(|k| k.name()).collect();
+        assert_eq!(inventory_named!(), names.join(", "));
+        // The complement is the definition the inventory answers to: the
+        // ladder describes every kind with a closed-form carrier, and the
+        // kinds without one are the spline and the fitted surface, which
+        // `geom` holds as a net rather than as data a rung can compare
+        // (`geom::Surface::nurbs`). A new analytic kind turns this red
+        // until the ladder carries it.
+        for kind in geom::SurfaceKind::ALL {
+            assert_eq!(
+                in_inventory(kind),
+                !matches!(kind, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx),
+                "{kind:?}: the ladder describes every analytic kind"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cone_is_one_carrier_under_its_reversed_axis() {
+        let b = band();
+        let arm = 2.0;
+        let one = cone([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5, true);
+        let read = |other: &CarrierDesc<f64>| {
+            pair_door_reading(&one, other, PlaneIdentity::NONE, &at(arm), b)
+        };
+        for (what, other) in [
+            ("itself", one),
+            (
+                "reversed",
+                cone([0.0, 1.0, 0.0], [0.0, -1.0, 0.0], 0.5, true),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    read(&other),
+                    Ok((
+                        CarrierRelation::SameOriented,
+                        ContactVerdict::Definite,
+                        Some(_)
+                    ))
+                ),
+                "{what}: one carrier, {:?}",
+                read(&other)
+            );
+        }
+        let tilt = 1000.0 * b.escalate() / arm;
+        let tilted = cone(
+            [0.0, 1.0, 0.0],
+            Vec3::new(tilt, 1.0, 0.0).normalize().to_array(),
+            0.5,
+            true,
+        );
+        assert!(
+            matches!(read(&tilted), Ok((CarrierRelation::Distinct, ..))),
+            "tilted: {:?}",
+            read(&tilted)
+        );
+        let wider = cone(
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            0.5 + 3.0 * b.zero() / arm,
+            true,
+        );
+        assert!(
+            matches!(read(&wider), Err(CarrierEqError::Undecided { .. })),
+            "a half-angle off by a few bands: {:?}",
+            read(&wider)
+        );
     }
 
     /// A ball of radius `arm` about the origin, no point of either face

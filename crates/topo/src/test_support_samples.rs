@@ -185,8 +185,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     // The longest `what`s the raise sites write.
     v.extend(
         [
-            "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder, torus)",
+            crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]

@@ -160,6 +160,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{
     AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeCarrierSite, EdgeKey, Operand,
+    PairRefusalSite,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2236,34 +2237,37 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    both stored carriers. There is no transverse curve here to
     //    have a closed form for.
     //
-    //    What refuses is the crossing layer, on the weld circle
-    //    itself: the lantern's neck rim lies on the arch's torus wall
-    //    as its terminal meridian circle, and a circle ON a torus is a
-    //    coincidence the circle × torus lane does not decide. This is
-    //    the chain VERBS-LILYWELD PR-2 measured — gate, then F7, then
-    //    the curved PIERCE arm — reached now that the cone is on the
-    //    operand roster and the full revolve sweeps its caps whole.
+    //    The crossing layer passes the weld circle: the lantern's neck
+    //    rim lies on the arch's torus wall as its terminal meridian
+    //    circle, and the carrier ladder decides the neck cone distinct
+    //    from the torus, so the circle is an edge lying on the wall.
     //    The planar pair the throat disk and the arch's cap form is
-    //    decided on its zero; the weld circle is what stops it.
+    //    decided on its zero. What refuses is the interior-loop guard,
+    //    on the neck cone against the arch's torus wall: the section
+    //    certificate has no arm for a cone against a torus that is not
+    //    coaxial with it, so it cannot certify that the two walls meet
+    //    in no loop the join did not cut.
     wall(
         2,
         "weld the lantern onto the arch (cone x the arch's end cap, \
          meeting on one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // The lantern's edge refused is the weld circle, lying on
-            // the arch's torus wall
-            // (`review_probes::the_weld_refuses_on_the_weld_circle`).
+            // The pair refused is the neck cone against the arch's
+            // torus wall (`review_probes::the_weld_refuses_at_the_cone_torus_pair`).
             matches!(
                 e,
-                BooleanError::CurvedPierceUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    site: PairRefusalSite::InteriorLoopGuard,
                     operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             )
         },
-        "join flower to stem — the weld circle lying on the arch's torus \
-         wall is a coincidence the crossing layer refuses",
+        "join flower to stem — the section certificate has no arm for the \
+         neck cone against the arch's torus wall",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
