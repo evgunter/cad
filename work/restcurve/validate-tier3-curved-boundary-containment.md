@@ -7,6 +7,7 @@ opened: 2026-08-19
 refs: [226, 635, cone-holes-outside-their-face-are-subtracted-silently]
 priority: P1
 cost: H
+design: true
 ---
 
 ## From GitHub issue 638

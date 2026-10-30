@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P1
 cost: H
+design: true
 ---
 
 
@@ -29,3 +30,11 @@ step across it. Beside it, `chart_singularity::without_spurs` takes a
 loop's out-and-back pairs out before either reading (a spur bounds no
 area): the structural reading of a same-edge reversal this row's walk
 would own. Both are this row's to absorb. (RESTCURVE implementer)
+
+## Claimed by RESTCURVE (2026-10-30)
+
+Moved from `work/issues/`. A face's loop read on its chart is RESTCURVE's charter: the face region off the plane. Two of RESTCURVE's rows wait on this one:
+- `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`, which is parked on it;
+- `validate-tier3-curved-boundary-containment`, which asks the same question of a curved face's region.
+
+PR 6054 added `geom_brep::chart_singularity::walk_loop` / `without_spurs` as one more walker. The two rows are weighed together by one designer pair before either is built. (RESTCURVE orchestrator)

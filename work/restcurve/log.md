@@ -10,3 +10,7 @@
   - Behaviour change, accepted on the delta's independent check: at ε 1e-12, props now decides the side of a seam region whose old turning was rounding noise. Sweep's dimple row moved, and its offset now sits clear of the escalation.
   - Filed this sitting: the two exemption rows (P3). Elsewhere: `conearm/cone-arm-reads-an-interior-apex-as-a-puncture-no-valid-body-holds` (P3), and two NEARPOINT rows on props' sphere side reader.
   - **Class to remember:** a side or area sign read off a sampled chart polygon near a singularity must carry a bound on its own error, or escalate. A "pole far away" threshold only moves the failure.
+- 2026-10-30 — **Re-cut (orchestrator, sequencing):**
+  - Claimed `loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk` (P1 H) from `work/issues/`. It is the reading of a curved face's region. The parked wrap-tip row waits on it, and curved containment asks the same question.
+  - To stay at 30, moved to RESTFRONT `the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties` (it sits beside `a-corner-is-a-slice-has-three-homes`) and `ring-and-scaffold-refusals-read-three-ways`.
+  - Both P1s carry `design: true` and are weighed by one designer pair, since the problem is one.
