@@ -2999,9 +2999,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     halves.entry(h.edge).or_default().push(he);
                 }
                 if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                    let surface = body.get_surface(f.surface)?;
-                    let slack = |he| rounding_slack(body, surface, he);
                     if lk == f.outer {
+                        let surface = body.get_surface(f.surface)?;
                         let periodic =
                             [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                         out.extent = extent_of(
@@ -3012,12 +3011,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                     let q = row.pcurve.eval(t);
                                     [Interval::from_certified(q.x), Interval::from_certified(q.y)]
                                 };
-                                row_of(
-                                    &row.pcurve,
-                                    (t0, t1),
-                                    [end(t0), end(t1)],
-                                    slack(row.half_edge),
-                                )
+                                row_of(&row.pcurve, (t0, t1), [end(t0), end(t1)])
                             }),
                         );
                     }
@@ -3034,7 +3028,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                             row.half_edge,
                             (
                                 [lift(t0), lift(t1)],
-                                iso_of(&row.pcurve, slack(row.half_edge)),
+                                iso_of(&row.pcurve),
                                 harmonic_of(&row.pcurve),
                             ),
                         );
@@ -3097,29 +3091,23 @@ enum Row {
 }
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
-/// coordinate line by its `ends`, its chart points at `t0` and `t1`, the
-/// held coordinate of each widened to the line's value ([`iso_of`]),
-/// which holds the image's every point on that axis; a harmonic image by
-/// its enclosure over its whole span; `None` for any other image.
+/// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
+/// harmonic image by its enclosure over its whole span; `None` for any
+/// other image.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (T, T),
-    mut ends: [[Interval; 2]; 2],
-    slack: f64,
+    ends: [[Interval; 2]; 2],
 ) -> Option<Row> {
-    if let Some((held, at, _)) = iso_of(pcurve, slack).filter(|_| monotone_line(pcurve, slack)) {
-        for end in &mut ends {
-            let c = &mut end[held.index()];
-            *c = geom_core::spline::SpanLocate::enclosure_hull(*c, at);
-        }
-        return Some(Row::Ends(ends));
+    if !monotone_line(pcurve) {
+        let h = harmonic_of(pcurve)?;
+        let t = Interval::from_bounds(
+            Interval::from_certified(t0).lo(),
+            Interval::from_certified(t1).hi(),
+        );
+        return Some(Row::Bulging(h.at(t)));
     }
-    let h = harmonic_of(pcurve)?;
-    let t = Interval::from_bounds(
-        Interval::from_certified(t0).lo(),
-        Interval::from_certified(t1).hi(),
-    );
-    Some(Row::Bulging(h.at(t)))
+    Some(Row::Ends(ends))
 }
 
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
@@ -3171,15 +3159,15 @@ fn extent_of(
 /// linearly, or a harmonic whose moving channel is an angle or a free
 /// channel with no harmonic term (`c + l·t`). A free channel with one
 /// (`c + a·cos t + b·sin t + l·t`) can turn back, so it is not.
-fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>, slack: f64) -> bool {
+fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
     let moves_monotone = |ch: &Channel<T>| match *ch {
         Channel::Angle { .. } => true,
         Channel::Free { a, b, .. } => zero(a) && zero(b),
     };
     match p {
-        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => iso_of(p, slack).is_some(),
-        Pcurve::Harmonic { u, v } => match iso_of(p, slack) {
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => iso_of(p).is_some(),
+        Pcurve::Harmonic { u, v } => match iso_of(p) {
             Some((Axis::U, _, _)) => moves_monotone(v),
             Some((Axis::V, _, _)) => moves_monotone(u),
             None => false,
@@ -3204,8 +3192,9 @@ type Image = (
 /// ([`injective::Harmonic`]); `None` for every other variant.
 ///
 /// An angle channel's rate is its winding count, read off the count:
-/// the rate is a ratio of two equal periods ([`geom_brep::pcurve_cache::angle_rate`]),
-/// which an interval scalar encloses wider than the integer it is.
+/// the rate is a ratio of two equal periods
+/// ([`geom_brep::pcurve_cache::angle_rate`]), which an interval scalar
+/// encloses wider than the integer it is.
 fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic> {
     let Pcurve::Harmonic { u, v } = *p else {
         return None;
@@ -3231,65 +3220,13 @@ fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic>
     })
 }
 
-/// **How far rounding alone moves a held chart coordinate** of the image
-/// of `he`'s edge on `surface`: a few ulps ([`injective::few_ulps`]) of
-/// the edge's magnitude, the largest coordinate of its carrier's
-/// enclosure over its span, where the chart's held coordinate is a
-/// length, and of 1 where it is an angle (a sphere's or a torus's). A
-/// coefficient of the image is a dot product of vectors of the edge's
-/// size, so its rounding scales with it. Zero — exact structure only —
-/// where the edge carries no certified curve or its enclosure is
-/// unbounded.
-fn rounding_slack<T: CertifiedBounds>(
-    body: &Body<T>,
-    surface: &Surface<T>,
-    he: HalfEdgeKey,
-) -> f64 {
-    if matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. }) {
-        return injective::few_ulps(1.0);
-    }
-    let size = || {
-        let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-        let curve = body.get_curve_geom(edge.curve)?.certified()?;
-        let (t0, t1) = curve.params();
-        let span = Interval::from_bounds(
-            Interval::from_certified(t0).lo(),
-            Interval::from_certified(t1).hi(),
-        );
-        let enc = curve
-            .carrier()
-            .map_scalar(Interval::from_certified)
-            .eval(span);
-        let size = [enc.x, enc.y, enc.z]
-            .iter()
-            .map(|c| c.lo().abs().max(c.hi().abs()))
-            .fold(0.0, f64::max);
-        size.is_finite().then_some(size)
-    };
-    size().map_or(0.0, injective::few_ulps)
-}
-
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is
 /// an angle. The held coordinate is exact structure — a velocity, or a
-/// harmonic channel's linear rate, that lifts to the point zero — so no
-/// zero is decided here.
-///
-/// A harmonic channel's oscillation `a·cos t + b·sin t` is held when the
-/// enclosures of `a` and `b` hold zero and no more than `slack` of it
-/// either side ([`rounding_slack`]), and the value is then the channel's
-/// whole range, `c + a·[−1, 1] + b·[−1, 1]`, which holds every point of
-/// the image on the held axis: a strip, read as the line by every
-/// reader of a line's value as an enclosure. At a scalar whose values
-/// lift to points that is `a = b = 0` and the value `c`. **That is an ε
-/// concession** (`injective`'s module docs list them): an image that
-/// truly oscillates within the strip is read as a line.
-fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, slack: f64) -> Option<IsoImage> {
+/// harmonic channel's three coefficients, that lift to the point zero —
+/// so no zero is decided here.
+fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
-    let held = |x: T| {
-        let x = Interval::from_certified(x);
-        x.is_certified() && -slack <= x.lo() && x.lo() <= 0.0 && 0.0 <= x.hi() && x.hi() <= slack
-    };
     let lift = Interval::from_certified;
     let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
         if zero(d.x) {
@@ -3306,10 +3243,7 @@ fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, slack: f64) -> Option<IsoImage> {
         Pcurve::Harmonic { u, v } => {
             let constant = |ch: &Channel<T>| match *ch {
                 Channel::Angle { phase, winding: 0 } => Some(lift(phase)),
-                Channel::Free { c, a, b, l } if zero(l) && held(a) && held(b) => {
-                    let turn = Interval::from_bounds(-1.0, 1.0);
-                    Some(lift(c) + lift(a) * turn + lift(b) * turn)
-                }
+                Channel::Free { c, a, b, l } if zero(a) && zero(b) && zero(l) => Some(lift(c)),
                 _ => None,
             };
             let angle = |ch: &Channel<T>| matches!(ch, Channel::Angle { .. });
@@ -3907,18 +3841,16 @@ mod extent_rows {
     /// a row that is no monotone line is read by its ends.
     #[test]
     fn a_harmonic_rows_extent_holds_its_bulge() {
-        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI), 0.0) else {
+        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI)) else {
             panic!("the arch is read by its enclosure");
         };
         assert!(
             u.lo() <= 0.0 && PI <= u.hi() && v.hi() >= 1.0,
             "the enclosure holds the arch: {u:?} {v:?}"
         );
-        let [(_, _), (_, top)] = extent_of(
-            CYLINDER,
-            [row_of(&arch(), (0.0, PI), flat(PI), 0.0)].into_iter(),
-        )
-        .expect("an extent");
+        let [(_, _), (_, top)] =
+            extent_of(CYLINDER, [row_of(&arch(), (0.0, PI), flat(PI))].into_iter())
+                .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
     }
 
@@ -3932,12 +3864,12 @@ mod extent_rows {
         assert!(
             extent_of(
                 CYLINDER,
-                [row_of(&arch(), (0.0, TAU), flat(TAU), 0.0)].into_iter()
+                [row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()
             )
             .is_none(),
             "a turn-wide superset reads unknown"
         );
-        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU), 0.0)];
+        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU))];
         assert!(
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
@@ -3946,83 +3878,12 @@ mod extent_rows {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
-mod held_lines {
-    use super::{Row, harmonic_of, iso_of, row_of};
-    use crate::injective::{self, Axis};
+#[allow(clippy::expect_used)]
+mod winding_rate {
+    use super::harmonic_of;
+    use crate::injective;
     use geom_brep::{Channel, Pcurve};
     use geom_core::interval::Interval;
-    use geom_core::{Bounds, Real};
-
-    /// The slack a unit edge's image is held within.
-    const SLACK: f64 = 1e-15;
-
-    /// A rim's image on a cylinder's chart at `T`: the azimuth `t`, the
-    /// height `2 + a·cos t`.
-    fn rim<T: Real>(a: T) -> Pcurve<T> {
-        Pcurve::Harmonic {
-            u: Channel::Angle {
-                phase: T::zero(),
-                winding: 1,
-            },
-            v: Channel::Free {
-                c: T::from_f64(2.0),
-                a,
-                b: T::zero(),
-                l: T::zero(),
-            },
-        }
-    }
-
-    /// **A held channel whose oscillation is enclosed within the slack
-    /// of zero is a coordinate line, valued over its strip; one wider,
-    /// or one clear of zero, is not.** Red if the bound on the
-    /// oscillation is dropped, if the value is not widened to the strip
-    /// the oscillation sweeps, or if the rounding-wide one is refused.
-    #[test]
-    fn a_rounding_wide_oscillation_is_held_and_a_wider_one_is_not() {
-        let a = 8.9e-16;
-        let (held, at, angle) =
-            iso_of(&rim(Interval::from_bounds(-a, a)), SLACK).expect("held within the slack");
-        assert_eq!((held, angle), (Axis::V, true), "the height is held");
-        assert!(
-            at.lo() <= 2.0 - a && 2.0 + a <= at.hi(),
-            "the value holds the strip: {at:?}"
-        );
-        assert!(
-            iso_of(&rim(Interval::from_bounds(-1e-3, 1e-3)), SLACK).is_none(),
-            "an oscillation wider than the slack is no line"
-        );
-        assert!(
-            iso_of(&rim(Interval::from_bounds(1e-16, 2e-16)), SLACK).is_none(),
-            "an oscillation clear of zero is no line"
-        );
-        let Some(Row::Ends(ends)) = row_of(
-            &rim(Interval::from_bounds(-a, a)),
-            (Interval::zero(), Interval::pi()),
-            [[Interval::zero(), Interval::from_f64(2.0)]; 2],
-            SLACK,
-        ) else {
-            panic!("a held line is read by its ends");
-        };
-        assert!(
-            ends.iter()
-                .all(|e| e[1].lo() <= 2.0 - a && 2.0 + a <= e[1].hi()),
-            "each end's held coordinate is widened to the strip: {ends:?}"
-        );
-    }
-
-    /// **At `f64` the held channel is exact structure**: a zero
-    /// oscillation is a line and any other is not, however small. Red
-    /// if the slack is granted to a point value.
-    #[test]
-    fn at_f64_a_held_channel_is_exact_structure() {
-        assert!(iso_of(&rim(0.0), SLACK).is_some(), "a zero oscillation");
-        assert!(
-            iso_of(&rim(1e-16), SLACK).is_none(),
-            "a nonzero oscillation within the slack"
-        );
-    }
 
     /// **An angle channel's rate is its winding count, exactly**, at an
     /// interval scalar. Red if it is read off the quotient of two
@@ -4030,16 +3891,17 @@ mod held_lines {
     #[test]
     fn a_windings_rate_is_its_count() {
         for winding in [-2, -1, 1, 3] {
+            let zero = Interval::from_f64(0.0);
             let image = Pcurve::Harmonic {
                 u: Channel::Angle {
-                    phase: Interval::pi(),
+                    phase: Interval::from_f64(core::f64::consts::PI),
                     winding,
                 },
                 v: Channel::Free {
-                    c: Interval::zero(),
-                    a: Interval::zero(),
-                    b: Interval::zero(),
-                    l: Interval::zero(),
+                    c: zero,
+                    a: zero,
+                    b: zero,
+                    l: zero,
                 },
             };
             let h = harmonic_of(&image).expect("a harmonic image");

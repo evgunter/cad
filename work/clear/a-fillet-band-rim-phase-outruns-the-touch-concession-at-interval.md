@@ -40,17 +40,16 @@ the distance test never separates: each split leaves one half abutting
 the rim. The walk reaches depth 40 on (wall, band) pairs, which no
 cross-face pair at `f64` reaches past depth 15.
 
-**Not RIMSCALAR's cause.** RIMSCALAR's divergences were exact
-comparisons, on an ulp-wide enclosure, of structure that the `f64`
-reading held as exact zero or exact winding. This one is a few-ulps
-concession calibrated on `f64` rounding, which a derived enclosure
-(the fillet's torus phase) outruns. An `f64` body whose stored phase
-is `−1.7e-14`, a member of the enclosure, fails the same way. So the
-Interval refusal is the honest reading of the enclosure, and widening
-the touch to the line's enclosure would loosen a concession. Whether
-to do that, to tighten the fillet's phase enclosure at its derivation,
-or to read the band's rim structurally (the band meets the wall
-tangentially along a rim of the band's own chart), is the question.
+**Not RIMSCALAR's cause.** RIMSCALAR's divergence was an exact
+comparison on an ulp-wide enclosure: a winding's rate, `w·τ/τ`, read
+by `injective::Trig::of`'s `exactly(pl, ±1)`, which the `f64` reading
+holds as the point `w`. This one is a few-ulps concession calibrated
+on `f64` rounding, which a derived enclosure (the fillet's torus phase)
+outruns. Widening the touch to the line's enclosure would loosen a
+concession. Whether to do that, to tighten the fillet's phase
+enclosure at its derivation, or to read the band's rim structurally
+(the band meets the wall tangentially along a rim of the band's own
+chart), is the question.
 
 Evidence: the row's `[rimscalar] the filleted drum` print, and
 `injective.rs` `present_chart` (the "A cell past the line on its face

@@ -1159,17 +1159,28 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// side on the axis revolved a full turn — one wall and two discs,
 /// whose rims are open half-circles. Each disc's two half-rims meet at
 /// a vertex as one circle, a corner of no angle the plane's chart reads
-/// as two arcs; the wall reads the rims as coordinate lines, so the
-/// pairs certify off the wall's presentation by the disc's carrier. It
-/// is no corner row: it held before the corner presentation, and reads
-/// no corner (`cornered` 0) at either scalar.
+/// as two arcs. Holds at both scalars, nothing refused, by two routes:
+///
+/// - at `f64` the wall reads the rims as coordinate lines, so the pairs
+///   certify off the wall's presentation by the disc's carrier, reading
+///   no corner (`cornered` 0);
+/// - at `Interval` the rim images' heights oscillate within rounding of
+///   zero, so they are no coordinate lines; the wall reads each rim as
+///   a curve through its corners (`cornered` 8), which needs the
+///   winding's rate exactly.
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
-    for report in holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0)) {
+    let reports = holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0));
+    for (report, at, cornered) in [(&reports[0], "f64", 0), (&reports[1], "Interval", 8)] {
         assert_eq!(
-            report.cornered, 0,
-            "the rims certify off the wall's coordinate lines, reading no corner: {:?}",
+            report.receipt.refused, 0,
+            "the vessel at {at} refuses nothing: {:?}",
+            report.receipt
+        );
+        assert_eq!(
+            report.cornered, cornered,
+            "the vessel at {at} reads its route's corners: {:?}",
             report.receipt
         );
     }

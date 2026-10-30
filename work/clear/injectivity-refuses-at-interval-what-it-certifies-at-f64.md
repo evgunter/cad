@@ -38,3 +38,17 @@ did SHELL-4's unpark note.
 
 Blocks SHELL-4 (re-parked on this row). Unit RIMSCALAR,
 `docs/RIMSCALAR-SPEC.md`.
+
+## Cause (RIMSCALAR)
+
+At `Interval` the wall's half-rim images hold their height only to
+rounding (`a ∈ [−8.9e-16, 8.9e-16]`), so they are no coordinate lines,
+and the wall reads each rim as a curve through its corners. That
+reading needs `injective::Trig::of` to find the winding's rate exactly
+`±1` (`exactly(pl, ±1)`); `clearance::harmonic_of` handed it
+`angle_rate(w) = w·τ/τ`, which `Interval` encloses as
+`[0.9999999999999998, 1.0000000000000004]`. So the corner presentation
+was unread and departure failed. The rate is now read off the stored
+winding count; the vessel holds at `Interval` by the corner route
+(`cornered` 8) where `f64` holds by the carrier arm (`cornered` 0).
+
