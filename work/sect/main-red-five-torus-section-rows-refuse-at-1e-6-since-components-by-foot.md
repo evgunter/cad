@@ -32,3 +32,15 @@ Four of the five ask a germ section that PR 6011's march now refuses `Winds(Unse
 **Reproduce.** `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom-brep -p sweep --run-ignored all -E 'test(=pair_section::wiring::close_rings_carry_counted_and_marched) | test(=pair_section::two_loops_keep_their_sites_and_order_near_the_node) | test(=torus_doors_ssi::the_germ_rows_donut_against_its_moved_drum) | test(=torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join) | test(=germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs)'`
 
 **What closing it takes.** Decide, per row, whether the 1e-6 refusal is the march being honest at that band or the winding reading failing to separate what it should. Then either fix the reading, or pin each row's 1e-6 stop as typed with the reason. All five are green at 1e-6.
+
+## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
+
+Pinned at 1e-6 only (`pinned_red::row`, `stops_at = [1e-6]`), each at main's stop on `2e1c1bff`. At default ε and 1e-12 they run as written, and pass:
+
+- `close_rings_carry_counted_and_marched`: `δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: …(0.0` … `boxes: 206 })`. δ 3e-4 is the last δ, so nothing runs past it.
+- `two_loops_keep_their_sites_and_order_near_the_node`: `d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate {` … `curve_carrier_straddle`. The remaining θ of that sheet, the other sheet and the swapped order of that last pose are unrun.
+- `the_germ_rows_donut_against_its_moved_drum`: `placement 5: Winds(Unseparated)`. 5 is the row's last placement, so only what `germ_row` checks after its placements is unrun.
+- `a_square_rod_on_the_outer_equator_stops_at_the_join`: `an unpinned stop: Err(GermSectionUnbuilt {` Torus × Cylinder `why: Winds(Unseparated) })`.
+- `other_spins_and_steeper_tilts_refuse_at_their_germs`: all eight poses, from β 0.5 spin 0 to β 0.7 spin π/2, `GermSectionUnbuilt { … Winds(Unseparated) }`.
+
+Un-pinning owes a 1e-6 re-measure of the unrun remainders named above.

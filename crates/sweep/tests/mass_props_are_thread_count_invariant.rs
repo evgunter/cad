@@ -393,6 +393,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 ///
 /// **Each re-cut names its cause in its PR body**, and the history of
 /// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
+///
+/// The 1e-12 table's `sym_arc_loft validate_geometric chk` is pinned at
+/// main's, not explained (`work/green/g-moves-four-main-reds-messages.md`).
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
