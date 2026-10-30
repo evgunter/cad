@@ -11,8 +11,8 @@
 //!
 //! The body is built as the union of the block's two sides of the
 //! trench, each the block cut by a prism, the lower one holding the V
-//! below `z = 2`. (`block ∖ trench` builds the keel as one edge
-//! between the walls with the bore's face running through it,
+//! below `z = 2`. (`block ∖ trench` does not build this body: it
+//! cannot carry a keel inside the bore's face,
 //! `work/splitdoor/a-keel-on-a-cylinders-ruling-subtracts-with-the-bore-through-its-wedge.md`.)
 //!
 //! Through the tip, the plane `z = 2` and one tilted about y: the split,
