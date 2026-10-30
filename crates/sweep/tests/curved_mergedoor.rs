@@ -7,8 +7,9 @@
 //! glue. A curved run whose glue would close its
 //! carrier's full period stays in its cut form and is recorded as a
 //! `SkippedMerge` carrying `PeriodClosure` — visible in
-//! `BooleanNaming::merge_skipped`, never a refusal blaming the caller,
-//! and never a record of the declaration itself. Scenes A, B, C, D and
+//! `BooleanNaming::merge_skipped`, never a refusal blaming the caller.
+//! A boolean's glued pair is read through the glue's record; the public
+//! door reads every pair, on keys of their own, by its margins. Scenes A, B, C, D and
 //! F ship honest bodies whose only records are their wall runs' period
 //! closures; scenes C and D build through the chord join, which
 //! consumes the bore side of the pair before the door.
@@ -185,7 +186,7 @@ fn sorted(mut faces: Vec<topo::FaceKey>) -> Vec<topo::FaceKey> {
     faces
 }
 
-/// Row 1 (C): the proud peg flush at the bottom ships an honest body
+/// Scene C: the proud peg flush at the bottom ships an honest body
 /// whose only records are period closures. The peg's bottom rim lies on
 /// the bore's bottom rim, so the section segments there are edges of
 /// both solids; the chord join builds the union itself (JOIN-1), and
@@ -243,12 +244,12 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
     (body, keys)
 }
 
-/// Row 1′ (public door): a peg whose three wall sectors sit on keys of
-/// their own is read on the carrier ladder, and the three sectors are
+/// **The public door on a peg whose three wall sectors sit on keys of
+/// their own** reads them on the carrier ladder, and the three sectors are
 /// one run whose glue would close the full period: the door records
 /// that `PeriodClosure`, naming every sector, and commits nothing.
 #[test]
-fn a_declared_full_period_pair_is_recorded_as_its_period_closure() {
+fn a_full_period_run_on_keys_of_its_own_is_recorded_as_its_period_closure() {
     let (mut body, _) = peg_with_split_wall_keys();
     let before = format!("{body:?}");
     let outcome = body
@@ -275,8 +276,8 @@ fn a_declared_full_period_pair_is_recorded_as_its_period_closure() {
     );
 }
 
-/// Row 1″ (public door): the planar pairs and the cylinder pairs of
-/// one body are each read by their own carriers — the two cap planes,
+/// **The public door reads the planar pairs and the cylinder pairs of
+/// one body** are each read by their own carriers — the two cap planes,
 /// which never meet, glue nothing, and the cylinder sectors' run is
 /// recorded as its period closure.
 #[test]
@@ -433,7 +434,7 @@ fn distinct_keys(
     (ka, fresh)
 }
 
-/// Row 1‴ (public door): a `(Plane, Plane)` pair and a
+/// **The public door glues** a `(Plane, Plane)` pair and a
 /// `(Cylinder, Cylinder)` pair on keys of their own that each genuinely
 /// meet at an edge BOTH glue on their margins — the D-prism's split
 /// `y = 0` wall and its arc run, short of a full period — in one call,
@@ -458,7 +459,7 @@ fn planar_and_cylinder_pairs_glue_in_one_call() {
     assert_eq!(validate_closed(&body), Ok(()));
 }
 
-/// Row 1⁗ (public door): two keys of one peg wall — two sectors on
+/// **The public door on two keys of one peg wall** — two sectors on
 /// `k`, the third on `k2` — are one run, and the three close the full period: no group
 /// commits, and the one record names the three live sectors.
 /// (Construction after the R1 review probe and R2's MAJOR 1.)
@@ -493,13 +494,13 @@ fn a_run_across_keys_is_recorded_whole() {
     );
 }
 
-/// Row 1⁵ (public door): a surface with NO live face — kept alive only
+/// **The public door on a surface with NO live face** — kept alive only
 /// by an edge description after every face left it — glues nothing:
 /// the door's only records are the body's own wall runs' period
 /// closures. (Construction after the R1/R2 review probes: scene C's
 /// shipped body with every peg-wall face re-keyed.)
 #[test]
-fn pair_with_no_live_faces_is_the_undeclared_merge() {
+fn a_surface_with_no_live_face_glues_nothing() {
     let (c, p) = scene_c();
     let mut body = union_honest("C", &c, &p).body.into_body();
     let walls = walls_at(&body, BORE_R);
@@ -572,11 +573,11 @@ fn frustum() -> Body<f64> {
         .body
 }
 
-/// Row 4: a plane meeting a cone and a plane meeting a cylinder glue
-/// alike: never, inside and outside the ladder. Two kinds are no one
+/// **A plane meeting a cone and a plane meeting a cylinder glue
+/// alike**: never, inside and outside the ladder. Two kinds are no one
 /// carrier at any margin.
 #[test]
-fn a_declared_pair_of_two_kinds_refuses_alike_inside_and_outside_the_ladder() {
+fn a_pair_of_two_kinds_never_glues_inside_or_outside_the_ladder() {
     for (label, mut body) in [
         ("plane, cone", frustum()),
         ("plane, cylinder", peg_at(0.0, 0.0, 1.0)),
@@ -634,7 +635,7 @@ fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, to
     distinct_keys(body, faces[0], faces[1])
 }
 
-/// Row 1⁶ (public door): a sphere pair, a torus pair and a cone pair on
+/// **The public door on a sphere pair, a torus pair and a cone pair** on
 /// keys of their own — a ball's two faces, a donut's two, a frustum's
 /// two wall faces — are each one run closing its carrier's full period:
 /// the record is that `PeriodClosure`, naming both faces. (After the R1
@@ -664,7 +665,7 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     }
 }
 
-/// Row 2 (A, B): the floating and mid-bore pegs ship honest bodies —
+/// Scenes A and B: the floating and mid-bore pegs ship honest bodies —
 /// additive volume, tiers 2, 3 and 3′ — whose only records are their
 /// three wall runs' period closures. Each peg rim cuts the bore wall mid-height, and the
 /// section loops' roles resolve on the rim arcs' own midpoints; the
@@ -721,11 +722,11 @@ fn floating_and_mid_bore_pegs_ship_honest_with_their_period_closures() {
     }
 }
 
-/// Row 3 (C, D): one side of the declared pair is CONSUMED by the
+/// Scenes C and D: one side of the glued pair is CONSUMED by the
 /// union before the door runs — scene C's bore wall, scene D's peg wall
 /// — and its surface goes with it, so the door records only the
 /// surviving wall runs' period closures. Both build through the chord
-/// join (row 1).
+/// join (scene C's row above).
 #[test]
 fn consumed_side_of_the_pair_leaves_only_period_closures() {
     let (c, p) = scene_c();
@@ -741,11 +742,11 @@ fn consumed_side_of_the_pair_leaves_only_period_closures() {
     assert_eq!(assert_period_closures("D", &bb).len(), 1, "D: one wall run");
 }
 
-/// Row 4: a peg's planar caps and cylinder walls meet at edges and
-/// never glue: two kinds are no one carrier, and the door leaves both
-/// as they are, its only records the walls' own period closure.
+/// **A peg's planar caps and cylinder walls meet at edges and never
+/// glue**: two kinds are no one carrier, and the door leaves both as
+/// they are, its only records the walls' own period closure.
 #[test]
-fn mixed_kind_declared_pair_still_refuses_typed() {
+fn a_pegs_caps_and_walls_never_glue() {
     let mut body = peg_at(0.0, 0.0, 1.0);
     let outcome = body
         .merge_coplanar_faces(Tol::witness())
@@ -761,7 +762,7 @@ fn mixed_kind_declared_pair_still_refuses_typed() {
     );
 }
 
-/// Row 7 (E, F): two equal pegs stacked end to end, their walls one
+/// Scenes E and F: two equal pegs stacked end to end, their walls one
 /// cylinder carried on across the caps — continuations, one carrier by
 /// margin. The union (F) is exact and honest, and its six wall faces are one run, all of one sense, each
 /// lower sector meeting its upper across the z = 1 rim, whose glue
@@ -808,6 +809,39 @@ fn stacked_equal_pegs_same_sense_walls() {
         3,
         "F: each lower sector meets its upper across the z = 1 rim: {cross:?}"
     );
+}
+
+/// **A curved glued pair merges through the glue's record.** Two
+/// half-disc prisms stacked end to end: the union's glue door glues
+/// their arc walls one cylinder, a continuation, and the merge reads
+/// that pair through its record and glues the two walls into one wall
+/// short of a full period, so nothing is recorded skipped.
+#[test]
+fn stacked_half_discs_merge_their_glued_arc_walls() {
+    let half = |z0: f64| {
+        let lp = bulge_loop(vec![
+            (Point2::new(-BORE_R, 0.0), 0.0),
+            (Point2::new(BORE_R, 0.0), 1.0),
+        ]);
+        finished(
+            "a half disc",
+            sweep::test_support::extruded(
+                sweep::test_support::sketch_at(z0),
+                vec![lp],
+                1.0,
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+    };
+    let bb = union_honest("half discs", &half(0.0), &half(1.0));
+    assert!(
+        bb.naming.merge_skipped.is_empty(),
+        "short of a full period, nothing is skipped: {:?}",
+        bb.naming.merge_skipped
+    );
+    let walls = bore_radius_faces(&bb.body);
+    assert_eq!(walls.len(), 1, "the two arc walls are one: {walls:?}");
 }
 
 /// The cycle halves of `f`'s loops, outer first.
