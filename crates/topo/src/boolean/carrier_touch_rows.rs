@@ -106,7 +106,7 @@ fn an_ellipse_keeps_its_crossings_in_either_storage() {
                 let t = param(tc, b_in_major);
                 assert!((c.eval(t) - p).norm() < 1e-12, "the storages agree");
                 let span = (param(0.0, b_in_major), param(3.0, b_in_major));
-                let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), span, band())
+                let found = clusters(&s, &c, rates(&c), reach(&s), span, band())
                     .expect("localizes within the budgets");
                 assert!(
                     found.iter().any(|&(_, hi)| hi <= t) && found.iter().any(|&(lo, _)| lo >= t),
@@ -136,7 +136,7 @@ fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
         origin: Point3::new(0.0, 0.0, 0.5),
         dir: Vec3::new(1.0, 0.0, 0.0),
     };
-    let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), (-3.0, 3.0), band())
+    let found = clusters(&s, &c, rates(&c), reach(&s), (-3.0, 3.0), band())
         .expect("localizes within the budgets");
     for touch in [-2.0, 2.0] {
         assert!(
@@ -264,7 +264,7 @@ fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
         ("half a radian past the sheet", on(-0.5, 0.5), true),
         ("in the sheet's middle", on(0.7, 0.5), false),
     ] {
-        let got = ball_off_face(&body, face, foot, 1e-3, 1.0, band);
+        let got = ball_off_face(&body, face, foot, 1e-3, Some(1.0), band);
         assert!(
             matches!(got, Ok(b) if b == off),
             "a ball about a foot {what}: {got:?}"

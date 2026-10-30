@@ -1011,3 +1011,18 @@ APPROVE-WITH-FIXES. I read the fix pass myself.
   tangent at two points refuses.
 - The two SPLICECARRIER flush rows go back from P1 to P3: no live
   consumer remains.
+
+## 2026-10-30 — the curved lane reads a spline span (branch `splice/spline-span-curved-crossing`)
+
+- Closed `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`.
+  The curved lane now dispatches a spline span to the ring composite
+  against a cylinder, cone, sphere or torus. Two of the three owed
+  items are built: the chart frame is formed in certification
+  arithmetic, and an unsettled count goes through
+  `carrier_touch::off_face` on both lanes, which now reads a plane. The
+  third, the divisor's region, rests on a gradient premise that does
+  not hold, because the divisor is a factor of the form at each point.
+  A row now pins that.
+- Lily wall 8 re-pinned at 1e-9 and 1e-6 on `CurvedBooleanUnsupported
+  { operand: B, kind: Nurbs }` from the vertex-on-face pass. Filed
+  `a-vertex-piercing-a-spline-face-reads-no-outward-normal` (P1).

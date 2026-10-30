@@ -2,8 +2,7 @@
 //! ([`super::Door::SplineComposite`]): the face's canonical residual
 //! composed along the span's NURBS carrier, the ring composite `f ∘ C`
 //! ([`geom_core::spline::compose::canonical_composite`]), read piece by
-//! piece. The boolean dispatches the plane alone (`super::route`); the
-//! arm reads a cylinder, cone, sphere or torus the same way, metered
+//! piece. It reads a plane, cylinder, cone, sphere or torus, metered
 //! through the form's distance divisor.
 //!
 //! The carrier's net is written in the surface's chart frame in
@@ -17,7 +16,10 @@
 //! by an upper bound on the form's distance divisor over the net's hull
 //! (the plane's is one), bounds the part's distance from the surface from
 //! below, and that is what is decided against the band `implicit_residual`
-//! is decided against. **A piece never straddles a knot**: the pieces
+//! is decided against. The divisor is a factor of `f` at each point
+//! (`|f(p)| ≤ d(p)·divisor(p)`), not a gradient bound along a path to the
+//! surface, so the hull, which holds every point of the span, is the
+//! region it is read over. **A piece never straddles a knot**: the pieces
 //! start as the carrier's knot spans cut at the span's ends, and every
 //! later piece is a part of one, so each row is one polynomial and a
 //! derivative read on it is the derivative there. On a piece:
@@ -255,7 +257,16 @@ fn composite_rows<T: Real>(
     let point = |p: Point3<T>| Vec3::new(cross(p.x), cross(p.y), cross(p.z));
     let vector = |v: Vec3<T>| Vec3::new(cross(v.x), cross(v.y), cross(v.z));
     let o = point(origin);
-    let e = frame.map(vector);
+    // The frame formed in certification arithmetic: the axis normalized,
+    // and the reference direction made orthogonal to it and normalized.
+    // Its enclosures hold an exactly orthonormal frame about the stored
+    // axis, which the radial terms read; the stored twin is orthonormal
+    // only to its rounding.
+    let [u_ref, _, axis] = frame.map(vector);
+    let e2 = axis / axis.norm();
+    let radial = u_ref - e2 * u_ref.dot(e2);
+    let e0 = radial / radial.norm();
+    let e = [e0, e2.cross(e0), e2];
     let framed: Vec<Vec3<Interval>> = net
         .control()
         .iter()
@@ -332,7 +343,7 @@ fn composite_rows<T: Real>(
             hull(&coords[2]),
         ))
         .abs();
-    if !(divisor.is_certified() && divisor.lo() > 0.0) {
+    if !(divisor.is_certified() && divisor.hi() > 0.0) {
         return Err(unread("a scalar of the surface does not certify"));
     }
     let divisor = Interval::from_bounds(divisor.hi(), divisor.hi());

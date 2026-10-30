@@ -3,7 +3,8 @@
 //! crossing, three crossings (the first and third of one sense), a
 //! tangency, a crossing on a knot, a meeting at a crease, an in-band
 //! apex and dip there, a crossing within the band of one and one away
-//! from it, an end on the surface, and a rational arc.
+//! from it, an end on the surface, a rational arc, and a frame off
+//! orthonormal.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -353,4 +354,100 @@ fn crease_v(apex: f64) -> NurbsCurve3<f64> {
         Point3::new(2.0, 0.0, 1.0),
     ];
     NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap()
+}
+
+/// **The chart frame is formed from the axis, not read as stored.** The
+/// radial terms take the frame as orthonormal. A reference direction off
+/// square to a cylinder's axis, or a sphere's axis off unit length, by
+/// far more than rounding so the effect stands above the band: a run
+/// clear of each surface reads clear, where the stored frame would have
+/// tilted or stretched it through the surface.
+#[test]
+fn a_frame_off_orthonormal_reads_the_surface_it_names() {
+    let line = |from: Point3<f64>, to: Point3<f64>| {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        NurbsCurve3::new(kv, vec![from, to], vec![1.0; 2]).unwrap()
+    };
+    // Outside the unit cylinder at radius 1.05, along its axis.
+    let wall = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.1),
+    };
+    let along = line(Point3::new(1.05, 0.0, -1.0), Point3::new(1.05, 0.0, 1.0));
+    assert_eq!(read(&along, &wall).unwrap(), vec![], "outside the wall");
+    // Inside the unit sphere, up its axis to 0.95.
+    let ball = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.1),
+        u_ref: Vec3::unit_x(),
+    };
+    let up = line(Point3::new(0.0, 0.0, 0.5), Point3::new(0.0, 0.0, 0.95));
+    assert_eq!(read(&up, &ball).unwrap(), vec![], "inside the ball");
+}
+
+/// **The metering divisor is a factor of the form at each point**, not a
+/// bound on its gradient along a path to the surface: `|f(p)|` is at
+/// most `d(p)` times the divisor at `p` itself, `d` the distance from the
+/// surface. So the net's hull, which holds every point of the span, is
+/// the region the divisor is read over, and a path from a point to its
+/// foot that leaves the hull charges nothing. Read on a grid of points
+/// in and well past each surface's band, against the closed-form
+/// distances.
+#[test]
+fn the_divisor_is_a_pointwise_factor_of_the_form() {
+    use crate::pcurve_cache::projected::Meters;
+    let (r_cyl, r_ball, (big, small), alpha) = (1.0f64, 1.5f64, (2.0f64, 0.5f64), 0.6f64);
+    let (sin, cos) = alpha.sin_cos();
+    let kinds: [(&str, Meters<f64>, &dyn Fn(f64, f64) -> (f64, f64)); 4] = [
+        ("cylinder", Meters::Cylinder { radius: r_cyl }, &|rho, _| {
+            (rho * rho - r_cyl * r_cyl, (rho - r_cyl).abs())
+        }),
+        ("sphere", Meters::Sphere { radius: r_ball }, &|rho, z| {
+            let n = rho.hypot(z);
+            (n * n - r_ball * r_ball, (n - r_ball).abs())
+        }),
+        (
+            "cone",
+            Meters::Cone {
+                sin,
+                cos,
+                nappe: crate::offset::Nappe::Opening,
+            },
+            &|rho, z| {
+                let (one, other) = (rho * cos - z * sin, rho * cos + z * sin);
+                (one * other, one.abs().min(other.abs()))
+            },
+        ),
+        (
+            "torus",
+            Meters::Torus {
+                major: big,
+                minor: small,
+            },
+            &|rho, z| {
+                let (near, far) = ((rho - big).hypot(z), (rho + big).hypot(z));
+                (
+                    (near * near - small * small) * (far * far - small * small),
+                    (near - small).abs(),
+                )
+            },
+        ),
+    ];
+    for (name, meters, form) in kinds {
+        for i in 0..=40 {
+            for j in 0..=40 {
+                let (rho, z) = (f64::from(i) * 0.1, f64::from(j) * 0.1 - 2.0);
+                let (f, d) = form(rho, z);
+                let divisor = meters.divisor(Vec3::new(rho, 0.0, z));
+                assert!(
+                    f.abs() <= d * divisor * (1.0 + 1e-12) + 1e-12,
+                    "{name} at (ρ {rho}, z {z}): |f| {} > d {d} · divisor {divisor}",
+                    f.abs()
+                );
+            }
+        }
+    }
 }
