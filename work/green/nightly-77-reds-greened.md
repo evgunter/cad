@@ -2,10 +2,11 @@
 id: nightly-77-reds-greened
 kind: unit
 title: nightly 77's reds left by triage #6082 are greened: pinned or re-blessed, each on the triage's row
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
+closed: 2026-10-30
 ---
 
 
@@ -29,3 +30,12 @@ Nightly 77 (run 41008276467, main `39bbdfc777`) was triaged by #6082, which fixe
 ## Owed
 
 Done when nightly 78 is green on these rows, or each remaining red is named with its row.
+
+## Closed (2026-10-30)
+
+Every red this row names is greened on main: re-blessed with its cause,
+fixed at its site, or pinned (`test_utils::pinned_red`, exact-value or
+census pins, or a nightly-filter exclusion) with a dated line on the
+owning program's open row. The last of them landed in #6093. The causes
+live on those rows, not here. A pin that goes red later is a new
+nightly red, handled from that night's triage.

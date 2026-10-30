@@ -1,7 +1,7 @@
 ---
 id: g-moves-four-main-reds-messages
 kind: issue
-title: Six rows red on main read G's numbers (four slow rows, the m10_sym_profile plate digest, the sweep thread-count digest at 1e-12); whoever greens them pins G's
+title: INTENT G (PR 5954) moved six slow rows on main; all are now pinned or re-blessed, and two moves stay unexplained: R2's rounded pad loses two symbolic decisions outside the bracket-only DECIDE-3 trade, and the m10_sym_profile plate digest and sweep thread-count line moved without a stated cause
 status: open
 opened: 2026-10-29
 priority: P1
@@ -41,3 +41,13 @@ These four rows are red on main, and under G they stay red with the same message
   None of the three stops a row early, so un-pinning owes only an explanation of the move.
 
 **2026-10-30, for INTENT.** The pad's two lost `symbolic` decisions under G are unexplained: G's cost table claims nothing for the pad, and DECIDE-3's exemption names the bracket alone. This row stays open for them, beside the plate digest and the `sym_arc_loft` checks.
+
+## Re-homed to INTENT (2026-10-30, GREEN)
+
+GREEN pinned or re-blessed every red this row lists (#6093), so main is
+green on them. What remains is the cause, which is INTENT's: the pad's
+loss of two `symbolic` decisions in `sym_9_the_drive_writes_the_ladders_receipt`
+(pinned at main's value as not explained), the plate digest, and the
+thread-count `chk 97/104` line. Moved to INTENT per GREEN's charter (the
+fix row goes on the program that owns the code that moved). Un-pinning
+each owes the re-measure its pin site names.
