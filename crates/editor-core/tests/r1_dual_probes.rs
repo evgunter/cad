@@ -460,6 +460,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let slab = r.insert(Node::Extrude {
         profile: plate.into(),
@@ -468,6 +469,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
         ids: Vec::new(),
+        on: None,
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_profile.into(),

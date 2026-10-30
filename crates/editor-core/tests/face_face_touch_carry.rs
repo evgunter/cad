@@ -32,6 +32,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
                 phase: Formula::zero(Dimension::Angle),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = insert(

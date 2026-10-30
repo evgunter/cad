@@ -101,7 +101,9 @@
 //!    (`insert::strut_faces_first`): a germ along the splice corner's
 //!    edge names its half; otherwise the corner's walk orders them,
 //!    by their sector entries, and two in one entry by their angle
-//!    (`insert::strut_order`), read as distances at the sector's arm;
+//!    (`insert::strut_order`), read as distances: a germ's half-turn
+//!    side at the arrival edge's reach, two germs' order at the sector's
+//!    arm;
 //!    where nothing orders them it refuses.
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the

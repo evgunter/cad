@@ -98,6 +98,7 @@ fn wedge(doc: ProfileDoc, n: u64, far: Far) -> (ProfileDoc, RecipeNodeId) {
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -333,6 +334,7 @@ fn two_wedges(near: &str, spin: impl Fn(&ProfileDoc) -> Formula) -> Vec<Seat> {
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (d, wedge) = insert(

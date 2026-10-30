@@ -705,6 +705,7 @@ fn spout_loft(
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -828,6 +829,7 @@ fn revolved(doc: &mut Doc<ProfileProgram>, loop_: LoopProgram<Formula>, tol: Tol
         Node::Profile(ProfileProgram {
             loops: vec![loop_],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
