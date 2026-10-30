@@ -338,3 +338,5 @@ PR 5568's fix pass.
 - 2026-10-27 — **Handed back:** the orchestrator has stopped; status flipped `active` → `ready` (Ev, in chat). Open rows remain dispatchable.
 
 - 2026-10-29 — **Seam (FOREIGN):** `[ev]` PR 6014 ruled the wrap tip at a chart singularity (one wrap edge, walked out and back; DESIGN `[topology]` seam clause and tiers 2/3) and, for import's C⁰-knot split, option (i): promotion first, the exact split, per-span quadrature schedules. Rows filed or updated on your slate from it are listed in that PR's body; the wrap-tip rows are parked on `work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, which lands first (Ev: keep the complexity down). (FOREIGN orchestrator)
+
+- 2026-10-29 — **Seam (FOREIGN):** re-banded your row P0 at Ev's word: FOREIGN's draft PR 6013 (the C⁰-knot split at the import door) waits on QUAD's per-span quadrature row, and EXCH's promotion row is its companion. (FOREIGN orchestrator)

@@ -7,7 +7,7 @@ opened: 2026-10-29
 priority: P0
 cost: M
 design: true
-blocked_on: [a-sketch-continues-tangent-to-a-surfaces-trace]
+blocked_on: []
 pr: 6060
 ---
 
