@@ -357,3 +357,13 @@ PR 5568's fix pass.
   - **Notes kept as notes:** the analytic-rim split counted inside the wall's census; the multiplicity p+1 spline gap (the fix pass checks it, and files it if real).
   - **Class finding:** a sampled selection that decides topology (here, which faces a crease line crosses) fails silently in exactly the direction the rule forbids. Sampling may pick among exact operations, but a missed sample must refuse, never pass. The fix pass sweeps `knot_split.rs` and import's other sample-decided selections for the same shape.
   - **Sequencing (orchestrator's call):** the fix pass runs now, on `foreign/c0-knot-split`, in parallel with the per-span unit. It is independent of the per-span change except for the conic test file. Merge-main, re-time and merge still follow the per-span merge.
+- 2026-10-30 — **PR 6013 fix pass** (head `fceade8f`). Accepted:
+  - **The join** keeps the carrier that runs through the vertex: `mixed_lower` and `mixed_upper` both join.
+  - **The side test** is certified by enclosures (`clear_of`), and an uncertified line goes to the split or refuses `C0KnotUnsplit`.
+  - **The split** is one pass, halving at the middle knot. `entities::resolve` drops 1.10 → 0.34 s, and the conic test takes 69 s in release.
+  - **`rectangle_winding`** now checks continuity, with a 4ε·M slack argued from where the endpoints come from.
+  - **Style:** `crease_values` is now the one home, `offset_meters` included.
+  - **p+1 multiplicity** refuses at the record.
+  - **Filed:** `import-infers-the-outer-loop-from-a-sampled-polygon` (FOREIGN, P3) and `the-trimmed-lanes-closure-guard-cites-a-shoelace-…` (QUAD, P3).
+
+  **Sent back:** `CLEAR_REACH = 4.0` reads a crossing of up to about 4·ε_in that the samples miss as "on the line". That keeps a crease inside the cell, past the ε_in Ev allows import to move geometry (PR 6014). Owed: a reach of at most ε_in, with the rest split or refused. Also owed: a measure of whether the corpus reaches the new near-line refusal.
