@@ -2,10 +2,11 @@
 id: main-red-trace-rs-reads-as-a-planar-sense-flip-re-fork
 kind: issue
 title: main red: topo boolean/trace.rs folds a chart gradient through from_chart beside a Surface::Plane arm, which the planar-flip row reads as a re-fork (topo face_normal, every ε)
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: E
+closed: 2026-10-30
 ---
 
 
@@ -28,3 +29,15 @@ The row is file-level. It fires on any `topo/src` file other than `face_normal.r
 **Reproduce.** `cargo nextest run -p topo --lib --run-ignored all -E 'test(=face_normal::tests::the_planar_sense_flip_lives_in_one_place)'`
 
 **What closing it takes.** The row is green on main, with whichever remedy is chosen stated in the PR.
+
+## Closed (2026-10-30): trace reads the outward normal through face_normal
+
+The first remedy. `face_normal.rs` gains `surface_outward_normal`, the
+by-value door for a reader holding a carrier, a point and the bit
+rather than a face: it folds the implicit gradient through
+`OutwardNormal::from_chart`. `boolean/trace.rs` `crossing` calls it and
+no longer names `from_chart`. `face_outward_normal_at`'s cone arm calls
+it too. The trace keeps the RAW gradient (its `Crossing::outward`
+contract), so `geom_brep::implicit_outward_normal`, which normalizes,
+was not the door.
+
