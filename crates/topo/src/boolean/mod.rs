@@ -100,6 +100,8 @@ mod fate;
 mod finish;
 mod fragments;
 mod glue;
+#[cfg(test)]
+mod glued_pair_rows;
 pub(crate) mod insert;
 mod join;
 mod nary;
