@@ -158,6 +158,8 @@ mod a_tube_ending_on_a_ball;
 mod a_vertex_on_a_grazing_plane;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
+#[path = "review_probe_6097.rs"]
+mod review_probe_6097;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
 mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
