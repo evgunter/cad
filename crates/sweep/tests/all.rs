@@ -130,6 +130,8 @@ mod a_seam_region_covering_the_sphere_twice;
 mod a_sheath_grafted_on_its_blade;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
+#[path = "a_slit_tip_on_a_curved_face_reads_its_full_turn.rs"]
+mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]

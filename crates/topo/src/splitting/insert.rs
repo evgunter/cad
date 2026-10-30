@@ -550,20 +550,14 @@ pub(super) fn insert_null_edges<T: Decide>(
             // corner's mint splices only at its own arc's ends, so Q's
             // corner is still at `at`.
             _ => {
-                let next_real = (q + 1..q + 1 + n)
-                    .map(|j| &entries[(anchor + j) % n])
-                    .find(|e| e.kind == SectorEntryKind::Edge)
-                    .unwrap_or_else(|| unreachable!("an orbit has a real half-edge"))
-                    .he;
-                if body.proven_orbit_step(arc(0).he) != next_real
-                    || proven(&body.half_edges, next_real, EntityId::HalfEdge).start != at
-                {
-                    unreachable!(
-                        "the duplicate arc {:?}'s corner before {next_real:?} left {at:?} or \
-                         gained a half: no other corner's mint touches it",
-                        (p, q),
-                    );
-                }
+                let next_real = body.strut_before_next_real(
+                    (at, arc(0).he),
+                    (q + 1..q + 1 + n).map(|j| {
+                        let e = &entries[(anchor + j) % n];
+                        (e.he, e.kind == SectorEntryKind::Edge)
+                    }),
+                    || format!("the duplicate arc {:?}", (p, q)),
+                );
                 (
                     MevSite::Fan {
                         he1: next_real,

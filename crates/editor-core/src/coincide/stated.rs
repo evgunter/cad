@@ -245,30 +245,75 @@ impl Stated {
 /// revolve). Any other cell's axis is its own. A part's entity is named
 /// in the part's ids, which this document does not hold, so a band
 /// the walk stopped at an instance for is its own wall's: a curved
-/// wall's two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are
-/// one carrier.
+/// wall's faces are one carrier ([`carrier`]).
 pub(crate) fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Construction {
-    let in_a_part = matches!(
-        cell.maps.last(),
-        Some(Map::World(at)) if matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
-    );
+    let cell = carrier(cell);
+    let Origin::Minted(name) = &cell.origin else {
+        return cell;
+    };
+    if !matches!(name.path.as_slice(), [RoleSeg::Band(_)]) || in_a_part(doc, &cell) {
+        return cell;
+    }
+    match axis_output(doc, name.node) {
+        Some(axis) => Construction {
+            origin: Origin::Pose(axis, None),
+            maps: cell.maps,
+        },
+        None => cell,
+    }
+}
+
+/// **The carrier a swept face is on, named once**: a revolve's band's
+/// two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are one
+/// carrier, and so are the faces an extrude or a revolve sweeps over the
+/// pieces of one carrier-form loop (a circle's, every one an arc of one
+/// carrier), named by the loop's first piece. Any other cell is its own.
+pub(crate) fn carrier(cell: &Construction) -> Construction {
+    use crate::names::ProfileEdgeRef;
+    use profile::PieceRole;
     let Origin::Minted(name) = &cell.origin else {
         return cell.clone();
     };
-    let [RoleSeg::Band(run) | RoleSeg::BandPi(run)] = name.path.as_slice() else {
-        return cell.clone();
+    // A carrier form's piece is its loop's first.
+    let first = |run: &crate::names::PieceRun| {
+        crate::names::PieceRun::new(
+            run.pieces()
+                .iter()
+                .map(|piece| match piece {
+                    ProfileEdgeRef::Piece {
+                        step,
+                        role: PieceRole::Piece(_),
+                    } => ProfileEdgeRef::Piece {
+                        step: *step,
+                        role: PieceRole::Piece(0),
+                    },
+                    other => *other,
+                })
+                .collect(),
+        )
+        .unwrap_or_else(|| run.clone())
     };
-    let origin = match axis_output(doc, name.node).filter(|_| !in_a_part) {
-        Some(axis) => Origin::Pose(axis, None),
-        None => Origin::Minted(crate::names::StableName {
-            path: vec![RoleSeg::Band(run.clone())],
-            ..name.clone()
-        }),
+    let path = match name.path.as_slice() {
+        [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => vec![RoleSeg::Band(first(run))],
+        [RoleSeg::Lateral(run)] => vec![RoleSeg::Lateral(first(run))],
+        _ => return cell.clone(),
     };
     Construction {
-        origin,
+        origin: Origin::Minted(crate::names::StableName {
+            path,
+            ..name.clone()
+        }),
         maps: cell.maps.clone(),
     }
+}
+
+/// **Whether the walk to `cell` stopped at a part's instance**, so its
+/// name is in the part's ids, which this document does not hold.
+pub(crate) fn in_a_part<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> bool {
+    matches!(
+        cell.maps.last(),
+        Some(Map::World(at)) if matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
+    )
 }
 
 /// **The `axis` output of the node `node`**: a revolve's.
@@ -374,4 +419,46 @@ fn side<P: crate::ProfilePayload>(
         read.push(at);
     }
     read
+}
+
+/// **The axis a frame's `z` is along, by construction**: the axis a
+/// [`crate::pose::PoseDef::Through`] frame is read through, kept by a
+/// slide (which moves no direction), a flip (which reverses it), and a
+/// spin about an axis one class with it (`stated`). Its direction alone:
+/// a slide across it moves the line, never the heading. `None` where
+/// the frame is read any other way, or a spin turns its `z`.
+pub(crate) fn frame_z<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    stated: &Stated,
+    frame: crate::VarId,
+    tol: geom_core::Tol,
+) -> Option<Key> {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    // An axis read: a frame's `z`, or an axis read where it stands.
+    let axis = |read: &RoleRead<crate::VarId>| match read.role {
+        Some(PoseRole::Z) => frame_z(doc, stated, read.read, tol),
+        Some(_) => None,
+        None => (doc.var(read.read).map(crate::Var::kind) == Some(crate::VarKind::Axis))
+            .then(|| pose_at(doc, *read, tol))
+            .flatten()
+            .map(|(at, _)| Key {
+                kind: crate::VarKind::Axis,
+                at,
+            }),
+    };
+    let crate::var::VarDef::Pose(def) = doc.var(frame).map(crate::Var::def)? else {
+        return None;
+    };
+    match def {
+        PoseDef::Through { axis: z, .. } => axis(z),
+        PoseDef::Slide { pose, .. } | PoseDef::Flip { pose } if pose.role.is_none() => {
+            frame_z(doc, stated, pose.read, tol)
+        }
+        PoseDef::Spin { pose, about, .. } if pose.role.is_none() => {
+            let z = frame_z(doc, stated, pose.read, tol)?;
+            let about = axis(about)?;
+            stated.sense(&z, &about).is_some().then_some(z)
+        }
+        _ => None,
+    }
 }
