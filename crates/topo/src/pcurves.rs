@@ -4042,7 +4042,7 @@ fn walk_cycle<'a, T: Decide, E>(
 /// there has no azimuth and no first-channel periods to decide. Read by
 /// [`singular_at`].
 #[derive(Clone, Copy, Debug)]
-enum Singular {
+pub(crate) enum Singular {
     /// Definitely off the set, or the chart has none.
     Off,
     /// On it.
@@ -4052,12 +4052,14 @@ enum Singular {
 }
 
 /// **Whether a joint's vertex lies on the chart's singular set**,
-/// decided as 3-D incidence of the vertex on that set — a sphere's
-/// poles `c ± r·axis`, a cone's apex — so the distance decided is
-/// polynomial in the vertex and the chart's data, never a chart
-/// coordinate read back through a lever. A cylinder, a plane and a ring
-/// torus (horn and spindle tori are refused at the constructor) have no
-/// singular set, and decide nothing.
+/// decided as 3-D incidence of the vertex on each singular point — a
+/// sphere's poles `c ± r·axis`, a cone's apex — by the one reading of
+/// that incidence ([`geom_brep::chart_singularity::vertex_at_singular_point`],
+/// which places a singular point at a face's vertex at rest too), so the
+/// distance decided is polynomial in the vertex and the chart's data,
+/// never a chart coordinate read back through a lever. A cylinder, a
+/// plane and a ring torus (horn and spindle tori are refused at the
+/// constructor) have no singular set, and decide nothing.
 ///
 /// A spline chart keeps the net-level form: the metres its whole `u`
 /// knot domain moves a point at most ([`net_reach`]: the domain's length
@@ -4065,26 +4067,33 @@ enum Singular {
 /// singular everywhere. That is a property of the net, not of the vertex, and
 /// the chart-space gap that spline joints still state
 /// ([`spline_gap_closes`]) is what keeps its skip safe.
-fn singular_at<T: Decide>(
+pub(crate) fn singular_at<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
     band: Band,
 ) -> Singular {
-    let reach = match *chart.surface() {
-        // The singular points, from their one home.
+    let on = match *chart.surface() {
+        // The singular points, from their one home, each read by the one
+        // incidence reading: on the set where on one of them, off where
+        // off every one, and otherwise the first escalation.
         Surface::Sphere { .. } | Surface::Cone { .. } => {
+            use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
             let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
                 return Singular::Off;
             };
-            let points = geom_brep::chart_singularity::singular_points(&inverse);
-            let Some(nearest) = points
-                .iter()
-                .map(|&(_, p)| vertex.distance(p))
-                .reduce(|a, b| a.min(b))
-            else {
-                return Singular::Off;
-            };
-            Margin::of(nearest)
+            let mut on = Ok(false);
+            for (_, point) in singular_points(&inverse) {
+                match vertex_at_singular_point(vertex, point, band) {
+                    Ok(true) => return Singular::On,
+                    Ok(false) => {}
+                    Err(cause) => {
+                        if on.is_ok() {
+                            on = Err(cause);
+                        }
+                    }
+                }
+            }
+            on
         }
         Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Plane { .. } => {
             return Singular::Off;
@@ -4093,12 +4102,17 @@ fn singular_at<T: Decide>(
             let Some(payload) = chart.surface().spline_chart() else {
                 unreachable!("a spline kind answers its spline chart")
             };
-            net_reach(chart, payload, NetChannel::U)
+            decide(
+                "pcurve_loop_pole_joint",
+                net_reach(chart, payload, NetChannel::U),
+                band,
+            )
+            .map(|s| s == Sign::Zero)
         }
     };
-    match decide("pcurve_loop_pole_joint", reach, band) {
-        Ok(Sign::Zero) => Singular::On,
-        Ok(Sign::Positive | Sign::Negative) => Singular::Off,
+    match on {
+        Ok(true) => Singular::On,
+        Ok(false) => Singular::Off,
         Err(cause) => Singular::Undecided(cause),
     }
 }
@@ -5034,6 +5048,53 @@ pub fn loop_windings<T: AtRestPolicy>(
 /// tier-1-valid.
 #[track_caller]
 pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
+    pcurve_pass(body, band).findings
+}
+
+/// **A wrap tip tier 3 does not read on its face's chart singularity**
+/// ([`pcurve_pass`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TipOff {
+    /// The face whose loop walks the wrap edge out and back.
+    pub(crate) face: FaceKey,
+    /// The wrap edge.
+    pub(crate) edge: EdgeKey,
+    /// Its tip.
+    pub(crate) tip: crate::entity::VertexKey,
+    /// The incidence reading's escalation, where it is undecided; `None`
+    /// where it decides the tip off the chart's singular set, or the
+    /// chart has none.
+    pub(crate) undecided: Option<Indeterminate>,
+}
+
+/// [`validate_pcurves`]' findings, and the wrap tips its joint reading
+/// places off their face's chart singularity.
+pub(crate) struct PcurvePass {
+    pub(crate) findings: Vec<PcurveMintError>,
+    pub(crate) tips: Vec<TipOff>,
+}
+
+/// **[`validate_pcurves`], with tier 3's wrap-tip rule read off the same
+/// joints** (DESIGN `[topology.tiers]`: every wrap edge's tip lies on its
+/// face's chart singularity). The tip ([`crate::validate::wrap_tips`]) is
+/// the vertex of the joint between the wrap edge's two halves, and
+/// whether that vertex lies on the chart's singular set is
+/// [`singular_at`], the reading [`decide_joint`] resets the joint's first
+/// channel by: decided on, the tip is admitted; off, or on a chart with
+/// no singular set (a face whose chart mints no rows, a plane's), it is
+/// refused; undecided, it is refused as undecided. A tip whose joint the
+/// pass does not read (a gap the derivation cannot place) or reads as a
+/// finding of its own ([`PcurveMintError::LoopDiscontinuity`], an
+/// escalation) is that finding's, and reports nothing here, so one joint
+/// is never refused twice.
+#[track_caller]
+pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> PcurvePass {
+    let tips_at = crate::validate::wrap_tips(body);
+    let tip_at = |he: HalfEdgeKey| {
+        let h = body.get_half_edge(he)?;
+        (tips_at.get(h.start) == Some(&he)).then_some((h.edge, h.start))
+    };
+    let mut tips = Vec::new();
     let mut findings = Vec::new();
     // The fitted door every `Fitted`/`General` row re-derives through,
     // read off the scalar's policy once: the certified and the
@@ -5043,6 +5104,18 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
     for (face_key, face) in body.faces() {
         let surface = body.face_surface_linked(face_key, face);
         let Some(chart) = DescribedChart::minting(surface) else {
+            tips.extend(
+                tips_at
+                    .values()
+                    .filter(|&&he| body.face_of_half_edge(he) == Some(face_key))
+                    .filter_map(|&he| tip_at(he))
+                    .map(|(edge, tip)| TipOff {
+                        face: face_key,
+                        edge,
+                        tip,
+                        undecided: None,
+                    }),
+            );
             continue;
         };
         // One walk of the face's loops ([`stored_rows`], shared with
@@ -5155,7 +5228,22 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     (Some(_), Err(miss)) => Err(miss),
                 };
                 match read {
-                    Ok(element) => elements[i] = Some(element),
+                    Ok(element) => {
+                        elements[i] = Some(element);
+                        if let Some((edge, tip)) = tip_at(he) {
+                            let undecided = match singular_at(chart, vertex, band) {
+                                Singular::On => continue,
+                                Singular::Off => None,
+                                Singular::Undecided(cause) => Some(cause),
+                            };
+                            tips.push(TipOff {
+                                face: face_key,
+                                edge,
+                                tip,
+                                undecided,
+                            });
+                        }
+                    }
                     Err(PinMiss::Discontinuity) => {
                         findings.push(PcurveMintError::LoopDiscontinuity { half_edge: he });
                     }
@@ -5179,7 +5267,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
             }
         }
     }
-    findings
+    PcurvePass { findings, tips }
 }
 
 #[cfg(test)]

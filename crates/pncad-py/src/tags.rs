@@ -3105,6 +3105,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::ChartSingularityNotAVertex { .. } => "chart_singularity_not_a_vertex",
         ValidationError::ChartSingularityUndecided { .. } => "chart_singularity_undecided",
+        ValidationError::WrapTipOffChartSingularity { .. } => "wrap_tip_off_chart_singularity",
+        ValidationError::WrapTipUndecided { .. } => "wrap_tip_undecided",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

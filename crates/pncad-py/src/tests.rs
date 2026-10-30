@@ -6189,6 +6189,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_orbit_overrun",
             "volume_sign_unresolved",
             "volume_uncomputable",
+            "wrap_tip_off_chart_singularity",
+            "wrap_tip_undecided",
         ],
         delegates: &[],
     },
