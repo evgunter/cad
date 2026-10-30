@@ -2974,6 +2974,12 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     let f = body.get_face(face)?;
+    // A plane's chart coordinates, and a cylinder's and a cone's free one,
+    // are lengths.
+    let metric = matches!(
+        body.get_surface(f.surface)?,
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. }
+    );
     let point = |p: &Point3<T>| p.map(Interval::from_certified);
     let mut pts: Vec<Point3<Interval>> = Vec::new();
     let mut out = Boundary {
@@ -3028,7 +3034,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                             row.half_edge,
                             (
                                 [lift(t0), lift(t1)],
-                                iso_of(&row.pcurve),
+                                line_of(&row.pcurve, metric),
                                 harmonic_of(&row.pcurve),
                             ),
                         );
@@ -3059,13 +3065,18 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     plus: e.he_plus == *he,
                     image: found.map(|(image, _, _)| *image),
                     harmonic: found.and_then(|(_, _, h)| *h),
-                    iso: found
-                        .and_then(|(_, iso, _)| *iso)
-                        .map(|(held, at, angle)| Iso {
-                            held,
-                            at,
-                            full: angle && ends[0] == ends[1],
-                        }),
+                    line: found.and_then(|(_, line, _)| *line).map(
+                        |((held, at, angle), amplitude)| {
+                            (
+                                Iso {
+                                    held,
+                                    at,
+                                    full: angle && ends[0] == ends[1],
+                                },
+                                amplitude,
+                            )
+                        },
+                    ),
                 }
             })
             .collect();
@@ -3181,10 +3192,11 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
 type IsoImage = (Axis, Interval, bool);
 
 /// A half-edge's chart image as the boundary lifts it: its two end
-/// points, the coordinate line it is, and its harmonic form.
+/// points, the coordinate line it is with its amplitude about it
+/// ([`line_of`]), and its harmonic form.
 type Image = (
     [Point2<Interval>; 2],
-    Option<IsoImage>,
+    Option<(IsoImage, Interval)>,
     Option<injective::Harmonic>,
 );
 
@@ -3254,6 +3266,40 @@ fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
             }
         }
         _ => None,
+    }
+}
+
+/// **A chart image as a coordinate line, and the amplitude its held
+/// coordinate oscillates by about it** ([`injective::Use::iso`]): a line
+/// [`iso_of`] reads exactly, at `[0, 0]`; or, on a chart whose free
+/// coordinates are metres (`metric`), a harmonic whose free channel has
+/// no linear term and whose `cos t` and `sin t` terms are enclosures
+/// holding zero, at `|a| + |b|`: what an interval scalar encloses where
+/// `f64` computes zero, which [`iso_of`]'s exact test does not read.
+fn line_of<T: CertifiedBounds>(p: &Pcurve<T>, metric: bool) -> Option<(IsoImage, Interval)> {
+    if let Some(iso) = iso_of(p) {
+        return Some((iso, Interval::from_f64(0.0)));
+    }
+    let Pcurve::Harmonic { u, v } = *p else {
+        return None;
+    };
+    if !metric {
+        return None;
+    }
+    let level = |ch: Channel<T>| match ch {
+        Channel::Free { c, a, b, l } => {
+            let [c, a, b, l] = [c, a, b, l].map(Interval::from_certified);
+            let holds_zero = |x: Interval| x.lo() <= 0.0 && 0.0 <= x.hi();
+            (injective::exactly(l, 0.0) && holds_zero(a) && holds_zero(b))
+                .then(|| (c, a.abs() + b.abs()))
+        }
+        Channel::Angle { .. } => None,
+    };
+    let angle = |ch: Channel<T>| matches!(ch, Channel::Angle { .. });
+    if let Some((at, amplitude)) = level(u) {
+        Some(((Axis::U, at, angle(v)), amplitude))
+    } else {
+        level(v).map(|(at, amplitude)| ((Axis::V, at, angle(u)), amplitude))
     }
 }
 
@@ -3873,6 +3919,80 @@ mod extent_rows {
         assert!(
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod level_line {
+    use super::{Axis, line_of};
+    use geom_brep::{Channel, Pcurve};
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds, Real};
+
+    /// A circle's image on a cylinder: the azimuth once round, the axial
+    /// coordinate `0 + a·cos t + 0·sin t + l·t`.
+    fn rim(a: Interval, l: Interval) -> Pcurve<Interval> {
+        let zero = Interval::from_f64(0.0);
+        Pcurve::Harmonic {
+            u: Channel::Angle {
+                phase: zero,
+                winding: 1,
+            },
+            v: Channel::Free {
+                c: zero,
+                a,
+                b: zero,
+                l,
+            },
+        }
+    }
+
+    /// **A coordinate line's amplitude** ([`line_of`]): exact where the
+    /// image holds its coordinate exactly; `|a| + |b|` where those terms
+    /// are enclosures of zero on a metric chart; nothing where one
+    /// excludes zero, where the image moves linearly, or on a chart
+    /// whose free coordinate is not a length. Red if an enclosure that
+    /// holds zero is read as no line, or one that excludes it as one.
+    #[test]
+    fn a_line_carries_the_amplitude_it_is_read_at() {
+        let zero = Interval::from_f64(0.0);
+        let rounding = Interval::from_bounds(-1e-17, 1e-17);
+        let read = |p: &Pcurve<Interval>, metric| {
+            line_of(p, metric).map(|((held, at, angle), amplitude)| {
+                (
+                    held,
+                    at.lo(),
+                    at.hi(),
+                    angle,
+                    amplitude.lo(),
+                    amplitude.hi(),
+                )
+            })
+        };
+        assert_eq!(
+            read(&rim(zero, zero), false),
+            Some((Axis::V, 0.0, 0.0, true, 0.0, 0.0)),
+            "held exactly, on any chart"
+        );
+        let Some((Axis::V, 0.0, 0.0, true, lo, hi)) = read(&rim(rounding, zero), true) else {
+            panic!("an enclosure of zero reads as the line v = 0")
+        };
+        assert!(
+            lo <= 0.0 && (1e-17..2e-17).contains(&hi),
+            "an enclosure of zero: its amplitude holds |a|, [{lo}, {hi}]"
+        );
+        assert_eq!(read(&rim(rounding, zero), false), None, "no length to read");
+        assert_eq!(
+            read(&rim(Interval::from_bounds(1e-17, 2e-17), zero), true),
+            None,
+            "an enclosure that excludes zero"
+        );
+        assert_eq!(
+            read(&rim(rounding, Interval::from_f64(1.0)), true),
+            None,
+            "a linear term"
         );
     }
 }
