@@ -808,9 +808,20 @@ tiers".
      of its description ([tolerance.residuals]); the **material wedge**
      at every edge in (0, 2π), its ends (a cusp, a knife slit) legal
      only where the tangency is jet-determinate; **maximal edges** (no
-     joinable vertex at rest); **chart singularities as vertices**
-     (every one in a face's closure is a vertex of it, and every wrap
-     edge's tip lies on its face's chart singularity);
+     joinable vertex at rest); **one region per face**: a face's
+     loops bound one region of its surface. An edge the face lies on
+     both sides of (a seam, a wrap edge, a spur) bounds nothing there,
+     so the face's boundary on its surface is its loops with those
+     edges dropped. That boundary's cycles are simple and disjoint,
+     each lies on the face's side of every other, and an open
+     surface's ends lie off the face. Whether a point lies in a face
+     has one reading, the point-in-face doors' (on the face's edge
+     curves), and tier 3 asks those doors what they presume. The
+     stored chart images answer the chart questions: a loop's
+     windings, and the mesher's domain. **Chart singularities as
+     vertices** are an instance (every one in a face's closure is a
+     vertex of it, and every wrap edge's tip lies on its face's chart
+     singularity);
      **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
      leaving infinity outside it, read by the one reader of a shell's
      role ([coincidence.booleans]). A zero-volume lamina is a geometric
