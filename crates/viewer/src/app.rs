@@ -6530,6 +6530,300 @@ mod properties_pane_tests {
                 "the pane says the trace's refusal: {painted:?}"
             );
         }
+
+        /// Review R1 probes (#6071).
+        mod review_r1 {
+            use super::*;
+
+            /// Add the profile, extrude it, return (profile, boss).
+            fn boss(pane: &mut Driven, cylinder: RecipeNodeId) -> (RecipeNodeId, RecipeNodeId) {
+                pane.click(ADD_PROFILE);
+                pane.quiet();
+                let (profile, _) = added(pane);
+                pane.app.perform_batch(vec![SessionOp::AddExtrude {
+                    profile,
+                    distance: len(BOSS_H),
+                }]);
+                pane.quiet();
+                let doc = pane.app.session.committed_doc();
+                let boss = doc
+                    .ids()
+                    .into_iter()
+                    .rev()
+                    .find(|&id| {
+                        matches!(doc.node(id), Some(Node::Extrude { .. })) && id != cylinder
+                    })
+                    .expect("the boss extrude");
+                (profile, boss)
+            }
+
+            fn proofs(pane: &Driven, cylinder: RecipeNodeId, boss: RecipeNodeId) -> Vec<String> {
+                let tol = pane.app.session.tol();
+                let (doc, union) = inserted(
+                    pane.app.session.committed_doc(),
+                    Node::Union {
+                        members: pncad::document::Bodies::Spelled(vec![
+                            cylinder.into(),
+                            boss.into(),
+                        ]),
+                    },
+                    tol,
+                );
+                let ev: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+                    &doc,
+                    None,
+                    &pncad::document::CancelToken::new(),
+                    &pncad::document::EvalOptions::default(),
+                    tol,
+                );
+                let Some(value) = ev.value(union) else {
+                    return vec![format!(
+                        "union refused: {:?}",
+                        ev.node_error(union).map(|e| e.kind.to_string())
+                    )];
+                };
+                let rows = &value.coincidences;
+                let proofs = coincide::prove(
+                    &doc,
+                    &[(union, &rows[..])],
+                    None,
+                    tol,
+                    &pncad::document::CancelToken::new(),
+                )
+                .expect("uncanceled");
+                rows.iter()
+                    .zip(&proofs[0])
+                    .filter(|(row, _)| row.relation == pncad::topo::Relation::SurfaceTangent)
+                    .map(|(_, p)| format!("{p:?}"))
+                    .collect()
+            }
+
+            fn z_range(pane: &Driven, node: RecipeNodeId) -> (f64, f64, f64) {
+                let (_, ev) = pane.app.session.landed_pair().expect("landed");
+                if let Some(e) = ev.node_error(node) {
+                    panic!("node refused: {}", e.kind);
+                }
+                let vs = all_vertices(ev, node);
+                let zs: Vec<f64> = vs
+                    .iter()
+                    .map(|v| vertex_position(ev, node, v).unwrap().z)
+                    .collect();
+                let ys: Vec<f64> = vs
+                    .iter()
+                    .map(|v| vertex_position(ev, node, v).unwrap().y)
+                    .collect();
+                (
+                    zs.iter().copied().fold(f64::INFINITY, f64::min),
+                    zs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                    ys.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                )
+            }
+
+            fn set_first_slot(pane: &mut Driven, node: RecipeNodeId, value: f64) {
+                let rows = crate::props::slot_rows(pane.app.session.committed_doc(), node);
+                eprintln!(
+                    "slots of {node:?}: {:?}",
+                    rows.iter().map(|r| &r.slot).collect::<Vec<_>>()
+                );
+                let slot = rows[0].slot.clone();
+                pane.app.perform_batch(vec![SessionOp::SetSlot {
+                    node,
+                    slot,
+                    value: crate::props::SlotValue::Continuous(value),
+                }]);
+                pane.quiet();
+            }
+
+            /// Claim 1: what the frame operand spells, and whether a
+            /// cylinder-height edit carries the sketch plane off the base.
+            #[test]
+            fn r1_frame_spelling_and_height_edit() {
+                let (session, _, cylinder) = cylinder();
+                let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                let mut pane = drive(session, wall.clone(), wall);
+                let (profile, boss) = boss(&mut pane, cylinder);
+                let program = match pane.app.session.committed_doc().node(profile) {
+                    Some(Node::Profile(p)) => p.clone(),
+                    _ => unreachable!(),
+                };
+                eprintln!("R1 frame: {:#?}", program.on.as_ref().unwrap().frame);
+                {
+                    let path = std::env::temp_dir()
+                        .join(format!("r1-6071-frame-{}.pncad", std::process::id()));
+                    crate::docio::save_path(
+                        &path,
+                        pane.app.session.history(),
+                        pane.app.session.tol(),
+                    )
+                    .unwrap();
+                    eprintln!("R1 saved:\n{}", std::fs::read_to_string(&path).unwrap());
+                }
+                let before = z_range(&pane, boss);
+                eprintln!("R1 boss z/y before: {before:?}");
+                set_first_slot(&mut pane, cylinder, 2.0);
+                let after = z_range(&pane, boss);
+                eprintln!(
+                    "R1 boss z/y after height 2: {after:?}; cyl {:?}",
+                    z_range(&pane, cylinder)
+                );
+                assert!(
+                    (after.0 - before.0).abs() < 1e-9,
+                    "the sketch plane moved with the cylinder's height: {before:?} -> {after:?}"
+                );
+            }
+
+            /// Claim 1: a cylinder off its body's origin; the frame's
+            /// moves to identity are computed off the evaluation.
+            #[test]
+            fn r1_offset_cylinder_frame_moves() {
+                let tol = pncad::tolerance::witness();
+                let doc = pncad::document::Doc::empty_derived("off", tol);
+                let (doc, disc) = inserted(
+                    &doc,
+                    Node::Profile(ProfileProgram {
+                        loops: vec![LoopProgram::circle(0.3, 0.0, RADIUS).expect("a disc")],
+                        ids: Vec::new(),
+                        on: None,
+                    }),
+                    tol,
+                );
+                let (doc, cylinder) = inserted(
+                    &doc,
+                    Node::Extrude {
+                        profile: disc.into(),
+                        distance: len(HEIGHT),
+                    },
+                    tol,
+                );
+                let (doc, _) = crate::test_support::placed(&doc, cylinder, tol);
+                let mut session = DocSession::inline(doc, tol);
+                session.pump();
+                let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                let mut pane = drive(session, wall.clone(), wall);
+                let (profile, boss) = boss(&mut pane, cylinder);
+                let path =
+                    std::env::temp_dir().join(format!("r1-6071-off-{}.pncad", std::process::id()));
+                crate::docio::save_path(&path, pane.app.session.history(), pane.app.session.tol())
+                    .unwrap();
+                let text = std::fs::read_to_string(&path).unwrap();
+                let at = text.find("\"on\": {").unwrap();
+                let tail: String = text[at..].split_whitespace().collect::<Vec<_>>().join(" ");
+                eprintln!("R1 off on: {}", &tail[..tail.len().min(4000)]);
+                eprintln!("R1 off profile {profile:?} boss {:?}", z_range(&pane, boss));
+                eprintln!("R1 off proofs {:?}", proofs(&pane, cylinder, boss));
+                let rows = crate::props::slot_rows(pane.app.session.committed_doc(), disc);
+                for r in &rows {
+                    eprintln!("R1 disc slot {:?} = {:?}", r.slot, r.value);
+                }
+            }
+
+            /// Claim 6: the plane latched off a cap, not the wall.
+            #[test]
+            fn r1_bottom_cap_as_plane() {
+                let (session, _, cylinder) = cylinder();
+                let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                let cap = face(&session, cylinder, SurfaceKind::Plane, 0.0);
+                let mut pane = drive(session, cap, wall);
+                let (profile, boss) = boss(&mut pane, cylinder);
+                if let Some(Node::Profile(p)) = pane.app.session.committed_doc().node(profile) {
+                    eprintln!("R1 cap frame: {:#?}", p.on.as_ref().unwrap().frame);
+                }
+                eprintln!("R1 cap boss: {:?}", z_range(&pane, boss));
+                let p = proofs(&pane, cylinder, boss);
+                eprintln!("R1 cap proofs: {p:?}");
+                assert_eq!(
+                    p,
+                    vec!["Structural(SameConstruction)".to_owned()],
+                    "bottom cap as plane"
+                );
+            }
+
+            /// Claim 6: the top cap latched as the plane.
+            #[test]
+            fn r1_top_cap_as_plane() {
+                let (session, _, cylinder) = cylinder();
+                let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                let cap = face(&session, cylinder, SurfaceKind::Plane, HEIGHT);
+                let mut pane = drive(session, cap, wall);
+                let (_, boss) = boss(&mut pane, cylinder);
+                eprintln!("R1 top boss: {:?}", z_range(&pane, boss));
+                let p = proofs(&pane, cylinder, boss);
+                eprintln!("R1 top proofs: {p:?}");
+                assert_eq!(
+                    p,
+                    vec!["Structural(SameConstruction)".to_owned()],
+                    "top cap as plane"
+                );
+            }
+
+            /// Claims 2 and 9: the preview writes nothing; undo restores
+            /// the document; a save and reopen holds the same step.
+            #[test]
+            fn r1_preview_undo_persist() {
+                let (session, _, cylinder) = cylinder();
+                let doc0 = session.committed_doc().clone();
+                let len0 = session.history().len();
+                let can0 = session.history().can_undo();
+                let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                let top = face(&session, cylinder, SurfaceKind::Plane, HEIGHT);
+                // A refused preview, then an accepted one.
+                let mut pane = drive(session, wall.clone(), top);
+                assert!(pane.app.drafts.trace_shown.as_ref().unwrap().read.is_err());
+                assert!(
+                    *pane.app.session.committed_doc() == doc0,
+                    "refused preview wrote"
+                );
+                pane.app.drafts.trace_face = Some(wall);
+                pane.quiet();
+                assert!(pane.app.drafts.trace_shown.as_ref().unwrap().read.is_ok());
+                assert!(*pane.app.session.committed_doc() == doc0, "preview wrote");
+                assert_eq!(pane.app.session.history().len(), len0);
+                assert_eq!(pane.app.session.history().can_undo(), can0);
+                pane.click(ADD_PROFILE);
+                pane.quiet();
+                let after = pane.app.session.committed_doc().clone();
+                assert!(after != doc0);
+                pane.app.perform_batch(vec![SessionOp::Undo]);
+                pane.quiet();
+                assert!(*pane.app.session.committed_doc() == doc0, "undo restores");
+                pane.app.perform_batch(vec![SessionOp::Redo]);
+                pane.quiet();
+                assert!(*pane.app.session.committed_doc() == after, "redo restores");
+                let dir = std::env::temp_dir().join(format!("r1-6071-{}", std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let path = dir.join("doc.pncad");
+                let tol = pane.app.session.tol();
+                crate::docio::save_path(&path, pane.app.session.history(), tol).expect("saves");
+                let reopened = crate::docio::open(&path, tol).expect("reopens");
+                assert!(*reopened.doc() == after, "reload holds the same document");
+            }
+
+            /// Claim 4: the other branches — a second crossing, and an
+            /// entering one — where do their refusals show?
+            #[test]
+            fn r1_absent_crossings() {
+                for (nth, passage) in [(2, TracePassage::Leave), (1, TracePassage::Enter)] {
+                    let (session, _, cylinder) = cylinder();
+                    let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+                    let mut pane = drive(session, wall.clone(), wall);
+                    pane.app.drafts.trace_gesture.crossing = TraceCrossing { nth, passage };
+                    pane.click(ADD_PROFILE);
+                    let painted = pane.quiet();
+                    let (profile, _) = added(&pane);
+                    let (_, ev) = pane.app.session.landed_pair().unwrap();
+                    eprintln!(
+                        "R1 {nth} {passage:?}: node error {:?}",
+                        ev.node_error(profile).map(|e| e.kind.to_string())
+                    );
+                    let said: Vec<_> = painted
+                        .iter()
+                        .filter(|(r, _)| r.contains("trace") || r.contains("cross"))
+                        .map(|(r, _)| r.clone())
+                        .collect();
+                    eprintln!("R1 {nth} {passage:?}: pane {said:?}");
+                }
+            }
+        }
     }
 }
 
