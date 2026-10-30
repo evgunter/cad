@@ -3940,6 +3940,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
     "ValidationError::ChartSingularityNotAVertex": "ValidationFinding.variant",
     "ValidationError::ChartSingularityUndecided": "ValidationFinding.variant",
+    "ValidationError::WrapTipOffChartSingularity": "ValidationFinding.variant",
+    "ValidationError::WrapTipUndecided": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
