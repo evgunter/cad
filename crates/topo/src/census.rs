@@ -8025,10 +8025,12 @@ fn edge_in_own_face<T: Decide>(
     }
 }
 
-/// **A line edge lying inside a curved face of its own solid**, read
-/// for sides: pass 4 reads planar faces only, so a keel on a cylinder's
-/// or a cone's ruling, its two walls meeting the line with the face
-/// running on through it, is read here. The edge lies on the carrier
+/// **A line edge between two planar faces lying inside a curved face of
+/// its own solid**, read for sides: pass 4 reads planar faces only, so a
+/// keel on a cylinder's or a cone's ruling, its two walls meeting the
+/// line with the face running on through it, is read here; an edge with
+/// a curved face of its own is [`sweep_same_solid_tangent_lines`]'
+/// where it lies tangent, and unread here otherwise. The edge lies on the carrier
 /// where its ends and its midpoint do (a quadric meeting a line in three
 /// points holds it; a sphere and a torus hold none); it is cut at the
 /// face's vertices on its interior, and each cell whose midpoint the
@@ -8050,6 +8052,11 @@ fn sweep_edge_in_curved_face<T: Decide>(
         return;
     }
     for (i, e) in geo.edges.iter().enumerate() {
+        // A wall on a curved carrier can lie tangent to the face along
+        // the line: that pair is the tangent-line pass's.
+        if planar_face(geo, e.f_plus).is_none() || planar_face(geo, e.f_minus).is_none() {
+            continue;
+        }
         let solid = census_entity_solid(body, EntityId::Edge(e.key));
         for j in cands
             .trees
