@@ -111,7 +111,7 @@ pub(super) fn require_same<T: Decide>(
     // A glued tangency has no carrier-identity answer (its carriers are
     // distinct); every lane that meets one lumps it by its curving
     // ([`super::sectors::tangent_lump`]) before reaching here.
-    if declared.declares_tangent(o1, s1.face, o2, s2.face) {
+    if declared.glues_tangent(o1, s1.face, o2, s2.face) {
         return Err(BooleanError::ClassificationInvariant {
             what: "a glued tangency reached the carrier-identity check",
         });
@@ -167,15 +167,14 @@ pub(super) fn require_same<T: Decide>(
                 pair,
                 super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
                 bounds,
-                // A reading with no margin is one carrier by structure (one key,
-                // or bit-identical descriptions), which the glue door glues
-                // wherever the two faces meet, as they do at this corner.
+                // The ladder decides one carrier only on a margin, so a
+                // reading without one is a broken invariant.
                 || match margin {
                     Some(margin) => {
                         super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
                     }
                     None => BooleanError::ClassificationInvariant {
-                        what: "a corner pair one carrier by structure the glue door left unglued",
+                        what: "a corner pair the ladder read one carrier on no margin",
                     },
                 },
             ))
@@ -2072,7 +2071,7 @@ fn resolve_edge_sector<T: Decide>(
             (super::Operand::B, super::Operand::A)
         };
         let arm = own_sec.arm.min(ref_sector.arm);
-        lumps_out = if declared.declares_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+        lumps_out = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
             let read = declared.read(
                 &[(own_op, own_sec.face, ref_op, ref_sector.face)],
                 Coincide::TangentSide,
@@ -2648,7 +2647,7 @@ mod tests {
                     .unwrap_or_default(),
                 ..Glue::none()
             };
-            let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
+            let one = crate::boolean::verify_glued_contacts(a.0, b.0, &decls, band)
                 .expect("the door verifies the declaration");
             let declared = GluedPairs::build(&decls, one, a.0, b.0, Default::default(), band)
                 .expect("the declared faces' extents read");

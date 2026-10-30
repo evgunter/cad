@@ -2,7 +2,7 @@
 //! #1063; `docs/CENSUS-G2-SPEC.md`).
 //!
 //! These rows are about the PREDICATE, not the census: they call
-//! [`topo::declared_pair_overlap`] directly, so each one can hand Door
+//! [`topo::glued_pair_overlap`] directly, so each one can hand Door
 //! 1's verdict in and pin what Door 2 does with it. The census-level
 //! rows — the flush seat certifying end to end — live with the seat, in
 //! `m9_c1_rest_face_rung.rs`.
@@ -26,7 +26,7 @@ use topo::construction::Construct;
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};
 use topo::construction::FaceSurface;
-use topo::{Body, ChartOverlap, ChartRegionError, FaceKey, declared_pair_overlap};
+use topo::{Body, ChartOverlap, ChartRegionError, FaceKey, glued_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -105,7 +105,7 @@ fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrie
         other => panic!("the structural rung must still refuse: {other:?}"),
     }
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
         ChartOverlap::PositiveArea,
     );
 }
@@ -140,8 +140,8 @@ fn the_verdict_does_not_depend_on_which_frame_is_representative() {
     ];
     for (what, a, b, verdict) in cases {
         let (fa, fb) = pair(&a, &b);
-        let ab = verdict_class(declared_pair_overlap(&a, fa, &b, fb, verdict, band()));
-        let ba = verdict_class(declared_pair_overlap(&b, fb, &a, fa, verdict, band()));
+        let ab = verdict_class(glued_pair_overlap(&a, fa, &b, fb, verdict, band()));
+        let ba = verdict_class(glued_pair_overlap(&b, fb, &a, fa, verdict, band()));
         assert_eq!(
             ab, ba,
             "{what}: the two argument orders disagreed — {ab} vs {ba}"
@@ -167,7 +167,7 @@ fn one_tilt_two_extents_two_answers() {
     let (a, b) = (slab(1.0), plate(1.0, slope));
     let (fa, fb) = pair(&a, &b);
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
         ChartOverlap::PositiveArea,
         "at a peg's extent the tilt is below the band and the carrier is a chart",
     );
@@ -176,7 +176,7 @@ fn one_tilt_two_extents_two_answers() {
     // the contact is definitely off the representative carrier.
     let (a, b) = (slab(100.0), plate(100.0, slope));
     let (fa, fb) = pair(&a, &b);
-    match declared_pair_overlap(&a, fa, &b, fb, band(), band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, band(), band()) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("at the table's own extent the same tilt must refuse typed, got {other:?}"),
     }
@@ -198,7 +198,7 @@ fn an_in_band_carrier_disagreement_escalates_naming_the_row() {
     // Extent 1 m, so the far end's separation IS the slope: 3ε.
     let (a, b) = (slab(1.0), plate(1.0, 3.0 * eps));
     let (fa, fb) = pair(&a, &b);
-    match declared_pair_overlap(&a, fa, &b, fb, band(), band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, band(), band()) {
         Err(ChartRegionError::Escalated(diag)) => {
             assert_eq!(
                 diag.predicate,
@@ -219,7 +219,7 @@ fn the_tilt_refusal_is_never_an_empty() {
     let slope = Tol::witness().eps() / 2.0;
     let (a, b) = (slab(100.0), plate(100.0, slope));
     let (fa, fb) = pair(&a, &b);
-    let v = declared_pair_overlap(&a, fa, &b, fb, band(), band());
+    let v = glued_pair_overlap(&a, fa, &b, fb, band(), band());
     assert!(
         !matches!(v, Ok(ChartOverlap::Empty)),
         "a carrier the door cannot read is not evidence of disjointness: {v:?}"
@@ -243,11 +243,11 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
     let (a, b) = (slab(1.0), plate(1.0, 0.0));
     let (fa, fb) = pair(&a, &b);
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, band(), band()).unwrap(),
         ChartOverlap::PositiveArea,
         "on the geometry's own evidence the rung proves the disc",
     );
-    match declared_pair_overlap(&a, fa, &b, fb, topo::in_band_premise(band()), band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::in_band_premise(band()), band()) {
         Err(ChartRegionError::TouchingBoundary) => {}
         other => panic!("a bridged pair must keep the region walk's refusal, got {other:?}"),
     }
@@ -275,7 +275,7 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 ///   now refuse those pairs.
 /// - SPHERE / CONE / TORUS pairs keep the door refusal unchanged,
 ///   with each kind's residue restated at the refusal site
-///   (`declared_pair_overlap`'s kind gate).
+///   (`glued_pair_overlap`'s kind gate).
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
     let build = |surface: &Surface<f64>, b_surface: &Surface<f64>| {
@@ -324,7 +324,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         u_ref: geom_core::Vec3::unit_x(),
     };
     let (a_body, fa, b_body, fb) = build(&cyl, &cyl);
-    match declared_pair_overlap(&a_body, fa, &b_body, fb, band(), band()) {
+    match glued_pair_overlap(&a_body, fa, &b_body, fb, band(), band()) {
         Err(ChartRegionError::MissingCache { .. }) => {}
         other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
     }
@@ -343,7 +343,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         u_ref: geom_core::Vec3::unit_y(),
     };
     let (a_body, fa, b_body, fb) = build(&sphere, &sphere_b);
-    match declared_pair_overlap(&a_body, fa, &b_body, fb, band(), band()) {
+    match glued_pair_overlap(&a_body, fa, &b_body, fb, band(), band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("a sphere cross-instance declared pair stays refused: {other:?}"),
     }
@@ -439,8 +439,8 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
     let (fa, fb) = pair(a, b);
     (
-        verdict_class(declared_pair_overlap(a, fa, b, fb, band(), band())),
-        verdict_class(declared_pair_overlap(b, fb, a, fa, band(), band())),
+        verdict_class(glued_pair_overlap(a, fa, b, fb, band(), band())),
+        verdict_class(glued_pair_overlap(b, fb, a, fa, band(), band())),
     )
 }
 
@@ -545,8 +545,8 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
             for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
                 let b = turned_plate(w, d, deg, tx, ty);
                 let (fa, fb) = pair(&base, &b);
-                let ab = declared_pair_overlap(&base, fa, &b, fb, band(), band());
-                let ba = declared_pair_overlap(&b, fb, &base, fa, band(), band());
+                let ab = glued_pair_overlap(&base, fa, &b, fb, band(), band());
+                let ba = glued_pair_overlap(&b, fb, &base, fa, band(), band());
                 match (&ab, &ba) {
                     (Ok(x), Ok(y)) if x != y => contradictions += 1,
                     (Ok(_), Err(_)) | (Err(_), Ok(_)) => split += 1,
@@ -695,8 +695,8 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
         // certified interior point would answer an in-band walk
         // `PositiveArea` in both orders, which is no measurement of
         // where the walk's frames part.
-        let ab = declared_pair_overlap(&base, fa, &b, fb, topo::in_band_premise(band()), band());
-        let ba = declared_pair_overlap(&b, fb, &base, fa, topo::in_band_premise(band()), band());
+        let ab = glued_pair_overlap(&base, fa, &b, fb, topo::in_band_premise(band()), band());
+        let ba = glued_pair_overlap(&b, fb, &base, fa, topo::in_band_premise(band()), band());
 
         // (1) never two different certified answers.
         if let (Ok(x), Ok(y)) = (&ab, &ba) {

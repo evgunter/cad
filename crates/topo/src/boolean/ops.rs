@@ -1310,7 +1310,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let glued = super::glue::decided_declarations(a, b, decls, band)?;
+    let glued = super::glue::decided_glue(a, b, decls, band)?;
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, &glued, strategy, tol)?;
 
     if red.null_pairs.is_empty() {
@@ -1433,8 +1433,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// module docs carry the argument).
 ///
 /// Every undeclared cross-operand pair whose certified boxes overlap,
-/// where either face is not a plane, is classified and certified. A DECLARED pair is exempt: its contact is
-/// the verified carrier the declared rungs walk along its edges. The
+/// where either face is not a plane, is classified and certified. A GLUED pair is exempt: its contact is
+/// the carrier the glue door verified, which the covered rungs walk along its edges. The
 /// first refusing pair, in arena order (A's faces, then B's), refuses
 /// the operation as the operand gate refuses a pair with no arm —
 /// [`BooleanError::CurvedPairUnsupported`] with the op named — and its
@@ -2372,7 +2372,7 @@ fn reduced_as_the_op_does(
 ) -> Result<(BooleanReduction<f64>, Glue<f64>, Band), BooleanError> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
-    let glued = super::glue::decided_declarations(a, b, &none, band)?.into_owned();
+    let glued = super::glue::decided_glue(a, b, &none, band)?.into_owned();
     let red =
         super::boolean_reduce_declared_strategy(op, a, b, &glued, SweepStrategy::Realized, tol)?;
     Ok((red, glued, band))

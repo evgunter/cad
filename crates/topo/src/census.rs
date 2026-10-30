@@ -6530,7 +6530,7 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 ///   conformal contact same-carrier for analytic kinds, and within
 ///   ONE body the structural rung IS key identity; value-equal
 ///   independent descriptions do not glue (the ladder), and the
-///   declared rung's face pairs are the confirm pass's business.
+///   recorded face pairs are the confirm pass's business.
 /// - **What stays outside this arm** (module docs carry the full
 ///   envelope): distinct-key pairs. Cross-solid ones are caught by
 ///   the conservative loudness backstop
@@ -6677,8 +6677,8 @@ fn sweep_conformal_patches<T: Decide>(
 /// a face–face record on two carriers
 /// ([`crate::boolean::tangent_pair_at_rest`], then
 /// [`crate::boolean::rest_line_in_both_faces`], then
-/// [`crate::boolean::tangent_table_at_rest`] in the detector posture,
-/// since no record stands behind the pair to bridge an in-band κ_rel).
+/// [`crate::boolean::tangent_table_at_rest`], where an in-band κ_rel
+/// escalates).
 ///
 /// - A void crescent (a rod resting on a plate, bridged into one
 ///   solid) is a touch, and one no face–face record names is
@@ -20502,12 +20502,11 @@ mod same_solid_tangent_lines {
 
     /// A unit cylinder holding a bore of radius 1 − δ tangent to it from
     /// inside, δ three escalation bands: κ_rel = δ / (1 − δ) reads in
-    /// band, and with no record to bridge it the pass escalates on the
-    /// second order and finds nothing. The bore's two line edges lie in
-    /// band of the cylinder's carrier, so whether each lies in it
-    /// escalates too ([`sweep_edge_in_curved_face`]). Red when the pass
-    /// reads the pair in the declared posture, which bridges the residue
-    /// into a touch.
+    /// band, and the pass escalates on the second order and finds
+    /// nothing. The bore's two line edges lie in band of the cylinder's
+    /// carrier, so whether each lies in it escalates too
+    /// ([`sweep_edge_in_curved_face`]). Red when the pass reads the
+    /// residue into a touch.
     #[test]
     fn a_near_equal_bore_in_one_solid_escalates_on_its_second_order() {
         let d = 3.0 * Band::linear(Tol::witness()).unwrap().escalate();

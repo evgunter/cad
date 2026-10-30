@@ -2,7 +2,7 @@
 //! pair whose carriers a margin decides one, or decides tangent along a
 //! locus, is glued, declared or not.
 //!
-//! The operation's door ([`decided_declarations`]) reads every pair of
+//! The operation's door ([`decided_glue`]) reads every pair of
 //! faces of the two operands whose boxes meet. A pair the carrier
 //! ladder ([`super::carrier_pair_decided`], the face-pair door's
 //! reading) decides one carrier joins the operation's glued pairs
@@ -47,7 +47,7 @@ use crate::entity::FaceKey;
 ///
 /// [`BooleanError::ClassificationInvariant`] where the face tree returns
 /// an index past its input; a face box's own refusal.
-pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
+pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &'d Glue<T>,

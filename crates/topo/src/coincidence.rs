@@ -262,8 +262,7 @@ pub struct Coincidence {
     pub relation: Relation,
     /// Where it was decided.
     pub site: DecisionSite,
-    /// The margin that decision read: Zero, or in band where a
-    /// declaration bridged it.
+    /// The margin that decision read, decided Zero.
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,

@@ -23,7 +23,7 @@ feeds a decision, every walk is bounded.
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
-| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
+| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `min_separation`, `Candidate`, `EngineRefusal`): carrier windows and the cell subdivision between two sets of faces, the `separation ≥ c` trichotomy with a caller's witness verifier, and the certified minimum-separation bracket |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
@@ -216,7 +216,7 @@ pair is from the two cells' carriers:
   `SeamBranch`). Empty overlap ⇒ stale; in-band ⇒ escalate.
 
 The shared chart comes from one of three authorities, tried in fixed
-order (`declared_pair_overlap`):
+order (`glued_pair_overlap`):
 
 1. one chart (`declared_chart`: one key, or two bit-identical
    descriptions);
@@ -987,7 +987,7 @@ triggers that contradict it, and a margin in band on either escalates
   exact zero at an isolated point, escalates.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
-leaves its premise (`declared_pair_overlap`'s `premise`) — the run's own
+leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own
 where Door 1 decided the carriers one, its zero edge halved where Door 1
 read them in band (`in_band_premise`, the census's aligned in-band arm).
 The planar interior-witness rung runs only on the run's own band (a point

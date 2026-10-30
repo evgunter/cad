@@ -7,7 +7,7 @@
 
 use super::carrier_eq;
 use super::carrier_pair::face_carrier;
-use super::{Glue, GluedPairs, glue, verify_declared_contacts};
+use super::{Glue, GluedPairs, glue, verify_glued_contacts};
 use crate::AtRestBody;
 use crate::contact::GlueClass;
 use crate::test_support::finished;
@@ -26,10 +26,10 @@ fn band() -> Band {
 /// decided, and the index the consuming sites read them through.
 fn door(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Glue<f64>, GluedPairs<f64>) {
     let none = Glue::none();
-    let decls = glue::decided_declarations(a, b, &none, band())
+    let decls = glue::decided_glue(a, b, &none, band())
         .unwrap()
         .into_owned();
-    let verified = verify_declared_contacts(a, b, &decls, band()).unwrap();
+    let verified = verify_glued_contacts(a, b, &decls, band()).unwrap();
     let declared = GluedPairs::build(&decls, verified, a, b, Default::default(), band()).unwrap();
     (decls, declared)
 }

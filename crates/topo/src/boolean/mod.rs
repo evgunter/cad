@@ -1113,7 +1113,7 @@ pub(crate) struct GivenDecision<T: Real> {
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
-/// operation's own decisions ([`glue::decided_declarations`]) or the
+/// operation's own decisions ([`glue::decided_glue`]) or the
 /// pairs it was given (a fold step of [`nary`]), in arena keys, each
 /// pair under the class its relation makes it.
 #[derive(Clone, Debug)]
@@ -1181,7 +1181,7 @@ impl<T: Real> Glue<T> {
     }
 
     /// The glue `inputs` carries, with `given`'s pairs under their
-    /// classes, or none, to be decided ([`glue::decided_declarations`]).
+    /// classes, or none, to be decided ([`glue::decided_glue`]).
     pub(crate) fn of(inputs: &BooleanInputs, given: Option<&[GluedPair<T>]>) -> Self {
         let BooleanInputs {
             records_a,
@@ -1425,7 +1425,7 @@ pub(crate) fn unglued_corner<T: Real>(
 
 /// **What a sector's coplanar refusal reads of the pair's declaration**
 /// ([`Coincide::Sectors`]): the one-carrier class the pair's `senses` make
-/// it, which would bridge the residue against a planar face. A caller
+/// it against a planar face. A caller
 /// passes `None` where no class settles it: a tilt decided off, or a
 /// pierced face that is not a plane.
 pub(crate) fn sectors_read<T: Real>(
@@ -1633,7 +1633,7 @@ fn read_cover_side<T: Decide>(
     }
 }
 
-/// What [`verify_declared_contacts`] certified, per declared pair
+/// What [`verify_glued_contacts`] certified, per declared pair
 /// `(A face, B face)`: the certificates, not the claims.
 #[derive(Debug)]
 pub(crate) struct VerifiedGlue<T: Real> {
@@ -1994,13 +1994,7 @@ impl<T: Real> GluedPairs<T> {
     }
 
     /// Whether the pair is declared `Tangent`.
-    pub(crate) fn declares_tangent(
-        &self,
-        o1: Operand,
-        f1: FaceKey,
-        o2: Operand,
-        f2: FaceKey,
-    ) -> bool {
+    pub(crate) fn glues_tangent(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
         self.class_of(o1, f1, o2, f2) == Some(GlueClass::Tangent)
     }
 }
@@ -5592,7 +5586,7 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let none = Glue::none();
-    let decls = &*glue::decided_declarations(a_operand, b_operand, &none, band)?;
+    let decls = &*glue::decided_glue(a_operand, b_operand, &none, band)?;
     boolean_reduce_declared_strategy(
         op,
         a_operand,
@@ -5653,9 +5647,9 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
-    let decls = &*glue::decided_declarations(a_operand, b_operand, &none, band)?;
+    let decls = &*glue::decided_glue(a_operand, b_operand, &none, band)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let verified = verify_glued_contacts(a_operand, b_operand, decls, band)?;
     let (sections, _) = glue::section_door(a_operand, b_operand, decls, T::ssi_lane(), band)?;
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, sections, band)?;
     reduce::gate_operand_pairs(
@@ -5751,7 +5745,7 @@ pub fn sweep_split(
 /// the realized and idealized sweeps record the same contacts and make
 /// the same splits, which a trace of examined pairs alone cannot show
 /// (a face-free record is attributed to every face on its carrier). Runs
-/// the undeclared posture, as [`sweep_traces`] does, at the recording
+/// with no glue, as [`sweep_traces`] does, at the recording
 /// scalar only: the comparison is of keys and counts, not of brackets.
 ///
 /// # Errors
@@ -5869,7 +5863,7 @@ pub(crate) fn join_refusal(
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
-    let decls = &*glue::decided_declarations(a, b, &none, band)?;
+    let decls = &*glue::decided_glue(a, b, &none, band)?;
     let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
     if red.null_pairs.is_empty() {
         return Ok(None);
@@ -5919,7 +5913,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     let mut verified = match decls.verdicts {
-        Verdicts::Decided => verify_declared_contacts(a_operand, b_operand, decls, band)?,
+        Verdicts::Decided => verify_glued_contacts(a_operand, b_operand, decls, band)?,
         Verdicts::Given => given_verdicts(a_operand, b_operand, decls, band)?,
     };
     let (sections, rows) = glue::section_door(a_operand, b_operand, decls, T::ssi_lane(), band)?;
@@ -6798,7 +6792,7 @@ fn piece_classes<T: Real>(
 /// ladder reads it again; a tangency is read down the witness lane
 /// ([`verify_tangency`], routed along a rim by [`route_rim`]) for its
 /// locus, which the consumers place.
-fn verify_declared_contacts<T: Decide>(
+fn verify_glued_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
@@ -7301,9 +7295,9 @@ pub(crate) fn tangent_table_at_rest<T: Decide>(
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and
 /// along a rim the routing ([`route_rim`]). The door
-/// ([`glue::decided_declarations`]) reads a refusal no reading settles
+/// ([`glue::decided_glue`]) reads a refusal no reading settles
 /// as the operation's and every other failure as no tangency; the op
-/// ([`verify_declared_contacts`]) refuses each failure under its read
+/// ([`verify_glued_contacts`]) refuses each failure under its read
 /// ([`TangencyFailure::refusal`]).
 pub(crate) fn glued_tangency<T: Decide>(
     a: &Body<T>,
@@ -8091,7 +8085,7 @@ fn validate_declarations<T: Decide>(
     // refuses forever at the classification frontiers — the door only
     // widens what a VERIFIED declaration can unlock. Per-class
     // geometric admission (the `Tangent` witness lane) is
-    // `verify_declared_contacts`' half of the door.
+    // `verify_glued_contacts`' half of the door.
     //
     // This inventory is the ONE place a kind becomes declarable, and
     // that is what makes the operand gate's covered-pair admission

@@ -1302,7 +1302,7 @@ pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
-    chart_region_overlap, declared_pair_overlap, in_band_premise,
+    chart_region_overlap, glued_pair_overlap, in_band_premise,
 };
 pub use clearance::ClearanceLane;
 pub use coherence::{

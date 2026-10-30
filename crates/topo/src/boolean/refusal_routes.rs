@@ -467,12 +467,10 @@ impl<T: geom_core::Real> super::GluedPairs<T> {
 
     /// The plane door of two corners of the two solids read on one
     /// another (`vtxfac`'s coplanar lump, `recl`'s carrier identity),
-    /// with what it read of the pair's declaration: a one-carrier
-    /// declaration bridges an in-band parallelism
-    /// ([`Coincide::OnPlanes`]), and the door admits the one the pair's
-    /// `senses` make it ([`GlueClass::of_senses`]). Senses the
-    /// door could not read admit none: a guess would offer a declaration
-    /// the declaration door contradicts.
+    /// with what it read of the pair's glue: the one-carrier class the
+    /// pair's `senses` make it ([`GlueClass::of_senses`]). Senses the
+    /// door could not read admit none. A glued pair is read through its
+    /// record and never reaches this door.
     pub(crate) fn on_pair_door(
         &self,
         pair: (
@@ -531,7 +529,8 @@ pub enum Coincide {
     /// another are parallel (`vtxfac`, `recl`, and a declared `Rest`
     /// pair's ladder): only zero passes (a definitely positive one there
     /// contradicts the reading that brought the pair, a kernel
-    /// invariant), and a `Rest` declaration bridges the residue.
+    /// invariant). A glued pair is read through its record and never
+    /// asks it.
     OnPlanes,
     /// Whether a vertex of one solid lies on a plane face of the other,
     /// where every side passes. The sweep refuses at the first vertex it
@@ -614,8 +613,7 @@ pub enum Coincide {
     /// operation's glue door or a corner site: the faces' data decided
     /// Zero over their extent glue, and definitely apart pass; a datum
     /// in band is a sliver, and a Zero a corner reads for a pair the
-    /// door did not glue is one too. A one-carrier declaration bridges
-    /// the residue.
+    /// door did not glue is one too.
     Carriers,
     /// Where the surfaces of a face of each solid meet (a section's
     /// pose): the pose rows pass on different sets.
@@ -668,13 +666,11 @@ impl Coincide {
     /// change this question's verdict: the one statement
     /// [`GluedPairs::read`](super::GluedPairs::read) settles by.
     ///
-    /// - [`Coincide::OnPlanes`]: a one-carrier pair's (`Rest` or a
-    ///   continuation) ladder bridges an in-band parallelism
-    ///   (`plane_eq`'s declared rung).
+    /// - [`Coincide::OnPlanes`]: a one-carrier pair (`Rest` or a
+    ///   continuation) is read through its record, not this question.
     /// - [`Coincide::Sectors`], at `vtxfac`'s coplanar sector: a
-    ///   one-carrier pair's lump takes the residue through the carrier
-    ///   ladder's declared rung, and a `Tangent` pair's descends to the
-    ///   second order (`sectors::tangent_lump`).
+    ///   one-carrier pair's lump is its record's, and a `Tangent` pair's
+    ///   descends to the second order (`sectors::tangent_lump`).
     ///
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
@@ -1382,8 +1378,8 @@ impl BooleanDecision {
 
     /// The decision a plane-identity rung escalated on at `door`:
     /// across the operands, in-band parallelism is the question the door
-    /// asks of the pair, with what it read (a declared `Rest` pair's
-    /// ladder bridges an in-band margin), and orientation a decision of
+    /// asks of the pair, with what it read (a glued pair is read through
+    /// its record and never reaches it), and orientation a decision of
     /// its own; between neighbours of one operand, both rungs ask the
     /// maximal-faces question. A norm read definitely negative is
     /// poisoned input at every door, which no declaration and no move
@@ -1539,9 +1535,8 @@ impl BooleanDecision {
             ) => Ending::Sized(CORNER_SENSE),
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
-            // and the offset rung asks next: a declared `Rest` pair's
-            // bridges, an undeclared pair's glues on a decided Zero or
-            // refuses in band, at every tolerance.
+            // and the offset rung asks next: an unglued pair's glues on a
+            // decided Zero or refuses in band, at every tolerance.
             Self::PlaneOrientation => Ending::Lever(CORNER_EDGES),
             // The margin is the normals' sine over the shared edge's
             // extent, and a definitely positive one (a clear angle)

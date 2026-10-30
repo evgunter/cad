@@ -2656,10 +2656,9 @@ fn unglued_flat_sector<T: Decide>(
     let m = Margin::levered(s.normal.vec().cross(n_pierced).norm(), s.span());
     let tilt = decide("bool_sector_coplanar", m, band);
     if !matches!(tilt, Ok(Sign::Zero)) {
-        // A one-carrier class would bridge the residue against a planar
-        // pierced face, and the door admits the one the pair's senses
-        // make it, or none where it cannot read them. A decided tilt
-        // admits no class: no glue settles it.
+        // The refusal names the one-carrier class the pair's senses make
+        // it against a planar pierced face, or none where it cannot read
+        // them. A decided tilt names no class: no glue settles it.
         let decided_tilt = matches!(tilt, Ok(Sign::Positive | Sign::Negative));
         let senses = (plane.is_some() && !decided_tilt)
             .then(|| super::plane_eq::senses(s.normal.vec(), n_pierced, s.arm, band))
@@ -2725,15 +2724,14 @@ fn unglued_flat_sector<T: Decide>(
             pair,
             senses,
             s.bounds_off(n_pierced, band).err(),
-            // A reading with no margin is one carrier by structure (one key,
-            // or bit-identical descriptions), which the glue door glues
-            // wherever the two faces meet, as they do at this corner.
+            // The ladder decides one carrier only on a margin, so a
+            // reading without one is a broken invariant.
             || match margin {
                 Some(margin) => {
                     super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
                 }
                 None => BooleanError::ClassificationInvariant {
-                    what: "a corner pair one carrier by structure the glue door left unglued",
+                    what: "a corner pair the ladder read one carrier on no margin",
                 },
             },
         ),

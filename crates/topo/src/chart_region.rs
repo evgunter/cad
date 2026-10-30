@@ -17,7 +17,7 @@
 //!   identical chart, whichever arena holds each.
 //!
 //! **Declared pairs have exactly TWO further authorities**
-//! ([`declared_pair_overlap`]):
+//! ([`glued_pair_overlap`]):
 //!
 //! - the shared WORLD CARRIER of a PLANAR pair (ratified as U-R2 with
 //!   its justification corrected 2026-08-27). That carrier is a CHOICE
@@ -57,7 +57,7 @@
 //! a typed escalation naming the divergence, not a margined
 //! pseudo-exact test in whichever chart we happened to pick. The
 //! residue, restated per kind at the refusal site
-//! ([`declared_pair_overlap`]'s kind gate), keeps the certified-ε
+//! ([`glued_pair_overlap`]'s kind gate), keeps the certified-ε
 //! enclosure recorded as each kind's sanctioned closing shape.
 //!
 //! # The planar trim inventory, defined structurally (C6)
@@ -511,7 +511,7 @@ impl std::error::Error for ChartRegionError {}
 /// Holding a value IS the statement that the scalar can certify: the
 /// one constructor is [`RegionLane::certified`], in an `impl` block
 /// bounded `Decide + `[`CertifiedBounds`], and its two fields are
-/// [`chart_region_overlap`] and [`declared_pair_overlap`] — the doors
+/// [`chart_region_overlap`] and [`glued_pair_overlap`] — the doors
 /// themselves, at the same bound, so the certified callers reach the
 /// same functions on the same inputs (`wiring_rows` pins both
 /// pointers). Nothing dispatches on the scalar at run time and there
@@ -556,7 +556,7 @@ pub struct RegionLane<T: Decide> {
     /// (`wiring_rows` pins the pointer).
     chart_overlap:
         fn(&Body<T>, FaceKey, &Body<T>, FaceKey, Band) -> Result<ChartOverlap, ChartRegionError>,
-    /// [`declared_pair_overlap`] — the same door for a pair whose chart
+    /// [`glued_pair_overlap`] — the same door for a pair whose chart
     /// authority may be a VERIFIED DECLARATION, which adds the
     /// world-carrier arm below the structural rung and therefore
     /// demands Door 1's premise band in hand. Pinned the same way.
@@ -577,7 +577,7 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
     pub const fn certified() -> Self {
         Self {
             chart_overlap: chart_region_overlap::<T>,
-            declared_overlap: declared_pair_overlap::<T>,
+            declared_overlap: glued_pair_overlap::<T>,
         }
     }
 
@@ -589,7 +589,7 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
             chart_region_overlap::<T> as fn(_, _, _, _, _) -> _,
         ) && std::ptr::fn_addr_eq(
             self.declared_overlap,
-            declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
+            glued_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
         )
     }
 }
@@ -617,7 +617,7 @@ impl<T: Decide> RegionLane<T> {
     ///
     /// # Errors
     ///
-    /// As [`declared_pair_overlap`].
+    /// As [`glued_pair_overlap`].
     pub(crate) fn declared_overlap(
         self,
         body_a: &Body<T>,
@@ -643,7 +643,7 @@ impl<T: Decide> RegionLane<T> {
 /// values against its roster of helpers.
 #[cfg(test)]
 mod wiring_rows {
-    use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
+    use super::{RegionLane, chart_region_overlap, glued_pair_overlap};
 
     /// `Ok(())` when both fields hold their door; otherwise the name of
     /// the first field that does not, so a red says which pointer moved.
@@ -658,9 +658,9 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.declared_overlap,
-            declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
+            glued_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
-            return Err("declared_overlap is not `declared_pair_overlap`");
+            return Err("declared_overlap is not `glued_pair_overlap`");
         }
         Ok(())
     }
@@ -732,7 +732,7 @@ fn definite_diag<T: Bounds>(
 /// [`ChartRegionError::ChartDivergence`] here however coincident its
 /// geometry looks, since two charts of one locus are not one chart. A pair
 /// whose chart authority is a VERIFIED DECLARATION is a different
-/// question, asked at [`declared_pair_overlap`] — which asks this one
+/// question, asked at [`glued_pair_overlap`] — which asks this one
 /// first.
 ///
 /// # Errors
@@ -789,7 +789,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 /// **The premise band of a pair whose carriers Door 1 read in band**:
 /// `band` with its zero edge halved, its escalate edge kept. A carrier
 /// coincidence in band has already spent part of the ε budget at Door
-/// 1's own rows, so the gates [`declared_pair_overlap`] runs on its
+/// 1's own rows, so the gates [`glued_pair_overlap`] runs on its
 /// premise decide against this tighter band.
 #[must_use]
 pub fn in_band_premise(band: Band) -> Band {
@@ -853,7 +853,7 @@ pub fn in_band_premise(band: Band) -> Band {
 ///
 /// [`ChartRegionError`], as [`chart_region_overlap`], plus
 /// [`ChartRegionError::CarrierTilt`].
-pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
+pub fn glued_pair_overlap<T: Decide + CertifiedBounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
@@ -6036,7 +6036,7 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used)]
     use geom_core::{Band, Point3, Real, Tol};
 
-    use super::{ChartOverlap, declared_pair_overlap};
+    use super::{ChartOverlap, glued_pair_overlap};
     use crate::Body;
     use crate::revalue_pin::{Revalued, S, revalued};
     use crate::test_support_fixtures::{FaceGeometry, prism_ops};
@@ -6086,7 +6086,7 @@ mod from_computed_rows {
             )
             .bottom
             .face;
-            let got = declared_pair_overlap(&post, top, &over, under, band, band);
+            let got = glued_pair_overlap(&post, top, &over, under, band, band);
             assert_eq!(
                 got,
                 Ok(ChartOverlap::PositiveArea),

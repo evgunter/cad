@@ -20,7 +20,7 @@
 //! arm has withdrawn its tolerance asserts it stays withdrawn, and
 //! executes the offer it withdrew to show what that offer would meet.
 //! A case that declares a pair declares it through the Boolean's
-//! declaration door (`verify_declared_contacts`); the site cases that
+//! declaration door (`verify_glued_contacts`); the site cases that
 //! hand a declared-`Tangent` question its read directly (`tangent_side`,
 //! `tangent_side_of`) say so, on the plane x cylinder pair that door
 //! admits.
@@ -1581,7 +1581,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         },
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
+    let one = super::super::verify_glued_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
     let sa = [sector(z, x, fa), sector(x, z, fa)];
     let sb = [sector(z, flank, fb), sector(flank, z, fb)];
