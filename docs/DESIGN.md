@@ -164,7 +164,10 @@ is checked against what was meant.
   [assertions.quiet]). A coincidence between quantities only the
   operation computes (a blend turn's two feet), or between written
   values (two radii typed alike), has no such assertion: the
-  construction is its recourse, and its finding never refuses. A
+  construction is its recourse, and its finding never refuses. Where a
+  construction could also say it (one variable written for both
+  sides), the assertion quiets all the same, and the finding names
+  the edit that would make it one construction. A
   lint reports and never changes a body.
 - **What counts as established.** `[intent.structural]` The principle
   is that an identity the document establishes is one that very likely
@@ -1702,7 +1705,8 @@ coincidence such a meeting implies is a face pair of its own. Two faces on one c
 facing the same way, whose boundaries meet while their interiors do
 not are a flush pair: no contact, but a coincidence the census infers
 from values, so a finding unless established, by a flag mate or by
-the replay. Contact is an `unproven-coincidence` finding
+the replay (two faces' offsets written with one variable), or
+asserted, by a `Gap = 0` over the two faces read on their sides. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
