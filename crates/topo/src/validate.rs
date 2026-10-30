@@ -5674,7 +5674,16 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    and not the body**: a body's total is a sum, and a sum hides a
 ///    sign — an inside-out part beside a larger ordinary solid totals
 ///    positive.
-/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
+/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]). The same
+///    joints read **every wrap edge's tip on its face's chart
+///    singularity** ([`wrap_tips`]): the tip's joint vertex decided off
+///    the chart's singular set, or on a chart with none, refuses
+///    ([`ValidationError::WrapTipOffChartSingularity`]), and one in band
+///    refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
+///    incidence is the one the joint resets by
+///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
+///    check 6's at-vertex placement reads too), and a joint check 8
+///    itself refuses or leaves unread reports nothing more.
 /// 9. **A face's loops trim one region** — a ring disjoint from
 ///    and nested in its outer loop ([`ValidationError::RingMeetsOuter`]
 ///    and its siblings), no two rings meeting
