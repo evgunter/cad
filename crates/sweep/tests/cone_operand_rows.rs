@@ -496,9 +496,9 @@ fn the_bite_refuses_at_the_germ_frame() {
 ///   (`y ∈ [0.2, 0.6]`, bored `r = 0.1`), lying on the cone face: the
 ///   carrier ladder settles the two cone faces one carrier. `∩` is the
 ///   sector, `π/4·((0.8³ − 0.4³)/3 − 0.004)`, and the cone less it
-///   the rest of `π/3`. `∪` and the sector less the cone refuse at the
-///   section pass, `FallbackExtentUnsupported`, on a pair whose carriers
-///   it reads tangent.
+///   the rest of `π/3`. `∪` is the cone and the sector less the cone is
+///   nothing: the section pass defers the settled pair, and no edge of
+///   the cone runs inside the sector's face, so the shells' sides stand.
 #[test]
 fn a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifies() {
     let (c, _) = cone(None);
@@ -523,12 +523,13 @@ fn a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifi
     for (op, got) in every_op(&c, &on_face) {
         let label = format!("the sector on the cone face, {op}");
         let want = match op {
+            "∪" => V,
             "∩" => sector,
             "A ∖ B" => V - sector,
             _ => {
                 assert!(
-                    matches!(&got, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                    "{label}: {:?}",
+                    matches!(&got, Ok(BooleanResult::Empty)),
+                    "{label}: nothing: {:?}",
                     got.map(|r| r.body().map(|b| b.kind))
                 );
                 continue;

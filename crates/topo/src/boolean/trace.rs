@@ -362,9 +362,7 @@ fn crossing<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
-    let outward =
-        geom_brep::OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, point), sense)
-            .vec();
+    let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
         Margin::levered(outward.dot(velocity) / outward.norm(), lever),

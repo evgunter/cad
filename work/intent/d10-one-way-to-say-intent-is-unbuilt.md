@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
-blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
+blocked_on: [a-gap-over-adjacent-cells-states-nothing-of-the-row]
 ---
 
 
@@ -35,4 +35,4 @@ or the bridging-rung row) is parked on that remainder instead. Units
 already started may finish (Ev). The held rows were re-read against
 this on 2026-10-29 (`d10-hold-reread-2026-10-29.md`).
 
-This row closes when the bridging-rung row and `an-unread-body-is-no-finding` are done. The second is D10 text with no check: `[operations]` "an unread body is an unread variable, a finding", written by `[ev]` D′ (679b4abbf7). The exit walk checked only the mechanisms D10 supersedes, so it did not list it (re-read 2026-10-30).
+This row closes when ATREST's `a-gap-over-adjacent-cells-states-nothing-of-the-row` is done: DESIGN's state-of-the-build lists it as D10's one unbuilt item (an assertion quieting an unproven row no `Gap = 0` says). The bridging-rung row (CONTACTHOLD #6079) and `an-unread-body-is-no-finding` (#6081) are done (2026-10-30). The second is D10 text with no check: `[operations]` "an unread body is an unread variable, a finding", written by `[ev]` D′ (679b4abbf7). The exit walk checked only the mechanisms D10 supersedes, so it did not list it (re-read 2026-10-30).

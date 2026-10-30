@@ -405,7 +405,7 @@ use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactRefusal, DeclaredContact};
+use crate::contact::{ContactPair, ContactRefusal};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
@@ -1967,7 +1967,7 @@ pub enum ValidationError {
     /// wins over every declaration.
     ContactContradicted {
         /// The face pair and class that were declared.
-        declaration: DeclaredContact,
+        declaration: ContactPair,
         /// Where the contradiction holds, as a place read after
         /// "contradicted" in the message, preposition included: across
         /// both faces (the face–face record confirm pass's Door 1,
@@ -4145,14 +4145,10 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTRADICTION_REASON,
             crate::contact::CONTRADICTION_RECOURSE,
         ),
-        // A contact site's recourse has no tolerance arm (SELECT §3d,
-        // `CONTACT_RECOURSE`): loosening ε cannot supply intent.
+        // A contact site's recourse has no tolerance arm
+        // (`CONTACT_RECOURSE`): the faces are moved apart or together.
         ContactRefusal::Escalated { .. } => (
-            "whether the declared faces touch is too close to call",
-            crate::contact::CONTACT_RECOURSE_MARKED,
-        ),
-        ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no contact record behind them",
+            "whether the faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -4705,7 +4701,7 @@ impl fmt::Display for ValidationError {
                 ..
             } => write!(
                 f,
-                "the declared {} contact is contradicted {witness}: {}. {}",
+                "the recorded {} contact is contradicted {witness}: {}. {}",
                 declaration.class.name(),
                 crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,
