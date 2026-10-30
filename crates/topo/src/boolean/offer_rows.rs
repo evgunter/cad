@@ -2181,6 +2181,16 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
+        BooleanErrorKind::CurvedPierceEscalated => every_decision()
+            .into_iter()
+            .map(|decision| BooleanError::CurvedPierceEscalated {
+                operand,
+                face,
+                edge: crate::entity::EdgeKey::default(),
+                decision,
+                diag,
+            })
+            .collect(),
         BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
             faces: [face, face],
@@ -2546,6 +2556,18 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::BoundaryMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::CurveMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
         "escalated",
         "BooleanDecision::Crossing",
         1,
@@ -2585,6 +2607,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "conic_quadric/mod.rs",
         "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "ellipse_torus.rs",
+        "torus_walk",
+        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (
@@ -2854,6 +2882,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
         "line_cone_roots",
@@ -2916,6 +2946,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
         "reduce.rs",
@@ -2965,7 +3007,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
-    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 4),
+    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (

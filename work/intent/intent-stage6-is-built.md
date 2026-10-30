@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-29
 priority: P0
 cost: H
-blocked_on: [the-door-proves-a-constructed-tangency, the-sketch-tool-authors-a-tangent-continuation]
+blocked_on: [the-sketch-tool-authors-a-tangent-continuation]
 ---
 
 

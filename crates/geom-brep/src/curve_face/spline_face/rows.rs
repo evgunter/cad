@@ -128,21 +128,21 @@ fn a_circle_crosses_a_bicubic_patch_twice() {
 }
 
 #[test]
-fn a_line_tangent_to_a_dome_escalates() {
+fn a_line_tangent_to_a_dome_refuses_at_the_floor() {
     let along = line(Point3::new(0.0, 0.5, 0.0), Vec3::unit_x());
     let got = read(&along, (0.1, 0.9), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a tangency refuses: {got:?}"
     );
 }
 
 #[test]
-fn a_pass_within_the_band_escalates() {
+fn a_pass_within_the_band_refuses_at_the_floor() {
     let below = line(Point3::new(0.0, 0.5, -0.5 * band().zero()), Vec3::unit_x());
     let near = read(&below, (0.1, 0.9), &dome());
     assert!(
-        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass within the band is never clear: {near:?}"
     );
 }
@@ -151,11 +151,11 @@ fn a_pass_within_the_band_escalates() {
 /// fast set's in-band row, its walk reaching the floor in a few dozen
 /// boxes.
 #[test]
-fn a_line_along_a_patch_within_the_band_escalates() {
+fn a_line_along_a_patch_within_the_band_refuses_at_the_floor() {
     let along = line(Point3::new(0.0, 0.5, 0.5 * band().zero()), Vec3::unit_x());
     let got = read(&along, (0.2, 0.8), &flat());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a run within the band is never clear: {got:?}"
     );
 }
@@ -266,7 +266,7 @@ fn review_r1_a_tangency_near_the_chart_edge_and_an_end_is_not_dropped() {
         let (ring, params) = touching(delta, 5e4 * e, 500.0 * e);
         let got = read(&ring, params, &chart);
         assert!(
-            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
             "δ = {delta:e}: a tangency 500·escalate inside the span refuses: {got:?}"
         );
     }
@@ -291,13 +291,13 @@ fn review_r1_a_small_circle_crosses_a_flat_patch_twice() {
 /// Review r1: a pass at twice the coincidence threshold, inside the
 /// band's gap, is not clear either.
 #[test]
-fn review_r1_a_pass_in_the_bands_gap_escalates() {
+fn review_r1_a_pass_in_the_bands_gap_refuses_at_the_floor() {
     let gap = 2.0 * band().zero();
     assert!(gap < band().escalate());
     let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
     let got = read(&below, (0.1, 0.9), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass in the band's gap is never clear: {got:?}"
     );
 }
@@ -336,7 +336,7 @@ fn trough(a: f64, h: f64, y1: f64) -> NurbsSurface<f64> {
 /// and the span ends `128·escalate` past the touch (past the band of
 /// it, so the touch is no end's). An in-band reading escalates.
 #[test]
-fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_escalates() {
+fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_refuses_at_the_floor() {
     let s = band().escalate();
     let l = 1_048_576.0 * s;
     let chart = trough(512.0 * s, 64.0 * s, l);
@@ -344,7 +344,7 @@ fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_escalates() {
     // The control: the same touch mid-chart refuses.
     let mid = read(&at(0.5 * l), (-l + 128.0 * s, 128.0 * s), &chart);
     assert!(
-        matches!(mid, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(mid, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a touch mid-chart refuses: {mid:?}"
     );
     let edge = read(&at(32.0 * s), (-l + 128.0 * s, 128.0 * s), &chart);
@@ -419,14 +419,14 @@ fn review_r2_a_crossing_on_a_closed_charts_seam_near_an_end_is_not_dropped() {
 /// `½·zero`, which a clear rule reading `zero` as its threshold also
 /// refuses; this one passes between `zero` and `escalate`.
 #[test]
-fn review_r2_a_pass_in_the_bands_sliver_escalates() {
+fn review_r2_a_pass_in_the_bands_sliver_refuses_at_the_floor() {
     let b = band();
     let chart = dome();
     let gap = 0.5 * (b.zero() + b.escalate());
     let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
     let got = read(&below, (0.1, 0.9), &chart);
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass in the sliver is never clear: {got:?}"
     );
 }
@@ -627,10 +627,10 @@ fn cup(lift: f64) -> Curve3<f64> {
 }
 
 #[test]
-fn a_nurbs_span_tangent_to_a_dome_escalates() {
+fn a_nurbs_span_tangent_to_a_dome_refuses_at_the_floor() {
     let got = read_whole(&cup(0.0), &dome());
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a tangency refuses: {got:?}"
     );
 }
@@ -647,15 +647,15 @@ fn steep(lift: f64) -> Curve3<f64> {
 }
 
 #[test]
-fn a_nurbs_pass_within_the_band_escalates() {
+fn a_nurbs_pass_within_the_band_refuses_at_the_floor() {
     let near = read_whole(&steep(0.5 * band().zero()), &dome());
     assert!(
-        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "a pass within the band is never clear: {near:?}"
     );
     let gap = read_whole(&steep(2.0 * band().zero()), &dome());
     assert!(
-        matches!(gap, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(gap, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))),
         "nor one in the band's gap: {gap:?}"
     );
 }
