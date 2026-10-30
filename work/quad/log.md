@@ -373,3 +373,11 @@ PR 5568's fix pass.
   - Residue appended to `the-c0-knot-split-refuses-what-it-cannot-place`.
 
   The fix pass adds new certified reasoning (`clear_of`, `on_the_line`, the kept-carrier join), so its delta `8e3c6dab..e5c46713` gets its own FULL review, dispatched now. That is not a dual-experiment row. Open on it: the `near` test reads a float-evaluated point of the line.
+- 2026-10-30 — **6013 delta review** (`e5c46713`; probes on `quad/review-6013-delta` at `b0b50c57`): APPROVE-WITH-FIXES, and none of the six claims fell. Mutants on the near-box term and on budget exhaustion went red. Adjudicated and sent to the fix lane:
+  - **M1:** a shallow tangency within ε_in refuses, and the residue row names the class too narrowly. The fix lane may measure the distance across the line instead of a box diagonal.
+  - **M2:** the `CLEAR_DEPTH` fail-safe is unreachable by any test. Test it or delete it.
+  - **N1:** use the interval `stretch_sup`, and pad by operand magnitude.
+  - **N2:** the winding slack assumes affine pcurves near the origin, so it would refuse good offset-parameter walks.
+  - **N3:** the ε_in boundary premise of `clear_of` is unstated and unchecked.
+  - **Style:** `piece_box` duplicates the `edge_box` mapping.
+  - **Class finding, to be filed in `work/issues/`:** about 20 hand-written `4ε·|x|` pads across the crates.
