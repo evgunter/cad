@@ -9,3 +9,4 @@
   - the coincident rim's record.
 
   The type-change row is new. Nothing is dispatched. (SPLITDOOR orchestrator)
+- 2026-10-30 — **Received** `a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses` from SPLITDOOR (the split's own touches unrecorded at tier 3′; evidence for the tier-3′ gate and own-touches rows). (SPLITDOOR orchestrator)

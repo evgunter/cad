@@ -39,12 +39,16 @@
 //! definitely negative (a Zero graze counts as within: boundary hits
 //! are exactly what must flow into the ON machinery) — and neither
 //! sector's two side codes read one definite side of the other's plane
-//! ([`one_side`]). `within` reads at the sector's arm and the codes at
-//! each bound's reach; where they disagree a crossing pair sides with
-//! the reach, because its codes are what the germ machinery consumes,
-//! while the coplanar test sides with the arm, because a coplanar pair
-//! never reads its codes and goes to the carrier ladder, which
-//! certifies the coincidence over the whole sector. Coplanar pairs
+//! ([`one_side`]). `within` reads the line's side of each bound at that
+//! bound's reach ([`within_reaching`]), the length its code reads the
+//! bound at, so a line beside a long bound is decided as its code is
+//! however short the sector's other bound; where the two still differ
+//! (a curved bound's code reads the edge, `within` its tangent) a
+//! crossing pair sides with the codes, because they are what the germ
+//! machinery consumes. The coplanar test reads the normals at the
+//! sector's arm, because a coplanar pair never reads its codes and goes
+//! to the carrier ladder, which certifies the coincidence over the
+//! whole sector. Coplanar pairs
 //! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
@@ -53,6 +57,7 @@
 //! two can overlap one order down, in a crescent from the vertex, which
 //! a union of two plane faces refuses ([`crescent_refusal`]).
 
+use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::{
@@ -1213,6 +1218,9 @@ impl PairRecord {
 /// module docs). `strict` demands definite interior. `read` is what the
 /// calling door read of the pair's declaration: the primitive takes
 /// none of its own, and no declaration settles a direction's membership.
+/// `dir` is a line with no reach of its own (two faces' intersection
+/// direction), so its side of each bound is read at that bound's reach
+/// ([`within_reaching`]).
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
@@ -1225,7 +1233,29 @@ pub(super) fn within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (t1, t2) = within_signs(s, dir, read, band)?;
+    within_reaching(s, (dir, None), strict, read, band)
+}
+
+/// [`within`] for a direction that reaches `own` metres from the vertex
+/// where it has a length of its own (a bound of the other sector, an
+/// edge), `None` where it has none.
+///
+/// **A direction's side of a bound is read at the shorter of the two's
+/// reaches**: the bound's far end lies `sin θ` times its reach off the
+/// direction's line, which is the length the side codes read the bound
+/// at ([`side_code`]), and a direction with a reach of its own is known
+/// no farther than that reach. The sector's `arm`, the shorter chord of
+/// its corner, is neither's: a short edge elsewhere at the corner would
+/// leave in band a ray that the bound's own reach, and so its code,
+/// reads definitely off.
+pub(super) fn within_reaching<T: Decide>(
+    s: &BoolSector<T>,
+    (dir, own): (Vec3<T>, Option<T>),
+    strict: bool,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (t1, t2) = within_signs(s, (dir, own), read, band)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
@@ -1233,16 +1263,37 @@ pub(super) fn within<T: Decide>(
     })
 }
 
-/// [`within`]'s two readings of `dir` against `s`'s bounds: which side
-/// of `start`, then of `end`, it lies on, `Positive` toward the other.
+/// **The length one direction's side of another is read at**: the
+/// shorter of the two's own reaches, `bound`'s alone where the
+/// direction read against it has none (`own` is `None`: a face–face
+/// line, a bisector). Every reading of two directions against each
+/// other in the sector passes and the fate cuts takes its lever here
+/// ([`within_reaching`]); each reach may be known only from both sides,
+/// and the lever then is too.
+pub(super) fn reading_lever<T: geom_core::Real>(
+    bound: LeverBounds<T>,
+    own: Option<LeverBounds<T>>,
+) -> LeverBounds<T> {
+    own.map_or(bound, |o| bound.min(o))
+}
+
+/// [`reading_lever`] of two reaches known exactly.
+pub(super) fn exact_lever<T: geom_core::Real>(bound: T, own: Option<T>) -> T {
+    reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
+}
+
+/// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
+/// which side of `start`, then of `end`, it lies on, `Positive` toward
+/// the other.
 fn within_signs<T: Decide>(
     s: &BoolSector<T>,
-    dir: Vec3<T>,
+    (dir, own): (Vec3<T>, Option<T>),
     read: DeclarationRead,
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
+    let lever = |r: Reach<T>| exact_lever(r.length(), own);
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), lever(s.start_reach));
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), lever(s.end_reach));
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
     Ok((
         decide("bool_sector_within", c1, band).map_err(escalate)?,
@@ -1274,13 +1325,20 @@ pub(super) fn half_planes<T: Decide>(
         }
         // CCW about the normal from `start` to `end` (module docs), so
         // the face lies ahead of `start` and behind `end`.
+        // A direction along a bound is read along it, sides and sense,
+        // at the one lever (`reading_lever`).
         let ahead = s.normal.vec().cross(dir).normalize();
-        match within_signs(s, dir, DeclarationRead::Moot, band)? {
+        let along = |r: Reach<T>| exact_lever(r.length(), Some(reach.length()));
+        match within_signs(s, (dir, Some(reach.length())), DeclarationRead::Moot, band)? {
             (Sign::Positive, Sign::Positive) => out.extend([(ahead, s), (-ahead, s)]),
-            (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
+            (Sign::Zero, Sign::Positive)
+                if direction_sense(s.start, dir, along(s.start_reach), band)? =>
+            {
                 out.push((ahead, s));
             }
-            (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
+            (Sign::Positive, Sign::Zero)
+                if direction_sense(s.end, dir, along(s.end_reach), band)? =>
+            {
                 out.push((-ahead, s));
             }
             _ => {}
@@ -1910,17 +1968,18 @@ pub(super) fn faces_at<T: Decide>(
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
     (dir, reach): (Vec3<T>, Reach<T>),
-    arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if !within(s, dir, false, DeclarationRead::Moot, band)? {
+    let moot = DeclarationRead::Moot;
+    if !within_reaching(s, (dir, Some(reach.length())), false, moot, band)? {
         return Ok(false);
     }
     for (bound, along, is_edge) in [
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        if !(is_edge && parallel_same(dir, bound, arm, BOUNDS_PARALLEL, band)?) {
+        let lever = exact_lever(along.length(), Some(reach.length()));
+        if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
@@ -2008,17 +2067,31 @@ fn sector_overlap<T: Decide>(
     b: &BoolSector<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    for (s, dir) in [(a, b.start), (a, b.end), (b, a.start), (b, a.end)] {
-        if within(s, dir, true, DeclarationRead::Moot, band)? {
+    for (s, dir, reach) in [
+        (a, b.start, b.start_reach),
+        (a, b.end, b.end_reach),
+        (b, a.start, a.start_reach),
+        (b, a.end, a.end_reach),
+    ] {
+        if within_reaching(
+            s,
+            (dir, Some(reach.length())),
+            true,
+            DeclarationRead::Moot,
+            band,
+        )? {
             return Ok(true);
         }
     }
-    let arm = a.arm.min(b.arm);
+    let along = |(u, ru): (Vec3<T>, Reach<T>), (v, rv): (Vec3<T>, Reach<T>)| {
+        let lever = exact_lever(rv.length(), Some(ru.length()));
+        parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
+    };
+    let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
+    let (b_start, b_end) = ((b.start, b.start_reach), (b.end, b.end_reach));
     // Identical region (same or crossed bound pairing).
-    let straight = parallel_same(a.start, b.start, arm, BOUNDS_PARALLEL, band)?
-        && parallel_same(a.end, b.end, arm, BOUNDS_PARALLEL, band)?;
-    let crossed = parallel_same(a.start, b.end, arm, BOUNDS_PARALLEL, band)?
-        && parallel_same(a.end, b.start, arm, BOUNDS_PARALLEL, band)?;
+    let straight = along(a_start, b_start)? && along(a_end, b_end)?;
+    let crossed = along(a_start, b_end)? && along(a_end, b_start)?;
     Ok(straight || crossed)
 }
 
@@ -2069,8 +2142,9 @@ pub(super) fn crescent_refusal<T: Decide>(
     Ok(())
 }
 
-/// A bound's curvature vector at the base vertex, where the sector
-/// reads one, with the bound's reach: a conic's, and a line edge's zero.
+/// A bound's curvature vector at the base vertex and its reach, where
+/// the bound is an edge whose bend the sector reads: a curved edge's
+/// own, a line edge's zero; `None` for a bisector or a probe.
 fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
         Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
@@ -2091,10 +2165,11 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// bisector reads no bend, and a pair holding one reads no crescent.
 /// Equal bends (one circle bounding both) read none.
 ///
-/// The shared direction is read at the sector arm, as [`pair_search`]
-/// read the pair touching. Two bounds that part at their own reach
-/// leave the site at an angle the arm is too short to resolve; where
-/// the corners' other edges run on together from the site
+/// The shared direction is read at the sector arm, no longer than the
+/// bounds' own reaches [`pair_search`] read the pair touching at. Two
+/// bounds that part at their own reach leave the site at an angle the
+/// arm is too short to resolve; where the corners' other edges run on
+/// together from the site
 /// ([`coincident_run`]), the section closes that wedge and the pair
 /// reads none.
 ///
@@ -2214,7 +2289,13 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), BOUNDS_PARALLEL, band)?)
+        && parallel_same(
+            a.dir,
+            b.dir,
+            exact_lever(b.reach, Some(a.reach)),
+            BOUNDS_PARALLEL,
+            band,
+        )?)
 }
 
 /// A corner [`crescent`] reads: one operand's body, its sectors at the
@@ -2409,8 +2490,8 @@ pub(super) fn pair_search<T: Decide>(
             } else {
                 pair_codes(sa, sb, band)?
             };
-            // The codes read each bound at its own reach, which can decide
-            // a ray `within` left in band at the shorter arm.
+            // A curved bound's code reads the edge, which can lie
+            // wholly off the plane where its tangent holds the line.
             if one_side(sa_codes) || one_side(sb_codes) {
                 continue;
             }
@@ -6284,11 +6365,12 @@ mod tests {
     }
 
     /// A sector whose long bound leaves the other's plane by an angle
-    /// its short arm leaves in band: `within` at the arm holds the
-    /// planes' line, the codes at the bound's own reach read the whole
+    /// its short arm leaves in band: the planes' line lies outside it
+    /// read at the long bound's reach, where the codes read the whole
     /// sector on one side of the other's plane, and the pair is no
     /// record (the boss inside a hole cut into short arcs either side of
-    /// the touch, at the rims' shared vertex).
+    /// the touch, at the rims' shared vertex). At the arm the line would
+    /// read within.
     #[test]
     fn a_sector_wholly_off_the_others_plane_is_no_record() {
         let b = band();
@@ -6313,8 +6395,14 @@ mod tests {
         };
         let line = Vec3::new(0.0, -1.0, 0.0);
         assert!(
-            within(&floor, line, false, DeclarationRead::Moot, b).unwrap(),
-            "the line reads within the floor at its arm"
+            !within(&floor, line, false, DeclarationRead::Moot, b).unwrap(),
+            "the line reads outside the floor at its long bound's reach"
+        );
+        let at_the_arm = Margin::levered(floor.start.cross(line).dot(floor.normal.vec()), arm);
+        assert_eq!(
+            decide("arm", at_the_arm, b).unwrap(),
+            Sign::Zero,
+            "at the arm"
         );
         let (codes, _) = pair_codes(&floor, &wall, b).unwrap();
         assert_eq!(codes, (SideCode::Out, SideCode::Out), "the floor's codes");
