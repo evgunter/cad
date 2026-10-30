@@ -1016,7 +1016,7 @@ impl Drafts {
             return Ok(Some(SessionOp::AddDrawnProfile {
                 plane: plane.clone(),
                 traced: vec![face.clone()],
-                loops: vec![chain],
+                chains: vec![chain],
             }));
         }
         let loops = self.profile_programs(notation)?;

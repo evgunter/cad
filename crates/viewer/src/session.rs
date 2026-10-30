@@ -1775,8 +1775,8 @@ impl DocSession {
             SessionOp::AddDrawnProfile {
                 plane,
                 traced,
-                loops,
-            } => self.add_drawn_profile(&plane, &traced, loops),
+                chains,
+            } => self.add_drawn_profile(&plane, &traced, chains),
             SessionOp::EditProfile {
                 node,
                 base,
@@ -2767,13 +2767,7 @@ impl DocSession {
         spin: Formula,
     ) -> OpOutcome {
         let doc = self.committed_doc();
-        let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        // The body the face is on: the node's output by its port where
-        // it holds several.
-        let body = match crate::world::seat_read(doc, at, Some(port)) {
-            (at, Some(port)) => Operand::output(at, port),
-            (at, None) => body_of(doc, at),
-        };
+        let (body, name) = picked_body(doc, face);
         if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -2801,17 +2795,24 @@ impl DocSession {
         })
     }
 
-    /// **A profile drawn on `plane`'s body, tracing `traced`**
-    /// ([`SessionOp::AddDrawnProfile`]): the frame read off the body
-    /// ([`drawn_frame`]) against an evaluation of the committed
-    /// document, and one `InsertNode`.
+    /// **A profile drawn on the frame of `plane` and the first traced
+    /// face, tracing `traced`** ([`SessionOp::AddDrawnProfile`]): the
+    /// frame read against an evaluation of the committed document
+    /// ([`drawn_frame`]), the program built by the façade's door
+    /// ([`pncad::trace::drawn_profile`], which checks each argument's
+    /// dimension), and one `InsertNode`.
     fn add_drawn_profile(
         &mut self,
         plane: &FaceSelection,
         traced: &[FaceSelection],
-        loops: Vec<LoopProgram<Formula>>,
+        chains: Vec<pncad::trace::Chain>,
     ) -> OpOutcome {
         let doc = self.committed_doc();
+        let Some(first) = traced.first() else {
+            return OpOutcome::refused(Refusal::Frame(Box::new(GestureFrameFault::Traced(
+                Arc::new(pncad::trace::TracedFrameFault::NotAFace),
+            ))));
+        };
         let ev: Evaluation<f64> = pncad::document::evaluate(
             doc,
             None,
@@ -2819,30 +2820,30 @@ impl DocSession {
             &self.eval_options(),
             self.tol,
         );
-        let frame = match drawn_frame(doc, &ev, plane, self.tol) {
+        let frame = match drawn_frame(doc, &ev, plane, first, self.tol) {
             Ok(frame) => frame,
-            Err(refusal) => {
-                return OpOutcome::refused(Refusal::Frame(Box::new(GestureFrameFault::Geometry(
-                    refusal,
+            Err(fault) => {
+                return OpOutcome::refused(Refusal::Frame(Box::new(GestureFrameFault::Traced(
+                    Arc::new(fault),
                 ))));
             }
         };
         let faces = traced.iter().map(|face| face_read(doc, face)).collect();
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
-                loops,
-                ids: Vec::new(),
-                on: Some(pncad::document::DrawnOn { frame, faces }),
-            })),
-            fresh: Vec::new(),
-        })
+        match pncad::trace::drawn_profile(frame, faces, chains) {
+            Ok(node) => self.commit(DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            }),
+            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
+        }
     }
 
-    /// **`face`'s trace in the plane of `plane`'s body, for display**
+    /// **`face`'s trace in the plane of `plane`, for display**
     /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
-    /// read as a profile drawn there tracing `face` would read it, and
-    /// sampled across the square the body's vertices span about the
-    /// frame's origin. Nothing is written.
+    /// on the frame a profile drawn there tracing `face` stands on
+    /// ([`drawn_frame`]), read as that profile would read it, and
+    /// sampled across a square the traced body spans. Nothing is
+    /// written.
     ///
     /// # Errors
     ///
@@ -2853,8 +2854,9 @@ impl DocSession {
         face: &FaceSelection,
     ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
         let (doc, ev) = self.landed_pair().ok_or(SketchTraceFault::Unevaluated)?;
-        let frame = drawn_frame(doc, ev, plane, self.tol).map_err(SketchTraceFault::Frame)?;
-        let half = 1.25 * body_reach(ev, plane.node).unwrap_or(1.0);
+        let frame = drawn_frame(doc, ev, plane, face, self.tol)
+            .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
+        let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             doc,
             ev,
@@ -2864,7 +2866,7 @@ impl DocSession {
             SKETCH_TRACE_RAYS,
             self.tol,
         )
-        .map_err(SketchTraceFault::Trace)
+        .map_err(|fault| SketchTraceFault::Trace(Arc::new(fault)))
     }
 
     /// Write the path editor's program over a committed profile's
@@ -3065,11 +3067,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let doc = self.committed_doc();
-        let (at, port, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
-        let on = match crate::world::seat_read(doc, at, Some(port)) {
-            (at, Some(port)) => Operand::output(at, port),
-            (at, None) => body_of(doc, at),
-        };
+        let (on, face) = picked_body(doc, plane);
         let over = self.placements_of(&body);
         let taken = crate::world::read_var(doc, &body);
         if let Err(refusal) = stranded_pick(doc, &over, taken) {
@@ -3130,7 +3128,7 @@ impl DocSession {
             &opts,
             self.tol,
         );
-        let frame = frame_off(doc, &ev, body, None, &at, self.tol)
+        let frame = frame_off(doc, &ev, body, &at, self.tol)
             .map_err(|refusal| Refusal::Frame(Box::new(GestureFrameFault::Geometry(refusal))))?;
         Ok(RoleRead::through(frame, role))
     }
@@ -4359,19 +4357,25 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
 }
 
 /// How many rays each way [`DocSession::sketch_trace`] samples a trace
-/// with.
+/// with: enough points to read a circle's shape by, few enough to
+/// redraw each time the picks or the landed evaluation move.
 const SKETCH_TRACE_RAYS: u32 = 24;
 
+/// How far past the traced body's reach the trace is shown: a quarter
+/// more, so the body's own outline is inside the window.
+const TRACE_WINDOW_MARGIN: f64 = 1.25;
+
 /// **Why a face's trace could not be shown** ([`DocSession::sketch_trace`]).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SketchTraceFault {
     /// Nothing has landed to read the trace against.
     Unevaluated,
-    /// The plane's body offers no frame to read.
-    Frame(pncad::document::PinRefusal),
+    /// No frame reads off the picks ([`drawn_frame`]): the traced face
+    /// has no axis, or the picked face is no plane square to it.
+    Frame(Arc<pncad::trace::TracedFrameFault>),
     /// The trace's own refusal: the plane misses the face, the carrier
     /// has no closed form, or a read refused.
-    Trace(pncad::trace::SketchTraceError),
+    Trace(Arc<pncad::trace::SketchTraceError>),
 }
 
 impl core::fmt::Display for SketchTraceFault {
@@ -4386,34 +4390,45 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The face `face` selects, as an operand**: its name on the body the
-/// pick is read through (`crate::world::on_body`), as a sketch on a
-/// face reads it.
-fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
+/// **The body a face pick is read on, and the face's name there**
+/// (`crate::world::on_body`): the node's output by its port where it
+/// holds several, its body output otherwise.
+fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
     let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
     };
+    (body, name)
+}
+
+/// **The face `face` selects, as an operand**: its name on the body the
+/// pick is read on ([`picked_body`]).
+fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
+    let (body, name) = picked_body(doc, face);
     Operand::select(body, vec![name])
 }
 
-/// **The frame a profile drawn on `plane`'s body stands on**: the body's
-/// own origin and axes, read off `plane`'s axis where its carrier has
-/// one ([`frame_off`]): the spelling the coincidence door proves a
-/// tangency drawn off a wall's trace by.
+/// **The frame a sketch tracing `traced` stands on, in the plane of
+/// `plane`** ([`pncad::trace::traced_frame`]): `Through` the traced
+/// face's own axis and a vertex of the picked plane face. A boss swept
+/// up that axis from a piece leaving the trace along its tangent is
+/// tangent to the traced wall by construction: the coincidence door
+/// proves the union's tangency row `SameConstruction`.
 fn drawn_frame(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     plane: &FaceSelection,
+    traced: &FaceSelection,
     tol: Tol,
-) -> Result<Operand, pncad::document::PinRefusal> {
-    let (at, port, name) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
-    let body = match crate::world::seat_read(doc, at, Some(port)) {
-        (at, Some(port)) => Operand::output(at, port),
-        (at, None) => body_of(doc, at),
-    };
-    frame_off(doc, ev, &body, Some(&name), &Frame::IDENTITY, tol)
+) -> Result<Operand, pncad::trace::TracedFrameFault> {
+    pncad::trace::traced_frame(
+        doc,
+        ev,
+        &face_read(doc, plane),
+        &face_read(doc, traced),
+        tol,
+    )
 }
 
 /// How far `node`'s body reaches from its own origin across its `xy`:
@@ -4436,10 +4451,9 @@ fn body_reach(ev: &Evaluation<f64>, node: pncad::document::RecipeNodeId) -> Opti
 }
 
 /// **A frame read off `body`'s own geometry, standing at `at` in its
-/// own coordinates**: `Through` the axis of `axis_of`, a face of the
-/// body, where its carrier has one, and otherwise the first edge by id
-/// with an axis, and the first vertex by id off that line, moved to
-/// `at` by the moves its axes and origin make there ([`moves_of`],
+/// own coordinates**: `Through` the first edge by id with an axis and
+/// the first vertex by id off its line, moved to `at` by the moves its
+/// axes and origin make there ([`moves_of`],
 /// [`pncad::document::moved_frame`]). A copy placed into its body's
 /// space is read through its body, `at` carried by the copy's motion.
 ///
@@ -4451,7 +4465,6 @@ fn frame_off(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     body: &Operand,
-    axis_of: Option<&StableName>,
     at: &Frame,
     tol: Tol,
 ) -> Result<Operand, pncad::document::PinRefusal> {
@@ -4487,17 +4500,25 @@ fn frame_off(
     let band = pncad::geom_core::Band::linear(tol)
         .unwrap_or_else(|_| unreachable!("the session's tolerance is a band"));
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
-    // The first vertex by id off the line through `origin` along
-    // `axis`: its name and the frame through the two.
-    let off_the_line = |origin: pncad::geom_core::Point3<f64>, axis| {
-        let dir = UnitVec3::new(axis, pncad::topo::query::POSE_UNIT_NORM, band).ok()?;
+    let picked = solid.edges().find_map(|(edge, _)| {
+        let kind = readback::edge_carrier_kind(&solid, edge).ok()?;
+        matches!(
+            kind,
+            pncad::geom::CurveKind::Line
+                | pncad::geom::CurveKind::Circle
+                | pncad::geom::CurveKind::Ellipse
+        )
+        .then_some(())?;
+        let line = readback::edge_pose(&solid, edge).ok()?;
+        let dir = UnitVec3::new(line.axis, pncad::topo::query::POSE_UNIT_NORM, band).ok()?;
+        let edge_name = name(EntityKey::Edge(edge))?;
         solid.vertices().find_map(|(vertex, _)| {
             let point = readback::vertex_point(&solid, vertex).ok()?;
-            let off = point - origin;
+            let off = point - line.origin;
             let across = off - dir.get() * off.dot(dir.get());
             UnitVec3::new(across, "frame_vertex_off_the_line", band).ok()?;
             let vertex_name = name(EntityKey::Vertex(vertex))?;
-            let foot = origin + dir.get() * off.dot(dir.get());
+            let foot = line.origin + dir.get() * off.dot(dir.get());
             let frame = pncad::geom_core::RigidMotion::from_aim_and_reference(
                 foot,
                 dir,
@@ -4506,36 +4527,7 @@ fn frame_off(
                 band,
             )
             .ok()?;
-            Some((vertex_name, frame))
-        })
-    };
-    let face_axis = axis_of.and_then(|face_name| {
-        let (face, _) = solid
-            .faces()
-            .find(|&(face, _)| name(EntityKey::Face(face)).as_ref() == Some(face_name))?;
-        let (origin, axis) = match readback::face_carrier(&solid, face).ok()?.0 {
-            pncad::geom::Surface::Cylinder { origin, axis, .. } => (origin, axis),
-            pncad::geom::Surface::Cone { apex, axis, .. } => (apex, axis),
-            pncad::geom::Surface::Torus { center, axis, .. } => (center, axis),
-            _ => return None,
-        };
-        let (vertex_name, frame) = off_the_line(origin, axis)?;
-        Some((face_name.clone(), vertex_name, frame))
-    });
-    let picked = face_axis.or_else(|| {
-        solid.edges().find_map(|(edge, _)| {
-            let kind = readback::edge_carrier_kind(&solid, edge).ok()?;
-            matches!(
-                kind,
-                pncad::geom::CurveKind::Line
-                    | pncad::geom::CurveKind::Circle
-                    | pncad::geom::CurveKind::Ellipse
-            )
-            .then_some(())?;
-            let line = readback::edge_pose(&solid, edge).ok()?;
-            let edge_name = name(EntityKey::Edge(edge))?;
-            let (vertex_name, frame) = off_the_line(line.origin, line.axis)?;
-            Some((edge_name, vertex_name, frame))
+            Some((edge_name.clone(), vertex_name, frame))
         })
     });
     let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;

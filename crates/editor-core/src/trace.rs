@@ -683,3 +683,209 @@ fn reach<T: Decide>(gap: T, rate: T, band: Band) -> Result<T, TraceStepFault> {
         Err(diag) => Err(escalated(diag)),
     }
 }
+
+/// The funnel row a sketch plane's squareness to a traced face's axis is
+/// decided on: how far the picked plane turns off square across the
+/// traced carrier's reach, and how far it stands off the frame's origin.
+pub const TRACED_FRAME_SQUARE: &str = "traced_frame_square";
+
+/// **Why no frame could be read for a sketch tracing a face**
+/// ([`traced_frame`]).
+#[derive(Debug)]
+pub enum TracedFrameFault {
+    /// A pick is not a face selection on one name.
+    NotAFace,
+    /// The picked plane's body could not be read.
+    Body(crate::PinRefusal),
+    /// The picked plane face has no vertex off the traced face's axis to
+    /// stand the frame's origin by.
+    NoVertex,
+    /// A read refused as a profile drawn on the frame would: the traced
+    /// face has no axis (a plane, a sphere), the picked face is gone.
+    Read(Box<crate::NodeErrorKind>),
+    /// The picked face is not a plane.
+    NotAPlane {
+        /// Its carrier's kind.
+        carrier: geom::SurfaceKind,
+    },
+    /// The picked plane is not square to the traced face's axis.
+    NotSquare,
+    /// The band refused a decision.
+    Escalated(geom_core::Indeterminate),
+    /// The probe did not lower in the document.
+    Lower(Box<crate::EditError>),
+}
+
+impl core::fmt::Display for TracedFrameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
+        let recourse = match self {
+            Self::NotAFace => {
+                f.write_str("a pick is not one face")?;
+                "pick one face for each"
+            }
+            Self::Body(e) => return write!(f, "{e}"),
+            Self::NoVertex => {
+                f.write_str("the picked plane has no vertex off the traced face's axis")?;
+                "pick a plane face with a corner or a seam"
+            }
+            Self::Read(e) => return write!(f, "{e}"),
+            Self::NotAPlane { carrier } => {
+                write!(
+                    f,
+                    "the picked face is on a {} carrier, not a plane",
+                    carrier.name()
+                )?;
+                "pick a plane face square to the traced face's axis"
+            }
+            Self::NotSquare => {
+                f.write_str("the picked plane is not square to the traced face's axis")?;
+                "pick a plane face square to the traced face's axis"
+            }
+            Self::Escalated(diag) => return write!(f, "a squareness in the sliver band ({diag})"),
+            Self::Lower(e) => return write!(f, "{e}"),
+        };
+        write!(f, ". {}", Recourse(recourse))
+    }
+}
+
+impl core::error::Error for TracedFrameFault {}
+
+/// The body and the one name of a face selection.
+fn face_pick(
+    pick: &crate::Operand,
+) -> Result<(&crate::Operand, &crate::StableName), TracedFrameFault> {
+    match pick {
+        crate::Operand::Select { body, names } => match names.as_slice() {
+            [name] => Ok((body, name)),
+            _ => Err(TracedFrameFault::NotAFace),
+        },
+        _ => Err(TracedFrameFault::NotAFace),
+    }
+}
+
+/// **The frame a sketch tracing `traced` stands on, in the plane of
+/// `plane`**: `Through` the traced face's own axis and a vertex of the
+/// picked plane face, its origin that vertex's foot on the axis, its `z`
+/// the axis. Nothing in it is a number read off the evaluation, so every
+/// evaluation reads it again: a moved or resized body moves the frame,
+/// and a sweep of a profile drawn on it, along a wall the axis is
+/// read off, is tangent to that wall by construction (the coincidence
+/// door's `SameConstruction`).
+///
+/// The picked face is checked against `ev`, as a profile drawn on the
+/// frame reads it: a plane, square to the axis, with a vertex off it.
+/// `plane` and `traced` are face selections (`Operand::select` of one
+/// name).
+///
+/// # Errors
+///
+/// [`TracedFrameFault`].
+pub fn traced_frame(
+    doc: &crate::ProfileDoc,
+    ev: &crate::Evaluation<f64>,
+    plane: &crate::Operand,
+    traced: &crate::Operand,
+    tol: Tol,
+) -> Result<crate::Operand, TracedFrameFault> {
+    use crate::names::{EntityKey, EntityRef};
+    use crate::pose::{PoseDef, RoleRead};
+    let (plane_body, plane_name) = face_pick(plane)?;
+    face_pick(traced)?;
+    let band = Band::linear(tol)
+        .map_err(|e| TracedFrameFault::Read(Box::new(crate::NodeErrorKind::Band(e))))?;
+    let (_, framed, table, _) =
+        crate::mate::corner::read_of(doc, ev, plane_body).map_err(TracedFrameFault::Body)?;
+    let solid = framed.body();
+    let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
+    let Some((face, _)) = solid
+        .faces()
+        .find(|&(face, _)| name(EntityKey::Face(face)).as_ref() == Some(plane_name))
+    else {
+        return Err(TracedFrameFault::NotAFace);
+    };
+    let read = |def: PoseDef<crate::Operand, crate::Formula>| {
+        RoleRead::plain(crate::Operand::Pose(Box::new(def)))
+    };
+    let mut last = TracedFrameFault::NoVertex;
+    for (vertex, _) in solid.vertices() {
+        if !solid
+            .faces_of_vertex(vertex)
+            .is_some_and(|faces| faces.contains(&face))
+        {
+            continue;
+        }
+        let Some(vertex_name) = name(EntityKey::Vertex(vertex)) else {
+            continue;
+        };
+        let frame = crate::Operand::Pose(Box::new(PoseDef::Through {
+            axis: read(PoseDef::Axis { of: traced.clone() }),
+            point: read(PoseDef::Point {
+                of: crate::Operand::select(plane_body.clone(), vec![vertex_name]),
+            }),
+        }));
+        match square(doc, ev, &frame, plane, traced, band, tol) {
+            Ok(()) => return Ok(frame),
+            // A vertex on the axis has no foot to stand the origin by:
+            // the next may.
+            Err(fault @ TracedFrameFault::Read(_)) => last = fault,
+            Err(fault) => return Err(fault),
+        }
+    }
+    Err(last)
+}
+
+/// Whether `plane` is a plane square to `frame`'s `z` through its
+/// origin, read as a profile drawn on `frame` tracing `plane` and
+/// `traced` reads them.
+fn square(
+    doc: &crate::ProfileDoc,
+    ev: &crate::Evaluation<f64>,
+    frame: &crate::Operand,
+    plane: &crate::Operand,
+    traced: &crate::Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), TracedFrameFault> {
+    let mut scratch = doc.clone();
+    let probe = crate::Node::Profile(crate::program::ProfileProgram {
+        loops: Vec::new(),
+        ids: Vec::new(),
+        on: Some(crate::DrawnOn {
+            frame: frame.clone(),
+            faces: vec![plane.clone(), traced.clone()],
+        }),
+    });
+    let crate::Node::Profile(program) = crate::edit::lower_node_into(&mut scratch, &probe)
+        .map_err(|e| TracedFrameFault::Lower(Box::new(e)))?
+    else {
+        unreachable!("a profile lowers to a profile")
+    };
+    let faces = crate::eval::traced_faces(&scratch, ev, &program, tol)
+        .map_err(|e| TracedFrameFault::Read(Box::new(e)))?;
+    let [picked, axial] = faces.as_slice() else {
+        unreachable!("a probe tracing two faces reads two")
+    };
+    let (origin, normal) = match picked.surface {
+        Ok(geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
+        Ok(ref s) => return Err(TracedFrameFault::NotAPlane { carrier: s.kind() }),
+        Err(carrier) => return Err(TracedFrameFault::NotAPlane { carrier }),
+    };
+    let (at, z) = plane_in_body(picked);
+    // The traced carrier's reach about the frame's origin: a cylinder's
+    // radius, a cone's distance to its apex.
+    let reach = axial.surface.as_ref().map_or(0.0, |s| {
+        let at = axial.sketch_to_body.transform_point(Point3::origin());
+        reach_of(axial, s, at)
+    });
+    let decide = |margin| {
+        geom_core::k_stats::decide(TRACED_FRAME_SQUARE, margin, band)
+            .map_err(TracedFrameFault::Escalated)
+    };
+    let tilt = decide(Margin::levered(normal.cross(z).norm(), reach))?;
+    let off = decide(Margin::of((origin - at).dot(z)))?;
+    match (tilt, off) {
+        (Sign::Zero, Sign::Zero) => Ok(()),
+        _ => Err(TracedFrameFault::NotSquare),
+    }
+}

@@ -244,7 +244,8 @@ pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use trace::{
-    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, trace_marks,
+    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
+    trace_marks, traced_frame,
 };
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,

@@ -567,26 +567,30 @@ pub enum SessionOp {
         /// The turn about the face's normal (`Angle`).
         spin: Formula,
     },
-    /// **A profile drawn on a body's plane, continuing tangent to a
-    /// face's trace** (D10, "Constructing a coincidence"): `loops`
-    /// drawn on the frame of `plane`'s body standing at its own origin,
-    /// its `xy` the sketch's plane, read off `plane`'s own axis where its
-    /// carrier has one and otherwise off the body's first edge with an
-    /// axis; tracing `traced`, by place. One `InsertNode` of a profile
-    /// whose program reads the traces ([`crate::sketch::TraceGesture`]),
-    /// in the frame's space.
+    /// **A profile drawn on a frame, continuing tangent to a face's
+    /// trace** (D10, "Constructing a coincidence"): `chains` drawn on the
+    /// frame `Through` the first traced face's own axis and a vertex of
+    /// `plane`, a plane face square to that axis — its origin the
+    /// vertex's foot on the axis — tracing `traced`, by place
+    /// ([`pncad::trace::traced_frame`], [`pncad::trace::drawn_profile`]).
+    /// One `InsertNode`, in the frame's space.
     ///
-    /// A frame the body offers no reading of refuses
-    /// [`Refusal::Frame`]; a trace a step reads that the frame's plane
-    /// misses, or a branch the piece does not make, builds and refuses
-    /// at evaluation, on the profile's badge.
+    /// What is proven: a sweep up the frame's `z` of a chain that leaves
+    /// a traced wall's trace along its tangent (`OnTrace`, then
+    /// `AlongTrace`) is tangent to that wall by construction, and the
+    /// coincidence door reports the union's row `SameConstruction`.
+    ///
+    /// A traced face with no axis, or a picked face that is no plane
+    /// square to it, refuses [`Refusal::Frame`]; an argument of the
+    /// wrong dimension [`Refusal::Edit`]. A crossing the piece does not
+    /// make builds, and refuses at evaluation on the profile's badge.
     AddDrawnProfile {
-        /// The face whose body's plane the sketch is drawn on.
+        /// The plane face the frame's origin is stood in.
         plane: FaceSelection,
         /// The faces the profile traces, by place.
         traced: Vec<FaceSelection>,
-        /// The loop programs, in description order.
-        loops: Vec<LoopProgram<Formula>>,
+        /// The loops, outer first, in the document's vocabulary.
+        chains: Vec<pncad::trace::Chain>,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when

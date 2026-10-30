@@ -48,9 +48,9 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
-    ProfileProgram, ProgramResolveFault, ProgramStep, ProgramTarget, RecipeNodeId,
-    RecordedNotation, RecordedProgramError, SlotId, SpokenNode, StepId, TraceCrossing,
-    TracePassage, TraceSense, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
+    SlotId, SpokenNode, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
+    WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -509,22 +509,6 @@ impl Default for TraceGesture {
     }
 }
 
-impl TraceGesture {
-    /// The steps the gesture writes, reading the profile's traced face
-    /// `face` (by place): `line_to` the crossing, then the heading
-    /// along the trace.
-    #[must_use]
-    pub fn steps(&self, face: u32) -> [ProgramStep<Formula>; 2] {
-        [
-            ProgramStep::LineTo(ProgramTarget::OnTrace {
-                face,
-                crossing: self.crossing,
-            }),
-            ProgramStep::AlongTrace { sense: self.sense },
-        ]
-    }
-}
-
 /// Why a chain with a [`TraceGesture`] does not lower
 /// ([`traced_loop`]).
 #[derive(Debug)]
@@ -562,7 +546,7 @@ impl core::error::Error for TracedLoopError {}
 /// **A chain of `steps` with `gesture` written after its row**, reading
 /// the traced face `face`: the chain lowered as [`loop_program`] lowers
 /// a path, row for step, and the gesture's two steps
-/// ([`TraceGesture::steps`]) inserted after row `gesture.after`.
+/// ([`pncad::trace::Chain::onto_trace`]) after row `gesture.after`.
 ///
 /// # Errors
 ///
@@ -572,7 +556,7 @@ pub fn traced_loop(
     gesture: &TraceGesture,
     face: u32,
     notation: Notation,
-) -> Result<LoopProgram<Formula>, TracedLoopError> {
+) -> Result<pncad::trace::Chain, TracedLoopError> {
     let lowered = loop_program(
         &ProfileShape::Path {
             steps: steps.to_vec(),
@@ -580,18 +564,19 @@ pub fn traced_loop(
         notation,
     )
     .map_err(TracedLoopError::Program)?;
-    let LoopProgram::Chain(mut chain) = lowered else {
+    let LoopProgram::Chain(mut head) = lowered else {
         return Err(TracedLoopError::NotAChain);
     };
-    if gesture.after >= chain.len() {
+    if gesture.after >= head.len() {
         return Err(TracedLoopError::NoSuchRow {
             after: gesture.after,
-            rows: chain.len(),
+            rows: head.len(),
         });
     }
-    let at = gesture.after + 1;
-    chain.splice(at..at, gesture.steps(face));
-    Ok(LoopProgram::Chain(chain))
+    let tail = head.split_off(gesture.after + 1);
+    Ok(pncad::trace::Chain::of_steps(head)
+        .onto_trace(face, gesture.crossing, gesture.sense)
+        .then_steps(tail))
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -668,19 +653,31 @@ pub fn profile_plane() -> SketchPlane<f64> {
     SketchPlane::xy()
 }
 
+/// A trace tick's half-length, as a share of the span the points cover:
+/// long enough to read the tangent's direction, short enough that ticks
+/// of neighbouring points do not overlap at the default ray count.
+const TRACE_TICK: f64 = 0.02;
+
+/// A trace tick's half-length where the points cover no span (one point
+/// on the origin), metres: a millimetre.
+const TRACE_TICK_FLOOR: f64 = 1.0e-3;
+
 /// **A face's trace, drawn on the profile's plane**: each point of it
 /// [`pncad::trace::sketch_trace`] read, as a short leg along the
 /// trace's tangent there, headed with the trace. Display only: no
 /// verdict, and nothing reads the points back.
 #[must_use]
 pub fn trace_preview(marks: &pncad::trace::TraceMarks) -> ProfilePreview {
-    // A tick a fiftieth of the span the points cover.
     let span = marks
         .marks
         .iter()
         .map(|m| m.at.x.abs().max(m.at.y.abs()))
         .fold(0.0, f64::max);
-    let tick = if span > 0.0 { span / 50.0 } else { 1.0e-3 };
+    let tick = if span > 0.0 {
+        span * TRACE_TICK
+    } else {
+        TRACE_TICK_FLOOR
+    };
     let loops = marks
         .marks
         .iter()

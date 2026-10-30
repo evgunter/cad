@@ -46,7 +46,7 @@ use editor_core::{
 };
 use geom_core::{Point2, Tol};
 
-pub use editor_core::{TraceMark, TraceMarks};
+pub use editor_core::{TraceMark, TraceMarks, TracedFrameFault, traced_frame};
 
 /// **A word that names no passage or sense** ([`passage`], [`sense`]):
 /// the word, and the words that would.
@@ -190,6 +190,35 @@ impl Chain {
         self.then(ProgramStep::AlongTrace { sense })
     }
 
+    /// **The gesture that continues tangent to a trace**: the piece runs
+    /// on along its heading to `crossing` of the traced face `face` (by
+    /// place), and the chain heads on along the trace there, `sense` it
+    /// (`line_to(on_trace)`, then `along_trace`).
+    #[must_use]
+    pub fn onto_trace(
+        self,
+        face: u32,
+        crossing: editor_core::TraceCrossing,
+        sense: TraceSense,
+    ) -> Self {
+        self.line_to(ProgramTarget::OnTrace { face, crossing })
+            .along_trace(sense)
+    }
+
+    /// A chain of steps written elsewhere in the document's vocabulary,
+    /// as a lowering hands them ([`drawn_profile`] checks each).
+    #[must_use]
+    pub fn of_steps(steps: Vec<ProgramStep<Formula>>) -> Self {
+        Self { steps }
+    }
+
+    /// The chain with `steps` written after it.
+    #[must_use]
+    pub fn then_steps(mut self, steps: impl IntoIterator<Item = ProgramStep<Formula>>) -> Self {
+        self.steps.extend(steps);
+        self
+    }
+
     /// The steps written.
     #[must_use]
     pub fn steps(&self) -> &[ProgramStep<Formula>] {
@@ -256,6 +285,8 @@ pub enum SketchTraceError {
     /// The trace refuses: the frame's plane misses the face's carrier,
     /// or the carrier has no closed form.
     Trace(TraceStepFault),
+    /// The tolerance names no band to decide the trace under.
+    Band(geom_core::BandError),
 }
 
 impl core::fmt::Display for SketchTraceError {
@@ -264,6 +295,7 @@ impl core::fmt::Display for SketchTraceError {
             Self::Lower(e) => write!(f, "{e}"),
             Self::Read(e) => write!(f, "{e}"),
             Self::Trace(e) => write!(f, "{e}"),
+            Self::Band(e) => write!(f, "{e}"),
         }
     }
 }
@@ -307,8 +339,7 @@ pub fn sketch_trace(
     let [traced] = faces.as_slice() else {
         unreachable!("a probe drawn on one face traces one face")
     };
-    let band = geom_core::Band::linear(tol)
-        .map_err(|e| SketchTraceError::Read(Box::new(NodeErrorKind::Band(e))))?;
+    let band = geom_core::Band::linear(tol).map_err(SketchTraceError::Band)?;
     editor_core::trace_marks(traced, window.0, window.1, rays, band)
         .map_err(SketchTraceError::Trace)
 }

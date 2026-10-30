@@ -289,12 +289,22 @@ pub(crate) const ADD_PROFILE: &str = "Add profile";
 /// holds none.
 pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
 
-/// The traced path's latch for the face whose body's plane the sketch
-/// is drawn on.
-pub(crate) const TRACE_PLANE: &str = "sketch plane of";
+/// The traced path's latch for the plane face the sketch is drawn in:
+/// square to the traced face's axis.
+pub(crate) const TRACE_PLANE: &str = "sketch plane on";
 
 /// The traced path's latch for the face it traces.
 pub(crate) const TRACE_FACE: &str = "trace";
+
+/// What the add-profile form says while no frame reads off the traced
+/// path's picks.
+pub(crate) const NO_TRACED_FRAME: &str =
+    "pick a traced face with an axis and a plane face square to it";
+
+/// The highest crossing the traced path's row offers: a line meets a
+/// quadric's trace twice and a torus's four times, so a count past this
+/// names a crossing no piece makes.
+const MAX_TRACE_CROSSING: u32 = 4;
 
 /// What a traced path's latch button says: it takes the viewport's face
 /// pick.
@@ -923,6 +933,11 @@ impl ViewerBehavior<'_> {
                     &self.theme,
                     Tone::Actionable,
                 );
+                // A frame that does not read is refused before Add: the
+                // insert would refuse it in the same words.
+                if matches!(fault, crate::session::SketchTraceFault::Frame(_)) {
+                    withholds.push(Withheld::Refused(NO_TRACED_FRAME));
+                }
             }
             None => {}
         }
@@ -936,7 +951,7 @@ impl ViewerBehavior<'_> {
         });
         ui.horizontal(|ui| {
             ui.label("to crossing");
-            ui.add(egui::DragValue::new(&mut gesture.crossing.nth).range(1..=16));
+            ui.add(egui::DragValue::new(&mut gesture.crossing.nth).range(1..=MAX_TRACE_CROSSING));
             for passage in [TracePassage::Leave, TracePassage::Enter] {
                 ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
             }
@@ -949,8 +964,9 @@ impl ViewerBehavior<'_> {
         });
         crate::widgets::message(
             ui,
-            "the piece after that row runs to the crossing, and the chain heads along the trace \
-             there: both are read off the traced face at every evaluation",
+            "the piece after that row runs to the crossing, counted along it from the pen, and \
+             the chain heads along the trace there: both are read off the traced face at every \
+             evaluation, and a crossing the piece does not make refuses on the profile",
         );
         withholds
     }

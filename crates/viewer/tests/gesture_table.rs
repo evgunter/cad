@@ -372,7 +372,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
             traced: Vec::new(),
-            loops: vec![],
+            chains: Vec::new(),
         },
         SessionOp::SetProduct {
             bodies: vec![node.into()],
