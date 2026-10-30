@@ -168,7 +168,8 @@ not (
   (binary_id(sweep::all) & (test(=self_intersection_proves_injectivity::a_filleted_drum_certifies_across_its_fillet) | test(=self_intersection_proves_injectivity::a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone) | test(=self_intersection_proves_injectivity::a_rod_taller_than_a_turn_less_a_tilted_slab_holds) | test(=self_intersection_proves_injectivity::a_full_torus_certifies_by_kind) | test(=self_intersection_proves_injectivity::a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget) | test(=self_intersection_proves_injectivity::a_long_helical_sweep_certifies_within_the_default_budget))) |
   (binary_id(editor-core::all) & (test(=clearance_refusals_say_what_they_found::a_named_scope_asks_what_a_name_denotes_before_how_many_answer))) |
   (binary_id(geom::all) & (test(=surfaces_rect_enclosure::rect_jet_contains_every_sampled_partial_of_its_rectangle))) |
-  (binary_id(sweep::all) & test(=a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms))
+  (binary_id(sweep::all) & test(=a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms)) |
+  (binary_id(sweep::all) & (test(=sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op) | test(=sheets_part_on_slanted_rims::rims_crossing_with_the_inner_plane_steeper_refuse_seam_orientation)))
 )
 """
 
