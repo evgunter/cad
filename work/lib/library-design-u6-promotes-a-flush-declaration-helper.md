@@ -2,8 +2,9 @@
 id: library-design-u6-promotes-a-flush-declaration-helper
 kind: issue
 title: LIBRARY-DESIGN U6 still plans a flush-declaration helper over CONTACT-DESIGN's declared pairs, which D10 retired
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-10-30
 priority: P4
 cost: C
 refs: [d10-exit-walk]
@@ -28,3 +29,13 @@ holds it.
 Fix: strike U6's flush half, or re-word it as the D10 spelling: a flush
 pair is one construction read twice (a mate), and an assertion quiets
 the rest.
+
+## Closed
+
+2026-10-30 (`intent/stale-companion-pages`). U6's flush half now states
+what the façade offers: a plane `Mate` with one sense (the first rung,
+`coincide::stated_by_the_mates`), shared variables (the replay), or a
+`Gap = 0` assertion (`checks::at_rest::quiet_row`). The flag mate DESIGN
+`[coincidence]` names is not stated, because the `Flag` pose kind is
+unbuilt (`msolve/flag-and-pivot-pose-kinds`). The declared-offset half
+is unchanged.
