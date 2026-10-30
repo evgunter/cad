@@ -797,6 +797,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
     let profile = ProfileProgram {
         loops: vec![outline, hole],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile_node) = insert(doc, Node::Profile(profile), tol)?;
     let (doc, extrude) = insert(

@@ -104,6 +104,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![outer],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -131,6 +132,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                         radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -228,6 +230,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![square()],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -291,6 +294,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                         radius: len(r),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -775,6 +779,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     radius: len(0.2),
                 }],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -836,6 +841,7 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -1116,6 +1122,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![cusp_lune()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     mint(
@@ -1226,6 +1233,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
         Node::Profile(ProfileProgram {
             loops: vec![crescent],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rev) = mint(
@@ -1258,6 +1266,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
             Node::Profile(ProfileProgram {
                 loops: vec![cusp_lune()],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         doc = d;

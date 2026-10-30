@@ -1048,6 +1048,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
+        | NodeErrorKind::Trace(_)
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)

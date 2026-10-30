@@ -1076,6 +1076,7 @@ mod tests {
             Node::Profile(ProfileProgram {
                 loops: loops.clone(),
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -1152,6 +1153,7 @@ mod tests {
             Node::Profile(ProfileProgram {
                 loops: loops.clone(),
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -1270,6 +1272,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         });
         let (doc, profile) =
             try_inserted(&doc, node, tol).expect("the form's default path is a profile");
@@ -1395,6 +1398,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         });
         let (doc, profile) = try_inserted(&doc, node, tol).expect("a profile");
         (doc, Drafts::default(), profile)

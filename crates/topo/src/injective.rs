@@ -78,7 +78,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::{Curve3, Surface};
-use geom_brep::OutwardNormal;
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Margin, Point2, Point3, Real, Sign, Vec3};
 
@@ -986,7 +985,7 @@ impl<'a> Presented<'a> {
         };
         let j = self.surface.jet(u, v);
         let n = unit(vmid(j.du.cross(j.dv)))?;
-        Some(OutwardNormal::from_chart(n, sense).vec())
+        Some(crate::face_normal::chart_outward_normal(n, sense).vec())
     }
 }
 

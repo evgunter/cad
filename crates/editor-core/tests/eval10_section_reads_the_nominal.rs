@@ -99,6 +99,7 @@ fn loft_doc_of(
         Node::Profile(ProfileProgram {
             loops: vec![lower],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, upper) = fixture::insert(
@@ -106,6 +107,7 @@ fn loft_doc_of(
         Node::Profile(ProfileProgram {
             loops: vec![upper],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(

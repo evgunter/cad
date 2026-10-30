@@ -136,6 +136,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![outer],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, slab) = insert(
@@ -404,6 +405,7 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
         Node::Profile(ProfileProgram {
             loops: vec![meridian],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -470,6 +472,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
                 radius: len(r),
             }],
             ids: Vec::new(),
+            on: None,
         })
     };
     let (doc, p1) = insert(&doc, circle(0.0, bore_r));
@@ -593,6 +596,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 radius: len(0.3),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, bore) = insert(
@@ -610,6 +614,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 radius: len(0.2),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, pin) = insert(
@@ -1046,6 +1051,7 @@ fn r1_own_document_web_and_flip() {
                 radius: Formula::named(VarName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
+            on: None,
         })
     };
     let (d2, p1) = insert(&doc, circle(-0.25));

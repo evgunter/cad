@@ -2718,6 +2718,7 @@ mod tests {
             Box::new(Node::Profile(crate::program::ProfileProgram {
                 loops: vec![triangle],
                 ids: Vec::new(),
+                on: None,
             })),
         );
         let doc = doc

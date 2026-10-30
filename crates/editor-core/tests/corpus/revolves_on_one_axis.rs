@@ -43,6 +43,7 @@ fn ring(r: &mut Recorder, (lo, hi): (f64, f64)) -> RecipeNodeId {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     let var = |name| Formula::named(VarName::from_static(name), Dimension::Length);
     r.insert(Node::Revolve {

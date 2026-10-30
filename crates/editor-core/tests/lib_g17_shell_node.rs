@@ -440,6 +440,7 @@ fn unplaced_vessel(
         Node::Profile(editor_core::ProfileProgram {
             loops: vec![vessel::meridian()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, pot) = fixture::insert(
@@ -800,6 +801,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![meridian],
         ids: Vec::new(),
+        on: None,
     }));
     let tube = r.insert(fixture::revolve_about(
         profile,

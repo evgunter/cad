@@ -966,6 +966,7 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::<Formula>::circle(cx, cy, r).expect("a circle")],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(

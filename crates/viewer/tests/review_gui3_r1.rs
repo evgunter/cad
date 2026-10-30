@@ -54,6 +54,7 @@ fn triangle(side: f64) -> AuthoredNode {
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     })
 }
 

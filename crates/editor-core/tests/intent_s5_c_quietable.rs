@@ -45,6 +45,7 @@ fn prism(doc: ProfileDoc, loops: Vec<LoopProgram<Formula>>, h: f64) -> (ProfileD
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -217,6 +218,7 @@ fn a_ball_in_a_concentric_socket_is_not_quietable() {
             Node::Profile(ProfileProgram {
                 loops: vec![meridian],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(
