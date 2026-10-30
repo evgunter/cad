@@ -2,12 +2,11 @@
 id: SHELL-4
 kind: unit
 title: shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion
-status: parked
+status: open
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, shell-curved-wall-clearance-window, 1737]
 priority: P1
 cost: H
-blocked_on: [departure-reads-no-curved-corner]
 ---
 
 
@@ -55,3 +54,12 @@ moves its charts in place. So:
   The OFF-D dumbbell itself is planar
   (`sweep/tests/offd2_r1_probes.rs`). An extruded twin with arc necks
   would have curved corners.
+
+## Unparked (CLEAR orchestrator, 2026-10-30)
+
+The parking note above was wrong about the vessel. It already held at
+base, with `cornered = 0`, because the disc's plane implicit, read as
+the carrier arm's ψ, certifies its half-rims; CORNER's lane measured
+this and both reviews confirmed it. CORNER (#6045) has landed anyway,
+so a curved twin with arc necks would also be read at its convex
+corners.
