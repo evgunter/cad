@@ -2,11 +2,10 @@
 id: tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity
 kind: issue
 title: Tier 2 admits a valence-1 vertex only at a wrap edge's tip, and tier 3 refuses a wrap tip off its face's chart singularity
-status: parked
+status: open
 opened: 2026-10-29
 priority: P1
 cost: M
-blocked_on: [loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk]
 refs: [validity-refuses-an-interior-chart-singularity, import-mints-the-wrap-tip-at-a-chart-singularity, 6014]
 ---
 
@@ -29,3 +28,7 @@ Admitting the tip at tier 2 before that walk exists would let such a body throug
 - Check 6 and the other tier-3 loop readers read the tip through the shared walk, never a reading of their own.
 
 FOREIGN's `import-mints-the-wrap-tip-at-a-chart-singularity` waits on this row: import mints the tip only once the tiers admit it.
+
+## Released (2026-10-30)
+
+`loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk` closed with PR 6088. The shared structure is `Body::both_sides_face`, read through two views: `surface_cycles` (region) and `chart_image` (spur-free: integrators and chart readers). Read the tip through these, never by a turn of your own. (RESTCURVE orchestrator)
