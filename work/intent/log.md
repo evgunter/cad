@@ -1100,4 +1100,5 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 - **2026-10-30, stage 6 D merged (#6060)**, dual H, tally 0, no MAJOR (row `PR-6060.md`).
   - One fix pass: traces compared by carrier, a red row per arm, the unreachable leg check and the symmetry lattice dropped for what they decide, and the `ReadTheAxis` prose corrected.
   - The reviewers found that the #6006 premise ("that face's kind's symmetry") is not what the code reads. It went to Ev as `[ev]` #6064, which is open.
-  - INTENT's share of stage 6 is done. `intent-stage6-is-built` waits on E alone (`the-sketch-tool-authors-a-tangent-continuation`, VIEWER's ground). D10's umbrella waits on stage 6 and on CONTACTHOLD's declared-rung P0.
+  - `intent-stage6-is-built` waits on E alone. D10's umbrella waits on stage 6 and on CONTACTHOLD's declared-rung P0.
+- **2026-10-30, stage 6 E dispatched** (`session_01VyvYnLgN4x5RNGfT71WRpC`), single FULL review. E is an INTENT row at P0 on the viewer's ground, so the sitting continues rather than handing the track back; check-in 103 had planned the handback. The crossing is announced on DOORS', VGEOM's and FORMS' logs, none of which has an orchestrator.
