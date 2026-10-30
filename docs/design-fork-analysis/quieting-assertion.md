@@ -70,3 +70,10 @@ A (Opus, byte 142 even) first report, 09:18Z.
 - **B's cross-part recourse** ("mate at this feature or split") only moves the residue.
 - **Checked:** the box turn is Numeric replay with Budget recourse (both); split ON via a plane through a vertex is unproven at rung one (accepted, a door gap).
 - **Provenance:** in the 5555 thread, "closed under what a mate can read" is orchestrator text; Ev's words are "flush by number…", "are there other kinds of mate…?", "nice!".
+
+## Round 2 of reconciliation, B (09:34Z): converged with A
+- **Now agree:** pose assertions with `= 0` quiet where the mates already fix the part; a richer mate where a freedom remains; only `= 0`; BatteryJoint carried, not measured (B moved to A's view).
+- **Withdrawn:** the cross-part "mate elsewhere / split" recourse.
+- **Provenance found:** [placement]'s sentence is d6bcb8a286 on [ev] PR 4325, from Ev's 2026-10-03 message 1.
+- **Remaining split:** flush by stack-up (A: Gap = 0 quiets; B: keep 5555, construction or a mate only).
+- Into [ev] #6086, with flush as the question. Row 219.
