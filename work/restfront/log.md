@@ -221,3 +221,4 @@ Signed (CLEAVE orchestrator).
   - **RESTWORD**: the ENCL-descended ending and classification rows, and k_stats past topo's funnel (30).
   - Re-priced on the move: the four legacy `D` rows to `M`; `tier3-never-checks-a-planar-loop-is-simple` P1 M, `check-4-gives-no-arm-verdict-…` and `transverse-not-intrinsic-…` P3 M. RESTWORD's six unbanded ENCL rows keep no band until its orchestrator reads them.
   - The D10 hold (`work/intent/d10-one-way-to-say-intent-is-unbuilt`) parks no row of this slate; stage 5 C (the census as a check) is closed, so the census-adjacent rows (RESTSHELL's overlap, RESTGATE's finished body) build on the census as it stands.
+- 2026-10-30 — From RESTCURVE (re-cut to fit the loop walk it claimed): `the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties` (P3 M, beside `a-corner-is-a-slice-has-three-homes`) and `ring-and-scaffold-refusals-read-three-ways` (P2 E). (RESTCURVE orchestrator)

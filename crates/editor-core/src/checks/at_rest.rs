@@ -5,7 +5,7 @@
 //! The census decides each pair of arrivals apart, in contact,
 //! overlapping or undecided, and nothing it finds refuses. A contact is
 //! a row the `unproven-coincidence` lint reads ([`AtRestRow`]), quiet
-//! under [`quiet_contact`]. An overlap of two arrivals' material is an
+//! under [`quiet_row`]. An overlap of two arrivals' material is an
 //! [`InterferenceFinding`]: the census decides that two copies interfere
 //! (a vertex of one strictly inside the other's material, an edge
 //! piercing a face, or an in-plane crossing whose side test reads
@@ -22,10 +22,13 @@
 //! of faces of the two copies, admitting only negative values (`≤ b` or
 //! `= b`, `b` decided negative), whose two faces both bound the overlap,
 //! and between whose carriers the overlap lies, which the kernel's
-//! boolean decides (`beyond`). **What quiets a contact**
-//! ([`quiet_contact`]): a holding `Gap = 0` between the row's two cells,
-//! at whatever dimension they are, an at-rest row's or an operation's
-//! alike. Both read the assertion's verdict,
+//! boolean decides (`beyond`). **What quiets an unproven row**
+//! ([`quiet_row`]): a holding `= 0` over the measure that says what it
+//! decided, an at-rest row's or an operation's alike: a `Gap` between
+//! its two cells for a contact, a flush pair or a tangency, read on
+//! their sides at whatever dimension they are, and a `Distance` between
+//! the poses read off them, or the split's tool, for a coincidence of
+//! poses. Both read the assertion's verdict,
 //! never its measure's value, and an assertion speaks for nothing but
 //! its own site: every other finding is loud.
 //!
@@ -254,7 +257,7 @@ fn could_not_look<T: Decide>(
 /// assertion's bound is zero.
 pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_bound";
 
-/// **The contact half of the quieting rule** (D10 `[assertions.quiet]`):
+/// **The row half of the quieting rule** (D10 `[assertions.quiet]`):
 /// the first assertion, in document order, that quiets `row`, or `None`
 /// when the row stays loud.
 ///
@@ -264,120 +267,305 @@ pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_boun
 /// *Selections*), so a cell the result merged away is still selected
 /// on its operand.
 ///
-/// An assertion quiets a row when the row decided what a `Gap = 0`
-/// says ([`contact_cells`]), and the assertion relates a `Gap` read
-/// directly by `=` to a bound decided zero, its two selections are the
-/// row's two cells in either order, each the cell's read (or a pick of
-/// that read's piece) and the cell's name there, and its verdict in
-/// `evaluation` is `Holds`. The rule matches cells, so another contact
-/// between the same two reads stays loud, and it reads verdicts only,
-/// so an assertion that failed or did not evaluate quiets nothing.
-pub(crate) fn quiet_contact<P, T: Decide>(
+/// An assertion quiets a row when it relates a measure that says what
+/// the row decided ([`saying`]) by `=` to a bound decided zero, read
+/// directly, its verdict in `evaluation` is `Holds`, and its two
+/// references are the row's two cells, each paired with the cell it
+/// reads, in either order. A reference reads a cell where it is the
+/// cell's read (or a pick of that read's piece) and the cell's name
+/// there, or a pose read directly off such a cell of the kind the cell's
+/// carrier has ([`pose_kind`]: an axis off a cylinder, a cone or a
+/// torus, a centre off a sphere); it reads a split's tool where it is
+/// the tool's read, whatever pose that is.
+///
+/// **Two axes one.** `Distance(axis, axis)` is the distance between two
+/// lines, zero where they coincide or meet. A coaxial row is said by it
+/// only where the reading takes the parallel arm: the rule decides the
+/// two cells' axes parallel at the measure's own site
+/// (`carrier_cyl_axis_parallel`, levered by the faces' reach), so a
+/// `Distance = 0` over two axes that only meet quiets no coaxial row.
+/// The kernel records a coaxial row only over axes it decided one, so
+/// this costs a document nothing; after an edit that tilts the axes
+/// until they only meet, the kernel records the meeting instead, which
+/// the same assertion says.
+///
+/// The rule matches cells, so another contact between the same two
+/// reads stays loud, and it reads verdicts only, so an assertion that
+/// failed or did not evaluate quiets nothing.
+pub(crate) fn quiet_row<P, T>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
-) -> Option<RecipeNodeId> {
-    let [a, b] = contact_cells(row)?;
+) -> Option<RecipeNodeId>
+where
+    P: crate::ProfilePayload,
+    T: crate::mate::SolveScalar + topo::AtRestPolicy,
+{
+    let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
-    let selected = |var: VarId| {
-        let select = doc.selection(var)?;
-        let [name] = select.names.as_slice() else {
+    let kinds = if said.poses {
+        let read = said.read(doc, evaluation, tol)?;
+        let kinds = [pose_kind(&read.cells[0])?, pose_kind(&read.cells[1])?];
+        if said.coaxial && kinds == [crate::VarKind::Axis; 2] && !axes_parallel(&read, band)? {
             return None;
-        };
-        Some((select.body, name.clone()))
+        }
+        kinds.map(Some)
+    } else {
+        [None, None]
     };
-    holding_gaps(doc, evaluation).find_map(|gap| {
-        if gap.relation != AssertionRelation::Equal
-            || decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Zero)
+    holding_measures(doc, evaluation).find_map(|held| {
+        if !said.verbs.contains(&held.verb)
+            || held.relation != AssertionRelation::Equal
+            || decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*held.bound), band) != Ok(Sign::Zero)
         {
             return None;
         }
-        let (Some(o), Some(i)) = (selected(gap.outer), selected(gap.inner)) else {
+        let (Some(x), Some(y)) = (said.reference(doc, held.a), said.reference(doc, held.b)) else {
             return None;
         };
-        let reads = |(body, name): &(VarId, StableName), (read, own): &(VarId, StableName)| {
-            if body == read {
-                return name == own;
-            }
-            // A pick of the read's piece: the read's name for the cell
-            // is keyed by each `⊔` the pick's path walks through, by the
-            // read that piece entered it by.
-            doc.pick(*body).is_some_and(|pick| {
-                pick.placement == *read
-                    && pick
-                        .of
-                        .iter()
-                        .try_fold(own, |held, &step| keyed_by(held, step))
-                        == Some(name)
-            })
+        let reads = |r: &(RowCell, Option<crate::VarKind>), i: usize| {
+            r.0.reads(doc, &said.cells[i]) && r.1 == kinds[i]
         };
-        ((reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))).then_some(gap.id)
+        ((reads(&x, 0) && reads(&y, 1)) || (reads(&x, 1) && reads(&y, 0))).then_some(held.id)
     })
 }
 
-/// **Whether an assertion could quiet `row`** under the contact half
-/// ([`quiet_contact`]), in `evaluation`, asked of the rule itself: the
-/// row decided what a `Gap = 0` says, over two entity cells
-/// ([`contact_cells`]), and the `Gap` such an assertion reads, over
-/// those two cells resolved and read as the measure resolves and reads
-/// them ([`crate::eval::resolve_name`]), is decided zero in some role
-/// order at the site the rule decides its bound at. A cell the measure
-/// has no form for, a name that does not resolve, and a gap read
-/// non-zero are none of them: no `Gap = 0` over the row holds, so the
-/// finding never refuses (CHECKS DS6).
-pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+/// **What says a row** ([`saying`]): the measures that say it and the
+/// row's two cells; whether each cell is read as the pose its carrier
+/// has, and whether the row decided two axes one.
+struct Saying {
+    verbs: &'static [crate::measure::MeasureVerb],
+    cells: [RowCell; 2],
+    poses: bool,
+    coaxial: bool,
+    /// The role a split's tool is read through.
+    tool_role: Option<crate::pose::PoseRole>,
+}
+
+/// **A cell of a row, or a reference of an assertion**: an entity's
+/// read and its name there, or the read of the tool a split cuts with.
+#[derive(Clone, Debug, PartialEq)]
+enum RowCell {
+    Entity(VarId, StableName),
+    Tool(VarId),
+}
+
+impl RowCell {
+    /// Whether this reference reads the row's `cell`: a tool by its read,
+    /// an entity by its read, or by a pick of that read's piece, whose
+    /// name for the cell is keyed by each `⊔` the pick's path walks
+    /// through, by the read that piece entered it by.
+    fn reads<P>(&self, doc: &Doc<P>, cell: &Self) -> bool {
+        match (self, cell) {
+            (Self::Tool(a), Self::Tool(b)) => a == b,
+            (Self::Entity(body, name), Self::Entity(read, own)) => {
+                if body == read {
+                    return name == own;
+                }
+                doc.pick(*body).is_some_and(|pick| {
+                    pick.placement == *read
+                        && pick
+                            .of
+                            .iter()
+                            .try_fold(own, |held, &step| keyed_by(held, step))
+                            == Some(name)
+                })
+            }
+            _ => false,
+        }
+    }
+}
+
+/// **A row's entity cells, read as a measure reads its references**: in
+/// one computing frame (`Framed::computing_among`), the other read into
+/// it through `relative`.
+struct ReadCells<'e, T: Decide> {
+    cells: Vec<(std::sync::Arc<Body<T>>, EntityRef)>,
+    computing: &'e crate::eval::Framed<T>,
+}
+
+impl Saying {
+    /// The row's entity cells read ([`ReadCells`]); `None` where a name
+    /// does not resolve or a frame refuses to read, which is no
+    /// assertion either.
+    fn read<'e, P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &'e Evaluation<T>,
+        tol: Tol,
+    ) -> Option<ReadCells<'e, T>> {
+        let mut framed = Vec::with_capacity(2);
+        for (i, cell) in self.cells.iter().enumerate() {
+            let RowCell::Entity(read, name) = cell else {
+                continue;
+            };
+            let slot = crate::OperandSlot::Measured(self.verbs[0], u8::try_from(i).ok()?);
+            let at =
+                crate::eval::resolve_name(doc, &evaluation.nodes, slot, *read, name, |error| {
+                    crate::eval::NodeErrorKind::SelectResolve {
+                        slot,
+                        var: *read,
+                        reference: 0,
+                        error,
+                    }
+                })
+                .ok()?;
+            let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
+            framed.push((body, at.1));
+        }
+        let computing = crate::eval::Framed::computing_among(framed.iter().map(|(f, _)| *f))?;
+        let cells = framed
+            .iter()
+            .map(|(f, ent)| Some((computing.read_in(f, tol).ok()?, *ent)))
+            .collect::<Option<Vec<_>>>()?;
+        Some(ReadCells { cells, computing })
+    }
+
+    /// **An assertion's reference as the rule matches it**: the row's
+    /// tool where it is the tool's read, whatever pose that is; else a
+    /// selection as its cell, a point, an axis or a plane read directly
+    /// off a selection as that cell with its kind
+    /// (`eval::read_directly_off`), and any other read as
+    /// a tool it is not.
+    fn reference<P>(&self, doc: &Doc<P>, var: VarId) -> Option<(RowCell, Option<crate::VarKind>)> {
+        if self.cells.contains(&RowCell::Tool(var)) {
+            return Some((RowCell::Tool(var), None));
+        }
+        let selected = |var: VarId| {
+            let select = doc.selection(var)?;
+            let [name] = select.names.as_slice() else {
+                return None;
+            };
+            Some(RowCell::Entity(select.body, name.clone()))
+        };
+        if let Some(cell) = selected(var) {
+            return Some((cell, None));
+        }
+        match crate::eval::read_directly_off(doc, var) {
+            Some((cell, kind)) => Some((selected(cell)?, Some(kind))),
+            None => Some((RowCell::Tool(var), None)),
+        }
+    }
+}
+
+/// **The pose a cell's carrier has**, as a coincidence of poses reads
+/// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
+/// `None` for any other cell.
+fn pose_kind<T: Decide>(
+    (body, ent): &(std::sync::Arc<Body<T>>, EntityRef),
+) -> Option<crate::VarKind> {
+    use geom::SurfaceKind as S;
+    let EntityKey::Face(face) = ent.key else {
+        return None;
+    };
+    match topo::readback::face_carrier_kind(body, face).ok()? {
+        S::Cylinder | S::Cone | S::Torus => Some(crate::VarKind::Axis),
+        S::Sphere => Some(crate::VarKind::Point),
+        _ => None,
+    }
+}
+
+/// **Whether two cells' axes read parallel**, at the site and lever the
+/// measure's own two-axes arm decides them (`carrier_cyl_axis_parallel`):
+/// the reading a coaxial row is said by. `None` where an axis does not
+/// read or the decision escalates.
+fn axes_parallel<T: crate::mate::SolveScalar>(read: &ReadCells<'_, T>, band: Band) -> Option<bool> {
+    let axis = |i: usize| {
+        let (body, ent) = &read.cells[i];
+        crate::eval::read_off_cell(body, *ent, crate::VarKind::Axis, band).ok()
+    };
+    let (a, b) = (axis(0)?, axis(1)?);
+    crate::eval::measure::axes_parallel(&a, &b, band)
+}
+
+/// **Whether an assertion could quiet `row`** under the row half
+/// ([`quiet_row`]), in `evaluation`, asked of the rule itself: some
+/// measure says what the row decided ([`saying`]), and that measure,
+/// over the row's two cells resolved and read as the measure resolves
+/// and reads them ([`crate::eval::resolve_name`]), each read as the
+/// pose its carrier has where the row is one of poses, a split's tool
+/// read as its plane, is decided zero in some order at the site the
+/// rule decides its bound at. A cell the measure has no form for, a
+/// name that does not resolve, and a measure read non-zero are none of
+/// them: no assertion over the row holds, so the finding never refuses
+/// (CHECKS DS6), and its recourse names the construction alone.
+pub(crate) fn row_quietable<P, T>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
-) -> bool {
-    let Ok(band) = Band::linear(tol) else {
-        return false;
-    };
-    let Some(cells) = contact_cells(row) else {
-        return false;
-    };
-    let mut reads = cells.iter().enumerate().map(|(i, (read, name))| {
-        let slot = crate::OperandSlot::Measured(
-            crate::measure::MeasureVerb::Gap,
-            u8::try_from(i).unwrap_or(u8::MAX),
-        );
-        let at = crate::eval::resolve_name(doc, &evaluation.nodes, slot, *read, name, |error| {
-            crate::eval::NodeErrorKind::SelectResolve {
-                slot,
-                var: *read,
-                reference: 0,
-                error,
+) -> bool
+where
+    P: crate::ProfilePayload,
+    T: crate::mate::SolveScalar + topo::AtRestPolicy,
+{
+    let quietable = || -> Option<bool> {
+        let band = Band::linear(tol).ok()?;
+        let said = saying(row)?;
+        let read = said.read(doc, evaluation, tol)?;
+        let zero = |a: &crate::eval::measure::Carrier<'_, T>,
+                    b: &crate::eval::measure::Carrier<'_, T>| {
+            said.verbs.iter().any(|&verb| {
+                [(a, b), (b, a)].into_iter().any(|(x, y)| {
+                    measure_sign(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+                })
+            })
+        };
+        let tool = said.cells.iter().find_map(|c| match c {
+            RowCell::Tool(var) => Some(*var),
+            RowCell::Entity(..) => None,
+        });
+        if let Some(tool) = tool {
+            // A split's ON row: its tool read as its plane, in its
+            // space's coordinates, against the vertex.
+            let [(body, ent)] = read.cells.as_slice() else {
+                return None;
+            };
+            let crate::eval::measure::Carrier::Point { at, .. } =
+                crate::eval::measure::carrier_of(body, *ent)
+            else {
+                return None;
+            };
+            let roled = crate::pose::RoleRead {
+                read: tool,
+                role: said.tool_role,
+            };
+            let plane = crate::eval::read_pose(
+                P::evaluable(doc)?,
+                &evaluation.nodes,
+                roled,
+                &evaluation.env,
+                tol,
+            )
+            .ok()?;
+            let plane = crate::eval::measure::Carrier::Pose {
+                pose: crate::eval::measure::Pose::of(&plane)?,
+                reach: None,
+            };
+            let vertex = crate::eval::measure::Carrier::Pose {
+                pose: crate::eval::measure::Pose::Point(read.computing.point_in_space(at)),
+                reach: None,
+            };
+            return Some(zero(&plane, &vertex));
+        }
+        let carrier = |i: usize| {
+            let (body, ent) = &read.cells[i];
+            if !said.poses {
+                return Some(crate::eval::measure::carrier_of(body, *ent));
             }
-        })
-        .ok()?;
-        let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
-        Some((body, at.1))
-    });
-    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) =
-        (reads.next(), reads.next())
-    else {
-        return false;
+            let kind = pose_kind(&read.cells[i])?;
+            crate::eval::read_off_cell(body, *ent, kind, band).ok()
+        };
+        let (a, b) = (carrier(0)?, carrier(1)?);
+        let axes = said.poses
+            && [0, 1].map(|i| pose_kind(&read.cells[i])) == [Some(crate::VarKind::Axis); 2];
+        if said.coaxial && axes && !axes_parallel(&read, band)? {
+            return Some(false);
+        }
+        Some(zero(&a, &b))
     };
-    // The two cells are read as the measure reads its two references: in
-    // one computing frame (`Framed::computing_among`), the other read
-    // into it through `relative`. A frame that refuses to read is no
-    // `Gap = 0` either.
-    let Some(computing) = crate::eval::Framed::computing_among([framed_a, framed_b]) else {
-        return false;
-    };
-    let (Ok(body_a), Ok(body_b)) = (
-        computing.read_in(framed_a, tol),
-        computing.read_in(framed_b, tol),
-    ) else {
-        return false;
-    };
-    let a = crate::eval::measure::carrier_of(&body_a, ent_a);
-    let b = crate::eval::measure::carrier_of(&body_b, ent_b);
-    [(&a, &b), (&b, &a)].into_iter().any(|(outer, inner)| {
-        gap_sign(outer, inner, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
-    })
+    quietable() == Some(true)
 }
 
 /// **The sign a `Gap` assertion's measure reads over two carriers**,
@@ -391,94 +579,133 @@ fn gap_sign<T: Decide>(
     site: &'static str,
     band: Band,
 ) -> Option<Sign> {
-    let gap = crate::eval::measure::gap_value(outer, inner, band).ok()?;
-    decide(site, Margin::of(gap), band).ok()
+    measure_sign(crate::measure::MeasureVerb::Gap, outer, inner, site, band)
 }
 
-/// **A row's two cells as the contact half reads them**: each entity
-/// cell's read and its name there, the arrival's own for an at-rest
-/// row, for a row that decided what a `Gap = 0` says. `None` for any
-/// other row.
+/// [`gap_sign`] for a `Gap` or a `Distance`
+/// ([`crate::eval::measure::value_of`]).
+fn measure_sign<T: Decide>(
+    verb: crate::measure::MeasureVerb,
+    a: &crate::eval::measure::Carrier<'_, T>,
+    b: &crate::eval::measure::Carrier<'_, T>,
+    site: &'static str,
+    band: Band,
+) -> Option<Sign> {
+    let value = crate::eval::measure::value_of(verb, a, b, band).ok()?;
+    decide(site, Margin::of(value), band).ok()
+}
+
+/// **What says what a row decided** (D10 `[assertions.quiet]`): the
+/// measure an assertion relates to zero, and how it reads the row's two
+/// cells; `None` for a row no assertion says.
 ///
-/// D10 `[assertions.quiet]` quiets a finding only by an assertion that
-/// says the same, `= 0` for a contact. A `Gap = 0` says two cells meet,
-/// so it says what a row decided only where that is that its two cells
-/// meet. By the kinds of row the kernel decides:
+/// A `Gap = 0` over two faces read on their sides says they touch,
+/// opposed, or lie one on the other, aligned, so it says what a row
+/// decided where that is that its two cells meet, rest flush or touch
+/// tangent. A `Distance = 0` between the poses read off the two cells
+/// (an axis off a cylinder, a cone or a torus, a centre off a sphere)
+/// says a coincidence of poses, and a `Gap = 0` or a `Distance = 0`
+/// between a split's tool and a vertex says the vertex lies on it. By
+/// the kinds of row the kernel decides:
 ///
-/// | site | relation | a `Gap = 0` says it |
+/// | site | relation | what says it |
 /// |---|---|---|
-/// | `PlaneLadder`, `CarrierLadder` | `SameOpposite` (glue) | yes: one carrier, opposed, is contact |
-/// | `CensusAtRest` | `SameOpposite`, `OnCarrier` | yes: a contact between arrivals |
-/// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | yes: a vertex on a cell, two cells sharing a point |
-/// | any | `SameOriented` | no: a flush pair is no contact (`[assertions]`) |
-/// | `TangentWitness` | `SurfaceTangent` | no: a tangency is more than meeting |
-/// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | no: a sphere's centre on a cylinder's or a torus's axis |
-/// | `CoaxialCylinderTorus`, `CoaxialTori` | `Coaxial` | no: one axis of revolution |
-/// | `CrossingCylinders` | `SameRadius`, `AxesMeet` | no |
-/// | `BatteryTurn` | `CommonFoot` | no |
-/// | `BatteryJoint` | `Tangent` | no |
-/// | `BatterySupportAxis` | `Coaxial` | no |
-/// | `SplitOn` | `OnCarrier`, over the tool | no: its second cell is a pose, no body's cell |
-/// | `ProfileJunction` | `SameOriented`, `Tangent`, over pieces | no |
+/// | `PlaneLadder`, `CarrierLadder` | `SameOpposite` (glue), `SameOriented` (flush) | `Gap` over the two faces |
+/// | `CensusAtRest` | `SameOpposite`, `SameOriented`, `OnCarrier` | `Gap` over the two cells |
+/// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | `Gap` over the two cells |
+/// | `TangentWitness` | `SurfaceTangent` | `Gap` over the two faces: an opposed tangency is a contact, an aligned one a continuation |
+/// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` between the poses read off the two cells |
+/// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the poses, two axes read parallel (a sphere's support its centre) |
+/// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
+/// | `CrossingCylinders` | `SameRadius` | nothing: two radii written apart |
+/// | `SplitOn` | `OnCarrier`, over the tool | `Gap` or `Distance` between the tool and the vertex |
+/// | `BatteryTurn` | `CommonFoot` | nothing: two feet only the blend computes |
+/// | `BatteryJoint` | `Tangent` | nothing |
+/// | `ProfileJunction` | `SameOriented`, `Tangent`, over pieces | nothing |
 ///
-/// A `Meet` of more than two cells, and a cell that is no body's (a
-/// tool, a profile piece), are no pair a `Gap` is written over.
-fn contact_cells(row: &crate::coincide::NamedCoincidence) -> Option<[(VarId, StableName); 2]> {
+/// A `Meet` of more than two cells, a profile piece, and a tool read
+/// through a role other than a frame's xy plane are no pair an
+/// assertion is written over.
+fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
+    use crate::measure::MeasureVerb as M;
     use topo::{DecisionSite as Site, Relation as R};
-    let says = match row.site {
-        Site::PlaneLadder | Site::CarrierLadder => row.relation == R::SameOpposite,
-        Site::CensusAtRest => matches!(row.relation, R::SameOpposite | R::OnCarrier),
-        Site::VertexFusion => matches!(row.relation, R::OnCarrier | R::Meet),
-        Site::TangentWitness
-        | Site::CoaxialSphere
-        | Site::SphereOnTorusAxis
-        | Site::CoaxialCylinderTorus
-        | Site::CoaxialTori
-        | Site::CrossingCylinders
-        | Site::BatteryTurn
-        | Site::BatteryJoint
-        | Site::BatterySupportAxis
-        | Site::SplitOn
-        | Site::ProfileJunction => false,
-    };
-    if !says {
-        return None;
-    }
-    let cell = |c: &crate::coincide::NamedCell| match c {
-        crate::coincide::NamedCell::Entity { input, name } => {
-            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
+    let (verbs, poses, coaxial): (&'static [M], _, _) = match (row.site, row.relation) {
+        (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
+        | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
+        | (Site::VertexFusion, R::OnCarrier | R::Meet)
+        | (Site::TangentWitness, _) => (&[M::Gap], false, false),
+        (Site::SplitOn, _) => (&[M::Gap, M::Distance], false, false),
+        (Site::CoaxialSphere | Site::SphereOnTorusAxis, _)
+        | (Site::CrossingCylinders, R::AxesMeet) => (&[M::Distance], true, false),
+        (Site::CoaxialCylinderTorus | Site::CoaxialTori | Site::BatterySupportAxis, _) => {
+            (&[M::Distance], true, true)
         }
-        crate::coincide::NamedCell::Tool { .. } | crate::coincide::NamedCell::Piece { .. } => None,
+        _ => return None,
     };
-    match row.cells.as_slice() {
-        [a, b] => Some([cell(a)?, cell(b)?]),
-        _ => None,
-    }
+    let mut tool_role = None;
+    let mut cell = |c: &crate::coincide::NamedCell| match c {
+        crate::coincide::NamedCell::Entity { input, name } => Some(RowCell::Entity(
+            *input,
+            keyed_by(name, *input).unwrap_or(name).clone(),
+        )),
+        // A tool read plainly, or a frame read as its xy plane, which a
+        // measure reads a frame as.
+        crate::coincide::NamedCell::Tool {
+            input,
+            role: role @ (None | Some(crate::pose::PoseRole::Xy)),
+        } => {
+            tool_role = *role;
+            Some(RowCell::Tool(*input))
+        }
+        crate::coincide::NamedCell::Tool { role: Some(_), .. }
+        | crate::coincide::NamedCell::Piece { .. } => None,
+    };
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let cells = [cell(a)?, cell(b)?];
+    // A tool is a split's alone, and a split's row has one.
+    let tools = cells
+        .iter()
+        .filter(|c| matches!(c, RowCell::Tool(_)))
+        .count();
+    (tools == usize::from(row.site == Site::SplitOn)).then_some(Saying {
+        verbs,
+        cells,
+        poses,
+        coaxial,
+        tool_role,
+    })
 }
 
-/// **A holding assertion that reads a `Gap`'s output directly**, the
-/// preamble both halves of the quieting rule share: the assertion, its
-/// relation, the `Gap`'s two selections and the bound it holds at.
-struct HoldingGap<'a, T> {
+/// **A holding assertion that reads a `Gap`'s or a `Distance`'s output
+/// directly**, the preamble both halves of the quieting rule share: the
+/// assertion, its relation, the measure's verb and two references, and
+/// the bound it holds at.
+struct HoldingMeasure<'a, T> {
     id: RecipeNodeId,
     /// The member of the assertion's family it is, for an assertion
     /// whose reads reach an index (D10 `[assertions]`, "Families");
     /// empty for any other.
     at: crate::names::MemberAt,
     relation: AssertionRelation,
-    outer: VarId,
-    inner: VarId,
+    verb: crate::measure::MeasureVerb,
+    /// A `Gap`'s outer, or a `Distance`'s first.
+    a: VarId,
+    /// A `Gap`'s inner, or a `Distance`'s second.
+    b: VarId,
     bound: &'a T,
 }
 
-/// Every [`HoldingGap`] of `doc` in `evaluation`, in document order, an
-/// assertion whose reads reach an index once per member, each member by
-/// its own verdict. It reads verdicts only: an assertion that did not
-/// evaluate, or does not hold, is none of them.
-fn holding_gaps<'a, P, T: Decide>(
+/// Every [`HoldingMeasure`] of `doc` in `evaluation`, in document
+/// order, an assertion whose reads reach an index once per member, each
+/// member by its own verdict. It reads verdicts only: an assertion that
+/// did not evaluate, or does not hold, is none of them.
+fn holding_measures<'a, P, T: Decide>(
     doc: &'a Doc<P>,
     evaluation: &'a Evaluation<T>,
-) -> impl Iterator<Item = HoldingGap<'a, T>> + 'a {
+) -> impl Iterator<Item = HoldingMeasure<'a, T>> + 'a {
+    use crate::measure::MeasureVerb as M;
     doc.ids()
         .into_iter()
         .flat_map(move |id| {
@@ -491,11 +718,14 @@ fn holding_gaps<'a, P, T: Decide>(
             let (measure, 0) = doc.var(*value).and_then(|v| v.def().output())? else {
                 return None;
             };
-            let Some(Node::Measure {
-                primitive: MeasurePrimitive::Gap { outer, inner },
-            }) = doc.node(measure)
-            else {
-                return None;
+            let (verb, a, b) = match doc.node(measure) {
+                Some(Node::Measure {
+                    primitive: MeasurePrimitive::Gap { outer, inner },
+                }) => (M::Gap, *outer, *inner),
+                Some(Node::Measure {
+                    primitive: MeasurePrimitive::Distance { a, b },
+                }) => (M::Distance, *a, *b),
+                _ => return None,
             };
             let value = evaluation.value(id)?;
             let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> = match &value.members {
@@ -510,12 +740,13 @@ fn holding_gaps<'a, P, T: Decide>(
                 let ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. }) = payload else {
                     return None;
                 };
-                Some(HoldingGap {
+                Some(HoldingMeasure {
                     id,
                     at,
                     relation: *relation,
-                    outer: *outer,
-                    inner: *inner,
+                    verb,
+                    a,
+                    b,
                     bound,
                 })
             }))
@@ -759,16 +990,17 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide>(
         Some((copy, *face))
     };
     let mut out = Vec::new();
-    for gap in holding_gaps(doc, evaluation) {
-        if !matches!(
-            gap.relation,
-            AssertionRelation::AtMost | AssertionRelation::Equal
-        ) || decide(AT_REST_QUIET_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Negative)
+    for gap in holding_measures(doc, evaluation) {
+        if gap.verb != crate::measure::MeasureVerb::Gap
+            || !matches!(
+                gap.relation,
+                AssertionRelation::AtMost | AssertionRelation::Equal
+            )
+            || decide(AT_REST_QUIET_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Negative)
         {
             continue;
         }
-        let (Some(outer), Some(inner)) = (face_of(gap.outer, &gap.at), face_of(gap.inner, &gap.at))
-        else {
+        let (Some(outer), Some(inner)) = (face_of(gap.a, &gap.at), face_of(gap.b, &gap.at)) else {
             continue;
         };
         if outer.0 == inner.0 || !opposed(aggregate, outer.1, inner.1, band) {
@@ -913,7 +1145,7 @@ fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Poin
 /// bracket a scalar carries, and the check reads no bracket anywhere
 /// else. `f64` is the one lane; the analysis scalars the check is also
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
-pub trait LocalizeLane: Decide + AtRestPolicy {
+pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
     /// The findings of the copies `a` and `b` of `product`, which the
     /// census decided interfere ([`partition`]): by default one
     /// [`Unlocalized::Lane`] finding, the scalar having no lane.
@@ -960,9 +1192,15 @@ impl LocalizeLane for geom_core::Probe {}
 
 impl LocalizeLane for geom_core::Interval {}
 
-impl<T> LocalizeLane for geom_core::Dual<T> where geom_core::Dual<T>: Decide + AtRestPolicy {}
+impl<T> LocalizeLane for geom_core::Dual<T> where
+    geom_core::Dual<T>: Decide + AtRestPolicy + crate::mate::SolveScalar
+{
+}
 
-impl<T> LocalizeLane for geom_core::Sym<T> where geom_core::Sym<T>: Decide + AtRestPolicy {}
+impl<T> LocalizeLane for geom_core::Sym<T> where
+    geom_core::Sym<T>: Decide + AtRestPolicy + crate::mate::SolveScalar
+{
+}
 
 impl LocalizeLane for f64 {
     fn localize(
@@ -1170,6 +1408,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::CurvedSenseInverted { .. }
         | E::SeamRegionOvercovered { .. }
         | E::SeamRegionCoverUnresolved { .. }
+        | E::ChartSingularityNotAVertex { .. }
+        | E::ChartSingularityUndecided { .. }
         | E::NegativeVolume { .. }
         | E::SliverInsideOut { .. }
         | E::VolumeUncomputable { .. }

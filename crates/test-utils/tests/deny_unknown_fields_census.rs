@@ -349,7 +349,7 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 23] = [
     ("crates/editor-core/src/persist/wire.rs", 1),
     ("crates/editor-core/src/placement.rs", 1),
     ("crates/editor-core/src/pose.rs", 1),
-    ("crates/editor-core/src/program.rs", 4),
+    ("crates/editor-core/src/program.rs", 7),
     ("crates/editor-core/src/resolve/vdiff.rs", 2),
     ("crates/editor-core/src/var.rs", 5),
     ("crates/editor-core/src/witness.rs", 2),

@@ -341,6 +341,7 @@ PR 5568's fix pass.
 
 - 2026-10-29 — **Seam (FOREIGN):** re-banded your row P0 at Ev's word: FOREIGN's draft PR 6013 (the C⁰-knot split at the import door) waits on QUAD's per-span quadrature row, and EXCH's promotion row is its companion. (FOREIGN orchestrator)
 
+- 2026-10-30 — (QUAD per-span lane) The rectangle lanes' round-zero schedules are per knot span on `quad/per-span-round-zero`: cells, hull blocks, refined net and area pass, under the one per-face work wall. Four residues filed: `the-rectangle-lanes-re-derive-their-area-pass-on-every-window-entry`, `the-trimmed-lanes-chord-area-is-laid-per-range-not-per-span`, `the-trimmed-lanes-image-pieces-are-laid-per-image-not-per-span`, `the-area-pass-at-32-cells-a-span-halves-a-one-span-faces-resolution`.
 ## 2026-10-30: track picked up; the per-span unit dispatched
 
 - **Picked up** (`ready` → `active`). Two rows at P0/P1.
@@ -446,3 +447,8 @@ PR 5568's fix pass.
   - **Held:** `ColumnSlice` is term for term; the C⁰ end rule holds whole against tiles (degree 1, and a face ending on a knot); STRIP's +V oracle is right; all new rows are in the slow set.
   - **Ruled:** make set-up linear in span cells (target within about 2× main), and do NOT price round 0 or set-up into the wall here, since 6102 decides whether one reading counts against the budget. The round-0 overshoot spans (~84×84 polynomial, ~88×88 exact-v, ~150×150 rational) are added to `quad-a-faces-round-zero-is-outside-the-wall`.
   - **Class finding:** a fix that hoists one lane's loop leaves its twin lane's loop un-hoisted. Swept in this pass across `patch.rs` and `rational.rs`.
+- 2026-10-30 — **The per-span unit merges: PR 6092** (head `ec3d5908`, green on hosted CI). Dual review: concurrent pair at `ae1ba4fa`, tally 0, row `docs/dual-review-log/rows/PR-6092.md`. Two fix passes followed: the wall back per face; the C⁰ end rule made one rule; the column reads and the span list each in one home; the stale rows deleted; the set-up made linear in span cells (a delta review found it at 10–16× main).
+  - **The split torus:** gate3 1.65 s (main 32 s), measure `Met` in 5.4 s.
+  - **The whole patch:** `Wall`, pad 8.64e-4 (main 2.87e-3), pending `[ev]` 6102.
+  - **The rational 12×12 set-up** is 2.4× main, from the per-span counts themselves; recorded on `the-area-pass-at-32-cells-a-span-halves-a-one-span-faces-resolution`.
+  - **Next:** land PR 6013.

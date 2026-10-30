@@ -72,7 +72,7 @@ use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp, Step};
+use crate::session::{DocSession, Refusal, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -1464,10 +1464,10 @@ impl ViewerApp {
                             ui.horizontal_top(|ui| {
                                 if ui
                                     .button(row.button)
-                                    .on_hover_text("select the node this finding is about")
+                                    .on_hover_text("select what this finding is about")
                                     .clicked()
                                 {
-                                    ops.push(SessionOp::Select(Selection::Node(row.node)));
+                                    ops.push(SessionOp::Select(row.select));
                                 }
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);

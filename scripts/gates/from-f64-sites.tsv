@@ -147,6 +147,7 @@ crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces'
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
 crates/topo/src/clearance.rs	1	constant	c	the authored clearance bound, a constant of the question (the interval arithmetic of the sweep, never the lane scalar)
+crates/topo/src/clearance.rs	1	constant	f64::from(winding)	harmonic_of: an angle channel's rate, its integer winding count (the ratio of two equal periods)
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	1.0 / f64::from(n)	the step of an orbit, a period over its steps (1 or 2)
@@ -165,9 +166,18 @@ crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pa
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/spline_arc.rs	1	constant	m	a spline piece's middle parameter, a point the halving chose
+crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
 crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
+crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.zero() * 0.5	half the band's zero width, a tolerance (a sampled span's resolution)
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the reach of a singular point on the loop)
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
+crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)

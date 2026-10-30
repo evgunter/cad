@@ -53,12 +53,13 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   quieted the same way; coaxiality read at the door as one `Axis` read
   twice, and tangency constructions, a sketch drawn on a frame
   continuing tangent to a face's trace, proven at the door and written
-  by the viewer's sketch tool (stage 6 B–E).
-- **Not built:** a glued pair re-read through the declared rung, which
-  bridges an in-band displacement where D10 refuses one
-  (`work/contacthold/a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band.md`);
-  an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict).
+  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
+  its record at every consuming site, with the declared rung and its
+  bridged verdict retired (CONTACTHOLD); `Gap`'s curved arms reading
+  each face's material side, with a plane against a curved face, a
+  measure's reference reading a pose, and each finding's recourse
+  chosen by whether an assertion can say the row ([assertions.quiet],
+  [intent.checked]).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -159,7 +160,14 @@ is checked against what was meant.
   checks every coincidence decided from values against what the
   document proves, and reports one that holds only at the current
   values together with the edit that would make it one construction;
-  an assertion at its site quiets it ([coincidence], [assertions]). A
+  an assertion that says what it decided quiets it ([coincidence],
+  [assertions.quiet]). A coincidence between quantities only the
+  operation computes (a blend turn's two feet), or between written
+  values (two radii typed alike), has no such assertion: the
+  construction is its recourse, and its finding never refuses. Where a
+  construction could also say it (one variable written for both
+  sides), the assertion quiets all the same, and the finding names
+  the edit that would make it one construction. A
   lint reports and never changes a body.
 - **What counts as established.** `[intent.structural]` The principle
   is that an identity the document establishes is one that very likely
@@ -1428,8 +1436,11 @@ are on equal footing, and a constraint any of whose equations the
 others already fix refuses as an overconstraint, pinned or not,
 decided by subgroup algebra (A11 (1)) without measuring. A mate that
 would take a freedom a value sets refuses as well. Where two copies
-meet beyond what their mates fix is a contact like any other, recorded
-and linted, and its recourse is an assertion ([assertions]).
+meet beyond what their mates fix is a coincidence like any other,
+recorded and linted, and its recourse is an assertion ([assertions]):
+a relation the placement can still carry is a mate, of a richer kind
+where none says it yet, and one the mates already fix is claimed,
+never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
@@ -1694,7 +1705,8 @@ coincidence such a meeting implies is a face pair of its own. Two faces on one c
 facing the same way, whose boundaries meet while their interiors do
 not are a flush pair: no contact, but a coincidence the census infers
 from values, so a finding unless established, by a flag mate or by
-the replay. Contact is an `unproven-coincidence` finding
+the replay (two faces' offsets written with one variable), or
+asserted, by a `Gap = 0` over the two faces read on their sides. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
@@ -1721,7 +1733,14 @@ pair of faces of the two bodies, those faces bound the overlap, and
 every face bounding it lies between the carriers of an asserted pair.
 A `Gap` reads bodies of one space ([placement.spaces]), so an
 assertion quiets only findings between bodies of the space it is in.
-An assertion speaks for nothing else, so a new contact or overlap
+A contact is a touch on one carrier or on two, opposed, so a tangency
+between opposed faces (a rod resting on a plate) is a contact, and its
+`Gap` reads each face's material side. A coincidence of poses the
+document reads off its cells (a centre on an axis, two axes one or
+meeting, a vertex on a split's plane) is quiet under a holding
+`Distance = 0` between those poses, read off the row's cells or the
+split's tool. Only a relation against zero quiets: a bound is a
+tolerance, not the row. An assertion speaks for nothing else, so a new contact or overlap
 anywhere else is loud until something says otherwise, and an overlap
 the kernel cannot bound is loud and nothing quiets it.
 
@@ -2371,8 +2390,8 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
-| `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, placements as mate bundles into a target space with the world a node (A3), pins, split and inline, the constructive solve, the at-rest check (A5) |
+| `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
