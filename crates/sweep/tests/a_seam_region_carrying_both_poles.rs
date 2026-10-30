@@ -174,6 +174,7 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
                     .any(|e| matches!(e, ValidationError::SeamRegionOvercovered { times: 2, .. })),
                 "refused as covered twice and inverted, and nothing else: {errs:?}"
             );
+            // Raw door: the measured body is a seam region covered twice whose flipped bits its region contradicts, which tier 3 refuses (SeamRegionOvercovered, CurvedSenseInverted).
             let door = topo::test_support::measure_unvalidated(
                 &both,
                 tol,
