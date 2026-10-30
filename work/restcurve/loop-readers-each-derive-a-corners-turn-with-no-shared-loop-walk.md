@@ -67,3 +67,25 @@ Branch `restcurve/surface-cycles`. Review: dual tier. It changes what every curv
 
 - `crates/topo/src/pcurves.rs`'s module header (near "has no general lane yet and refuses lever-only 'not yet'") contradicts `not_owed`, which excuses only a dual scalar's fitted refusal. Correct the header. Add an `f64` row asserting that an odd cone circle either mints or refuses as a check-8 finding, and is never excused.
 - **The wrap-tip incidence is read twice:** `singular_at` at mint, and `chart_singularity::locate`'s on-boundary decision at tier 3. File it on this slate as its own row. Do not fix it here.
+
+## Re-spec, unit 1 (2026-10-30, after the implementer's stop)
+
+The implementer's probe (`probe/restcurve-surface-cycles`, `crates/sweep/tests/zz_surface_cycles_probe.rs`) falsified the seam-cancel claim:
+- The cylinder reads identical bits.
+- The torus does not. `torus_chart` reads `−∮ F(v) du` in the lifted tube angle, so a dropped seam carries the whole area term. A `Partial` revolve then refuses, and a `Full` one reads flux 0 silently.
+
+Both designers were shown the probe and chose **option (b)**: one predicate, two views.
+
+- **The predicate** (unchanged): the face lies on both sides of the edge. It reads half-edge identity, in `topo`.
+- **Surface boundary** (`surface_cycles`): drops every both-sides edge. Region questions and point placement read it: `boolean::region::boundary`'s seam filter, and later tier 3's region arm. An empty surface boundary is the whole surface.
+- **Chart image** (spur-free loops): drops only spurs, meaning a consecutive same-edge reversal (`next(he)` is `he`'s mate). Seams stay. Removal repeats until no consecutive reversal remains, because a wrap edge split mid-way shows its inner reversal first.
+  - Every integrator reads this view: sphere Gauss–Bonnet, cone azimuth sum, cylinder and torus Green forms, the spiric, NURBS and quadrature lanes. Every chart reader reads it too.
+  - `chart_singularity`'s `without_spurs` and `retraces` retire into it. The caller passes the spur-free loops (for sides) alongside the full loops (for at-a-vertex or inside-an-edge).
+- **The empty rule:** a chart image that is empty on a closed surface (the one-face ball, a meridian walked up and straight back) is the whole surface, signed by the face's sense. It is ONE rule that every integrator cites. It is never `flux 0`.
+- **Rows:**
+  - the probe's three bodies, each reading Pappus-correct over the chart image: the cylinder strut, the `Partial(1.25)` torus, and the `Full` torus;
+  - the one-face ball over its empty chart image;
+  - an Euler-built spur pinned against a closed form.
+- **Out of scope:**
+  - The mesher (`mesh::walk::loop_polygon`) takes the chart image with its reset at the tip. That lands in a later unit with the wrap tip, and is not needed now because no tip exists yet.
+  - The drive-bys stand as specced.
