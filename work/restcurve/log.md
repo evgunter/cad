@@ -26,3 +26,4 @@
   - The red `gate ok` is inherited: `trimmed.rs`'s three hand folds, TESS's `main-red-trimmed-rs-folds-the-face-sense-by-hand`. The job record shows found minus sanctioned is exactly those three. Annotated on the PR.
   - Released: the wrap-tip tier row (now open, P1) and TESSWALK's, SPLITDOOR's and CARVE's wrap-tip rows; FOREIGN's import row drops this blocker. Seam notes are on each log.
   - Filed in the unit: FOREIGN P4 `import-chart-image-keeps-two-edges-that-retrace-each-other`, and RESTCURVE `wrap-tip-incidence-is-read-at-mint-and-again-at-tier-3`.
+- 2026-10-30 — Wrap-tip tier unit specced (branch `restcurve/wrap-tip-tiers`, single FULL review). `wrap-tip-incidence-is-read-at-mint-and-again-at-tier-3` rides with it (P1 E): the tip rule is that incidence, read once.
