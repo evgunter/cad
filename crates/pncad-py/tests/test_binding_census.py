@@ -3054,6 +3054,9 @@ NOT_BOUND = {
     "run_checks_at_rest_on": INTERIOR,
     "DoorJob": INTERIOR,
     "DoorFindings": INTERIOR,
+    # `Doc::unused`'s answer: Python reads the same tips as the `unused`
+    # check's findings, through `run_checks`.
+    "Unused": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
