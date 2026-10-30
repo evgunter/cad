@@ -2,11 +2,13 @@
 id: injectivity-refuses-at-interval-what-it-certifies-at-f64
 kind: issue
 title: The injectivity check refuses at Interval what it certifies at f64: SHELL-4's vessel refuses Departure on a half-rim at Body<Interval>, and no self-intersection row runs at Interval
-status: dispatched
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
 branch: clear/rimscalar
+pr: 6090
+closed: 2026-10-30
 ---
 
 
@@ -52,3 +54,28 @@ was unread and departure failed. The rate is now read off the stored
 winding count; the vessel holds at `Interval` by the corner route
 (`cornered` 8) where `f64` holds by the carrier arm (`cornered` 0).
 
+## Closed
+
+RIMSCALAR (#6090), with this commit last.
+
+**The cause.** `harmonic_of` lifted an angle channel's rate as
+`angle_rate(w) = w·τ/τ`. At `f64` that is exactly `w`; at `Interval` it
+is a few ulps wide. `Trig::of`'s `exactly(pl, ±1)` then failed, so the
+corner presentation could not read the curve. The vessel's half-rims
+refused, and so did the oblique cut and both rods (`cornered` 14 → 6).
+
+**The fix.** The rate is read off the stored integer winding, which is
+the exact ratio. Every self-intersection and pipe row now also runs on a
+`Body<Interval>`, and the verdict classes match at both scalars.
+
+**How the vessel holds.** At `Interval` it holds by the corner arm
+(`cornered = 8`). At `f64` it holds by the carrier arm (`cornered = 0`).
+
+**Pinned divergences:**
+- the filleted drum, `a-fillet-band-rim-phase-outruns-the-touch-concession-at-interval`
+  (CLEARTAIL);
+- the tee's union refusing at `Interval` (CLEAVE).
+
+**Filed on PCERT.** The winding read is fixed here, not at its home
+`angle_rate`. Fixing the home moved a Sym ledger golden:
+`angle-rate-encloses-a-winding-wider-than-its-count-at-interval`.
