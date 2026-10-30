@@ -890,3 +890,513 @@ mod sampled_and_fuzzed {
         }
     }
 }
+
+/// Star polygons of small-circle arcs on the unit sphere, slivers to an
+/// aspect of 1e-6, centred near the north pole and anywhere, both
+/// traversals and senses, at three bands: the closed form, and the same
+/// arcs as equal-semi ellipses through the walk. Ground truth by a
+/// dense winding about each pole. Any wrong side fails; an undecided one
+/// is tallied, and the walk must decide most where its bound clears.
+mod small_arc_fuzz {
+    use core::f64::consts::TAU;
+    use geom::{Curve3, Surface};
+    use geom_brep::chart_singularity::{Lies, Located, Unread};
+    use geom_brep::props::LoopEdge;
+    use geom_core::{Band, Point3, Vec3};
+
+    fn run(
+        s: &Surface<f64>,
+        loops: &[Vec<LoopEdge<f64>>],
+        sense: bool,
+        band: Band,
+    ) -> Vec<Located<f64>> {
+        super::locate_hand_built(s, loops, sense, band)
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+    }
+    fn unit(v: Vec3<f64>) -> Vec3<f64> {
+        v / v.norm()
+    }
+    const O: Point3<f64> = Point3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+
+    fn sphere() -> Surface<f64> {
+        Surface::Sphere {
+            center: O,
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// Small-circle arc from a to b (unit), its plane tilted by beta about the chord.
+    fn small_arc(
+        a: Vec3<f64>,
+        b: Vec3<f64>,
+        beta: f64,
+        sampled: bool,
+        s: u32,
+        e: u32,
+    ) -> LoopEdge<f64> {
+        let g = unit(a.cross(b));
+        let m = unit(b - a);
+        let n = unit(g * beta.cos() + m.cross(g) * beta.sin());
+        let d = n.dot(a);
+        let c = O + n * d;
+        let r = (1.0 - d * d).sqrt();
+        let u = unit((O + a) - c);
+        let wv = (O + b) - c;
+        let mut t1 = wv.dot(n.cross(u)).atan2(wv.dot(u));
+        if t1 <= 0.0 {
+            t1 += TAU;
+        }
+        let carrier = if sampled {
+            Curve3::Ellipse {
+                center: c,
+                axis: n,
+                semi_u: r,
+                semi_v: r,
+                u_ref: u,
+            }
+        } else {
+            Curve3::Circle {
+                center: c,
+                axis: n,
+                radius: r,
+                u_ref: u,
+            }
+        };
+        LoopEdge::hand_built(carrier, 0.0, t1, true, s, e)
+    }
+
+    fn trav(e: &LoopEdge<f64>, k: usize, n: usize) -> f64 {
+        let (a, b) = if e.forward {
+            (e.t0, e.t1)
+        } else {
+            (e.t1, e.t0)
+        };
+        a + (b - a) * (k as f64) / (n as f64)
+    }
+
+    /// Winding of a loop about unit p, seen from outside at p, by adaptive sampling.
+    fn winding(edges: &[LoopEdge<f64>], p: Vec3<f64>) -> i64 {
+        let e1 = unit(
+            if p.z.abs() < 0.9 {
+                Vec3::new(0.0, 0.0, 1.0)
+            } else {
+                Vec3::new(1.0, 0.0, 0.0)
+            }
+            .cross(p),
+        );
+        let e2 = p.cross(e1);
+        let ang = |q: Point3<f64>| {
+            let w = q - O;
+            w.dot(e2).atan2(w.dot(e1))
+        };
+        let mut total = 0.0;
+        for e in edges {
+            let mut stack = vec![];
+            let n = 64;
+            for k in (0..n).rev() {
+                stack.push((trav(e, k, n), trav(e, k + 1, n), 0u32));
+            }
+            while let Some((a, b, depth)) = stack.pop() {
+                let (pa, pb) = (e.carrier.eval(a), e.carrier.eval(b));
+                let mut d = ang(pb) - ang(pa);
+                while d > core::f64::consts::PI {
+                    d -= TAU;
+                }
+                while d < -core::f64::consts::PI {
+                    d += TAU;
+                }
+                if d.abs() > 0.2 && depth < 60 {
+                    let m = 0.5 * (a + b);
+                    stack.push((m, b, depth + 1));
+                    stack.push((a, m, depth + 1));
+                } else {
+                    total += d;
+                }
+            }
+        }
+        // junction gaps are rounding-sized; ignore
+        (total / TAU).round() as i64
+    }
+
+    fn reversed(edges: &[LoopEdge<f64>]) -> Vec<LoopEdge<f64>> {
+        let n = edges.len() as u32;
+        edges
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(i, e)| {
+                let mut f = e.clone();
+                f.forward = !e.forward;
+                f.start = i as u32;
+                f.end = (i as u32 + 1) % n;
+                f
+            })
+            .collect()
+    }
+
+    /// Dense gnomonic polyline about c; true if it self-intersects.
+    fn self_intersects(edges: &[LoopEdge<f64>], c: Vec3<f64>) -> bool {
+        let e1 = unit(
+            if c.z.abs() < 0.9 {
+                Vec3::new(0.0, 0.0, 1.0)
+            } else {
+                Vec3::new(1.0, 0.0, 0.0)
+            }
+            .cross(c),
+        );
+        let e2 = c.cross(e1);
+        let mut pts = vec![];
+        for e in edges {
+            for k in 0..200 {
+                let w = e.carrier.eval(trav(e, k, 200)) - O;
+                let h = w.dot(c);
+                if h <= 0.05 {
+                    return true;
+                }
+                pts.push((w.dot(e1) / h, w.dot(e2) / h));
+            }
+        }
+        let n = pts.len();
+        let orient = |a: (f64, f64), b: (f64, f64), c: (f64, f64)| {
+            (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+        };
+        for i in 0..n {
+            for j in i + 2..n {
+                if i == 0 && j == n - 1 {
+                    continue;
+                }
+                let (a, b, c2, d) = (pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n]);
+                let o1 = orient(a, b, c2);
+                let o2 = orient(a, b, d);
+                let o3 = orient(c2, d, a);
+                let o4 = orient(c2, d, b);
+                if o1 * o2 < 0.0 && o3 * o4 < 0.0 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn bands() -> [Band; 3] {
+        [
+            Band::new(1e-12, 1e-11).unwrap(),
+            Band::new(1e-9, 1e-8).unwrap(),
+            Band::new(1e-6, 1e-5).unwrap(),
+        ]
+    }
+
+    #[derive(Default, Debug)]
+    struct Tally {
+        right: usize,
+        wrong: usize,
+        straddle: usize,
+        banded: usize,
+        carrier: usize,
+        lp: usize,
+        boundary: usize,
+    }
+
+    fn judge(
+        t: &mut Tally,
+        bad: &mut Vec<String>,
+        got: &[Located<f64>],
+        left: &dyn Fn(Vec3<f64>) -> bool,
+        sense: bool,
+        label: &str,
+    ) {
+        for l in got {
+            let p = l.point - O;
+            match &l.lies {
+                Ok(Lies::Interior) | Ok(Lies::Outside) => {
+                    let want = left(p) == sense;
+                    let interior = matches!(l.lies, Ok(Lies::Interior));
+                    if interior == want {
+                        t.right += 1
+                    } else {
+                        t.wrong += 1;
+                        bad.push(format!(
+                            "{label} {:?}: {:?} want interior={want}",
+                            l.singularity, l.lies
+                        ));
+                    }
+                }
+                Ok(_) | Err(Unread::Boundary { .. }) => t.boundary += 1,
+                Err(Unread::Side { why, .. }) => match why {
+                    geom_brep::chart_singularity::SideUnread::Straddle => t.straddle += 1,
+                    _ => t.banded += 1,
+                },
+                Err(Unread::Carrier { .. }) => t.carrier += 1,
+                Err(Unread::Loop { .. }) => t.lp += 1,
+            }
+        }
+    }
+
+    /// Star polygons of small-circle arcs, slivers included, near and far from a pole.
+    fn fuzz(sampled: bool, cases: usize, seed: u64) -> Tally {
+        let mut rng = Lcg(seed);
+        let mut bad = vec![];
+        let mut t = Tally::default();
+        let mut skipped = 0;
+        for case in 0..cases {
+            let band = bands()[case % 3];
+            let rho = 10f64.powf(-4.0 + 4.0 * rng.next()).min(1.0);
+            let aspect = 10f64.powf(-6.0 * rng.next());
+            // centre at distance s*rho*aspect.. from the north pole
+            let near = rng.next();
+            let dist = if near < 0.7 {
+                rho * (aspect * 10f64.powf(2.0 * rng.next() - 1.0)).min(2.0) * rng.next() * 2.0
+            } else {
+                (rng.next() * 2.0 - 1.0).acos()
+            };
+            let phi = rng.next() * TAU;
+            let c = Vec3::new(dist.sin() * phi.cos(), dist.sin() * phi.sin(), dist.cos());
+            let e1 = unit(
+                if c.z.abs() < 0.9 {
+                    Vec3::new(0.0, 0.0, 1.0)
+                } else {
+                    Vec3::new(1.0, 0.0, 0.0)
+                }
+                .cross(c),
+            );
+            let e2 = c.cross(e1);
+            let rot = rng.next() * TAU;
+            let (f1, f2) = (
+                e1 * rot.cos() + e2 * rot.sin(),
+                e2 * rot.cos() - e1 * rot.sin(),
+            );
+            let k = 2 + (rng.next() * 6.0) as usize;
+            let mut angs: Vec<f64> = (0..k).map(|_| rng.next() * TAU).collect();
+            angs.sort_by(f64::total_cmp);
+            let verts: Vec<Vec3<f64>> = angs
+                .iter()
+                .map(|&a| unit(c + (f1 * (a.cos() * rho) + f2 * (a.sin() * rho * aspect))))
+                .collect();
+            if verts
+                .iter()
+                .enumerate()
+                .any(|(i, v)| (*v - verts[(i + 1) % k]).norm() < 1e-9)
+            {
+                skipped += 1;
+                continue;
+            }
+            let bmax = if k == 2 { 0.3 } else { 0.3 * rng.next() };
+            let edges: Vec<LoopEdge<f64>> = (0..k)
+                .map(|i| {
+                    let (a, b) = (verts[i], verts[(i + 1) % k]);
+                    let mut beta = bmax * (rng.next() * 2.0 - 1.0);
+                    if k == 2 {
+                        beta = if i == 0 {
+                            bmax * (0.2 + rng.next())
+                        } else {
+                            -bmax * (0.2 + rng.next())
+                        };
+                    }
+                    small_arc(a, b, beta, sampled, i as u32, ((i + 1) % k) as u32)
+                })
+                .collect();
+            if self_intersects(&edges, c) {
+                skipped += 1;
+                continue;
+            }
+            // orientation: must wind +1 about c (ccw about c)
+            let wc = winding(&edges, c);
+            let edges = match wc {
+                1 => edges,
+                -1 => reversed(&edges),
+                _ => {
+                    skipped += 1;
+                    continue;
+                }
+            };
+            for (lp, ccw) in [(edges.clone(), true), (reversed(&edges), false)] {
+                let left = |p: Vec3<f64>| {
+                    let w = winding(&edges, p);
+                    if ccw { w == 1 } else { w != 1 }
+                };
+                for sense in [true, false] {
+                    let got = run(&sphere(), core::slice::from_ref(&lp), sense, band);
+                    judge(
+                        &mut t,
+                        &mut bad,
+                        &got,
+                        &left,
+                        sense,
+                        &format!(
+                            "case {case} band {band:?} rho {rho:e} aspect {aspect:e} dist {dist:e} k {k} ccw {ccw} sense {sense}"
+                        ),
+                    );
+                }
+            }
+        }
+        eprintln!("sampled={sampled} {t:?} skipped {skipped}");
+        assert!(
+            bad.is_empty(),
+            "{} wrong:\n{}",
+            bad.len(),
+            bad.iter().take(30).cloned().collect::<Vec<_>>().join("\n")
+        );
+        t
+    }
+
+    #[test]
+    fn small_arc_stars_read_their_poles_in_closed_form() {
+        let t = fuzz(false, 1500, 0xD1);
+        // A lens whose tips are exact cusps leaves the closed form for
+        // the walk, which may leave its side undecided: a few at most.
+        let undecided = t.straddle + t.banded + t.lp + t.carrier;
+        assert!(
+            undecided * 50 < t.right,
+            "the closed form decides nearly every side: {t:?}"
+        );
+    }
+
+    #[test]
+    fn small_arc_stars_on_sampled_carriers_read_their_poles_by_the_walk() {
+        let t = fuzz(true, 300, 0xD2);
+        // The walk decides where its bound clears: most readings, not
+        // every sliver.
+        assert!(
+            t.right * 2 > t.right + t.straddle,
+            "the walk decides most sides: {t:?}"
+        );
+    }
+
+    /// The least distance from `p` to the loop of circle arcs: each arc's
+    /// closed-form foot where it falls inside the arc, else its ends.
+    fn loop_distance(edges: &[LoopEdge<f64>], p: Vec3<f64>) -> f64 {
+        let x = O + p;
+        edges
+            .iter()
+            .map(|e| {
+                let ends = (e.carrier.eval(e.t0) - x)
+                    .norm()
+                    .min((e.carrier.eval(e.t1) - x).norm());
+                match geom_brep::chart_singularity::foot(&e.carrier, x, e.t0) {
+                    Some(t) if t <= e.t1 => ends.min((e.carrier.eval(t) - x).norm()),
+                    _ => ends,
+                }
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// **A vertex just beside a pole is read in closed form, decided**:
+    /// at the band `(1e-12, 1e-11)`, a polygon of small-circle arcs with
+    /// one vertex `2e-11` to `1e-9` from the north pole and the others half
+    /// a radian off, its corner there opening from a hair to past a half
+    /// turn. The pole is past the band from the vertex, so every reading
+    /// is decided and right: the stereographic image from the pole of a
+    /// point that close divides by `|w − pole|²/2`, about `1e-22`, which
+    /// `1 − w·pole` cannot hold. Where an arc passes the pole within twice
+    /// the band's escalation, the point may read on the boundary or in
+    /// band; past it, every reading is decided.
+    #[test]
+    fn a_vertex_just_beside_a_pole_reads_it_decided_at_a_fine_band() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut rng = Lcg(0xB2);
+        let mut bad = Vec::new();
+        let mut read = 0;
+        for delta in [2e-11_f64, 5e-11, 1e-10, 1e-9] {
+            for open in [1e-3_f64, 0.5, 2.0, 3.1, 3.2, 4.5] {
+                for dir in [0.0_f64, 1.0, 2.5, 4.0] {
+                    for beta in [0.0_f64, 0.2, -0.2] {
+                        let v0 = unit(
+                            Vec3::new(0.0, 0.0, 1.0) + Vec3::new(dir.cos(), dir.sin(), 0.0) * delta,
+                        );
+                        let e1 = unit(Vec3::new(1.0, 0.0, 0.0) - v0 * v0.x);
+                        let e2 = v0.cross(e1);
+                        let far = |ang: f64| {
+                            unit(
+                                v0 * 0.5f64.cos()
+                                    + (e1 * ang.cos() + e2 * ang.sin()) * 0.5f64.sin(),
+                            )
+                        };
+                        let a = rng.next() * TAU;
+                        let verts = if open < 3.14 {
+                            vec![v0, far(a), far(a + open)]
+                        } else {
+                            vec![v0, far(a), far(a + open * 0.5), far(a + open)]
+                        };
+                        let k = verts.len();
+                        let edges: Vec<LoopEdge<f64>> = (0..k)
+                            .map(|i| {
+                                small_arc(
+                                    verts[i],
+                                    verts[(i + 1) % k],
+                                    beta,
+                                    false,
+                                    i as u32,
+                                    ((i + 1) % k) as u32,
+                                )
+                            })
+                            .collect();
+                        let c = unit(verts.iter().fold(Vec3::new(0.0, 0.0, 0.0), |s, v| s + *v));
+                        if self_intersects(&edges, c) {
+                            continue;
+                        }
+                        let edges = match winding(&edges, c) {
+                            1 => edges,
+                            -1 => reversed(&edges),
+                            _ => continue,
+                        };
+                        for (lp, ccw) in [(edges.clone(), true), (reversed(&edges), false)] {
+                            for sense in [true, false] {
+                                for l in run(&sphere(), core::slice::from_ref(&lp), sense, band) {
+                                    let p = l.point - O;
+                                    let left = (winding(&edges, p) == 1) == ccw;
+                                    let want = if left == sense {
+                                        Lies::Interior
+                                    } else {
+                                        Lies::Outside
+                                    };
+                                    let clear = loop_distance(&lp, p) > 2.0 * band.escalate();
+                                    if !clear
+                                        && matches!(
+                                            l.lies,
+                                            Err(Unread::Boundary { .. })
+                                                | Ok(
+                                                    Lies::InsideEdge { .. } | Lies::AtVertex { .. }
+                                                )
+                                        )
+                                    {
+                                        continue;
+                                    }
+                                    read += 1;
+                                    if !matches!(l.lies, Ok(got) if got == want) {
+                                        bad.push(format!(
+                                            "delta {delta:e} open {open} dir {dir} beta {beta} ccw {ccw} sense {sense} {:?}: {:?} want {want:?}",
+                                            l.singularity, l.lies
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(read > 500, "the sweep reads: {read}");
+        assert!(
+            bad.is_empty(),
+            "{} not decided right:\n{}",
+            bad.len(),
+            bad[..bad.len().min(20)].join("\n")
+        );
+    }
+}

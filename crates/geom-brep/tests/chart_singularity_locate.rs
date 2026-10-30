@@ -444,8 +444,8 @@ fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
 /// side**: two great-circle arcs `w` apart passing `1e-3` from the north
 /// pole, stated as equal-semi ellipses, which no closed form reads. The
 /// walk reads both poles outside the sliver where its error bound clears
-/// the sliver's area, and leaves the side undecided where it does not:
-/// never inside.
+/// the sliver's area (the wider one, which it must decide), and leaves
+/// the side undecided where it does not: never inside.
 #[test]
 fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
     use geom_brep::chart_singularity::SideUnread;
@@ -458,7 +458,7 @@ fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
         u_ref: Vec3::new(-dist.sin(), 0.0, dist.cos()),
     };
     let half = 0.05_f64;
-    for w in [1e-4_f64, 1e-6] {
+    for w in [1e-2_f64, 1e-4, 1e-6] {
         let (a, b) = (ellipse(delta), ellipse(delta + w));
         let end = |c: &Curve3<f64>, t: f64| c.eval(t);
         let rung = |p: Point3<f64>, q: Point3<f64>| {
@@ -507,6 +507,13 @@ fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
             })
         });
         assert!(sliver_reads.is_some(), "w {w}: {sides:?}");
+        // The wider sliver's area clears the walk's bound: decided.
+        if w >= 1e-2 {
+            assert!(
+                sides.iter().any(|ls| ls.iter().all(|l| matches!(l, Ok(Lies::Outside)))),
+                "w {w}: the walk decides the sliver: {sides:?}"
+            );
+        }
         assert!(
             sides
                 .iter()
@@ -559,5 +566,54 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
         matches!(read[0].lies, Err(Unread::Carrier { r#loop: 0, edge: 0 })),
         "{:?}",
         read[0].lies
+    );
+}
+
+/// **Spurs through both poles leave their sides to the rest of the
+/// loop**, as import's pole form leaves a face that held both: a cap
+/// about `+x` (the rim run forward, so the face is the cap), with a seam
+/// up a meridian from the rim to the north pole, on round the whole
+/// meridian to the south pole, and back the same way. Both poles are
+/// vertices, and the side of each (what import's strut tip asks,
+/// [`holds`](geom_brep::chart_singularity::holds)) is the rim's: outside
+/// the cap. Each spur's tip turns by half a turn either way, which no
+/// turning reads, and the walk cannot certify a loop through both poles:
+/// only taking the spurs out reads it.
+#[test]
+fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
+    use geom_brep::chart_singularity::holds;
+    let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
+    let Curve3::Circle {
+        center, u_ref, ..
+    } = rim.clone()
+    else {
+        unreachable!()
+    };
+    let p0 = center + u_ref * 0.8;
+    let w = p0 - Point3::new(0.0, 0.0, 0.0);
+    let axis = w.cross(Vec3::new(0.0, 0.0, 1.0));
+    let meridian = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: axis / axis.norm(),
+        radius: 1.0,
+        u_ref: w / w.norm(),
+    };
+    let face = vec![
+        LoopEdge::hand_built(rim, 0.0, TAU, true, 0, 0),
+        LoopEdge::hand_built(meridian.clone(), 0.0, FRAC_PI_2, true, 0, 1),
+        LoopEdge::hand_built(meridian.clone(), FRAC_PI_2, 1.5 * PI, true, 1, 2),
+        LoopEdge::hand_built(meridian.clone(), FRAC_PI_2, 1.5 * PI, false, 2, 1),
+        LoopEdge::hand_built(meridian, 0.0, FRAC_PI_2, false, 1, 0),
+    ];
+    for pole in [Singularity::North, Singularity::South] {
+        let got = holds(&unit_sphere(), &[face.as_slice()], true, pole, band());
+        assert!(matches!(got, Ok(false)), "{pole:?}: {got:?}");
+    }
+    assert_eq!(
+        placed(&lies(&unit_sphere(), &[face], true)),
+        [
+            (Singularity::North, Lies::AtVertex { r#loop: 0, edge: 2 }),
+            (Singularity::South, Lies::AtVertex { r#loop: 0, edge: 3 })
+        ]
     );
 }
