@@ -687,7 +687,9 @@ fn drawn_on(
 /// **The cone builds tangent to the sphere along its base rim**, and
 /// its union with the sphere refuses where the value-typed cone's does
 /// (stage 6 A): the boolean has no closed-form arm for the pair
-/// (`work/germ/`, cone × sphere).
+/// (`work/germ/`, cone × sphere), or, where the cone's roots read the
+/// rim's touch in the band's gap, escalates there, at the rim and the
+/// face (`CurvedPierceEscalated`).
 #[test]
 fn a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim() {
     let (doc, sphere) = sphere();
@@ -755,7 +757,11 @@ fn a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim() {
         matches!(
             ev.node_error(union).map(|e| &e.kind),
             Some(NodeErrorKind::Boolean(e))
-                if e.kind() == topo::BooleanErrorKind::CurvedPierceUnsupported
+                if matches!(
+                    e.kind(),
+                    topo::BooleanErrorKind::CurvedPierceUnsupported
+                        | topo::BooleanErrorKind::CurvedPierceEscalated
+                )
         ),
         "the cone × sphere union refuses as the hand-typed one does: {:?}",
         ev.node_error(union).map(|e| e.kind.to_string())

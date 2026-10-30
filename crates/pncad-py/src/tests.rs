@@ -4432,6 +4432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_boolean_unsupported",
             "curved_face_closes_across_slit",
             "curved_pair_unsupported",
+            "curved_pierce_escalated",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",

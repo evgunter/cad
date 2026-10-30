@@ -911,7 +911,20 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
         Tol::witness(),
     );
     for e in union_both_orders(&tube, &ball) {
-        assert!(is_pierce(&e), "tube ∪ ball: {e:?}");
+        // A ruling's touch of the ball, decided, keeps the pierce door; a
+        // meridian's touch of the wall, read in the band's gap, escalates
+        // on the circle × cylinder roots, at the edge and the wall.
+        assert!(
+            is_pierce(&e)
+                || matches!(
+                    e,
+                    BooleanError::CurvedPierceEscalated {
+                        decision: topo::BooleanDecision::ArcCylinderRoots,
+                        ..
+                    }
+                ),
+            "tube ∪ ball: {e:?}"
+        );
     }
 }
 
@@ -1179,13 +1192,14 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     for e in union_both_orders(&bored, &ball) {
         // The ball's meridian circles touch the bore wall at their two
         // equator points: a tangency, which the circle × cylinder lane's
-        // ladder escalates on its own decision when its margin lands in
-        // the band's gap, and which keeps the pierce door otherwise.
+        // ladder escalates on its own decision, at the edge and the wall,
+        // when its margin lands in the band's gap, and which keeps the
+        // pierce door otherwise.
         assert!(
             is_pierce(&e)
                 || matches!(
                     e,
-                    BooleanError::Escalated {
+                    BooleanError::CurvedPierceEscalated {
                         decision: topo::BooleanDecision::ArcCylinderRoots,
                         ..
                     }

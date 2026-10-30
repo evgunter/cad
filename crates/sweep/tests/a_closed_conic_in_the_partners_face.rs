@@ -1022,6 +1022,9 @@ enum Tip {
     Unprofiled,
     /// `Escalated { decision: Crossing(OnEdge) }`.
     OnEdge,
+    /// `CurvedPierceEscalated { decision: BoundaryMeeting }`: the rim's
+    /// meeting with the other rim, read in band, off the other's wall.
+    Meeting,
     /// `Escalated { decision: Coincidence(Sectors, _) }`.
     Sectors,
     /// `CurvedPierceUnsupported`.
@@ -1039,6 +1042,10 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             decision: Crossing(topo::CrossingDecision::OnEdge),
             ..
         } => Tip::OnEdge,
+        BooleanError::CurvedPierceEscalated {
+            decision: topo::BooleanDecision::BoundaryMeeting,
+            ..
+        } => Tip::Meeting,
         BooleanError::Escalated {
             decision: Coincidence(topo::Coincide::Sectors, _),
             ..
@@ -1121,8 +1128,10 @@ fn united_at_the_run(
 /// can. The union is one shell (`boolean::sectors` `coincident_run`).
 /// Where only one side of the tip is cut, the other side is a true
 /// crescent at the tip and the union refuses
-/// `TangentCrescentUnsupported`; where only one rim is cut, the crossing
-/// layer escalates on the cut vertex against the other rim's arc.
+/// `TangentCrescentUnsupported`; where only one rim is cut, the cut rim
+/// meets the other rim in band, off that rim's wall, and the crossing
+/// layer escalates that meeting at the cut rim and the wall
+/// (`BoundaryMeeting`, [`Tip::Meeting`]).
 ///
 /// Each rim cut at `±s` alone has a reflex long arc between its two
 /// cuts; its profile escalates at every ε, so a reflex arc never reaches
@@ -1135,7 +1144,7 @@ fn united_at_the_run(
 /// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, OnEdge, Pierce, Sectors, Unprofiled};
+    use Tip::{Backstop, Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1199,13 +1208,13 @@ fn short_arcs_at_a_crescents_tip() {
             "the boss's only",
             tip(1e-5),
             [0.0, p, f64::NAN, f64::NAN],
-            [[OnEdge; 2], [Unprofiled; 2], [Unprofiled; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Unprofiled; 2]],
         ),
         (
             "the hole's only",
             [0.0, p, f64::NAN, f64::NAN],
             tip(3e-5),
-            [[OnEdge; 2], [Unprofiled; 2], [Pierce; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Pierce; 2]],
         ),
     ];
     let row_at = match tol().eps() {
@@ -1556,4 +1565,40 @@ fn a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip() {
             }
         }
     }
+}
+
+/// **Review 3 (PR 5993): the meeting's text does not put the edge on
+/// the face's carrier when it is not.** [`short_arcs_at_a_crescents_tip`]'s
+/// "the boss's only" pose at the default ε escalates
+/// `CurvedPierceEscalated { CurveMeeting }` at the boss's `r = 0.3` rim
+/// against the hole's `r = 0.1` wall about `(0.2, 0)`: the rim touches
+/// that cylinder at one point and does not lie on it, yet the text's
+/// subject reads "where an edge on a curved face's carrier meets a
+/// curve of that face's boundary", and its first lever, "make the two
+/// cuts of the curved face one construction", names no cut this pose has.
+#[test]
+fn review3_a_meeting_off_the_carrier_says_so() {
+    // The pose's profile validates at the default ε only.
+    if tol().eps() != 1e-9 {
+        return;
+    }
+    let boss_rim = arcs_at(0.0, 0.3, &[-1e-5, 0.0, 1e-5, PI]);
+    let hole_rim = arcs_at(0.2, 0.1, &[0.0, PI]);
+    let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+    let holed = fin(
+        "the holed plate",
+        extruded(vec![square(), hole_rim], -0.5, 0.5),
+    );
+    let got = topo::union(&boss, &holed, tol());
+    let Err(e @ BooleanError::CurvedPierceEscalated { .. }) = &got else {
+        panic!(
+            "the meeting escalates, located: {:?}",
+            got.map(|_| "a body")
+        );
+    };
+    let text = e.to_string();
+    assert!(
+        !text.contains("an edge on a curved face's carrier"),
+        "the rim is not on the hole's wall: {text}"
+    );
 }

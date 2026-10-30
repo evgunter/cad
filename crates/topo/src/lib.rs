@@ -941,7 +941,8 @@ pub mod test_support {
         use crate::{BooleanDecision, BooleanError, BooleanErrorKind, SphereQuestion};
         let decision = decision_key;
         let key = match err {
-            BooleanError::Escalated { decision: d, .. } => decision(*d),
+            BooleanError::Escalated { decision: d, .. }
+            | BooleanError::CurvedPierceEscalated { decision: d, .. } => decision(*d),
             BooleanError::SpheresMeet { .. } => {
                 decision(BooleanDecision::Sphere(SphereQuestion::Nested))
             }
