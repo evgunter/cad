@@ -1243,10 +1243,11 @@ curved-cut faces are certified quadrature (C9, `props/quad/`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
-pcurve channels refuse `QuadratureUnsupported`. A face refines until
-its caller's predicate over the enclosure resolves (a sign, a relation,
-or a resolution, each stated by the caller), refinement stops paying, or the
-per-face work bound is reached. It returns the narrowest certified
+pcurve channels refuse `QuadratureUnsupported`. A measurement refines
+where its enclosure is widest until its caller's predicate over the
+enclosure resolves (a sign, a relation, or a resolution over the measured
+surface, each stated by the caller), refinement stops paying, or the
+question's work bound is reached. It returns the narrowest certified
 enclosure it reached, with the reason it stopped (`[tolerance.measure]`):
 never a silent Gaussian, and never a refusal for width alone. A plane cap or torus wall
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
