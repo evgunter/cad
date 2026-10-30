@@ -18,3 +18,5 @@ cost: E
 **Where it came from.** TESS's commit `8a799289c2` ("tess: bulk-load the trimmed CDT; …"), merged through PR 5920 (`tess/sphere-tilted-circle-lane`, merge `148c1a24fb`). The row is in the slow set (`.config/nextest.toml`), which the PR gate does not run, so the PR merged green.
 
 **What closing it takes.** Read each value through the sense door `face_normal.rs` names (`geom_brep::OutwardNormal::from_chart`, or a `face_normal` door). Or, where the value is a genuinely signed scalar at its point of use, add it to the row's `sanctioned` list with that reason. The row goes green when both this row and its sibling close.
+
+**2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): still red at every ε. The unsanctioned hits are now `crates/mesh/src/trimmed.rs`'s three (`1.0`, `area`, `radial`) and nothing else. The `injective.rs` sibling is sanctioned on main, so this row alone holds the test red.
