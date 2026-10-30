@@ -8094,22 +8094,25 @@ pub(crate) fn tier3_local_checks_marked<
         }
         // Every loop's chart image: a cylinder face reads its side off
         // its whole boundary's chart Green form, rings included, as its
-        // flux does, and a loop that is all spurs bounds nothing.
-        let face_loops = || core::iter::once(face.outer).chain(face.rings.iter().copied());
-        let (Ok(full), Ok(images)) = (
-            face_loops()
-                .map(|l| crate::props::loop_edges(body, l))
-                .collect::<Result<FlatLoops<T>, _>>(),
-            face_loops()
-                .map(|l| crate::props::chart_image_edges(body, l))
-                .collect::<Result<FlatLoops<T>, _>>(),
-        ) else {
+        // flux does, each loop that bounds area.
+        let Ok(full) = core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .map(|l| crate::props::loop_edges(body, l))
+            .collect::<Result<FlatLoops<T>, _>>()
+        else {
+            continue; // derivation exempt (posture above)
+        };
+        let Ok(images) = full
+            .iter()
+            .map(|(_, cycle)| crate::props::image_of_cycle(body, cycle))
+            .collect::<Result<FlatLoops<T>, _>>()
+        else {
             continue; // derivation exempt (posture above)
         };
         let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
             .iter()
             .map(|(edges, _)| edges.as_slice())
-            .filter(|edges| !edges.is_empty())
+            .filter(|edges| geom_brep::chart_image::bounds_area(edges))
             .collect();
         let side = geom_brep::props::boundary_material_sign_loops(surface, &loops, band);
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {

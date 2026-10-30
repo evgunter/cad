@@ -4218,9 +4218,8 @@ pub(crate) type FlatLoop<T> = (Vec<LoopEdge<T>>, Vec<HalfEdgeKey>);
 
 /// A face's loops as every integrator reads them: each loop's chart
 /// image ([`chart_image_edges`]) with its half-edges, the outer first,
-/// then the rings, a loop that is all spurs left out. Empty where every
-/// loop is, which on a closed surface is the whole surface
-/// (`geom_brep::props::whole_surface`).
+/// then the rings, those that bound area
+/// ([`geom_brep::chart_image::bounds_area`]). Empty where none does.
 fn flat_loops<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
@@ -4228,7 +4227,7 @@ fn flat_loops<T: Decide>(
     let mut loops = Vec::new();
     for &lk in core::iter::once(&face.outer).chain(&face.rings) {
         let image = chart_image_edges(body, lk)?;
-        if !image.0.is_empty() {
+        if geom_brep::chart_image::bounds_area(&image.0) {
             loops.push(image);
         }
     }
@@ -4259,11 +4258,10 @@ fn closed_form_of<U: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<U>, PropsError> {
-    if loops.is_empty() {
-        return geom_brep::props::whole_surface(surface, sense);
-    }
     match *surface {
-        Surface::Plane { origin, .. } => planar_face(origin, loops),
+        // A plane with no loop that bounds area takes the empty rule's
+        // dispatch below, which refuses it.
+        Surface::Plane { origin, .. } if !loops.is_empty() => planar_face(origin, loops),
         _ => {
             let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
             curved_face_loops(surface, &loops, sense, band)
@@ -5279,16 +5277,22 @@ fn face_flux_about<T: Decide>(
     let mut area_pad = 0.0f64;
     let mut enclosure = None;
     let mut state = FaceState::Closed;
+    let loops = flat_loops(body, face)?;
     let plane_loops = match surface {
-        Surface::Plane { .. } => Some(face_loops(body, face)?),
+        Surface::Plane { .. } => Some(edges_of(&loops)),
         _ => None,
     };
     let contribution: FaceContribution<T> = match plane_loops {
+        // No loop bounds area: the empty rule's one dispatch reads the
+        // face whole, or refuses it on a surface that is not closed or
+        // has no closed form (`geom_brep::props::whole_surface`).
+        _ if loops.is_empty() => {
+            geom_brep::props::curved_face_loops(surface, &[], face.sense, band).map_err(wrap)?
+        }
         Some(loops) if !takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier)) => {
             closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
         }
         _ => {
-            let loops = flat_loops(body, face)?;
             let trimmed = loops
                 .iter()
                 .flat_map(|(edges, _)| edges)
@@ -5478,8 +5482,20 @@ pub fn chart_image_edges<T: Decide>(
     lk: LoopKey,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
     let (_, cycle) = loop_edges(body, lk)?;
+    image_of_cycle(body, &cycle)
+}
+
+/// [`chart_image_edges`] of a loop's cycle the caller has walked.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn image_of_cycle<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<FlatLoop<T>, LoopEdgesError> {
     let image =
-        crate::surface_boundary::chart_image(body, &cycle).ok_or(LoopEdgesError::Corrupt {
+        crate::surface_boundary::chart_image(body, cycle).ok_or(LoopEdgesError::Corrupt {
             what: "half-edge mate does not resolve",
         })?;
     Ok((run_edges(body, &image)?, image))

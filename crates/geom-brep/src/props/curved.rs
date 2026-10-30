@@ -159,10 +159,14 @@ pub fn boundary_material_sign_loops<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    if loops.is_empty() {
-        // An empty chart image encodes no side: the face is its whole
-        // closed surface, signed by its bit alone ([`whole_surface`]).
-        return whole_surface(surface, true).map(|_| MaterialSign::Unencoded);
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
+        // An empty chart image encodes no side: on a closed surface the
+        // face is the whole of it, signed by its bit alone
+        // ([`whole_surface`]); elsewhere it bounds nothing.
+        return match closed_surface(surface)? {
+            Some(_) => Ok(MaterialSign::Unencoded),
+            None => Err(PropsError::DegenerateFace),
+        };
     }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
@@ -1603,7 +1607,8 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    if loops.is_empty() {
+    // The empty rule's one dispatch: no loop bounds area.
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
         return whole_surface(surface, sense);
     }
     match *surface {
@@ -1648,8 +1653,10 @@ pub fn curved_face_loops<T: Decide>(
 /// where that surface is closed, its flux signed by the face's sense:
 /// the outward normal is the chart normal's exactly when the bit is set,
 /// and a closed surface's flux is three times the volume it encloses,
-/// wherever the origin lies. The one rule every integrator reads for an
-/// empty chart image, so none sums an empty boundary to a flux of zero.
+/// wherever the origin lies. The one rule for an empty chart image, read
+/// at one dispatch ([`curved_face_loops`], where no loop bounds area,
+/// [`crate::chart_image::bounds_area`]), so no integrator sums an empty
+/// boundary to a flux of zero.
 ///
 /// - a sphere of radius `R`: area `4πR²`, flux `±4πR³`;
 /// - a torus of radii `R`, `r`: area `4π²Rr`, flux `±6π²Rr²`.
@@ -1665,30 +1672,63 @@ pub fn whole_surface<T: Decide>(
     sense: bool,
 ) -> Result<FaceContribution<T>, PropsError> {
     let pi = T::pi();
-    let (enclosed, area) = match *surface {
-        Surface::Sphere { radius, .. } => {
+    let (enclosed, area) = match closed_surface(surface)? {
+        Some(ClosedSurface::Sphere { radius }) => {
             let area = T::from_f64(4.0) * pi * radius.powi(2);
             (area * radius, area)
         }
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let ring = pi.powi(2) * major_radius * minor_radius;
-            (
-                T::from_f64(6.0) * ring * minor_radius,
-                T::from_f64(4.0) * ring,
-            )
+        Some(ClosedSurface::Torus { major, minor }) => {
+            let ring = pi.powi(2) * major * minor;
+            (T::from_f64(6.0) * ring * minor, T::from_f64(4.0) * ring)
         }
-        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
-            return Err(PropsError::DegenerateFace);
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+        None => return Err(PropsError::DegenerateFace),
     };
     Ok(FaceContribution {
         flux: if sense { enclosed } else { -enclosed },
         area,
+    })
+}
+
+/// A closed surface the empty rule reads whole ([`closed_surface`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ClosedSurface<T> {
+    /// A sphere of this radius.
+    Sphere {
+        /// Its radius.
+        radius: T,
+    },
+    /// A torus of these radii.
+    Torus {
+        /// Its major radius.
+        major: T,
+        /// Its minor radius.
+        minor: T,
+    },
+}
+
+/// **Whether `surface` is closed**, with what [`whole_surface`] reads of
+/// it: a sphere or a torus is, a plane, a cylinder or a cone is not
+/// (`None`).
+///
+/// # Errors
+///
+/// [`PropsError::Unimplemented`] on a spline or offset surface, whose
+/// closure no closed form here reads.
+pub fn closed_surface<T: Real>(
+    surface: &Surface<T>,
+) -> Result<Option<ClosedSurface<T>>, PropsError> {
+    Ok(match *surface {
+        Surface::Sphere { radius, .. } => Some(ClosedSurface::Sphere { radius }),
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(ClosedSurface::Torus {
+            major: major_radius,
+            minor: minor_radius,
+        }),
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
+        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
     })
 }
 
