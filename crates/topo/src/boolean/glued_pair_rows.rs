@@ -204,7 +204,9 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
 /// three blocks' ball. The second step joins the third block to the
 /// accumulation whose top is the first two merged on the flat plane,
 /// given the second pair's continuation, and the third block's far top
-/// corners read `2s` off that plane: `VertexOnFace` in band.
+/// corners read `2s` off that plane: `VertexOnFace` in band. A fall
+/// whose corners stay inside the zero band builds instead
+/// (`a_fold_step_glues_a_pair_its_door_reads_in_band_today`).
 ///
 /// Falling, not rising: a rising top moves the first judgement's merged
 /// result past `vol(A ∪ B) ≤ vol(A) + vol(B)`
@@ -293,5 +295,100 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
         diag.predicate,
         Some("bool_vertex_face_side"),
         "the far corners' side of the flat top: {diag:?}"
+    );
+}
+
+/// **A fold step glues a pair its face-pair door reads in band.** Three
+/// blocks in a row along x: the first long (`x ∈ [-10, 1]`) and the
+/// second unit, both topped flat at `z = 1`; the third unit, its top
+/// falling `s = 0.4·ε` across y (`z = 1 − s·y`), so every corner of every
+/// top stands within `s` of every other top's plane, and no vertex reads
+/// off a face. The first two tops are one plane exactly; the second and
+/// third glue on a Zero over their small ball. The accumulation's merged
+/// top against the third top, read by the face-pair door itself, is in
+/// band: the tilt levered over their long ball. The step builds on the
+/// second judgement's record alone. This pins today's Built while
+/// `work/contacthold/a-fold-step-glues-a-pair-its-door-reads-in-band`
+/// asks whether `[verdicts.closeness]`'s topology or D10's band governs
+/// the pair.
+#[test]
+fn a_fold_step_glues_a_pair_its_door_reads_in_band_today() {
+    let s = 0.4 * band().zero();
+    let block = |x0: f64, x1: f64, fall: f64| {
+        let profile = [(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)];
+        let mut body = crate::body::Body::<f64>::new();
+        prism_ops(
+            &mut body,
+            &profile,
+            (-1.0, 0.0),
+            // y = -w; the top (v = 1) falls `fall` per unit of y.
+            |u, v, w| Point3::new(u, -w, if v > 0.5 { v + fall * w } else { v }),
+            FaceGeometry::Certified,
+            tol(),
+        );
+        describe_as_intersections(&mut body, tol());
+        finished("a block", body, tol())
+    };
+    let blocks = [
+        block(-10.0, 1.0, 0.0),
+        block(1.0, 2.0, 0.0),
+        block(2.0, 3.0, s),
+    ];
+    let inputs: Vec<crate::MemberInputs> = (0..3)
+        .map(|rank| crate::MemberInputs {
+            rank,
+            ..crate::MemberInputs::default()
+        })
+        .collect();
+    let members: Vec<crate::NaryMember<'_, f64>> = blocks
+        .iter()
+        .zip(&inputs)
+        .map(|(body, inputs)| crate::NaryMember { body, inputs })
+        .collect();
+    let run = crate::nary_boolean(
+        crate::NaryOp::Union,
+        &members,
+        crate::SweepStrategy::Realized,
+        tol(),
+    );
+    assert_eq!(
+        run.judgements
+            .iter()
+            .map(|j| (j.a, j.b))
+            .collect::<Vec<_>>(),
+        vec![(0, 1), (1, 2)],
+        "the neighbours alone are judged: {:?}",
+        run.end
+    );
+    // The face-pair door over the accumulation's top and the third top.
+    let acc = &run.steps.first().expect("the first step built").body.body;
+    let top_of = |body: &crate::body::Body<f64>| {
+        body.faces()
+            .map(|(k, _)| k)
+            .filter(|&k| {
+                matches!(
+                    face_carrier(body, k),
+                    Some(carrier_eq::CarrierDesc::Plane { normal, .. }) if normal.z > 0.5
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let acc_tops = top_of(acc);
+    let k_tops = top_of(&blocks[2]);
+    assert_eq!(
+        (acc_tops.len(), k_tops.len()),
+        (1, 1),
+        "one merged top, one third top"
+    );
+    let pairwise =
+        super::carrier_pair::carrier_pair_decided(acc, acc_tops[0], &blocks[2], k_tops[0], band());
+    assert!(
+        matches!(pairwise, Ok(Err(_))),
+        "the pairwise door refuses the merged top against the third top: {pairwise:?}"
+    );
+    assert!(
+        matches!(run.end, crate::NaryEnd::Built),
+        "the fold step glues it on the second judgement's record: {:?}",
+        run.end
     );
 }

@@ -84,4 +84,4 @@ If that last case is reachable, the fold step's transitivity is its own question
 
 ## Closed
 
-Closed by PR 6079: every consuming site (recl, vtxfac, the merge, the census confirm) reads a glued pair through `GluedPairs::glued_relation` / `GluedSurfaces`; the declared rung, `ContactVerdict::Bridged` and the witness floor retired. The fold-step probe refuses at a vertex, so no transitivity row was filed.
+Closed by PR 6079: every consuming site (recl, vtxfac, the merge, the census confirm) reads a glued pair through `GluedPairs::glued_relation` / `GluedSurfaces`; the declared rung, `ContactVerdict::Bridged` and the witness floor retired. The fold-step case is reachable. At `0.7·ε` the vertex-on-face read refuses first, but a fall the corners hold inside the zero band (the reviewers' probes: `0.4·ε` across y, `−0.48·ε` along x) builds on the neighbours' records. That transitivity is filed as `a-fold-step-glues-a-pair-its-door-reads-in-band` (P1, design) and is not decided here; `a_fold_step_glues_a_pair_its_door_reads_in_band_today` pins today's Built.
