@@ -1138,3 +1138,153 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
     let report = checks(&doc, Some(assertion));
     loud_with_a_construction_recourse(&report, &finding_of(&report, union, &radius));
 }
+
+/// **R2 probe: a split whose tool is a plane read off a face.** The
+/// notched prism split by the plane of its own notch floor on `y = 1`
+/// (`PoseDef::Plane { face }`, the common way to name a cutting plane).
+/// The row's tool cell is that plane variable; a `Gap(tool, vertex) = 0`
+/// holds. Red if the finding refuses at `Error` (quietable) and yet
+/// that assertion does not quiet it.
+#[test]
+fn r2_probe_a_split_by_a_faces_plane_is_quiet_under_its_tool_gap() {
+    let doc = ProfileDoc::empty_derived("r2-split-face-plane", Tol::witness());
+    let (doc, p) = crate::fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![NOTCHED.to_vec()],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    // The notch's floor, on `y = 1`, the plane the existing
+    // `atrest-op-split-on-a-face` case cuts along, read off the face.
+    let face = SitedRef::new(
+        prism,
+        face_through(&ev, prism, [6.0, 1.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let tool = editor_core::pose::RoleRead::plain(crate::fixture::plane(face));
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, split);
+    let row = got
+        .iter()
+        .find(|r| r.site == DecisionSite::SplitOn)
+        .unwrap_or_else(|| panic!("a SplitOn row: {got:?}"))
+        .clone();
+    let NamedCell::Tool { input: tool, .. } = &row.cells[1] else {
+        panic!("vertex, tool: {row:?}")
+    };
+    let tool = *tool;
+    let vertex = site(&doc, &row.cells[0]);
+    let doc = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::RenameVar {
+            var: tool.into(),
+            name: Some(editor_core::VarName::from_static("cut")),
+        },
+    )
+    .0;
+    let loud = checks(&doc, None);
+    let found = finding_of(&loud, split, &row);
+    let refuses = refuses_at_error(&loud, &found);
+    let (doc, assertion) = gap_zero_var(&doc, tool, &vertex);
+    let report = checks(&doc, Some(assertion));
+    let quiet = finding_of(&report, split, &row).quiet;
+    assert!(
+        !refuses || quiet == Some(assertion),
+        "loud it refuses at Error ({refuses}) with recourse {found}, yet a holding \
+         Gap(tool, vertex) = 0 quiets nothing: {quiet:?}"
+    );
+}
+
+fn gap_zero_var(
+    doc: &ProfileDoc,
+    tool: editor_core::VarId,
+    vertex: &SitedRef,
+) -> (ProfileDoc, RecipeNodeId) {
+    measured_by(
+        doc,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        [Operand::Var(tool), vertex.clone().into()],
+        AssertionRelation::Equal,
+        0.0,
+    )
+}
+
+/// **R2 probe: a Coaxial row is quieted by a `Distance = 0` between
+/// two axes that only meet.** Two rings about axes at right angles
+/// through one point: the `Distance` between their axes reads the skew
+/// arm, zero, and holds. A `CoaxialTori` row over the two torus faces
+/// (the row the kernel records, as `a_coincidence_of_poses_...` asks
+/// it) should not be said by it: red if it quiets.
+#[test]
+fn r2_probe_meeting_axes_do_not_say_coaxial() {
+    use editor_core::test_support::{quiet_row, row_quietable};
+    use geom::SurfaceKind as S;
+    let ring = |doc, major: f64, minor: f64| {
+        revolved(
+            doc,
+            LoopProgram::Circle {
+                centre: crate::fixture::len2([major, 0.0]),
+                radius: len(minor),
+            },
+        )
+    };
+    let doc = ProfileDoc::empty_derived("r2-meeting-axes", Tol::witness());
+    let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
+    let (doc, ring_a) = ring(doc, 0.5, 0.2);
+    let (doc, ring_b) = ring(doc, 0.9, 0.15);
+    let at = turned([0.3, -0.2, 0.5]);
+    let crossed = at.compose(
+        &editor_core::Frame::rotate_then_translate(
+            [1.0, 0.0, 0.0],
+            std::f64::consts::FRAC_PI_2,
+            [0.0; 3],
+            crate::fixture::band(),
+        )
+        .expect("a literal axis"),
+    );
+    let (doc, ring_a) = against(doc, anchor, Operand::output(ring_a, 0), &at);
+    let (doc, ring_b) = against(doc, anchor, Operand::output(ring_b, 0), &crossed);
+    let ev = run(&doc);
+    let torus_a = (ring_a, face_of_kind(&ev, ring_a, S::Torus));
+    let torus_b = (ring_b, face_of_kind(&ev, ring_b, S::Torus));
+    let sited = |(copy, name): &(RecipeNodeId, StableName)| SitedRef::new(*copy, name.clone());
+    let row = row_over(
+        &doc,
+        DecisionSite::CoaxialTori,
+        Relation::Coaxial,
+        [torus_a.clone(), torus_b.clone()],
+    );
+    let quietable = row_quietable(&doc, &ev, &row, Tol::witness());
+    let (doc, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        [
+            crate::fixture::axis(sited(&torus_a)),
+            crate::fixture::axis(sited(&torus_b)),
+        ],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let ev = run(&doc);
+    let verdict = ev.value(assertion).map(|v| v.payload.clone());
+    let quiet = quiet_row(&doc, &ev, &row, Tol::witness());
+    assert!(
+        quiet.is_none(),
+        "axes at right angles quiet a Coaxial row: quietable {quietable}, verdict {verdict:?}"
+    );
+}

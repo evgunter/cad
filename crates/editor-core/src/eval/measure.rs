@@ -2034,4 +2034,96 @@ mod tests {
             );
         }
     }
+
+    /// **R2 probe: an aligned nested pair negates under a role swap.**
+    /// A thin rod inside a fat one, touching inside (and standing out
+    /// by `s`), read with the THIN one as outer: aligned, so the swap of
+    /// `a_round_face_reads_by_both_material_sides`'s `s` is `-s`. The
+    /// same for two balls nested and two bores nested.
+    #[test]
+    fn r2_probe_nested_pair_swapped_reads_minus_s() {
+        let z = v(0.0, 0.0, 1.0);
+        for s in [0.0, 0.1, -0.1] {
+            let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+            let thin = pin(p(0.7 + s, 0.0, 0.0), z, 0.3, true);
+            let got = gap(&thin, &fat, band());
+            assert!(
+                matches!(&got, Ok(g) if (g + s).abs() < 1e-12),
+                "thin rod inside a fat one at {s}, thin outer: {got:?}, want {}",
+                -s
+            );
+        }
+    }
+
+    #[test]
+    fn r2_probe_nested_balls_swapped_reads_minus_s() {
+        for s in [0.0, 0.1, -0.1] {
+            let fat = ball(p(0.0, 0.0, 0.0), 1.0, true);
+            let small = ball(p(0.7 + s, 0.0, 0.0), 0.3, true);
+            let got = gap(&small, &fat, band());
+            assert!(
+                matches!(&got, Ok(g) if (g + s).abs() < 1e-12),
+                "small ball inside a fat one at {s}, small outer: {got:?}"
+            );
+        }
+    }
+
+    /// Two bores nested (a small hole inside a big hole, tangent inside):
+    /// aligned like the thin rod in the fat one; touching reads 0 in
+    /// both orders.
+    #[test]
+    fn r2_probe_nested_bores_touch_reads_zero_either_way() {
+        let z = v(0.0, 0.0, 1.0);
+        let big = pin(p(0.0, 0.0, 0.0), z, 1.0, false);
+        let small = pin(p(0.7, 0.0, 0.0), z, 0.3, false);
+        let a = gap(&big, &small, band());
+        let b = gap(&small, &big, band());
+        assert!(
+            matches!((&a, &b), (Ok(x), Ok(y)) if x.abs() < 1e-12 && y.abs() < 1e-12),
+            "nested bores touching: big outer {a:?}, small outer {b:?}"
+        );
+    }
+
+    /// Two bores side by side, their walls touching (the web between
+    /// them zero): opposed, locally a face-to-face touch; reads 0.
+    #[test]
+    fn r2_probe_bores_side_by_side_touch_reads_zero() {
+        let z = v(0.0, 0.0, 1.0);
+        let a = pin(p(0.0, 0.0, 0.0), z, 0.5, false);
+        let b = pin(p(0.8, 0.0, 0.0), z, 0.3, false);
+        let x = gap(&a, &b, band());
+        let y = gap(&b, &a, band());
+        assert!(
+            matches!((&x, &y), (Ok(x), Ok(y)) if x.abs() < 1e-12 && y.abs() < 1e-12),
+            "two bores side by side touching: {x:?}, swapped {y:?}"
+        );
+    }
+
+    /// A rod outside a bore, tangent to the hole from within the wall
+    /// (the bore's material around it): the configuration the senses
+    /// leave open for a convex x concave pair as well.
+    #[test]
+    fn r2_probe_rod_in_the_wall_touching_the_hole_reads_zero() {
+        let z = v(0.0, 0.0, 1.0);
+        let bore = pin(p(0.0, 0.0, 0.0), z, 0.5, false);
+        let rod = pin(p(0.8, 0.0, 0.0), z, 0.3, true);
+        let x = gap(&bore, &rod, band());
+        assert!(
+            matches!(&x, Ok(x) if x.abs() < 1e-12),
+            "a rod in a bore's wall touching the hole: {x:?}"
+        );
+    }
+
+    /// **R2 probe: a real touch lands in `gap_round_side`'s band.** A
+    /// rod of 0.3 inside one of 0.6, touching inside, read with the thin
+    /// one as outer: the margin `d − r_out` is `0.3 − 0.3 = 0`, so the
+    /// gap refuses at a tangency. Red if it refuses.
+    #[test]
+    fn r2_probe_a_nested_touch_is_not_in_band() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 0.6, true);
+        let thin = pin(p(0.3, 0.0, 0.0), z, 0.3, true);
+        let got = gap(&thin, &fat, band());
+        assert!(got.is_ok(), "a touch refuses: {got:?}");
+    }
 }
