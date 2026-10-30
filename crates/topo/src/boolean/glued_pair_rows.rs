@@ -295,3 +295,90 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
         "the far corners' side of the flat top: {diag:?}"
     );
 }
+
+/// REVIEW PROBE (R1, PR 6079). The fold-step row above, with the fall
+/// chosen so the third block's far corners stand INSIDE the zero band
+/// of the flat top (`2|s| < ε`) while the first and last tops' sum bound
+/// over the three blocks' ball stands in band (`≈ 2.16|s| > ε`). The
+/// pairwise door reads that first/last pair in band; the binary
+/// sequence `(A ∪ J) ∪ K` reads its glue over the accumulation's top
+/// and K's; the n-ary fold step is given J–K's Zero and reads only its
+/// record.
+#[test]
+fn review_r1_a_fold_step_glues_ends_the_pairwise_door_reads_in_band() {
+    let s = -0.48 * band().zero();
+    let block = |x0: f64, top: &dyn Fn(f64) -> f64| {
+        let profile = [
+            (x0, 0.0),
+            (x0 + 1.0, 0.0),
+            (x0 + 1.0, top(x0 + 1.0)),
+            (x0, top(x0)),
+        ];
+        let mut body = crate::body::Body::<f64>::new();
+        prism_ops(
+            &mut body,
+            &profile,
+            (-1.0, 0.0),
+            |u, v, w| Point3::new(u, -w, v),
+            FaceGeometry::Certified,
+            tol(),
+        );
+        describe_as_intersections(&mut body, tol());
+        finished("a block", body, tol())
+    };
+    let falling = |x: f64| 1.0 + s * (x - 1.0);
+    let blocks = [
+        block(0.0, &|_| 1.0),
+        block(1.0, &falling),
+        block(2.0, &falling),
+    ];
+    // The pairwise door on the ends' tops.
+    let top = |b: &AtRestBody<f64>| {
+        b.faces()
+            .map(|(k, _)| k)
+            .find(|&f| {
+                matches!(face_carrier(b, f), Some(carrier_eq::CarrierDesc::Plane { normal, .. }) if normal.z > 0.5)
+            })
+            .unwrap()
+    };
+    let ends = super::carrier_pair_decided(
+        &blocks[0],
+        top(&blocks[0]),
+        &blocks[2],
+        top(&blocks[2]),
+        band(),
+    );
+    eprintln!("pairwise door, first vs last top: {ends:?}");
+    let inputs: Vec<crate::MemberInputs> = (0..3)
+        .map(|rank| crate::MemberInputs {
+            rank,
+            ..crate::MemberInputs::default()
+        })
+        .collect();
+    let members: Vec<crate::NaryMember<'_, f64>> = blocks
+        .iter()
+        .zip(&inputs)
+        .map(|(body, inputs)| crate::NaryMember { body, inputs })
+        .collect();
+    let run = crate::nary_boolean(
+        crate::NaryOp::Union,
+        &members,
+        crate::SweepStrategy::Realized,
+        tol(),
+    );
+    eprintln!("n-ary end: {:?}", run.end);
+    let first = super::union(&blocks[0], &blocks[1], tol()).unwrap();
+    let acc = first.body().expect("a body");
+    let binary = super::union(&acc.body, &blocks[2], tol());
+    eprintln!("binary (A ∪ J) ∪ K: {:?}", binary.as_ref().map(|_| ()));
+    assert!(
+        matches!(ends, Ok(Err(_))),
+        "the pairwise door reads the ends in band: {ends:?}"
+    );
+    assert!(
+        !matches!(run.end, crate::NaryEnd::Built),
+        "the fold step glues ends the pairwise door reads in band, inferring A–K from \
+         A–J and J–K ([verdicts.closeness]): {:?}",
+        run.end
+    );
+}
