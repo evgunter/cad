@@ -862,6 +862,8 @@ mod intent_s6_d_tangency;
 mod intent_s6_e_traced_frame;
 #[path = "intent_unused_check.rs"]
 mod intent_unused_check;
+#[path = "review_unused_probes.rs"]
+mod review_unused_probes;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]

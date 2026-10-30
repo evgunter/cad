@@ -66,3 +66,5 @@ mod verbs_teapot_r2_probes;
 mod verbs_torus_vessel;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "review_unused_count.rs"]
+mod review_unused_count;
