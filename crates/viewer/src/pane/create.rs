@@ -4,7 +4,9 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, VarKind};
+use pncad::document::{
+    Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, TracePassage, TraceSense, VarKind,
+};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -286,6 +288,17 @@ pub(crate) const ADD_PROFILE: &str = "Add profile";
 /// What the add-profile form asks for while it draws on a face and
 /// holds none.
 pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
+
+/// The traced path's latch for the face whose body's plane the sketch
+/// is drawn on.
+pub(crate) const TRACE_PLANE: &str = "sketch plane of";
+
+/// The traced path's latch for the face it traces.
+pub(crate) const TRACE_FACE: &str = "trace";
+
+/// What a traced path's latch button says: it takes the viewport's face
+/// pick.
+pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a form's proposed label counts by.
@@ -781,6 +794,15 @@ impl ViewerBehavior<'_> {
                 if self.drafts.profile_path.is_empty() {
                     withholds.push(Withheld::Waiting("add a step to the chain"));
                 }
+                if !self.drafts.sketch_on_face {
+                    ui.checkbox(
+                        &mut self.drafts.trace_on,
+                        "continue tangent to a face's trace",
+                    );
+                }
+                if self.drafts.traces() {
+                    withholds.extend(self.trace_rows(ui));
+                }
             }
         }
         let blocked = withheld_for(withholds);
@@ -799,7 +821,11 @@ impl ViewerBehavior<'_> {
         // said. `blocked` already carries that sentence, and it is
         // what disables the commit; this only keeps a second one from
         // contradicting it.
-        let at_rest = shape.is_none() || self.drafts.profile_path.is_empty() && blocked.is_some();
+        // A traced chain is drawn by the evaluation, which the preview
+        // does not run: the trace rows say what it shows instead.
+        let at_rest = shape.is_none()
+            || self.drafts.profile_path.is_empty() && blocked.is_some()
+            || self.drafts.traces();
         let refused = preview_verdict(
             ui,
             self.theme,
@@ -833,6 +859,100 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
+    /// two latches — the face whose body's plane the sketch is drawn on,
+    /// and the face it traces — each taking the viewport's face pick on
+    /// its button; the trace the two show, or the trace's own refusal;
+    /// and the gesture's row and branches. Answers what the commit still
+    /// waits for.
+    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
+        let picked = match self.session.selection() {
+            Selection::Face(face) => Some(face.clone()),
+            _ => None,
+        };
+        let speaker = self
+            .session
+            .landed_pair()
+            .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed));
+        let mut withholds = Vec::new();
+        for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                let held = if plane {
+                    &mut self.drafts.trace_plane
+                } else {
+                    &mut self.drafts.trace_face
+                };
+                match held.as_ref() {
+                    Some(face) => ui.weak(Said(&BlendTarget::of_face(face), speaker).to_string()),
+                    None => ui.weak("none picked"),
+                };
+                if ui
+                    .add_enabled(picked.is_some(), egui::Button::new(USE_THE_PICKED_FACE))
+                    .clicked()
+                {
+                    held.clone_from(&picked);
+                }
+            });
+        }
+        if self.drafts.trace_plane.is_none() {
+            withholds.push(Withheld::Waiting(
+                "pick the face whose plane the sketch is on",
+            ));
+        }
+        if self.drafts.trace_face.is_none() {
+            withholds.push(Withheld::Waiting("pick the face to trace"));
+        }
+        match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
+            Some(Ok(marks)) => {
+                crate::widgets::message(
+                    ui,
+                    format!(
+                        "the trace: {} points drawn, {} rays refused",
+                        marks.marks.len(),
+                        marks.refused
+                    ),
+                );
+            }
+            Some(Err(fault)) => {
+                crate::widgets::message_toned(
+                    ui,
+                    format!("the trace: {fault}"),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+            }
+            None => {}
+        }
+        let rows = self.drafts.profile_path.len().max(1);
+        let gesture = &mut self.drafts.trace_gesture;
+        ui.horizontal(|ui| {
+            ui.label("after row");
+            let mut row = gesture.after + 1;
+            ui.add(egui::DragValue::new(&mut row).range(1..=rows));
+            gesture.after = row.saturating_sub(1);
+        });
+        ui.horizontal(|ui| {
+            ui.label("to crossing");
+            ui.add(egui::DragValue::new(&mut gesture.crossing.nth).range(1..=16));
+            for passage in [TracePassage::Leave, TracePassage::Enter] {
+                ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("then along the trace");
+            for (sense, word) in [(TraceSense::With, "with"), (TraceSense::Against, "against")] {
+                ui.radio_value(&mut gesture.sense, sense, word);
+            }
+        });
+        crate::widgets::message(
+            ui,
+            "the piece after that row runs to the crossing, and the chain heads along the trace \
+             there: both are read off the traced face at every evaluation",
+        );
+        withholds
     }
 
     /// **The on-face rows**: the held face pick, the depth the sketch is

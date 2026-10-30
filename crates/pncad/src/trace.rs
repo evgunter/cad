@@ -40,9 +40,13 @@
 //! ```
 
 use editor_core::{
-    AuthoredNode, DrawnOn, EditError, Formula, LoopProgram, Node, Operand, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, SlotId, SlotPayload, TracePassage, TraceSense,
+    AuthoredNode, DrawnOn, EditError, Evaluation, Formula, LoopProgram, Node, NodeErrorKind,
+    Operand, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SlotId,
+    SlotPayload, TracePassage, TraceSense, TraceStepFault,
 };
+use geom_core::{Point2, Tol};
+
+pub use editor_core::{TraceMark, TraceMarks};
 
 /// **A word that names no passage or sense** ([`passage`], [`sense`]):
 /// the word, and the words that would.
@@ -238,4 +242,73 @@ pub fn drawn_profile(
         *formula = Formula::zero(expected);
     }
     Ok(Node::Profile(program))
+}
+
+/// **Why a face's trace in a frame's plane could not be drawn**
+/// ([`sketch_trace`]).
+#[derive(Debug)]
+pub enum SketchTraceError {
+    /// The frame or the face does not lower in the document.
+    Lower(Box<EditError>),
+    /// The frame or the face does not read against the evaluation, as a
+    /// profile drawn on them would refuse.
+    Read(Box<NodeErrorKind>),
+    /// The trace refuses: the frame's plane misses the face's carrier,
+    /// or the carrier has no closed form.
+    Trace(TraceStepFault),
+}
+
+impl core::fmt::Display for SketchTraceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Lower(e) => write!(f, "{e}"),
+            Self::Read(e) => write!(f, "{e}"),
+            Self::Trace(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl core::error::Error for SketchTraceError {}
+
+/// **`face`'s trace in `frame`'s `xy`, sampled for display** against
+/// `ev`, the evaluation of `doc`: read as a profile drawn on `frame`
+/// tracing `face` reads it, and sampled across the square of half side
+/// `half` about `centre` in the frame's coordinates by `rays` rays each
+/// way ([`editor_core::trace_marks`]). Nothing is written to `doc`.
+///
+/// # Errors
+///
+/// [`SketchTraceError`].
+pub fn sketch_trace(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    frame: Operand,
+    face: Operand,
+    window: (Point2<f64>, f64),
+    rays: u32,
+    tol: Tol,
+) -> Result<TraceMarks, SketchTraceError> {
+    let mut scratch = doc.clone();
+    let probe = Node::Profile(ProfileProgram {
+        loops: Vec::new(),
+        ids: Vec::new(),
+        on: Some(DrawnOn {
+            frame,
+            faces: vec![face],
+        }),
+    });
+    let Node::Profile(program) = editor_core::edit::lower_node_into(&mut scratch, &probe)
+        .map_err(|e| SketchTraceError::Lower(Box::new(e)))?
+    else {
+        unreachable!("a profile lowers to a profile")
+    };
+    let faces = editor_core::traced_faces(&scratch, ev, &program, tol)
+        .map_err(|e| SketchTraceError::Read(Box::new(e)))?;
+    let [traced] = faces.as_slice() else {
+        unreachable!("a probe drawn on one face traces one face")
+    };
+    let band = geom_core::Band::linear(tol)
+        .map_err(|e| SketchTraceError::Read(Box::new(NodeErrorKind::Band(e))))?;
+    editor_core::trace_marks(traced, window.0, window.1, rays, band)
+        .map_err(SketchTraceError::Trace)
 }

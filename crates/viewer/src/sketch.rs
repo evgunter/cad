@@ -48,9 +48,9 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
-    ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
-    SlotId, SpokenNode, StepId, ValuePayload, WrittenLoopFault, resolve_loops,
-    resolve_written_loops,
+    ProfileProgram, ProgramResolveFault, ProgramStep, ProgramTarget, RecipeNodeId,
+    RecordedNotation, RecordedProgramError, SlotId, SpokenNode, StepId, TraceCrossing,
+    TracePassage, TraceSense, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -472,8 +472,126 @@ pub fn is_committed(
             == ProfileProgram {
                 loops: loops.to_vec(),
                 ids: base.ids.clone(),
-                on: None,
+                on: base.on.clone(),
             }
+}
+
+/// **The gesture that continues a chain tangent to a face's trace**
+/// (D10, "Constructing a coincidence"): after row `after` of the chain,
+/// the piece runs on along its heading to the `crossing` of the traced
+/// face, and the chain heads on along the trace there, `sense` it. It
+/// writes the document's own two steps ([`TraceGesture::steps`]), so
+/// the heading is the evaluation's reading of the trace at every
+/// evaluation, never a number this crate read off a drawing.
+///
+/// The branches are the document's: which crossing (its passage and
+/// count along the piece) and which sense. A branch the piece does not
+/// make refuses typed at evaluation, naming it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TraceGesture {
+    /// The row the gesture's steps follow.
+    pub after: usize,
+    /// Which crossing of the traced face the piece runs to.
+    pub crossing: TraceCrossing,
+    /// The heading along the trace there.
+    pub sense: TraceSense,
+}
+
+impl Default for TraceGesture {
+    /// After the first row, out of the face's material at the first
+    /// crossing, and on with the trace.
+    fn default() -> Self {
+        Self {
+            after: 0,
+            crossing: TraceCrossing::first(TracePassage::Leave),
+            sense: TraceSense::With,
+        }
+    }
+}
+
+impl TraceGesture {
+    /// The steps the gesture writes, reading the profile's traced face
+    /// `face` (by place): `line_to` the crossing, then the heading
+    /// along the trace.
+    #[must_use]
+    pub fn steps(&self, face: u32) -> [ProgramStep<Formula>; 2] {
+        [
+            ProgramStep::LineTo(ProgramTarget::OnTrace {
+                face,
+                crossing: self.crossing,
+            }),
+            ProgramStep::AlongTrace { sense: self.sense },
+        ]
+    }
+}
+
+/// Why a chain with a [`TraceGesture`] does not lower
+/// ([`traced_loop`]).
+#[derive(Debug)]
+pub enum TracedLoopError {
+    /// A row's literal, or the chain's shape, refused at the lift.
+    Program(RecordedProgramError),
+    /// The rows are a complete-loop verb, not a chain a piece runs on
+    /// from.
+    NotAChain,
+    /// The gesture follows a row the chain does not have.
+    NoSuchRow {
+        /// The row named.
+        after: usize,
+        /// How many rows the chain has.
+        rows: usize,
+    },
+}
+
+impl core::fmt::Display for TracedLoopError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Program(e) => write!(f, "{e}"),
+            Self::NotAChain => f.write_str("only a chain continues along a trace"),
+            Self::NoSuchRow { after, rows } => write!(
+                f,
+                "the trace follows row {}, and the chain has {rows}",
+                after + 1
+            ),
+        }
+    }
+}
+
+impl core::error::Error for TracedLoopError {}
+
+/// **A chain of `steps` with `gesture` written after its row**, reading
+/// the traced face `face`: the chain lowered as [`loop_program`] lowers
+/// a path, row for step, and the gesture's two steps
+/// ([`TraceGesture::steps`]) inserted after row `gesture.after`.
+///
+/// # Errors
+///
+/// [`TracedLoopError`].
+pub fn traced_loop(
+    steps: &[Step<f64>],
+    gesture: &TraceGesture,
+    face: u32,
+    notation: Notation,
+) -> Result<LoopProgram<Formula>, TracedLoopError> {
+    let lowered = loop_program(
+        &ProfileShape::Path {
+            steps: steps.to_vec(),
+        },
+        notation,
+    )
+    .map_err(TracedLoopError::Program)?;
+    let LoopProgram::Chain(mut chain) = lowered else {
+        return Err(TracedLoopError::NotAChain);
+    };
+    if gesture.after >= chain.len() {
+        return Err(TracedLoopError::NoSuchRow {
+            after: gesture.after,
+            rows: chain.len(),
+        });
+    }
+    let at = gesture.after + 1;
+    chain.splice(at..at, gesture.steps(face));
+    Ok(LoopProgram::Chain(chain))
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -548,6 +666,38 @@ impl core::error::Error for HeldRefusal {}
 /// at the world's `xy`, the kernel's own mint ([`SketchPlane::xy`]).
 pub fn profile_plane() -> SketchPlane<f64> {
     SketchPlane::xy()
+}
+
+/// **A face's trace, drawn on the profile's plane**: each point of it
+/// [`pncad::trace::sketch_trace`] read, as a short leg along the
+/// trace's tangent there, headed with the trace. Display only: no
+/// verdict, and nothing reads the points back.
+#[must_use]
+pub fn trace_preview(marks: &pncad::trace::TraceMarks) -> ProfilePreview {
+    // A tick a fiftieth of the span the points cover.
+    let span = marks
+        .marks
+        .iter()
+        .map(|m| m.at.x.abs().max(m.at.y.abs()))
+        .fold(0.0, f64::max);
+    let tick = if span > 0.0 { span / 50.0 } else { 1.0e-3 };
+    let loops = marks
+        .marks
+        .iter()
+        .map(|m| PreviewLoop {
+            points: vec![
+                [m.at.x - m.tangent.x * tick, m.at.y - m.tangent.y * tick],
+                [m.at.x + m.tangent.x * tick, m.at.y + m.tangent.y * tick],
+            ],
+            vertices: vec![0],
+            end: LoopEnd::Unfinished(None),
+        })
+        .collect();
+    ProfilePreview {
+        plane: profile_plane(),
+        loops,
+        invalid: None,
+    }
 }
 
 /// **One drawn loop of a preview**: its polyline, and how the chain
@@ -1879,6 +2029,42 @@ mod tests {
     };
     use crate::frame::Tone;
     use crate::test_support::{self, line_to, two_legs};
+
+    /// **A profile drawn on a frame, held unmoved, is the committed
+    /// one**: the comparison carries the base's frame and traced faces,
+    /// which the editor never writes. A loop moved is still not.
+    #[test]
+    fn a_profile_drawn_on_a_frame_held_unmoved_is_committed() {
+        use pncad::document::{DrawnOn, Operand, ProfileProgram, RecipeNodeId};
+        let square = |side| {
+            super::loop_program(
+                &ProfileShape::Rectangle {
+                    width: side,
+                    height: side,
+                },
+                crate::props::Notation::CANONICAL,
+            )
+            .expect("a finite square")
+        };
+        let node = RecipeNodeId::new(0, 1);
+        let base = ProfileProgram {
+            loops: vec![square(0.01)],
+            ids: Vec::new(),
+            on: Some(DrawnOn {
+                frame: Operand::output(node, 0),
+                faces: vec![Operand::output(node, 0)],
+            }),
+        };
+        let ids = base.kept_in_place();
+        assert!(
+            super::is_committed(&base, &base.loops, &ids),
+            "the drawn profile, unmoved, is committed"
+        );
+        assert!(
+            !super::is_committed(&base, &[square(0.02)], &ids),
+            "a moved loop is not"
+        );
+    }
 
     /// **A count the arithmetic could not compute is not a count.**
     ///

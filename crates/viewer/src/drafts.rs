@@ -12,14 +12,16 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
+use std::sync::{Arc, Weak};
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Dimension, DimensionError, Doc, Evaluation, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
     VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::profile::{Step, Target};
+use pncad::trace::TraceMarks;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
@@ -27,7 +29,7 @@ use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
-use crate::session::{FaceSelection, ProfileShape, SessionOp};
+use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -113,6 +115,21 @@ pub(crate) struct Drafts {
     /// from it (`DocSession::selection_said`), spoken again from each
     /// later document ([`Self::respeak`]).
     sketch_face_said: HeldNodes,
+    /// **Whether the path continues tangent to a face's trace** — a
+    /// profile drawn on a body's plane ([`SessionOp::AddDrawnProfile`])
+    /// whose chain writes [`Self::trace_gesture`] — rather than a
+    /// profile on its own plane.
+    pub(crate) trace_on: bool,
+    /// The face whose body's plane the traced sketch is drawn on: a
+    /// latch of the viewport's face pick, as [`Self::sketch_face`] is.
+    pub(crate) trace_plane: Option<FaceSelection>,
+    /// The face the sketch traces, latched the same way.
+    pub(crate) trace_face: Option<FaceSelection>,
+    /// Where the trace steps go in the chain, and their branches.
+    pub(crate) trace_gesture: sketch::TraceGesture,
+    /// The trace the two latches show, as last read against the landed
+    /// evaluation ([`Self::sync_trace_shown`]).
+    pub(crate) trace_shown: Option<TraceShown>,
     /// The sketch on a face's depth, metres: how far it is extruded
     /// away from the face.
     pub(crate) sketch_depth: f64,
@@ -613,6 +630,11 @@ impl Default for Drafts {
             sketch_on_face: false,
             sketch_face: None,
             sketch_face_said: HeldNodes::default(),
+            trace_on: false,
+            trace_plane: None,
+            trace_face: None,
+            trace_gesture: sketch::TraceGesture::default(),
+            trace_shown: None,
             sketch_depth: 0.01,
             sketch_spin: 0.0,
             split_origin: [0.0; 3],
@@ -731,7 +753,9 @@ impl Drafts {
         };
         if matches!(
             op,
-            SessionOp::AddProfile { .. } | SessionOp::SketchOnFace { .. }
+            SessionOp::AddProfile { .. }
+                | SessionOp::SketchOnFace { .. }
+                | SessionOp::AddDrawnProfile { .. }
         ) {
             self.profile_shape = None;
         }
@@ -892,6 +916,8 @@ impl Drafts {
     /// **Another document replaced the one the held face was picked
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
+        self.trace_plane = None;
+        self.trace_face = None;
         self.sketch_face = None;
         self.sketch_face_said = HeldNodes::default();
     }
@@ -928,6 +954,51 @@ impl Drafts {
         self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
+    /// **The latches a trace is to be read for** — when the form writes
+    /// a traced path, both are held, and the trace shown was not read
+    /// for them against `landed`. Drops the trace shown when the form
+    /// writes no traced path or a latch is empty.
+    pub(crate) fn trace_wanted(
+        &mut self,
+        landed: Option<&Arc<Evaluation<f64>>>,
+    ) -> Option<(FaceSelection, FaceSelection)> {
+        let (true, Some(plane), Some(face)) = (self.traces(), &self.trace_plane, &self.trace_face)
+        else {
+            self.trace_shown = None;
+            return None;
+        };
+        let current = self.trace_shown.as_ref().is_some_and(|shown| {
+            shown.plane == *plane
+                && shown.face == *face
+                && landed.is_some_and(|ev| Weak::ptr_eq(&shown.against, &Arc::downgrade(ev)))
+        });
+        (!current).then(|| (plane.clone(), face.clone()))
+    }
+
+    /// **The trace of `plane` and `face`, read against `landed`**
+    /// ([`crate::session::DocSession::sketch_trace`]), held for the
+    /// form and the viewport to show.
+    pub(crate) fn show_trace(
+        &mut self,
+        (plane, face): (FaceSelection, FaceSelection),
+        landed: Option<&Arc<Evaluation<f64>>>,
+        read: Result<TraceMarks, SketchTraceFault>,
+    ) {
+        self.trace_shown = Some(TraceShown {
+            plane,
+            face,
+            against: landed.map_or_else(Weak::new, Arc::downgrade),
+            read,
+        });
+    }
+
+    /// **Whether the add-profile form writes a traced path**: a path,
+    /// continuing tangent to a face's trace ([`Self::trace_on`]), and
+    /// not on a picked face.
+    pub(crate) fn traces(&self) -> bool {
+        self.trace_on && !self.sketch_on_face && self.profile_shape == Some(ShapeKind::Path)
+    }
+
     /// **The add-profile form's op**: the profile on its own plane, or
     /// — drawing on a face — the sketch on the held face, `Ok(None)`
     /// while no face is held.
@@ -936,6 +1007,18 @@ impl Drafts {
     ///
     /// A non-finite field, or a path that is not a program's shape.
     pub(crate) fn profile_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
+        if self.traces() {
+            let (Some(plane), Some(face)) = (&self.trace_plane, &self.trace_face) else {
+                return Ok(None);
+            };
+            let chain = sketch::traced_loop(&self.profile_path, &self.trace_gesture, 0, notation)
+                .map_err(CommitFault::Traced)?;
+            return Ok(Some(SessionOp::AddDrawnProfile {
+                plane: plane.clone(),
+                traced: vec![face.clone()],
+                loops: vec![chain],
+            }));
+        }
         let loops = self.profile_programs(notation)?;
         if !self.sketch_on_face {
             return Ok(Some(SessionOp::AddProfile { loops }));
@@ -968,6 +1051,18 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     ])
 }
 
+/// **A face's trace as the traced path's form shows it**: the latches
+/// it was read for, the evaluation it was read against, and what the
+/// read said.
+#[derive(Debug)]
+pub(crate) struct TraceShown {
+    plane: FaceSelection,
+    face: FaceSelection,
+    against: Weak<Evaluation<f64>>,
+    /// The trace's points, or why it shows none.
+    pub(crate) read: Result<TraceMarks, SketchTraceFault>,
+}
+
 /// Why a creation form's commit did not produce an op.
 ///
 /// Two faults reach one button: a seat a tool still needs, and a draft
@@ -983,6 +1078,8 @@ pub(crate) enum CommitFault {
     Dimension(DimensionError),
     /// A profile draft is not a program's shape.
     Program(RecordedProgramError),
+    /// A traced path does not lower.
+    Traced(sketch::TracedLoopError),
 }
 
 impl From<SeatError> for CommitFault {
@@ -1009,6 +1106,7 @@ impl std::fmt::Display for CommitFault {
             Self::Seat(error) => error.fmt(f),
             Self::Dimension(error) => error.fmt(f),
             Self::Program(error) => error.fmt(f),
+            Self::Traced(error) => error.fmt(f),
         }
     }
 }

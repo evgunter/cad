@@ -1915,11 +1915,26 @@ impl eframe::App for ViewerApp {
         // Both doors draw on the profile's own plane
         // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
-        let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
+        let mut profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
             held.as_ref()
                 .filter(|_| drawn)
                 .map(|held| sketch::preview(sketch::profile_plane(), &held.loops, tol, delta))
         });
+        // A traced path runs onto the trace at evaluation, which no
+        // replay here can draw: the create door shows the trace instead.
+        let landed = self.session.evaluation_arc().cloned();
+        if let Some(latches) = self.drafts.trace_wanted(landed.as_ref()) {
+            let read = self.session.sketch_trace(&latches.0, &latches.1);
+            self.drafts.show_trace(latches, landed.as_ref(), read);
+        }
+        if self.profile_drawn.create && self.drafts.traces() {
+            profile_previews.create = self
+                .drafts
+                .trace_shown
+                .as_ref()
+                .and_then(|shown| shown.read.as_ref().ok())
+                .map(|marks| Ok(sketch::trace_preview(marks)));
+        }
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
@@ -6206,6 +6221,315 @@ mod properties_pane_tests {
             line.contains(&landed) && !line.contains("shown plate"),
             "the verdict says the landed label: {line}"
         );
+    }
+
+    /// **The add-profile form's traced path, driven through the whole
+    /// app** (`SessionOp::AddDrawnProfile`): on the cylinder of the
+    /// corpus's `boss_tangent_by_value`, a boss footprint drawn on the
+    /// cylinder's own plane runs onto its wall's trace and on along it.
+    mod trace_tool {
+        use pncad::document::{
+            DrawnOn, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+            SlotId, TraceCrossing, TracePassage, TraceSense, coincide,
+        };
+        use pncad::geom::SurfaceKind;
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        use pncad::select::{
+            all_faces, all_vertices, face_carrier_kind, face_frame, vertex_position,
+        };
+
+        use super::Driven;
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_PROFILE, USE_THE_PICKED_FACE};
+        use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
+        use crate::test_support::{inserted, len, placed};
+
+        /// The cylinder's radius, height, and the boss's reach, back
+        /// wall and height, as `boss_tangent_by_value` types them.
+        const RADIUS: f64 = 0.5;
+        const HEIGHT: f64 = 1.0;
+        const REACH: f64 = 1.0;
+        const BACK: f64 = -0.25;
+        const BOSS_H: f64 = 0.5;
+
+        /// The corpus scene's cylinder, placed in the world: the
+        /// session, its disc and the cylinder.
+        fn cylinder() -> (DocSession, RecipeNodeId, RecipeNodeId) {
+            let tol = pncad::tolerance::witness();
+            let doc = pncad::document::Doc::empty_derived("boss_tangent_by_value", tol);
+            let (doc, disc) = inserted(
+                &doc,
+                Node::Profile(ProfileProgram {
+                    loops: vec![LoopProgram::circle(0.0, 0.0, RADIUS).expect("a disc")],
+                    ids: Vec::new(),
+                    on: None,
+                }),
+                tol,
+            );
+            let (doc, cylinder) = inserted(
+                &doc,
+                Node::Extrude {
+                    profile: disc.into(),
+                    distance: len(HEIGHT),
+                },
+                tol,
+            );
+            let (doc, _) = placed(&doc, cylinder, tol);
+            let mut session = DocSession::inline(doc, tol);
+            session.pump();
+            (session, disc, cylinder)
+        }
+
+        /// The cylinder's face on a carrier of `kind`, as a pick on it;
+        /// of planes, the one standing at `z`.
+        fn face(
+            session: &DocSession,
+            cylinder: RecipeNodeId,
+            kind: SurfaceKind,
+            z: f64,
+        ) -> FaceSelection {
+            let (_, ev) = session.landed_pair().expect("the cylinder landed");
+            let name = all_faces(ev, cylinder)
+                .into_iter()
+                .find(|name| {
+                    face_carrier_kind(ev, cylinder, name) == Ok(kind)
+                        && (kind != SurfaceKind::Plane
+                            || face_frame(ev, cylinder, name)
+                                .is_ok_and(|f| (f.origin.z - z).abs() < 1e-12))
+                })
+                .unwrap_or_else(|| panic!("a {kind:?} face"));
+            FaceSelection {
+                name,
+                node: cylinder,
+                body: 0,
+            }
+        }
+
+        /// The boss's footprint as the path editor holds it: up from
+        /// `(0, BACK)`, `REACH` along the heading the trace gives, down
+        /// to `BACK` and home. The trace's two steps go after row 2.
+        fn footprint() -> Vec<Step<f64>> {
+            vec![
+                Step::At(Point2::new(0.0, BACK)),
+                Step::Toward { dx: 0.0, dy: 1.0 },
+                Step::Line(REACH),
+                Step::LineTo(Target::Point(Point2::new(REACH, BACK))),
+                Step::LineTo(Target::Start),
+            ]
+        }
+
+        /// **The form, its latches taken from picks of `plane` and
+        /// `traced`, the heading against the trace, and Add clicked.**
+        fn drive(session: DocSession, plane: FaceSelection, traced: FaceSelection) -> Driven {
+            let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+            let drafts = &mut pane.app.drafts;
+            drafts.profile_shape = Some(ShapeKind::Path);
+            drafts.profile_path = footprint();
+            drafts.trace_on = true;
+            drafts.trace_gesture.after = 1;
+            pane.settle();
+            pane.click(crate::pane::create::ADD_FEATURE);
+            for (nth, face) in [plane, traced].into_iter().enumerate() {
+                pane.app
+                    .perform_batch(vec![SessionOp::Select(Selection::Face(face))]);
+                let at = pane.each(USE_THE_PICKED_FACE);
+                assert_eq!(at.len(), 2, "one button per latch");
+                pane.click_at(at[nth]);
+            }
+            pane.click("against");
+            pane.quiet();
+            pane
+        }
+
+        /// The profile the form added: the document's last.
+        fn added(pane: &Driven) -> (RecipeNodeId, ProfileProgram) {
+            let doc = pane.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .rev()
+                .find_map(|id| match doc.node(id) {
+                    Some(Node::Profile(program)) if program.on.is_some() => {
+                        Some((id, program.clone()))
+                    }
+                    _ => None,
+                })
+                .expect("the form added a drawn profile")
+        }
+
+        /// **The gesture writes the document's trace steps, and the boss
+        /// follows the radius.** The program is drawn on a frame and
+        /// traces one face; after the authored heading its chain runs
+        /// `line_to` the first crossing out of the wall and heads
+        /// `along_trace` against it, so no heading is typed off the
+        /// drawn trace: the only direction written is the one authored.
+        /// Extruded, the boss's wall stands at the radius; the radius
+        /// typed again, it stands at the new one.
+        #[test]
+        fn the_gesture_writes_the_trace_steps_and_the_boss_follows_the_radius() {
+            let (session, disc, cylinder) = cylinder();
+            let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+            let mut pane = drive(session, wall.clone(), wall);
+            // The trace shown is the wall's circle, its tangent across
+            // the radius at each point.
+            let shown = pane
+                .app
+                .drafts
+                .trace_shown
+                .as_ref()
+                .expect("the trace is read");
+            let marks = shown.read.as_ref().expect("the base's plane cuts the wall");
+            assert!(!marks.marks.is_empty(), "the trace draws points");
+            for mark in &marks.marks {
+                let (p, t) = (mark.at, mark.tangent);
+                assert!(
+                    ((p.x * p.x + p.y * p.y).sqrt() - RADIUS).abs() < 1e-9
+                        && (p.x * t.x + p.y * t.y).abs() < 1e-9,
+                    "a point of the circle, its tangent across the radius: {mark:?}"
+                );
+            }
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, program) = added(&pane);
+            let Some(DrawnOn { faces, .. }) = &program.on else {
+                unreachable!("found drawn")
+            };
+            assert_eq!(faces.len(), 1, "one traced face");
+            let [LoopProgram::Chain(steps)] = program.loops.as_slice() else {
+                panic!("one chain: {:?}", program.loops)
+            };
+            assert!(
+                matches!(
+                    steps[2],
+                    ProgramStep::LineTo(ProgramTarget::OnTrace { face: 0, crossing })
+                        if crossing == TraceCrossing::first(TracePassage::Leave)
+                ) && matches!(
+                    steps[3],
+                    ProgramStep::AlongTrace {
+                        sense: TraceSense::Against
+                    }
+                ),
+                "the trace's two steps follow row 2: {steps:?}"
+            );
+            assert_eq!(
+                steps
+                    .iter()
+                    .filter(|s| matches!(s, ProgramStep::Toward { .. } | ProgramStep::Angle(_)))
+                    .count(),
+                1,
+                "the one heading written is the authored one: {steps:?}"
+            );
+
+            pane.app.perform_batch(vec![SessionOp::AddExtrude {
+                profile,
+                distance: len(BOSS_H),
+            }]);
+            pane.quiet();
+            let doc = pane.app.session.committed_doc();
+            let boss = doc
+                .ids()
+                .into_iter()
+                .rev()
+                .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })) && id != cylinder)
+                .expect("the boss extrude");
+            // The boss's farthest vertex along the sketch's `y`.
+            let wall_at = |pane: &Driven| {
+                let (_, ev) = pane.app.session.landed_pair().expect("landed");
+                assert!(
+                    ev.node_error(boss).is_none(),
+                    "the boss builds: {:?}",
+                    ev.node_error(boss).map(|e| e.kind.to_string())
+                );
+                all_vertices(ev, boss)
+                    .iter()
+                    .map(|v| vertex_position(ev, boss, v).expect("a vertex").y)
+                    .fold(f64::NEG_INFINITY, f64::max)
+            };
+            assert!(
+                (wall_at(&pane) - RADIUS).abs() < 1e-12,
+                "the boss's wall is at the radius"
+            );
+            // The frame is read off the wall's own axis, the spelling
+            // the coincidence door proves the tangency by.
+            let tol = pane.app.session.tol();
+            let (doc, union) = inserted(
+                pane.app.session.committed_doc(),
+                Node::Union {
+                    members: pncad::document::Bodies::Spelled(vec![cylinder.into(), boss.into()]),
+                },
+                tol,
+            );
+            let ev: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+                &doc,
+                None,
+                &pncad::document::CancelToken::new(),
+                &pncad::document::EvalOptions::default(),
+                tol,
+            );
+            let rows = &ev.value(union).expect("the union builds").coincidences;
+            let proofs = coincide::prove(
+                &doc,
+                &[(union, &rows[..])],
+                None,
+                tol,
+                &pncad::document::CancelToken::new(),
+            )
+            .expect("an uncanceled door");
+            let tangent: Vec<_> = rows
+                .iter()
+                .zip(&proofs[0])
+                .filter(|(row, _)| row.relation == pncad::topo::Relation::SurfaceTangent)
+                .map(|(_, proof)| proof)
+                .collect();
+            assert_eq!(
+                tangent,
+                [&coincide::Proof::Structural(
+                    coincide::Rung::SameConstruction
+                )],
+                "the door proves the boss tangent to the wall"
+            );
+
+            let radius = crate::props::slot_rows(pane.app.session.committed_doc(), disc)
+                .into_iter()
+                .find_map(|row| match row.slot {
+                    SlotId::Profile {
+                        arg: pncad::document::StepArg::Radius,
+                        ..
+                    } => Some(row.slot),
+                    _ => None,
+                })
+                .expect("the disc carries a radius slot");
+            pane.app.perform_batch(vec![SessionOp::SetSlot {
+                node: disc,
+                slot: radius,
+                value: crate::props::SlotValue::Continuous(0.625),
+            }]);
+            pane.quiet();
+            assert!(
+                (wall_at(&pane) - 0.625).abs() < 1e-12,
+                "the boss's wall follows the radius"
+            );
+        }
+
+        /// **A face the sketch's plane misses shows the trace's own
+        /// refusal in the pane**: the cylinder's top, parallel to its
+        /// base a height above it, has no trace there.
+        #[test]
+        fn a_face_the_plane_misses_shows_the_typed_refusal() {
+            let (session, _, cylinder) = cylinder();
+            let wall = face(&session, cylinder, SurfaceKind::Cylinder, 0.0);
+            let top = face(&session, cylinder, SurfaceKind::Plane, HEIGHT);
+            let mut pane = drive(session, wall, top);
+            let said =
+                pncad::trace::SketchTraceError::Trace(pncad::document::TraceStepFault::NoTrace);
+            let painted = pane.quiet();
+            assert!(
+                painted
+                    .iter()
+                    .any(|(run, _)| *run == format!("the trace: {said}")),
+                "the pane says the trace's refusal: {painted:?}"
+            );
+        }
     }
 }
 

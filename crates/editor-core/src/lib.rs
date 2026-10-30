@@ -142,7 +142,7 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
-    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
+    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate, traced_faces,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -243,7 +243,9 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use trace::{TraceRefusal, TraceStepFault, TracedFace, Traces};
+pub use trace::{
+    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, trace_marks,
+};
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
     VarKind, VarRef, WrittenDef,

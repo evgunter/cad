@@ -145,13 +145,20 @@ pub enum TraceStepFault {
 
 impl core::fmt::Display for TraceRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use crate::sentence::Recourse;
         write!(f, "loop {} step {}", self.loop_, self.step)?;
         if let Some(face) = self.face {
             write!(f, " (traced face {face})")?;
         }
-        f.write_str(": ")?;
-        let recourse = match &self.fault {
+        write!(f, ": {}", self.fault)
+    }
+}
+
+impl core::error::Error for TraceRefusal {}
+
+impl core::fmt::Display for TraceStepFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
+        let recourse = match self {
             TraceStepFault::Undrawn => {
                 f.write_str("reads a trace, and the profile is drawn on no frame")?;
                 "draw the profile on a frame of the traced face's space"
@@ -224,7 +231,7 @@ impl core::fmt::Display for TraceRefusal {
     }
 }
 
-impl core::error::Error for TraceRefusal {}
+impl core::error::Error for TraceStepFault {}
 
 /// Whether `t` is a target that reads a face's trace.
 fn on_trace<S>(t: &ProgramTarget<S>) -> bool {
@@ -575,6 +582,89 @@ fn tangent<T: Decide>(face: &TracedFace<T>, outward: Vec3<T>, sense: TraceSense)
         TraceSense::With => with,
         TraceSense::Against => Vec2::new(T::zero() - with.x, T::zero() - with.y),
     }
+}
+
+/// **One point of a face's trace, as a display reads it**: in the
+/// sketch's coordinates, with the trace's unit tangent there, the face's
+/// material on its left ([`TraceSense::With`]).
+#[derive(Debug, Clone, Copy)]
+pub struct TraceMark {
+    /// The point.
+    pub at: Point2<f64>,
+    /// The unit tangent, with the trace.
+    pub tangent: Vec2<f64>,
+}
+
+/// **A face's trace sampled across a window** ([`trace_marks`]): the
+/// points the window's rays cross it at, and how many rays the trace
+/// door refused (a ray grazing the carrier, lying on it, through a
+/// cone's apex, or in the sliver band), which draw no point.
+#[derive(Debug, Clone)]
+pub struct TraceMarks {
+    /// The points, ray by ray.
+    pub marks: Vec<TraceMark>,
+    /// The rays refused.
+    pub refused: u32,
+}
+
+/// **`face`'s trace, sampled for display** across the square of half
+/// side `half` about `centre`, in the sketch's coordinates: `rays` rays
+/// along the sketch's `x` and as many along its `y`, evenly spaced
+/// across the square, each read against the carrier by the door every
+/// step reading a trace runs through (`topo::boolean::trace`). A
+/// display's points, never a step's: nothing reads them back.
+///
+/// # Errors
+///
+/// [`TraceStepFault::NoTrace`] where the frame's plane misses the
+/// carrier, and [`TraceStepFault::Carrier`] for a carrier with no
+/// closed form or a miss the band cannot call: the refusals a step
+/// reading this trace would carry before any piece runs.
+pub fn trace_marks(
+    face: &TracedFace<f64>,
+    centre: Point2<f64>,
+    half: f64,
+    rays: u32,
+    band: Band,
+) -> Result<TraceMarks, TraceStepFault> {
+    let surface = traced(face, band)?;
+    let mut out = TraceMarks {
+        marks: Vec::new(),
+        refused: 0,
+    };
+    let span = 2.0 * half;
+    for i in 0..rays {
+        let across = -half + span * (f64::from(i) + 0.5) / f64::from(rays);
+        for (from, heading) in [
+            (
+                Point2::new(centre.x - half, centre.y + across),
+                Vec2::new(1.0, 0.0),
+            ),
+            (
+                Point2::new(centre.x + across, centre.y - half),
+                Vec2::new(0.0, 1.0),
+            ),
+        ] {
+            let origin = face.sketch_to_body.transform_point(lift(from));
+            let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
+            let reach = reach_of(face, surface, origin);
+            let Ok(crossings) =
+                kernel::ray_crossings(surface, face.sense, origin, dir, reach, band)
+            else {
+                out.refused += 1;
+                continue;
+            };
+            for hit in crossings.into_iter().filter(|c| c.along <= span) {
+                let at = face.body_to_sketch.transform_point(hit.point);
+                let with = tangent(face, hit.outward, TraceSense::With);
+                out.marks.push(TraceMark {
+                    at: Point2::new(at.x, at.y),
+                    tangent: with / with.norm(),
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The length along a heading whose component across a coordinate's
