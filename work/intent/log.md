@@ -1117,3 +1117,15 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 - **Stage 6 closed 2026-10-30** (A #6023, B #6041, C #6043, D #6060, E #6071). D10's umbrella now waits only on CONTACTHOLD's bridging-rung row (P0).
   - The track stays `active`: `an-unread-body-is-no-finding` turned out to be D10 text and is now P0 (below).
 - **2026-10-30, `an-unread-body-is-no-finding` raised P2 → P0**, and D10's umbrella now waits on it. `[operations]`' "an unread body is an unread variable, a finding" is D10 text (`[ev]` D′, 679b4abbf7) with no check; the exit walk read only superseded mechanisms. Designer pair next. The rest of INTENT's non-D10 tail is being repriced and rehomed (tracker lane `session_01VyvYnJwve9f1FDKZ7Bhh4R`, Ev's ask).
+- **2026-10-30, Ev answered #6075 (merged).**
+  - The unread-body sentence is reworded: what the person made (inserted or named) and nothing uses is a finding, and byproducts never are. Ev's deliberate-vs-byproduct comment drove round 2.
+  - An unasserted `Measure` is reported ("simplest; maybe drop later"). Fork-log row 218 is filled.
+  - `an-unread-body-is-no-finding` is dispatched, single FULL review.
+- **2026-10-30, the unused check merged (#6081).** It is the last D10 sentence: what the person made (inserted or named) and nothing uses is a certified, advisory finding, default Warn. The corpus count was 5 over 50 documents; the gallery's two are filed as `the-gallery-documents-carry-what-nothing-uses`.
+  - Review: single FULL (`session_01VyvYnH4`, probes `review/intent-unused-6081` @ e751f844), APPROVE-WITH-FIXES 0/3/4.
+    - A named world was reported (the exemption sat on one pass of two).
+    - The claim that "it answers when evaluation refuses" was false under the default config: any check's refusal discards the whole report. Filed as `coincide/a-checks-refusal-discards-every-residents-findings`.
+    - A misplaced doc block.
+  - One fix pass. The orchestrator's read accepted it: one "used" closure, with the world exempt there.
+  - The lane pushed two census-only commits (the façade re-export and the binding census) after the freeze; the reviewed code is the frozen head's.
+- **2026-10-30, CONTACTHOLD #6079 merged** (the last superseded mechanism). D10's umbrella stays open: DESIGN's state-of-the-build still lists one unbuilt D10 item, "an assertion quieting an unproven row no `Gap = 0` says". That is ATREST's `a-gap-over-adjacent-cells-states-nothing-of-the-row`, raised P2 → P0. The umbrella now waits on it alone, and its designer pair is next.

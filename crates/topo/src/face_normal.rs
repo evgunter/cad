@@ -7,14 +7,16 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Four doors, one flip. By key: [`face_outward_normal`] answers for
+//! Five doors, one flip. By key: [`face_outward_normal`] answers for
 //! a PLANE, where the normal does not depend on where you stand, and
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged.
 //! By value, for a caller that has already resolved the face and must
 //! not discard a failed lookup: [`plane_outward_normal`] takes the
-//! [`Face`] and its plane's chart normal, and [`chart_outward_normal`]
-//! takes a chart normal of any carrier and the bit. Every one of them spells the
+//! [`Face`] and its plane's chart normal, [`chart_outward_normal`]
+//! takes a chart normal of any carrier and the bit, and
+//! [`surface_outward_normal`] takes a carrier, a point on it and the
+//! bit, for a reader that holds no face. Every one of them spells the
 //! fold through [`OutwardNormal::from_chart`], the type's only
 //! constructor, and this file is the only one under `topo/src` that
 //! names it in a file that ALSO destructures a plane pattern — that
@@ -102,6 +104,21 @@ pub(crate) fn chart_outward_normal<T: Real>(
     sense: bool,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(chart_normal, sense)
+}
+
+/// The OUTWARD normal of a carrier at a point on it, from its implicit
+/// gradient ([`geom_brep::implicit_gradient`]) with `sense` folded in —
+/// the by-value door for a reader that holds a surface and the bit
+/// rather than a face (a trace's crossing sense). On a plane the
+/// gradient is the plane's normal and this is [`plane_outward_normal`]'s
+/// flip. Nothing here certifies `p` onto the surface; that gate is
+/// [`face_outward_normal_at`]'s.
+pub(crate) fn surface_outward_normal<T: Real>(
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, p), sense)
 }
 
 /// A planar face's OUTWARD normal — the chart normal with the face's
@@ -321,10 +338,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(OutwardNormal::from_chart(
-                    geom_brep::implicit_gradient(surface, p),
-                    f.sense,
-                ))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,

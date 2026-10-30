@@ -16,3 +16,5 @@ Under G the union decides 22250, among them the n-ary pass's reads of each pair 
 So the parting is new with G. The row stays pinned at main's move (`Apart`), and reds with "compared under another move" until this closes.
 
 **What closing it takes.** Find the point and plane the zero-margin decision reads: a fin's vertex on a neighbour's coplanar cap is the likely pair, since every member is a copy of one fin. Decide whether a pair the separation certificate holds apart should reach a point-in-solid test at all. If it should, the decision must not branch on an exact tie at the nominal. Then the row compares under `Apart` again, red on main's `segment_gap` flips alone until that item closes.
+
+**2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): `revalue_corpus::revalue_heat_sink_fins` (`crates/editor-core/tests/revalue_corpus.rs:393`) is still red at every ε: it compares `InStep` against the pinned `Apart`, with 22242 compared. The message is unchanged from 2026-10-29.

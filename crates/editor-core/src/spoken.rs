@@ -1176,7 +1176,8 @@ impl<'a> Speaker<'a> {
     /// **The read `var`, said**: its name where the document holds one,
     /// else the operation defining it (`Split 1ab2's above` for one of
     /// several outputs), else its id.
-    pub(crate) fn read(self, var: crate::var::VarId) -> String {
+    #[must_use]
+    pub fn read(self, var: crate::var::VarId) -> String {
         let Some(doc) = self.doc else {
             return ReadTag(var).to_string();
         };
