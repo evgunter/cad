@@ -13,14 +13,16 @@ decides and words its refusals).
 
 ## The slate
 
-**28 budget points** against 30.
+**30 budget points** against 30 (2026-10-30).
 
 | pri | item | cost |
 |---|---|---|
 | P1 | `validate-tier3-curved-boundary-containment` | H |
-| P2 | `ring-and-scaffold-refusals-read-three-ways` | E |
 | P3 | `check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges` | H |
-| P3 | `the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties` | M |
+| P1 | `loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk` | H, design |
+| P1 (parked) | `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity` | M |
+| P3 | `a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt` | M |
+| P3 | `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` | M |
 
 ## Order
 
@@ -29,7 +31,8 @@ decides and words its refusals).
    has fired; the row is re-aimed on the region reading and grown by
    `[ev]` PR 6014 (the wrap tip). Read the row's last two sections
    before the spec.
-2. **Curved-boundary containment**, the last unmarked deferral: it
+2. **One reading of a curved face's region: the shared loop walk and curved-boundary containment together**, weighed by one designer pair (they are one question), then built. The wrap tip follows.
+   Was: **Curved-boundary containment**, the last unmarked deferral: it
    needs a walk on a curved chart, which the P0's region reading may
    share.
 3. **Check 9's arms off the plane** (meeting, then corner), and the
