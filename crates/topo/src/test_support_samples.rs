@@ -49,7 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
+use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -180,7 +180,6 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             diag: contradiction_margin("carrier_cyl_radius"),
         },
         ContactRefusal::Escalated { diag: diag() },
-        ContactRefusal::Undeclared { diag: diag() },
     ];
     // The longest `what`s the raise sites write.
     v.extend(
@@ -1067,22 +1066,20 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::FaceFaceTangent {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Tangent,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Rest,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
     ]
@@ -1733,7 +1730,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         s.push((
             format!("ContactContradicted/{}", class.name()),
             ValidationError::ContactContradicted {
-                declaration: DeclaredContact {
+                declaration: ContactPair {
                     a: face,
                     b: face,
                     class,

@@ -343,7 +343,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         message = str(self.refusal())
         self.assertIn("is an unrecorded contact", message)
         self.assertIn(
-            "Recourse: declare the named contact class, or move the geometry", message
+            "Recourse: move the geometry so the faces clearly touch or clearly part",
+            message,
         )
 
     def test_the_census_findings_arrive_as_prose(self):

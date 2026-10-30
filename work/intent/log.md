@@ -1128,3 +1128,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - A misplaced doc block.
   - One fix pass. The orchestrator's read accepted it: one "used" closure, with the world exempt there.
   - The lane pushed two census-only commits (the façade re-export and the binding census) after the freeze; the reviewed code is the frozen head's.
+- **2026-10-30, CONTACTHOLD #6079 merged** (the last superseded mechanism). D10's umbrella stays open: DESIGN's state-of-the-build still lists one unbuilt D10 item, "an assertion quieting an unproven row no `Gap = 0` says". That is ATREST's `a-gap-over-adjacent-cells-states-nothing-of-the-row`, raised P2 → P0. The umbrella now waits on it alone, and its designer pair is next.

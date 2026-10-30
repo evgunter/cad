@@ -180,7 +180,7 @@ impl<E> VariantCensus<E> {
 /// test_utils::f6_variants! {
 ///     /// What this enum is, for a reader.
 ///     const CONTACT_REFUSAL: ContactRefusal =
-///         [Contradicted, Escalated, Undeclared, NotCertifiable];
+///         [Contradicted, Escalated, NotCertifiable];
 /// }
 /// ```
 ///
