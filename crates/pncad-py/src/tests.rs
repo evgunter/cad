@@ -3724,7 +3724,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             // `topo::boolean::contact_verify`'s Rest-ladder arm.
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
                 what: "a declared face's surface kind is outside the Rest ladder's \
-                       inventory (plane, sphere, cylinder)",
+                       inventory (plane, sphere, cylinder, torus, cone)",
             }),
         }),
         Finding {
@@ -4432,6 +4432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_boolean_unsupported",
             "curved_face_closes_across_slit",
             "curved_pair_unsupported",
+            "curved_pierce_escalated",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",

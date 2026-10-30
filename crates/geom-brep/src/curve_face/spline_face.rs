@@ -90,14 +90,15 @@ pub enum SplineFaceRefusal {
     /// whether a meeting lies ON the chart, or where it stands against
     /// an end of the span, a crease or the meeting before it.
     Escalated(Indeterminate),
-    /// The walk could not settle the span: [`Unsettled::Tangency`] (a box
-    /// at the floor within the band that no meeting accounts for: a pass
-    /// within the band, a tangency, two meetings the band cannot part, or
-    /// a meeting on the chart's domain edge), [`Unsettled::Crease`] (such
-    /// a box within its floor reach of a crease among its block's sides,
-    /// as a meeting within the band of a crease leaves one),
-    /// [`Unsettled::SignInBand`] (a meeting does not read on the chart)
-    /// or [`Unsettled::Exhausted`].
+    /// The walk reached a limit: [`Unsettled::Floor`] (a box at the floor
+    /// not read past the band that no meeting accounts for: a pass within
+    /// the band, a tangency, two meetings the band cannot part, or a
+    /// meeting on the chart's domain edge), [`Unsettled::Crease`] (such a
+    /// box within its floor reach of a crease among its block's sides, as
+    /// a meeting within the band of a crease leaves one),
+    /// [`Unsettled::Tangency`] (two meetings decided at one point),
+    /// [`Unsettled::Meter`] (a meeting does not resolve onto the chart, or
+    /// inside the span, to the band) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The arm could not read the pair: the carrier is a spiric, or a
     /// scalar, a knot or a speed of the carrier or the chart did not
@@ -804,11 +805,14 @@ pub fn isolate<T: CertifiedBounds>(
         // Labelled by the reach the test was read over: a crease within
         // it is where the refusal stands.
         let near_crease = cut_lines.touch(x.grown(FLOOR_REACHES[1], block), block);
-        Step::Stop(if near_crease {
-            Unsettled::Crease.into()
-        } else {
-            Unsettled::Tangency.into()
-        })
+        Step::Stop(
+            if near_crease {
+                Unsettled::Crease
+            } else {
+                Unsettled::Floor
+            }
+            .into(),
+        )
     });
     match walked {
         Err(geom_core::bisect::Exhausted) => return Err(Unsettled::Exhausted.into()),
@@ -925,8 +929,10 @@ pub fn settle<T: Decide>(
         let [tm, um, vm] = root.mid();
         let point = carrier.eval(T::from_computed(tm));
         let foot = chart.eval(T::from_computed(um), T::from_computed(vm));
+        // Definitely off at the located meeting: the enclosure's point
+        // is not resolved to the band.
         if gap("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::SignInBand.into());
+            return Err(Unsettled::Meter.into());
         }
         let mut at_end = false;
         for end in ends {
@@ -935,8 +941,10 @@ pub fn settle<T: Decide>(
         if at_end {
             continue;
         }
+        // An enclosure reaching past an end its point is definitely
+        // apart from is not resolved to the band.
         if !(a < root.0[0].0 && root.0[0].1 < b) {
-            return Err(Unsettled::Tangency.into());
+            return Err(Unsettled::Meter.into());
         }
         if let Some(before) = out.last()
             && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero

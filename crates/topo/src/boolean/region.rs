@@ -180,7 +180,12 @@ pub(crate) fn found<T: Decide>(
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
-        Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => Err(RayFault::Graze),
+        // A touch of the leg is the probe's, as a limit is; a fault grazes
+        // too (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
+        Ok(Roots::On(_))
+        | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+            Err(RayFault::Graze)
+        }
         Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }

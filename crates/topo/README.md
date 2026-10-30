@@ -975,7 +975,7 @@ bridged residue; the declaration bridges only the residue
 Escalated, Undeclared, NotCertifiable}`).
 
 - *`Rest`.* Must verify: carrier non-contradiction through the kind
-  ladder (`carrier_eq`: plane, sphere, cylinder, torus), the pair read as
+  ladder (`carrier_eq::INVENTORY`), the pair read as
   one displacement over the consumed extent — position data at a pivot,
   plus the angular data levered from it to the extent's far reach, plus
   the radius differences; senses opposed as an exact bit; overlap

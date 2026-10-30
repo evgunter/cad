@@ -222,6 +222,10 @@ mod cone_operand_rows;
 mod continuation_pose;
 #[path = "crossing_equal_rods.rs"]
 mod crossing_equal_rods;
+#[path = "curved_copy_against_itself.rs"]
+mod curved_copy_against_itself;
+#[path = "curved_copy_review_probes.rs"]
+mod curved_copy_review_probes;
 #[path = "curved_edge_corpus.rs"]
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
@@ -1308,7 +1312,11 @@ mod a_plane_near_a_needle_cones_apex;
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
 mod review_5956_delta_needle;
+#[path = "review_5993_probe.rs"]
+mod review_5993_probe;
 #[path = "review_6002_needle_join.rs"]
 mod review_6002_needle_join;
 #[path = "review_6020_seam_probes.rs"]
 mod review_6020_seam_probes;
+#[path = "review_r1_roots_split.rs"]
+mod review_r1_roots_split;
