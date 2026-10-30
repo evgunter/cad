@@ -811,8 +811,10 @@ fn a_prism_tilted_within_the_zero_builds_as_upright() {
         "the prism tilted within the zero",
         &[
             "the 240° prism tilted 0.2ε towards 25°, and the plate, member order [3, 2, 1, 0]: \
-             step 1 refused: Escalated { decision: Coincidence(Sectors, Moot)",
-            "predicate: Some(\"bool_sector_within\")",
+             step 1 refused: Escalated { decision: Coincidence(Sectors, Moot), diag: \
+             Indeterminate { margin: MarginDiag(Value(",
+            ", None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: ",
+            " }, predicate: Some(\"bool_sector_within\") } }",
         ],
         a_prism_tilted_within_the_zero_builds_as_upright_row,
     );

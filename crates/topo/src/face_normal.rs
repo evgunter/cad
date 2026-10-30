@@ -962,10 +962,11 @@ mod tests {
         hits.sort();
         assert_eq!(
             hits, expected,
-            "a value is negated by hand under a face's sense bit outside the sanctioned \
-             scalar negations. A NORMAL folds through `OutwardNormal::from_chart` or a \
-             `face_normal` door; a genuinely signed scalar is named in this row's list \
-             with what it negates."
+            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
+             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
+             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
+             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
+             from `pinned`."
         );
     }
 

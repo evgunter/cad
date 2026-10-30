@@ -23,4 +23,4 @@ cost: E
 
 ## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
 
-Pinned: `face_normal::tests::no_source_file_folds_the_bit_by_hand` now expects `sanctioned` plus a separate `pinned` list naming this row's three `trimmed.rs` hits (`1.0`, `area`, `radial`), so any other hit reds, and so does the repair landing until it strikes them. The census walks source and stops on nothing, so un-pinning owes no re-measure. The `the_planar_sense_flip_lives_in_one_place` sibling (`intent/main-red-trace-rs-reads-as-a-planar-sense-flip-re-fork`) is green on main since #6087.
+Pinned: `face_normal::tests::no_source_file_folds_the_bit_by_hand` now expects `sanctioned` plus a separate `pinned` list naming this row's three `trimmed.rs` hits (`1.0`, `area`, `radial`), so any other hit fails the test, and the failure message names both lists. The repair landing fails it too, until the repair strikes them from `pinned`. The census walks source and stops on nothing, so un-pinning owes no re-measure. The `the_planar_sense_flip_lives_in_one_place` sibling (`intent/main-red-trace-rs-reads-as-a-planar-sense-flip-re-fork`) is green on main since #6087.

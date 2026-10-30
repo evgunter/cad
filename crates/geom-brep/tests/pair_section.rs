@@ -805,8 +805,7 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
         &[1e-6],
         "two loops near the node",
         &[
-            "d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate {",
-            "predicate: Some(\"curve_carrier_straddle\")",
+            "d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 0.10006928966127418, hi: 0.2063515605648144, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 0.10979844554160123, escalate: 0.10980744554160123 }, predicate: Some(\"curve_carrier_straddle\") })",
         ],
         two_loops_keep_their_sites_and_order_near_the_node_row,
     );

@@ -164,9 +164,7 @@ fn a_square_rod_on_the_outer_equator_stops_at_the_join() {
         &[1e-6],
         "the square rod on the outer equator",
         &[
-            "an unpinned stop: Err(GermSectionUnbuilt {",
-            "a_kind: Torus",
-            "b_kind: Cylinder, why: Winds(Unseparated) })",
+            "an unpinned stop: Err(GermSectionUnbuilt { a_face: FaceKey(4v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Cylinder, why: Winds(Unseparated) })",
         ],
         a_square_rod_on_the_outer_equator_stops_at_the_join_row,
     );

@@ -589,7 +589,8 @@ fn revalue_heat_sink_fins() {
         "heat_sink_fins under the apart move",
         &[
             "heat_sink_fins: the row compared under another move than its pin",
-            "flips: [], mode: Some(InStep)",
+            "after_flip: {}, flips: [], mode: Some(InStep), seen: {",
+            "left: Some(InStep)\n right: Some(Apart)",
         ],
         || holds("heat_sink_fins", Move::Apart, 1353, &[], &[], &[]),
     );

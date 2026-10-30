@@ -1759,10 +1759,10 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "CertifyError",
         "check",
         2,
-        "`check` is bound at `decision`'s `Self::Image(check)` and \
-         `Self::ImageEscalated { check, .. }` arms and read through \
-         `arc_rim_check` and `map_or`; why the census cannot type it there is \
-         the row's to read",
+        "the binding is introduced by a pattern NESTED inside the field pattern \
+         this census reads — `refusal: RowRefusal::Image(Some(check))` and \
+         `refusal: RowRefusal::ImageEscalated { check, cause }` — so no declared \
+         type reaches it",
     ),
     (
         "crates/geom-brep/src/nurbs_iso.rs",

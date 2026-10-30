@@ -394,12 +394,8 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// **Each re-cut names its cause in its PR body**, and the history of
 /// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
 ///
-/// **Pinned at what main measures** (2026-10-30), not explained: the
-/// 1e-12 table's `sym_arc_loft validate_geometric` reads `chk=97/104`
-/// where it read `99/104`, every other column holding, since INTENT
-/// stage 3 G (PR 5954, bisected at 1e-12). Which two checks stopped
-/// seeing a whole form is owed on
-/// `work/green/g-moves-four-main-reds-messages.md`.
+/// The 1e-12 table's `sym_arc_loft validate_geometric chk` is pinned at
+/// main's, not explained (`work/green/g-moves-four-main-reds-messages.md`).
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

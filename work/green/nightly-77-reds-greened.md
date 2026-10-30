@@ -21,8 +21,8 @@ Nightly 77 (run 41008276467, main `39bbdfc777`) was triaged by #6082, which fixe
 | `topo` `no_source_file_folds_the_bit_by_hand` | all | pinned: a `pinned` list beside `sanctioned` | `tess/main-red-trimmed-rs-folds-the-face-sense-by-hand` |
 | `topo::all` `a_prism_tilted_within_the_zero_builds_as_upright` | all | pinned (`pinned_red::row`) | `splitdoor/main-red-a-prism-tilted-…-since-arm-vs-reach` |
 | five torus-section rows | 1e-6 | pinned at 1e-6 | `sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot` |
-| `sym_9_retry_interval` ×2 | all | re-blessed (G, PR 5954) | `green/g-moves-four-main-reds-messages` |
-| `m10_sym_profile_interval` plate digest; `sweep` thread-count `chk` | all; 1e-12 | pinned at main's value | `green/g-moves-four-main-reds-messages` |
+| `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured` | all | re-blessed (G, PR 5954: rule H and the DECIDE-3 trade) | `green/g-moves-four-main-reds-messages` |
+| `sym_9_the_drive_writes_the_ladders_receipt`; `m10_sym_profile_interval` plate digest; `sweep` thread-count `chk` | all; all; 1e-12 | pinned at main's value, not explained | `green/g-moves-four-main-reds-messages` |
 | `perf12_census_goldens` | all | pinned: the three goldens re-cut at main's reading | `restread/main-red-perf12-…-at-5817` |
 | `revalue_corpus::revalue_heat_sink_fins` | all | pinned (`pinned_red::row`) | `inlane/under-the-apart-move-heat-sink-fins-…` |
 
