@@ -189,7 +189,7 @@ fn a_lens_inside_the_union_of_its_tori_is_never_read_on_it() {
     got.extend(subtract_both_orders_and_intersect(&u, &l));
     for (op, r) in got {
         assert_eq!(
-            matches!(r, Ok(_)),
+            r.is_ok(),
             op != "A ∖ B",
             "union vs lens, {op}: builds where one operand keeps: {r:?}"
         );
