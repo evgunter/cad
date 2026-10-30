@@ -2,7 +2,7 @@
 id: a-boundary-crossing-tangent-reads-lines-and-circles-only-in-sheets-part
 kind: issue
 title: reduce::sheets_part reads a boundary edge's tangent for lines and circles only, so a touch on an ellipse boundary reads as not parted
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M

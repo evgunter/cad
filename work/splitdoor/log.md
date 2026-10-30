@@ -60,3 +60,7 @@
   - **Review:** a DUAL concurrent pair, both NOT-MERGEABLE-AS-IS. Their bilateral MAJOR: `Resolvent` ended legal bar × torus input as `ClassificationInvariant`. A delta review outside the pair found one MAJOR (the meeting text was false off the carrier); it is fixed.
   - **Ruling:** call (d), escalating a decided Zero, was reverted to main's frontier, because DESIGN does not settle it and R1 demonstrated a kernel-placed seam escalating as the user's lever. It is filed as the open design row `a-decided-zero-tangency-…`. The two-rims row is done except k = 80 second-rod-first, a decided Zero, now that row's witness.
   - **Filed:** census-interiors-fold-a-meetings-fault-into-unbuilt, cone-on-surface-meter-folds-its-gap-into-the-meter, cone-apex-rung-folds-its-gap-into-at-apex, ring-path-spline-crossings… (P1), ray-lanes-graze-on-a-root-finders-fault, section-cert-ruling-walk-folds-every-refusal-into-its-row, plus `issues/link-lowest-on-a-saddle-misses-the-written-down-distance-at-1e-6` (P2). (SPLITDOOR orchestrator)
+- 2026-10-30 — **Dispatched** the last three P1 rows now that PR 5993 has landed:
+  - `a-boundary-crossing-tangent-reads-lines-and-circles-only-in-sheets-part` (`splitdoor/sheets-part-conic`);
+  - `rods-sharing-a-wall-at-two-lengths-refuse-intersect-and-the-short-difference` (`splitdoor/rods-two-lengths`);
+  - `ring-path-spline-crossings-read-a-meet-fault-as-saying-nothing` (`splitdoor/ring-path-faults`). (SPLITDOOR orchestrator)
