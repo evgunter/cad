@@ -37,7 +37,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_lo
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{AtRestBody, Body, BooleanError, SolidContainment};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, SolidContainment};
 
 /// A ball of radius `r` centred at `c`, poled along `y`: its seam
 /// meridians lie in the plane `z = c.z`.
@@ -278,7 +278,8 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
         (cone, ball, topo::Operand::A),
         (ball, cone, topo::Operand::B),
     ] {
-        match topo::test_support::no_crossings_certificates(a, b, Tol::witness()) {
+        match topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
+        {
             Err(BooleanError::FallbackExtentUnsupported {
                 operand: o,
                 face,
@@ -313,7 +314,8 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
     let inside = ball_at(0.05, Vec3::new(0.2, 0.3, -0.2));
     for (a, b) in [(&cone, &*inside), (&*inside, &cone)] {
         assert_eq!(
-            topo::test_support::no_crossings_certificates(a, b, Tol::witness()).unwrap(),
+            topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
+                .unwrap(),
             (0, 0),
             "the ball inside is apart"
         );
@@ -324,13 +326,17 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
             Some(geom::Surface::Cone { .. })
         )
     };
-    let pairs: Vec<String> =
-        topo::test_support::no_crossings_section_report(&cone, &inside, Tol::witness())
-            .unwrap()
-            .into_iter()
-            .filter(|(fa, _, _)| cone_face(*fa))
-            .map(|(_, _, v)| v)
-            .collect();
+    let pairs: Vec<String> = topo::test_support::no_crossings_section_report(
+        BooleanOp::Union,
+        &cone,
+        &inside,
+        Tol::witness(),
+    )
+    .unwrap()
+    .into_iter()
+    .filter(|(fa, _, _)| cone_face(*fa))
+    .map(|(_, _, v)| v)
+    .collect();
     assert!(
         !pairs.is_empty() && pairs.iter().all(|v| v == "Ok([])"),
         "the ball inside meets the double cone nowhere (W0): {pairs:?}"

@@ -8276,14 +8276,7 @@ fn validate_declarations<T: Decide>(
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         match body.get_surface(face.surface) {
             Some(s) if carrier_eq::in_inventory(s.kind()) => Ok(()),
-            Some(_) => Err(bad(
-                operand,
-                concat!(
-                    "declared face's carrier is outside the certified inventory (",
-                    carrier_eq::inventory_named!(),
-                    ")"
-                ),
-            )),
+            Some(_) => Err(bad(operand, carrier_eq::OUTSIDE_REST_INVENTORY)),
             None => Err(bad(operand, "declared face lost its surface")),
         }
     };

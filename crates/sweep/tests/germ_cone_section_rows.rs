@@ -144,7 +144,7 @@ fn the_preview_bricks_clear_by_w1_and_w2() {
         let v = cone_verdicts(&cone, &brick);
         verdicts_are(&v, &[W1, W2], &[W2], what);
         assert_eq!(
-            no_crossings_certificates(&cone, &brick, Tol::witness()).unwrap(),
+            no_crossings_certificates(BooleanOp::Union, &cone, &brick, Tol::witness()).unwrap(),
             (0, 0),
             "{what}"
         );
@@ -182,7 +182,7 @@ fn a_parallel_pin_meets_the_cone_in_loops_cleared_on_the_pin() {
         "the pin",
     );
     assert_eq!(
-        no_crossings_certificates(&cone, &pin, Tol::witness()).unwrap(),
+        no_crossings_certificates(BooleanOp::Union, &cone, &pin, Tol::witness()).unwrap(),
         (0, 0)
     );
 }
@@ -195,7 +195,7 @@ fn the_nested_cone_has_no_cone_pair() {
     let big = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), Tol::witness());
     assert!(cone_verdicts(&cone, &big).is_empty());
     assert_eq!(
-        no_crossings_certificates(&cone, &big, Tol::witness()).unwrap(),
+        no_crossings_certificates(BooleanOp::Union, &cone, &big, Tol::witness()).unwrap(),
         (0, 0)
     );
 }
@@ -242,7 +242,7 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
     // The rod's edges cross the cone, so the sweep's touches evidence
     // the loop: the certificates as the path runs them clear it (W4).
     assert_eq!(
-        no_crossings_certificates(&cone, &rod, Tol::witness()).unwrap(),
+        no_crossings_certificates(BooleanOp::Union, &cone, &rod, Tol::witness()).unwrap(),
         (0, 0),
         "the sweep's touches clear the loop"
     );

@@ -1351,56 +1351,48 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
-        let events = event_pairs(&red);
-        let evidence = Evidence {
-            rest: &red.rest_contacts,
-            settled: &red.coincident,
-            events: &events,
+        let recuts = match no_crossings_pass(a, b, &red, band)? {
+            NoCrossings::Certified(deferred) => {
+                return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
+                    .map(|result| Joined::Answered(Box::new(result)));
+            }
+            NoCrossings::Recut(recuts) => recuts,
         };
-        let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
-        if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
-            if !recut {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "re-cut sphere operands still produced no crossings",
-                });
-            }
-            let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
-            // The cut-ins name faces of `a` and `b`; the re-charts carve
-            // and graft other shells, and `carve` keeps every kept
-            // entity's key (`splitting::finish`'s `carve`), so those
-            // names still hold on `a2` and `b2`.
-            let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
-            if let BooleanResult::Body(out) = &mut result {
-                // A row names the cells of the op's inputs, not of the
-                // cut operands ([`crate::coincidence`]), through the one
-                // door ([`spell`]).
-                respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
-                // The cut-ins divided faces before the join did, in the
-                // operand keys the join's rows are in.
-                let n = &mut out.naming;
-                for ((made, joined), edges) in cuts
-                    .into_iter()
-                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                    .zip(&mut n.chart_cuts)
-                {
-                    *joined = crate::lineage::FaceDivisions::from_rows(
-                        made.divisions
-                            .into_iter()
-                            .chain(joined.rows().iter().copied()),
-                    )?;
-                    edges.extend(made.edges);
-                }
-                *n.recharted = recharted;
-            }
-            return Ok(Joined::Answered(Box::new(result)));
+        if !recut {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "re-cut sphere operands still produced no crossings",
+            });
         }
-        // The curved kinds the extent scan leaves: every torus,
-        // cylinder and cone face's pairs, certified per pair by the
-        // section certificate or refused typed.
-        let deferred = section_extent_pass(a, b, &red.sections, &evidence, deferred, band)?;
-        return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
-            .map(|result| Joined::Answered(Box::new(result)));
+        let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
+        // The cut-ins name faces of `a` and `b`; the re-charts carve
+        // and graft other shells, and `carve` keeps every kept
+        // entity's key (`splitting::finish`'s `carve`), so those
+        // names still hold on `a2` and `b2`.
+        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+        if let BooleanResult::Body(out) = &mut result {
+            // A row names the cells of the op's inputs, not of the
+            // cut operands ([`crate::coincidence`]), through the one
+            // door ([`spell`]).
+            respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
+            // The cut-ins divided faces before the join did, in the
+            // operand keys the join's rows are in.
+            let n = &mut out.naming;
+            for ((made, joined), edges) in cuts
+                .into_iter()
+                .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+                .zip(&mut n.chart_cuts)
+            {
+                *joined = crate::lineage::FaceDivisions::from_rows(
+                    made.divisions
+                        .into_iter()
+                        .chain(joined.rows().iter().copied()),
+                )?;
+                edges.extend(made.edges);
+            }
+            *n.recharted = recharted;
+        }
+        return Ok(Joined::Answered(Box::new(result)));
     }
 
     let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
@@ -2171,6 +2163,46 @@ struct Evidence<'r> {
     events: &'r BTreeSet<(FaceKey, FaceKey)>,
 }
 
+impl<'r> Evidence<'r> {
+    /// What `red` holds for the certificates, its touches read once
+    /// into `events` ([`event_pairs`]).
+    fn of<T: Real>(red: &'r BooleanReduction<T>, events: &'r BTreeSet<(FaceKey, FaceKey)>) -> Self {
+        Self {
+            rest: &red.rest_contacts,
+            settled: &red.coincident,
+            events,
+        }
+    }
+}
+
+/// **What the no-crossings certificates answer** ([`no_crossings_pass`]).
+enum NoCrossings<T: Real> {
+    /// The extent scan asks for re-cuts; the pipeline re-enters on the
+    /// re-cut operands.
+    Recut(Recuts<T>),
+    /// Every pair is certified, or held for the `On` verdict.
+    Certified(OnDeferred),
+}
+
+/// **The no-crossings path's certificates, in the order the path runs
+/// them**: the sphere extent scan, then, where it asks for no re-cut,
+/// the section pass, both over what the reduction holds
+/// ([`Evidence::of`]).
+fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<NoCrossings<T>, BooleanError> {
+    let events = event_pairs(red);
+    let evidence = Evidence::of(red, &events);
+    let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
+    if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
+        return Ok(NoCrossings::Recut(recuts));
+    }
+    section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
+}
+
 impl Evidence<'static> {
     /// No reduction behind the certificates: no `Rest` pair, no settled
     /// pair, no event.
@@ -2184,9 +2216,10 @@ impl Evidence<'static> {
 
 /// **The no-crossings path's section pass.** Each pair the vertex probe
 /// could not see into is certified here, with the sweep's touches as
-/// its events (W4 clears a lone component one touches; with no crossing
-/// anywhere it then meets neither face's interior, the step
-/// [`super::section_cert`]'s W4 states), or refused, typed as the fallback's extent refusal
+/// its events, or refused. W4 clears a lone component a touch lies on,
+/// and with no crossing anywhere such a component meets neither face's
+/// interior ([`super::section_cert`]'s W4 says why). A refusal is
+/// typed as the fallback's extent refusal
 /// ([`BooleanError::FallbackExtentUnsupported`]) naming the pair's
 /// curved face. A verified `Rest` pair is answered without its section,
 /// and a refusing pair the reduction settled one carrier is held
@@ -2317,10 +2350,10 @@ impl OnDeferred {
 ///
 /// The reduction's own refusals, and [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(crate) fn section_report(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &Body<f64>,
+    b: &Body<f64>,
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let (red, glued, band) = reduced_as_the_op_does(op, a, b, tol)?;
@@ -2331,12 +2364,12 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// undeclared operands: the test doors' road to the pipeline's own
 /// readings.
 #[cfg(any(test, feature = "test-support"))]
-fn reduced_as_the_op_does<T: Decide + Bounds + crate::props::AtRestPolicy>(
+fn reduced_as_the_op_does(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &Body<f64>,
+    b: &Body<f64>,
     tol: Tol,
-) -> Result<(BooleanReduction<T>, Glue<T>, Band), BooleanError> {
+) -> Result<(BooleanReduction<f64>, Glue<f64>, Band), BooleanError> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
     let glued = super::glue::decided_declarations(a, b, &none, band)?.into_owned();
@@ -2347,8 +2380,8 @@ fn reduced_as_the_op_does<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// **The section pass's per-pair report on the no-crossings path**:
 /// every pair the pass examines, read as the pass reads it
-/// ([`fallback_section_pairs`]) over the union's glue door and
-/// reduction, whatever the crossing layer found. A pair the reduction
+/// ([`fallback_section_pairs`]) over `op`'s glue door and reduction,
+/// whatever the crossing layer found. A pair the reduction
 /// settled one carrier reports its refusal, which the pass holds.
 ///
 /// # Errors
@@ -2356,18 +2389,14 @@ fn reduced_as_the_op_does<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// The glue door's and the reduction's refusals, and [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn no_crossings_section_report(
+    op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
-    let (red, _, band) = reduced_as_the_op_does(BooleanOp::Union, a, b, tol)?;
+    let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
     let events = event_pairs(&red);
-    let evidence = Evidence {
-        rest: &red.rest_contacts,
-        settled: &red.coincident,
-        events: &events,
-    };
-    fallback_section_pairs(a, b, &red.sections, &evidence, band)
+    fallback_section_pairs(a, b, &red.sections, &Evidence::of(&red, &events), band)
 }
 
 /// **The section certificate as if the sweep had found nothing**: every
@@ -2397,10 +2426,9 @@ pub(crate) fn no_event_section_report(
     )
 }
 
-/// **The no-crossings path's two certificates**, run as the path runs
-/// them over the union's glue door and reduction, whatever the crossing
-/// layer found: the sphere extent scan, then — when it asks for no
-/// re-cut — the section pass. `Ok` with the number of re-cuts the scan
+/// **The no-crossings path's two certificates**, the path's own
+/// [`no_crossings_pass`] over `op`'s glue door and reduction, whatever
+/// the crossing layer found. `Ok` with the number of re-cuts the scan
 /// asked for and the number of refusals held for the `On` verdict,
 /// which this door does not run.
 ///
@@ -2410,24 +2438,16 @@ pub(crate) fn no_event_section_report(
 /// certificate's.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn no_crossings_certificates(
+    op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
 ) -> Result<(usize, usize), BooleanError> {
-    let (red, _, band) = reduced_as_the_op_does(BooleanOp::Union, a, b, tol)?;
-    let events = event_pairs(&red);
-    let evidence = Evidence {
-        rest: &red.rest_contacts,
-        settled: &red.coincident,
-        events: &events,
-    };
-    let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
-    let asked = recuts.rechart.len() + recuts.cut_in.len();
-    if asked != 0 {
-        return Ok((asked, 0));
-    }
-    let held = section_extent_pass(a, b, &red.sections, &evidence, deferred, band)?;
-    Ok((0, held.0.len()))
+    let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
+    Ok(match no_crossings_pass(a, b, &red, band)? {
+        NoCrossings::Recut(recuts) => (recuts.rechart.len() + recuts.cut_in.len(), 0),
+        NoCrossings::Certified(held) => (0, held.0.len()),
+    })
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**

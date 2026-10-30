@@ -326,7 +326,6 @@ macro_rules! inventory_named {
         "plane, sphere, cylinder, torus, cone"
     };
 }
-pub(crate) use inventory_named;
 
 /// **The surface kinds the ladder carries a description for**
 /// ([`CarrierDesc`]): the `Rest` table's inventory. A face on any other
@@ -346,7 +345,8 @@ pub(crate) fn in_inventory(kind: geom::SurfaceKind) -> bool {
     INVENTORY.contains(&kind)
 }
 
-/// The contact lane's refusal of a declared face outside [`INVENTORY`].
+/// The refusal of a declared face outside [`INVENTORY`], at the
+/// declaration door and in the contact lane.
 pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
     "a declared face's surface kind is outside the Rest ladder's inventory (",
     inventory_named!(),
@@ -1449,6 +1449,12 @@ mod tests {
     fn the_inventory_named_is_the_inventory() {
         let names: Vec<&str> = INVENTORY.iter().map(|k| k.name()).collect();
         assert_eq!(inventory_named!(), names.join(", "));
+        // The complement is the definition the inventory answers to: the
+        // ladder describes every kind with a closed-form carrier, and the
+        // kinds without one are the spline and the fitted surface, which
+        // `geom` holds as a net rather than as data a rung can compare
+        // (`geom::Surface::nurbs`). A new analytic kind turns this red
+        // until the ladder carries it.
         for kind in geom::SurfaceKind::ALL {
             assert_eq!(
                 in_inventory(kind),

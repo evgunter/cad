@@ -17,11 +17,11 @@ Found by the review of PR 6029 (`splitdoor/curved-copy`), its M2.
 
 ## Measured
 
-On PR 6029's head, I mutated `fallback_section_pairs` back to `stop: true`. Every test still passed:
+On PR 6029's head, with `fallback_section_pairs` mutated back to `stop: true`, every test still passed:
 - `cargo nextest run -p sweep -p topo -p editor-core --profile ci`: 8953 of 8953;
 - the slow and ignored curved-copy, two-rims, torus-rest and ruling rows: 50 of 50.
 
-No fixture in the corpus has a held refusal ahead of a refusal that is not held.
+No fixture in the corpus has a held refusal ahead of a refusal that is not held, and no row checks a held count above 0 (`topo::test_support::no_crossings_certificates`' second number).
 
 ## Why one is hard to build
 
