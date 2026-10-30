@@ -56,8 +56,10 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   by the viewer's sketch tool (stage 6 B–E); a glued pair read through
   its record at every consuming site, with the declared rung and its
   bridged verdict retired (CONTACTHOLD).
-- **Not built:** an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict).
+- **Not built:** `Gap`'s curved arms reading each face's material
+  side, with a plane against a curved face; a measure's reference
+  reading a pose; and each finding's recourse chosen by its kind
+  ([assertions.quiet], [intent.checked]).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -158,7 +160,11 @@ is checked against what was meant.
   checks every coincidence decided from values against what the
   document proves, and reports one that holds only at the current
   values together with the edit that would make it one construction;
-  an assertion at its site quiets it ([coincidence], [assertions]). A
+  an assertion that says what it decided quiets it ([coincidence],
+  [assertions.quiet]). A coincidence between quantities only the
+  operation computes (a blend turn's two feet), or between written
+  values (two radii typed alike), has no such assertion: the
+  construction is its recourse, and its finding never refuses. A
   lint reports and never changes a body.
 - **What counts as established.** `[intent.structural]` The principle
   is that an identity the document establishes is one that very likely
@@ -1427,8 +1433,11 @@ are on equal footing, and a constraint any of whose equations the
 others already fix refuses as an overconstraint, pinned or not,
 decided by subgroup algebra (A11 (1)) without measuring. A mate that
 would take a freedom a value sets refuses as well. Where two copies
-meet beyond what their mates fix is a contact like any other, recorded
-and linted, and its recourse is an assertion ([assertions]).
+meet beyond what their mates fix is a coincidence like any other,
+recorded and linted, and its recourse is an assertion ([assertions]):
+a relation the placement can still carry is a mate, of a richer kind
+where none says it yet, and one the mates already fix is claimed,
+never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
@@ -1720,7 +1729,14 @@ pair of faces of the two bodies, those faces bound the overlap, and
 every face bounding it lies between the carriers of an asserted pair.
 A `Gap` reads bodies of one space ([placement.spaces]), so an
 assertion quiets only findings between bodies of the space it is in.
-An assertion speaks for nothing else, so a new contact or overlap
+A contact is a touch on one carrier or on two, opposed, so a tangency
+between opposed faces (a rod resting on a plate) is a contact, and its
+`Gap` reads each face's material side. A coincidence of poses the
+document reads off its cells (a centre on an axis, two axes one or
+meeting, a vertex on a split's plane) is quiet under a holding
+`Distance = 0` between those poses, read off the row's cells or the
+split's tool. Only a relation against zero quiets: a bound is a
+tolerance, not the row. An assertion speaks for nothing else, so a new contact or overlap
 anywhere else is loud until something says otherwise, and an overlap
 the kernel cannot bound is loud and nothing quiets it.
 
