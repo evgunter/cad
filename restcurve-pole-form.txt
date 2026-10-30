@@ -1,0 +1,3 @@
+RESTCURVE fork: how a chart singularity in a face closure is represented (sphere-faces-take-a-per-face-chart-or-pole-vertices)
+dispatched 2026-10-30
+byte 51: A = Fable, B = Opus
