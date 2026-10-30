@@ -367,3 +367,9 @@ PR 5568's fix pass.
   - **Filed:** `import-infers-the-outer-loop-from-a-sampled-polygon` (FOREIGN, P3) and `the-trimmed-lanes-closure-guard-cites-a-shoelace-…` (QUAD, P3).
 
   **Sent back:** `CLEAR_REACH = 4.0` reads a crossing of up to about 4·ε_in that the samples miss as "on the line". That keeps a crease inside the cell, past the ε_in Ev allows import to move geometry (PR 6014). Owed: a reach of at most ε_in, with the rest split or refused. Also owed: a measure of whether the corpus reaches the new near-line refusal.
+- 2026-10-30 — **PR 6013 follow-up** (head `e5c46713`), accepted:
+  - "On the line" is now at most ε_in in space (`CLEAR_REACH` is gone). A test crossing by 2·ε_in between samples refuses typed; it was red at the old setback.
+  - The corpus reaches the certification path zero times: 93 imports, `fixtures/wild/` included.
+  - Residue appended to `the-c0-knot-split-refuses-what-it-cannot-place`.
+
+  The fix pass adds new certified reasoning (`clear_of`, `on_the_line`, the kept-carrier join), so its delta `8e3c6dab..e5c46713` gets its own FULL review, dispatched now. That is not a dual-experiment row. Open on it: the `near` test reads a float-evaluated point of the line.
