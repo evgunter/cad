@@ -819,10 +819,14 @@ tiers".
      point lies in a face has one reading, the point-in-face doors'
      (on the face's edge curves), and tier 3 asks those doors what
      they presume. Its **chart image** drops only spurs (an edge
-     walked out and straight back, a wrap tip's included), keeping
-     seams as the chart's cuts: measurement and a loop's windings
-     read it, and a chart image empty on a closed surface is the
-     whole surface, signed by the face's sense. No reader reads a turn at
+     walked out and straight back), keeping seams as the chart's
+     cuts: measurement and a loop's windings read it, and a chart
+     image empty on a closed surface is the whole surface, signed by
+     the face's sense. A wrap tip is a seam whose end lies on a
+     chart singularity: a reader in the chart's own coordinates
+     reads it as the seam it is, through the lift's reset at the
+     singular vertex, and a chart-free reader drops it as a spur,
+     keeping the singular vertex as the datum of the face's side. No reader reads a turn at
      a spur. **Chart singularities as vertices** are an instance (every one in a face's closure is a
      vertex of it, and every wrap edge's tip lies on its face's chart
      singularity);
@@ -941,7 +945,10 @@ tiers".
   wrote reaches that vertex, the kernel adds one wrap edge to it, and
   only one: the singularity is that edge's tip, where the face's loop
   walks the edge out and back, and the edge's place round the axis is
-  conventional, like a seam's. The join never removes a cut either
+  conventional, like a seam's. That wrap edge is the face's seam
+  (D1), kept to its end at the singularity: a native construction's
+  seam already is it, and the kernel mints one only where a file
+  states none. The join never removes a cut either
   exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
