@@ -234,6 +234,8 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
+#[path = "review_6092_delta_probes.rs"]
+mod review_6092_delta_probes;
 #[path = "review_6092_probes.rs"]
 mod review_6092_probes;
 #[path = "review_6092_r2_probes.rs"]
