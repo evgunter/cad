@@ -1138,3 +1138,84 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
     let report = checks(&doc, Some(assertion));
     loud_with_a_construction_recourse(&report, &finding_of(&report, union, &radius));
 }
+
+/// **R1 probe (PR 6103): a split whose tool is a face read as a plane**
+/// (`PoseDef::Plane { face }`, the first spelling `Node::Split`'s doc
+/// names: "a `Plane` read"). The notched prism split at `y = 1` by its
+/// own face there read as a plane: the row's tool cell is that plane
+/// var, read plainly, so the row is quietable and loud refuses at
+/// `Error`; a holding `Gap(tool, vertex) = 0` must then quiet it. Red:
+/// `read_as` reads a `Plane { face }` var as the face's cell with kind
+/// `Plane`, never as the tool, so no assertion can quiet a row the rule
+/// calls quietable.
+#[test]
+fn r1_probe_a_split_by_a_face_plane_is_quiet_under_its_tool_gap() {
+    let id = "r1-probe-split-face-plane";
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, p) = crate::fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![NOTCHED.to_vec()],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
+    let ev0 = run(&doc);
+    let face = face_through(&ev0, prism, [6.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
+    let tool = Operand::Pose(Box::new(editor_core::pose::PoseDef::Plane {
+        face: Operand::select(Operand::output(prism, 0), vec![face]),
+    }));
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: prism.into(),
+            tool: tool.into(),
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, split);
+    let row = got
+        .iter()
+        .find(|r| r.site == DecisionSite::SplitOn)
+        .unwrap_or_else(|| panic!("a SplitOn row: {got:?}"))
+        .clone();
+    let [
+        NamedCell::Entity { .. },
+        NamedCell::Tool { input: tool, .. },
+    ] = row.cells.as_slice()
+    else {
+        panic!("an operand vertex on the tool: {row:?}")
+    };
+    let tool = *tool;
+    let vertex = site(&doc, &row.cells[0]);
+    let loud = checks(&doc, None);
+    let found = finding_of(&loud, split, &row);
+    let refuses = refuses_at_error(&loud, &found);
+    let doc = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::RenameVar {
+            var: tool.into(),
+            name: Some(editor_core::VarName::from_static("cut")),
+        },
+    )
+    .0;
+    let (doc_a, assertion) = measured_by(
+        &doc,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        [Operand::Var(tool), vertex.into()],
+        AssertionRelation::Equal,
+        0.0,
+    );
+    let report = checks(&doc_a, Some(assertion));
+    assert_eq!(
+        finding_of(&report, split, &row).quiet,
+        Some(assertion),
+        "loud refuses at Error: {refuses}; a holding Gap(tool, vertex) = 0 quiets nothing: {report}"
+    );
+}

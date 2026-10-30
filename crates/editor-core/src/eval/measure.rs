@@ -2034,4 +2034,93 @@ mod tests {
             );
         }
     }
+
+    // --- R1 review probes (PR 6103) -----------------------------------
+
+    /// R1 probe: a thin rod internally tangent inside a fat one is an
+    /// ALIGNED (nested) pair, so the PR's role-swap rule says reading it
+    /// with the thin rod as `outer` negates the fat-outer reading (0 at
+    /// the touch). Red: the swapped read classifies the pair "external"
+    /// (the fat's axis lies outside the thin's carrier) and reads −2r.
+    #[test]
+    fn r1_probe_a_nested_rod_read_thin_outer_reads_zero_at_its_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+        let thin = pin(p(0.7, 0.0, 0.0), z, 0.3, true);
+        close(read(&fat, &thin), 0.0, "fat outer");
+        close(
+            read(&thin, &fat),
+            0.0,
+            "thin outer: nested is aligned, -0 = 0",
+        );
+    }
+
+    /// R1 probe: the same for two balls.
+    #[test]
+    fn r1_probe_a_nested_ball_read_small_outer_reads_zero_at_its_touch() {
+        let big = ball(p(0.0, 0.0, 0.0), 1.0, true);
+        let small = ball(p(0.7, 0.0, 0.0), 0.3, true);
+        close(read(&big, &small), 0.0, "big outer");
+        close(read(&small, &big), 0.0, "small outer");
+    }
+
+    /// R1 probe: the ruling's margin at a tangency is ±r, so a real
+    /// touch never lands in band. A thin rod of r = 0.5 internally
+    /// tangent inside a fat one of R = 1 (d = 0.5), read thin-outer:
+    /// `gap_round_side`'s margin is d − r_out = 0.5 − 0.5 = 0. Red: a
+    /// real tangency refuses in band.
+    #[test]
+    fn r1_probe_a_real_touch_never_lands_in_band() {
+        let z = v(0.0, 0.0, 1.0);
+        let fat = pin(p(0.0, 0.0, 0.0), z, 1.0, true);
+        let thin = pin(p(0.5, 0.0, 0.0), z, 0.5, true);
+        close(read(&fat, &thin), 0.0, "fat outer");
+        let swapped = gap(&thin, &fat, band());
+        assert!(swapped.is_ok(), "thin outer, a real touch: {swapped:?}");
+    }
+
+    /// R1 probe: two bores side by side, tangent (a figure-eight hole):
+    /// the concave twin of "two rods side by side". Red: two concave
+    /// faces always read `r_out − r_in − d`, so the touch reads −2r_in,
+    /// the very −2r the PR fixes for rods.
+    #[test]
+    fn r1_probe_two_bores_side_by_side_read_zero_at_their_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let (r1, r2) = (0.5, 0.3);
+        let a = pin(p(0.0, 0.0, 0.0), z, r1, false);
+        let b = pin(p(r1 + r2, 0.0, 0.0), z, r2, false);
+        close(read(&a, &b), 0.0, "two bores side by side");
+        close(read(&b, &a), 0.0, "two bores side by side, swapped");
+    }
+
+    /// R1 probe: nested hollows (a small bore internally tangent inside a
+    /// big one) are aligned, so the swap negates: 0 at the touch either
+    /// way. Red: the small-outer read is r_small − r_big − d = −2d.
+    #[test]
+    fn r1_probe_nested_hollows_swapped_read_zero_at_their_touch() {
+        let z = v(0.0, 0.0, 1.0);
+        let big = pin(p(0.0, 0.0, 0.0), z, 1.0, false);
+        let small = pin(p(0.7, 0.0, 0.0), z, 0.3, false);
+        close(read(&big, &small), 0.0, "big outer");
+        close(read(&small, &big), 0.0, "small outer");
+    }
+
+    /// R1 probe (claim 3): `Distance(axis, axis)` is zero for two axes
+    /// that meet at a right angle, so a `Distance = 0` written to say two
+    /// axes are one (a `Coaxial` row) holds for axes that are not. Red
+    /// is the claim "zero iff coaxial"; this pins the over-admission.
+    #[test]
+    fn r1_probe_two_crossing_axes_read_a_distance_of_zero() {
+        let axis = |through, dir| Carrier::Pose {
+            pose: Pose::Axis { through, dir },
+            reach: Some(1.0),
+        };
+        let a = axis(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
+        let b = axis(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0));
+        let got = distance(&a, &b, band()).expect("reads");
+        assert!(
+            got.abs() > 1e-9,
+            "two perpendicular axes that meet read Distance {got}: a Coaxial row's `= 0` holds over them"
+        );
+    }
 }
