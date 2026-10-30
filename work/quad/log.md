@@ -426,3 +426,14 @@ PR 5568's fix pass.
   - **Noted for 6092's interim (B, computed):** under one per-face wall the whole torus stops at round 3, at `Wall`, so its `Met` assertion goes back to main's posture. That is accepted for the interim: after 6013 the fixture imports as tiles.
   - **Off-question filings owed** (from A): `walk_set` refines every refinable face rather than the widest; `Settle::Resolution` is read per face, which makes it cut-dependent. Filed once the fork settles, so its framing does not leak into the reconciliation.
 - 2026-10-30 — **Work-bound fork, round 2: crossed.** A moved to a bound per span cell (F × round zero); B moved to one budget per question. Both now add widest-first refinement and body-level resolution. Round 3 is dispatched: is "bounded latency against precision that does not fall with body size" the question beneath, and is it Ev's to state?
+- 2026-10-30 — **Work-bound fork, round 3, to Ev: `[ev]` PR 6102.** Both designers name the question as Ev's: bounded latency per question, or precision that does not fall as bodies grow.
+  - **A:** max(floor, F × the question's round zero), pooled, widest-first. This is the diff's text.
+  - **B:** the caller states the budget, and the gates pay a constant. If one kernel rule, the constant.
+  - **Agreed:** the per-face bound goes, and so does a bound per span cell; refinement goes widest-first; resolution is read over the whole surface; recalibration is owed (the torus tiles spent ~39e6, against 14.25e6 today).
+  - Ruling row `the-measurement-work-bound-attaches-to-the-question`. Fork row 220, first half.
+- 2026-10-30 — **6092 fix pass** (head `4aeb53a3`, green on hosted CI). The per-face wall is back.
+  - Whole torus: `Wall`, pad 8.64e-4 (main 2.87e-3). Split: `Met`, pad 4.12e-4, in 5.4 s.
+  - The 12+12 rows at 1e-12: 11–13 s.
+  - The polynomial end rule is shared (`loose_spans_over`). `ColumnSlice` and `net::range_spans` are each one home. The trimmed chord area is back on a per-range grid, with the per-span version filed.
+  - Re-pins: the lens tube 512, STRIP's oracle corrected (winding is canonicalized), `tcost_k3` at 5e13·ε.
+  - The fix pass restructured code on the flux path, so its delta gets a single FULL review (`quad/review-6092-delta`) before merge.
