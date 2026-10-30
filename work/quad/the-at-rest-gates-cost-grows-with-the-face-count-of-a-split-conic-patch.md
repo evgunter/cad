@@ -2,11 +2,12 @@
 id: the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch
 kind: issue
 title: the at-rest volume-sign gate and the measure cost 10-28x more on a conic patch split per span than on the same patch whole
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: H
 refs: [import-splits-a-foreign-face-or-edge-at-each-c0-knot]
+branch: quad/per-span-round-zero
 ---
 
 
