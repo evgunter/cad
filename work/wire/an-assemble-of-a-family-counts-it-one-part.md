@@ -4,7 +4,7 @@ kind: issue
 title: A ⊔ reading a family counts the whole family as its master's parts, not one per member
 status: open
 opened: 2026-10-28
-priority: P3
+priority: P1
 cost: E
 refs: [a-placement-carries-its-sources-at-rest-result, patterns-are-index-variables]
 ---

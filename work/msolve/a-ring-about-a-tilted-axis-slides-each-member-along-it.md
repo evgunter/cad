@@ -4,6 +4,8 @@ kind: issue
 title: pncad's circular_pattern pins a ring's free slide along a target axis, so about an axis no target axis runs along the members drift along it
 status: open
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 
