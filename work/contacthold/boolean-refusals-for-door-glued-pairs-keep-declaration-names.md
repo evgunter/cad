@@ -2,10 +2,13 @@
 id: boolean-refusals-for-door-glued-pairs-keep-declaration-names
 kind: issue
 title: Boolean refusals reached by door-glued pairs keep declaration-era names: UnsupportedDeclarationClass, DeclaredContact payloads, the ContactContradicted kind
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-30
 priority: P3
 cost: E
+pr: 6079
+branch: contacthold/glued-pair-reads-its-record
 ---
 
 
@@ -35,3 +38,7 @@ because each rename reaches the public kind list and the Python tags
   "correct or remove the declaration" recourse
   (`crate::contact::CONTRADICTION_RECOURSE`); `vtxfac`'s decided-tilt arm
   reaches it.
+
+## Closed
+
+Closed by PR 6079: `UnsupportedDeclarationClass` is `TangencyUnsupported`, `DeclaredContact` is `ContactPair`, `ContactContradicted` is tangent-only, and `DeclarationContradicted`/`ContinuationContradicted` are gone.

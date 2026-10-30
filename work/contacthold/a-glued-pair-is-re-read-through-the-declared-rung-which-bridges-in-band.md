@@ -2,11 +2,14 @@
 id: a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band
 kind: issue
 title: A glued pair is re-read at its consuming site through C4's declared rung, which bridges an in-band displacement D10 says refuses
-status: dispatched
+status: closed
 opened: 2026-10-29
+closed: 2026-10-30
 priority: P0
 cost: H
 refs: [d10-exit-walk]
+pr: 6079
+branch: contacthold/glued-pair-reads-its-record
 ---
 
 
@@ -78,3 +81,7 @@ The premise was not quite right. The consuming read is written as a fresh decisi
 If that last case is reachable, the fold step's transitivity is its own question: file a row, and the unit leaves the fold reading the given pair's own record without deciding transitivity. Do not decide it here.
 
 **Dispatched 2026-10-30** by the INTENT orchestrator, branch `contacthold/glued-pair-reads-its-record`. Cost re-priced to H, with the at-rest, names and README rows folded in. Review tier: **dual H (concurrent)**. It deletes a verdict posture across topo's ladders, the census and the boolean consumers; its impact is broad, and the reachability claims it rests on are tricky.
+
+## Closed
+
+Closed by PR 6079: every consuming site (recl, vtxfac, the merge, the census confirm) reads a glued pair through `GluedPairs::glued_relation` / `GluedSurfaces`; the declared rung, `ContactVerdict::Bridged` and the witness floor retired. The fold-step probe refuses at a vertex, so no transitivity row was filed.

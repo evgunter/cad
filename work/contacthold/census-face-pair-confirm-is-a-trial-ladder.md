@@ -2,9 +2,8 @@
 id: census-face-pair-confirm-is-a-trial-ladder
 kind: issue
 title: confirm_face_pair tries four readers in turn instead of dispatching the face pair to one
-status: parked
+status: open
 opened: 2026-10-14
-blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
 cost: M
 ---
 
