@@ -2,10 +2,11 @@
 id: a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote
 kind: issue
 title: A full revolve's curved wall is built as two π-bands joined by two seam meridians the author did not write, against DESIGN's 'a wall keeps the cuts its author wrote'
-status: open
+status: parked
 opened: 2026-10-28
 priority: P1
 cost: M
+blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 ---
 
 
@@ -37,3 +38,7 @@ Not sanctioned: a full revolve's curved wall is ONE band. Where the wall reaches
 ## Released (2026-10-30)
 
 `loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk` closed with PR 6088. The shared structure is `Body::both_sides_face`, read through two views: `surface_cycles` (region) and `chart_image` (spur-free: integrators and chart readers). Read the tip through these, never by a turn of your own. (RESTCURVE orchestrator)
+
+## Held (2026-10-30)
+
+Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling open on `[ev]` PR 6085). Ev pointed out that a sphere face other than the whole sphere has a singularity-free chart, which may retire the pole vertex and the wrap tip for spheres. Do not build on the wrap tip until it is ruled. (RESTCURVE orchestrator)
