@@ -348,6 +348,105 @@ PR 5568's fix pass.
 - **`main-red-validate-pseudomanifold-is-an-undeclared-public-mutation-path`** (P1) duplicates `main-red-the-pseudomanifold-gate-door-is-off-the-tier1-mutation-roster`, closed by PR 5824: the `ALLOWED` entry is on main. Closed as a duplicate after re-running the two slow-set rows on main.
 - **`the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch`** (P0, H) dispatched to a cloud-session lane on `quad/per-span-round-zero`. The fix is as Ev ruled it on FOREIGN's `[ev]` PR 6014 (option (i)): every rectangle lane sizes its round-zero cells, hull blocks and refined net per knot span. **Tier: DUAL, concurrent arm (H).** The change reaches every rectangle lane's schedule and the work wall's pricing, and its bits feed every golden that reads a multi-span patch: getting it wrong would be broad and hard to see.
 - 2026-10-30 — **QUAD lands FOREIGN's draft PR 6013** (Ev, in chat: FOREIGN has no live orchestrator). Its single FULL review is dispatched now, on frozen head `8e3c6dab`, as a cloud session. The merge-main, re-time, fix pass and merge follow the per-span unit. The track is handed back after 6013 lands, not before.
+- 2026-10-30 — **PR 6013 FULL review delivered** (frozen head `8e3c6dab`; probes on `quad/review-6013` at `f23c27ad`). Verdict NOT-MERGEABLE-AS-IS. Adjudicated:
+  - **MAJOR, accepted (shown by a probe):** `edge_join::crease_at` refuses a join main built. Main joined a LINE kept over a straight degree-1 spline on one locus (4/6/4, one `JoinedEdges`). The head refuses it with `VolumeUncomputable`, because the clamped-end arm fires on every whole-domain spline edge, and it fires on either edge, not on the carrier the joined edge would run on.
+  - **MINOR → must-fix:**
+    - **The side test.** The 9-sample test can miss a crossing, and then the face silently keeps a crease inside its cell (against DESIGN `[topology]`). The selection must be sound in the not-missing direction: decide it, or refuse typed.
+    - **The split order.** `split_face_once` recursing lowest-knot-first is quadratic in spans per direction, and cost is the point of this landing. Split at all crossing knots in one partition.
+  - **MINOR, accepted:** `rectangle_winding` never checks that each segment starts where the last one ended. No closed, connected walk is wrongly accepted, but a gap of any size passes.
+  - **Style, accepted:** `knot_split::crease_knots` is a third copy of `Knots::crease_values`. Stale "shoelace" prose in `quad_lane.rs`. "Equal to the degree" in docs where the code reads "at least". The `edge_join` module doc. The literal 162 in the conic test, where the count should be derived from the knot vector.
+  - **Notes kept as notes:** the analytic-rim split counted inside the wall's census; the multiplicity p+1 spline gap (the fix pass checks it, and files it if real).
+  - **Class finding:** a sampled selection that decides topology (here, which faces a crease line crosses) fails silently in exactly the direction the rule forbids. Sampling may pick among exact operations, but a missed sample must refuse, never pass. The fix pass sweeps `knot_split.rs` and import's other sample-decided selections for the same shape.
+  - **Sequencing (orchestrator's call):** the fix pass runs now, on `foreign/c0-knot-split`, in parallel with the per-span unit. It is independent of the per-span change except for the conic test file. Merge-main, re-time and merge still follow the per-span merge.
+- 2026-10-30 — **PR 6013 fix pass** (head `fceade8f`). Accepted:
+  - **The join** keeps the carrier that runs through the vertex: `mixed_lower` and `mixed_upper` both join.
+  - **The side test** is certified by enclosures (`clear_of`), and an uncertified line goes to the split or refuses `C0KnotUnsplit`.
+  - **The split** is one pass, halving at the middle knot. `entities::resolve` drops 1.10 → 0.34 s, and the conic test takes 69 s in release.
+  - **`rectangle_winding`** now checks continuity, with a 4ε·M slack argued from where the endpoints come from.
+  - **Style:** `crease_values` is now the one home, `offset_meters` included.
+  - **p+1 multiplicity** refuses at the record.
+  - **Filed:** `import-infers-the-outer-loop-from-a-sampled-polygon` (FOREIGN, P3) and `the-trimmed-lanes-closure-guard-cites-a-shoelace-…` (QUAD, P3).
+
+  **Sent back:** `CLEAR_REACH = 4.0` reads a crossing of up to about 4·ε_in that the samples miss as "on the line". That keeps a crease inside the cell, past the ε_in Ev allows import to move geometry (PR 6014). Owed: a reach of at most ε_in, with the rest split or refused. Also owed: a measure of whether the corpus reaches the new near-line refusal.
+- 2026-10-30 — **PR 6013 follow-up** (head `e5c46713`), accepted:
+  - "On the line" is now at most ε_in in space (`CLEAR_REACH` is gone). A test crossing by 2·ε_in between samples refuses typed; it was red at the old setback.
+  - The corpus reaches the certification path zero times: 93 imports, `fixtures/wild/` included.
+  - Residue appended to `the-c0-knot-split-refuses-what-it-cannot-place`.
+
+  The fix pass adds new certified reasoning (`clear_of`, `on_the_line`, the kept-carrier join), so its delta `8e3c6dab..e5c46713` gets its own FULL review, dispatched now. That is not a dual-experiment row. Open on it: the `near` test reads a float-evaluated point of the line.
+- 2026-10-30 — **6013 delta review** (`e5c46713`; probes on `quad/review-6013-delta` at `b0b50c57`): APPROVE-WITH-FIXES, and none of the six claims fell. Mutants on the near-box term and on budget exhaustion went red. Adjudicated and sent to the fix lane:
+  - **M1:** a shallow tangency within ε_in refuses, and the residue row names the class too narrowly. The fix lane may measure the distance across the line instead of a box diagonal.
+  - **M2:** the `CLEAR_DEPTH` fail-safe is unreachable by any test. Test it or delete it.
+  - **N1:** use the interval `stretch_sup`, and pad by operand magnitude.
+  - **N2:** the winding slack assumes affine pcurves near the origin, so it would refuse good offset-parameter walks.
+  - **N3:** the ε_in boundary premise of `clear_of` is unstated and unchecked.
+  - **Style:** `piece_box` duplicates the `edge_box` mapping.
+  - **Class finding, to be filed in `work/issues/`:** about 20 hand-written `4ε·|x|` pads across the crates.
+- 2026-10-30 — **6013 delta fixes accepted** (head `6989b927`):
+  - **M1:** a distance measured across the line now certifies near misses within ε_in.
+  - **M2:** `CLEAR_DEPTH` is gone. An ε_in size floor and the budget are both reached, as mutation checks show.
+  - **N1:** the certificate is interval-enclosed throughout.
+  - **N2:** each endpoint carries its own slack (`end_slack`), with an offset-parameter test.
+  - **N3:** the premise is stated, and filed as `import-splits-knot-lines-on-an-unchecked-incidence-premise` (FOREIGN, P3).
+  - **Class row:** `work/issues/hand-written-ulp-pads-stand-in-for-interval-arithmetic.md` (61 hits).
+  - **Residue:** a boundary within about ε_in of the line, on a chart whose speed varies across it, may stop at the floor and refuse typed. The residue row records it.
+
+  The PR is held until the per-span unit (PR 6092) merges.
+- 2026-10-30 — **Per-span unit delivered: PR 6092** (head `ae1ba4fa`, green on hosted CI).
+  - **Acceptance, in release:**
+    - Head whole: gate3 2.60 s; measure 17.6 s, `Met`, pad 2.17e-4.
+    - Head plus the split: gate3 1.72 s; measure 5.3 s, `Met`.
+    - Main whole for comparison: gate3 1.86 s; measure stops at `Wall`, pad 2.87e-3.
+  - The split now costs 0.74× the whole in CPU, so no per-face multiplier is left in the quad lanes.
+  - **The trade:** one-span faces are about 2× wider at the wall and in area pads.
+  - **Open risks, carried as review claims:**
+    - The wall per span cell is a nightly debug-time risk on many-span rows.
+    - An unexplained move in `sym_arc_loft` `chk` (99 → 97 of 104).
+  - **Rows filed by the lane:** four in `work/quad/`.
+  - **DUAL review, concurrent arm (H)**, on frozen head `ae1ba4fa97b33afa6a545b04e90270d3fb14fb99`, dispatched together as cloud sessions, with identical briefs. Protocol at `53c781f28`.
+- 2026-10-30 — **PR 6092 dual review delivered** (frozen head `ae1ba4fa`). R1: APPROVE-WITH-FIXES. R2: NOT-MERGEABLE-AS-IS. Both pushed probes: R1 `650a6da4`, R2 `a13c027b`.
+  - **Correspondence pre-note.**
+    - **Bilateral MAJOR, measured by both:** the wall per span cell. The 12+12-knot row at 1e-12 takes 8.9 s on main and 2698–3124 s on the head, a nightly timeout risk.
+    - **Bilateral MINOR:** the precision trade is 2–4.6×, not the stated 2×. The A2 hypar margin is now 31% of the ceiling.
+    - **Bilateral style:** stale block-edge premises in the cert5 rows; three spellings of a span list.
+    - **Unilateral MINORs, R1:** the polynomial lane reads the C⁰-knot cell end off the next span, so whole is 1.1% wider than tiled (red probe); the trimmed lane's chord-area cost grows with chart spans, unpriced; the digest bits did move; the lens-blade backstop row flips direction.
+    - **Unilateral, R2:** `AreaSlice` is a third spelling of `FluxSlice`'s ladders; the exact-v arm is chosen per face.
+    - **Tally candidates:** none (no unilateral MAJOR).
+  - **Ruled:** the wall goes back to one per-face bound, keeping the per-span cells, because DESIGN `[tolerance.measure]` ratifies "the per-face work bound (one bound, in one unit, for every lane)". That costs nothing for the split's tiles, which are one span each, and that is what PR 6013 waits on.
+  - Whether the whole multi-span patch may stop at the bound short of its tiles' enclosure is the tension between `[tolerance.measure]` and Ev's 6014 ruling. It goes to a **design fork**, `measure-work-bound-per-face-or-per-span`, with an Opus/Fable pair dispatched concurrently. Blinding is on `analysis/design-fork/measure-work-bound-per-face-or-per-span`. Acceptance 1's "the whole patch no longer stops at Wall" moves to that fork.
+  - **Fix pass** sent to the per-span lane: the wall, the polynomial per-span read, the trimmed lane, stale premises, the style findings, PR body corrections, the lens-blade check and the four-thread golden.
+  - **Not 6092's:** the nine local reds and `sym_arc_loft` 97/104 are red on main's nightly 41008276467, not caused by 6092.
+- 2026-10-30 — **Work-bound fork, first reports: a split.**
+  - **A:** one budget per question, spent widest-first across faces.
+  - **B:** F × the face's round-zero cost, which on the rectangle lanes is 6092's per-span wall.
+  - **Both agree on:**
+    - the per-face clause is agent text from PR 5574, so 6014 is the redesign to keep;
+    - a per-face bound breaks the torus acceptance when the target is out of reach;
+    - recalibration is owed.
+  - **Round 2 dispatched:** each designer has the other's report. The question beneath both is whether a face's enclosure may depend on what else the question measures (`[intrinsic.contingent]`).
+  - **Noted for 6092's interim (B, computed):** under one per-face wall the whole torus stops at round 3, at `Wall`, so its `Met` assertion goes back to main's posture. That is accepted for the interim: after 6013 the fixture imports as tiles.
+  - **Off-question filings owed** (from A): `walk_set` refines every refinable face rather than the widest; `Settle::Resolution` is read per face, which makes it cut-dependent. Filed once the fork settles, so its framing does not leak into the reconciliation.
+- 2026-10-30 — **Work-bound fork, round 2: crossed.** A moved to a bound per span cell (F × round zero); B moved to one budget per question. Both now add widest-first refinement and body-level resolution. Round 3 is dispatched: is "bounded latency against precision that does not fall with body size" the question beneath, and is it Ev's to state?
+- 2026-10-30 — **Work-bound fork, round 3, to Ev: `[ev]` PR 6102.** Both designers name the question as Ev's: bounded latency per question, or precision that does not fall as bodies grow.
+  - **A:** max(floor, F × the question's round zero), pooled, widest-first. This is the diff's text.
+  - **B:** the caller states the budget, and the gates pay a constant. If one kernel rule, the constant.
+  - **Agreed:** the per-face bound goes, and so does a bound per span cell; refinement goes widest-first; resolution is read over the whole surface; recalibration is owed (the torus tiles spent ~39e6, against 14.25e6 today).
+  - Ruling row `the-measurement-work-bound-attaches-to-the-question`. Fork row 220, first half.
+- 2026-10-30 — **6092 fix pass** (head `4aeb53a3`, green on hosted CI). The per-face wall is back.
+  - Whole torus: `Wall`, pad 8.64e-4 (main 2.87e-3). Split: `Met`, pad 4.12e-4, in 5.4 s.
+  - The 12+12 rows at 1e-12: 11–13 s.
+  - The polynomial end rule is shared (`loose_spans_over`). `ColumnSlice` and `net::range_spans` are each one home. The trimmed chord area is back on a per-range grid, with the per-span version filed.
+  - Re-pins: the lens tube 512, STRIP's oracle corrected (winding is canonicalized), `tcost_k3` at 5e13·ε.
+  - The fix pass restructured code on the flux path, so its delta gets a single FULL review (`quad/review-6092-delta`) before merge.
+- 2026-10-30 — **Ev on `[ev]` PR 6102:** "broadly 2. the caller should state the budget". Ev also wants a predicate passed in, so the door goes only to the precision deciding it needs; `[tolerance.measure]` already has that for deciding callers. The diff is updated in place to a caller-stated budget, as a multiple of one reading, with no default. One follow-up is asked at the top of the PR: what budget the kernel's own questions pay (the gate, a boolean, assertions). The diff proposes a fixed multiple; the alternative is a constant.
+- 2026-10-30 — **Ev on 6102, second comment.** The resolution form is fine if it is clear it is only for wanting the number. A sentence was added saying so: a deciding consumer passes its comparison as its predicate. Ev also pointed out that an exhausted budget must refuse, never return coarser. That is right: the gates always refuse soundly, and my "coarser" was wrong. Clarified: only the gates' budget SIZE is open (a multiple of a reading, as the diff says, against a constant). Under "broadly 2" this is treated as answered unless Ev objects.
+  - **Owed at merge:** a row to audit kernel resolution call sites, and to weigh a resolution type with no comparison on it.
+- 2026-10-30 — **6092 fix-pass delta review** (`4aeb53a3`; probes `quad/review-6092-delta` at `15187123`): NOT-MERGEABLE-AS-IS.
+  - **MAJOR, measured:** a many-span face's per-span set-up runs outside any wall, at 10–16× main (10×10 spans: 0.67 → 6.9 s; 30×30: 9.7 → 160 s). The cause is a half-fix: the polynomial area pass collapses every row per cell, while the rational pass hoists its columns.
+  - **Also:** the cert5 block-edge rows test an impossible case; a dedup doc is wrong; `range_hull` and `loose_spans_over` spell one end rule twice.
+  - **Held:** `ColumnSlice` is term for term; the C⁰ end rule holds whole against tiles (degree 1, and a face ending on a knot); STRIP's +V oracle is right; all new rows are in the slow set.
+  - **Ruled:** make set-up linear in span cells (target within about 2× main), and do NOT price round 0 or set-up into the wall here, since 6102 decides whether one reading counts against the budget. The round-0 overshoot spans (~84×84 polynomial, ~88×88 exact-v, ~150×150 rational) are added to `quad-a-faces-round-zero-is-outside-the-wall`.
+  - **Class finding:** a fix that hoists one lane's loop leaves its twin lane's loop un-hoisted. Swept in this pass across `patch.rs` and `rational.rs`.
 - 2026-10-30 — **The per-span unit merges: PR 6092** (head `ec3d5908`, green on hosted CI). Dual review: concurrent pair at `ae1ba4fa`, tally 0, row `docs/dual-review-log/rows/PR-6092.md`. Two fix passes followed: the wall back per face; the C⁰ end rule made one rule; the column reads and the span list each in one home; the stale rows deleted; the set-up made linear in span cells (a delta review found it at 10–16× main).
   - **The split torus:** gate3 1.65 s (main 32 s), measure `Met` in 5.4 s.
   - **The whole patch:** `Wall`, pad 8.64e-4 (main 2.87e-3), pending `[ev]` 6102.
@@ -356,3 +455,23 @@ PR 5568's fix pass.
 - 2026-10-30 — **PR 6013 lands** (head `a18f0eae`, green on hosted CI). Main was merged in at `98ba9e6a`; its one conflict was the conic test's `Stop`, kept at `Met`, as a release run reads it. The first gate's five reds were all 6013's own and fixed: the binding census, ruff, a fast-set row, the f64-interim ratchet lowered to 44, the bounds pin.
   - **The split torus, release:** import 5.54 s, measure `Met` in 6.92 s. **Debug:** 72.8 s.
   - FOREIGN's row is closed with pr 6013.
+
+## 2026-10-30: P0 and P1 done; handed back
+
+- **Done this sitting:**
+  - the P0 `the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch` (PR 6092: per-span round-zero schedules, a dual review and three fix passes);
+  - FOREIGN's C⁰-knot split, which QUAD landed (PR 6013: FULL review, fix pass, delta review);
+  - the duplicate P1 main-red row, closed.
+- **Open, Ev's:** `[ev]` PR 6102, ruling row `the-measurement-work-bound-attaches-to-the-question`. Ev answered "broadly 2: the caller states the budget, with its predicate", and the diff is updated in place. One clarification is pending: the size of the kernel's own questions' budget. The diff says a multiple of one reading, and this is treated as answered unless Ev objects. Still owed on that PR when Ev confirms:
+  - the fork row's second half (Ev's decision and the A/B mapping from `analysis/design-fork/measure-work-bound-per-face-or-per-span`);
+  - after merge, the implementation unit (H): widest-first refinement across a question's cells, a caller-stated budget, resolution read over the whole surface, and the walks rewritten;
+  - after merge, a row to audit the kernel's resolution call sites, and to weigh a resolution type with no comparison on it.
+
+  The orchestrator who held this sitting stays subscribed to 6102 and does these when Ev answers.
+- **Off-question findings from the designers, to file with the implementation unit:**
+  - `walk_set`/`deciding_walk` refine every refinable face each round, not the widest;
+  - `Settle::Resolution` is read per face, which makes it cut-dependent.
+- **Practice:**
+  - A cloud session given a short sha fails to start (`ref_not_found`); pass a full sha or a branch.
+  - A fix pass on a dual-reviewed unit that restructures code on the flux path earned a delta review, which found a MAJOR (set-up at 10–16× main): keep doing it.
+- Status `active` → `ready`.
