@@ -5110,7 +5110,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 99] = [
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5216,6 +5216,10 @@ const NOT_CARRIED: [&str; 99] = [
     // reads the refusal (`TraceRefusal`, carried), never the traces.
     "TracedFace",
     "Traces",
+    // The same read and its display sampling, which `trace::sketch_trace`
+    // runs for a caller drawing a face's trace in a frame's plane.
+    "traced_faces",
+    "trace_marks",
 ];
 
 /// Every name a `pub use` statement of `src` introduces, restricted

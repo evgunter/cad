@@ -960,6 +960,9 @@ pub enum GestureFrameFault {
     },
     /// The body offers no geometry to read the frame off.
     Geometry(pncad::document::PinRefusal),
+    /// No frame reads off a traced face and a plane face
+    /// ([`pncad::trace::traced_frame`]).
+    Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
 }
 
 impl core::fmt::Display for GestureFrameFault {
@@ -976,6 +979,7 @@ impl core::fmt::Display for GestureFrameFault {
             }
             Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
             Self::Geometry(refusal) => write!(f, "{refusal}"),
+            Self::Traced(fault) => write!(f, "{fault}"),
         }
     }
 }

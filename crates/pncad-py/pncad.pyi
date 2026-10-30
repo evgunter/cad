@@ -5534,6 +5534,24 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
+    def traced_frame(
+        self,
+        plane: tuple[_Operand, str],
+        traced: tuple[_Operand, str],
+    ) -> PoseDef:
+        """The frame a sketch tracing a face stands on: `Through` the
+        traced face's own axis and a vertex of the plane face `plane`,
+        square to it, its origin that vertex's foot on the axis. Each is a
+        `(body, name)` of this evaluation's document; pass the answer as
+        `Node.drawn_profile`'s `frame`. A boss swept up the axis from a
+        piece leaving the traced wall's trace along its tangent is tangent
+        to the wall by construction.
+
+        Raises `ValueError` naming why no frame reads off the two: the
+        traced face has no axis, the plane face is no plane square to it,
+        or has no vertex off the axis.
+        """
+        ...
     def face_frame(self, node: NodeId | Var, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
