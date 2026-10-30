@@ -142,10 +142,9 @@ mod tests {
             for loops in [&[][..], &[empty][..], &[empty, empty][..]] {
                 for sense in [true, false] {
                     let got = curved_face_loops(s, loops, sense, band).unwrap();
-                    let want = if sense { flux } else { -flux };
                     assert!(
-                        (got.flux - want).abs() <= 1e-12 * flux,
-                        "{what}, sense {sense}, {} loops: flux {} against {want}",
+                        (got.flux.abs() - flux).abs() <= 1e-12 * flux && (got.flux > 0.0) == sense,
+                        "{what}, sense {sense}, {} loops: flux {} against ±{flux}",
                         loops.len(),
                         got.flux
                     );
