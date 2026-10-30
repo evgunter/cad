@@ -2,8 +2,12 @@
 id: ring-path-torus-sections-fuzz-reads-a-wrong-parity-at-1e-12
 kind: issue
 title: ring_path: random_torus_sections decides a wrong parity at eps 1e-12 (seed 0xfcf36c24b2674116)
-status: open
+status: closed
 opened: 2026-10-30
+priority: P2
+branch: splitdoor/torus-sections-parity
+closed: 2026-10-30
+pr: 6072
 ---
 
 
