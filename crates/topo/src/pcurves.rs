@@ -4042,7 +4042,7 @@ fn walk_cycle<'a, T: Decide, E>(
 /// there has no azimuth and no first-channel periods to decide. Read by
 /// [`singular_at`].
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Singular {
+enum Singular {
     /// Definitely off the set, or the chart has none.
     Off,
     /// On it.
@@ -4067,7 +4067,7 @@ pub(crate) enum Singular {
 /// singular everywhere. That is a property of the net, not of the vertex, and
 /// the chart-space gap that spline joints still state
 /// ([`spline_gap_closes`]) is what keeps its skip safe.
-pub(crate) fn singular_at<T: Decide>(
+fn singular_at<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
     band: Band,
