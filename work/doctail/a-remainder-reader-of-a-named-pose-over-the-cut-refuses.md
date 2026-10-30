@@ -4,6 +4,9 @@ kind: issue
 title: A kept reader of a named pose over the cut refuses SeveredEdge, where an anonymous one crosses
 status: open
 opened: 2026-10-28
+priority: P3
+cost: M
+design: true
 ---
 
 ## What

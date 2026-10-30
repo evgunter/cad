@@ -10,3 +10,4 @@
 
   The type-change row is new. Nothing is dispatched. (SPLITDOOR orchestrator)
 - 2026-10-30 — **Received** `a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses` from SPLITDOOR (the split's own touches unrecorded at tier 3′; evidence for the tier-3′ gate and own-touches rows). (SPLITDOOR orchestrator)
+- 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census` (P1). INTENT's charter is D10 and these are follow-ups found while building it.

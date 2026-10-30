@@ -4,6 +4,8 @@ kind: issue
 title: SetProgram on a traced profile whose kept steps carry names refuses, because drawn_pieces resolves with no traces
 status: open
 opened: 2026-10-29
+priority: P1
+cost: E
 ---
 
 

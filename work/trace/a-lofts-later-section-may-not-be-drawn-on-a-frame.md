@@ -5,6 +5,8 @@ title: A loft's section after the first may not be a profile drawn on a frame
 status: open
 opened: 2026-10-29
 priority: P3
+cost: M
+design: true
 ---
 
 
