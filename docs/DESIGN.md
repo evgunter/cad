@@ -1190,6 +1190,7 @@ constant rather than a variable.
 **Names.** A variable without a name is read by exactly one slot or
 definition, which is how it is spoken; a variable two readers share
 has a name the person gave it; an output is spoken by its operation.
+The product slot is a reader like any other.
 
 **Poses.** `[variables.poses]` A pose is only ever defined: read off a
 body's geometry (a face's plane, a carrier's axis or centre, a
@@ -1286,9 +1287,11 @@ measurement.
 
 **The product.** A document has one product slot, which reads a body
 in its world space ([placement.world]): `product: p ⊔ bolt ⊔ nut`.
-Nothing is derived from which bodies go unread: an unread body is an
-unread variable, a finding, and a document whose slot reads nothing
-has an empty product.
+Nothing is derived from which bodies go unread: the slot says what
+the product is. An operation none of whose outputs anything reads,
+the product slot counted among the readers, is a finding on that
+operation, and a document whose slot reads nothing has an empty
+product.
 
 ### Repetition `[repetition]`
 
