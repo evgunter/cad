@@ -348,6 +348,8 @@ mod sf2b_r1_probes;
 mod sf2b_r2_probes;
 #[path = "shallow_arc_extrude_grid_interval.rs"]
 mod shallow_arc_extrude_grid_interval;
+#[path = "sheets_part_on_slanted_rims.rs"]
+mod sheets_part_on_slanted_rims;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]

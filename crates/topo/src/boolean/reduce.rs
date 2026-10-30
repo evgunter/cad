@@ -3495,16 +3495,22 @@ fn interior<T: Decide>(
 /// right angles (a boundary edge running across the edge, such as a
 /// seam ruling).
 ///
+/// The boundary edge's direction at `p` is its carrier's derivative at
+/// the parameter read back from `p` ([`geom::Curve3::param_near`],
+/// anchored at the span's midpoint), as the covered edge's is at `t`.
+///
 /// `false`, with nothing read, where there is nothing to read: a
 /// landing on a vertex, a boundary edge both of whose halves bound
-/// `face`, no single covered parent, a boundary carrier other than a
-/// line or a circle, or a normal the door refuses outright (off the
-/// surface, a cone's apex, a degenerate torus).
+/// `face`, no single covered parent, or a normal the door refuses
+/// outright (off the surface, a cone's apex, a degenerate torus).
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] where an entity the sweep holds does not
-/// resolve; [`BooleanError::Escalated`] where a normal is in band; the
+/// resolve; [`BooleanError::PointSplitCarrierUnsupported`] where the
+/// boundary edge's carrier is a spline, which has no point parameter
+/// (the split a parting would make there needs one too);
+/// [`BooleanError::Escalated`] where a normal is in band; the
 /// [`Coincide::Sectors`] coincidence where the cosine is.
 fn sheets_part<T: Decide>(
     (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
@@ -3550,10 +3556,18 @@ fn sheets_part<T: Decide>(
         .certified()
         .ok_or(desync("a boundary edge a crossing lands on is scaffolding"))?;
     let along = |dir: Vec3<T>, forward: bool| if forward { dir } else { -dir };
-    let tau_y = match *c_y.carrier() {
-        geom::Curve3::Line { dir, .. } => dir,
-        geom::Curve3::Circle { center, axis, .. } => axis.cross(p - center),
-        _ => return Ok(false),
+    let (s0, s1) = c_y.params();
+    let Some(tau_y) = c_y
+        .carrier()
+        .param_near(p, geom::mid_param(s0, s1))
+        .map(|s| c_y.carrier().deriv(s))
+    else {
+        return Err(BooleanError::PointSplitCarrierUnsupported {
+            operand: x_is.other(),
+            edge: y
+                .split_root(e_y, |_| false)
+                .map_err(BooleanError::SplitLineage)?,
+        });
     };
     let normal = |body: &Body<T>, f: FaceKey| -> Result<Option<Vec3<T>>, BooleanError> {
         match crate::face_normal::face_outward_normal_at(body, f, p, band) {

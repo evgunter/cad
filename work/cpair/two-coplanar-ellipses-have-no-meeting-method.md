@@ -65,3 +65,12 @@ The second bullet stays open, and is now the unit's whole scope.
 - **The refusal.** The subdivision's first cut finds no definite sign in that sixteenth, and `pose::coplanar_ellipses` refuses `Unsettled::SignInBand`. The pass `carrier_cross::boundary_crossing` answers `Unread`, and every op refuses `CurvedPierceUnsupported` at `reduce.rs`'s curved sweep arm. Measured at ε = 1e-9 and 1e-12. At 1e-6 the basin meter refuses the seam ruling first.
 
 Building the touch alone does not settle that row. There the glue door decides the two cut planes one carrier, and the rims' meeting is in band, so the ops owe `Escalated` (Ev on PR 5973; `work/splitdoor/two-rims-read-coplanar-refuse-unsupported-or-untyped.md`, "Decided").
+
+## Evidence: the touch keeps a tangent-walls fixture from the walls' parting (2026-10-30, `splitdoor/sheets-part-conic`)
+
+`crates/sweep/tests/sheets_part_on_slanted_rims.rs`
+`two_slanted_rims_tangent_on_the_ruling_refuse_at_their_touch`:
+- **The fixture.** An inner rod of radius 1 about `(1, 0)` is cut below `z = 0.3·y`, and an outer rod of radius 2 about the origin is cut above the same plane. The walls are tangent inside one another along `x = 2, y = 0`. The rims are two ellipses in one plane, tangent at `(2, 0, 0)`, the inner one inside the outer.
+- **The read.** For the inner rim against the outer wall, and the outer rim against two of the inner rod's faces, `carrier_cross::boundary_crossing` answers `Touch`, measured at 1e-9. It does not answer `Unread`. `reduce.rs`'s `interior` then reads the edge `Unseen`, the curved arm defers it, and every op refuses `CurvedPierceUnsupported { operand: A, face: FaceKey(4v1), edge: EdgeKey(12v1) }` at 1e-6, 1e-9 and 1e-12.
+- **Cut flat.** The rims are circles, the crossing reads `At`, and both ops build at their closed forms, tiers 3 and 3′ included.
+- **What it blocks.** This is the one pose where `reduce::sheets_part` reads an ellipse on both sides, so its tangent read is not covered by the reverse sweep direction. With one rim a line or a circle, the reverse direction reads that rim and splits both edges at the same point. Once the touch places, the fixture should reach `sheets_part` from both sides; the pin then moves.
