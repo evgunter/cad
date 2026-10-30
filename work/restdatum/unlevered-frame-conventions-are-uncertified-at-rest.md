@@ -5,7 +5,7 @@ title: A line's unit dir, a plane's unit frame and u_ref ⊥ normal, and a cone'
 status: open
 opened: 2026-09-25
 priority: P4
-cost: D
+cost: M
 refs: [3238]
 ---
 

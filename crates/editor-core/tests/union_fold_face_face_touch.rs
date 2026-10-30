@@ -41,6 +41,7 @@ fn upright_rod(doc: ProfileDoc, cx: f64, length: f64) -> (ProfileDoc, RecipeNode
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle_split(cx, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

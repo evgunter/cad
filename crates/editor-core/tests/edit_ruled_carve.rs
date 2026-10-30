@@ -171,6 +171,7 @@ fn carve(
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(
@@ -772,6 +773,7 @@ fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(

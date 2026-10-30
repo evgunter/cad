@@ -72,6 +72,7 @@ fn loft_doc(
         sections.push(r.insert(Node::Profile(ProfileProgram {
             loops: vec![section()],
             ids: Vec::new(),
+            on: None,
         })));
     }
     let loft = r.insert(Node::Loft {
@@ -96,6 +97,7 @@ fn loft_doc(
             Dimension::Length,
         ))],
         ids: Vec::new(),
+        on: None,
     }));
     (r.doc, loft)
 }

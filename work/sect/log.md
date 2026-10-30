@@ -334,3 +334,15 @@ confirmation review. The one-way winding cross-check is a filed deviation
 (`a-counted-sections-winding-is-a-claim-not-a-reading`, P2). Cost: at ε 1e-12
 the new marching rows take up to ~30 min each at opt-level 2 in the nightly
 (`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).
+
+## 2026-10-29 — the repeated march was not repeated (PR 6056)
+
+`sect-marchonce` measured one march per pair per operation on every slow
+torus row (shared inside an op by the section table's one carry), and the
+march at 3–16 % of each row's time; a gdb profile puts the time in
+certifying the fitted chord edges, pcurves and the result gate. PR 6056 adds
+a test-only march counter and pins one march per op; the row is re-banded
+P3 (cross-op sharing buys ≤ ~11 % and waits on canonical operand order).
+The orchestrator's earlier "about eight marches per pair" was wrong: each of
+a row's eight operations marches once, which is what that count was.
+Tier: **orchestrator's read** (a test-only counter and two pins).
