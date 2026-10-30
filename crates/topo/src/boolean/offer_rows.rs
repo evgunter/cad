@@ -223,12 +223,6 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    // Glued `Rest` in the index, the walls are one carrier and the arc's
-    // ends are read; a smaller tolerance decides the radii apart, and the
-    // arc crosses a curved face the arm cannot settle.
-    arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("CurvedPierceUnsupported")) =>
-        arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
@@ -727,14 +721,19 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     .map(|_: CurvedEvent<f64>| ())
 }
 
-/// The rim arcs of a radius-`r` wall sheet against a unit wall sheet
-/// sharing its axis, the pair glued `class` in the index the covered arm
-/// reads (one carrier for `Rest`), whatever the glue door would make of
-/// it: the first arc's raise.
-fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
+/// The rim arcs of a unit wall sheet against a unit wall sheet sharing
+/// its axis, opposed, the pair glued `Rest` as the face-pair door reads
+/// it ([`GluedPair::read`]): the first arc's raise.
+fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
+    let xw = cyl_wall_sheet(
+        &mut x,
+        CylFrame::canonical(1.0),
+        (0.5, 1.0),
+        (0.25, 0.5),
+        tol,
+    );
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
@@ -746,17 +745,10 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
         tol,
     );
     let decls = Glue {
-        pairs: class
-            .map(|class| vec![GluedPair::new(xw, yw, class)])
-            .unwrap_or_default(),
+        pairs: vec![GluedPair::read((&x, xw), (&y, yw), GlueClass::Rest, band())],
         ..Glue::none()
     };
-    let one_carrier = class
-        .filter(|class| class.is_one_carrier())
-        .map(|_| (xw, yw))
-        .into_iter()
-        .collect();
-    let declared = GluedPairs::without_struts(&decls, one_carrier);
+    let declared = GluedPairs::without_struts(&decls, [(xw, yw)].into_iter().collect());
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -3130,15 +3122,11 @@ lever_rows! {
     // `CurvedFlankSense`: the faces along the edge reshaped to planes that
     // only touch there, at a clear arm.
     curved_flank_reshaped_to_touching_planes: None => planar_flank_membership_at(true, false, 1e-3);
-    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex moved
-    // clearly onto the face it is glued to touch (the arc's ends with it)
-    // passes; moved clearly clear of it, the arc crosses a curved face
-    // the arm cannot settle, which is why the lever no longer names that
-    // side.
-    covered_vertex_moved_onto_its_face: None =>
-        arc_against_a_wall(1.0, Some(GlueClass::Rest));
-    covered_vertex_moved_clear_of_its_face: Some("CurvedPierceUnsupported") =>
-        arc_against_a_wall(1.1, Some(GlueClass::Rest));
+    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex on the
+    // face the door glued it to touch (the arc's ends with it) passes. A
+    // wall moved clear of it is a pair the door does not glue, so no
+    // covered arm reads it.
+    covered_vertex_on_its_glued_face: None => arc_on_its_glued_wall();
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

@@ -5,8 +5,10 @@
 //! rungs: definite geometric difference, else a coincidence decided by
 //! its margin — Zero glues, in band refuses. `Rest` generalizes S1's
 //! planar vocabulary to every carrier kind, so the ladder generalizes
-//! with it — SAME rungs, SAME three verdicts ([`CarrierRelation`]), SAME typed refusals
-//! ([`CarrierEqError`]), with only the margin list varying by kind:
+//! with it: the same three verdicts ([`CarrierRelation`]) and the same
+//! refusal type ([`CarrierEqError`]) for every kind. The plane, sphere,
+//! cylinder and cone arms walk their data on the same rungs; the torus
+//! arm reads the pair's own coincidence over the whole ring (below):
 //!
 //! | kind | defining data | margins, each at its named lever arm |
 //! |------|---------------|--------------------------------------|
@@ -16,14 +18,18 @@
 //! | torus | centre, axis line, both radii | the pair's own coincidence ([`geom_brep::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
 //! | cone | apex, axis line, half-angle | `carrier_cone_apex`, `carrier_cone_axis_parallel` (·arm), `carrier_cone_half_angle` (·arm) |
 //!
-//! The lever arms are the honest ones: an ANGULAR margin (two
-//! normalized directions crossed) is dimensionless, so it is metered
-//! at the extent over which the verdict is consumed
-//! ([`ConsumedExtent`]), turning it into the displacement the
-//! misalignment induces there. A LENGTH margin (a centre separation, a
-//! radius difference, a point-to-axis distance) is already in metres
-//! and is metered at unit arm — multiplying it by the extent would
-//! price the same error twice.
+//! The lever arms: an ANGULAR margin (two normalized directions
+//! crossed) is dimensionless, so it is metered at the extent over which
+//! the verdict is consumed ([`ConsumedExtent`]), turning it into the
+//! displacement the misalignment induces there. A LENGTH margin (a
+//! centre separation, a radius difference, a point-to-axis distance) is
+//! already in metres and is metered at unit arm; multiplying it by the
+//! extent would price the same error twice. The torus is the exception:
+//! its coincidence reads the whole ring, its tilt levered at the larger
+//! major radius, so a datum past the band moves the ring by that much
+//! somewhere, not necessarily on the faces. Its `Distinct` is the ring's;
+//! the face-pair door asks the faces for a witness of it
+//! ([`super::carrier_pair::carrier_pair_decided`]).
 //!
 //! **At the face-pair door a coincidence is read as one
 //! displacement**, not datum by datum: each datum just inside the band

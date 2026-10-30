@@ -1100,7 +1100,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
-    let glued_pairs = GluedSurfaces::of_result(&body, a, b, decls, &fin.graft);
+    let glued_pairs = GluedSurfaces::of_result(op, &body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
     // A substituted fragment leaves the result as a discard does.
@@ -6290,7 +6290,34 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cit
 /// so no caller states a coincidence to the merge.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GluedSurfaces {
-    pairs: Vec<(SurfaceKey, SurfaceKey)>,
+    pairs: Vec<GluedSurfacePair>,
+}
+
+/// **Two surfaces a Boolean glued one carrier**, and whether their
+/// charts face the same way in the result. A face's material side is
+/// its sense applied to its surface's chart, and fragments inherit both
+/// from their parent, so which way the two charts face holds for every
+/// face either surface carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GluedSurfacePair {
+    /// The first surface.
+    pub(crate) a: SurfaceKey,
+    /// The second surface.
+    pub(crate) b: SurfaceKey,
+    /// Whether the two charts face the same way.
+    pub(crate) charts_agree: bool,
+}
+
+impl GluedSurfacePair {
+    /// The pair of `a` and `b` whose faces of senses `(sa, sb)` have
+    /// material sides that agree or not (`materials_agree`).
+    fn of((a, sa): (SurfaceKey, bool), (b, sb): (SurfaceKey, bool), materials_agree: bool) -> Self {
+        Self {
+            a,
+            b,
+            charts_agree: materials_agree == (sa == sb),
+        }
+    }
 }
 
 impl GluedSurfaces {
@@ -6299,17 +6326,21 @@ impl GluedSurfaces {
         Self::default()
     }
 
-    /// The pairs, each two surface keys of one carrier.
-    pub(crate) fn pairs(&self) -> &[(SurfaceKey, SurfaceKey)] {
+    /// The pairs.
+    pub(crate) fn pairs(&self) -> &[GluedSurfacePair] {
         &self.pairs
     }
 
-    /// `pairs` as a Boolean would glue them, for the merge rows that
-    /// drive its glued path on one body.
+    /// `pairs` as a Boolean would glue them, each two surfaces whose
+    /// faces of senses `(sa, sb)` face the same way, for the merge rows
+    /// that drive its glued path on one body.
     #[cfg(test)]
-    pub(crate) fn of_pairs(pairs: &[(SurfaceKey, SurfaceKey)]) -> Self {
+    pub(crate) fn of_pairs(pairs: &[((SurfaceKey, bool), (SurfaceKey, bool))]) -> Self {
         Self {
-            pairs: pairs.to_vec(),
+            pairs: pairs
+                .iter()
+                .map(|&(a, b)| GluedSurfacePair::of(a, b, true))
+                .collect(),
         }
     }
 
@@ -6322,28 +6353,46 @@ impl GluedSurfaces {
     /// nothing and drops — its contact material did not survive the op
     /// (the same consumed-record rule as contact rows). A `Tangent`
     /// pair's carriers are distinct, and never merge.
+    ///
+    /// The record's relation says whether the two operand faces'
+    /// material sides agree; `op` turns B's inside out where it
+    /// subtracts (`A ∖ B ≡ A ∩ revert(B)`), and the result's faces on
+    /// the two surfaces carry the senses the charts are read under.
     pub(super) fn of_result<T: Real>(
+        op: BooleanOp,
         result: &Body<T>,
         a: &Body<T>,
         b: &Body<T>,
         decls: &Glue<T>,
         graft: &GraftMap,
     ) -> Self {
+        let sense_on = |k: SurfaceKey| {
+            result
+                .faces()
+                .find(|(_, face)| face.surface == k)
+                .map(|(_, face)| face.sense)
+        };
         Self {
             pairs: decls
                 .pairs
                 .iter()
-                .filter(|pair| pair.class.is_one_carrier())
                 .filter_map(|pair| {
+                    let relation = pair.class.carrier_relation()?;
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = a.get_face(pair.a)?.surface;
                     let kb = graft.surfaces.get(b.get_face(pair.b)?.surface).copied()?;
-                    (ka != kb).then_some((ka, kb))
+                    let materials_agree = (relation == super::CarrierRelation::SameOriented)
+                        != (op == BooleanOp::Subtract);
+                    (ka != kb).then_some(())?;
+                    Some(GluedSurfacePair::of(
+                        (ka, sense_on(ka)?),
+                        (kb, sense_on(kb)?),
+                        materials_agree,
+                    ))
                 })
                 .collect(),
         }
-        .surviving(result)
     }
 
     /// The pairs both of whose surfaces `body` still holds.
@@ -6353,7 +6402,7 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .copied()
-                .filter(|&(a, b)| body.get_surface(a).is_some() && body.get_surface(b).is_some())
+                .filter(|p| body.get_surface(p.a).is_some() && body.get_surface(p.b).is_some())
                 .collect(),
         }
     }
@@ -8493,7 +8542,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 _ => BooleanResultKind::Assembly,
             };
             let glued_pairs =
-                GluedSurfaces::of_result(&body, a_pristine, b_pristine, decls, &graft);
+                GluedSurfaces::of_result(op, &body, a_pristine, b_pristine, decls, &graft);
             let mut desc = Descendants::default();
             let none = BTreeSet::new();
             let ledger = ledger(red, decls, [&none, &none])?;

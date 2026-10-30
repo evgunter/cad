@@ -1788,7 +1788,6 @@ pub(in crate::boolean) mod tests {
     use crate::boolean::{BooleanError, Operand};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::euler::EulerOpError;
-    use crate::merge_faces::MergeCoplanarError;
     use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
     use geom_brep::recourse::Classified;
@@ -3266,85 +3265,6 @@ pub(in crate::boolean) mod tests {
                     );
                     assert_eq!(offered_below(&text), None, "{label}: {text}");
                 }
-            }
-        }
-    }
-
-    /// **The merge's glued pair tells one story across its in-band
-    /// and definite arms** (D4 ¶1 (iv)), and it is the merge's own: only
-    /// a pair facing the same way glues, so the decision passes on a
-    /// positive margin alone, where the Boolean's passes on either sign.
-    /// Real raises of the merge's glued-plane orientation decision
-    /// (`glued_planes_continue`): coincident planes facing the same way
-    /// (positive margins) and opposite ways (negative), over a reach in
-    /// the zero band, in the ambiguity band, and definite. The
-    /// same-facing definite pair glues; every other arm names the one
-    /// lever toward that pass, no declaration, no stage label and no
-    /// face key; a positive margin offers the tolerance it gives, and a
-    /// negative margin or the definite opposite arm offers none, since
-    /// no smaller tolerance turns opposite faces into same-facing ones.
-    /// The Boolean's merge stage wraps the sentence behind its own
-    /// label, compared as text rather than through the shape guard,
-    /// which does not see that label
-    /// (`work/tint/the-shape-guard-misses-the-boolean-merge-stage-label.md`).
-    #[test]
-    fn the_merge_orientation_tells_one_story_across_its_arms() {
-        use crate::entity::FaceKey;
-        use crate::merge_faces::glued_planes_continue;
-        const LEVER: &str = "Recourse: turn one of the two faces so both clearly face the same \
-                             way, on faces that clearly span a length";
-        let b = band();
-        let (z, e) = (b.zero(), b.escalate());
-        let (f1, f2) = (FaceKey::default(), FaceKey::default());
-        for (reach, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
-            for sign in [1.0, -1.0] {
-                let label = format!("reach {reach:e}, facing {sign}");
-                let (p1, p2) = planes(sign);
-                let verdict = glued_planes_continue((p1.normal, p2.normal), reach, (f1, f2), b);
-                let err = match verdict {
-                    Ok(glued) => {
-                        assert!(
-                            definite && sign > 0.0 && glued,
-                            "{label}: only a definite same-facing pair glues"
-                        );
-                        continue;
-                    }
-                    Err(err) => err,
-                };
-                assert_eq!(
-                    matches!(err, MergeCoplanarError::GluedOppositeOrientation { .. }),
-                    definite,
-                    "{label}: the definite opposite pair is the decision's sign-certain arm: \
-                     {err:?}"
-                );
-                let text = err.to_string();
-                assert_eq!(recourse_markers(&text), 1, "{label}: {text}");
-                assert!(
-                    subjectless_escalations(&text).is_empty()
-                        && stage_prefixes(&text, &[]).is_empty(),
-                    "{label}: {text}"
-                );
-                let head = if definite {
-                    "the two glued faces face opposite ways across the edge they share. "
-                } else {
-                    "whether the two glued faces face the same way across the edge they \
-                     share is undecided: "
-                };
-                assert!(
-                    text.starts_with(head)
-                        && text.contains(LEVER)
-                        && !text.contains("declare the")
-                        && !text.contains("merge_coplanar_faces")
-                        && !text.contains("FaceKey"),
-                    "{label}: {text}"
-                );
-                let offer = (!definite && sign > 0.0).then_some(reach);
-                assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
-                assert_eq!(
-                    BooleanError::from(err).to_string(),
-                    format!("coplanar-merge output stage refused: {text}"),
-                    "{label}: the Boolean's merge stage forwards the sentence"
-                );
             }
         }
     }

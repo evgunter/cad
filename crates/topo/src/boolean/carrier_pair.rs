@@ -292,12 +292,109 @@ pub fn carrier_pair_decided<T: Decide>(
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    Ok(super::carrier_eq::pair_door_reading(
-        &ca,
-        &cb,
-        &extent.consumed(),
-        band,
-    ))
+    Ok(
+        match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
+            Ok((CarrierRelation::Distinct, _))
+                if matches!(
+                    (ca, cb),
+                    (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. })
+                ) =>
+            {
+                torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), band)
+            }
+            reading => reading,
+        },
+    )
+}
+
+/// The row a torus face's witness of two carriers is decided on
+/// ([`torus_pair_witnessed`]).
+const TORUS_WITNESS: &str = "carrier_torus_witness";
+
+/// **Two torus faces the ring reads apart are apart over their extent
+/// only where a point of one stands past the band from the other's
+/// carrier.** The torus coincidence reads the whole ring
+/// ([`geom_brep::tori_coincide`]): a datum past the band moves the ring
+/// by that much somewhere, which the faces need not hold, and where
+/// they do not the two may stand in band of each other over every point
+/// they span. Each face's boundary points ([`face_witnesses`]) lie on
+/// it, and a point's distance to a torus is exact in closed form, so
+/// the farthest of them decides: past the band it witnesses two
+/// carriers here, and short of it the pair is undecided over its
+/// extent.
+///
+/// # Panics
+///
+/// Where `ca` or `cb` is not a torus, or a face's boundary does not
+/// read: the door reads both faces' carriers first.
+fn torus_pair_witnessed<T: Decide>(
+    (a, fa, ca): (&Body<T>, FaceKey, &CarrierDesc<T>),
+    (b, fb, cb): (&Body<T>, FaceKey, &CarrierDesc<T>),
+    band: Band,
+) -> Result<super::carrier_eq::CarrierReading, CarrierEqError> {
+    use super::carrier_eq::CoincidenceMeasure;
+    use geom_core::{Decided, Indeterminate, Margin, Sign};
+    let on = |body: &Body<T>, f: FaceKey| {
+        face_witnesses(body, f)
+            .unwrap_or_else(|| unreachable!("{f:?}'s carrier read, so its boundary does"))
+    };
+    let distances = on(a, fa)
+        .into_iter()
+        .map(|p| torus_distance(cb, p))
+        .chain(on(b, fb).into_iter().map(|p| torus_distance(ca, p)));
+    let farthest = distances.fold(T::zero(), |m, d| m.max(d));
+    let relation = match (ca, cb) {
+        (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => {
+            if w1 == w2 {
+                CarrierRelation::SameOriented
+            } else {
+                CarrierRelation::SameOpposite
+            }
+        }
+        _ => unreachable!("a torus pair's witness reads two tori"),
+    };
+    let undecided = |coincidence| CarrierEqError::Undecided {
+        coincidence,
+        relation,
+    };
+    match CoincidenceMeasure::decide(TORUS_WITNESS, Margin::of(farthest), band) {
+        Ok(Decided {
+            sign: Sign::Positive,
+            ..
+        }) => Ok((CarrierRelation::Distinct, None)),
+        Ok(Decided { margin, .. }) => {
+            Err(undecided(CoincidenceMeasure::Undecided(Indeterminate {
+                margin,
+                band,
+                predicate: Some(TORUS_WITNESS),
+                terminal_sliver: false,
+            })))
+        }
+        Err(coincidence) => Err(undecided(coincidence)),
+    }
+}
+
+/// The distance from `p` to the torus `c`: from its core circle, less
+/// the minor radius.
+///
+/// # Panics
+///
+/// Where `c` is not a torus.
+fn torus_distance<T: Decide>(c: &CarrierDesc<T>, p: Point3<T>) -> T {
+    let CarrierDesc::Torus {
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+        ..
+    } = *c
+    else {
+        unreachable!("a torus distance reads a torus")
+    };
+    let v = p - center;
+    let z = v.dot(axis);
+    let rho = (v - axis * z).norm();
+    (((rho - major_radius) * (rho - major_radius) + z * z).sqrt() - minor_radius).abs()
 }
 
 #[cfg(test)]
@@ -379,11 +476,13 @@ mod lever_rows {
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
     /// `y` through the shared centre. At `θ = 0.6·Kε`, in band at one
     /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`,
-    /// past the band: the door reads two carriers and contradicts, as it
-    /// does at `2·Kε`.
+    /// past the band, but at the ring's far side, off the patch, and no
+    /// corner of the patch stands past the band from the twin: the door
+    /// escalates. At `2·Kε` a corner stands past it, and the door reads
+    /// two carriers and contradicts.
     #[test]
-    fn a_torus_tilt_is_read_at_the_ring() {
-        for k in [0.6, 2.0] {
+    fn a_torus_tilt_is_read_at_the_patch() {
+        for (k, witnessed) in [(0.6, false), (2.0, true)] {
             let theta = k * band().escalate();
             let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
             let (a, fa) = torus_wall(
@@ -412,10 +511,17 @@ mod lever_rows {
                 "{k}·Kε: the twin is the opposed face"
             );
             let read = door(&a, fa, &b, fb);
-            assert!(
-                matches!(read, Err(ContactRefusal::Contradicted { .. })),
-                "{k}·Kε: the swing at the ring is past the band: {read:?}"
-            );
+            if witnessed {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
+                    "{k}·Kε: a corner past the band contradicts: {read:?}"
+                );
+            } else {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Escalated { .. })),
+                    "{k}·Kε: the swing at the ring is no evidence over the patch: {read:?}"
+                );
+            }
         }
     }
 
@@ -437,6 +543,68 @@ mod lever_rows {
         assert!(
             matches!(read, Err(ContactRefusal::Contradicted { .. })),
             "the tilt at the far rim contradicts the contact: {read:?}"
+        );
+    }
+
+    /// **A torus pair in band over its patch escalates.** The torus
+    /// lever row's `0.6·Kε` tilt: every point of the patch (sampled on a
+    /// 41×41 grid of its chart) stands within `Kε` of the tilted twin's
+    /// carrier, so the two faces are in band of each other over their
+    /// whole extent. The tilt levered at the major radius parts the ring
+    /// at its far side, off the patch, so it is no evidence here; only
+    /// the displacement's lower bound could part them, and it does not.
+    #[test]
+    fn a_torus_pair_in_band_over_its_patch_escalates() {
+        let k = 0.6;
+        let theta = k * band().escalate();
+        let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+        let (big, small) = (2.0, 0.5);
+        let (a, fa) = torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            big,
+            small,
+            u,
+            v,
+        );
+        let (mut b, fb) = torus_wall(
+            Point3::origin(),
+            Vec3::new(theta.sin(), 0.0, theta.cos()),
+            Vec3::new(theta.cos(), 0.0, -theta.sin()),
+            big,
+            small,
+            u,
+            v,
+        );
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        // The distance from `p` to the twin: `p` turned back by θ about y,
+        // read against the untilted torus.
+        let to_twin = |x: f64, y: f64, z: f64| {
+            let (s, c) = theta.sin_cos();
+            let (x, z) = (c * x - s * z, s * x + c * z);
+            let rho = (x * x + y * y).sqrt();
+            (((rho - big).powi(2) + z * z).sqrt() - small).abs()
+        };
+        let n = 40;
+        let mut worst: f64 = 0.0;
+        for i in 0..=n {
+            for j in 0..=n {
+                let uu = u.0 + (u.1 - u.0) * f64::from(i) / f64::from(n);
+                let vv = v.0 + (v.1 - v.0) * f64::from(j) / f64::from(n);
+                let r = big + small * vv.cos();
+                worst = worst.max(to_twin(r * uu.cos(), r * uu.sin(), small * vv.sin()));
+            }
+        }
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            worst < band().escalate() && worst > band().zero(),
+            "the patch stands in band of its twin: worst {worst:e}"
+        );
+        assert!(
+            matches!(read, Err(ContactRefusal::Escalated { .. })),
+            "a pair in band over its whole extent escalates: worst {worst:e}, {read:?}"
         );
     }
 

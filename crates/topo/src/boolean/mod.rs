@@ -107,8 +107,8 @@ mod join;
 mod nary;
 mod node;
 mod ops;
-pub(crate) use ops::GluedSurfaces;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
+pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
 pub(crate) use ops::volume_backstop;
@@ -1243,8 +1243,9 @@ impl<T: Real> GluedPair<T> {
     ///
     /// # Panics
     ///
-    /// Where the face-pair door does not decide the pair one carrier on
-    /// a margin: the glue door would not glue it.
+    /// Where the face-pair door does not decide the pair one carrier
+    /// under `class`'s relation on a margin: the glue door would not glue
+    /// it so.
     #[cfg(test)]
     #[allow(clippy::panic)]
     pub(crate) fn read(
@@ -1260,7 +1261,9 @@ impl<T: Real> GluedPair<T> {
             return Self::new(fa, fb, class);
         }
         match carrier_pair::carrier_pair_decided(a, fa, b, fb, band) {
-            Ok(Ok((_, Some(margin)))) => Self::decided(fa, fb, class, margin),
+            Ok(Ok((relation, Some(margin)))) if Some(relation) == class.carrier_relation() => {
+                Self::decided(fa, fb, class, margin)
+            }
             other => panic!("the glue door glues no {class:?} pair on {other:?}"),
         }
     }
@@ -1975,7 +1978,8 @@ impl<T: Real> GluedPairs<T> {
     /// the carrier ladder spells it: the glue door's decision, read
     /// from its record and measured nowhere again
     /// (`[coincidence.booleans]`). `None` for a pair not glued one
-    /// carrier.
+    /// carrier. A pair is glued one carrier where the door verified it
+    /// so, the set [`Self::settled`] reads too, so the two never part.
     pub(crate) fn glued_relation(
         &self,
         o1: Operand,
@@ -1983,7 +1987,9 @@ impl<T: Real> GluedPairs<T> {
         o2: Operand,
         f2: FaceKey,
     ) -> Option<CarrierRelation> {
-        self.class_of(o1, f1, o2, f2)
+        self.verified_one_carrier(o1, f1, o2, f2)
+            .then(|| self.class_of(o1, f1, o2, f2))
+            .flatten()
             .and_then(GlueClass::carrier_relation)
     }
 
