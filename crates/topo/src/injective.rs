@@ -684,8 +684,9 @@ fn overlap(a: Point3<Interval>, b: Point3<Interval>) -> bool {
 // windows ([`crate::clearance`]'s `window_of`, whose periodic axes are
 // these) and the presentations read the same table and the same turn.
 
-/// **Whether a chart axis is periodic**: an analytic carrier's azimuth,
-/// and a torus's both angles.
+/// **Whether a chart axis is periodic**: the azimuth of a cylinder, cone
+/// or sphere, and a torus's both angles; no axis of a plane or a
+/// free-form chart.
 pub(crate) fn periodic<T: Real>(surface: &Surface<T>, axis: Axis) -> bool {
     match surface {
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => axis == Axis::U,
@@ -2008,9 +2009,9 @@ impl Harmonic {
     }
 
     /// The chart point at `t`, or the image over the parameters `t`,
-    /// enclosed.
-    pub(crate) fn at(&self, t: Interval) -> (Interval, Interval) {
-        (self.on(Axis::U, t), self.on(Axis::V, t))
+    /// enclosed, `[u, v]`.
+    pub(crate) fn at(&self, t: Interval) -> [Interval; 2] {
+        [self.on(Axis::U, t), self.on(Axis::V, t)]
     }
 }
 
@@ -2231,7 +2232,8 @@ impl Curved {
 
     /// The chart point at the middle of the side's parameters.
     fn middle(&self) -> (Interval, Interval) {
-        self.chart.at(at(geom::mid_param(self.t.0, self.t.1)))
+        let [u, v] = self.chart.at(at(geom::mid_param(self.t.0, self.t.1)));
+        (u, v)
     }
 }
 
@@ -2539,6 +2541,11 @@ pub(crate) const CORNER_VERTEX: &str = "self_intersection_corner_vertex";
 /// the two edges, within that gap of the other edge — within the band,
 /// in metres, of the face's own boundary. A coincidence farther from the
 /// boundary than the band cannot pass through it.
+///
+/// The chart gap is levered into metres by `speed`, the chart's speed
+/// bound over the rectangle: exact on a constant-speed chart (a plane's,
+/// a cylinder's — the two read through a corner), an upper bound
+/// otherwise.
 fn on_vertex(a: [Interval; 2], b: [Interval; 2], speed: [f64; 2], band: Band) -> bool {
     let off = |i: usize| ((a[i] - b[i]) * at(speed[i])).powi(2);
     let gap = (off(0) + off(1)).sqrt();
@@ -2775,9 +2782,17 @@ fn copies(
     )
 }
 
-/// A chart point `(u, v)` as `[u, v]`.
-fn pair((u, v): (Interval, Interval)) -> [Interval; 2] {
-    [u, v]
+/// The chart point or box `x`, `[u, v]`, moved `k` whole turns per axis.
+fn shifted(x: [Interval; 2], k: [f64; 2]) -> [Interval; 2] {
+    [x[0] + turns(k[0]), x[1] + turns(k[1])]
+}
+
+/// **The chart's speeds over the rectangle `u × v`**, `[|S_u|, |S_v|]`,
+/// upper bounds (`rect_jet`'s): what a chart length along each axis
+/// levers into metres.
+fn speeds(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> [f64; 2] {
+    let (ju, jv, _) = rect_jet(surface, u, v);
+    [ju.norm().hi(), jv.norm().hi()]
 }
 
 /// The hull of chart boxes `[u, v]`, per axis.
@@ -2831,10 +2846,8 @@ fn leaves_graph(
             return None;
         }
     }
-    let (ju, jv, _) = rect_jet(surface, r.0, r.1);
-    let speed = [ju.norm().hi(), jv.norm().hi()];
-    let start = [near.x + turns(k[0]), near.y + turns(k[1])];
-    if !on_vertex(start, vertex, speed, band) {
+    let speed = speeds(surface, r.0, r.1);
+    if !on_vertex(shifted([near.x, near.y], k), vertex, speed, band) {
         return None;
     }
     let (a, b) = (p.column, p.column.other());
@@ -2926,7 +2939,6 @@ fn present_line_corner<'a>(
         return Err(Unpresented::Local);
     }
     let from_start = o.ends[0] == c.vertex;
-    let (ju, jv, _) = rect_jet(surface, x, y);
     leaves_line(
         surface,
         &h,
@@ -2935,7 +2947,7 @@ fn present_line_corner<'a>(
         (held, sigma),
         vertex,
         (x, y),
-        [ju.norm().hi(), jv.norm().hi()],
+        speeds(surface, x, y),
         band,
     )?;
     Ok(Presentation::Of(Box::new(Presented {
@@ -2972,14 +2984,9 @@ fn leaves_line(
     band: Band,
 ) -> Result<(), Unpresented> {
     let t_v = if from_start { t0 } else { t1 };
-    let start = pair(h.at(at(t_v)));
+    let start = h.at(at(t_v));
     let k = turns_to(surface, start, vertex);
-    if !on_vertex(
-        [start[0] + turns(k[0]), start[1] + turns(k[1])],
-        vertex,
-        speed,
-        band,
-    ) {
+    if !on_vertex(shifted(start, k), vertex, speed, band) {
         return Err(Unpresented::Local);
     }
     let lever = speed[held.index()];
@@ -2989,7 +2996,7 @@ fn leaves_line(
         return Err(Unpresented::Local);
     }
     let pieces = Pieces::of(h, held, (t0, t1), false).t;
-    let reach = reach_of(pieces.iter().map(|&t| pair(h.at(t))));
+    let reach = reach_of(pieces.iter().map(|&t| h.at(t)));
     // Two guards, each load-bearing. The rate keeps the run from the
     // vertex on the face's side while it is in `R`; `gone` keeps a piece
     // that comes back into `R` after the run has left — from any side, at
@@ -3005,8 +3012,7 @@ fn leaves_line(
         let mut gone = false;
         while let Some(((a, z), depth)) = todo.pop() {
             let t = Interval::from_bounds(a, z);
-            let (u, v) = h.at(t);
-            if !meets_rect([u + turns(c[0]), v + turns(c[1])], r) {
+            if !meets_rect(shifted(h.at(t), c), r) {
                 gone |= through;
                 continue;
             }
@@ -3037,10 +3043,13 @@ fn leaves_line(
                 Ok(Sign::Negative) if (if from_start { a } else { z }) == t_v => {
                     return Err(Unpresented::Structural);
                 }
-                // Off the vertex a decided `Negative` falls to the arm
-                // below: the curve's rate is continuous, so the run meets a
-                // piece the funnel cannot sign before any it signs negative,
-                // and that piece refuses first.
+                // Off the vertex a decided `Negative` is refused outright.
+                // It is not reached otherwise — the rate is continuous, so
+                // the run meets a piece the funnel cannot sign first, which
+                // refuses at the [`LEAVES`] cap, and a piece past the run's
+                // exit is refused by `gone` before its rate is read — but
+                // the refusal does not rest on those three.
+                Ok(Sign::Negative) => return Err(Unpresented::Local),
                 _ => {
                     if !split(&mut todo) {
                         return Err(Unpresented::Local);
@@ -3213,8 +3222,7 @@ fn graph_read(
     let run = all.swap_remove(chosen);
     let mut others = reaches;
     others.swap_remove(chosen);
-    let (ju, jv, _) = rect_jet(surface, cell.0, cell.1);
-    let lever = column.of((ju, jv)).norm().hi();
+    let lever = speeds(surface, cell.0, cell.1)[column.index()];
     let (run, rising) = monotone_run(p, run, (a0, a1), lever, band)?;
     let (ta, tb) = narrowed(p, &run, rising, (a0, a1))?;
     // Step 2: `R`, and nothing in it but the curve.
@@ -3233,7 +3241,7 @@ fn graph_read(
         return None;
     }
     let rb = (b0.min(g.lo()), b1.max(g.hi()));
-    if whole_turn(rb.0, rb.1) {
+    if periodic(surface, other) && whole_turn(rb.0, rb.1) {
         return None;
     }
     if !apart(rb, &others, periodic(surface, other)) {
@@ -5666,40 +5674,55 @@ mod presentation_rows {
         );
     }
 
-    /// **An other edge that misses the vertex by more than the band is
-    /// read by neither reading**: the quarter disc's line ends at
-    /// `(1.001, 0)`, a millimetre off the arc's end, and the rim corner's
-    /// curve ends at `(0.999, ½)`, a millimetre off the ruling. Red if
-    /// [`on_vertex`] reads two points that far apart as one.
+    /// **An other edge that misses the vertex is read by neither
+    /// reading**, whichever chart axis it misses along, and by however
+    /// little the funnel cannot call nothing:
+    /// - the quarter disc's line ends a millimetre off the arc's end, along
+    ///   `u` at `(1.001, 0)` and along `v` at `(1, 0.001)`;
+    /// - the ruling corner's curve ends a millimetre off the vertex, along
+    ///   `u` at `(0.999, ½)` and along `v` at `(1, ½ + 0.001)`;
+    /// - the line ends off the arc's end along `v` by a gap between the
+    ///   band's zero and its escalation, which no sign decides.
+    ///
+    /// Red if [`on_vertex`] reads two points that far apart as one, reads
+    /// one axis's gap only, or reads an undecided gap as none.
     #[test]
     fn an_other_edge_off_the_vertex_is_not_read_through_it() {
-        let disc = quarter(segment(20, [3, 1], (0.0, 0.0), (1.001, 0.0)), Vec::new());
-        assert_eq!(
-            on_floor(
-                &disc,
-                vec![0, 1],
-                vec![vertex(1)],
-                (0.98, 1.02),
-                (-0.02, 0.02)
-            ),
-            Read::Local,
-            "the line a millimetre off the arc's end"
+        let disc = |end: (f64, f64)| quarter(segment(20, [3, 1], (0.0, 0.0), end), Vec::new());
+        let floor_at = |end, what| {
+            assert_eq!(
+                on_floor(
+                    &disc(end),
+                    vec![0, 1],
+                    vec![vertex(1)],
+                    (0.98, 1.02),
+                    (-0.02, 0.02)
+                ),
+                Read::Local,
+                "{what}"
+            );
+        };
+        floor_at((1.001, 0.0), "the line a millimetre off along u");
+        floor_at((1.0, 0.001), "the line a millimetre off along v");
+        let b = band();
+        floor_at(
+            (1.0, (b.zero() * b.escalate()).sqrt()),
+            "the line off by an undecided gap",
         );
-        let off = ruling_corner(
-            harmonic_rim(
-                11,
-                [3, 1],
-                harmonic([-0.001, 1.5], 1.0, (0.0, 0.0, -1.0)),
-                (0.5, 1.0),
-            ),
-            Vec::new(),
-            (0.499, 1.0),
-        );
-        assert_eq!(
-            on_cylinder(&off, (0.95, 1.0), (0.45, 0.55)),
-            Read::Local,
-            "the curve a millimetre off the ruling"
-        );
+        let ruling_at = |p0: [f64; 2], what| {
+            let off = ruling_corner(
+                harmonic_rim(11, [3, 1], harmonic(p0, 1.0, (0.0, 0.0, -1.0)), (0.5, 1.0)),
+                Vec::new(),
+                (p0[0] + 0.5, p0[1] - 0.5),
+            );
+            assert_eq!(
+                on_cylinder(&off, (0.95, 1.0), (0.45, 0.55)),
+                Read::Local,
+                "{what}"
+            );
+        };
+        ruling_at([-0.001, 1.5], "the curve a millimetre off along u");
+        ruling_at([0.0, 1.501], "the curve a millimetre off along v");
     }
 
     /// **An edge or a vertex in reach of a line corner's rectangle but
@@ -5793,7 +5816,7 @@ mod presentation_rows {
             along.lo().abs() < 1e-12 && along.hi().abs() < 1e-12,
             "on the zero set: {along:?}"
         );
-        let (u, v) = h.at(t);
+        let [u, v] = h.at(t);
         let boxed = psi.value(cyl.eval(u, v)).expect("a closed form");
         assert!(boxed.hi() - boxed.lo() > 0.1, "the box read: {boxed:?}");
     }

@@ -3105,8 +3105,7 @@ fn row_of<T: CertifiedBounds>(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        let (u, v) = h.at(t);
-        return Some(Row::Bulging([u, v]));
+        return Some(Row::Bulging(h.at(t)));
     }
     Some(Row::Ends(ends))
 }

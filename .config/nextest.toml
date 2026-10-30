@@ -174,3 +174,11 @@ not (
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# The corner presentation's "stays" rows run in milliseconds. A lax
+# `leaves_line` that admits an undecided piece instead of refusing it walks
+# every halving down to the depth cap, and would hang rather than fail; the
+# bound turns that into a red row (CORNER).
+[[profile.default.overrides]]
+filter = 'binary_id(topo) & test(/injective::presentation_rows::a_curve_that_(rises_back_across_the_rim|curls_back_across_the_ruling|comes_back_into_the_rectangle)/)'
+slow-timeout = { period = "10s", terminate-after = 3 }
