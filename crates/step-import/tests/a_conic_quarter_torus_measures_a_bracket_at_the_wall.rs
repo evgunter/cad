@@ -3,9 +3,9 @@
 //! costly face class — PR 5589's first reviewer's 9×9 conic torus, a
 //! rational surface of revolution at `R = 24 m, r = 6 m` — measured
 //! through the door under `Resolution(1.024e-6 m)`, answers a bracket
-//! that holds Pappus's volume, never a refusal. Its walls' rounds cost
-//! 81 spans' cells under the one per-face work wall, so they stop at
-//! the wall short of the resolution.
+//! that holds Pappus's volume, never a refusal. The import splits each
+//! wall at its C⁰ knots into one-span walls (`docs/DESIGN.md`
+//! [topology]), and each meets the resolution.
 //!
 //! **The body.** No builder closes a body around a conic patch, so the
 //! file is made: the kernel revolves a circle of radius `r` centred at
@@ -268,6 +268,30 @@ fn face_is_upper(text: &str, face: &str) -> bool {
     panic!("the band carries a rim semicircle")
 }
 
+/// The walls the file's spline surfaces split into at their C⁰ knots:
+/// per surface, one more than its crease runs (interior multiplicity at
+/// least the degree) along each direction, multiplied.
+fn one_span_walls(text: &str) -> usize {
+    text.lines()
+        .filter_map(|l| {
+            let (_, head) = l.split_once("B_SPLINE_SURFACE(")?;
+            let mut degrees = head.split(',').map(|d| d.trim().parse::<usize>().unwrap());
+            let (p, q) = (degrees.next()?, degrees.next()?);
+            let (_, knots) = l.split_once("B_SPLINE_SURFACE_WITH_KNOTS(")?;
+            let mut lists = knots.split(')').map(|m| {
+                m.trim_start_matches([',', ' ', '('])
+                    .split(',')
+                    .map(|k| k.trim().parse::<usize>().unwrap())
+                    .collect::<Vec<_>>()
+            });
+            let (mu, mv) = (lists.next()?, lists.next()?);
+            let tiles =
+                |m: &[usize], d: usize| 1 + m[1..m.len() - 1].iter().filter(|&&k| k >= d).count();
+            Some(tiles(&mu, p) * tiles(&mv, q))
+        })
+        .sum()
+}
+
 /// **The conic quarter torus answers a bracket at the wall that holds
 /// Pappus** under a resolution of 1.024e-6 m, at every ε.
 #[test]
@@ -288,7 +312,13 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
             )
         })
         .count();
-    assert_eq!(walls, 2, "both half bands are the conic surface");
+    // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
+    // [topology]); the measure then reads one-span walls.
+    assert_eq!(
+        walls,
+        one_span_walls(&text),
+        "each half band's conic spans import as one wall per span"
+    );
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))
         .unwrap_or_else(|e| panic!("the conic torus measures, never refuses: {e:?}"));
@@ -302,8 +332,9 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     );
     assert_eq!(
         measured.stop,
-        topo::Stop::Wall,
-        "the costly walls stop at their wall, short of the resolution: {measured:?}"
+        topo::Stop::Met,
+        "every one-span wall meets the resolution, so no face is the review's costly \
+         case any more: {measured:?}"
     );
     eprintln!(
         "ACCEPTANCE-5 conic quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",
