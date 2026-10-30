@@ -20,7 +20,11 @@
 //! the glue door's tangency ([`tangency_reading`]) claims neither. Both
 //! read the second-order margin `κ_rel` as the glue door does: it must
 //! be definite (jet-determinate), and in band, or exactly zero at an
-//! isolated point, it escalates.
+//! isolated point, it escalates. The #175 clause, which bridged an exact
+//! zero so that a G1 tube chain's two neutral meridian points stayed
+//! declarable, binds nothing now: no contact is declared, and the glue
+//! door refuses such a chain at those points, as D10 has it
+//! (`mate7a_torus_rest::the_g1_tube_chain_refuses_at_the_glue_door`).
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,

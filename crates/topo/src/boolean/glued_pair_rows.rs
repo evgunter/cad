@@ -11,7 +11,9 @@ use super::{Glue, GluedPairs, glue, verify_glued_contacts};
 use crate::AtRestBody;
 use crate::contact::GlueClass;
 use crate::test_support::finished;
-use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
+use crate::test_support_fixtures::{
+    FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
+};
 use geom_core::{Band, Margin, Point3, Tol, Vec3};
 
 fn tol() -> Tol {
@@ -32,6 +34,55 @@ fn door(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Glue<f64>, GluedPairs<f64>
     let verified = verify_glued_contacts(a, b, &decls, band()).unwrap();
     let declared = GluedPairs::build(&decls, verified, a, b, Default::default(), band()).unwrap();
     (decls, declared)
+}
+
+/// **A boolean records a glued pair on the margin the door decided it
+/// on.** A brick on a cube (`Rest`) and two cubes side by side
+/// (continuations, and `Rest` across their shared wall): each
+/// one-carrier pair the door glued has one row in the union's
+/// coincidences, whose margin is the face-pair door's own
+/// ([`super::carrier_pair::carrier_pair_decided`]) and whose relation is
+/// the class's.
+#[test]
+fn a_glued_pairs_row_carries_the_doors_margin() {
+    let cube =
+        |x: (f64, f64), z: (f64, f64)| finished("a block", brick(x, (0.0, 1.0), z, tol()), tol());
+    for (what, a, b) in [
+        ("a brick on a cube", cube((0.0, 1.0), (0.0, 1.0)), {
+            finished(
+                "the brick",
+                brick((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
+                tol(),
+            )
+        }),
+        (
+            "two cubes side by side",
+            cube((0.0, 1.0), (0.0, 1.0)),
+            cube((1.0, 2.0), (0.0, 1.0)),
+        ),
+    ] {
+        let (decls, _) = door(&a, &b);
+        let out = super::union(&a, &b, tol()).unwrap();
+        let rows = &out.body().expect("the union builds").coincidences;
+        let mut read = 0;
+        for pair in decls.pairs.iter().filter(|p| p.class.is_one_carrier()) {
+            let Ok(Ok((_, Some(margin)))) =
+                super::carrier_pair::carrier_pair_decided(&a, pair.a, &b, pair.b, band())
+            else {
+                panic!("{what}: the door glued {pair:?} on a margin");
+            };
+            let row: Vec<_> = rows
+                .iter()
+                .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
+                .collect();
+            assert!(
+                matches!(&row[..], [r] if r.margin == margin && r.relation == pair.class.relation()),
+                "{what}: {pair:?}'s row: {row:?}, the door's margin {margin:?}"
+            );
+            read += 1;
+        }
+        assert!(read > 0, "{what}: a one-carrier pair is glued");
+    }
 }
 
 /// A point turned by `angle` about the line through `c` along the unit

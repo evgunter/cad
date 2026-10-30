@@ -41,4 +41,4 @@ because each rename reaches the public kind list and the Python tags
 
 ## Closed
 
-Closed by PR 6079: `UnsupportedDeclarationClass` is `TangencyUnsupported`, `DeclaredContact` is `ContactPair`, `ContactContradicted` is tangent-only, and `DeclarationContradicted`/`ContinuationContradicted` are gone.
+Closed by PR 6079: `UnsupportedDeclarationClass` is `TangencyUnsupported`, `DeclaredContact` is `ContactPair`, `ContactContradicted` is tangent-only, and `DeclarationContradicted`/`ContinuationContradicted` are gone. The user-visible strings speak of records, not declarations: `CONTACT_RECOURSE` ("move the geometry so the faces clearly touch or clearly part"), `CONTRADICTION_RECOURSE`, `ContactRefusal`'s Display, the census `ContactContradicted` message, `OUTSIDE_REST_INVENTORY`, and the `Coincide::Contact` subject. `ContactRefusal::Undeclared`, which nothing constructed, is gone. The routing that still reads a declaration that would settle a question is `the-declaration-read-routing-survives-the-declarations`.
