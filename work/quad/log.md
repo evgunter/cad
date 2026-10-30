@@ -455,3 +455,23 @@ PR 5568's fix pass.
 - 2026-10-30 — **PR 6013 lands** (head `a18f0eae`, green on hosted CI). Main was merged in at `98ba9e6a`; its one conflict was the conic test's `Stop`, kept at `Met`, as a release run reads it. The first gate's five reds were all 6013's own and fixed: the binding census, ruff, a fast-set row, the f64-interim ratchet lowered to 44, the bounds pin.
   - **The split torus, release:** import 5.54 s, measure `Met` in 6.92 s. **Debug:** 72.8 s.
   - FOREIGN's row is closed with pr 6013.
+
+## 2026-10-30: P0 and P1 done; handed back
+
+- **Done this sitting:**
+  - the P0 `the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch` (PR 6092: per-span round-zero schedules, a dual review and three fix passes);
+  - FOREIGN's C⁰-knot split, which QUAD landed (PR 6013: FULL review, fix pass, delta review);
+  - the duplicate P1 main-red row, closed.
+- **Open, Ev's:** `[ev]` PR 6102, ruling row `the-measurement-work-bound-attaches-to-the-question`. Ev answered "broadly 2: the caller states the budget, with its predicate", and the diff is updated in place. One clarification is pending: the size of the kernel's own questions' budget. The diff says a multiple of one reading, and this is treated as answered unless Ev objects. Still owed on that PR when Ev confirms:
+  - the fork row's second half (Ev's decision and the A/B mapping from `analysis/design-fork/measure-work-bound-per-face-or-per-span`);
+  - after merge, the implementation unit (H): widest-first refinement across a question's cells, a caller-stated budget, resolution read over the whole surface, and the walks rewritten;
+  - after merge, a row to audit the kernel's resolution call sites, and to weigh a resolution type with no comparison on it.
+
+  The orchestrator who held this sitting stays subscribed to 6102 and does these when Ev answers.
+- **Off-question findings from the designers, to file with the implementation unit:**
+  - `walk_set`/`deciding_walk` refine every refinable face each round, not the widest;
+  - `Settle::Resolution` is read per face, which makes it cut-dependent.
+- **Practice:**
+  - A cloud session given a short sha fails to start (`ref_not_found`); pass a full sha or a branch.
+  - A fix pass on a dual-reviewed unit that restructures code on the flux path earned a delta review, which found a MAJOR (set-up at 10–16× main): keep doing it.
+- Status `active` → `ready`.
