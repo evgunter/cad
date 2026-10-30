@@ -391,7 +391,7 @@ fn interior_meeting<T: Decide>(
         },
     };
     let what = match refusal.fault {
-        MeetFault::Escalated(cause) => {
+        MeetFault::Escalated(cause) | MeetFault::Touch(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             return None;
         }

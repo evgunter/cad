@@ -2,10 +2,12 @@
 id: two-rims-read-coplanar-refuse-unsupported-or-untyped
 kind: issue
 title: Two ellipse rims read coplanar refuse at frontiers — CurvedPierceUnsupported when definitely apart, FallbackExtentUnsupported when one curve within the band
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
+closed: 2026-10-30
+pr: 5993
 ---
 
 Found by the body pin added on `cleave/carrier-cross-one-curve`
@@ -73,3 +75,12 @@ Both designers agreed, and Ev ruled (PR 5973, no DESIGN change):
 - **k < 1: one curve.** The rims are one curve within the band, and the ops build the coincident cut (PR 5969).
 - **1 < k ≲ 1000: an in-band meeting.** The rims' 3-D gap is under ε over most of the rim and reaches kε only near the grazing tips, so the meeting is in band. Every op owes `Escalated` on where the rims part, not `CurvedPierceUnsupported`. Today the coplanar ellipse reading answers `Unsettled(SignInBand)` and the crossing layer keeps its frontier door. The fix is `work/splitdoor/roots-unsettled-folds-band-precision-and-fault-into-one-frontier.md`: `roots::Unsettled` flattens band, precision and fault into one frontier.
 - **This item closes** when that row lands and this item's pin asserts `Escalated` at 1 < k ≲ 1000. That covers the k = 2, 5, 30 and 80 rows and the `conic_bend` escalation at 80.
+
+## Closed (2026-10-30, PR 5993)
+
+Ev's decision for 1 < k ≲ 1000 is now built at every pose but one. Two rims cut from two glued planes, meeting in band, refuse a located `CurvedPierceEscalated` whose decision is `CurveMeeting`, with the meeting's lever:
+- k = 2 and 5: on `curve_carrier_gap`;
+- k = 30: on `curve_pair_coplanar_sub_side`;
+- k = 200: on `curve_pair_pose_swing`.
+
+The exception is k = 80 with the second rod first. There the width arm's clear reads a **decided** Zero, so it keeps main's frontier (`CurvedPierceUnsupported`). That is the open question of `a-decided-zero-tangency-tells-the-frontier-story-where-recourse-iv-would-escalate`, and this pose is recorded there as its witness. k < 1 builds (PR 5969); 1e-6 refuses on the meter.

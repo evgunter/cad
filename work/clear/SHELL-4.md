@@ -35,3 +35,57 @@ sentence above. `shell` reads `T::clearance_lane()`:
 The wording "over its non-adjacent face pairs" defers to the
 self-intersection row's design. Witness verification without a
 document is SHELL-3's spec question, above.
+
+## Parked (CLEAR orchestrator, 2026-10-29)
+
+Parked on `departure-reads-no-curved-corner`. CURVEDEP (#5991)
+certifies closed curved edges only. Read at `origin/main`, the cavity
+clone keeps the operand's topology: `shell.rs` clones the body and
+moves its charts in place. So:
+- **Tube** (`shell_operands.rs` `tube`): every curved shared edge is a
+  closed rim circle, so the gate would hold.
+- **Vessel** (`shell_operands.rs` `vessel`, a full revolve that
+  touches the axis): each disc meets the cylinder along open
+  semicircles (`sweep/src/revolve/full.rs`'s merged π-bands), which
+  is a curved corner. Today the gate would refuse a valid vessel
+  `Uncertified { Departure }`, a regression `shell::<Interval>` must
+  not ship.
+- **The OFF-D dumbbell's curved twin**: no such fixture is built yet.
+  The OFF-D dumbbell itself is planar
+  (`sweep/tests/offd2_r1_probes.rs`). An extruded twin with arc necks
+  would have curved corners.
+
+## Unparked (CLEAR orchestrator, 2026-10-30)
+
+The parking note above was wrong about the vessel. It already held at
+base, with `cornered = 0`, because the disc's plane implicit, read as
+the carrier arm's ψ, certifies its half-rims; CORNER's lane measured
+this and both reviews confirmed it. CORNER (#6045) has landed anyway,
+so a curved twin with arc necks would also be read at its convex
+corners.
+
+## Re-parked (CLEAR orchestrator, 2026-10-30)
+
+SHELL-4's lane stopped. The WIP is on `clear/shell4` at `623daf636b`
+and is kept. The vessel holds at `Body<f64>` but refuses `Departure` at
+`Body<Interval>`, the scalar the gate runs at. That is a certificate
+change (`injectivity-refuses-at-interval-what-it-certifies-at-f64`,
+unit RIMSCALAR). The unpark note above measured `f64` only.
+
+The lane's other findings, filed where they belong:
+- the curved twin cannot be built at `Interval`: the general offset door
+  refuses `offset_corner_on_surface` first (VERBS);
+- the box-with-void instance is now refused at `f64` by
+  `moved_walls_cross` (`OffsetsCross`), and escalates there at
+  `Interval`. See the curved-residue row.
+
+SHELL-4 resumes on the WIP branch once RIMSCALAR lands. The gate as
+built:
+- `cavity_embedded` runs after `moved_walls_cross`;
+- new arms `CavityCrosses` and `CavityUncertified`;
+- the tube at `Interval` passes in 70 ms.
+
+## Unparked again (CLEAR orchestrator, 2026-10-30)
+
+RIMSCALAR (#6090) landed. The vessel holds at `Body<Interval>`, by the
+corner arm. SHELL-4's lane resumes on its WIP branch, `clear/shell4`.

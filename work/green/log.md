@@ -171,3 +171,22 @@ stays P1, since greening main is this track's central job.
   nightly confirms; check the closure-tier shard balance after #6019;
   check whether `demos` is still the p90 tail. The remaining P0 lever is
   sweep's test runtime in the kernel shard.
+- 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `g-moves-four-main-reds-messages` (P1). INTENT's charter is D10 and these are follow-ups found while building it.
+
+## 2026-10-30 — latency closed; nightly 77
+
+- The latency alarm read a median of 14.7 min on nightly 77. Over the
+  116 PR runs after #6019 and #6039 the run median is 14.3 min. The
+  closure tier is at median 14.6 / p90 19.4 and the all tier at 24.1,
+  inside its 25-min deep-kernel bar. The three open latency rows close
+  with those numbers. The shard row misses its own 1-min balance
+  criterion (1.2 min paired) and closes on the orchestrator's call; its
+  closing section says why.
+- Nightly 77: rustdoc and the gui montage are green. The triage (#6082)
+  fixed the census re-syncs and the large-K step's `bash -e` bug, and
+  filed or annotated every other red. A GREEN lane
+  (`green/nightly-77-*`, cloud) pins what it left.
+- Duplicate effort: GREEN's #6084 (the reader_census line) re-did the
+  triage's same fix half an hour before the triage landed, against this
+  program's own rule. GREEN now waits for the triage table before
+  touching a nightly red.

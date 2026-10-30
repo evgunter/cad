@@ -746,6 +746,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "run_checks_at_rest_on(",
             "the no-body subject's registry run; dropped the same way",
         ),
+        (
+            "session.rs",
+            ".usable(",
+            "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
+             (`.ok()`) and the window falls back to a unit reach, never drawn",
+        ),
     ];
 
     /// The end of the statement a call at `at` belongs to: the first

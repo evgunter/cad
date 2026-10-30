@@ -2,11 +2,10 @@
 id: contact-verify-spells-the-orientation-and-second-order-margins-beside-their-homes
 kind: issue
 title: contact_verify spells the orientation lever, the second-order margin and the parallelism lever choice beside certify's and dihedral's homes
-status: parked
+status: open
 opened: 2026-10-25
 priority: P1
 cost: M
-blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
 ---
 
 Cut from `lever-arm-fold-six-hand-rolled-siblings` by the PRED

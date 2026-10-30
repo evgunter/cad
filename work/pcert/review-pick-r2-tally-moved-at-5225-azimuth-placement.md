@@ -171,3 +171,5 @@ TESS owns that answer, as the merge's program
 This entry is the evidence: read the refused candidates per landing at `890d10746`
 against `148c1a24f`.
 
+
+**2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): red at every ε and in the viewer app job, `(431064, 143483, 14556, 7266)` against the pin `(431064, 143421, 27618, 9216)`. The pin was wrong when #6023 wrote it: every commit of #6023's branch from the pin commit `a5bc5a82` to its merge reads tonight's tally. A `git bisect run --first-parent` over `78ca7fcb..39bbdfc777` found every later merge red with the same tally, which rules out the slit-tip readers (#6052). Re-pinned in the nightly triage PR. The halving is #5920's, on `tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side`.

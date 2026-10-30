@@ -5,9 +5,9 @@
 //! The rows read the certificate directly: on the crossings path with
 //! the events of the cone's root lane
 //! (`topo::test_support::section_report`), and
-//! on the no-crossings path
-//! (`topo::test_support::no_crossings_section_report`), each pair with
-//! the cone face, its components cleared or refused with no event
+//! as if the sweep had found nothing
+//! (`topo::test_support::no_event_section_report`), each pair with the
+//! cone face, its components cleared or refused with no event
 //! anywhere. A W1 or W2 clearance holds whatever the crossing layer
 //! finds; W3 and the no-event decision are what the pass answers when it
 //! finds nothing. The bodies the ops return on these fixtures are
@@ -27,9 +27,9 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_lo
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::test_support::{
-    brick, no_crossings_certificates, no_crossings_section_report, section_report,
+    brick, no_crossings_certificates, no_event_section_report, section_report,
 };
-use topo::{Body, BooleanError, BooleanOp, FaceKey};
+use topo::{Body, BooleanOp, FaceKey};
 
 /// `polygon` (radius, height) revolved about `y`, fully (merged) or
 /// through `theta`.
@@ -80,13 +80,13 @@ fn is_cone(body: &Body<f64>, face: FaceKey) -> bool {
 /// on both clears on whichever face is operand A.
 fn cone_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
     let sideless = |v: &str| v.replace("(F)", "").replace("(G)", "");
-    let mut forward: Vec<String> = no_crossings_section_report(a, b, Tol::witness())
+    let mut forward: Vec<String> = no_event_section_report(a, b, Tol::witness())
         .unwrap()
         .into_iter()
         .filter(|(fa, _, _)| is_cone(a, *fa))
         .map(|(_, _, v)| v)
         .collect();
-    let mut back: Vec<String> = no_crossings_section_report(b, a, Tol::witness())
+    let mut back: Vec<String> = no_event_section_report(b, a, Tol::witness())
         .unwrap()
         .into_iter()
         .filter(|(_, fb, _)| is_cone(a, *fb))
@@ -144,8 +144,8 @@ fn the_preview_bricks_clear_by_w1_and_w2() {
         let v = cone_verdicts(&cone, &brick);
         verdicts_are(&v, &[W1, W2], &[W2], what);
         assert_eq!(
-            no_crossings_certificates(&cone, &brick, Tol::witness()).unwrap(),
-            0,
+            no_crossings_certificates(BooleanOp::Union, &cone, &brick, Tol::witness()).unwrap(),
+            (0, 0),
             "{what}"
         );
     }
@@ -182,8 +182,8 @@ fn a_parallel_pin_meets_the_cone_in_loops_cleared_on_the_pin() {
         "the pin",
     );
     assert_eq!(
-        no_crossings_certificates(&cone, &pin, Tol::witness()).unwrap(),
-        0
+        no_crossings_certificates(BooleanOp::Union, &cone, &pin, Tol::witness()).unwrap(),
+        (0, 0)
     );
 }
 
@@ -195,8 +195,8 @@ fn the_nested_cone_has_no_cone_pair() {
     let big = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), Tol::witness());
     assert!(cone_verdicts(&cone, &big).is_empty());
     assert_eq!(
-        no_crossings_certificates(&cone, &big, Tol::witness()).unwrap(),
-        0
+        no_crossings_certificates(BooleanOp::Union, &cone, &big, Tol::witness()).unwrap(),
+        (0, 0)
     );
 }
 
@@ -206,7 +206,9 @@ fn the_nested_cone_has_no_cone_pair() {
 /// (`ρ = 0.55 < 0.8` at `y = 0.45`). The general-pose arm reads one
 /// null loop, its witness inside both faces, and with no event the pass
 /// refuses it as a certified interior loop (R-loop), naming the cone
-/// face; the rod's caps, far outside the cone, clear `Out`. The mutant
+/// face; the rod's caps, far outside the cone, clear `Out`. The rod's
+/// edges cross the cone, so with the sweep's touches as events the
+/// certificates clear the loop by W4. The mutant
 /// reading the loop essential on either carrier clears it by W2: red.
 #[test]
 fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
@@ -237,20 +239,13 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
             .all(|x| x == "Err(Loop)" || x.starts_with("Ok([Out")),
         "every other pair clears Out: {v:?}"
     );
-    match no_crossings_certificates(&cone, &rod, Tol::witness()) {
-        Err(BooleanError::FallbackExtentUnsupported {
-            operand,
-            face,
-            what,
-        }) => {
-            assert!(what.contains("closed loop interior to both"), "{what}");
-            assert!(
-                operand == topo::Operand::A && is_cone(&cone, face),
-                "{face:?}"
-            );
-        }
-        other => panic!("{other:?}"),
-    }
+    // The rod's edges cross the cone, so the sweep's touches evidence
+    // the loop: the certificates as the path runs them clear it (W4).
+    assert_eq!(
+        no_crossings_certificates(BooleanOp::Union, &cone, &rod, Tol::witness()).unwrap(),
+        (0, 0),
+        "the sweep's touches clear the loop"
+    );
 }
 
 /// **The ellipse on a cone face with its seam, and on apex-closed
@@ -418,7 +413,7 @@ fn a_ball_across_a_generator_edge_clears_by_w4_through_the_door() {
             "cone as A {cone_is_a}: {v:?}"
         );
     }
-    let quiet: Vec<String> = no_crossings_section_report(&quarter, &ball, Tol::witness())
+    let quiet: Vec<String> = no_event_section_report(&quarter, &ball, Tol::witness())
         .unwrap()
         .into_iter()
         .filter(|(fa, _, _)| is_cone(&quarter, *fa))

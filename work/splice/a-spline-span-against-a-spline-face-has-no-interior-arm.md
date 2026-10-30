@@ -66,8 +66,8 @@ stops at the result's shared-rim seam, re-pinned in
 Witness rows (`curve_face::spline_face::rows`):
 `a_nurbs_span_crosses_a_bicubic_patch_once`,
 `a_nurbs_span_crosses_a_bicubic_patch_twice`,
-`a_nurbs_span_tangent_to_a_dome_escalates`,
-`a_nurbs_pass_within_the_band_escalates`,
+`a_nurbs_span_tangent_to_a_dome_refuses_at_the_floor`,
+`a_nurbs_pass_within_the_band_refuses_at_the_floor`,
 `a_nurbs_pass_past_the_band_is_clear`,
 `a_meeting_on_a_crease_of_the_span_refuses_and_one_beside_it_reads`,
 `a_nurbs_meeting_on_a_crease_of_the_chart_refuses_and_one_beside_it_reads`,

@@ -337,8 +337,11 @@ pub enum NormalizationKind {
     /// of the face, in the pole form (`geom::pole_form`): the end of two
     /// meridians half a turn apart, the face reaching it between them.
     /// A file that states the point some other way is re-minted into
-    /// that form, by where the point lies ([`SingularityFound`]): the
-    /// face's boundary and the region its sense bit names say which.
+    /// that form, by where the point lies ([`SingularityFound`]), read
+    /// by the kernel's one reading of it
+    /// (`geom_brep::chart_singularity::locate`, which tier 3 refuses
+    /// the same faces by): the face's boundary and the region its sense
+    /// bit names say which.
     /// The minted meridians are the surface's own (at its `u_ref`
     /// azimuth and the half turn, or the half-turn twin of a seam the
     /// file states), each ending at the first boundary edge it meets,

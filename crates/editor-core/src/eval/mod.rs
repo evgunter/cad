@@ -33,6 +33,7 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::pose::{read_directly_off, read_off_cell, read_pose};
 pub(crate) use wire::{DECISION_WORDS, EVAL_DIRECTION_NORM};
 
 pub(crate) use wire::unit as unit_direction;
@@ -3440,6 +3441,27 @@ pub fn bound_pose<T: EvalScalar>(
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
+}
+
+/// **The faces `program` traces, read against an evaluation** as its
+/// own resolution reads them ([`wire::trace`]): each carrier in its
+/// body's coordinates, with the maps between the sketch's and the
+/// body's. Empty for a profile drawn on no frame. `program` need not be
+/// a node of `doc`: its frame and faces are read off `doc`'s variables,
+/// and the bodies they select off `ev`'s results.
+///
+/// # Errors
+///
+/// The refusal the profile would carry for its frame's or a face's
+/// read.
+pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    program: &ProfileProgram,
+    tol: Tol,
+) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
+    Ok(wire::trace::drawn(doc, &ev.nodes, program, &ev.env, tol)?
+        .map_or_else(Vec::new, |d| d.faces))
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box

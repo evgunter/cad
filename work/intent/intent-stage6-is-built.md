@@ -2,11 +2,12 @@
 id: intent-stage6-is-built
 kind: issue
 title: INTENT stage 6 (tangency constructions) is built: coaxiality through one axis read twice, a sketch continuing tangent to a surface's trace, both proven at the door
-status: parked
+status: closed
 opened: 2026-10-29
 priority: P0
 cost: H
-blocked_on: [the-door-proves-a-constructed-tangency, the-sketch-tool-authors-a-tangent-continuation]
+blocked_on: [the-sketch-tool-authors-a-tangent-continuation]
+closed: 2026-10-30
 ---
 
 

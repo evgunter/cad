@@ -2,11 +2,12 @@
 id: test-shards-build-the-kernel-libraries-twice
 kind: issue
 title: the two test shards each build the shared kernel libraries, about 600 job-min a day: build them once and hand them to both shards
-status: open
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: M
 parent: pr-ci-wall-clock-root-cause-measured
+closed: 2026-10-30
 ---
 
 
@@ -234,3 +235,20 @@ holds is owed item 1 below.
 1. After a day of closure runs on main with mesh in `app`, read the two
    shards' medians as above. Close this row if they are within 1 min of
    each other. Otherwise re-choose `APP_BALLAST` on those numbers.
+
+## Closed (2026-10-30)
+
+Measured over ci.yml `pull_request` runs from 2026-10-29T20:09Z to 2026-10-30T11:09Z, after #6019 and #6039 (n=116, success or failure, first attempts):
+- run wall: median 14.3 min, p90 24.1;
+- by tier: closure median 14.6 / p90 19.4 (n=68); all median 24.1 / p90 25.3 (n=15); docs 6.4 (n=33);
+- test shards at the closure tier, paired (n=52): kernel 13.4 against app 12.2; kernel longer in 39;
+- `demos` when it runs: median 22.8, p90 23.7 (n=22).
+
+The nightly alarm read a median of 14.7 min on nightly 77. That is inside the 15-min bar at the median. The all tier, which builds the whole workspace, sits inside the 25-min bar `memories/orchestration-model.md` sets for a diff that seeds the deep kernel crates.
+
+The criterion this row set (closure medians within 1 min) is missed by
+a little: 1.2 min paired, 2.4 min over all runs, because 16 app-only
+runs pull the app median down. Closed by the orchestrator anyway. The
+paired gap is inside the runner spread the lanes measured (about
+1.5×), and the next move (sweep into `app`) overshoots. Re-open if the
+kernel shard sets the run's wall clock on a 15-min-bar diff again.

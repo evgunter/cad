@@ -49,10 +49,15 @@
 //!   focal-section image ([`geom_brep::Pcurve::FocalSection`]). A carrier
 //!   its face's incidence test shows off it
 //!   ([`PcurveCertifyError::CarrierOffChart`]) is refused. A circle on a
-//!   cone or torus that is none of its circles, or whose class reading is
-//!   in band, has no general lane yet and refuses lever-only "not yet"
-//!   (unit E4); so does a line or ellipse whose class reading is in band
-//!   (unit E2).
+//!   cone or torus whose class reading is in band takes no general lane
+//!   (none is written for the pair) and refuses as that reading's
+//!   escalation, as does a line or ellipse whose class reading is in
+//!   band; on a cone every circle the chart holds is a rim, so a circle
+//!   that is none is off the chart or in that band. Each refusal is owed
+//!   like any other: the producer refuses, and at rest it is a check-8
+//!   finding, never excused ([`not_owed`] excuses only a scalar with no
+//!   fitted door refusing a fitted image; `odd_cone_circle` pins the
+//!   cone's).
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
@@ -4066,20 +4071,21 @@ fn singular_at<T: Decide>(
     band: Band,
 ) -> Singular {
     let reach = match *chart.surface() {
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
-            let pole = axis * radius;
-            Margin::of(
-                vertex
-                    .distance(center + pole)
-                    .min(vertex.distance(center - pole)),
-            )
+        // The singular points, from their one home.
+        Surface::Sphere { .. } | Surface::Cone { .. } => {
+            let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
+                return Singular::Off;
+            };
+            let points = geom_brep::chart_singularity::singular_points(&inverse);
+            let Some(nearest) = points
+                .iter()
+                .map(|&(_, p)| vertex.distance(p))
+                .reduce(|a, b| a.min(b))
+            else {
+                return Singular::Off;
+            };
+            Margin::of(nearest)
         }
-        Surface::Cone { apex, .. } => Margin::of(vertex.distance(apex)),
         Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Plane { .. } => {
             return Singular::Off;
         }
@@ -5280,11 +5286,6 @@ pub(crate) mod staleness_posture {
         use Posture::{Completes, Maintains, Neither, Transfers};
         &[
             // ---- Maintains, one delegation away from the re-mint. ----
-            (
-                "merge_coplanar_faces",
-                Maintains,
-                "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
-            ),
             // ---- Maintains: the doors that re-mint their own staged
             // result. They carry prose here rather than in
             // `review_m1_pr5_internal::ALLOWED` because they assert
@@ -5292,7 +5293,7 @@ pub(crate) mod staleness_posture {
             // are no longer allowlisted there; the two tables still
             // have to cover this one population between them. ----
             (
-                "merge_coplanar_faces_declared",
+                "merge_coplanar_faces",
                 Maintains,
                 "calls `merge_coplanar_faces_staged`, which re-mints the staged result \
                  before it is adopted, whenever the operand carried rows, and ends with \
@@ -6728,6 +6729,77 @@ mod derive_without_a_door {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod odd_cone_circle {
+    use super::{PcurveMintError, analytic_derive, not_owed};
+    use crate::entity::HalfEdgeKey;
+    use geom::{Curve3, Surface};
+    use geom_brep::{PcurveCertifyError, PcurveCheck};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **An odd cone circle is owed at `f64`.** A circle about a cone's
+    /// axis at its rim's height and radius, tilted off the rim's plane
+    /// through the band and past it, on a grid of quarter decades about
+    /// ε: untilted it is the rim and mints; tilted inside the band it
+    /// still reads as the rim; where the class reading is in band it is
+    /// none of the cone's circles and refuses as that reading's
+    /// escalation; past the band it is off the chart. Every refusal is a
+    /// check-8 finding: the one excuse ([`not_owed`]) is a scalar with no
+    /// fitted door, and `f64` holds one. The grid must reach the class
+    /// refusal, or the row has not read the arm it is about.
+    #[test]
+    fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let alpha = 0.5_f64;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (h, tau) = (1.0_f64, core::f64::consts::TAU);
+        let tilts = core::iter::once(0.0)
+            .chain((-12..=16).map(|k| tol.eps() * 10f64.powf(f64::from(k) / 4.0)))
+            .chain([0.3]);
+        let mut class_refused = 0;
+        for tilt in tilts {
+            let circle = Curve3::Circle {
+                center: Point3::new(0.0, 0.0, h),
+                axis: Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+                radius: h * alpha.tan(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
+                Ok(_) => assert!(
+                    tilt < 0.3,
+                    "tilt {tilt:e}: a circle well off the rim minted"
+                ),
+                Err(e) => {
+                    assert!(tilt > 0.0, "tilt {tilt:e}: the rim itself refused: {e:?}");
+                    assert!(!not_owed::<f64>(&e), "tilt {tilt:e}: excused: {e:?}");
+                    if let PcurveMintError::Certify {
+                        error:
+                            PcurveCertifyError::Escalated {
+                                check: PcurveCheck::ChartClass,
+                                ..
+                            },
+                        ..
+                    } = e
+                    {
+                        class_refused += 1;
+                    }
+                }
+            }
+        }
+        assert!(
+            class_refused > 0,
+            "no tilt reached the class reading's in-band refusal"
+        );
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod v_shift_tests {
     use super::shift_v_branch;
@@ -7707,12 +7779,12 @@ pub(crate) mod pole_slit_tests {
             );
             let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
             let outcome = |a: usize, b: usize, f: FaceKey| {
-                crate::declared_pair_overlap(
+                crate::glued_pair_overlap(
                     &bodies[a],
                     f,
                     &bodies[b],
                     f,
-                    crate::contact::ContactVerdict::Definite,
+                    crate::CarrierPremise::Decided,
                     band,
                 )
             };
@@ -7861,12 +7933,12 @@ pub(crate) mod pole_slit_tests {
                 );
             }
             for (f, _) in body.faces() {
-                let o = crate::declared_pair_overlap(
+                let o = crate::glued_pair_overlap(
                     &body,
                     f,
                     &body,
                     f,
-                    crate::contact::ContactVerdict::Definite,
+                    crate::CarrierPremise::Decided,
                     band,
                 );
                 assert!(

@@ -1,10 +1,11 @@
 //! **Acceptance 5 on the conic quarter torus** (`docs/QUAD-MEASURE-SPEC.md`;
 //! PR 5741's review, m3): a closed body whose walls are the review's
 //! costly face class — PR 5589's first reviewer's 9×9 conic torus, a
-//! rational surface of revolution at `R = 24 m, r = 6 m` whose rounds
-//! cost more cells than the calibrating face's — measured through the
-//! door under `Resolution(1.024e-6 m)`, answers a bracket that holds
-//! Pappus's volume, never a refusal.
+//! rational surface of revolution at `R = 24 m, r = 6 m` — measured
+//! through the door under `Resolution(1.024e-6 m)`, answers a bracket
+//! that holds Pappus's volume, never a refusal. The import splits each
+//! wall at its C⁰ knots into one-span walls (`docs/DESIGN.md`
+//! [topology]), and each meets the resolution.
 //!
 //! **The body.** No builder closes a body around a conic patch, so the
 //! file is made: the kernel revolves a circle of radius `r` centred at
