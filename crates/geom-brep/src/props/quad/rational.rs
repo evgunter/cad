@@ -317,7 +317,7 @@ pub(super) fn round_cost(
 /// ε row and only the `1024·ε` target moves. The width here is the one
 /// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL) per knot-span
 /// cell): on one span cell, the composite arm's round 7 and the exact-v
-/// arm's round 12. It is the Taylor
+/// arm's round 11. It is the Taylor
 /// remainder's, which quarters per round (exactly where every cell
 /// splits evenly; more slowly where a cell abuts an off-grid knot); the
 /// midpoint sum's own width is a small fraction of it on these carriers,
@@ -328,12 +328,12 @@ pub(super) fn round_cost(
 ///
 /// ```text
 /// carrier                                      width (m)   arm        @ ε = 1e-9
-/// unit sphere octant (degenerate pole row)      1.064e-7   composite  certifies (9.6×)
-/// quarter torus, R = 2 m, r = 0.5 m             1.618e-7   composite  certifies (6.3×)
+/// unit sphere octant (degenerate pole row)      5.794e-8   composite  certifies (18×)
+/// quarter torus, R = 2 m, r = 0.5 m             9.301e-8   composite  certifies (11×)
 /// 5 m C0-kink extruded wall                     exact      exact-v    certifies
-/// 1 km quarter cylinder                         2.047e-8   exact-v    certifies (50×)
-/// warped bilinear, weights 1e-1/1e1             9.418e-6   composite  STOPS SHORT
-/// Möbius quarter cylinder, weight ratio 100     6.152e-9   exact-v    certifies (166×)
+/// 1 km quarter cylinder                         3.298e-8   exact-v    certifies (31×)
+/// warped bilinear, weights 1e-1/1e1             9.882e-6   composite  STOPS SHORT
+/// Möbius quarter cylinder, weight ratio 100     1.452e-8   exact-v    certifies (71×)
 /// bilinear square, weights 1e-3/1e3             6.358e+5   composite  STOPS SHORT
 /// ```
 ///
@@ -343,7 +343,7 @@ pub(super) fn round_cost(
 /// the same face is refused [`PropsError::DegenerateFace`].
 ///
 /// Read that honestly: metre-scale parts converge at the default ε with
-/// a factor of six or more to spare, a kilometre-scale one only by its exact-v
+/// an order or more to spare, a kilometre-scale one only by its exact-v
 /// arm's extra rounds, and a weight spread of 10² across a warped patch
 /// is enough to stop a metre-scale one short. Callers on large or
 /// extreme-weight parts should expect a bracket rather than a number.

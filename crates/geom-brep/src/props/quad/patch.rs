@@ -521,9 +521,9 @@ mod tests {
 
     /// **The wall is cumulative, at the lane.** Never accepted, the
     /// one-span quarter cylinder's exact-v arm runs to its wall: rounds
-    /// 0 to 12 spend 7.6e6 of the 1.425e7, and round 13 alone (7.6e6)
-    /// would take it past, so it stops after 13 rounds. A wall read
-    /// per round would admit round 13 and stop after 14.
+    /// 0 to 11 spend 7.6e6 of the 1.425e7, and round 12 alone (7.6e6)
+    /// would take it past, so it stops after 12 rounds. A wall read
+    /// per round would admit round 12 and stop after 13.
     #[test]
     fn a_never_accepted_face_stops_at_its_cumulative_wall() {
         let (ku, kv, net, w) = one_span_quarter_cylinder();
@@ -539,7 +539,7 @@ mod tests {
         .expect("the quarter cylinder has an enclosure");
         assert_eq!(
             (run.end, run.round, run.rounds),
-            (LaneEnd::Wall, 12, 13),
+            (LaneEnd::Wall, 11, 12),
             "{run:?}"
         );
     }

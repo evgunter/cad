@@ -76,25 +76,25 @@ const CORPUS_EPS: f64 = 1e-9;
 // `f_uu`/`f_vv` hulls are the quotient statement's
 // (`geom_core::spline::cell_measure_quotients`), at the round the
 // lane's work wall stops it: the composite arm's round 7, the exact-v
-// arm's round 12 (`props::quad`'s `FACE_WORK_WALL`, per span cell).
+// arm's round 11 (`props::quad`'s `FACE_WORK_WALL`, per span cell).
 
 /// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
-const MOEBIUS_FLOOR: f64 = 6.151_875_578_118e-9;
+const MOEBIUS_FLOOR: f64 = 1.451_877_376_029e-8;
 /// Warped bilinear with 1e-1/1e1 weights. Round 7's own width, read
 /// against the area pass's 32 cells a span: the meter divides the flux
 /// width by the area's midpoint, which that pass sets.
-const HYPAR_FLOOR: f64 = 9.418_122_349_238e-6;
+const HYPAR_FLOOR: f64 = 9.881_588_124_901e-6;
 /// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width.
-const QUARTER_TORUS_FLOOR: f64 = 1.617_645_992_203e-7;
+const QUARTER_TORUS_FLOOR: f64 = 9.301_184_424_390e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
 /// the row for why). Round 7's own width.
 const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
 /// Unit sphere octant (degenerate pole row). Round 7's own width.
-const SPHERE_OCTANT_FLOOR: f64 = 1.064_253_751_623e-7;
+const SPHERE_OCTANT_FLOOR: f64 = 5.794_444_984_153e-8;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 2.047_260_586_885e-8;
+const HUGE_CYLINDER_FLOOR: f64 = 3.298_068_401_329e-8;
 /// The outcomes a probe is allowed to have on the run's ε — two
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.

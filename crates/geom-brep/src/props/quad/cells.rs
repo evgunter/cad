@@ -29,7 +29,7 @@ pub(super) const SPAN_INIT_PIECES: usize = 8;
 /// and its edges are cut points at every round ([`knot_aligned_cuts`]),
 /// so every block owns whole cells at every refinement level
 /// ([`rational_patch_face`](super::rational::rational_patch_face)).
-pub(super) const HULL_BLOCKS_PER_SPAN: usize = 2;
+pub(super) const HULL_BLOCKS_PER_SPAN: usize = 4;
 /// Pieces per knot span the RATIONAL lane refines its bracketed net to
 /// before hulling it — see [`RefinedNet`].
 pub(super) const REFINED_PIECES_PER_SPAN: usize = 2;
@@ -591,26 +591,30 @@ mod tests {
     /// `lo + (hi − lo)·(k/n)` per span:
     ///
     /// * `[0.1, 0.7]`, `pieces = 3`, a double knot at `0.5`: thirds and
-    ///   the block halves of `[0.1, 0.5]` and of `[0.5, 0.7]`, the knot
+    ///   the block quarters of `[0.1, 0.5]` and of `[0.5, 0.7]`, the knot
     ///   one cut.
     /// * `pieces = 4`, knots outside or ON the range ends add nothing,
-    ///   and the quarters of `[0.1, 0.3]` and `[0.3, 0.7]` hold the
-    ///   halves.
+    ///   and the quarters of `[0.1, 0.3]` and `[0.3, 0.7]` are the
+    ///   blocks' own.
     /// * `[-0.3, 0.2]`, `pieces = 3`, no knots: a range straddling zero.
     #[test]
     fn knot_aligned_cuts_are_pinned_bit_for_bit() {
-        assert_eq!(HULL_BLOCKS_PER_SPAN, 2, "the lists below hold the halves");
+        assert_eq!(HULL_BLOCKS_PER_SPAN, 4, "the lists below hold the quarters");
         assert_eq!(
             knot_aligned_cuts(0.1, 0.7, 3, &[0.5, 0.5]),
             [
                 0.1,
+                0.2,
                 0.233_333_333_333_333_34,
                 0.300_000_000_000_000_04,
                 0.366_666_666_666_666_7,
+                0.4,
                 0.5,
+                0.55,
                 0.566_666_666_666_666_7,
                 0.6,
                 0.633_333_333_333_333_3,
+                0.649_999_999_999_999_9,
                 0.7
             ]
         );
@@ -632,9 +636,11 @@ mod tests {
             knot_aligned_cuts(-0.3, 0.2, 3, &[]),
             [
                 -0.3,
+                -0.175,
                 -0.133_333_333_333_333_33,
                 -0.049_999_999_999_999_99,
                 0.033_333_333_333_333_326,
+                0.075_000_000_000_000_01,
                 0.2
             ]
         );

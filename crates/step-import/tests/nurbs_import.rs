@@ -257,12 +257,12 @@ fn arc_loft_natively_computes_its_rational_volume() {
         );
         // The pad ceiling, pinned separately (the SKINFIT two-assertion
         // shape) so a loosening enclosure cannot absorb the band above.
-        // Keyed to ε: the schedule is per knot span, so the pad is what
-        // that schedule achieves against the run's own target.
-        let ceiling = 3.0 * 1024.0 * eps;
+        // Keyed to ε, never widened: the schedule is fixed, so the pad
+        // is what that schedule achieves against the run's own target.
+        let ceiling = 2.0 * 1024.0 * eps;
         assert!(
             want.volume_pad < ceiling,
-            "native volume pad ceiling: {} vs {ceiling} (measured 2.6094e-6 at ε=1e-9)",
+            "native volume pad ceiling: {} vs {ceiling} (measured 1.4503e-6 at ε=1e-9)",
             want.volume_pad,
         );
         println!(
