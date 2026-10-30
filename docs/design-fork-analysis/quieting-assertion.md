@@ -45,3 +45,14 @@ A (Opus, byte 142 even) first report, 09:18Z.
   - for pose coincidences (coaxial, centre on an axis, axes meet, split ON, joints): A says construction only, no assertion; B says an assertion over poses quiets them;
   - flush: A builds on Ev's PR 5555 ruling, B would reopen it.
 - **Round 1 of reconciliation:** each is shown the other's report.
+
+## Round 1 of reconciliation, A (09:28Z)
+- **Moved to B's core:** one rule (an assertion that says the same quiets); widen it to pose references; tangency is `Gap = 0` once the curved arms read material.
+- **Moved by:** the overconstrained placement, and [placement]'s "its recourse is an assertion"; a contact is also a pose equality.
+- **Kept:**
+  - the Gap material defect;
+  - recourse by kind;
+  - door-limit rows never refuse;
+  - NEW: only `= 0` quiets (`≤ t` is a tolerance, not a quiet).
+- **Still differs:** BatteryJoint should carry the operand's verdict rather than get an Angle arm (would accept the Angle arm as an interim).
+- **Flush:** leans (i), quietable by `Distance = 0`, which reopens 5555; Ev's call.
