@@ -41,7 +41,9 @@
 //! remove (the honesty pads and the arithmetic),
 //! and the work WALL, [`FACE_WORK_WALL`], one bound in one unit for every
 //! lane, on the weighted cell evaluations a face spends over all its
-//! rounds. A call that ends unaccepted answers with its narrowest round
+//! rounds — once per knot-span cell on the rectangle lanes, whose cells
+//! are laid per span, so a patch costs the same read whole or split
+//! into one face per span. A call that ends unaccepted answers with its narrowest round
 //! and says why it stopped ([`LaneRun`]), never silently wide.
 //!
 //! The rounds are independent recomputations, and a round's stop reads

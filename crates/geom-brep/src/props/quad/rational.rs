@@ -9,18 +9,17 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Decide};
 
 use super::area::{
-    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, area_midpoint_taylor,
+    AREA_CELLS_PER_SPAN, AreaCell, PERIMETER_CHORDS_PER_SPAN, area_midpoint_taylor,
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
 use super::cells::{
-    HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_count, cell_midpoint,
-    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cells,
+    HULL_BLOCKS_PER_SPAN, MeasureCells, RefinedNet, advance_block, cell_count, cell_midpoint,
+    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cell_count, span_cells,
 };
 use super::net::{
-    Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, grid_vec, newton_cotes_weights,
-    widen,
+    Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, newton_cotes_weights, widen,
 };
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent, span_work_wall};
 use crate::props::PropsError;
 use crate::props::bracket::{lo_or_refuse, pt};
 
@@ -50,24 +49,6 @@ impl Ladder {
         Self { a, au, av }
     }
 
-    /// The numerator of `S_u×S_v`:
-    /// `w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)`, which sits over
-    /// `w³` ([`rational_patch_face`] docs).
-    fn cross_num(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
-        let a = self.a.vec(u, v);
-        let au = grid_vec(self.au.as_ref(), u, v);
-        let av = grid_vec(self.av.as_ref(), u, v);
-        let (w0, wu, wv) = (w.chan(u, v), w.chan_u(u, v), w.chan_v(u, v));
-        let base = cross(&au, &av);
-        let ta = cross(&au, &a);
-        let tb = cross(&a, &av);
-        [
-            w0 * base[0] - wv * ta[0] - wu * tb[0],
-            w0 * base[1] - wv * ta[1] - wu * tb[1],
-            w0 * base[2] - wv * ta[2] - wu * tb[2],
-        ]
-    }
-
     /// The surface point `S = A/w` at an exact parameter pair, read
     /// off the homogeneous net and its weight ladder.
     fn point(&self, w: &Self, u: f64, v: f64) -> RVec3 {
@@ -81,11 +62,62 @@ impl Ladder {
     fn chan(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         self.a.channel(0, u, v)
     }
-    fn chan_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
-        grid_vec(self.au.as_ref(), u, v)[0]
+}
+
+/// The u-collapsed slice of the six grids the area midpoint needs: the
+/// homogeneous net's `A`, `A_u`, `A_v` and the weight net's `w`, `w_u`,
+/// `w_v` — one per area column, [`PatchGrid::slice_u`] for why.
+struct AreaSlice {
+    a: [Option<[Vec<Interval>; 3]>; 3],
+    w: [Option<[Vec<Interval>; 3]>; 3],
+}
+
+impl Ladder {
+    /// The three grids' slices at one u collapse, `None` where the
+    /// ladder has run out of degree.
+    fn slices(&self, u: Collapse<'_>) -> [Option<[Vec<Interval>; 3]>; 3] {
+        [
+            Some(self.a.slice_u(u)),
+            self.au.as_ref().map(|g| g.slice_u(u)),
+            self.av.as_ref().map(|g| g.slice_u(u)),
+        ]
     }
-    fn chan_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
-        grid_vec(self.av.as_ref(), u, v)[0]
+
+    /// The three grids at one v collapse of `sl`, the identically-zero
+    /// derivative where the ladder has run out.
+    fn slices_at(&self, sl: &[Option<[Vec<Interval>; 3]>; 3], v: Collapse<'_>) -> [RVec3; 3] {
+        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
+        let grids = [Some(&self.a), self.au.as_ref(), self.av.as_ref()];
+        core::array::from_fn(|k| match (grids[k], sl[k].as_ref()) {
+            (Some(g), Some(s)) => g.at_v(s, v),
+            _ => zero,
+        })
+    }
+
+    /// This ladder's and the weight ladder's area slice at one u
+    /// collapse.
+    fn area_slice(&self, w: &Self, u: Collapse<'_>) -> AreaSlice {
+        AreaSlice {
+            a: self.slices(u),
+            w: w.slices(u),
+        }
+    }
+
+    /// The numerator of `S_u×S_v`,
+    /// `w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)`, which sits over `w³`
+    /// ([`rational_patch_face`] docs), off an area slice at one v
+    /// collapse.
+    fn cross_num_at(&self, w: &Self, sl: &AreaSlice, v: Collapse<'_>) -> RVec3 {
+        let [a, au, av] = self.slices_at(&sl.a, v);
+        let [w0, wu, wv] = w.slices_at(&sl.w, v).map(|g| g[0]);
+        let base = cross(&au, &av);
+        let ta = cross(&au, &a);
+        let tb = cross(&a, &av);
+        [
+            w0 * base[0] - wv * ta[0] - wu * tb[0],
+            w0 * base[1] - wv * ta[1] - wu * tb[1],
+            w0 * base[2] - wv * ta[2] - wu * tb[2],
+        ]
     }
 }
 
@@ -237,12 +269,12 @@ pub(super) fn round_cost(
 /// A rational integrand has **no finite exact quadrature rule** — the
 /// integral-lane's per-span Newton–Cotes shortcut has no rational
 /// counterpart and none is claimed. The honest deliverable is the
-/// composite midpoint enclosure over a FIXED cut schedule (D9: pieces
-/// double per round from [`AXIS_INIT_PIECES`](super::cells::AXIS_INIT_PIECES) — the cut points are
-/// never data-dependent; which round the loop stops at is decided by the
-/// caller's acceptance and by the lane's floor and work wall ([`Run`]),
-/// functions of the face and the caller alone), with the two 1-D Taylor
-/// remainders per cell:
+/// composite midpoint enclosure over a per-span cut schedule (pieces
+/// per knot span double per round from
+/// [`SPAN_INIT_PIECES`](super::cells::SPAN_INIT_PIECES); which round the
+/// loop stops at is decided by the caller's acceptance and by the lane's
+/// floor and work wall ([`Run`]), functions of the face and the caller
+/// alone), with the two 1-D Taylor remainders per cell:
 ///
 /// ```text
 /// ∫∫_cell f ∈ A_cell·f(m) + hull(f_uu)·h_u³h_v/24 + hull(f_vv)·h_u h_v³/24
@@ -268,7 +300,7 @@ pub(super) fn round_cost(
 /// fixed schedule cannot reach a target below it. Aligning the cuts
 /// removes the case instead of bounding it — a knot on a cell boundary
 /// is in no cell's interior — and the enclosure is O(h²) throughout.
-/// (The refinement to [`REFINED_SPANS_PER_AXIS`](super::cells::REFINED_SPANS_PER_AXIS) does not do this on its
+/// (The refinement to [`REFINED_PIECES_PER_SPAN`](super::cells::REFINED_PIECES_PER_SPAN) does not do this on its
 /// own: inserted knots do not change smoothness, so the ORIGINAL knot
 /// vectors are what the cuts are taken from.) Whether a round is enough
 /// is the caller's question ([`Accept`]), and the face-extent gate
@@ -283,38 +315,35 @@ pub(super) fn round_cost(
 /// not: the frontier is a part-SIZE frontier. The lane's stops do not
 /// move with ε, so each carrier stops at the same displacement on every
 /// ε row and only the `1024·ε` target moves. The width here is the one
-/// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)): the composite
-/// arm's round 7, the exact-v arm's round 10. It is the Taylor
+/// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL) per knot-span
+/// cell): on one span cell, the composite arm's round 7 and the exact-v
+/// arm's round 12. It is the Taylor
 /// remainder's, which quarters per round (exactly where every cell
 /// splits evenly; more slowly where a cell abuts an off-grid knot); the
-/// midpoint sum's own width is a small fraction of it on these carriers
-/// (under 1% on the torus at its wall), so none of them reaches its
-/// floor first. Measured
+/// midpoint sum's own width is a small fraction of it on these carriers,
+/// so none of them reaches its floor first. Measured
 /// (`crates/geom-brep/tests/review_r1_rational_probes.rs`, which pins
 /// each one that stops short of a row's target), against the DEFAULT
 /// target of 1.024e-6 m:
 ///
 /// ```text
 /// carrier                                      width (m)   arm        @ ε = 1e-9
-/// 1 µm quarter cylinder                          <1e-12    exact-v    certifies*
-/// 1 m × 2 m quarter cylinder, single span       ≈6.0e-11   exact-v    certifies
-/// unit sphere octant (degenerate pole row)      2.920e-8   composite  certifies (35×)
-/// quarter torus, R = 2 m, r = 0.5 m             4.687e-8   composite  certifies (22×)
-/// 1 m × 2 m half cylinder, TWO spans            4.272e-10  exact-v    certifies
+/// unit sphere octant (degenerate pole row)      1.064e-7   composite  certifies (9.6×)
+/// quarter torus, R = 2 m, r = 0.5 m             1.618e-7   composite  certifies (6.3×)
 /// 5 m C0-kink extruded wall                     exact      exact-v    certifies
-/// 1 km quarter cylinder                         5.996e-8   exact-v    certifies (17×)
-/// warped bilinear, weights 1e-1/1e1             1.296e-5   composite  STOPS SHORT
-/// Möbius quarter cylinder, weight ratio 100     3.150e-8   exact-v    certifies (33×)
+/// 1 km quarter cylinder                         2.047e-8   exact-v    certifies (50×)
+/// warped bilinear, weights 1e-1/1e1             9.418e-6   composite  STOPS SHORT
+/// Möbius quarter cylinder, weight ratio 100     6.152e-9   exact-v    certifies (166×)
 /// bilinear square, weights 1e-3/1e3             6.358e+5   composite  STOPS SHORT
 /// ```
 ///
-/// \* Convergence is never the small end's problem — its width scales
-/// with the part. The FACE-EXTENT gate is: at ε = 1e-6 the 1 µm
+/// Convergence is never the small end's problem — its width scales
+/// with the part. The FACE-EXTENT gate is: at ε = 1e-6 a 1 µm quarter
 /// cylinder's 0.22 µm mean width is under the run's own tolerance and
 /// the same face is refused [`PropsError::DegenerateFace`].
 ///
 /// Read that honestly: metre-scale parts converge at the default ε with
-/// an order or more to spare, a kilometre-scale one only by its exact-v
+/// a factor of six or more to spare, a kilometre-scale one only by its exact-v
 /// arm's extra rounds, and a weight spread of 10² across a warped patch
 /// is enough to stop a metre-scale one short. Callers on large or
 /// extreme-weight parts should expect a bracket rather than a number.
@@ -420,8 +449,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     let a_hull = a.a.vec(over_all.0, over_all.1);
     let p_bound = (a_hull[0] / g_w).mag() + (a_hull[1] / g_w).mag() + (a_hull[2] / g_w).mag();
 
-    // The Taylor remainders' `f_dd` hulls, on a FIXED coarse block
-    // grid (D9) rather than one whole-rectangle hull: sound because a
+    // The Taylor remainders' `f_dd` hulls, per coarse block
+    // ([`HULL_BLOCKS_PER_SPAN`]) rather than one whole-rectangle hull: sound because a
     // hull over a superset contains every sub-cell's own, and tighter
     // because the statement's coefficient ratios converge on the
     // quotient's range as the region shrinks.
@@ -434,8 +463,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     // the blocks keeps each hull inside one smooth piece. Built once,
     // before the rounds; the cut list at every refinement level
     // contains these edges, so each block still owns whole cells.
-    let edges_u = knot_aligned_cuts(u0, u1, HULL_BLOCKS_PER_AXIS, knots_u);
-    let edges_v = knot_aligned_cuts(v0, v1, HULL_BLOCKS_PER_AXIS, knots_v);
+    let edges_u = knot_aligned_cuts(u0, u1, HULL_BLOCKS_PER_SPAN, knots_u);
+    let edges_v = knot_aligned_cuts(v0, v1, HULL_BLOCKS_PER_SPAN, knots_v);
     let nbv = edges_v.len() - 1;
     let (cells_u, cells_v) = (span_cells(kv_u, &edges_u)?, span_cells(kv_v, &edges_v)?);
     let blocks = measure.block_hulls(&cells_u, &cells_v)?;
@@ -455,15 +484,23 @@ pub(super) fn rational_patch_face<T: Decide>(
         .iter()
         .flat_map(|u| cells_v.iter().map(|v| measure.area_bounds(u, v)))
         .collect::<Result<Vec<_>, _>>()?;
+    // One u collapse per area column: the pass walks `u` outermost.
+    let mut column: Option<(f64, AreaSlice)> = None;
     let area = area_midpoint_taylor(
         rect,
-        AREA_CELLS_PER_AXIS,
+        AREA_CELLS_PER_SPAN,
         boundary_defect,
         (knots_u, knots_v),
         |b| {
-            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
-            let cm = a.cross_num(&w, m.0, m.1);
-            let wm = w.chan(m.0, m.1);
+            if column.as_ref().is_none_or(|(u, _)| *u != b.umid) {
+                column = Some((b.umid, a.area_slice(&w, Collapse::At(b.umid))));
+            }
+            let Some((_, sl)) = column.as_ref() else {
+                unreachable!("the column was just sliced")
+            };
+            let vm = Collapse::At(b.vmid);
+            let cm = a.cross_num_at(&w, sl, vm);
+            let wm = w.slices_at(&sl.w, vm)[0][0];
             let g_mid = (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt() / wm.powi(3);
             let (mut bu, mut bv) = (0, 0);
             advance_block(&mut bu, b.u.start(), &edges_u);
@@ -514,7 +551,7 @@ pub(super) fn rational_patch_face<T: Decide>(
     let perimeter_lo = || {
         boundary_chord_perimeter_lo(
             rect.corners(),
-            PERIMETER_CHORDS_PER_SIDE,
+            PERIMETER_CHORDS_PER_SPAN,
             (knots_u, knots_v),
             |cu, cv| a.point(&w, cu, cv),
         )
@@ -531,7 +568,11 @@ pub(super) fn rational_patch_face<T: Decide>(
         let (b_uu, b_vv) = blocks[bu * nbv + bv];
         (b_uu, if exact_v { None } else { Some(b_vv) })
     };
-    let mut run = Run::enter(window, &cost);
+    let mut run = Run::enter_walled(
+        window,
+        span_work_wall(span_cell_count(rect, (knots_u, knots_v))),
+        &cost,
+    );
     let mut round = run.first();
     loop {
         let mut flux = Interval::zero();
@@ -626,18 +667,13 @@ mod tests {
     use super::*;
     use geom_core::Bounds;
 
-    use super::super::cells::REFINED_SPANS_PER_AXIS;
+    use super::super::cells::REFINED_PIECES_PER_SPAN;
     use super::super::net::knots_inside;
     use super::super::patch::{nurbs_patch_face, nurbs_patch_face_rounds};
     use super::super::run::{LaneEnd, mean_boundary_displacement};
     use crate::props::bracket::mid;
     use crate::props::quad::test_target::{self, bounds_of, encloses, patch, to_target};
     use geom_core::Tol;
-
-    /// The corpus's declared ambient uncertainty — the ε the fixed
-    /// quadrature schedule (D9) is dimensioned for, and the boundary
-    /// the ε-row postures below are pinned against.
-    const CORPUS_EPS: f64 = 1e-9;
 
     /// The two HONEST outcomes of an ε-coupled convergence row.
     ///
@@ -947,16 +983,12 @@ mod tests {
             "EPS-ROW multiplicity ladder @ eps={:e}: {postures:?}",
             Tol::witness().get().eps
         );
-        // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
-        // ride the exact per-span Newton–Cotes lane, whose width is
-        // outward rounding only — ε-independent, so they must certify on
-        // EVERY row of the matrix. The RATIONAL rows ride the exact-v
-        // arm's O(h²) composite in u against an ε-coupled target: at the
-        // corpus ε and coarser every one certifies, and below it the
-        // smooth ones do (multiplicity under the degree, measured at its
-        // work wall) while the C⁰ kink's stops short. That boundary is
-        // PINNED, not relaxed, and a posture that moves in either
-        // direction is a finding.
+        // Anti-vacuity. The INTEGRAL rows ride the exact per-span
+        // Newton–Cotes lane, whose width is outward rounding only —
+        // ε-independent. The RATIONAL rows ride the exact-v arm's O(h²)
+        // composite in u against an ε-coupled target, and every one
+        // certifies down to ε = 1e-12, the C⁰ kink's at its last
+        // round under the work wall. A posture that moves is a finding.
         let certified: Vec<&str> = postures
             .iter()
             .filter(|(_, p)| *p == EpsPosture::Certified)
@@ -964,13 +996,11 @@ mod tests {
             .collect();
         let expected: Vec<String> = (1..=pu)
             .flat_map(|mult| {
-                let rational = Tol::witness().get().eps >= CORPUS_EPS || mult < pu;
                 [
-                    Some(format!("mult {mult} / integral")),
-                    rational.then(|| format!("mult {mult} / rational")),
+                    format!("mult {mult} / integral"),
+                    format!("mult {mult} / rational"),
                 ]
             })
-            .flatten()
             .collect();
         assert_eq!(
             certified,
@@ -1116,7 +1146,7 @@ mod tests {
             };
             let g = |u: f64, v: f64| {
                 let (cu, cv) = (Collapse::At(u), Collapse::At(v));
-                let c = a.cross_num(&w, cu, cv).map(mid);
+                let c = a.cross_num_at(&w, &a.area_slice(&w, cu), cv).map(mid);
                 (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() / mid(w.chan(cu, cv)).powi(3)
             };
             let inside = |x: f64, hull: Interval, noise: f64| {
@@ -1128,7 +1158,7 @@ mod tests {
             let cells = |kv: &KnotVector, knots: &[f64]| {
                 span_cells(
                     kv,
-                    &knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_AXIS, knots),
+                    &knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_SPAN, knots),
                 )
                 .unwrap()
             };
@@ -1220,18 +1250,18 @@ mod tests {
     }
 
     /// `RefinedNet`'s width has no cliff at any distance of a stated
-    /// knot from a grid point: with the quarter cylinder split at every
-    /// offset of [`crate::grid_offsets::knot_offsets`] from the first
-    /// point of the [`REFINED_SPANS_PER_AXIS`] grid, the round-0 flux and
-    /// area widths stay within `1.25×` of the split ON it. A grid point inserted at a gap `g` beside the knot opens
-    /// a span of width `g`, whose derivative hulls carry the inserted
-    /// point's rounding over `g` — an excess decaying as `1/g`, so a
-    /// skip rule that clears too little goes red at the first offset
-    /// past its clearance.
+    /// knot from the point the refinement would take without it: with
+    /// the quarter cylinder split at every offset of
+    /// [`crate::grid_offsets::knot_offsets`] from the midpoint of its
+    /// span (the [`REFINED_PIECES_PER_SPAN`] split), the round-0 flux and
+    /// area widths stay within `1.25×` of the split ON it. The
+    /// refinement splits each span equally, so a knot beside that point
+    /// moves the split points with it rather than leaving a hairline
+    /// span whose derivative hulls carry an inserted point's rounding.
     #[test]
     fn the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset() {
         let truth = core::f64::consts::PI;
-        let (g, offsets) = crate::grid_offsets::knot_offsets(REFINED_SPANS_PER_AXIS, 1);
+        let (g, offsets) = crate::grid_offsets::knot_offsets(REFINED_PIECES_PER_SPAN, 1);
         let on = quarter_cylinder_split_at(g);
         let rows: Vec<(String, FaceCutBounds)> = offsets
             .into_iter()

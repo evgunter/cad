@@ -27,7 +27,9 @@
 use crate::shared::patch::{QUAD_TARGET_LEN_FACTOR, Unmet, at_target, patch_net, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{LaneEnd, LaneRun, mean_boundary_displacement, nurbs_patch_face};
+use geom_brep::props::quad::{
+    LaneEnd, LaneRun, LaneStop, mean_boundary_displacement, nurbs_patch_face,
+};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;
@@ -74,32 +76,25 @@ const CORPUS_EPS: f64 = 1e-9;
 // `f_uu`/`f_vv` hulls are the quotient statement's
 // (`geom_core::spline::cell_measure_quotients`), at the round the
 // lane's work wall stops it: the composite arm's round 7, the exact-v
-// arm's round 10 (`props::quad`'s `FACE_WORK_WALL`).
+// arm's round 12 (`props::quad`'s `FACE_WORK_WALL`, per span cell).
 
 /// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
-const MOEBIUS_FLOOR: f64 = 3.149_977_622_964e-8;
-/// Warped bilinear with 1e-1/1e1 weights. Round 7's own width: the
-/// 1.295834045203e-5 that stood here was the budget exit's lower bound
-/// on it, as for [`QUARTER_TORUS_FLOOR`] (4e-6 relative wider).
-const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
-/// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width: a pin of
-/// 4.648e-8 stood here while the budget exit refused this carrier, and
-/// that was the exit's lower bound on round 7's width, which omits the
-/// midpoint sum's own width — round 7's enclosure is the same.
-const QUARTER_TORUS_FLOOR: f64 = 4.687_047_770_243e-8;
+const MOEBIUS_FLOOR: f64 = 6.151_875_578_118e-9;
+/// Warped bilinear with 1e-1/1e1 weights. Round 7's own width, read
+/// against the area pass's 32 cells a span: the meter divides the flux
+/// width by the area's midpoint, which that pass sets.
+const HYPAR_FLOOR: f64 = 9.418_122_349_238e-6;
+/// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width.
+const QUARTER_TORUS_FLOOR: f64 = 1.617_645_992_203e-7;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
-/// the row for why). Round 7's own width: the 6.357819236722e5 that
-/// stood here was the budget exit's lower bound on it, as for
-/// [`QUARTER_TORUS_FLOOR`] (1e-9 relative wider).
+/// the row for why). Round 7's own width.
 const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
-/// Unit sphere octant (degenerate pole row). Round 7's own width; the
-/// 2.907e-8 that stood here was the budget exit's lower bound on it, as
-/// for [`QUARTER_TORUS_FLOOR`].
-const SPHERE_OCTANT_FLOOR: f64 = 2.920_125_725_497e-8;
+/// Unit sphere octant (degenerate pole row). Round 7's own width.
+const SPHERE_OCTANT_FLOOR: f64 = 1.064_253_751_623e-7;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 5.996_463_398_199e-8;
+const HUGE_CYLINDER_FLOOR: f64 = 2.047_260_586_885e-8;
 /// The outcomes a probe is allowed to have on the run's ε — two
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
@@ -1153,16 +1148,18 @@ fn quarter_torus_closed(rr: f64, r: f64) -> (f64, f64) {
     (flux, area)
 }
 
-/// **The wall bounds work, not rounds** (`FACE_WORK_WALL`'s doc). The
-/// quarter torus at 12× (R = 24 m, r = 6 m) on one conic span a
-/// direction certifies at round 7, as the round caps did, and on 7×7
-/// spans too. On 9×9 (PR 5589's first reviewer's witness) every round
-/// costs more cells than the calibrating face's: it stops at the wall
-/// after round 6, and round 6's bracket holds the closed-form flux and
-/// area. The flux is read about the origin with the patch's normal
-/// inward, so its value is `−∫ S·n dA`.
+/// **A patch costs per span, so more spans do not stop it short.** The
+/// quarter torus at 12× (R = 24 m, r = 6 m) on 9×9 conic spans (PR
+/// 5589's first reviewer's witness) stopped at the work wall after round
+/// 6 while its schedule was laid over the face: its rounds cost more
+/// cells than the calibrating face's, and each span got about a ninth of
+/// the cells a one-span patch gets. Laid per span, with the wall per span
+/// cell, it meets the reporting target at round 3, and that round's
+/// bracket holds the closed-form flux and area. The flux is read about
+/// the origin with the patch's normal inward, so its value is
+/// `−∫ S·n dA`.
 #[test]
-fn a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form() {
+fn a_conic_torus_on_nine_spans_a_direction_meets_its_target_holding_its_closed_form() {
     use geom_core::interval::certification::Certification;
     let (rr, r) = (24.0, 6.0);
     let (flux, area) = quarter_torus_closed(rr, r);
@@ -1176,7 +1173,11 @@ fn a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form() 
         &mut to_target(CORPUS_EPS),
     )
     .expect("the conic torus has an enclosure");
-    assert_eq!((run.end, run.rounds), (LaneEnd::Wall, 7), "{run:?}");
+    assert_eq!(
+        (run.end, run.rounds),
+        (LaneEnd::Accepted(LaneStop::Refinable), 4),
+        "{run:?}"
+    );
     assert!(
         run.bounds.flux.contains(-flux),
         "flux {:?} misses {}",

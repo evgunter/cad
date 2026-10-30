@@ -1,10 +1,12 @@
 //! **Acceptance 5 on the conic quarter torus** (`docs/QUAD-MEASURE-SPEC.md`;
 //! PR 5741's review, m3): a closed body whose walls are the review's
 //! costly face class — PR 5589's first reviewer's 9×9 conic torus, a
-//! rational surface of revolution at `R = 24 m, r = 6 m` whose rounds
-//! cost more cells than the calibrating face's — measured through the
-//! door under `Resolution(1.024e-6 m)`, answers a bracket that holds
-//! Pappus's volume, never a refusal.
+//! rational surface of revolution at `R = 24 m, r = 6 m` — measured
+//! through the door under `Resolution(1.024e-6 m)`, answers a bracket
+//! that holds Pappus's volume, never a refusal. The rectangle lanes lay
+//! their cells and their work wall per knot span, so the 81-span walls
+//! refine each span as far as a one-span face would, and meet the
+//! resolution.
 //!
 //! **The body.** No builder closes a body around a conic patch, so the
 //! file is made: the kernel revolves a circle of radius `r` centred at
@@ -267,8 +269,8 @@ fn face_is_upper(text: &str, face: &str) -> bool {
     panic!("the band carries a rim semicircle")
 }
 
-/// **The conic quarter torus answers a bracket at the wall that holds
-/// Pappus** under a resolution of 1.024e-6 m, at every ε.
+/// **The conic quarter torus answers a bracket that holds Pappus**
+/// under a resolution of 1.024e-6 m, at every ε.
 #[test]
 fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     let tol = Tol::witness();
@@ -301,9 +303,8 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     );
     assert_eq!(
         measured.stop,
-        topo::Stop::Wall,
-        "the costly face stops at its wall, short of the resolution: that is the witness \
-         (a face that met it would no longer be the review's case): {measured:?}"
+        topo::Stop::Met,
+        "the 81-span walls meet the resolution: {measured:?}"
     );
     eprintln!(
         "ACCEPTANCE-5 conic quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",

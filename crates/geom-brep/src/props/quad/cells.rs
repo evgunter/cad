@@ -19,22 +19,25 @@ use crate::patch_bound::{certified_inf, certified_sup};
 use crate::props::PropsError;
 use crate::props::bracket::pt;
 
-/// Pieces per axis of the rectangle lanes' 2-D composite rule at round
-/// 0, doubling per round (cells = p²).
-pub(super) const AXIS_INIT_PIECES: usize = 8;
-/// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
-/// (fixed, D9 — never data-dependent). `AXIS_INIT_PIECES` is a
-/// multiple of it, so every block owns whole cells at every
-/// refinement level ([`rational_patch_face`](super::rational::rational_patch_face)).
-pub(super) const HULL_BLOCKS_PER_AXIS: usize = 8;
-/// Spans per axis the RATIONAL lane refines its bracketed net to
-/// before hulling it (fixed, D9) — see [`RefinedNet`].
-pub(super) const REFINED_SPANS_PER_AXIS: usize = 16;
+/// Pieces per KNOT SPAN, per axis, of the rectangle lanes' 2-D
+/// composite rule at round 0, doubling per round (cells = p² per span
+/// cell). Per span, not per face, so a patch and its per-span tiles
+/// are read on the same cells ([`knot_aligned_cuts`]).
+pub(super) const SPAN_INIT_PIECES: usize = 8;
+/// Blocks per knot span, per axis, for the rational lane's
+/// Taylor-remainder hulls. [`SPAN_INIT_PIECES`] is a multiple of it,
+/// and its edges are cut points at every round ([`knot_aligned_cuts`]),
+/// so every block owns whole cells at every refinement level
+/// ([`rational_patch_face`](super::rational::rational_patch_face)).
+pub(super) const HULL_BLOCKS_PER_SPAN: usize = 2;
+/// Pieces per knot span the RATIONAL lane refines its bracketed net to
+/// before hulling it — see [`RefinedNet`].
+pub(super) const REFINED_PIECES_PER_SPAN: usize = 2;
 
-/// **A bracketed tensor net, certified-refined** in both directions
-/// to a FIXED span target (D9: the schedule is a constant, never
-/// data-dependent), held with the two insertion chains that refined it,
-/// so the refined vectors are the chains' own.
+/// **A bracketed tensor net, certified-refined** in both directions,
+/// every knot span cut into [`REFINED_PIECES_PER_SPAN`] equal pieces
+/// ([`algebra::equal_split_points`]), held with the two insertion
+/// chains that refined it, so the refined vectors are the chains' own.
 ///
 /// Why the rational lane takes it: a range hull read off a control net
 /// is a convexity fact, and those are **span-granular** — on a
@@ -45,8 +48,7 @@ pub(super) const REFINED_SPANS_PER_AXIS: usize = 16;
 /// hull its zero test takes and the position bound its boundary pad
 /// takes. Knot insertion is exact in ℝ (Book §5.2/§5.3 — it changes the
 /// representation, never the locus) and the control polygon converges
-/// to the patch at O(h²), so `REFINED_SPANS_PER_AXIS` spans per axis
-/// tightens both.
+/// to the patch at O(h²), so splitting every span tightens both.
 pub(super) struct RefinedNet {
     u: RingRefinement,
     v: RingRefinement,
@@ -59,7 +61,11 @@ impl RefinedNet {
     /// than proceeding on an unrefined net.
     pub(super) fn of(net: &TensorChannels<'_, 3>) -> Option<Self> {
         let chain = |kv: &KnotVector| {
-            RingRefinement::new(kv, &algebra::domain_grid_points(kv, REFINED_SPANS_PER_AXIS)).ok()
+            RingRefinement::new(
+                kv,
+                &algebra::equal_split_points(kv, REFINED_PIECES_PER_SPAN),
+            )
+            .ok()
         };
         let (u, v) = (chain(net.knots_u())?, chain(net.knots_v())?);
         let nets = net.channels().map(|c| c.net().refine_u(&u).refine_v(&v));
@@ -285,96 +291,78 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
     }
 }
 
-/// **The composite's cut list in one direction**: the uniform
-/// `pieces` grid, the coarse block boundaries, and the interior knots,
-/// merged.
+/// **The composite's cut list in one direction**: the range's ends and
+/// the interior knots inside it, and every knot span between two of
+/// them cut into `pieces` equal pieces and into
+/// [`HULL_BLOCKS_PER_SPAN`] equal blocks, merged.
 ///
 /// The knots are the point. An integrand that is only C⁰ at a knot may
 /// genuinely JUMP there, and no derivative hull bounds a jump — so a
 /// cell holding a knot in its OPEN INTERIOR has no rule better than
 /// the smoothness-free `A_cell·hull(f)`, whose width is a control-net
 /// fact and therefore span-granular: it stops shrinking once cells are
-/// finer than a span, and the enclosure inherits a Θ(1/pieces) floor
-/// that halves per round while the cell count quadruples. Cutting ON
-/// the knots removes the case rather than bounding it: a knot on a
-/// cell BOUNDARY is not in any cell's interior, every cell is a
-/// smoothness island, and the midpoint-plus-Taylor rule applies
-/// throughout at its full O(h²).
+/// finer than a span. Cutting ON the knots removes the case rather than
+/// bounding it: a knot on a cell BOUNDARY is not in any cell's
+/// interior, every cell is a smoothness island, and the
+/// midpoint-plus-Taylor rule applies throughout at its full O(h²).
 ///
-/// The block boundaries are in the list for a soundness reason, not a
+/// **The grid is per knot span**, so the cells a span gets are a
+/// function of that span's ends (clipped to the range) and `pieces`
+/// alone, never of how many other spans share the range: a patch read
+/// whole and the same patch split into one face per span
+/// (`docs/DESIGN.md` [topology]'s C⁰-knot split) are read on the same
+/// cells, and cost the same. It is [`algebra::equal_split_points`]'
+/// schedule over the range's own spans, and a knot is a span end by
+/// construction, so no grid point needs a clearance from one.
+///
+/// The block edges are in the list for a soundness reason, not a
 /// tightness one: each cell reads its remainder hulls from ONE coarse
 /// block, which is only valid if the block contains it. Cutting there
 /// makes that containment structural rather than an arithmetic
-/// coincidence of `pieces` being a multiple of [`HULL_BLOCKS_PER_AXIS`].
+/// coincidence of `pieces` being a multiple of [`HULL_BLOCKS_PER_SPAN`].
 ///
 /// The result is sorted, deduplicated, and spans exactly `[lo, hi]`,
 /// so consecutive cells share a cut point and the cells tile the
 /// rectangle with no gap.
 ///
-/// **Not the equal-split schedule, though it reads like one**:
-/// [`geom_core::spline::algebra::equal_split_points`] cuts each nonempty
-/// SPAN of a whole vector into equal pieces, so its grid restarts at
-/// every knot and a knot is a span end by construction. This grid is
-/// uniform over the RANGE `[lo, hi]`, blind to where the knots fall;
-/// the knots join it as mandatory cuts and the grid's clearance
-/// arbitrates between the two sets, which the per-span schedule never
-/// has to.
-/// Even on a single-span range, where the interior grids coincide, this
-/// list also carries the range ends and the coarse block edges it owes
-/// the hull blocks' containment.
-///
-/// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
-/// [`RefinedNet`] and the trimmed lane's `bezier_blocks` take: that grid runs over a knot
-/// vector's own domain and clears only its interior knots, while this
-/// range is the trim rectangle's and its knots are a raw slice that may
-/// be a derivative's. Both are [`algebra::range_grid_points`]
-/// underneath; what differs is the range and the mandatory set each
-/// hands it.
-///
 /// `knots` is the raw slice the caller cuts on. A derivative's interior
 /// knots are its parent's, so every caller cuts on the carrier's own.
 pub(super) fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
-    // MANDATORY cuts: the rectangle's own ends and every interior
-    // knot. These carry the whole smoothness invariant — a knot that
-    // is a cut is in no cell's open interior — so nothing may drop
-    // one, and `hi` is pushed as ITSELF because `lo + (hi − lo)·1` is
-    // a rounded expression that may miss it by an ulp and leave the
-    // last sliver of the rectangle outside every cell.
-    let mut cuts: Vec<f64> = Vec::with_capacity(pieces + HULL_BLOCKS_PER_AXIS + knots.len() + 2);
-    cuts.push(lo);
-    cuts.push(hi);
-    cuts.extend(knots_inside(knots, lo, hi));
-    cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
-    cuts.dedup();
-
-    // GRID cuts — the uniform `pieces` grid and the coarse block
-    // edges, the `HULL_BLOCKS_PER_AXIS` grid — are conveniences, not
-    // invariants: they only subdivide, and a cell that is wider
-    // because one was dropped is still inside one smooth piece and
-    // still inside its block. So a grid point is taken only when it
-    // stands clear of every mandatory cut by its grid's clearance
-    // ([`algebra::GRID_CLEARANCE`] of that grid's spacing), which is
-    // what stops the cut rule minting narrow cells (and narrow coarse
-    // blocks) when a knot lands near a grid point. The ends ride in the
-    // mandatory set for completeness; the open-range test already
-    // keeps every grid point off them.
-    //
-    // Every block edge is a cell cut: the block grid's own points are
-    // in this list, and the block-edge list ([`HULL_BLOCKS_PER_AXIS`]
-    // pieces through this same function) takes exactly the block grid
-    // points this call takes — the same grid against the same
-    // mandatory set — so every cell still lies inside one block.
-    let mandatory = cuts.clone();
-    cuts.extend(algebra::range_grid_points(lo, hi, pieces, &mandatory));
-    cuts.extend(algebra::range_grid_points(
-        lo,
-        hi,
-        HULL_BLOCKS_PER_AXIS,
-        &mandatory,
-    ));
+    // The span ends: the range's own and every interior knot. `hi` is
+    // pushed as ITSELF because `lo + (hi − lo)·1` is a rounded
+    // expression that may miss it by an ulp and leave the last sliver
+    // of the range outside every cell.
+    let mut ends: Vec<f64> = vec![lo, hi];
+    ends.extend(knots_inside(knots, lo, hi));
+    ends.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
+    ends.dedup();
+    let mut cuts = ends.clone();
+    for w in ends.windows(2) {
+        cuts.extend(algebra::range_grid_points(w[0], w[1], pieces, &[]));
+        cuts.extend(algebra::range_grid_points(
+            w[0],
+            w[1],
+            HULL_BLOCKS_PER_SPAN,
+            &[],
+        ));
+    }
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
     cuts.dedup();
     cuts
+}
+
+/// The knot spans per axis a rectangle meets, multiplied: the count of
+/// span cells the per-span schedules ([`knot_aligned_cuts`]) are laid
+/// over, and the multiplier of the rectangle lanes' work wall
+/// ([`super::run::span_work_wall`]).
+pub(super) fn span_cell_count(rect: PatchRect, knots: (&[f64], &[f64])) -> usize {
+    let (u0, u1, v0, v1) = rect.corners();
+    let spans = |lo: f64, hi: f64, kv: &[f64]| {
+        let mut ends: Vec<f64> = knots_inside(kv, lo, hi).collect();
+        ends.dedup();
+        ends.len() + 1
+    };
+    spans(u0, u1, knots.0) * spans(v0, v1, knots.1)
 }
 
 /// The hull block a cell reads its `f_dd` hulls from: the one that
@@ -407,7 +395,7 @@ pub(super) fn round_cuts(
     round: usize,
 ) -> (Vec<f64>, Vec<f64>) {
     let (u0, u1, v0, v1) = rect.corners();
-    let pieces = AXIS_INIT_PIECES << round;
+    let pieces = SPAN_INIT_PIECES << round;
     (
         knot_aligned_cuts(u0, u1, pieces, knots.0),
         knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots.1),
@@ -498,7 +486,7 @@ mod tests {
                 continue;
             }
             let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k0, k1, 1.0, 1.0, 1.0], 2).unwrap();
-            let cuts = knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_AXIS, &[k0, k1]);
+            let cuts = knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_SPAN, &[k0, k1]);
             let cells = span_cells(&kv, &cuts).unwrap();
             assert!(
                 cells.iter().any(|c| (c.lo, c.hi) == (k0, k1)),
@@ -524,28 +512,34 @@ mod tests {
         }
     }
 
-    /// `RefinedNet`'s grid is the DOMAIN's sixteenths, a grid point
-    /// skipped up to and including `GRID_CLEARANCE` of the spacing
-    /// (`2⁻¹²`) from a knot: `0.5` is a knot, and `1/16` is skipped
-    /// beside a knot exactly `2⁻¹²` above it. A knot one ulp further
-    /// than that above `3/8` leaves `3/8` standing, so both land. The
-    /// expected vector is written out by hand.
+    /// `RefinedNet` cuts every span of the vector into
+    /// [`REFINED_PIECES_PER_SPAN`] equal pieces, however close two knots
+    /// stand: a knot an ulp past a sixteenth still gets its spans
+    /// halved on both sides. The expected vector is written out by hand.
     #[test]
-    fn refined_net_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
-        let c = algebra::grid_clearance(0.0, 1.0, REFINED_SPANS_PER_AXIS);
-        let near = 0.0625 + c;
-        let clear = (0.375 + c).next_up();
-        let kv =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    fn refined_net_splits_every_span() {
+        assert_eq!(REFINED_PIECES_PER_SPAN, 2, "the vector below is the halves");
+        let near = 0.0625f64.next_up();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let (rkv, count) = refined_u(&kv);
+        let half = |a: f64, b: f64| a + (b - a) * 0.5;
         assert_eq!(
             rkv.knots(),
             [
-                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
-                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
+                0.0,
+                0.0,
+                0.0,
+                half(0.0, near),
+                near,
+                half(near, 0.5),
+                0.5,
+                0.75,
+                1.0,
+                1.0,
+                1.0
             ]
         );
-        assert_eq!(count, 19);
+        assert_eq!(count, 8);
     }
 
     /// [`RefinedNet`] of a net over `kv` by a linear segment: the
@@ -565,165 +559,82 @@ mod tests {
         (rkv, count)
     }
 
-    /// `RefinedNet` has no "already fine enough" cut-off: a vector
-    /// with more control points than the grid has spans still takes
-    /// every grid point it lacks. The interior knots are the odd
-    /// 64ths, none on the sixteenths grid, so all fifteen go in.
+    /// **A range's cuts restricted to one of its knot spans are that
+    /// span's own cuts**, bit for bit: the per-span tile of a patch is
+    /// read on the cells the whole patch reads there. Red if the grid
+    /// is laid over the range rather than per span, on the non-dyadic
+    /// range `[0.1, 0.7]` with knots at thirds-unfriendly values and a
+    /// double knot, at every count the rounds and the area pass use.
     #[test]
-    fn refined_net_refines_an_already_fine_vector() {
-        let mut knots = vec![0.0, 0.0, 0.0];
-        knots.extend((0..21).map(|j| f64::from(2 * j + 1) / 64.0));
-        knots.extend([1.0, 1.0, 1.0]);
-        let kv = KnotVector::clamped(knots, 2).unwrap();
-        assert_eq!(kv.control_count(), 24);
-        let (rkv, count) = refined_u(&kv);
-        assert_eq!(count, 24 + 15);
-        for k in 1..16 {
-            let t = f64::from(k) / 16.0;
-            assert_eq!(rkv.multiplicity_of(t).map(|(m, _)| m), Some(1), "{t}");
+    fn a_ranges_cuts_on_a_span_are_the_spans_own() {
+        let knots = [0.0, 0.0, 0.0, 0.1, 0.23, 0.5, 0.5, 0.61, 0.7, 0.7, 0.7];
+        for pieces in [1, 2, 3, 8, 13, 16, 64] {
+            let whole = knot_aligned_cuts(0.1, 0.7, pieces, &knots);
+            for w in [0.1, 0.23, 0.5, 0.61, 0.7].windows(2) {
+                let part: Vec<f64> = whole
+                    .iter()
+                    .copied()
+                    .filter(|c| *c >= w[0] && *c <= w[1])
+                    .collect();
+                assert_eq!(
+                    part,
+                    knot_aligned_cuts(w[0], w[1], pieces, &knots),
+                    "pieces {pieces}, span [{}, {}]",
+                    w[0],
+                    w[1]
+                );
+            }
         }
     }
 
-    /// `knot_aligned_cuts` pinned bit for bit on the non-dyadic range
-    /// `[0.1, 0.7]`, where `lo + (hi − lo)·(k/n)` rounds to the values
-    /// written out below.
+    /// `knot_aligned_cuts` pinned bit for bit, the values written out by
+    /// `lo + (hi − lo)·(k/n)` per span:
     ///
-    /// * `pieces = 13`, no knots: the grid arithmetic. The step forms
-    ///   `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` round
-    ///   `k = 2` to `0.1923076923076923`, not `0.19230769230769232`.
-    /// * `pieces = 16`, the clearance's WIDTH, `GRID_CLEARANCE` of the
-    ///   spacing: a knot that far above the grid point `0.2875` (it
-    ///   rounds a hair inside) drops it; one an ulp further above
-    ///   `0.5125` than that leaves it standing.
-    /// * `pieces = 16` (a multiple of [`HULL_BLOCKS_PER_AXIS`], so every
-    ///   block edge is a grid point): a knot one ulp above the grid
-    ///   point `0.2125` stands and the grid point is dropped; the
-    ///   double knot `0.5` is one cut; knots outside or ON the range
-    ///   ends add nothing.
-    /// * `pieces = 5`: the block edges are cuts of their own. A knot
-    ///   one ulp above the block edge `0.32499999999999996` replaces
-    ///   it; with no knots every block edge and grid point stands.
-    /// * `[-0.3, 0.2]`, `pieces = 3`: a range straddling zero.
+    /// * `[0.1, 0.7]`, `pieces = 3`, a double knot at `0.5`: thirds and
+    ///   the block halves of `[0.1, 0.5]` and of `[0.5, 0.7]`, the knot
+    ///   one cut.
+    /// * `pieces = 4`, knots outside or ON the range ends add nothing,
+    ///   and the quarters of `[0.1, 0.3]` and `[0.3, 0.7]` hold the
+    ///   halves.
+    /// * `[-0.3, 0.2]`, `pieces = 3`, no knots: a range straddling zero.
     #[test]
     fn knot_aligned_cuts_are_pinned_bit_for_bit() {
-        let (lo, hi) = (0.1, 0.7);
-        let g3: f64 = 0.2125;
-        let e3: f64 = 0.324_999_999_999_999_96;
-        let near_g3 = f64::from_bits(g3.to_bits() + 1);
-        let near_e3 = f64::from_bits(e3.to_bits() + 1);
-        assert_eq!(near_g3, 0.212_500_000_000_000_02);
-        assert_eq!(near_e3, 0.325);
+        assert_eq!(HULL_BLOCKS_PER_SPAN, 2, "the lists below hold the halves");
         assert_eq!(
-            knot_aligned_cuts(lo, hi, 13, &[]),
+            knot_aligned_cuts(0.1, 0.7, 3, &[0.5, 0.5]),
             [
                 0.1,
-                0.146_153_846_153_846_16,
-                0.175,
-                0.192_307_692_307_692_32,
-                0.238_461_538_461_538_47,
-                0.25,
-                0.284_615_384_615_384_6,
-                e3,
-                0.330_769_230_769_230_8,
-                0.376_923_076_923_076_9,
-                0.4,
-                0.423_076_923_076_923,
-                0.469_230_769_230_769_23,
-                0.475,
-                0.515_384_615_384_615_3,
-                0.549_999_999_999_999_9,
-                0.561_538_461_538_461_5,
-                0.607_692_307_692_307_6,
-                0.625,
-                0.653_846_153_846_153_9,
-                0.7
-            ]
-        );
-        let clearance = algebra::grid_clearance(lo, hi, 16);
-        let inside = 0.2875 + clearance;
-        let outside = (0.5125 + clearance).next_up();
-        assert_eq!(inside, 0.287_646_484_374_999_96);
-        assert_eq!(outside, 0.512_646_484_375);
-        assert_eq!(
-            knot_aligned_cuts(lo, hi, 16, &[inside, outside]),
-            [
-                0.1,
-                0.1375,
-                0.175,
-                g3,
-                0.25,
-                inside,
-                e3,
-                0.362_500_000_000_000_04,
-                0.4,
-                0.4375,
-                0.475,
-                0.5125,
-                outside,
-                0.549_999_999_999_999_9,
-                0.5875,
-                0.625,
-                0.6625,
-                0.7
-            ]
-        );
-        assert_eq!(
-            knot_aligned_cuts(lo, hi, 16, &[-0.5, 0.1, near_g3, 0.5, 0.5, 0.7, 0.9]),
-            [
-                0.1,
-                0.1375,
-                0.175,
-                near_g3,
-                0.25,
-                0.2875,
-                e3,
-                0.362_500_000_000_000_04,
-                0.4,
-                0.4375,
-                0.475,
+                0.233_333_333_333_333_34,
+                0.300_000_000_000_000_04,
+                0.366_666_666_666_666_7,
                 0.5,
-                0.5125,
-                0.549_999_999_999_999_9,
-                0.5875,
-                0.625,
-                0.6625,
+                0.566_666_666_666_666_7,
+                0.6,
+                0.633_333_333_333_333_3,
                 0.7
             ]
         );
-        let bare = [
-            0.1,
-            0.175,
-            0.22,
-            0.25,
-            e3,
-            0.339_999_999_999_999_97,
-            0.4,
-            0.459_999_999_999_999_96,
-            0.475,
-            0.549_999_999_999_999_9,
-            0.58,
-            0.625,
-            0.7,
-        ];
-        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[]), bare);
-        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[e3]), bare);
-        let mut with_knots = bare.to_vec();
-        with_knots[4] = near_e3;
-        with_knots.insert(9, 0.5);
-        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[near_e3, 0.5]), with_knots);
+        assert_eq!(
+            knot_aligned_cuts(0.1, 0.7, 4, &[-0.5, 0.1, 0.3, 0.7, 0.9]),
+            [
+                0.1,
+                0.15,
+                0.2,
+                0.25,
+                0.3,
+                0.399_999_999_999_999_97,
+                0.5,
+                0.6,
+                0.7
+            ]
+        );
         assert_eq!(
             knot_aligned_cuts(-0.3, 0.2, 3, &[]),
             [
                 -0.3,
-                -0.2375,
-                -0.175,
                 -0.133_333_333_333_333_33,
-                -0.112_499_999_999_999_99,
                 -0.049_999_999_999_999_99,
-                0.012_500_000_000_000_011,
                 0.033_333_333_333_333_326,
-                0.075_000_000_000_000_01,
-                0.1375,
                 0.2
             ]
         );

@@ -11,15 +11,15 @@ use super::cells::knot_aligned_cuts;
 use super::net::{PatchRect, RVec3, widen};
 use crate::props::bracket::{lo_or_refuse, pt};
 
-/// Cells per axis of BOTH rectangle lanes' area pass, over the whole
-/// rectangle (fixed, D9). The shared [`area_midpoint_taylor`] rule is
+/// Cells per knot span, per axis, of BOTH rectangle lanes' area pass
+/// ([`knot_aligned_cuts`]). The shared [`area_midpoint_taylor`] rule is
 /// O(h), so the resolution sets the area's honest width directly.
-pub(super) const AREA_CELLS_PER_AXIS: usize = 64;
-/// Chords per rectangle side in the area gauge's certified perimeter
-/// lower bound ([`boundary_chord_perimeter_lo`]). Sixteen is enough
-/// that a wrapped patch's collapsed corner chords stop dominating the
-/// bound, at 64 point reads against the area pass's own 4096 cells.
-pub(super) const PERIMETER_CHORDS_PER_SIDE: usize = 16;
+pub(super) const AREA_CELLS_PER_SPAN: usize = 32;
+/// Chords per knot span of a rectangle side in the area gauge's
+/// certified perimeter lower bound ([`boundary_chord_perimeter_lo`]).
+/// Sixteen is enough that a wrapped patch's collapsed corner chords
+/// stop dominating the bound.
+pub(super) const PERIMETER_CHORDS_PER_SPAN: usize = 16;
 /// The A2 area gauge's ceiling: the mean edge displacement that
 /// explains the certified area bracket, as a multiple of the face's
 /// own certified perimeter ([`area_gauge_ok`] carries the calibration
@@ -387,7 +387,7 @@ pub(super) fn debug_assert_area_gauge(
 /// The window between two adjacent cuts of a [`PatchRect`] side.
 /// [`knot_aligned_cuts`] of a finite range is a sorted list of numbers,
 /// so the pair is ordered and neither end is NaN.
-fn cut_window(a: f64, b: f64) -> ParamRange {
+pub(super) fn cut_window(a: f64, b: f64) -> ParamRange {
     ParamRange::new(a, b)
         .unwrap_or_else(|| unreachable!("adjacent cuts of a finite range are ordered numbers"))
 }
