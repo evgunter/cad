@@ -2875,10 +2875,11 @@ pub enum BooleanError {
         band: Band,
     },
     /// An edge of `operand` meets a curved face of the other in band:
-    /// a root door reads a touch in the band's gap where
-    /// [`BooleanError::CurvedPierceUnsupported`] would stand for a limit,
-    /// or the curve-pair reading of the edge against the face's boundary
-    /// falls in band ([`BooleanDecision::CurveMeeting`]). Its story is
+    /// a root door's decision falls in band (a classifying sign in the
+    /// gap, or a root finder's touch) for a span the face may hold, or
+    /// the curve-pair reading of the edge against the face's boundary
+    /// does ([`BooleanDecision::CurveMeeting`] on the face's carrier,
+    /// [`BooleanDecision::BoundaryMeeting`] off it). Its story is
     /// `decision`'s.
     CurvedPierceEscalated {
         /// The operand whose edge met the curved face.

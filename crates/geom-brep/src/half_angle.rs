@@ -87,7 +87,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::{QuarticRows, depressed_quartic_roots};
-use crate::roots::{RootFault, RootRefusal, Roots, Unsettled};
+use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
 /// torus ([`crate::ConicTorusHarmonics`]).
@@ -521,10 +521,11 @@ const BISECTIONS: u32 = 64;
 ///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
-///   holds a double root — a tangency — and the walk refuses it on its
-///   clear margin: a touch where that margin lies in the band's gap,
-///   [`Unsettled::Tangency`] where it is decided, never a certified
-///   `Miss`.
+///   holds a double root — a tangency — and the walk refuses it
+///   [`Unsettled::Tangency`], never a certified `Miss`. Its clear margin
+///   is a lower bound on `|F|`, which a looser bound reads lower, so it
+///   is no reading of the band (a bound in the gap and one below it are
+///   one refusal).
 ///
 /// A piece none of whose split shares reads a definite sign, and a turn
 /// with no definite share at all, refuse the same way: a touch on the
@@ -659,10 +660,7 @@ pub fn certified_subdivision<T: Decide>(
     };
     // Every cut tried reads in band: a touch on the gap's reading where
     // one read there, and a touch decided in the zero band where none did.
-    let uncut = || {
-        gap.get()
-            .map_or(Unsettled::Tangency.into(), RootRefusal::Touch)
-    };
+    let uncut = || touch_or_tangency(gap.get(), RootRefusal::Touch);
     // The first cut: one end in each sixteenth of the turn, each moved
     // along its sixteenth until its sign is definite; a sixteenth with no
     // such share is re-cut by leaving it inside its neighbours' piece, so
@@ -706,8 +704,7 @@ pub fn certified_subdivision<T: Decide>(
             + fourth_hi * half.powi(4) / twenty_four;
         let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
-        let clear_read = decide(rows.clear, Margin::of(clear), band);
-        if matches!(clear_read, Ok(Sign::Positive)) {
+        if definitely(rows.clear, clear) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
@@ -801,11 +798,11 @@ pub fn certified_subdivision<T: Decide>(
             roots.push(root);
             return Step::Settled;
         }
+        // The clear margin is a lower bound on the residual, not a
+        // reading of it: a looser bound reads it lower, so where it falls
+        // says how good the bound is, not how near the carrier passes.
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(match clear_read {
-                Err(diag) => RootRefusal::Touch(diag),
-                Ok(_) => Unsettled::Tangency.into(),
-            });
+            return Step::Stop(Unsettled::Tangency.into());
         }
         gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
@@ -830,7 +827,8 @@ pub fn certified_subdivision<T: Decide>(
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Err(RootFault::ImpossibleCount.into());
     }
-    Ok(Roots::of(&roots).ok_or(RootFault::ImpossibleCount)?)
+    // At most `2N ≤ 2·MAX_DEGREE` roots: the capacity holds them.
+    Ok(Roots::of(&roots).unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")))
 }
 
 #[cfg(test)]

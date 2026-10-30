@@ -1023,8 +1023,8 @@ enum Tip {
     Unprofiled,
     /// `Escalated { decision: Crossing(OnEdge) }`.
     OnEdge,
-    /// `CurvedPierceEscalated { decision: CurveMeeting }`: the edge's
-    /// meeting with the face's boundary, read in band.
+    /// `CurvedPierceEscalated { decision: BoundaryMeeting }`: the rim's
+    /// meeting with the other rim, read in band, off the other's wall.
     Meeting,
     /// `Escalated { decision: Coincidence(Sectors, _) }`.
     Sectors,
@@ -1044,7 +1044,7 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             ..
         } => Tip::OnEdge,
         BooleanError::CurvedPierceEscalated {
-            decision: topo::BooleanDecision::CurveMeeting,
+            decision: topo::BooleanDecision::BoundaryMeeting,
             ..
         } => Tip::Meeting,
         BooleanError::Escalated {
@@ -1129,8 +1129,10 @@ fn united_at_the_run(
 /// can. The union is one shell (`boolean::sectors` `coincident_run`).
 /// Where only one side of the tip is cut, the other side is a true
 /// crescent at the tip and the union refuses
-/// `TangentCrescentUnsupported`; where only one rim is cut, the crossing
-/// layer escalates on the cut vertex against the other rim's arc.
+/// `TangentCrescentUnsupported`; where only one rim is cut, the cut rim
+/// meets the other rim in band, off that rim's wall, and the crossing
+/// layer escalates that meeting at the cut rim and the wall
+/// (`BoundaryMeeting`, [`Tip::Meeting`]).
 ///
 /// Each rim cut at `±s` alone has a reflex long arc between its two
 /// cuts; its profile escalates at every ε, so a reflex arc never reaches
@@ -1582,7 +1584,6 @@ fn a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip() {
 /// curve of that face's boundary", and its first lever, "make the two
 /// cuts of the curved face one construction", names no cut this pose has.
 #[test]
-#[ignore = "review 3: red at ac7e9ef4"]
 fn review3_a_meeting_off_the_carrier_says_so() {
     // The pose's profile validates at the default ε only.
     if tol().eps() != 1e-9 {

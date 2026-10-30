@@ -86,9 +86,9 @@ use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 /// Why [`isolate`] or [`settle`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum SplineFaceRefusal {
-    /// A decision the arm must read definite stayed in the band: whether a
-    /// meeting lies ON the chart, where it stands against an end of the
-    /// span, a crease or the meeting before it.
+    /// A decision the arm must read definite fell in the band's gap:
+    /// whether a meeting lies ON the chart, or where it stands against
+    /// an end of the span, a crease or the meeting before it.
     Escalated(Indeterminate),
     /// The walk reached a limit: [`Unsettled::Floor`] (a box at the floor
     /// not read past the band that no meeting accounts for: a pass within

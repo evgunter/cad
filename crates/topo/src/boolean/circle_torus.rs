@@ -154,7 +154,7 @@ use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use geom_brep::quartic::QuarticRows;
-use geom_brep::roots::{OnCarrier, RootFault, RootRefusal, Roots, Unsettled};
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
@@ -670,7 +670,9 @@ fn parallel_axes_roots<T: Decide>(
             count += 1;
         }
     }
-    Ok(CircleRoots::of(&thetas[..count]).ok_or(RootFault::ImpossibleCount)?)
+    // `thetas` is the capacity's own size, so `count` fits.
+    Ok(CircleRoots::of(&thetas[..count])
+        .unwrap_or_else(|| unreachable!("the roots array is the capacity")))
 }
 
 #[cfg(test)]
@@ -690,6 +692,7 @@ mod tests {
     //! red on the pose that reaches it.
 
     use super::*;
+    use crate::boolean::circle_roots::door_answer;
     use geom_core::{Bounds, Interval, Real, Tol};
 
     /// The door on a circle given by its parts.
@@ -791,10 +794,10 @@ mod tests {
         out
     }
 
-    /// The door's answer: its roots, or its refusal, a limit or `None`
-    /// for an escalation on the door's own decision.
+    /// The door's answer ([`door_answer`]): its roots, or its refusal, a
+    /// limit or `None` for an escalation.
     fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
-        match roots_of(
+        door_answer(roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -803,14 +806,7 @@ mod tests {
             t1,
             &torus(),
             band(),
-        ) {
-            Ok(found) => found.map_err(Some),
-            Err(BooleanError::Escalated { decision, .. }) => {
-                assert_eq!(decision, DECISION, "the door's own decision");
-                Err(None)
-            }
-            Err(other) => panic!("the door refused outside its decision: {other:?}"),
-        }
+        ))
     }
 
     /// The door's roots that fall in `[t0, t1]`, sorted.

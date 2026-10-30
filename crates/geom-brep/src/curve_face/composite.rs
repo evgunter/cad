@@ -56,7 +56,7 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, R
 
 use crate::half_angle::SPLITS;
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::Unsettled;
+use crate::roots::{Unsettled, touch_or_tangency};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
@@ -137,8 +137,8 @@ impl Reading {
     /// escalation, or a touch decided in the zero band.
     fn refused(self) -> CompositeRefusal {
         match self {
-            Self::Near(Some(diag)) => CompositeRefusal::Escalated(diag),
-            Self::Near(None) | Self::Past(_) => Unsettled::Tangency.into(),
+            Self::Near(gap) => touch_or_tangency(gap, CompositeRefusal::Escalated),
+            Self::Past(_) => Unsettled::Tangency.into(),
         }
     }
 }
@@ -559,7 +559,7 @@ fn cut(
     }
     // The first share read in the band's gap, which a piece that reads in
     // band at every share refuses on.
-    let mut gap = Reading::Near(None);
+    let mut gap = None;
     let Some((c, s)) = SPLITS.iter().find_map(|&k| {
         let c = piece.a + (piece.b - piece.a) * k;
         let s = share(&piece, c);
@@ -568,10 +568,8 @@ fn cut(
         }
         match read(value_at(&piece, s)) {
             Reading::Past(_) => Some((c, s)),
-            near @ Reading::Near(Some(_)) => {
-                if matches!(gap, Reading::Near(None)) {
-                    gap = near;
-                }
+            Reading::Near(Some(diag)) => {
+                gap.get_or_insert(diag);
                 None
             }
             Reading::Near(None) => None,
@@ -579,7 +577,7 @@ fn cut(
     }) else {
         // Within the band at every share: the carrier runs along the
         // surface here, or crosses it twice within the band.
-        return Err(gap.refused());
+        return Err(touch_or_tangency(gap, CompositeRefusal::Escalated));
     };
     let (num_l, num_r) = split_row(&piece.num, s);
     let (den_l, den_r) = split_row(&piece.den, s);

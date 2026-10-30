@@ -2665,7 +2665,8 @@ fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<Stri
 
 /// **`cd`'s union escalates at `Interval`**, at the default ε on the
 /// ruled region's span (`bool_ruled_region_span`; at `1e-12` a carrier
-/// gap reads first), so the scene stands beside the registry
+/// gap reads first, at the meeting of an edge with the curved face's
+/// boundary, located), so the scene stands beside the registry
 /// (`work/intent/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`).
 fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
@@ -2674,7 +2675,10 @@ fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
         Some(editor_core::NodeResult::Failed(e)) => assert!(
             matches!(
                 &e.kind,
-                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { diag, .. })
+                editor_core::NodeErrorKind::Boolean(
+                    topo::BooleanError::Escalated { diag, .. }
+                        | topo::BooleanError::CurvedPierceEscalated { diag, .. }
+                )
                     if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS
                         || diag.predicate == Some("bool_ruled_region_span")
             ),

@@ -169,13 +169,15 @@ pub enum Unsettled {
 
 /// Two of a root finder's own readings contradict where no legal input
 /// takes them apart: a charge the finder states is exceeded, a kernel
-/// fault.
+/// fault. Only [`crate::half_angle::certified_subdivision`] raises one;
+/// a count past a finder's capacity is ruled out by construction, at
+/// each site, and is no fault but an `unreachable!`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootFault {
-    /// The roots located are a count the residual cannot have (odd round
-    /// a closed turn, or more than its degree allows): a sign change on a
-    /// piece read clear, the residual and its harmonics disagreeing by
-    /// more than the noise the walk charges.
+    /// The subdivision located a count the residual cannot have: odd
+    /// round a closed turn, or more than `2N` for a residual of degree
+    /// `N`. A sign change on a piece read clear, the residual and its
+    /// harmonics disagreeing by more than the noise the walk charges.
     ImpossibleCount,
 }
 
@@ -214,6 +216,19 @@ impl From<Unsettled> for RootRefusal {
     fn from(why: Unsettled) -> Self {
         Self::Unsettled(why)
     }
+}
+
+/// **The refusal of a walk that cut nowhere definite**: a touch on the
+/// first reading it met in the band's gap (`gap`), told as the caller's
+/// `touch`, or [`Unsettled::Tangency`] where every reading it tried
+/// decided zero. The one spelling of that rule for the walks
+/// ([`crate::half_angle::certified_subdivision`],
+/// [`crate::curve_face::composite`]).
+pub fn touch_or_tangency<R: From<Unsettled>>(
+    gap: Option<Indeterminate>,
+    touch: impl FnOnce(Indeterminate) -> R,
+) -> R {
+    gap.map_or_else(|| Unsettled::Tangency.into(), touch)
 }
 
 impl From<RootFault> for RootRefusal {

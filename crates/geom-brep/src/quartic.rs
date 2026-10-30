@@ -7,7 +7,7 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign};
 
-use crate::roots::{RootFault, RootRefusal, Roots, Unsettled};
+use crate::roots::{RootRefusal, Roots, Unsettled};
 
 /// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
 /// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
@@ -447,7 +447,8 @@ pub fn depressed_quartic_roots<T: Decide>(
         }
         .into());
     }
-    Ok(Roots::of(&ts[..found]).ok_or(RootFault::ImpossibleCount)?)
+    Ok(Roots::of(&ts[..found])
+        .unwrap_or_else(|| unreachable!("two factors make at most four roots")))
 }
 
 #[cfg(test)]

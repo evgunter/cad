@@ -95,7 +95,7 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// boundary vertex sits against the span, or the boundary pre-pass's
 /// own rows. [`BooleanError::CurvedPierceEscalated`] at `edge` (an edge
 /// of `y_is`'s other operand) where a decision of the meeting reading
-/// does.
+/// does, its story [`meeting`]'s for an edge `on_carrier` or not.
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller passed, does not resolve.
 ///
@@ -107,7 +107,7 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// hold mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn boundary_crossing<T: Decide>(
     y: &Body<T>,
-    (y_is, edge): (Operand, EdgeKey),
+    (y_is, edge, on_carrier): (Operand, EdgeKey, bool),
     face: FaceKey,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -119,7 +119,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
         Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
         Some(Err(refusal)) => {
-            return boundary_refusal(refusal, (y_is.other(), face, edge))
+            return boundary_refusal(refusal, (y_is.other(), face, edge), on_carrier)
                 .map(|()| BoundaryCrossing::Unread);
         }
         None => return Ok(BoundaryCrossing::Unread),
@@ -196,13 +196,15 @@ fn boundary_spans<T: Decide>(
 }
 
 /// A boundary pass's refusal: an escalation is this module's, a meeting
-/// in band the meeting's, located at the edge `at` names (its operand,
-/// the curved face, the edge), a reading that could not run is `Ok`
-/// (nothing is known), and a misread is a kernel fault, the readings
-/// that contradict named.
+/// in band the meeting's ([`meeting`], as the edge is `on_carrier` or
+/// not), located at the edge the triple names (its operand, the curved
+/// face, the edge), a reading that could not run is `Ok` (nothing is
+/// known), and a misread is a kernel fault, the readings that contradict
+/// named.
 pub(super) fn boundary_refusal(
     refusal: BoundaryRefusal,
     (operand, face, edge): (Operand, FaceKey, EdgeKey),
+    on_carrier: bool,
 ) -> Result<(), BooleanError> {
     match refusal {
         BoundaryRefusal::Escalated(diag) => Err(escalated(diag)),
@@ -211,7 +213,7 @@ pub(super) fn boundary_refusal(
                 operand,
                 face,
                 edge,
-                decision: BooleanDecision::CurveMeeting,
+                decision: meeting(on_carrier),
                 diag,
             })
         }
@@ -222,6 +224,18 @@ pub(super) fn boundary_refusal(
         BoundaryRefusal::Fault(_) => Err(BooleanError::ClassificationInvariant {
             what: "boundary pass: a carrier the meeting table misread",
         }),
+    }
+}
+
+/// The decision a meeting of an edge with a curved face's boundary
+/// escalates as: an edge on the face's carrier and a boundary curve are
+/// two cuts of one surface ([`BooleanDecision::CurveMeeting`]); an edge
+/// off it only meets that curve ([`BooleanDecision::BoundaryMeeting`]).
+pub(super) fn meeting(on_carrier: bool) -> BooleanDecision {
+    if on_carrier {
+        BooleanDecision::CurveMeeting
+    } else {
+        BooleanDecision::BoundaryMeeting
     }
 }
 
@@ -278,7 +292,7 @@ mod crossing_rows {
         };
         match boundary_crossing(
             &body,
-            (Operand::B, EdgeKey::default()),
+            (Operand::B, EdgeKey::default(), true),
             face,
             &tilted,
             (-0.5, 0.5),
@@ -326,7 +340,7 @@ mod crossing_rows {
         };
         let crossing = |span| match boundary_crossing(
             &body,
-            (Operand::B, EdgeKey::default()),
+            (Operand::B, EdgeKey::default(), true),
             face,
             &section,
             span,
@@ -406,7 +420,7 @@ mod crossing_rows {
         let attempt = |gap: f64| {
             boundary_crossing(
                 &body,
-                (Operand::B, EdgeKey::default()),
+                (Operand::B, EdgeKey::default(), true),
                 face,
                 &section,
                 (theta - gap * z, theta + 0.01),
@@ -486,7 +500,7 @@ mod crossing_rows {
         let read = |span| {
             boundary_crossing(
                 &body,
-                (Operand::B, EdgeKey::default()),
+                (Operand::B, EdgeKey::default(), true),
                 face,
                 &section,
                 span,
@@ -562,7 +576,7 @@ mod crossing_rows {
         };
         match boundary_crossing(
             &body,
-            (Operand::B, EdgeKey::default()),
+            (Operand::B, EdgeKey::default(), true),
             face,
             &along,
             (0.25, 0.75),
@@ -612,7 +626,7 @@ mod crossing_rows {
             matches!(
                 boundary_crossing(
                     &body,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     (-0.5, 0.5),
@@ -628,7 +642,7 @@ mod crossing_rows {
             matches!(
                 boundary_crossing(
                     &stale,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     (-0.5, 0.5),
@@ -647,7 +661,7 @@ mod crossing_rows {
             |b| {
                 boundary_crossing(
                     b,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     (-0.5, 0.5),
@@ -663,7 +677,7 @@ mod crossing_rows {
             matches!(
                 boundary_crossing(
                     &body,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     clear,
@@ -684,7 +698,7 @@ mod crossing_rows {
             |b| {
                 boundary_crossing(
                     b,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     clear,
@@ -710,7 +724,7 @@ mod crossing_rows {
             |b| {
                 boundary_crossing(
                     b,
-                    (Operand::B, EdgeKey::default()),
+                    (Operand::B, EdgeKey::default(), true),
                     face,
                     &tilted,
                     (-0.5, 0.5),

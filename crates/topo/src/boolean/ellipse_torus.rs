@@ -378,12 +378,12 @@ mod torus_rows {
 
     use super::*;
     use crate::boolean::circle_roots::door_answer;
-
-    /// A door's answer for a row ([`door_answer`]).
-    type Answer = Result<CircleRoots<f64>, Option<Unsettled>>;
     use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
+
+    /// A door's answer for a row ([`door_answer`]).
+    type Answer = Result<CircleRoots<f64>, Option<Unsettled>>;
 
     /// The families a pose is drawn from.
     const FAMILIES: [&str; 4] = ["crossing", "graze", "far-out", "millimetre"];

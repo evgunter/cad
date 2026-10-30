@@ -2526,7 +2526,13 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
-        "boundary_refusal",
+        "meeting",
+        "BooleanDecision::BoundaryMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "meeting",
         "BooleanDecision::CurveMeeting",
         1,
     ),
@@ -2910,7 +2916,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
-    ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 2),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
         "reduce.rs",
         "spline_plane_crossings",

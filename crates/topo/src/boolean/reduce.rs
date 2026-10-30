@@ -2038,9 +2038,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge: edge_key,
         band,
     };
-    // A root door's reading in band of a span the face may hold: where the
-    // frontier would stand for a limit, the door's decision escalates,
-    // located.
+    // A root door's decision read in band (a classifying sign in the gap,
+    // or a root finder's touch) of a span the face may hold: the decision
+    // escalates, located at the edge and the face.
     let located = |decision, diag| BooleanError::CurvedPierceEscalated {
         operand: x_is,
         face,
@@ -2048,7 +2048,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         decision,
         diag,
     };
-    let touch = |decision, diag| Err(located(decision, diag));
+    let escalate = |decision, diag| Err(located(decision, diag));
     let at_apex = || BooleanError::CrossingAtConeApex {
         operand: x_is,
         face,
@@ -2206,7 +2206,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             if covered && !on_carrier {
                 let (t0, t1) = curve.params();
                 if let Ok(SpanVerdict::LiesOn) =
-                    wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &touch)
+                    wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)
                     && parents_distinct_from(x, edge, y, face, band)
                 {
                     let arc = ArcOnCarrier {
@@ -2551,7 +2551,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (Sign::Zero, Sign::Positive | Sign::Negative)
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &touch)? {
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2647,7 +2647,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // decide distinct, a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &touch)? {
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
@@ -2685,7 +2685,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // one.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &touch)? {
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2731,7 +2731,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 ) =>
         {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &touch)? {
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2832,13 +2832,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // exactness the bound could not reach. Only what the
                 // roots cannot settle keeps the frontier door.
                 Ok(Sign::Zero | Sign::Negative) => {
-                    // Covered, a touch is the fragments' as an unsettled
-                    // root set is (below).
-                    let covered_touch = |decision, diag| {
+                    // Covered, a door's escalation is the fragments' as an
+                    // unsettled root set is (below).
+                    let covered_escalate = |decision, diag| {
                         if covered {
                             Ok(SpanVerdict::Unsettled)
                         } else {
-                            touch(decision, diag)
+                            escalate(decision, diag)
                         }
                     };
                     match wall_crossing(
@@ -2849,7 +2849,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         t0,
                         t1,
                         band,
-                        &covered_touch,
+                        &covered_escalate,
                     )? {
                         SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                             t,
@@ -3093,7 +3093,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
             })
         }
         Some(Err(refusal)) => {
-            boundary_refusal(refusal, (x_is, face, edge_key)).and_then(|()| Err(unbuilt()))
+            boundary_refusal(refusal, (x_is, face, edge_key), false).and_then(|()| Err(unbuilt()))
         }
         None => Err(unbuilt()),
     }
@@ -3326,7 +3326,7 @@ fn twin_edge<T: Decide>(
             Err(refusal) => match BoundaryRefusal::of(refusal.fault) {
                 BoundaryRefusal::Unread(_) => continue,
                 refused => {
-                    super::carrier_cross::boundary_refusal(refused, (x_is, face, edge_key))?;
+                    super::carrier_cross::boundary_refusal(refused, (x_is, face, edge_key), false)?;
                     continue;
                 }
             },
@@ -3450,7 +3450,7 @@ fn interior<T: Decide>(
     };
     let read = boundary_crossing(
         y,
-        (x_is.other(), edge_key),
+        (x_is.other(), edge_key, on_carrier),
         face,
         curve.carrier(),
         curve.params(),
@@ -3750,7 +3750,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     Ok(
         match boundary_crossing(
             y,
-            (x_is.other(), edge_key),
+            (x_is.other(), edge_key, true),
             face,
             curve.carrier(),
             curve.params(),
@@ -3997,10 +3997,10 @@ fn parents_distinct_from<T: Decide>(
     })
 }
 
-/// A row's `touch` handler for [`wall_crossing`]: the door's
+/// A row's `escalate` handler for [`wall_crossing`]: the door's
 /// escalation, unlocated.
 #[cfg(test)]
-fn touch_escalates<T: geom_core::Real>(
+fn door_escalates<T: geom_core::Real>(
     decision: BooleanDecision,
     diag: geom_core::Indeterminate,
 ) -> Result<SpanVerdict<T>, BooleanError> {
@@ -4176,7 +4176,10 @@ fn wall_crossing<T: Decide + Bounds>(
     t0: T,
     t1: T,
     band: Band,
-    touch: &impl Fn(BooleanDecision, geom_core::Indeterminate) -> Result<SpanVerdict<T>, BooleanError>,
+    escalate: &impl Fn(
+        BooleanDecision,
+        geom_core::Indeterminate,
+    ) -> Result<SpanVerdict<T>, BooleanError>,
 ) -> Result<SpanVerdict<T>, BooleanError> {
     // A root's distance from an end of the span is metered as a length:
     // the parameter gap times the carrier's speed AT that end, so that
@@ -4192,11 +4195,12 @@ fn wall_crossing<T: Decide + Bounds>(
     // Where the span meets the carrier, localized and read against the
     // face: off it, the roots are not this face's question.
     let off_face = || super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band);
-    // A door's reading in band, of its pose or of where its roots lie,
-    // is a touch unless every touch of the span is off the face.
-    let door_in_band = |refusal: BooleanError| match refusal {
+    // Any door escalation (a classifying sign in the gap, of its pose or
+    // of where its roots lie, or a root finder's touch) is the caller's
+    // `escalate`, unless every touch of the span is off the face.
+    let door_escalated = |refusal: BooleanError| match refusal {
         BooleanError::Escalated { .. } if off_face()? => Ok(SpanVerdict::OffFace),
-        BooleanError::Escalated { decision, diag } => touch(decision, diag),
+        BooleanError::Escalated { decision, diag } => escalate(decision, diag),
         refusal => Err(refusal),
     };
     let found = match *carrier {
@@ -4205,7 +4209,7 @@ fn wall_crossing<T: Decide + Bounds>(
                 Ok(Some(Ok(found))) => Some(found),
                 Ok(Some(Err(verdict))) => return Ok(verdict),
                 Ok(None) => None,
-                Err(refusal) => return door_in_band(refusal),
+                Err(refusal) => return door_escalated(refusal),
             }
         }
         // The conic root doors ([`super::circle_roots`]), one answer
@@ -4233,7 +4237,7 @@ fn wall_crossing<T: Decide + Bounds>(
             };
             match door.transpose() {
                 Ok(found) => found,
-                Err(refusal) => return door_in_band(refusal),
+                Err(refusal) => return door_escalated(refusal),
             }
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
@@ -4343,14 +4347,18 @@ fn wall_crossing<T: Decide + Bounds>(
                     continue;
                 }
                 Ok(Sign::Zero) => {}
-                // Below the face's own nappe is off the double cone the
-                // root was certified on: the certificate contradicted.
+                // Below the face's own nappe: off the double cone the root
+                // was certified on, two readings that part; the frontier
+                // keeps it, as on main.
                 Ok(Sign::Negative) => return Ok(SpanVerdict::Unsettled),
+                // Whether the root stands on this face's nappe, in the
+                // gap: the cone door's own question, located.
                 Err(diag) => {
-                    return Err(BooleanError::Escalated {
-                        decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                        diag,
-                    });
+                    let decision = match carrier {
+                        geom::Curve3::Line { .. } => BooleanDecision::ConeRoots,
+                        _ => BooleanDecision::ArcConeRoots,
+                    };
+                    return escalate(decision, diag);
                 }
             }
         }
@@ -6523,7 +6531,7 @@ mod edge_span_tests {
                 t0,
                 t1,
                 band,
-                &super::touch_escalates,
+                &super::door_escalates,
             )
         };
         let long = crossing(0.4 * band.escalate(), (-2.0, 2.0));
@@ -6588,7 +6596,7 @@ mod edge_span_tests {
             core::f64::consts::FRAC_PI_2 - 0.1,
             core::f64::consts::FRAC_PI_2,
             band,
-            &super::touch_escalates,
+            &super::door_escalates,
         );
         assert!(
             matches!(got, Ok(SpanVerdict::Pierce { .. })),
@@ -6641,7 +6649,7 @@ mod edge_span_tests {
             0.0,
             1.0,
             band,
-            &super::touch_escalates,
+            &super::door_escalates,
         );
         assert!(
             matches!(got, Ok(SpanVerdict::OffFace)),
@@ -7862,7 +7870,7 @@ mod arc_end_rows {
             0.5 * reach,
             1.5 * reach,
             narrow,
-            &super::touch_escalates,
+            &super::door_escalates,
         );
         assert!(
             matches!(&got, Err(crate::boolean::BooleanError::Escalated { diag, .. })
