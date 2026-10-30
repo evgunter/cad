@@ -44,3 +44,7 @@ branch, the same cause as the tube's seam pose.
 
 `touching_the_bore_rim` in `split_across_a_revolve_seam.rs` with `COUNTERBORE`, radius 0.3 and
 rim height 0.6 in place of the tube's 0.5 and 1.0; read `validate_pseudomanifold` on each half.
+
+## Moved to HELDRECORDS (2026-10-30, SPLITDOOR orchestrator)
+
+Every finding here is `UnrecordedContact { VertexOnFace }` at tier 3′. Both halves' volumes are right, and tiers 1 and 3 pass. These are the split's own touches, which no record covers: the floor's trace touches the bore rim at P and meets the floor's outer rim. That is HELDRECORDS' charge (`the-splits-own-pinch-and-cut-copies-take-two-point-keys-and-no-record`, and the split's tier-3′ gate row), so the row moves there by `git mv`, id and body unchanged. Whether face 11/12 is the counterbore floor annulus is still unmeasured.

@@ -1098,7 +1098,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // The conformal (carrier) lump. The sector's oriented carrier
         // description generalizes the plane one (`face_carrier` folds
         // the face sense exactly as `face_plane` does — S10); a kind
-        // outside the `Rest` ladder's inventory (cone, torus, NURBS)
+        // outside the `Rest` ladder's `carrier_eq::INVENTORY`
         // keeps the C5 typed refusal.
         let Some(sector_carrier) = super::carrier_pair::face_carrier(piercing_body, s.face) else {
             let kind = piercing_body
@@ -1415,7 +1415,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // the null edge as a spike [he_plus, he_minus] into this corner: a
         // run holding every real edge of the orbit, which leaves the In
         // side strictly inside the one physical sector before `first`,
-        // or a lone bisector, inside the sector before `after`.
+        // or bisector entries alone, inside the sector before `after`.
         let (site, strut_corner) = match (first, last) {
             (Some(first), Some(last)) => {
                 match piercing_body
@@ -1432,26 +1432,30 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             _ => {
-                // The run is one bisector entry, P's second piece (a
-                // sector has one bisector at most), so `after` is P's
-                // orbit successor Q, and runs being maximal, neither
-                // P's real entry nor Q's is Out. The other run's mint
-                // moves only Out real halves, and splices only before
-                // its first half, the successor of its last, or its
-                // own `after`, whose predecessor is another sector:
-                // none is Q. So the corner is still `after`'s at
-                // `vertex` whichever run mints first, and the table's
-                // read stands (minting struts first would reorder
-                // `out.edges` and the ring struts with them).
-                let after = entries[(run.0 + run.1) % n].he;
-                if piercing_body.proven_orbit_step(sectors[run.0].he) != after
-                    || proven(&piercing_body.half_edges, after, EntityId::HalfEdge).start != vertex
-                {
-                    unreachable!(
-                        "the bisector run {run:?}'s corner before {after:?} left {vertex:?} or \
-                         gained a half: the other run's mint touches neither"
-                    );
-                }
+                // The run is bisector entries alone, inside one corner P:
+                // a wide sector's one bisector, or one or two of a slit
+                // tip's full turn's three quarters. A corner holds at most
+                // one such run: the run lies between two changes of the
+                // face's side of the pierced plane inside P, which a
+                // tangent plane changes at most twice round P (once in a
+                // wide sector; twice in a full turn, which the plane
+                // meets along one line). Every entry of P carries P's
+                // half-edge, so `after` is the first real entry past the
+                // run, P's orbit successor Q, and runs being maximal,
+                // neither P's real entry nor Q's is Out. The other run's
+                // mint moves only Out real halves, and splices only before
+                // its first half, the successor of its last, or its own
+                // `after`, whose predecessor is another corner: none is
+                // Q. So the corner is still `after`'s at `vertex` whichever
+                // run mints first, and the table's read stands (minting
+                // struts first would reorder `out.edges` and the ring
+                // struts with them).
+                let after = piercing_body.strut_before_next_real(
+                    (vertex, sectors[run.0].he),
+                    (run.0 + run.1..run.0 + run.1 + n)
+                        .map(|j| (entries[j % n].he, entries[j % n].is_edge)),
+                    || format!("the bisector run {run:?}"),
+                );
                 (
                     MevSite::Fan {
                         he1: after,
@@ -2788,7 +2792,7 @@ fn germ_order<T: Decide>(
                     Ok(None)
                 }
             };
-            if super::insert::strut_order(from, normal, (g, h), arm, tie, band)? {
+            if super::insert::strut_order((from, arm), normal, (g, h), arm, tie, band)? {
                 at = slot;
                 break;
             }
@@ -2833,7 +2837,7 @@ fn tie_breaks_after<T: Decide>(
     let (at, at_arm) = germs[i];
     let ((pi, pi_arm), (pj, pj_arm)) = (germs[i ^ 1], germs[j ^ 1]);
     let arm = at_arm.min(pi_arm).min(pj_arm);
-    super::insert::strut_order(at, normal, (pi, pj), arm, || Ok(None), band)
+    super::insert::strut_order((at, arm), normal, (pi, pj), arm, || Ok(None), band)
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after

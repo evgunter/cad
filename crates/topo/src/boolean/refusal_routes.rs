@@ -87,6 +87,12 @@ pub enum Contradiction {
     TorusMajorRadiiDiffer,
     /// The declared tori's tube radii differ.
     TorusTubeRadiiDiffer,
+    /// The declared cones' apexes differ.
+    ConeApexesDiffer,
+    /// The declared cones' axes are not parallel.
+    ConeAxesNotParallel,
+    /// The declared cones' half-angles differ.
+    ConeHalfAnglesDiffer,
     /// A tangency claimed between faces on ONE carrier: conformal
     /// contact, which is a `Rest` contact or a continuation.
     OneCarrier,
@@ -109,6 +115,9 @@ impl Contradiction {
             Self::TorusCentresDiffer => "the declared tori's centres differ",
             Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
             Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
+            Self::ConeApexesDiffer => "the declared cones' apexes differ",
+            Self::ConeAxesNotParallel => "the declared cones' axes are not parallel",
+            Self::ConeHalfAnglesDiffer => "the declared cones' half-angles differ",
             Self::OneCarrier => {
                 "the declared faces lie on one carrier, which is a Rest contact or a \
                  continuation, not a tangency"
@@ -137,6 +146,24 @@ macro_rules! corner_edges {
         "make the edges at the corner where the two faces meet span clearly more than the tolerance"
     };
 }
+
+/// [`BooleanDecision::CurveMeeting`]'s subject.
+const CURVE_MEETING: &str =
+    "where an edge on a curved face's carrier meets a curve of that face's boundary";
+
+/// [`BooleanDecision::CurveMeeting`]'s levers: the two curves come from
+/// two cuts of the carrier, which one construction makes one.
+const CURVE_MEETING_LEVER: &str = "make the two cuts of the curved face one construction, or \
+                                   move the parts so the edge clearly crosses that curve or \
+                                   clearly parts from it";
+
+/// [`BooleanDecision::BoundaryMeeting`]'s subject.
+const BOUNDARY_MEETING: &str = "where an edge meets a curve of a curved face's boundary";
+
+/// [`BooleanDecision::BoundaryMeeting`]'s lever: the edge is off the
+/// face's carrier, so no shared construction makes the two curves one.
+const BOUNDARY_MEETING_LEVER: &str =
+    "move the parts so the edge clearly crosses that curve or clearly parts from it";
 
 /// Which decision a Boolean escalation came from, set at the site that
 /// wraps the escalation.
@@ -225,6 +252,14 @@ pub enum BooleanDecision {
     /// depth, contour residuals and sides, a coaxial tilt and offset, and
     /// the quartic's own rows.
     ArcTorusRoots,
+    /// Where an edge on a curved face's carrier meets a curve of that
+    /// face's boundary: the curve-pair reading in band (`carrier_cross`),
+    /// an escalation of the meeting table or a root finder's touch.
+    CurveMeeting,
+    /// Where an edge NOT on a curved face's carrier (covered against it,
+    /// or against a spline face) meets a curve of that face's boundary:
+    /// the same reading in band, told without the carrier.
+    BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
     /// `bool_ray_sphere_disc`).
@@ -1505,6 +1540,8 @@ impl BooleanDecision {
             Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
+            Self::CurveMeeting => CURVE_MEETING,
+            Self::BoundaryMeeting => BOUNDARY_MEETING,
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
             Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
             Self::ArcCylinderRoots => {
@@ -1698,6 +1735,13 @@ impl BooleanDecision {
             Self::ArcTorusRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the torus or clearly misses it",
             ),
+            // The readings are the meeting table's (a residual at a walk's
+            // cut, a pose's swing, an end's gap off a carrier), no size
+            // the user drew, so no tolerance is offered.
+            Self::CurveMeeting => Ending::Lever(CURVE_MEETING_LEVER),
+            // The same readings, of an edge off the carrier: moving the
+            // parts is the lever, as for the other gap-sign escalations.
+            Self::BoundaryMeeting => Ending::Lever(BOUNDARY_MEETING_LEVER),
             // As the wall's discriminant: two roots pass, a miss passes
             // where both ends are off the sphere, and a zero is a
             // tangency, refused at the frontier.
@@ -2075,6 +2119,8 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
+                BooleanDecisionKind::CurveMeeting => vec![BooleanDecision::CurveMeeting],
+                BooleanDecisionKind::BoundaryMeeting => vec![BooleanDecision::BoundaryMeeting],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
@@ -2406,6 +2452,20 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the torus or clearly \
                      misses it",
+                ),
+            ),
+            BooleanDecision::CurveMeeting => (
+                "where an edge on a curved face's carrier meets a curve of that face's boundary",
+                Ending::Lever(
+                    "Recourse: make the two cuts of the curved face one construction, or move \
+                     the parts so the edge clearly crosses that curve or clearly parts from it",
+                ),
+            ),
+            BooleanDecision::BoundaryMeeting => (
+                "where an edge meets a curve of a curved face's boundary",
+                Ending::Lever(
+                    "Recourse: move the parts so the edge clearly crosses that curve or clearly \
+                     parts from it",
                 ),
             ),
             BooleanDecision::SphereRoots => (
@@ -3195,6 +3255,21 @@ pub(in crate::boolean) mod tests {
             "carrier_torus_minor_radius",
             "the declared tori's tube radii differ",
         ),
+        (
+            Contradiction::ConeApexesDiffer,
+            "carrier_cone_apex",
+            "the declared cones' apexes differ",
+        ),
+        (
+            Contradiction::ConeAxesNotParallel,
+            "carrier_cone_axis_parallel",
+            "the declared cones' axes are not parallel",
+        ),
+        (
+            Contradiction::ConeHalfAnglesDiffer,
+            "carrier_cone_half_angle",
+            "the declared cones' half-angles differ",
+        ),
     ];
 
     /// A declared pair of `c1` and `c2`, verified by the real rung
@@ -3244,6 +3319,12 @@ pub(in crate::boolean) mod tests {
             minor_radius,
             outward: true,
         };
+        let cone = |apex, axis, half_angle| CarrierDesc::Cone {
+            apex,
+            axis,
+            half_angle,
+            outward: true,
+        };
         let pairs = [
             (plane(o, z), plane(o, x)),
             (plane(o, z), plane(p(0.0, 0.0, 1.0), z)),
@@ -3257,6 +3338,9 @@ pub(in crate::boolean) mod tests {
             (torus(o, z, 2.0, 0.5), torus(p(0.0, 0.0, 1.0), z, 2.0, 0.5)),
             (torus(o, z, 2.0, 0.5), torus(o, z, 3.0, 0.5)),
             (torus(o, z, 2.0, 0.5), torus(o, z, 2.0, 0.25)),
+            (cone(o, z, 0.5), cone(p(1.0, 0.0, 0.0), z, 0.5)),
+            (cone(o, z, 0.5), cone(o, x, 0.5)),
+            (cone(o, z, 0.5), cone(o, z, 0.75)),
         ];
         assert_eq!(pairs.len(), FACTS.len());
         for ((c1, c2), &(want, name, clause)) in pairs.into_iter().zip(FACTS) {

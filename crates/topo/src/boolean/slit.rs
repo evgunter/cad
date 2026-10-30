@@ -1615,7 +1615,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// [`divide`]'s refusal of a meeting of two lines.
 fn meet_refused(fault: MeetFault) -> BooleanError {
     match fault {
-        MeetFault::Escalated(diag) => crossing_escalated(diag),
+        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
         // Two lines meet in closed form, with no root finder or walk.
         MeetFault::Unsettled(_)
         | MeetFault::Unsupported { .. }

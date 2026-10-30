@@ -2,7 +2,7 @@
 id: rods-sharing-a-wall-at-two-lengths-refuse-intersect-and-the-short-difference
 kind: issue
 title: Two rods sharing a wall at two lengths build ∪ and B ∖ A but refuse ∩ and A ∖ B at the section pass
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M
