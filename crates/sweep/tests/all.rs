@@ -384,6 +384,8 @@ mod transform_nurbs_walls;
 mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
+#[path = "review_6070_probes.rs"]
+mod review_6070_probes;
 #[path = "two_rims_review_probes.rs"]
 mod two_rims_review_probes;
 #[path = "two_tubes_in_the_zero_band.rs"]

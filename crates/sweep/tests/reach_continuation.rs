@@ -971,3 +971,35 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
         }
     }
 }
+
+/// Review probe (PR 6070): the rounded two-plate stack of
+/// `work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`,
+/// z 0..1 and 1..2, subtract and intersect in both orders. Prints what
+/// each returns; fails only on a wrong body.
+#[test]
+fn review_6070_the_rounded_stack_subtracts_and_intersects() {
+    let (p, q) = (plate(rounded(R), 0.0), plate(rounded(R), 1.0));
+    for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
+        let s = topo::subtract(a, b, tol());
+        let i = topo::intersect(a, b, tol());
+        eprintln!(
+            "RV6070 stack {order}: ∖ {:?}",
+            s.as_ref().map(|r| r.body().map(|b| b.kind))
+        );
+        eprintln!(
+            "RV6070 stack {order}: ∩ {:?}",
+            i.as_ref().map(|r| r.body().map(|b| b.kind))
+        );
+        if let Ok(BooleanResult::Body(bb)) = s {
+            let v = topo::test_support::pinned_volume("d", &bb.body, tol()).volume;
+            assert!(
+                (v - area(4.0)).abs() <= 1e-9 * area(4.0),
+                "{order}: ∖ volume {v}"
+            );
+        }
+        assert!(
+            !matches!(i, Ok(BooleanResult::Body(_))),
+            "{order}: ∩ is nothing"
+        );
+    }
+}
