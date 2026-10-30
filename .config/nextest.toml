@@ -167,6 +167,7 @@ not (
   (binary_id(sweep::all) & (test(=self_intersection_proves_injectivity::a_filleted_drum_certifies_across_its_fillet) | test(=self_intersection_proves_injectivity::a_full_torus_certifies_by_kind) | test(=self_intersection_proves_injectivity::a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget) | test(=self_intersection_proves_injectivity::a_long_helical_sweep_certifies_within_the_default_budget))) |
   (binary_id(editor-core::all) & (test(=clearance_refusals_say_what_they_found::a_named_scope_asks_what_a_name_denotes_before_how_many_answer))) |
   (binary_id(geom::all) & (test(=surfaces_rect_enclosure::rect_jet_contains_every_sampled_partial_of_its_rectangle))) |
+  (binary_id(geom-brep::all) & (test(=chart_singularity_sweep::sampled_and_fuzzed::convex_spherical_polygons_against_the_edge_planes) | test(=chart_singularity_locate::a_sampled_sliver_beside_a_pole_reads_outside_or_undecided))) |
   (binary_id(sweep::all) & test(=a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms))
 )
 """

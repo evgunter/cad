@@ -171,6 +171,11 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
-crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's 256 and a walk's 16 stations)
-crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(n)	a sample schedule's station count
+crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.zero() * 0.5	half the band's zero width, a tolerance (a sampled span's resolution)
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the reach of a singular point on the loop)
+crates/geom-brep/src/chart_singularity.rs	1	constant	(m as f64 + 8.0) * f64::EPSILON	a summation's rounding factor, from the count of its terms
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)

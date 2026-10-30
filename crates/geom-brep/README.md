@@ -1264,7 +1264,9 @@ closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
 singularity in a face's closure is a vertex of it, read off the face's
 region by one reading that STEP import and tier 3 both take
-(`chart_singularity.rs`, `locate`), so a sphere face lies on
+(`chart_singularity.rs`, `locate`); on a sphere loop of circle arcs that
+reading takes a pole's side from this lane's own stereographic turning
+(`sphere_pole_left`, beside `pole_side`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop

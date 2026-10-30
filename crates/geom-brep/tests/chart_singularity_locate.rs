@@ -7,7 +7,9 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 
 use geom::{Curve3, Surface};
-use geom_brep::chart_singularity::{Lies, Located, Singularity, Unread, locate};
+use geom_brep::chart_singularity::{
+    FaceLoop, Lies, Located, Singularity, Unread, locate, traversal_corners,
+};
 use geom_brep::props::LoopEdge;
 use geom_core::{Band, Point3, Vec3};
 
@@ -49,8 +51,23 @@ fn closed(carrier: Curve3<f64>, forward: bool) -> Vec<LoopEdge<f64>> {
 /// Where each singular point lies, in the kernel's order, or the
 /// reading's failure.
 fn lies(surface: &Surface<f64>, loops: &[Vec<LoopEdge<f64>>], sense: bool) -> Vec<Located<f64>> {
-    let views: Vec<&[LoopEdge<f64>]> = loops.iter().map(Vec::as_slice).collect();
-    locate(surface, &views, sense, band())
+    lies_at(surface, loops, sense, band())
+}
+
+/// [`lies`] at `band`, each loop's corners its traversal starts.
+fn lies_at(
+    surface: &Surface<f64>,
+    loops: &[Vec<LoopEdge<f64>>],
+    sense: bool,
+    band: Band,
+) -> Vec<Located<f64>> {
+    let corners: Vec<Vec<Point3<f64>>> = loops.iter().map(|l| traversal_corners(l)).collect();
+    let views: Vec<FaceLoop<'_, f64>> = loops
+        .iter()
+        .zip(&corners)
+        .map(|(edges, corners)| FaceLoop { edges, corners })
+        .collect();
+    locate(surface, &views, sense, band)
 }
 
 fn placed(located: &[Located<f64>]) -> Vec<(Singularity, Lies<f64>)> {
@@ -207,11 +224,12 @@ fn a_distance_in_band_is_undecided() {
     );
 }
 
-/// **A carrier read by samples places a point off it, never on it**: an
-/// ellipse through the north pole cannot place it, and a small one far
-/// from both poles reads them off it and goes on to the side.
+/// **A carrier read by samples places a point on it or off it, against
+/// its certified speed bound**: an ellipse through the north pole places
+/// it inside the edge, and a small one far from both poles reads them
+/// off it and goes on to the side.
 #[test]
-fn a_sampled_carrier_through_the_pole_is_unread() {
+fn a_sampled_carrier_through_the_pole_places_it_on_the_edge() {
     let ellipse = |center: Point3<f64>, semi: f64| Curve3::Ellipse {
         center,
         axis: Vec3::new(-1.0, 0.0, 0.0),
@@ -225,7 +243,14 @@ fn a_sampled_carrier_through_the_pole_is_unread() {
         true,
     );
     assert!(
-        matches!(through[0].lies, Err(Unread::Carrier { r#loop: 0, edge: 0 })),
+        matches!(
+            through[0].lies,
+            Ok(Lies::InsideEdge {
+                r#loop: 0,
+                edge: 0,
+                ..
+            })
+        ),
         "{:?}",
         through[0].lies
     );
@@ -241,7 +266,10 @@ fn a_sampled_carrier_through_the_pole_is_unread() {
 }
 
 /// **The cone's apex cap holds its apex, and the rest of the nappe does
-/// not**: the rim at slant `√2` traversed each way, one sense.
+/// not**: the rim at slant `√2` traversed each way, one sense. The chart
+/// normal is outward and the left of `+u` is `+v`, so a rim run east on
+/// the positive nappe leaves the apex on its right: outside the face it
+/// bounds under the chart normal, and inside it run west.
 #[test]
 fn a_cone_rim_holds_its_apex_on_one_side() {
     let cone = Surface::Cone {
@@ -257,14 +285,11 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let read = |forward| placed(&lies(&cone, &[closed(rim.clone(), forward)], true));
-    let (east, west) = (read(true), read(false));
-    assert_eq!(east.len(), 1, "one apex");
-    let mut both = [east[0].1, west[0].1];
-    both.sort_by_key(|l| matches!(l, Lies::Outside));
+    assert_eq!(read(true), [(Singularity::Apex, Lies::Outside)], "run east");
     assert_eq!(
-        both,
-        [Lies::Interior, Lies::Outside],
-        "the two traversals of one rim"
+        read(false),
+        [(Singularity::Apex, Lies::Interior)],
+        "run west"
     );
     // A generator from the apex: the apex is that loop's vertex.
     let generator = Curve3::Line {
@@ -314,7 +339,16 @@ fn the_cap_reads_alike_at_interval() {
         u_ref: vlift(Vec3::new(1.0, 0.0, 0.0)),
     };
     let edges = [LoopEdge::hand_built(rim, i(0.0), i(TAU), true, 0, 0)];
-    let located = locate(&sphere, &[&edges[..]], true, band());
+    let corners = traversal_corners(&edges);
+    let located = locate(
+        &sphere,
+        &[FaceLoop {
+            edges: &edges,
+            corners: &corners,
+        }],
+        true,
+        band(),
+    );
     let got: Vec<_> = located
         .iter()
         .map(|l| (l.singularity, l.lies.as_ref().map(|_| ()).is_ok(), &l.lies))
@@ -340,7 +374,7 @@ fn a_small_face_far_from_the_poles_reads_them_outside_at_a_coarse_band() {
     let d = (1.0_f64 - 1e-12).sqrt();
     for forward in [true, false] {
         let cap = closed(section(Vec3::new(1.0, 0.0, 0.0), d), forward);
-        let located = locate(&unit_sphere(), &[cap.as_slice()], forward, coarse);
+        let located = lies_at(&unit_sphere(), &[cap], forward, coarse);
         for l in &located {
             assert!(
                 matches!(l.lies, Ok(Lies::Outside)),
@@ -350,4 +384,180 @@ fn a_small_face_far_from_the_poles_reads_them_outside_at_a_coarse_band() {
             );
         }
     }
+}
+
+/// The unit cone about `+Z` with its apex at the origin, half-angle π/4.
+fn cone() -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: FRAC_PI_4,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// The parallel of the cone at height `z`.
+fn parallel(z: f64) -> Curve3<f64> {
+    Curve3::Circle {
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: z.abs(),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **A sliver beside the apex reads it by the sliver's orientation**:
+/// a quarter-turn patch between the parallels at heights `z` and
+/// `z(1 + w)` near the apex, closed by two generators, counter-clockwise
+/// in the chart. Its walk's steps along a parallel or a generator carry
+/// no error, so however thin, the apex reads outside the patch and
+/// inside its complement.
+#[test]
+fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
+    let generator = |u: f64| Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(u.cos(), u.sin(), 1.0),
+    };
+    let (u0, u1) = (0.2, 0.2 + FRAC_PI_2);
+    for z in [1e-3_f64, 1e-6] {
+        for w in [1e-3_f64, 1e-6, 1e-9] {
+            let top = z * (1.0 + w);
+            let patch = vec![
+                LoopEdge::hand_built(parallel(z), u0, u1, true, 0, 1),
+                LoopEdge::hand_built(generator(u1), z, top, true, 1, 2),
+                LoopEdge::hand_built(parallel(top), u0, u1, false, 2, 3),
+                LoopEdge::hand_built(generator(u0), z, top, false, 3, 0),
+            ];
+            for (sense, want) in [(true, Lies::Outside), (false, Lies::Interior)] {
+                let got = lies(&cone(), core::slice::from_ref(&patch), sense);
+                assert!(
+                    matches!(got[0].lies, Ok(l) if l == want),
+                    "z {z} w {w} sense {sense}: {:?}",
+                    got[0].lies
+                );
+            }
+        }
+    }
+}
+
+/// **A sliver on sampled carriers beside a pole never reads a wrong
+/// side**: two great-circle arcs `w` apart passing `1e-3` from the north
+/// pole, stated as equal-semi ellipses, which no closed form reads. The
+/// walk reads both poles outside the sliver where its error bound clears
+/// the sliver's area, and leaves the side undecided where it does not:
+/// never inside.
+#[test]
+fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
+    use geom_brep::chart_singularity::SideUnread;
+    let delta = 1e-3_f64;
+    let ellipse = |dist: f64| Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(dist.cos(), 0.0, dist.sin()),
+        semi_u: 1.0,
+        semi_v: 1.0,
+        u_ref: Vec3::new(-dist.sin(), 0.0, dist.cos()),
+    };
+    let half = 0.05_f64;
+    for w in [1e-4_f64, 1e-6] {
+        let (a, b) = (ellipse(delta), ellipse(delta + w));
+        let end = |c: &Curve3<f64>, t: f64| c.eval(t);
+        let rung = |p: Point3<f64>, q: Point3<f64>| {
+            let (u, v) = (
+                p - Point3::new(0.0, 0.0, 0.0),
+                q - Point3::new(0.0, 0.0, 0.0),
+            );
+            let n = u.cross(v);
+            Curve3::Circle {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: n / n.norm(),
+                radius: 1.0,
+                u_ref: u,
+            }
+        };
+        let ang = |p: Point3<f64>, q: Point3<f64>| {
+            let (u, v) = (
+                p - Point3::new(0.0, 0.0, 0.0),
+                q - Point3::new(0.0, 0.0, 0.0),
+            );
+            u.cross(v).norm().atan2(u.dot(v))
+        };
+        let (a0, a1, b0, b1) = (end(&a, -half), end(&a, half), end(&b, -half), end(&b, half));
+        let sliver = vec![
+            LoopEdge::hand_built(a.clone(), -half, half, true, 0, 1),
+            LoopEdge::hand_built(rung(a1, b1), 0.0, ang(a1, b1), true, 1, 2),
+            LoopEdge::hand_built(b.clone(), -half, half, false, 2, 3),
+            LoopEdge::hand_built(rung(b0, a0), 0.0, ang(b0, a0), true, 3, 0),
+        ];
+        let mut sides = Vec::new();
+        for sense in [true, false] {
+            let got = lies(&unit_sphere(), core::slice::from_ref(&sliver), sense);
+            sides.push(got.iter().map(|l| l.lies.clone()).collect::<Vec<_>>());
+        }
+        // One sense is the sliver, which holds neither pole.
+        let sliver_reads = sides.iter().find(|ls| {
+            ls.iter().all(|l| {
+                matches!(
+                    l,
+                    Ok(Lies::Outside)
+                        | Err(Unread::Side {
+                            why: SideUnread::Straddle,
+                            ..
+                        })
+                )
+            })
+        });
+        assert!(sliver_reads.is_some(), "w {w}: {sides:?}");
+        assert!(
+            sides
+                .iter()
+                .flatten()
+                .all(|l| !matches!(l, Ok(Lies::InsideEdge { .. } | Lies::AtVertex { .. }))),
+            "w {w}: the poles are off the sliver: {sides:?}"
+        );
+    }
+}
+
+/// **The two readings the arm exempts** (tier 3's not-yet-checked
+/// list): a loop that winds twice states no single winding
+/// ([`Unread::Loop`]), and a sampled carrier passing the pole in band
+/// where its speed is far below its bound, which needs more bisections
+/// than the refinement's budget to settle on or off
+/// ([`Unread::Carrier`]).
+#[test]
+fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
+    // A parallel traversed twice.
+    let twice = vec![LoopEdge::hand_built(
+        section(Vec3::new(0.0, 0.0, 1.0), 0.5),
+        0.0,
+        2.0 * TAU,
+        true,
+        0,
+        0,
+    )];
+    let read = lies(&unit_sphere(), &[twice], true);
+    assert!(
+        read.iter()
+            .all(|l| matches!(l.lies, Err(Unread::Loop { r#loop: 0 }))),
+        "{read:?}"
+    );
+    // An ellipse whose slow end, the end of its major axis, passes `3ε`
+    // from the north pole: its speed bound is the major semi-axis, 10⁷
+    // times its speed there, so clearing the band-wide stretch at the
+    // pole outruns the budget.
+    let delta = 3e-9;
+    let (major, minor) = (1e7, 1.0);
+    let grazing = Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, 1.0 + delta - major),
+        axis: Vec3::new(0.0, 1.0, 0.0),
+        semi_u: major,
+        semi_v: minor,
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let edge = vec![LoopEdge::hand_built(grazing, -0.5, 0.5, true, 0, 1)];
+    let read = lies(&unit_sphere(), &[edge], true);
+    assert!(
+        matches!(read[0].lies, Err(Unread::Carrier { r#loop: 0, edge: 0 })),
+        "{:?}",
+        read[0].lies
+    );
 }
