@@ -1,0 +1,3 @@
+RESTCURVE fork: one reading of a curved face region (shared loop walk + curved-boundary containment)
+dispatched 2026-10-30
+byte 248 (even): A = Opus, B = Fable
