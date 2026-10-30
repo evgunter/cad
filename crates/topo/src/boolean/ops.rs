@@ -1351,57 +1351,48 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
-        let recuts = sphere_extent_scan(a, b, &red.rest_contacts, band)?;
-        if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
-            if !recut {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "re-cut sphere operands still produced no crossings",
-                });
+        let recuts = match no_crossings_pass(a, b, &red, band)? {
+            NoCrossings::Certified(deferred) => {
+                return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
+                    .map(|result| Joined::Answered(Box::new(result)));
             }
-            let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
-            // The cut-ins name faces of `a` and `b`; the re-charts carve
-            // and graft other shells, and `carve` keeps every kept
-            // entity's key (`splitting::finish`'s `carve`), so those
-            // names still hold on `a2` and `b2`.
-            let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
-            if let BooleanResult::Body(out) = &mut result {
-                // A row names the cells of the op's inputs, not of the
-                // cut operands ([`crate::coincidence`]), through the one
-                // door ([`spell`]).
-                respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
-                // The cut-ins divided faces before the join did, in the
-                // operand keys the join's rows are in.
-                let n = &mut out.naming;
-                for ((made, joined), edges) in cuts
-                    .into_iter()
-                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                    .zip(&mut n.chart_cuts)
-                {
-                    *joined = crate::lineage::FaceDivisions::from_rows(
-                        made.divisions
-                            .into_iter()
-                            .chain(joined.rows().iter().copied()),
-                    )?;
-                    edges.extend(made.edges);
-                }
-                *n.recharted = recharted;
-            }
-            return Ok(Joined::Answered(Box::new(result)));
+            NoCrossings::Recut(recuts) => recuts,
+        };
+        if !recut {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "re-cut sphere operands still produced no crossings",
+            });
         }
-        // The curved kinds the extent scan leaves: every torus,
-        // cylinder and cone face's pairs, certified per pair by the
-        // section certificate or refused typed.
-        let deferred = section_extent_pass(
-            a,
-            b,
-            &red.sections,
-            &red.rest_contacts,
-            &red.coincident,
-            band,
-        )?;
-        return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
-            .map(|result| Joined::Answered(Box::new(result)));
+        let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
+        // The cut-ins name faces of `a` and `b`; the re-charts carve
+        // and graft other shells, and `carve` keeps every kept
+        // entity's key (`splitting::finish`'s `carve`), so those
+        // names still hold on `a2` and `b2`.
+        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+        if let BooleanResult::Body(out) = &mut result {
+            // A row names the cells of the op's inputs, not of the
+            // cut operands ([`crate::coincidence`]), through the one
+            // door ([`spell`]).
+            respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
+            // The cut-ins divided faces before the join did, in the
+            // operand keys the join's rows are in.
+            let n = &mut out.naming;
+            for ((made, joined), edges) in cuts
+                .into_iter()
+                .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+                .zip(&mut n.chart_cuts)
+            {
+                *joined = crate::lineage::FaceDivisions::from_rows(
+                    made.divisions
+                        .into_iter()
+                        .chain(joined.rows().iter().copied()),
+                )?;
+                edges.extend(made.edges);
+            }
+            *n.recharted = recharted;
+        }
+        return Ok(Joined::Answered(Box::new(result)));
     }
 
     let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
@@ -1465,18 +1456,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     decls: &Glue<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let events = event_pairs(red);
-    let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
-    let pairs = section_pairs(
-        a,
-        b,
-        &red.sections,
-        band,
-        SectionPath::Crossings,
-        Exempt::Glued(&glued),
-        |fa, fb| events.contains(&(fa, fb)),
-        true,
-    )?;
+    let pairs = crossings_section_pairs(a, b, red, decls, band, true)?;
     match pairs.iter().find(|p| p.verdict.is_err()) {
         None => Ok(()),
         Some(p) => {
@@ -1492,6 +1472,31 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             })
         }
     }
+}
+
+/// **The crossings path's section pairs**, as the interior-loop guard
+/// reads them: the reduction's sections and events, the glued pairs
+/// exempt. With `stop` the walk returns at the first refusing pair.
+fn crossings_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    red: &BooleanReduction<T>,
+    decls: &Glue<T>,
+    band: Band,
+    stop: bool,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let events = event_pairs(red);
+    let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
+    section_pairs(
+        a,
+        b,
+        &red.sections,
+        band,
+        SectionPath::Crossings,
+        Exempt::Glued(&glued),
+        |fa, fb| events.contains(&(fa, fb)),
+        stop,
+    )
 }
 
 /// **W2's verdict per face, asked once.** Keyed by the operand as well
@@ -2111,9 +2116,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// does.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Exempt<'r> {
-    /// Every in-scope pair is classified: the test-support and
-    /// sweep-testing doors' spelling, which no production path takes.
-    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    /// Every in-scope pair is classified: the certificate's own rows'
+    /// spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support"))]
     Nothing,
     /// The crossings path: the GLUED pairs, `(A face, B face)`, whose
     /// contact is the carrier the glued rungs walk along their edges. A
@@ -2136,7 +2141,7 @@ impl Exempt<'_> {
     /// Does this exemption answer the pair `(A face, B face)`?
     pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
         match self {
-            #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Nothing => false,
             Self::Glued(pairs) => pairs.contains(&(fa, fb)),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
@@ -2144,64 +2149,156 @@ impl Exempt<'_> {
     }
 }
 
-/// **The no-crossings path's section pass.** With no event anywhere,
-/// W4 never fires and the no-event decision decides every lone
-/// component, so each pair the vertex probe could not see into is
-/// either certified or refused here, typed as the fallback's extent
-/// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
-/// pair's curved face. A verified `Rest` pair (`rest`, [`Exempt::Rest`])
-/// is answered without its section.
-///
-/// A refusing pair the reduction settled one carrier (`settled`) is
-/// deferred rather than raised: its section is not a curve but the part
-/// of the one carrier the two faces share, and the fallback answers it
-/// where both faces' shells read `On` each other
-/// ([`OnDeferred::answered`]).
+/// **What the reduction hands the no-crossings certificates**
+/// ([`sphere_extent_scan`], [`section_extent_pass`]).
+struct Evidence<'r> {
+    /// The verified `Rest` pairs ([`Exempt::Rest`]), answered without
+    /// their section.
+    rest: &'r [(FaceKey, FaceKey)],
+    /// The pairs the reduction settled one carrier, whose refusals are
+    /// held for the `On` verdict ([`OnDeferred`]).
+    settled: &'r [super::SettledPair],
+    /// The pairs the sweep recorded a contact on ([`event_pairs`]):
+    /// touches, since no crossing was found. W4 reads them.
+    events: &'r BTreeSet<(FaceKey, FaceKey)>,
+}
+
+impl<'r> Evidence<'r> {
+    /// What `red` holds for the certificates, its touches read once
+    /// into `events` ([`event_pairs`]).
+    fn of<T: Real>(red: &'r BooleanReduction<T>, events: &'r BTreeSet<(FaceKey, FaceKey)>) -> Self {
+        Self {
+            rest: &red.rest_contacts,
+            settled: &red.coincident,
+            events,
+        }
+    }
+}
+
+/// **What the no-crossings certificates answer** ([`no_crossings_pass`]).
+enum NoCrossings<T: Real> {
+    /// The extent scan asks for re-cuts; the pipeline re-enters on the
+    /// re-cut operands.
+    Recut(Recuts<T>),
+    /// Every pair is certified, or held for the `On` verdict.
+    Certified(OnDeferred),
+}
+
+/// **The no-crossings path's certificates, in the order the path runs
+/// them**: the sphere extent scan, then, where it asks for no re-cut,
+/// the section pass, both over what the reduction holds
+/// ([`Evidence::of`]).
+fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<NoCrossings<T>, BooleanError> {
+    let events = event_pairs(red);
+    let evidence = Evidence::of(red, &events);
+    let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
+    if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
+        return Ok(NoCrossings::Recut(recuts));
+    }
+    section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
+}
+
+impl Evidence<'static> {
+    /// No reduction behind the certificates: no `Rest` pair, no settled
+    /// pair, no event.
+    #[cfg(test)]
+    const NONE: Self = Self {
+        rest: &[],
+        settled: &[],
+        events: &BTreeSet::new(),
+    };
+}
+
+/// **The no-crossings path's section pass.** Each pair the vertex probe
+/// could not see into is certified here, with the sweep's touches as
+/// its events, or refused. W4 clears a lone component a touch lies on,
+/// and with no crossing anywhere such a component meets neither face's
+/// interior ([`super::section_cert`]'s W4 says why). A refusal is
+/// typed as the fallback's extent refusal
+/// ([`BooleanError::FallbackExtentUnsupported`]) naming the pair's
+/// curved face. A verified `Rest` pair is answered without its section,
+/// and a refusing pair the reduction settled one carrier is held
+/// ([`OnDeferred::hold`]).
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     sections: &super::section_table::SectionTable<T>,
-    rest: &[(FaceKey, FaceKey)],
-    settled: &[super::SettledPair],
+    evidence: &Evidence<'_>,
+    mut deferred: OnDeferred,
     band: Band,
 ) -> Result<OnDeferred, BooleanError> {
-    let pairs = section_pairs(
+    for p in &fallback_section_pairs(a, b, sections, evidence, band)? {
+        let Err(refusal) = p.verdict else {
+            continue;
+        };
+        let (operand, face, ..) = p.named();
+        deferred.hold(
+            evidence.settled,
+            (p.a_face, p.b_face),
+            BooleanError::FallbackExtentUnsupported {
+                operand,
+                face,
+                what: refusal.what(),
+            },
+        )?;
+    }
+    Ok(deferred)
+}
+
+/// **The no-crossings path's section pairs, every one**, as
+/// [`section_extent_pass`] reads them: a verified `Rest` pair exempt,
+/// the sweep's touches as events.
+fn fallback_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Body<T>,
+    b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
+    evidence: &Evidence<'_>,
+    band: Band,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    section_pairs(
         a,
         b,
         sections,
         band,
         SectionPath::Fallback,
-        Exempt::Rest(rest),
-        |_, _| false,
-        true,
-    )?;
-    let mut deferred = Vec::new();
-    for p in &pairs {
-        let Err(refusal) = p.verdict else {
-            continue;
-        };
-        let (operand, face, ..) = p.named();
-        let refusal = BooleanError::FallbackExtentUnsupported {
-            operand,
-            face,
-            what: refusal.what(),
-        };
-        if settled.iter().any(|q| q.a == p.a_face && q.b == p.b_face) {
-            deferred.push((p.a_face, p.b_face, refusal));
-        } else {
-            return Err(refusal);
-        }
-    }
-    Ok(OnDeferred(deferred))
+        Exempt::Rest(evidence.rest),
+        |fa, fb| evidence.events.contains(&(fa, fb)),
+        false,
+    )
 }
 
-/// **The section pass's refusals on settled one-carrier pairs**, each
-/// `(A face, B face, refusal)` in arena order, held for the fallback's
-/// shell verdicts.
+/// **The no-crossings certificates' refusals on settled one-carrier
+/// pairs**, each `(A face, B face, refusal)` in the order they were
+/// raised, held for the fallback's shell verdicts.
 #[derive(Debug, Default)]
 struct OnDeferred(Vec<(FaceKey, FaceKey, BooleanError)>);
 
 impl OnDeferred {
+    /// Holds `refusal` on the pair `(fa, fb)` where the reduction
+    /// settled the pair one carrier, and returns it otherwise. A settled
+    /// pair's section is not a curve but the part of the one carrier
+    /// the two faces share, so no certificate reads it; the fallback
+    /// answers it where both faces' shells read `On` each other
+    /// ([`Self::answered`]).
+    fn hold(
+        &mut self,
+        settled: &[super::SettledPair],
+        (fa, fb): (FaceKey, FaceKey),
+        refusal: BooleanError,
+    ) -> Result<(), BooleanError> {
+        if settled.iter().any(|q| q.a == fa && q.b == fb) {
+            self.0.push((fa, fb, refusal));
+            Ok(())
+        } else {
+            Err(refusal)
+        }
+    }
+
     /// Each deferred pair answered, or the first one's refusal. A pair
     /// `(fa, fb)` is answered where `fa`'s shell reads `On` `fb`'s shell
     /// and `fb`'s reads `On` `fa`'s (`working` the shells' verdicts,
@@ -2253,39 +2350,66 @@ impl OnDeferred {
 ///
 /// The reduction's own refusals, and [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(crate) fn section_report(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &Body<f64>,
+    b: &Body<f64>,
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
+    let (red, glued, band) = reduced_as_the_op_does(op, a, b, tol)?;
+    crossings_section_pairs(a, b, &red, &glued, band, false)
+}
+
+/// **The glue door and the reduction, run as the op runs them** on
+/// undeclared operands: the test doors' road to the pipeline's own
+/// readings.
+#[cfg(any(test, feature = "test-support"))]
+fn reduced_as_the_op_does(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<(BooleanReduction<f64>, Glue<f64>, Band), BooleanError> {
     let band = Band::linear(tol)?;
-    let decls = Glue::none();
+    let none = Glue::none();
+    let glued = super::glue::decided_declarations(a, b, &none, band)?.into_owned();
     let red =
-        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
-    let events = event_pairs(&red);
-    section_pairs(
-        a,
-        b,
-        &red.sections,
-        band,
-        SectionPath::Crossings,
-        Exempt::Nothing,
-        |fa, fb| events.contains(&(fa, fb)),
-        false,
-    )
+        super::boolean_reduce_declared_strategy(op, a, b, &glued, SweepStrategy::Realized, tol)?;
+    Ok((red, glued, band))
 }
 
 /// **The section pass's per-pair report on the no-crossings path**:
-/// every pair the pass examines, with no event anywhere, whatever the
-/// crossing layer would find. The pass itself stops at the first
-/// refusal; this reads every pair.
+/// every pair the pass examines, read as the pass reads it
+/// ([`fallback_section_pairs`]) over `op`'s glue door and reduction,
+/// whatever the crossing layer found. A pair the reduction
+/// settled one carrier reports its refusal, which the pass holds.
+///
+/// # Errors
+///
+/// The glue door's and the reduction's refusals, and [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_section_report(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
+    let events = event_pairs(&red);
+    fallback_section_pairs(a, b, &red.sections, &Evidence::of(&red, &events), band)
+}
+
+/// **The section certificate as if the sweep had found nothing**: every
+/// pair the no-crossings pass would examine, no pair exempt, no event,
+/// no section table. No production path reads this; it is the reading
+/// a certificate arm's own rows take on a pose the crossing layer would
+/// see, to reach the no-event decision.
 ///
 /// # Errors
 ///
 /// [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn no_crossings_section_report(
+pub(crate) fn no_event_section_report(
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
@@ -2302,37 +2426,28 @@ pub(crate) fn no_crossings_section_report(
     )
 }
 
-/// **The no-crossings path's two certificates**, run as the path runs
-/// them before the vertex probe on undeclared operands: the sphere
-/// extent scan, then — when it asks for no re-cut — the section pass.
-/// With no declaration there is no verified `Rest` pair, so both run
-/// with the empty list the op hands them. `Ok` with the number of
-/// re-cuts the scan asked for.
+/// **The no-crossings path's two certificates**, the path's own
+/// [`no_crossings_pass`] over `op`'s glue door and reduction, whatever
+/// the crossing layer found. `Ok` with the number of re-cuts the scan
+/// asked for and the number of refusals held for the `On` verdict,
+/// which this door does not run.
 ///
 /// # Errors
 ///
-/// Either certificate's refusal.
+/// The glue door's and the reduction's refusals, and either
+/// certificate's.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn no_crossings_certificates(
+    op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
-) -> Result<usize, BooleanError> {
-    let band = Band::linear(tol)?;
-    let no_rest: &[(FaceKey, FaceKey)] = &[];
-    let recuts = sphere_extent_scan(a, b, no_rest, band)?;
-    let asked = recuts.rechart.len() + recuts.cut_in.len();
-    if asked == 0 {
-        section_extent_pass(
-            a,
-            b,
-            &super::section_table::SectionTable::default(),
-            no_rest,
-            &[],
-            band,
-        )?;
-    }
-    Ok(asked)
+) -> Result<(usize, usize), BooleanError> {
+    let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
+    Ok(match no_crossings_pass(a, b, &red, band)? {
+        NoCrossings::Recut(recuts) => (recuts.rechart.len() + recuts.cut_in.len(), 0),
+        NoCrossings::Certified(held) => (0, held.0.len()),
+    })
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**
@@ -6640,9 +6755,11 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
-    rest: &[(FaceKey, FaceKey)],
+    evidence: &Evidence<'_>,
     band: Band,
-) -> Result<Recuts<T>, BooleanError> {
+) -> Result<(Recuts<T>, OnDeferred), BooleanError> {
+    let rest = evidence.rest;
+    let mut deferred = OnDeferred::default();
     let esc = |question| {
         move |diag| BooleanError::Escalated {
             decision: BooleanDecision::Sphere(question),
@@ -6744,17 +6861,18 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         what: "extent scan: face rows out of arena order",
                     });
                 }
-                // Whether the section certificate clears every face on
-                // this sphere against `yf` (`None`), else the first
-                // refusing pair's face on this sphere and its refusal. A carrier margin decided zero is a
-                // touch, no event where this returns `None`; one in the
-                // band asks too, and the certificate, reading it
-                // undecided, refuses.
+                // Each pair of a face on this sphere with `yf` the
+                // section certificate refuses, with its refusal; empty
+                // when it clears every one ([`sphere_faces_apart`]). A
+                // carrier margin decided zero is a touch, no event where
+                // this comes back empty; one in the band asks too, and
+                // the certificate, reading it undecided, refuses.
                 let mut faces = || {
                     sphere_faces_apart(
                         (x_is, x, x_rows),
                         fd.surface,
                         (y, y_row),
+                        evidence.events,
                         band,
                         &mut section_charts,
                         &axes,
@@ -6770,7 +6888,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match ball_against_plane(center, radius, origin, normal, band) {
                                 Ok(read) => read,
                                 Err(diag) => {
-                                    if faces()?.is_some() {
+                                    if !faces()?.is_empty() {
                                         return Err(esc(SphereQuestion::AgainstPlane)(diag));
                                     }
                                     continue;
@@ -6788,9 +6906,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // refused, with its reason.
                                 let held = match group {
                                     Some(_) => None,
-                                    None => match faces()? {
+                                    None => match faces()?.first() {
                                         None => continue,
-                                        held => held,
+                                        held => held.copied(),
                                     },
                                 };
                                 // The sphere definitely crosses the
@@ -6914,7 +7032,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         ) {
                             Ok(gap) => gap,
                             Err(diag) => {
-                                if faces()?.is_some() {
+                                if !faces()?.is_empty() {
                                     return Err(esc(SphereQuestion::Apart)(diag));
                                 }
                                 continue;
@@ -6936,8 +7054,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // face. Whether the FACES meet is the
                                 // section certificate's question, asked
                                 // of every face on this sphere against
-                                // `yf`: with no event anywhere, a circle
-                                // certified out of one face of each pair
+                                // `yf`: with no crossing anywhere, a circle
+                                // certified out of one face of each pair,
+                                // or evidenced by a touch on it (W4),
                                 // leaves the two boundaries disjoint. A
                                 // circle certified inside both faces is
                                 // an escape off every edge, of each
@@ -6950,7 +7069,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // its own reason, raised as the pass
                                 // raises it. A touch (a decided zero)
                                 // refuses as spheres that meet where the
-                                // faces are not certified apart.
+                                // faces are not certified apart, unless the
+                                // reduction settled the pair one carrier
+                                // ([`OnDeferred::hold`]).
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
@@ -6960,16 +7081,27 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        if faces()?.is_some() {
-                                            return Err(BooleanError::SpheresMeet {
-                                                operand: x_is,
-                                                face,
-                                                verdict,
-                                            });
+                                        for (held, _) in faces()? {
+                                            let pair = match x_is {
+                                                Operand::A => (held, yf),
+                                                Operand::B => (yf, held),
+                                            };
+                                            deferred.hold(
+                                                evidence.settled,
+                                                pair,
+                                                BooleanError::SpheresMeet {
+                                                    operand: x_is,
+                                                    face,
+                                                    verdict,
+                                                },
+                                            )?;
                                         }
                                         continue;
                                     }
-                                    Some(Refused::Negative { .. }) => match faces()? {
+                                    Some(Refused::Negative { .. }) => match faces()?
+                                        .first()
+                                        .copied()
+                                    {
                                         None => {}
                                         Some((holder, SectionRefusal::Loop)) => {
                                             let cut = sphere_pair_cut(
@@ -7120,10 +7252,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
         }
     }
-    Ok(Recuts {
-        rechart: out,
-        cut_in: cut_ins,
-    })
+    Ok((
+        Recuts {
+            rechart: out,
+            cut_in: cut_ins,
+        },
+        deferred,
+    ))
 }
 
 /// **The cut a sphere pair's crossing asks of `holder`**, the face of
@@ -7241,8 +7376,9 @@ fn ball_may_reach<T: Decide>(
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
-/// pairs on the no-event path. `None` when every pair clears, else the
-/// first refusing pair's face of `x` and its refusal, which is the cause.
+/// pairs, with the sweep's touches as its events. Each refusing pair's
+/// face of `x` and its refusal, in arena order: empty when every pair
+/// clears, and the first is the cause.
 ///
 /// # Errors
 ///
@@ -7251,10 +7387,11 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
     (y, y_row): (&Body<T>, &FaceRow<T>),
+    events: &BTreeSet<(FaceKey, FaceKey)>,
     band: Band,
     charts: &mut ChartCache,
     axes: &super::separating::OperandAxes<T>,
-) -> Result<Option<(FaceKey, SectionRefusal)>, BooleanError> {
+) -> Result<Vec<(FaceKey, SectionRefusal)>, BooleanError> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -7264,9 +7401,9 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             band,
             charts,
             |_, _| true,
-            |_, _| false,
+            |fa, fb| events.contains(&(fa, fb)),
             |_| true,
-            true,
+            false,
             axes,
         )?,
         Operand::B => walk_pairs(
@@ -7276,19 +7413,22 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             band,
             charts,
             |_, _| true,
-            |_, _| false,
+            |fa, fb| events.contains(&(fa, fb)),
             |_| true,
-            true,
+            false,
             axes,
         )?,
     };
-    Ok(pairs.into_iter().find_map(|p| {
-        let held = match x_is {
-            Operand::A => p.a_face,
-            Operand::B => p.b_face,
-        };
-        p.verdict.err().map(|refusal| (held, refusal))
-    }))
+    Ok(pairs
+        .into_iter()
+        .filter_map(|p| {
+            let held = match x_is {
+                Operand::A => p.a_face,
+                Operand::B => p.b_face,
+            };
+            p.verdict.err().map(|refusal| (held, refusal))
+        })
+        .collect())
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -9977,7 +10117,7 @@ mod tests {
         // or not. `sweep`'s `s16_box_soundness` pins the re-gate end to
         // end on a lofted operand.
         let band = Band::linear(Tol::witness()).unwrap();
-        let Err(err) = super::sphere_extent_scan(&a, &b, &[], band) else {
+        let Err(err) = super::sphere_extent_scan(&a, &b, &super::Evidence::NONE, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
         };
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
@@ -11428,7 +11568,7 @@ mod torn_hop_rows {
         let (mut a, b) = (cube(), cube());
         assert!(
             {
-                let r = sphere_extent_scan(&a, &b, &[], band).unwrap();
+                let (r, _) = sphere_extent_scan(&a, &b, &Evidence::NONE, band).unwrap();
                 r.rechart.is_empty() && r.cut_in.is_empty()
             },
             "two cubes carry no sphere"
@@ -11444,7 +11584,10 @@ mod torn_hop_rows {
             "sphere_extent_scan",
             &mut a,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.rechart.len() + r.cut_in.len()),
+            |a| {
+                sphere_extent_scan(a, &b, &Evidence::NONE, band)
+                    .map(|(r, _)| r.rechart.len() + r.cut_in.len())
+            },
         );
     }
 

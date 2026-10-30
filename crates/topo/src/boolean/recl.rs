@@ -65,7 +65,7 @@ use geom_core::k_stats::NonzeroSign;
 /// the face's material side with S10's sense bit already folded in,
 /// which is what the Same±-orientation verdict below has to mean: the
 /// whole point of the verdict is which way the two materials face).
-/// A kind outside the `Rest` ladder's inventory (cone, torus, NURBS)
+/// A kind outside the `Rest` ladder's [`super::carrier_eq::INVENTORY`]
 /// is the C5 typed refusal.
 fn carrier_of<T: Decide>(
     body: &Body<T>,

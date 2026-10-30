@@ -87,6 +87,12 @@ pub enum Contradiction {
     TorusMajorRadiiDiffer,
     /// The declared tori's tube radii differ.
     TorusTubeRadiiDiffer,
+    /// The declared cones' apexes differ.
+    ConeApexesDiffer,
+    /// The declared cones' axes are not parallel.
+    ConeAxesNotParallel,
+    /// The declared cones' half-angles differ.
+    ConeHalfAnglesDiffer,
     /// A tangency claimed between faces on ONE carrier: conformal
     /// contact, which is a `Rest` contact or a continuation.
     OneCarrier,
@@ -109,6 +115,9 @@ impl Contradiction {
             Self::TorusCentresDiffer => "the declared tori's centres differ",
             Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
             Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
+            Self::ConeApexesDiffer => "the declared cones' apexes differ",
+            Self::ConeAxesNotParallel => "the declared cones' axes are not parallel",
+            Self::ConeHalfAnglesDiffer => "the declared cones' half-angles differ",
             Self::OneCarrier => {
                 "the declared faces lie on one carrier, which is a Rest contact or a \
                  continuation, not a tangency"
@@ -3195,6 +3204,21 @@ pub(in crate::boolean) mod tests {
             "carrier_torus_minor_radius",
             "the declared tori's tube radii differ",
         ),
+        (
+            Contradiction::ConeApexesDiffer,
+            "carrier_cone_apex",
+            "the declared cones' apexes differ",
+        ),
+        (
+            Contradiction::ConeAxesNotParallel,
+            "carrier_cone_axis_parallel",
+            "the declared cones' axes are not parallel",
+        ),
+        (
+            Contradiction::ConeHalfAnglesDiffer,
+            "carrier_cone_half_angle",
+            "the declared cones' half-angles differ",
+        ),
     ];
 
     /// A declared pair of `c1` and `c2`, verified by the real rung
@@ -3244,6 +3268,12 @@ pub(in crate::boolean) mod tests {
             minor_radius,
             outward: true,
         };
+        let cone = |apex, axis, half_angle| CarrierDesc::Cone {
+            apex,
+            axis,
+            half_angle,
+            outward: true,
+        };
         let pairs = [
             (plane(o, z), plane(o, x)),
             (plane(o, z), plane(p(0.0, 0.0, 1.0), z)),
@@ -3257,6 +3287,9 @@ pub(in crate::boolean) mod tests {
             (torus(o, z, 2.0, 0.5), torus(p(0.0, 0.0, 1.0), z, 2.0, 0.5)),
             (torus(o, z, 2.0, 0.5), torus(o, z, 3.0, 0.5)),
             (torus(o, z, 2.0, 0.5), torus(o, z, 2.0, 0.25)),
+            (cone(o, z, 0.5), cone(p(1.0, 0.0, 0.0), z, 0.5)),
+            (cone(o, z, 0.5), cone(o, x, 0.5)),
+            (cone(o, z, 0.5), cone(o, z, 0.75)),
         ];
         assert_eq!(pairs.len(), FACTS.len());
         for ((c1, c2), &(want, name, clause)) in pairs.into_iter().zip(FACTS) {

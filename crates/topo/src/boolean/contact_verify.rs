@@ -129,8 +129,7 @@ pub(crate) fn rest_pair_reading<T: Decide>(
             ContactRefusal::NotCertifiable {
                 what: match unread {
                     super::carrier_pair::PairUnread::OutsideInventory => {
-                        "a declared face's surface kind is outside the Rest ladder's inventory \
-                     (plane, sphere, cylinder, torus)"
+                        super::carrier_eq::OUTSIDE_REST_INVENTORY
                     }
                     super::carrier_pair::PairUnread::Extent(_) => {
                         "a declared face's consumed extent cannot be read (its box has no claim to \

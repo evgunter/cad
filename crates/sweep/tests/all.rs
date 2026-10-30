@@ -222,6 +222,10 @@ mod cone_operand_rows;
 mod continuation_pose;
 #[path = "crossing_equal_rods.rs"]
 mod crossing_equal_rods;
+#[path = "curved_copy_against_itself.rs"]
+mod curved_copy_against_itself;
+#[path = "curved_copy_review_probes.rs"]
+mod curved_copy_review_probes;
 #[path = "curved_edge_corpus.rs"]
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
