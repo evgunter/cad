@@ -8,18 +8,13 @@ what checks an assembly at rest is DESIGN `[assertions]`. The census and
 contact vocabulary is `crates/topo/README.md`; the user-facing walk is
 `docs/guide/assembly.md`.
 
-**The intent refactor is in progress here.** A3 is gathered under
-[Until the intent refactor lands](#until-the-intent-refactor-lands) and
-describes the code as it stands; where it disagrees with DESIGN, DESIGN
-is the design.
-
 ## Where in the code
 
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs`; the copy's frame in `src/eval/framed.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`), `src/mate/orient.rs` (`Orientation`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
+| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `Node::Space`, `InstantiatePart`'s `target` and `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`), `src/mate/orient.rs` (`Orientation`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split, inline and flatten | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
 | A5 at-rest check | `src/checks/at_rest.rs` (`AtRestEvidence`, `InterferenceFinding`, the quieting rule), `src/checks/at_rest/carried.rs` (`Route`, `CarriedInterference`, `CarriedAtRestFinding`, `CarriedCoincidence`, `AtRestRow`); `CheckId::AtRest` in `src/checks.rs` |
@@ -137,6 +132,96 @@ Other doors that take such a pair — `stackup` and `sensitivities`,
 row `pair-doors-outside-the-three-do-not-check-document-identity`.
 
 ## Nodes and mates
+
+**A3 — The node vocabulary; mates place copies.**
+`Node::InstantiatePart { doc_ref, interface, target, constraints }`
+instantiates a pinned document, and is a placement: its one output is a
+copy of the part's product in its `target` space, moved by the motion
+its constraints pin. A copy carries
+its source's names as they are, so a selection names a face of it by the
+part's own name, read at the instance. A reader of one piece of a copy
+reads a pick (`VarDef::Pick { placement, of }`): the path through the
+source's placements and `⊔` operands to the piece's variable, which the
+door refuses through any other operator (`EditError::PickPath`).
+`Node::Place { source, target, constraints }` copies the one body it
+reads into `target`, a `Space` read. The world, `Node::World`, is minted
+with every document at `RecipeNodeId::WORLD` and defines the world's
+space (`VarId::WORLD`); `Node::Space` mints another space. A placement
+reads a space only as its target, and no mate reads one. Repetition is
+an index variable (D10, Repetition): a placement whose reads reach an index places one copy per
+value of it, and no node is a pattern.
+
+A placement's `constraints` are its bundle, each a `Constraint { id,
+kind }` addressed by its placement and the id minted with it
+(`MateRef`), never by its position: a mate or a value (FORK-S3M).
+
+A `Mate { on, to }` equates two poses of one kind, and the kind
+is the primitive: `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
+`Plane`–`Plane` rests, `Point`–`Point` is a ball and
+`Direction`–`Direction` is parallel, each pinning the relative pose to a
+coset of the kind's `Subgroup` (A11 (1)).
+
+- `on` is a pose read off the copied source's geometry (a `Place`'s
+  source, an instance's own copy; else `MateFault::NotOnTheCopy`).
+- `to` is a pose read off geometry of the space the copy joins. No
+  space has roles a mate can read: there is no world frame and no part
+  frame to read.
+- A mate holds no number. Its sense is a `Flip` on one side: a plain
+  `Plane`–`Plane` mate equates outward normals, and two faces stacked
+  against each other carry a `Flip` on the target.
+- A mate declares no contact. It places a copy; whether two copies
+  touch is the at-rest census's to find (A5).
+
+A `Value { coord, by }` names no mate: it is a coordinate of the
+target space, setting one freedom the bundle's mates leave to a
+`Length` or an `Angle` (`Coord::Slide(X | Y | Z)`, `Coord::Spin(None)`
+beside a mate fixing a direction, `Coord::Spin(Some(X | Y | Z))` for a
+chain): a plane mate's two slides and its spin, an axis mate's one
+slide and its spin, a direction mate's three slides and its spin.
+Where a mate fixes a direction `d`, the mate's `orient` (an
+`Orientation`, one of the 24 ways the copy's axes lie along the target
+space's, the identity unless written) puts the copy's mated direction
+`d_c` at `n = O·d_c`, and the least turn `S` carries `n` onto `d`; the
+copy's turn is `rot(a, θ)·S·O`, `a` the target's own direction (its
+outward normal for a plane: `d` with every flip on the target's side
+undone, `mate::flipped`). A slide is the copy's origin measured
+from the target space's along a target axis as `S` carries it, and the
+spin `θ` is the turn left about `a`, whatever the contact's sense, so a
+flip written on either side of a rest turns its spin the same way
+(`mate/value.rs`, `Chart`). Where
+`n` is a target axis, the slide `S` carries onto `d` is the one a plane
+mate fixes and an axis mate leaves; otherwise the written slides are
+admitted only where they span what the mate leaves
+(`NoChartWhy::SlidesDoNotSpan`). The one pole, `n = −d`, is the
+orientation written backwards: inside the band about it the chart
+refuses `MateFault::Backwards`, naming the orientation to write. The chart reads no body a pose is read off, so a value edit
+never rides with one. Where no mate fixes a direction (no mate, or a
+lone point mate), the rotation is a chain of at most three spins about
+the target space's own axes, through the mated point for a point mate,
+no two in a row about one axis, applied in the order written, and the
+slides run along those axes. Zero says the copy's own coordinates agree
+with the target space's as far as the mates allow.
+
+The door admits a constraint on what the recipe shows: two poses of one
+kind, `on` reading the copy, and of the bundle that no
+constraint fixes an equation the rest already fix and every value sets
+a freedom the mates leave (A11 (1)). The placement folds its bundle
+where it evaluates (`eval::wire::fold_with`), reading every pose as a
+value: its mates' cosets met, then its values placed inside what they
+leave. A bundle is written by one pure constructor (`Placed::of`) from
+the mates and moves its caller wrote, with the constant `0` on each
+freedom left unnamed; it reads no geometry, so a copy stands exactly
+where its author means it. A gesture names the slides from the
+source's geometry before calling the constructor: it reads `n` off the
+evaluated copy and writes the slides `mate::slides_left_along` leaves
+(`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
+the viewer's mate tool and snap). The raw edit doors stay structural,
+so where the slides they fill do not span the solve refuses
+`SlidesDoNotSpan`, naming the slides to write. A copy pinned in the world at a pose is that
+pose's moves written as values on the world's axes; the "place part"
+gesture writes the identity bundle (`mate::stand`). A frame read off
+geometry is `mate::corner_frame`'s, which a caller asks before writing
+the moves it means.
 
 **A12 — Mate sides are reads.** A mate side is a read like any
 other, so a mate depends on the bodies its faces are read
@@ -568,100 +653,6 @@ dimension the cells are (`checks::at_rest::quiet_row`; the
 `unproven-coincidence` lint reads it). It matches cells, so another
 contact between the same two copies stays loud, and it reads verdicts
 only, so a failed assertion quiets nothing.
-
-## Until the intent refactor lands
-
-These clauses describe the code as it stands, in the model DESIGN
-`[placement]` and `[assertions]` replace; each part goes when the INTENT
-unit that retires it lands.
-
-**A3 — The node vocabulary; mates place copies.**
-`Node::InstantiatePart { doc_ref, interface, constraints }` instantiates
-a pinned document, and is a placement: its one output is a copy of the
-part's product, moved by the motion its constraints pin. A copy carries
-its source's names as they are, so a selection names a face of it by the
-part's own name, read at the instance. A reader of one piece of a copy
-reads a pick (`VarDef::Pick { placement, of }`): the path through the
-source's placements and `⊔` operands to the piece's variable, which the
-door refuses through any other operator (`EditError::PickPath`).
-`Node::Place { source, target, constraints }` copies the one body it
-reads. The world, `Node::World`, is minted with every
-document, defines no variable, and is read only by a placement's
-constraints and by export. Repetition is an index variable (D10,
-Repetition): a placement whose reads reach an index places one copy per
-value of it, and no node is a pattern.
-
-A placement's `constraints` are its bundle, each a `Constraint { id,
-kind }` addressed by its placement and the id minted with it
-(`MateRef`), never by its position: a mate or a value (FORK-S3M).
-
-A `Mate { on, to }` equates two poses of one kind, and the kind
-is the primitive: `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
-`Plane`–`Plane` rests, `Point`–`Point` is a ball and
-`Direction`–`Direction` is parallel, each pinning the relative pose to a
-coset of the kind's `Subgroup` (A11 (1)).
-
-- `on` is a pose read off the copied source's geometry (a `Place`'s
-  source, an instance's own copy; else `MateFault::NotOnTheCopy`).
-- `to` is a pose read off geometry of the space the copy joins. No
-  space has roles a mate can read: there is no world frame and no part
-  frame to read.
-- A mate holds no number. Its sense is a `Flip` on one side: a plain
-  `Plane`–`Plane` mate equates outward normals, and two faces stacked
-  against each other carry a `Flip` on the target.
-- A mate declares no contact. It places a copy; whether two copies
-  touch is the at-rest census's to find (A5).
-
-A `Value { coord, by }` names no mate: it is a coordinate of the
-target space, setting one freedom the bundle's mates leave to a
-`Length` or an `Angle` (`Coord::Slide(X | Y | Z)`, `Coord::Spin(None)`
-beside a mate fixing a direction, `Coord::Spin(Some(X | Y | Z))` for a
-chain): a plane mate's two slides and its spin, an axis mate's one
-slide and its spin, a direction mate's three slides and its spin.
-Where a mate fixes a direction `d`, the mate's `orient` (an
-`Orientation`, one of the 24 ways the copy's axes lie along the target
-space's, the identity unless written) puts the copy's mated direction
-`d_c` at `n = O·d_c`, and the least turn `S` carries `n` onto `d`; the
-copy's turn is `rot(a, θ)·S·O`, `a` the target's own direction (its
-outward normal for a plane: `d` with every flip on the target's side
-undone, `mate::flipped`). A slide is the copy's origin measured
-from the target space's along a target axis as `S` carries it, and the
-spin `θ` is the turn left about `a`, whatever the contact's sense, so a
-flip written on either side of a rest turns its spin the same way
-(`mate/value.rs`, `Chart`). Where
-`n` is a target axis, the slide `S` carries onto `d` is the one a plane
-mate fixes and an axis mate leaves; otherwise the written slides are
-admitted only where they span what the mate leaves
-(`NoChartWhy::SlidesDoNotSpan`). The one pole, `n = −d`, is the
-orientation written backwards: inside the band about it the chart
-refuses `MateFault::Backwards`, naming the orientation to write. The chart reads no body a pose is read off, so a value edit
-never rides with one. Where no mate fixes a direction (no mate, or a
-lone point mate), the rotation is a chain of at most three spins about
-the target space's own axes, through the mated point for a point mate,
-no two in a row about one axis, applied in the order written, and the
-slides run along those axes. Zero says the copy's own coordinates agree
-with the target space's as far as the mates allow.
-
-The door admits a constraint on what the recipe shows: two poses of one
-kind, `on` reading the copy, and of the bundle that no
-constraint fixes an equation the rest already fix and every value sets
-a freedom the mates leave (A11 (1)). The placement folds its bundle
-where it evaluates (`eval::wire::fold_with`), reading every pose as a
-value: its mates' cosets met, then its values placed inside what they
-leave. A bundle is written by one pure constructor (`Placed::of`) from
-the mates and moves its caller wrote, with the constant `0` on each
-freedom left unnamed; it reads no geometry, so a copy stands exactly
-where its author means it. A gesture names the slides from the
-source's geometry before calling the constructor: it reads `n` off the
-evaluated copy and writes the slides `mate::slides_left_along` leaves
-(`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
-the viewer's mate tool and snap). The raw edit doors stay structural,
-so where the slides they fill do not span the solve refuses
-`SlidesDoNotSpan`, naming the slides to write. A copy pinned in the world at a pose is that
-pose's moves written as values on the world's axes; the "place part"
-gesture writes the identity bundle (`mate::stand`). A frame read off
-geometry is `mate::corner_frame`'s, which a caller asks before writing
-the moves it means.
 
 ## Open questions
 

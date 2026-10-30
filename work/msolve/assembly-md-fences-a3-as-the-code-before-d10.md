@@ -2,8 +2,9 @@
 id: assembly-md-fences-a3-as-the-code-before-d10
 kind: issue
 title: ASSEMBLY.md still fences A3 under 'Until the intent refactor lands' and misspells InstantiatePart's fields, though stage 3 built D10's placement
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-10-30
 priority: P4
 cost: E
 refs: [d10-exit-walk]
@@ -33,3 +34,14 @@ That row is in DESIGN.md, so its rewording goes to Ev with the page's.
 Fix: move A3 out of the fence into "Nodes and mates", fix the two
 spellings, and drop the header paragraph. Check each sentence against
 `[placement]` while doing it.
+
+## Closed
+
+2026-10-30 (`intent/stale-companion-pages`). The header paragraph and
+the "Until the intent refactor lands" section are gone, and A3 sits
+under "Nodes and mates" ahead of A12. It spells
+`Node::InstantiatePart { doc_ref, interface, target, constraints }`
+(`src/node.rs:1839`). The world sentence now reads the code: the world
+defines the world's space (`VarId::WORLD`), and a placement reads a
+space only as its target. DESIGN's companion-table row for ASSEMBLY
+was reworded in the same PR.
