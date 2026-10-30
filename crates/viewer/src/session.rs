@@ -4434,10 +4434,8 @@ fn drawn_frame(
 /// How far `node`'s body reaches from its own origin across its `xy`:
 /// the window a trace is shown across.
 fn body_reach(ev: &Evaluation<f64>, node: pncad::document::RecipeNodeId) -> Option<f64> {
-    use pncad::document::{NodeResult, ValuePayload};
-    let Some(NodeResult::Ok(value)) = ev.result(node) else {
-        return None;
-    };
+    use pncad::document::ValuePayload;
+    let value = ev.usable(node).ok()?;
     let body = match &value.payload {
         ValuePayload::Body(b)
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => b.shared(),
