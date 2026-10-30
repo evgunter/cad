@@ -8,6 +8,7 @@ priority: P3
 cost: E
 branch: intent/gallery-keeps-nothing-unused
 closed: 2026-10-30
+pr: 6108
 ---
 
 Found by the `unused` check (`Doc::unused`, `crates/editor-core/src/doc.rs`), counting its findings over the tour's gallery documents (`demos/tour/src/gallery.rs`, the list `gallery::run` writes) before its default landed at Warn.
