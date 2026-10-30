@@ -24,17 +24,25 @@
 //!   holds; a folded cut reads `Violated` off its corners;
 //! - the cylinder–cylinder tee refuses typed at a vertex its junction
 //!   shares with a cap and nothing else.
+//!
+//! Every row builds its body twice, by the same generic builders: at
+//! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
+//! certifying scalar the shell gate and the document door ask at, which
+//! must read the same verdict class ([`same_class`]) — `Holds`,
+//! `Violated`, or the same refusal arm.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Margin, Point2, Point3, Sign, Tol};
-use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
+use geom_core::{
+    Band, Bounds, CertifiedBounds, Decide, Interval, Margin, Point2, Point3, Real, Sign, Tol,
+};
+use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile};
 use std::collections::BTreeSet;
-use sweep::test_support::revolved_about_y;
-use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
+use sweep::test_support::revolved_about_y_at;
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CertificateArm,
     ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
@@ -42,8 +50,8 @@ use topo::clearance::{
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{normal_start_place, quad, to_offset};
-use crate::revolve_common::{axis_y, donut_profile, validated};
+use crate::common::{normal_start_place, quad};
+use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
 /// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
@@ -57,7 +65,57 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-/// A verified witness: two faces, a point on each, their distance.
+/// The scalars a row builds its body at.
+trait Scalar: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy {}
+impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy> Scalar for T {}
+
+/// The middle of `x`'s bracket: `x` itself at `f64`.
+fn mid<T: Bounds>(x: T) -> f64 {
+    0.5 * (x.lo() + x.hi())
+}
+
+/// `loops` on the `xy` sketch plane, lifted to `T` and validated.
+fn validated<T: Scalar>(loops: &[ProfileLoop<f64>]) -> ValidatedProfile<T> {
+    Profile::new(SketchPlane::xy(), lifted(loops))
+        .validate(tol())
+        .unwrap()
+}
+
+/// Sketch loops lifted to `T`.
+fn lifted<T: Real>(loops: &[ProfileLoop<f64>]) -> Vec<ProfileLoop<T>> {
+    loops.iter().map(|l| l.map_scalar(T::from_f64)).collect()
+}
+
+/// A sketch plane lifted to `T`.
+fn plane_at<T: Scalar>(place: &SketchPlane<f64>) -> SketchPlane<T> {
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &place.placement().map(T::from_f64),
+        tol(),
+    ))
+}
+
+/// The sketch `y` axis, at `T`.
+fn axis_y<T: Real>() -> RevolveAxis<T> {
+    let a = crate::revolve_common::axis_y();
+    RevolveAxis {
+        origin: a.origin.map(T::from_f64),
+        dir: a.dir.map(T::from_f64),
+    }
+}
+
+/// The extrusion to the signed offset `d` along the sketch normal, at `T`.
+fn to_offset<T: Real>(d: f64) -> Extrusion<T> {
+    match crate::common::to_offset(d) {
+        Extrusion::Distance { depth, side } => Extrusion::Distance {
+            depth: T::from_f64(depth),
+            side,
+        },
+        other => panic!("an offset is a distance: {other:?}"),
+    }
+}
+
+/// A verified witness: two faces, a point on each (its bracket's middle),
+/// and the upper end of their distance's bracket.
 #[derive(Debug, Clone, Copy)]
 struct Witness {
     a: FaceKey,
@@ -67,7 +125,7 @@ struct Witness {
     d: f64,
 }
 
-fn surface(body: &Body<f64>, f: FaceKey) -> Surface<f64> {
+fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Surface<T> {
     body.get_surface(body.get_face(f).unwrap().surface)
         .unwrap()
         .clone()
@@ -76,33 +134,35 @@ fn surface(body: &Body<f64>, f: FaceKey) -> Surface<f64> {
 /// **The witness check**: the closest pair of the two cells' on-face
 /// stations, evaluated afresh on the stored surfaces, decided at the
 /// bound's own site.
-fn verify(
-    body: &Body<f64>,
+fn verify<T: Scalar>(
+    body: &Body<T>,
     bound: ClearanceBound,
-) -> impl FnMut(Candidate<'_, '_, f64>) -> Result<Witness, String> + '_ {
+) -> impl FnMut(Candidate<'_, '_, T>) -> Result<Witness, String> + '_ {
     move |candidate| {
         let (fa, fb) = candidate.faces();
         let (sa, sb) = (surface(body, fa), surface(body, fb));
         let (la, lb) = candidate.on_face_stations();
-        let mut best: Option<Witness> = None;
+        let at = T::from_f64;
+        let mut best: Option<(Witness, T)> = None;
         for &(au, av) in &la {
-            let pa = sa.eval(au, av);
+            let pa = sa.eval(at(au), at(av));
             for &(bu, bv) in &lb {
-                let pb = sb.eval(bu, bv);
+                let pb = sb.eval(at(bu), at(bv));
                 let d = (pa - pb).norm();
-                if best.is_none_or(|w| d < w.d) {
-                    best = Some(Witness {
+                if best.is_none_or(|(w, _)| d.hi() < w.d) {
+                    let w = Witness {
                         a: fa,
                         b: fb,
-                        pa,
-                        pb,
-                        d,
-                    });
+                        pa: pa.map(mid),
+                        pb: pb.map(mid),
+                        d: d.hi(),
+                    };
+                    best = Some((w, d));
                 }
             }
         }
-        let w = best.ok_or("no station")?;
-        let definite = match decide(bound.predicate(), Margin::of(w.d - bound.c()), band()) {
+        let (w, d) = best.ok_or("no station")?;
+        let definite = match decide(bound.predicate(), Margin::of(d - at(bound.c())), band()) {
             Ok(Sign::Negative) => true,
             Ok(Sign::Zero) => !bound.zero_discharges(),
             _ => false,
@@ -117,7 +177,11 @@ fn verify(
 
 /// **The injectivity question** over `faces` of `body` (every face when
 /// `None`), at the default depth and `budget`.
-fn injective(body: &Body<f64>, faces: Option<Vec<FaceKey>>, budget: usize) -> BoundReport<Witness> {
+fn injective<T: Scalar>(
+    body: &Body<T>,
+    faces: Option<Vec<FaceKey>>,
+    budget: usize,
+) -> BoundReport<Witness> {
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
     let side = Side { body, faces };
     let windows = side.windows(Which::First).expect("every face has a window");
@@ -153,7 +217,7 @@ fn pairs(n: usize) -> usize {
 /// topology: every one touches, and on a body that holds each is
 /// certified at least once — the cells holding the shared point always
 /// touch, and a touching pair is discharged only by a certificate.
-fn touching_pairs(body: &Body<f64>) -> BTreeSet<(FaceKey, FaceKey)> {
+fn touching_pairs<T: Real>(body: &Body<T>) -> BTreeSet<(FaceKey, FaceKey)> {
     let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
         let face = body.get_face(f).unwrap();
         core::iter::once(face.outer)
@@ -190,7 +254,7 @@ fn touching_pairs(body: &Body<f64>) -> BTreeSet<(FaceKey, FaceKey)> {
 /// if the sweep stops examining any one pair that shares a cell: the
 /// monotone self-pairs a free-form face certifies, and the other pairs'
 /// certificates, are no part of it.
-fn assert_holds(what: &str, report: &BoundReport<Witness>, body: &Body<f64>) {
+fn assert_holds<T: Real>(what: &str, report: &BoundReport<Witness>, body: &Body<T>) {
     let r = report.receipt;
     let faces = body.faces().count();
     let touching = touching_pairs(body);
@@ -227,6 +291,62 @@ fn assert_holds(what: &str, report: &BoundReport<Witness>, body: &Body<f64>) {
     );
 }
 
+/// A verdict's class: `Holds`, `Violated`, or the refusal's arm — an
+/// uncertified pair's certificate arm and the kind of cell it shares.
+fn class<W>(verdict: &BoundVerdict<W>) -> String {
+    match verdict {
+        BoundVerdict::Holds => "Holds".to_owned(),
+        BoundVerdict::Violated(_) => "Violated".to_owned(),
+        BoundVerdict::Refused(EngineRefusal::Uncertified { shared, arm, .. }) => {
+            let cell = match shared {
+                SharedCell::Vertex(_) => "vertex",
+                SharedCell::Edge(_) => "edge",
+                SharedCell::Face(_) => "face",
+            };
+            format!("Uncertified {arm:?} at a {cell}")
+        }
+        BoundVerdict::Refused(other) => {
+            let named = format!("{other:?}");
+            named
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        }
+    }
+}
+
+/// **The row at `Interval` reads `f64`'s verdict class**, both receipts
+/// printed.
+fn same_class(what: &str, float: &BoundReport<Witness>, interval: &BoundReport<Witness>) {
+    println!(
+        "[rimscalar] {what}: f64 {} {:?} cornered = {} | Interval {} {:?} cornered = {}",
+        class(&float.verdict),
+        float.receipt,
+        float.cornered,
+        class(&interval.verdict),
+        interval.receipt,
+        interval.cornered
+    );
+    assert_eq!(
+        class(&interval.verdict),
+        class(&float.verdict),
+        "{what}: the Interval body reads the f64 body's verdict class: {:?}",
+        interval.verdict
+    );
+}
+
+/// **The body holds at both scalars** ([`assert_holds`]), over every face,
+/// in one verdict class; the `f64` report, for a row's own pins.
+fn holds_at_both(what: &str, float: Body<f64>, interval: Body<Interval>) -> BoundReport<Witness> {
+    let report = injective(&float, None, BUDGET);
+    let twin = injective(&interval, None, BUDGET);
+    same_class(what, &report, &twin);
+    assert_holds(what, &report, &float);
+    assert_holds(&format!("{what} at Interval"), &twin, &interval);
+    report
+}
+
 // ------------------------------------------------------------ fixtures
 
 /// A helix of `turns` revolutions, radius 1, `pitch` per revolution,
@@ -245,20 +365,21 @@ fn helix(turns: f64, pitch: f64) -> NurbsCurve3<f64> {
 }
 
 /// The wall of a sweep whose centre point is highest.
-fn top_wall(lofted: &sweep::Lofted<f64>) -> FaceKey {
+fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T>) -> FaceKey {
     let centre = |f: FaceKey| {
         let s = surface(&lofted.body, f);
         let Surface::Nurbs(net) = &s else {
             panic!("a swept wall is NURBS")
         };
         let ((u0, u1), (v0, v1)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
-        s.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1))
+        let half = T::from_f64(0.5);
+        mid(s.eval(half * (u0 + u1), half * (v0 + v1)).z)
     };
     lofted.side_faces[0]
         .iter()
         .flatten()
         .copied()
-        .max_by(|&a, &b| centre(a).z.total_cmp(&centre(b).z))
+        .max_by(|&a, &b| centre(a).total_cmp(&centre(b)))
         .unwrap()
 }
 
@@ -273,12 +394,22 @@ fn top_wall(lofted: &sweep::Lofted<f64>) -> FaceKey {
 /// do not touch, and the distance test finds them coincident.
 #[test]
 fn a_370_degree_flat_ribbon_reads_violated() {
-    let path = helix(370.0 / 360.0, 0.0);
-    let place = normal_start_place(&path);
-    let profile = quad([(-0.1, -0.02), (0.1, -0.02), (0.1, 0.02), (-0.1, 0.02)]);
-    let swept = sweep_body::<f64>(&profile, place, &path, 48, 3, tol()).expect("the ribbon sweeps");
-    let wall = top_wall(&swept);
-    let report = injective(&swept.body, Some(vec![wall]), BUDGET);
+    fn ribbon<T: Scalar>() -> (BoundReport<Witness>, FaceKey) {
+        let path = helix(370.0 / 360.0, 0.0);
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.1, -0.02),
+            (0.1, -0.02),
+            (0.1, 0.02),
+            (-0.1, 0.02),
+        ]));
+        let swept =
+            sweep_body::<T>(&profile, place, &path, 48, 3, tol()).expect("the ribbon sweeps");
+        let wall = top_wall(&swept);
+        (injective(&swept.body, Some(vec![wall]), BUDGET), wall)
+    }
+    let (report, wall) = ribbon::<f64>();
+    same_class("the ribbon", &report, &ribbon::<Interval>().0);
     println!("[selfx] ribbon: {:?} {:?}", report.verdict, report.receipt);
     let BoundVerdict::Violated(w) = report.verdict else {
         panic!("the ribbon overlaps itself: {:?}", report.verdict)
@@ -306,49 +437,61 @@ fn a_370_degree_flat_ribbon_reads_violated() {
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
-    let pent = |pts: [(f64, f64); 5]| {
-        vec![ProfileLoop::polygon(
-            pts.iter().map(|&(x, y)| Point2::new(x, y)),
-        )]
-    };
-    let sections = [
-        pent([
-            (0.0, 0.0),
-            (2.0, 0.0),
-            (0.03, 0.347),
-            (-2.0, 1.0),
-            (-2.0, -1.0),
-        ]),
-        pent([
-            (0.0, 0.0),
-            (2.0, 0.0),
-            (0.03, -0.347),
-            (3.0, -3.0),
-            (3.0, 3.0),
-        ]),
-    ];
-    let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
-    let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the fold lofts");
-    // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
-    let on_seam = |f: FaceKey| {
-        let s = surface(&lofted.body, f);
-        let Surface::Nurbs(net) = &s else {
-            return false;
+    fn fold<T: Scalar>() -> (sweep::Lofted<T>, Vec<FaceKey>) {
+        let pent = |pts: [(f64, f64); 5]| {
+            vec![ProfileLoop::polygon(
+                pts.iter().map(|&(x, y)| Point2::new(x, y)),
+            )]
         };
-        let ((u0, u1), (v0, _)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
-        [u0, u1].iter().any(|&u| {
-            let p = s.eval(u, v0);
-            (p.x - 2.0).abs() < 1e-9 && p.y.abs() < 1e-9
-        })
-    };
-    let walls: Vec<FaceKey> = lofted.side_faces[0]
-        .iter()
-        .flatten()
-        .copied()
-        .filter(|&f| on_seam(f))
-        .collect();
-    assert_eq!(walls.len(), 2, "two walls share the seam at (2, 0)");
+        let sections = [
+            pent([
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (0.03, 0.347),
+                (-2.0, 1.0),
+                (-2.0, -1.0),
+            ]),
+            pent([
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (0.03, -0.347),
+                (3.0, -3.0),
+                (3.0, 3.0),
+            ]),
+        ];
+        let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
+        let sections = sections.map(|s| lifted(&s));
+        let places = places.map(|p| plane_at(&p));
+        let lofted = loft_body::<T>(&sections, &places, 1, tol()).expect("the fold lofts");
+        // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
+        let on_seam = |f: FaceKey| {
+            let s = surface(&lofted.body, f);
+            let Surface::Nurbs(net) = &s else {
+                return false;
+            };
+            let ((u0, u1), (v0, _)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+            [u0, u1].iter().any(|&u| {
+                let p = s.eval(u, v0).map(mid);
+                (p.x - 2.0).abs() < 1e-9 && p.y.abs() < 1e-9
+            })
+        };
+        let walls: Vec<FaceKey> = lofted.side_faces[0]
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|&f| on_seam(f))
+            .collect();
+        assert_eq!(walls.len(), 2, "two walls share the seam at (2, 0)");
+        (lofted, walls)
+    }
+    let (lofted, walls) = fold::<f64>();
     let report = injective(&lofted.body, Some(walls.clone()), BUDGET);
+    let (twin, twin_walls) = fold::<Interval>();
+    same_class(
+        "the fold",
+        &report,
+        &injective(&twin.body, Some(twin_walls), BUDGET),
+    );
     println!("[selfx] fold: {:?} {:?}", report.verdict, report.receipt);
     let BoundVerdict::Violated(w) = report.verdict else {
         panic!("the fold crosses itself: {:?}", report.verdict)
@@ -367,14 +510,15 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
 /// apex, each sharing a half rim with the base disc.
 #[test]
 fn a_revolved_cone_holds() {
-    let profile = validated(vec![ProfileLoop::polygon(
-        [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
-    )]);
-    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body;
-    let report = injective(&body, None, BUDGET);
-    assert_holds("the cone", &report, &body);
+    fn cone<T: Scalar>() -> Body<T> {
+        let profile = validated(&[ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+        )]);
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body
+    }
+    holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
 }
 
 /// **A pyramid holds**: a square base and an apex — four planar faces
@@ -382,38 +526,42 @@ fn a_revolved_cone_holds() {
 /// that vertex.
 #[test]
 fn a_pyramid_holds() {
-    use topo::test_support::meeting::{Pose, posed_pyramid};
-    let at_rest = posed_pyramid(
-        &[
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        [0.5, 0.5, 0.8],
-        &Pose::rest(),
-        tol(),
-    );
-    let body = at_rest.into_body();
-    let report = injective(&body, None, BUDGET);
-    assert_holds("the pyramid", &report, &body);
+    fn pyramid<T: Scalar>() -> Body<T> {
+        use topo::test_support::meeting::{Pose, posed_pyramid_at};
+        posed_pyramid_at(
+            &[
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0],
+            ],
+            [0.5, 0.5, 0.8],
+            &Pose::rest(),
+            tol(),
+        )
+        .into_body()
+    }
+    holds_at_both("the pyramid", pyramid::<f64>(), pyramid::<Interval>());
 }
 
 /// **An embedded triangle loft holds**: every wall shares a seam with
 /// both others and a rim with each cap.
 #[test]
 fn an_embedded_triangle_loft_holds() {
-    let tri = |s: f64, turn: f64| {
-        let p = |a: f64| Point2::new(s * (a + turn).cos(), s * (a + turn).sin());
-        vec![ProfileLoop::polygon(
-            [0.0, TAU / 3.0, 2.0 * TAU / 3.0].map(p),
-        )]
-    };
-    let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
-    let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
-    let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the triangles loft");
-    let report = injective(&lofted.body, None, BUDGET);
-    assert_holds("the triangle loft", &report, &lofted.body);
+    fn loft<T: Scalar>() -> Body<T> {
+        let tri = |s: f64, turn: f64| {
+            let p = |a: f64| Point2::new(s * (a + turn).cos(), s * (a + turn).sin());
+            lifted(&[ProfileLoop::polygon(
+                [0.0, TAU / 3.0, 2.0 * TAU / 3.0].map(p),
+            )])
+        };
+        let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
+        let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
+        loft_body::<T>(&sections, &places, 1, tol())
+            .expect("the triangles loft")
+            .body
+    }
+    holds_at_both("the triangle loft", loft::<f64>(), loft::<Interval>());
 }
 
 /// **A declared wedge-0 kiss refuses typed**: the lune between the
@@ -423,25 +571,33 @@ fn an_embedded_triangle_loft_holds() {
 /// reads; it is not built, so the strut refuses, named.
 #[test]
 fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
-    let lune: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 4.0))
-        .angle(-core::f64::consts::FRAC_PI_2, tol())
-        .unwrap()
-        .line(2.0, tol())
-        .unwrap()
-        .turn(core::f64::consts::FRAC_PI_2, tol())
-        .unwrap()
-        .tangent_arc_to(Point2::new(0.0, 0.0), tol())
-        .unwrap()
-        .cusp()
-        .tangent_arc_to(Start, tol())
-        .unwrap()
-        .into();
-    let profile = Profile::new(SketchPlane::xy(), vec![lune])
-        .validate(tol())
-        .unwrap();
-    let body = extrude(&profile, to_offset(1.0), tol()).unwrap().body;
+    fn kiss<T: Scalar>() -> Body<T> {
+        extrude(&validated(&[lune()]), to_offset(1.0), tol())
+            .unwrap()
+            .body
+    }
+    fn lune() -> ProfileLoop<f64> {
+        Open.at(Point2::new(0.0, 4.0))
+            .angle(-core::f64::consts::FRAC_PI_2, tol())
+            .unwrap()
+            .line(2.0, tol())
+            .unwrap()
+            .turn(core::f64::consts::FRAC_PI_2, tol())
+            .unwrap()
+            .tangent_arc_to(Point2::new(0.0, 0.0), tol())
+            .unwrap()
+            .cusp()
+            .tangent_arc_to(Start, tol())
+            .unwrap()
+            .into()
+    }
+    let body = kiss::<f64>();
     let report = injective(&body, None, BUDGET);
+    same_class(
+        "the kiss",
+        &report,
+        &injective(&kiss::<Interval>(), None, BUDGET),
+    );
     println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
     match report.verdict {
         BoundVerdict::Refused(EngineRefusal::Uncertified {
@@ -471,39 +627,52 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
 /// own scope. Their minimum separation is `[0, 0]`, naming the edge.
 #[test]
 fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
-    let profile = Profile::new(
-        SketchPlane::xy(),
-        quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
-    )
-    .validate(tol())
-    .unwrap();
-    let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
-    let walls = built.side_faces();
-    let (fa, fb) = (walls[0][0], walls[0][1]);
-    let side = |f| Side {
-        body: &built.body,
-        faces: vec![f],
-    };
-    let (sa, sb) = (side(fa), side(fb));
-    let (wa, wb) = (
-        sa.windows(Which::First).unwrap(),
-        sb.windows(Which::Second).unwrap(),
+    fn walls<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
+        let profile = validated(&quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]));
+        let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
+        let walls = built.side_faces();
+        let (fa, fb) = (walls[0][0], walls[0][1]);
+        (built.body, fa, fb)
+    }
+    fn apart<T: Scalar>(
+        body: &Body<T>,
+        fa: FaceKey,
+        fb: FaceKey,
+    ) -> (BoundReport<Witness>, Option<SharedCell>) {
+        let side = |f| Side {
+            body,
+            faces: vec![f],
+        };
+        let (sa, sb) = (side(fa), side(fb));
+        let (wa, wb) = (
+            sa.windows(Which::First).unwrap(),
+            sb.windows(Which::Second).unwrap(),
+        );
+        let bound = ClearanceBound::AtLeast(0.1);
+        let sweep = Sweep {
+            bound,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let mut met = None;
+        let report = sweep.run(&wa, &wb, true, |candidate| {
+            met = candidate.meeting();
+            verify(body, bound)(candidate)
+        });
+        assert!(report.receipt.holds(), "{:?}", report.receipt);
+        (report, met)
+    }
+    let (body, fa, fb) = walls::<f64>();
+    let (report, met) = apart(&body, fa, fb);
+    let (twin, ta, tb) = walls::<Interval>();
+    same_class(
+        "the scopes sharing an edge",
+        &report,
+        &apart(&twin, ta, tb).0,
     );
-    let bound = ClearanceBound::AtLeast(0.1);
-    let sweep = Sweep {
-        bound,
-        band: band(),
-        budgets: Budgets {
-            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-            max_cell_pairs: BUDGET,
-        },
-    };
-    let mut met = None;
-    let report = sweep.run(&wa, &wb, true, |candidate| {
-        met = candidate.meeting();
-        verify(&built.body, bound)(candidate)
-    });
-    assert!(report.receipt.holds(), "{:?}", report.receipt);
     let BoundVerdict::Violated(w) = report.verdict else {
         panic!(
             "two walls sharing an edge are 0 apart: {:?}",
@@ -515,8 +684,12 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         matches!(met, Some(SharedCell::Edge(_))),
         "named on the shared edge: {met:?}"
     );
-    assert_eq!(CLEARANCE_MARGIN, bound.predicate());
-    let m = min_separation(&sa, &sb, true, band(), Budgets::MIN_SEPARATION).unwrap();
+    assert_eq!(CLEARANCE_MARGIN, ClearanceBound::AtLeast(0.1).predicate());
+    let side = |f| Side {
+        body: &body,
+        faces: vec![f],
+    };
+    let m = min_separation(&side(fa), &side(fb), true, band(), Budgets::MIN_SEPARATION).unwrap();
     assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.render());
     let meets = m.meets().expect("the scopes meet");
     assert!(matches!(meets.shared, SharedCell::Edge(_)), "{meets:?}");
@@ -527,16 +700,18 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
 /// **A full torus certifies by kind**: one face, `R = 2 > r = 1/2`.
 #[test]
 fn a_full_torus_certifies_by_kind() {
-    let body = revolve(
-        &validated(vec![donut_profile()]),
-        axis_y(),
-        Revolution::Full,
-        tol(),
-    )
-    .unwrap()
-    .body;
-    let report = injective(&body, None, BUDGET);
-    assert_holds("the torus", &report, &body);
+    fn torus<T: Scalar>() -> Body<T> {
+        revolve(
+            &validated(&[donut_profile()]),
+            axis_y(),
+            Revolution::Full,
+            tol(),
+        )
+        .unwrap()
+        .body
+    }
+    let body = torus::<f64>();
+    let report = holds_at_both("the torus", body.clone(), torus::<Interval>());
     assert_eq!(
         report.receipt.by_kind,
         body.faces().count(),
@@ -550,12 +725,20 @@ fn a_full_torus_certifies_by_kind() {
 /// sharing helical seams.
 #[test]
 fn a_long_helical_sweep_certifies_within_the_default_budget() {
-    let path = helix(2.0, 0.4);
-    let place = normal_start_place(&path);
-    let profile = quad([(-0.08, -0.08), (0.08, -0.08), (0.08, 0.08), (-0.08, 0.08)]);
-    let swept = sweep_body::<f64>(&profile, place, &path, 65, 3, tol()).expect("the helix sweeps");
-    let report = injective(&swept.body, None, BUDGET);
-    assert_holds("the helical sweep", &report, &swept.body);
+    fn helical<T: Scalar>() -> Body<T> {
+        let path = helix(2.0, 0.4);
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.08, -0.08),
+            (0.08, -0.08),
+            (0.08, 0.08),
+            (-0.08, 0.08),
+        ]));
+        sweep_body::<T>(&profile, place, &path, 65, 3, tol())
+            .expect("the helix sweeps")
+            .body
+    }
+    holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
@@ -563,14 +746,15 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
 /// nothing, and two annular caps.
 #[test]
 fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
-    let p = |x, y| (Point2::new(x, y), 0.0);
-    let body = revolved_about_y(
-        vec![p(0.96, 0.0), p(1.0, 0.0), p(1.0, 2.0), p(0.96, 2.0)],
-        Revolution::Full,
-        tol(),
-    );
-    let report = injective(&body, None, BUDGET);
-    assert_holds("the thin shell", &report, &body);
+    fn shell<T: Scalar>() -> Body<T> {
+        let p = |x, y| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+        revolved_about_y_at(
+            vec![p(0.96, 0.0), p(1.0, 0.0), p(1.0, 2.0), p(0.96, 2.0)],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
 // ------------------------------------------- a face across its seam
@@ -592,103 +776,112 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
 /// cell that meets two is split, so the crossing is reached.
 #[test]
 fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
-    use geom_brep::EdgeCurveSpec;
-    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
-    use topo::test_support::{CylFrame, CylKey, cyl_wall_sheet_keyed, plane, set_sheet_sense};
+    fn pierced<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
+        use geom_brep::EdgeCurveSpec;
+        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+        use topo::test_support::{CylFrame, CylKey, cyl_wall_sheet_keyed, plane, set_sheet_sense};
 
-    let (alpha, beta) = (0.2, 4.0);
-    let frame = CylFrame::canonical(1.0);
-    let mut body = Body::<f64>::new();
-    let (wall, _) = cyl_wall_sheet_keyed(
-        &mut body,
-        frame,
-        CylKey::Bare,
-        (beta, alpha + TAU),
-        (0.0, 1.0),
-        tol(),
-    );
-    topo::mint_pcurves(&mut body, tol()).unwrap();
-    set_sheet_sense(&mut body, wall, true, tol());
-
-    // The `α` strut, and its half-edge on the wall's twin across it.
-    let at = |u: f64, v: f64| frame.at::<f64>(u, v);
-    let vertex_at = |body: &Body<f64>, p: Point3<f64>| {
-        body.vertices()
-            .find(|(_, x)| (*body.get_point(x.point).unwrap() - p).norm() < 1e-12)
-            .unwrap()
-            .0
-    };
-    let (s_lo, s_hi) = (
-        vertex_at(&body, at(alpha, 0.0)),
-        vertex_at(&body, at(alpha, 1.0)),
-    );
-    let on_wall = |body: &Body<f64>, he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-            == wall
-    };
-    let strut = body
-        .edges()
-        .find(|(_, e)| {
-            let ends = [
-                body.get_half_edge(e.he_plus).unwrap().start,
-                body.get_half_edge(e.he_minus).unwrap().start,
-            ];
-            ends.contains(&s_lo) && ends.contains(&s_hi)
-        })
-        .unwrap()
-        .1
-        .clone();
-    let h_s = [strut.he_plus, strut.he_minus]
-        .into_iter()
-        .find(|&he| !on_wall(&body, he))
-        .unwrap();
-    let h = body.get_half_edge(h_s).unwrap().clone();
-    let s0 = h.start;
-    let h_next = h.next;
-    let s1 = body.get_half_edge(h_next).unwrap().start;
-    let point = |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    let (q0, q1) = (point(&body, s0), point(&body, s1));
-    // The flap's far side: the chord from the strut toward the ruling at
-    // `u = 5`, carried 1.3 times as far, at each end's height.
-    let past = |q: Point3<f64>| {
-        let toward = at(5.0, q.z);
-        q + (toward - q) * 1.3
-    };
-    let (a0, a1) = (past(q0), past(q1));
-
-    let strut1 = body
-        .mev_line(
-            MevSite::Fan {
-                he1: h_next,
-                he2: h_next,
-            },
-            a1,
+        let (alpha, beta) = (0.2, 4.0);
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<T>::new();
+        let (wall, _) = cyl_wall_sheet_keyed(
+            &mut body,
+            frame,
+            CylKey::Bare,
+            (beta, alpha + TAU),
+            (0.0, 1.0),
             tol(),
-        )
-        .unwrap();
-    let strut0 = body
-        .mev_line(MevSite::Fan { he1: h_s, he2: h_s }, a0, tol())
-        .unwrap();
-    let flap = body
-        .mef(
-            MefSite::Chords {
-                he1: strut0.he_minus,
-                he2: strut1.he_minus,
-            },
-            EdgeCurveSpec::line_between(a0, a1),
-            FaceSurface::New {
-                surface: plane(&[a0, q0, q1, a1], tol()),
-                sense: true,
-            },
-            tol(),
-        )
-        .unwrap()
-        .face;
-    topo::mint_pcurves(&mut body, tol()).unwrap();
+        );
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        set_sheet_sense(&mut body, wall, true, tol());
 
+        // The `α` strut, and its half-edge on the wall's twin across it.
+        let at = |u: f64, v: f64| frame.at::<T>(u, v);
+        let vertex_at = |body: &Body<T>, p: Point3<T>| {
+            body.vertices()
+                .find(|(_, x)| (*body.get_point(x.point).unwrap() - p).norm().hi() < 1e-12)
+                .unwrap()
+                .0
+        };
+        let (s_lo, s_hi) = (
+            vertex_at(&body, at(alpha, 0.0)),
+            vertex_at(&body, at(alpha, 1.0)),
+        );
+        let on_wall = |body: &Body<T>, he| {
+            body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+                .unwrap()
+                .face
+                == wall
+        };
+        let strut = body
+            .edges()
+            .find(|(_, e)| {
+                let ends = [
+                    body.get_half_edge(e.he_plus).unwrap().start,
+                    body.get_half_edge(e.he_minus).unwrap().start,
+                ];
+                ends.contains(&s_lo) && ends.contains(&s_hi)
+            })
+            .unwrap()
+            .1
+            .clone();
+        let h_s = [strut.he_plus, strut.he_minus]
+            .into_iter()
+            .find(|&he| !on_wall(&body, he))
+            .unwrap();
+        let h = body.get_half_edge(h_s).unwrap().clone();
+        let s0 = h.start;
+        let h_next = h.next;
+        let s1 = body.get_half_edge(h_next).unwrap().start;
+        let point = |body: &Body<T>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let (q0, q1) = (point(&body, s0), point(&body, s1));
+        // The flap's far side: the chord from the strut toward the ruling at
+        // `u = 5`, carried 1.3 times as far, at each end's height.
+        let past = |q: Point3<T>| {
+            let toward = at(5.0, mid(q.z));
+            q + (toward - q) * T::from_f64(1.3)
+        };
+        let (a0, a1) = (past(q0), past(q1));
+
+        let strut1 = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: h_next,
+                    he2: h_next,
+                },
+                a1,
+                tol(),
+            )
+            .unwrap();
+        let strut0 = body
+            .mev_line(MevSite::Fan { he1: h_s, he2: h_s }, a0, tol())
+            .unwrap();
+        let flap = body
+            .mef(
+                MefSite::Chords {
+                    he1: strut0.he_minus,
+                    he2: strut1.he_minus,
+                },
+                EdgeCurveSpec::line_between(a0, a1),
+                FaceSurface::New {
+                    surface: plane(&[a0, q0, q1, a1], tol()),
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap()
+            .face;
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        (body, wall, flap)
+    }
+    let (body, wall, flap) = pierced::<f64>();
     let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let (twin, tw, tf) = pierced::<Interval>();
+    same_class(
+        "the seam-crossing wall and its flap",
+        &report,
+        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+    );
     println!(
         "[selfx] the seam-crossing wall and its flap: {:?} {:?}",
         report.verdict, report.receipt
@@ -707,7 +900,7 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
 // ------------------------------------------- curved shared edges
 
 /// The surface kind of `f`, by name.
-fn kind(body: &Body<f64>, f: FaceKey) -> &'static str {
+fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
     match surface(body, f) {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",
@@ -731,33 +924,53 @@ fn kind(body: &Body<f64>, f: FaceKey) -> &'static str {
 /// past the shared cell, is withdrawn.
 #[test]
 fn a_filleted_drum_certifies_across_its_fillet() {
-    use sweep::blend::fillet_edges;
-    use sweep::test_support::finished;
-    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
-    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol())
-        .unwrap();
-    let drum = finished(
-        "the drum",
-        extrude(&profile, to_offset(2.0), tol()).unwrap().body,
-        tol(),
-    );
-    let rim: Vec<topo::EdgeKey> = drum
-        .edges()
-        .filter(|(_, e)| {
-            matches!(
-                drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                Some(geom::Curve3::Circle { center, .. }) if (center.z - 2.0).abs() < 1e-9
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let filleted = fillet_edges(&drum, &rim, 0.3, tol())
-        .map_err(|e| e.error)
-        .expect("the rim fillets");
-    let body: &Body<f64> = &filleted.body;
+    fn filleted<T: Scalar>() -> Body<T> {
+        use sweep::blend::fillet_edges;
+        use sweep::test_support::finished;
+        let drum = finished(
+            "the drum",
+            extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
+            tol(),
+        );
+        let rim: Vec<topo::EdgeKey> = drum
+            .edges()
+            .filter(|(_, e)| {
+                matches!(
+                    drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                    Some(geom::Curve3::Circle { center, .. }) if (mid(center.z) - 2.0).abs() < 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .collect();
+        fillet_edges(&drum, &rim, T::from_f64(0.3), tol())
+            .map_err(|e| e.error)
+            .expect("the rim fillets")
+            .body
+    }
+    let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
     assert_holds("the filleted drum", &report, body);
+    // The known divergence `a-fillet-band-rim-phase-outruns-the-touch-concession-at-interval`
+    // (CLEAR): at `Interval` the band's rim phase is wider than the touch
+    // concession, and the walk runs out of depth beside the rim.
+    let twin = injective(&filleted::<Interval>(), None, BUDGET);
+    println!(
+        "[rimscalar] the filleted drum: f64 {} {:?} | Interval {} {:?}",
+        class(&report.verdict),
+        report.receipt,
+        class(&twin.verdict),
+        twin.receipt
+    );
+    assert!(
+        matches!(
+            twin.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(
+                topo::clearance::CellBudget::Depth { .. }
+            ))
+        ),
+        "the filleted drum's known divergence at Interval is a depth refusal: {:?}",
+        twin.verdict
+    );
     let torus = body
         .faces()
         .map(|(k, _)| k)
@@ -784,8 +997,16 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     }
 }
 
+/// The unit disc on the `xy` sketch plane, at `T`.
+fn disc<T: Scalar>() -> ValidatedProfile<T> {
+    let disc = profile::circle(Point2::new(T::zero(), T::zero()), T::one(), tol()).unwrap();
+    Profile::new(SketchPlane::xy(), vec![disc.into()])
+        .validate(tol())
+        .unwrap()
+}
+
 /// The certified carrier of edge `e`, where it is an ellipse.
-fn is_ellipse(body: &Body<f64>, e: topo::EdgeKey) -> bool {
+fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
     matches!(
         body.get_curve_geom(body.get_edge(e).unwrap().curve)
             .unwrap()
@@ -796,9 +1017,9 @@ fn is_ellipse(body: &Body<f64>, e: topo::EdgeKey) -> bool {
 }
 
 /// `b` moved rigidly by `m`, at rest.
-fn moved(b: &topo::AtRestBody<f64>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<f64> {
+fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(m, tol());
+    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
     finished(
         "moved",
         topo::transform_rigid(b, &rigid, tol()).unwrap(),
@@ -808,7 +1029,7 @@ fn moved(b: &topo::AtRestBody<f64>, m: &geom_core::Affine3<f64>) -> topo::AtRest
 
 /// The box `(-50, 50)² × (-100, top)`, at rest: a half-space below
 /// `z = top` within reach of every body here.
-fn slab(top: f64) -> topo::AtRestBody<f64> {
+fn slab<T: Scalar>(top: f64) -> topo::AtRestBody<T> {
     use sweep::test_support::{brick, finished};
     finished(
         "the slab",
@@ -818,7 +1039,7 @@ fn slab(top: f64) -> topo::AtRestBody<f64> {
 }
 
 /// The body a boolean built.
-fn built(r: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> topo::AtRestBody<f64> {
+fn built<T: Real>(r: Result<topo::BooleanResult<T>, topo::BooleanError>) -> topo::AtRestBody<T> {
     match r {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the op builds: {other:?}"),
@@ -827,12 +1048,16 @@ fn built(r: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> topo::AtRes
 
 /// The radius-1 rod `prism_at` builds round the `z` axis over `z`: a
 /// disc of two half-circle arcs, extruded.
-fn rod((z0, z1): (f64, f64)) -> topo::AtRestBody<f64> {
+fn rod<T: Scalar>((z0, z1): (f64, f64)) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
+    let at = T::from_f64;
     let rod = sweep::test_support::prism_at(
-        vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
-        z0,
-        z1 - z0,
+        vec![
+            (Point2::new(at(-1.0), T::zero()), T::one()),
+            (Point2::new(T::one(), T::zero()), T::one()),
+        ],
+        at(z0),
+        at(z1 - z0),
         tol(),
     );
     finished("the rod", rod, tol())
@@ -843,17 +1068,13 @@ fn rod((z0, z1): (f64, f64)) -> topo::AtRestBody<f64> {
 /// tilted `π/7` about `y`. The extrusion splits its wall in halves, so
 /// the cut is two open arcs of one ellipse, meeting the halves' seam
 /// lines at two vertices.
-fn oblique_cut() -> topo::AtRestBody<f64> {
+fn oblique_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::finished;
-    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
-    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol())
-        .unwrap();
     let drum = finished(
         "the drum",
-        extrude(&profile, to_offset(2.0), tol()).unwrap().body,
+        extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
         tol(),
     );
     let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
@@ -873,15 +1094,14 @@ fn oblique_cut() -> topo::AtRestBody<f64> {
 /// lines are then placed nowhere and the caps refuse beside them).
 #[test]
 fn a_kernel_built_oblique_cut_holds_across_its_curved_corners() {
-    let cut = oblique_cut();
+    let cut = oblique_cut::<f64>();
     let arcs = cut.edges().filter(|&(k, _)| is_ellipse(&cut, k)).count();
     assert_eq!(arcs, 2, "two open arcs of the cut");
-    let report = injective(&cut, None, BUDGET);
-    println!(
-        "[corner] oblique cut: cornered = {} {:?} {:?}",
-        report.cornered, report.verdict, report.receipt
+    let report = holds_at_both(
+        "the oblique cut",
+        cut.into_body(),
+        oblique_cut::<Interval>().into_body(),
     );
-    assert_holds("the oblique cut", &report, &cut);
     assert_eq!(
         report.cornered, 14,
         "the corners are certified by the corner presentation"
@@ -891,7 +1111,7 @@ fn a_kernel_built_oblique_cut_holds_across_its_curved_corners() {
 /// [`rod`] over `z` less the half-space below the plane through the
 /// origin tilted `π/5` about `y`: like [`oblique_cut`], two open arcs of
 /// an ellipse meeting the rod's two seam lines.
-fn rod_less_a_tilted_slab(z: (f64, f64)) -> topo::AtRestBody<f64> {
+fn rod_less_a_tilted_slab<T: Scalar>(z: (f64, f64)) -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 5.0);
@@ -903,13 +1123,12 @@ fn rod_less_a_tilted_slab(z: (f64, f64)) -> topo::AtRestBody<f64> {
 /// cut's row is.
 #[test]
 fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
-    let cut = rod_less_a_tilted_slab((-3.0, 3.0));
-    let report = injective(&cut, None, BUDGET);
-    println!(
-        "[corner] rod at pi/5: cornered = {} {:?} {:?}",
-        report.cornered, report.verdict, report.receipt
+    let z = (-3.0, 3.0);
+    let report = holds_at_both(
+        "the rod less the tilted slab",
+        rod_less_a_tilted_slab(z).into_body(),
+        rod_less_a_tilted_slab(z).into_body(),
     );
-    assert_holds("the rod less the tilted slab", &report, &cut);
     assert_eq!(report.cornered, 14, "the corners are read through");
 }
 
@@ -920,13 +1139,12 @@ fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
 /// the halves' seam lines placed nowhere.
 #[test]
 fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
-    let cut = rod_less_a_tilted_slab((-6.0, 6.0));
-    let report = injective(&cut, None, BUDGET);
-    println!(
-        "[corner] tall rod at pi/5: cornered = {} {:?} {:?}",
-        report.cornered, report.verdict, report.receipt
+    let z = (-6.0, 6.0);
+    holds_at_both(
+        "the tall rod less the tilted slab",
+        rod_less_a_tilted_slab(z).into_body(),
+        rod_less_a_tilted_slab(z).into_body(),
     );
-    assert_holds("the tall rod less the tilted slab", &report, &cut);
 }
 
 /// **SHELL-4's vessel holds**: `vessel(1.0, 2.0)`, a rectangle with a
@@ -939,13 +1157,8 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// no corner (`cornered` 0).
 #[test]
 fn shell_4s_vessel_holds() {
-    let vessel = crate::common::shell_operands::vessel(1.0, 2.0);
-    let report = injective(&vessel, None, BUDGET);
-    println!(
-        "[corner] vessel: cornered = {} {:?} {:?}",
-        report.cornered, report.verdict, report.receipt
-    );
-    assert_holds("the vessel", &report, &vessel);
+    use crate::common::shell_operands::vessel_at;
+    holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0));
 }
 
 /// **A cylinder–cylinder tee refuses typed where its junction meets a
@@ -961,18 +1174,32 @@ fn shell_4s_vessel_holds() {
 /// never measured by distance, and without splitting to the floor.
 #[test]
 fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
-    use core::f64::consts::{FRAC_PI_2, PI};
-    use geom_core::{Affine3, Vec3};
-    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
-    let a = built(topo::subtract(
-        &rod((-3.0, 3.0)),
-        &moved(&slab(0.0), &tilt),
-        tol(),
-    ));
-    let onto_x = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
-    let b = moved(&rod((0.2, 3.0)), &onto_x);
-    let tee = built(topo::union(&a, &b, tol()));
-    let tee: &Body<f64> = &tee;
+    fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        use geom_core::{Affine3, Vec3};
+        let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+        let a = built(topo::subtract(
+            &rod((-3.0, 3.0)),
+            &moved(&slab(0.0), &tilt),
+            tol(),
+        ));
+        let onto_x = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+        let b = moved(&rod((0.2, 3.0)), &onto_x);
+        topo::union(&a, &b, tol())
+    }
+    // The known divergence `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span`
+    // (CLEAVE): at `Interval` the union does not build, so there is no
+    // body to ask.
+    match tee_at::<Interval>() {
+        Err(topo::BooleanError::Escalated { diag, .. })
+            if diag.predicate == Some("bool_ruled_region_span") && diag.margin.is_invalid() => {}
+        other => panic!(
+            "the tee's known divergence at Interval is the union's poison span: {:?}",
+            other.map(|_| ())
+        ),
+    }
+    let built = built(tee_at::<f64>());
+    let tee: &Body<f64> = &built;
     let report = injective(tee, None, BUDGET);
     println!(
         "[corner] tee: cornered = {} {:?} {:?}",
@@ -1028,14 +1255,23 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
 /// the sweep calls.
 #[test]
 fn a_folded_oblique_cut_reads_violated_off_its_corners() {
-    use geom_core::{Affine3, Vec3};
-    let cut = oblique_cut();
-    let mut folded = cut.clone().into_body();
-    let over = Affine3::translation(Vec3::new(0.3, 0.0, 0.0));
-    let rigid = geom_core::test_support::rigid(&over, tol());
-    let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
-    topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+    fn folded_at<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let cut = oblique_cut::<T>();
+        let mut folded = cut.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.3, 0.0, 0.0)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    let folded = folded_at::<f64>();
     let report = injective(&folded, None, BUDGET);
+    same_class(
+        "the folded cut",
+        &report,
+        &injective(&folded_at::<Interval>(), None, BUDGET),
+    );
     println!(
         "[corner] folded cut: {:?} {:?}",
         report.verdict, report.receipt

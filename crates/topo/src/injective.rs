@@ -48,13 +48,17 @@
 //!
 //! # The ε concessions
 //!
-//! A presentation drops points of the face in six places, each stated
+//! A presentation drops points of the face in seven places, each stated
 //! where it is decided. Every point dropped lies within a few ulps, in
 //! the chart, of a line the face's boundary or extent is placed on, or
 //! within a few ulps, in the curve's parameter, of a closed edge's
 //! vertex, or within the band, in metres, of a shared edge's image or
 //! of a corner's other edge:
 //!
+//! - **the strip** ([`crate::clearance`]'s `iso_of`): a harmonic chart
+//!   image whose held channel's oscillation is enclosed within a few ulps
+//!   of zero, scaled by its edge's magnitude, reads as a coordinate
+//!   line, its value the strip the oscillation sweeps;
 //! - **the sliver** ([`SLIVER`], [`present_chart`]): a rectangle within
 //!   the band of a shared line reads as holding nothing off it;
 //! - **the sheet's overlap** ([`sheets`]): a cell overlapping a copy of
@@ -157,7 +161,7 @@ impl Axis {
     }
 
     /// Its index in a `[u, v]` pair.
-    fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         match self {
             Self::U => 0,
             Self::V => 1,
