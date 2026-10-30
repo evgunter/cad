@@ -20,3 +20,28 @@ A (Opus, byte 142 even) first report, 09:18Z.
   - Recourse::words says "assert" for unassertable kinds;
   - SurfaceTangent carries no sense.
 - Wants the DS3 knob row in the same [ev] PR.
+
+## First report, B (09:26Z)
+- **Answer:** keep "an assertion quiets when it says the same" and add vocabulary.
+  1. A tangency is a gap of zero: add Gap arms (plane×cyl, plane×sphere, cyl×sphere, external cyl×cyl).
+  2. A measure's reference may be a pose (point, axis, plane), so pose coincidences are said by `Distance = 0` or `Gap = 0` over poses: "whatever a mate can construct, an assertion can claim".
+  3. [intent.checked] names the unsayable: the blend turn's feet and written-value equality, recourse construction only, never refusing.
+- **Flush:** it would let a flush pair quiet via `Distance = 0` over the planes, reopening Ev's PR 5555 flush ruling unless the clause says why.
+- **Argument:** overconstrained placements cannot take the mate, so they need a checked claim.
+- **Confidence:** likely.
+- Rejected the framing: partly (three problems, not one).
+- Changes to ratified text: yes ([intent.checked], [assertions.quiet], [coincidence] constructing, [assertions] flush).
+- **Provenance:** [intent.checked]'s sentence is 00f48c9dcc in PR 5230, agent-authored; the Gap-only rule is c0b81b07d3, Ev's, on PR 4319.
+
+## Comparison after the first reports
+- **Agree:**
+  - an opposed tangency is a contact (Gap curved arms, which read material);
+  - the blend turn's common foot and SameRadius are construction-only;
+  - recourse is chosen by row kind;
+  - the sym P1 blocks BatteryTurn;
+  - a-row-over-a-pose folds in;
+  - the DS3 knob follows.
+- **Split (core):**
+  - for pose coincidences (coaxial, centre on an axis, axes meet, split ON, joints): A says construction only, no assertion; B says an assertion over poses quiets them;
+  - flush: A builds on Ev's PR 5555 ruling, B would reopen it.
+- **Round 1 of reconciliation:** each is shown the other's report.
