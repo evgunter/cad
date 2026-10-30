@@ -62,7 +62,7 @@
 //! such a sector twice at any width and the convex argument above does
 //! not hold. The plane's side along the rulings is monotone between its
 //! two extremal rulings, so the sector is subdivided at each extremal
-//! ruling strictly inside it instead ([`crate::sector_shape::apex_shape`]):
+//! ruling strictly inside it instead ([`crate::sector_shape::apex_corner_shape`]):
 //! between consecutive entries the side then changes at most once, which
 //! is what the run scan reads. Those entries are the walk's
 //! `WideBisector` duplicates, up to two in one sector (a window over a

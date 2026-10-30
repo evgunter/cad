@@ -1415,7 +1415,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // the null edge as a spike [he_plus, he_minus] into this corner: a
         // run holding every real edge of the orbit, which leaves the In
         // side strictly inside the one physical sector before `first`,
-        // or a lone bisector, inside the sector before `after`.
+        // or bisector entries alone, inside the sector before `after`.
         let (site, strut_corner) = match (first, last) {
             (Some(first), Some(last)) => {
                 match piercing_body
@@ -1432,18 +1432,25 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             _ => {
-                // The run is one bisector entry, P's second piece (a
-                // sector has one bisector at most), so `after` is P's
-                // orbit successor Q, and runs being maximal, neither
-                // P's real entry nor Q's is Out. The other run's mint
-                // moves only Out real halves, and splices only before
-                // its first half, the successor of its last, or its
-                // own `after`, whose predecessor is another sector:
-                // none is Q. So the corner is still `after`'s at
-                // `vertex` whichever run mints first, and the table's
-                // read stands (minting struts first would reorder
-                // `out.edges` and the ring struts with them).
-                let after = entries[(run.0 + run.1) % n].he;
+                // The run is bisector entries alone, inside one corner P:
+                // a wide sector's one, or a slit tip's full turn's
+                // quarters, of which a plane through the tip leaves a run
+                // on each side. Every entry of P carries P's half-edge,
+                // so `after` is the first real entry past the run, P's
+                // orbit successor Q, and runs being maximal, neither P's
+                // real entry nor Q's is Out. The other run's mint moves
+                // only Out real halves, and splices only before its first
+                // half, the successor of its last, or its own `after`,
+                // whose predecessor is another corner or P itself, before
+                // the same Q: none moves Q off `vertex`. So the corner is
+                // still `after`'s at `vertex` whichever run mints first,
+                // and the table's read stands (minting struts first would
+                // reorder `out.edges` and the ring struts with them).
+                let after = (run.0 + run.1..run.0 + run.1 + n)
+                    .map(|j| entries[j % n])
+                    .find(|e| e.is_edge)
+                    .unwrap_or_else(|| unreachable!("an orbit has a real half-edge"))
+                    .he;
                 if piercing_body.proven_orbit_step(sectors[run.0].he) != after
                     || proven(&piercing_body.half_edges, after, EntityId::HalfEdge).start != vertex
                 {

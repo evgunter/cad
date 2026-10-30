@@ -304,11 +304,11 @@ fn a_split_through_the_apex_at_the_slits_tip_builds() {
     }
 }
 
-/// **Review: the split through the apex with each normal reversed**, the
+/// **The split through the apex with each normal reversed**, the
 /// slit's edges and the cavity below the plane, and through planes
 /// holding or nearly holding the slit's ruling, the cavity above.
 #[test]
-fn review_a_split_through_the_apex_reversed_or_near_the_slit_builds() {
+fn a_split_through_the_apex_reversed_or_near_the_slit_builds() {
     let body = topo::test_support::finished("the notched cone", notched_cone(), tol());
     for n in [
         Vec3::new(0.0, -1.0, 0.0),

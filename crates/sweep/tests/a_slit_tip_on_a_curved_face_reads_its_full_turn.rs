@@ -15,12 +15,15 @@
 //! between the walls with the bore's face running through it,
 //! `work/splitdoor/a-keel-on-a-cylinders-ruling-subtracts-with-the-bore-through-its-wedge.md`.)
 //!
-//! Through the tip, the plane `z = 2` and one tilted about y, both slit
-//! edges above: the split and the Boolean against a slab whose top is
-//! the plane both read the vertex against the sections the plane ends
-//! there (`topo::vertex_section`), where the bore's sector at the tip
-//! is the full turn, and each side holds its closed form and passes
-//! tiers 3 and 3′.
+//! Through the tip, the plane `z = 2` and one tilted about y: the split,
+//! under either normal, and the Boolean against a slab whose top is the
+//! plane, both read the vertex against the sections the plane ends there
+//! (`topo::vertex_section`), where the bore's sector at the tip is the
+//! full turn. A box whose bottom holds the tip and the slit's edges, on
+//! the bore's block and on its planar twin (the bore a square slot),
+//! cuts the full turn into strut runs of its quarters
+//! (`boolean::vtxfac`). Each result holds its closed form, either way
+//! round, and passes tiers 3 and 3′.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -216,44 +219,45 @@ fn the_block_carries_the_keel_as_a_slit_of_the_bore() {
     assert_eq!(bores[0], bores[1], "both keel edges bound one bore face");
 }
 
-/// **Split through the tip**: each side holds its closed form.
+/// **Split through the tip**, under either normal: each side holds its
+/// closed form.
 #[test]
 fn a_split_through_the_slits_tip_on_the_bore_builds() {
     let body = slit_block();
     for (s, below) in planes() {
-        let n = Vec3::new(-s, 0.0, 1.0);
-        let plane = topo::test_support::split_plane(TIP, n / n.norm(), tol());
-        let what = format!("the split along z = 2 + {s}·(x − 1)");
-        let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
-        for (side, part, want) in [
-            ("above", &r.above, whole() - below),
-            ("below", &r.below, below),
-        ] {
-            let SplitPart::Body(b) = part else {
-                panic!("{what}: nothing {side}");
+        for up in [1.0, -1.0] {
+            let n = Vec3::new(-s, 0.0, 1.0) * up;
+            let plane = topo::test_support::split_plane(TIP, n / n.norm(), tol());
+            let what = format!("the split along z = 2 + {s}·(x − 1), normal {n:?}");
+            let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let (above, below) = if up > 0.0 {
+                (whole() - below, below)
+            } else {
+                (below, whole() - below)
             };
-            holds(&format!("{what}, {side}"), b, want);
+            for (side, part, want) in [("above", &r.above, above), ("below", &r.below, below)] {
+                let SplitPart::Body(b) = part else {
+                    panic!("{what}: nothing {side}");
+                };
+                holds(&format!("{what}, {side}"), b, want);
+            }
         }
     }
 }
 
-/// **The Boolean against a slab whose top runs through the tip**: the
-/// part below and the part above hold their closed forms.
+/// **The Boolean against a slab whose top runs through the tip**, the
+/// slit's edges above it: each op, either way round, holds its closed
+/// form.
 #[test]
 fn a_slab_topped_through_the_slits_tip_on_the_bore_cuts_it() {
     let body = slit_block();
     for (s, below) in planes() {
-        let slab = slab(Vec3::new(-s, 0.0, 1.0));
-        let what = format!("the slab under z = 2 + {s}·(x − 1)");
-        holds(
-            &format!("{what}, ∩"),
-            &body_of(intersect(&body, &slab, tol()), &what),
+        cuts(
+            &format!("the slab under z = 2 + {s}·(x − 1)"),
+            &body,
+            &slab(Vec3::new(-s, 0.0, 1.0)),
+            whole(),
             below,
-        );
-        holds(
-            &format!("{what}, ∖"),
-            &body_of(subtract(&body, &slab, tol()), &what),
-            whole() - below,
         );
     }
 }
@@ -263,103 +267,10 @@ fn box_over((y0, y1): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
     prism(&[(-5.0, y0), (5.0, y0), (5.0, y1), (-5.0, y1)], z0, z1 - z0)
 }
 
-/// **Review: a tool whose bottom face holds the tip, the slit's edges
-/// inside it** — the slab rows' tool on the plane's other side. The box
-/// `z ∈ [2, 3]` crosses both keel edges at `z = 3`; `z ∈ [2, 5]` holds
-/// them whole, so the crossing is not what this row reads. On main each
-/// op refuses `Escalated { Coincidence(SectorSide, Moot) }`; on the
-/// reviewed head each panics at `boolean::vtxfac`'s "the bisector run's
-/// corner … left the vertex or gained a half".
-#[test]
-fn review_a_box_whose_bottom_holds_the_tip_cuts_it() {
-    let body = slit_block();
-    for (z1, inside) in [
-        (3.0, section().0 - TRENCH.0),
-        (5.0, 2.0 * section().0 - 2.0 * TRENCH.0),
-    ] {
-        let tool = box_over((-5.0, 5.0), (2.0, z1));
-        for (what, r, want) in [
-            ("body ∩ box", intersect(&body, &tool, tol()), inside),
-            ("box ∩ body", intersect(&tool, &body, tol()), inside),
-            (
-                "body ∖ box",
-                subtract(&body, &tool, tol()),
-                whole() - inside,
-            ),
-        ] {
-            holds(&format!("z ∈ [2, {z1}], {what}"), &body_of(r, what), want);
-        }
-    }
-}
-
-/// **Review: a tool whose face holds the slit's edges.** The box
-/// `y ≤ 0, z ≥ 2`: its face `y = 0` holds the keel, its bottom the tip.
-#[test]
-fn review_a_box_whose_face_holds_the_slit_cuts_it() {
-    let body = slit_block();
-    let tool = box_over((-5.0, 0.0), (2.0, 5.0));
-    let inside = 2.0 * (section().0 / 2.0 - TRENCH.0 / 2.0);
-    for (what, r, want) in [
-        ("body ∩ half box", intersect(&body, &tool, tol()), inside),
-        ("half box ∩ body", intersect(&tool, &body, tol()), inside),
-        (
-            "body ∖ half box",
-            subtract(&body, &tool, tol()),
-            whole() - inside,
-        ),
-    ] {
-        holds(what, &body_of(r, what), want);
-    }
-}
-
-/// **Review: a box from below the tip to above it** (`z ∈ [1, 3]`): the
-/// tip inside the tool, no face through it.
-#[test]
-fn review_a_box_round_the_tip_cuts_it() {
-    let body = slit_block();
-    let tool = box_over((-5.0, 5.0), (1.0, 3.0));
-    let inside = 2.0 * section().0 - TRENCH.0;
-    for (what, r, want) in [
-        ("body ∩ box", intersect(&body, &tool, tol()), inside),
-        (
-            "body ∖ box",
-            subtract(&body, &tool, tol()),
-            whole() - inside,
-        ),
-    ] {
-        holds(what, &body_of(r, what), want);
-    }
-}
-
-/// **Review: the split through the tip, its normal reversed**, the slit's
-/// edges below the plane.
-#[test]
-fn review_a_split_through_the_tip_reversed_builds() {
-    let body = slit_block();
-    for (s, below) in planes() {
-        let n = -Vec3::new(-s, 0.0, 1.0);
-        let plane = topo::test_support::split_plane(TIP, n / n.norm(), tol());
-        let what = format!("the split along z = 2 + {s}·(x − 1), reversed");
-        let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
-        for (side, part, want) in [
-            ("above", &r.above, below),
-            ("below", &r.below, whole() - below),
-        ] {
-            let SplitPart::Body(b) = part else {
-                panic!("{what}: nothing {side}");
-            };
-            holds(&format!("{what}, {side}"), b, want);
-        }
-    }
-}
-
-/// Review probe: the bottom-at-the-tip box against the planar twin
-/// (the bore a square slot `x ∈ [0, 1]`, `|y| ≤ 1`, its wall `x = 1`
-/// holding the keel), each op's outcome printed.
-#[test]
-#[ignore = "review probe"]
-fn review_probe_the_planar_twin() {
-    let body = sides_of(prism(
+/// The planar twin: the bore a square slot `x ∈ [0, 1]`, `|y| ≤ 1`, its
+/// wall `x = 1` holding the keel, less the same trench.
+fn slotted_block() -> AtRestBody<f64> {
+    sides_of(prism(
         &[
             (0.0, -2.0),
             (4.0, -2.0),
@@ -372,35 +283,108 @@ fn review_probe_the_planar_twin() {
         ],
         0.0,
         4.0,
-    ));
-    println!(
-        "PROBE twin: {}",
-        topo::test_support::pinned_volume("twin", &body, tol()).volume
+    ))
+}
+
+/// The slot's cross-section area.
+const SLOTTED: f64 = 14.0;
+
+/// Holds each of `body ∩ tool`, `tool ∩ body` and `body ∖ tool` to its
+/// closed form, `inside` the volume they share.
+fn cuts(what: &str, body: &AtRestBody<f64>, tool: &AtRestBody<f64>, whole: f64, inside: f64) {
+    for (op, r, want) in [
+        ("body ∩ tool", intersect(body, tool, tol()), inside),
+        ("tool ∩ body", intersect(tool, body, tol()), inside),
+        ("body ∖ tool", subtract(body, tool, tol()), whole - inside),
+    ] {
+        let what = format!("{what}, {op}");
+        holds(&what, &body_of(r, &what), want);
+    }
+}
+
+/// The box over `z ∈ [2, z1]`, its bottom face holding the tip and the
+/// slit's edges inside it, the slab rows' tool on the plane's other
+/// side, against `body` of cross-section `area`: to `z = 3` it crosses
+/// both keel edges, to `z = 5` it holds them whole. The plane cuts the
+/// full turn at the tip into strut runs of its quarters
+/// (`boolean::vtxfac`).
+fn box_on_the_tip(what: &str, body: &AtRestBody<f64>, area: f64) {
+    let whole = 4.0 * area - 2.0 * TRENCH.0;
+    for z1 in [3.0_f64, 5.0] {
+        cuts(
+            &format!("{what}, the box z ∈ [2, {z1}]"),
+            body,
+            &box_over((-5.0, 5.0), (2.0, z1)),
+            whole,
+            (z1.min(4.0) - 2.0) * (area - TRENCH.0),
+        );
+    }
+}
+
+/// **A box whose bottom holds the tip cuts the bore's block.**
+#[test]
+fn a_box_whose_bottom_holds_the_slits_tip_cuts_the_bore() {
+    box_on_the_tip("the bore's block", &slit_block(), section().0);
+}
+
+/// **A box whose bottom holds the tip cuts the planar twin**, the slot's
+/// wall `x = 1` holding the keel.
+#[test]
+fn a_box_whose_bottom_holds_the_slits_tip_cuts_the_slot() {
+    box_on_the_tip("the slotted block", &slotted_block(), SLOTTED);
+}
+
+/// **A tool whose face holds the slit's edges.** The box `y ≤ 0, z ≥ 2`:
+/// its face `y = 0` holds the keel, its bottom the tip.
+#[test]
+fn a_box_whose_face_holds_the_slit_cuts_it() {
+    cuts(
+        "the half box",
+        &slit_block(),
+        &box_over((-5.0, 0.0), (2.0, 5.0)),
+        whole(),
+        section().0 - TRENCH.0,
     );
-    for (z0, z1) in [(2.0, 3.0), (1.0, 2.0)] {
-        let tool = box_over((-5.0, 5.0), (z0, z1));
-        for (what, swap, sub) in [
-            ("∩", false, false),
-            ("swapped ∩", true, false),
-            ("∖", false, true),
-        ] {
-            let (a, b) = if swap { (&tool, &body) } else { (&body, &tool) };
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                if sub {
-                    subtract(a, b, tol())
-                } else {
-                    intersect(a, b, tol())
+}
+
+/// **A box from below the tip to above it** (`z ∈ [1, 3]`): the tip
+/// inside the tool, no face through it.
+#[test]
+fn a_box_round_the_slits_tip_cuts_it() {
+    cuts(
+        "the box z ∈ [1, 3]",
+        &slit_block(),
+        &box_over((-5.0, 5.0), (1.0, 3.0)),
+        whole(),
+        2.0 * section().0 - TRENCH.0,
+    );
+}
+
+/// **The box less the block refuses typed**: it keeps the trench's V
+/// and the bore's (or slot's) space, which meet along the keel, four
+/// sheets on one line, a pairing the Boolean does not build
+/// (`work/cleave/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
+/// It refuses by name, on the keel.
+#[test]
+fn the_box_less_the_block_refuses_the_four_sheets_at_the_keel() {
+    for (what, body) in [
+        ("the bore's block", slit_block()),
+        ("the slotted block", slotted_block()),
+    ] {
+        for (z0, z1) in [(2.0, 3.0), (1.0, 3.0)] {
+            let what = format!("the box z ∈ [{z0}, {z1}] less {what}");
+            match subtract(&box_over((-5.0, 5.0), (z0, z1)), &body, tol()) {
+                Err(topo::BooleanError::LineWedges { from, to, .. }) => {
+                    for end in [from, to] {
+                        assert!(
+                            end.starts_with("(1.0, ")
+                                && (end.ends_with(", 2.0)") || end.ends_with(", 3.0)")),
+                            "{what}: refuses on the keel, not at {end}"
+                        );
+                    }
                 }
-            }));
-            let out = match r {
-                Err(_) => "PANIC".to_string(),
-                Ok(Ok(BooleanResult::Body(b))) => format!(
-                    "body {}",
-                    topo::test_support::pinned_volume(what, &b.body, tol()).volume
-                ),
-                Ok(other) => format!("{other:?}"),
-            };
-            println!("PROBE twin z∈[{z0},{z1}] {what}: {out:.200}");
+                other => panic!("{what}: {other:?}"),
+            }
         }
     }
 }

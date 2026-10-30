@@ -1113,7 +1113,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         read_then_requeue(
                             &mut worklist,
-                            (x, x_is, edge_key, &edge),
+                            (x, tips, x_is, edge_key, &edge),
                             y,
                             w,
                             j,
@@ -1140,7 +1140,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         push_vv(contacts, x_is, w, wy, on);
                         read_then_requeue(
                             &mut worklist,
-                            (x, x_is, edge_key, &edge),
+                            (x, tips, x_is, edge_key, &edge),
                             y,
                             w,
                             j,
@@ -1165,7 +1165,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         push_vv(contacts, x_is, w, vy, on);
                         read_then_requeue(
                             &mut worklist,
-                            (x, x_is, edge_key, &edge),
+                            (x, tips, x_is, edge_key, &edge),
                             y,
                             w,
                             j,
@@ -1380,7 +1380,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     push_vf(contacts, x_is, w, face, on);
                                     read_then_requeue(
                                         &mut worklist,
-                                        (x, x_is, edge_key, &edge),
+                                        (x, tips, x_is, edge_key, &edge),
                                         y,
                                         w,
                                         j,
@@ -1415,7 +1415,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     push_vv(contacts, x_is, w, wy, on);
                                     read_then_requeue(
                                         &mut worklist,
-                                        (x, x_is, edge_key, &edge),
+                                        (x, tips, x_is, edge_key, &edge),
                                         y,
                                         w,
                                         j,
@@ -1441,7 +1441,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     push_vv(contacts, x_is, w, vy, on);
                                     read_then_requeue(
                                         &mut worklist,
-                                        (x, x_is, edge_key, &edge),
+                                        (x, tips, x_is, edge_key, &edge),
                                         y,
                                         w,
                                         j,
@@ -1524,7 +1524,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             push_vf(contacts, x_is, w, face, on);
                             read_then_requeue(
                                 &mut worklist,
-                                (x, x_is, edge_key, &edge),
+                                (x, tips, x_is, edge_key, &edge),
                                 y,
                                 w,
                                 j + 1,
@@ -1559,7 +1559,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             push_vv(contacts, x_is, w, wy, on);
                             read_then_requeue(
                                 &mut worklist,
-                                (x, x_is, edge_key, &edge),
+                                (x, tips, x_is, edge_key, &edge),
                                 y,
                                 w,
                                 j + 1,
@@ -1585,7 +1585,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             push_vv(contacts, x_is, w, vy, on);
                             read_then_requeue(
                                 &mut worklist,
-                                (x, x_is, edge_key, &edge),
+                                (x, tips, x_is, edge_key, &edge),
                                 y,
                                 w,
                                 j + 1,
@@ -5283,6 +5283,16 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     vertex_on_face(x_is, y, w, p, face, plane, on.margin, contacts, band, tol)
 }
 
+/// The swept solid `x`, its slit tips at rest, which operand it is, and
+/// an edge of it with its key.
+type XEdge<'a, T> = (
+    &'a Body<T>,
+    &'a SlitTips,
+    Operand,
+    EdgeKey,
+    &'a crate::entity::Edge,
+);
+
 /// Reads `w`, a vertex a split minted on `edge` of `x`, against each
 /// face of `lying_in` as the edge's ends were read, then requeues the
 /// edge's two pieces from face index `next_face`, carrying `lying_in`
@@ -5290,7 +5300,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
 #[allow(clippy::too_many_arguments)]
 fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
     worklist: &mut std::collections::VecDeque<Pending>,
-    (x, x_is, parent, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
+    (x, tips, x_is, parent, edge): XEdge<'_, T>,
     y: &mut Body<T>,
     w: VertexKey,
     next_face: usize,
@@ -5301,7 +5311,7 @@ fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     read_lying_in(
-        (x, x_is, parent, edge),
+        (x, tips, x_is, parent, edge),
         y,
         w,
         lying_in,
@@ -5324,7 +5334,7 @@ fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
 /// frontier ([`BooleanError::CurvedPierceUnsupported`]).
 #[allow(clippy::too_many_arguments)]
 fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
-    (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
+    (x, tips, x_is, edge_key, edge): XEdge<'_, T>,
     y: &mut Body<T>,
     w: VertexKey,
     lying_in: &[LyingIn],
@@ -5341,9 +5351,8 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                     what: "a face an edge lies in lost its plane",
                 })?;
                 let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
-                // A vertex a split minted is no slit's tip at rest.
                 read_on_plane(
-                    (x, x_is, &SlitTips::default()),
+                    (x, x_is, tips),
                     y,
                     (w, p),
                     (face, &plane),
@@ -7874,7 +7883,13 @@ mod spline_face_rows {
         let edge = x.get_edge(ek).unwrap().clone();
         let w = x.split_edge(ek, 0.5, tol).unwrap().vertex;
         read_lying_in(
-            (&x, Operand::A, ek, &edge),
+            (
+                &x,
+                &crate::sector_shape::SlitTips::of(&x),
+                Operand::A,
+                ek,
+                &edge,
+            ),
             &mut y,
             w,
             &[LyingIn::Along(face)],
