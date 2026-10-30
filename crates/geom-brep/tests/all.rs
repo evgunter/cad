@@ -82,6 +82,8 @@ mod cert5_r1_patch_probes;
 mod chart_box_span;
 #[path = "chart_singularity_locate.rs"]
 mod chart_singularity_locate;
+#[path = "chart_singularity_review_probes.rs"]
+mod chart_singularity_review_probes;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
 

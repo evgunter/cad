@@ -129,6 +129,8 @@ mod recognize_pins;
 mod rev_import_probe;
 #[path = "review_band_probes.rs"]
 mod review_band_probes;
+#[path = "review_corpus_probe.rs"]
+mod review_corpus_probe;
 #[path = "review_k3_probe.rs"]
 mod review_k3_probe;
 #[path = "review_pole_vertex_probes.rs"]

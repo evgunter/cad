@@ -107,6 +107,8 @@ mod cell_pair_records;
 mod census_g2_carrier;
 #[path = "census_records_what_it_decides.rs"]
 mod census_records_what_it_decides;
+#[path = "chart_singularity_review_probes.rs"]
+mod chart_singularity_review_probes;
 #[path = "clearance_windows_on_a_spline_chart.rs"]
 mod clearance_windows_on_a_spline_chart;
 #[path = "coincident_line_wedges.rs"]
