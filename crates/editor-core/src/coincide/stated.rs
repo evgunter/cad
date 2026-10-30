@@ -375,3 +375,45 @@ fn side<P: crate::ProfilePayload>(
     }
     read
 }
+
+/// **The axis a frame's `z` is along, by construction**: the axis a
+/// [`crate::pose::PoseDef::Through`] frame is read through, kept by a
+/// slide (which moves no direction), a flip (which reverses it), and a
+/// spin about an axis one class with it (`stated`). Its direction alone:
+/// a slide across it moves the line, never the heading. `None` where
+/// the frame is read any other way, or a spin turns its `z`.
+pub(crate) fn frame_z<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    stated: &Stated,
+    frame: crate::VarId,
+    tol: geom_core::Tol,
+) -> Option<Key> {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    // An axis read: a frame's `z`, or an axis read where it stands.
+    let axis = |read: &RoleRead<crate::VarId>| match read.role {
+        Some(PoseRole::Z) => frame_z(doc, stated, read.read, tol),
+        Some(_) => None,
+        None => (doc.var(read.read).map(crate::Var::kind) == Some(crate::VarKind::Axis))
+            .then(|| pose_at(doc, *read, tol))
+            .flatten()
+            .map(|(at, _)| Key {
+                kind: crate::VarKind::Axis,
+                at,
+            }),
+    };
+    let crate::var::VarDef::Pose(def) = doc.var(frame).map(crate::Var::def)? else {
+        return None;
+    };
+    match def {
+        PoseDef::Through { axis: z, .. } => axis(z),
+        PoseDef::Slide { pose, .. } | PoseDef::Flip { pose } if pose.role.is_none() => {
+            frame_z(doc, stated, pose.read, tol)
+        }
+        PoseDef::Spin { pose, about, .. } if pose.role.is_none() => {
+            let z = frame_z(doc, stated, pose.read, tol)?;
+            let about = axis(about)?;
+            stated.sense(&z, &about).is_some().then_some(z)
+        }
+        _ => None,
+    }
+}

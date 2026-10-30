@@ -22,7 +22,7 @@ use editor_core::{
 use geom::SurfaceKind;
 use geom_core::Tol;
 
-fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
+pub(crate) fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         None,
@@ -34,19 +34,19 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// The cylinder's radius, meters, as the boss scene of stage 6 A types
 /// it (`corpus/boss_tangent_by_value.rs`).
-const RADIUS: f64 = 0.5;
+pub(crate) const RADIUS: f64 = 0.5;
 /// The cylinder's height.
 const HEIGHT: f64 = 1.0;
 /// The boss's reach along `x`, and its back wall.
 const REACH: f64 = 1.0;
 const BACK: f64 = -0.25;
 /// The boss's height.
-const BOSS_H: f64 = 0.5;
+pub(crate) const BOSS_H: f64 = 0.5;
 
 /// A document holding the free variable `r` at `radius`, and a cylinder
 /// of radius `r` standing on its own xy plane: the document, the
 /// cylinder.
-fn cylinder(radius: f64, width: Option<f64>) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn cylinder(radius: f64, width: Option<f64>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("s6c_cylinder", Tol::witness());
     let (doc, _) = fixture::step(
         doc,
@@ -86,7 +86,7 @@ fn r() -> Formula {
 }
 
 /// The name of `node`'s face on a carrier of `kind`.
-fn face(ev: &Evaluation<f64>, node: RecipeNodeId, kind: SurfaceKind) -> StableName {
+pub(crate) fn face(ev: &Evaluation<f64>, node: RecipeNodeId, kind: SurfaceKind) -> StableName {
     all_faces(ev, node)
         .into_iter()
         .find(|n| face_carrier_kind(ev, node, n) == Ok(kind))
@@ -107,7 +107,7 @@ fn frame_at_origin(doc: &ProfileDoc, body: RecipeNodeId) -> Operand {
 /// the trace of its wall: up from `(0, BACK)` until it leaves the disc,
 /// then against the trace (its tangent there is `+x`) to `x = REACH`,
 /// down to `BACK` and home.
-fn boss_steps() -> Vec<ProgramStep<Formula>> {
+pub(crate) fn boss_steps() -> Vec<ProgramStep<Formula>> {
     vec![
         ProgramStep::At(len2([0.0, BACK])),
         ProgramStep::Toward {
@@ -131,9 +131,20 @@ fn boss_steps() -> Vec<ProgramStep<Formula>> {
 /// `(doc, cylinder, boss profile, boss extrude)`.
 fn traced_boss(radius: f64, width: Option<f64>, steps: Vec<ProgramStep<Formula>>) -> Scene {
     let (doc, cylinder) = cylinder(radius, width);
+    let frame = frame_at_origin(&doc, cylinder);
+    boss_on(doc, cylinder, frame, steps)
+}
+
+/// A boss drawn on `frame` tracing `cylinder`'s wall, extruded
+/// `BOSS_H`.
+pub(crate) fn boss_on(
+    doc: ProfileDoc,
+    cylinder: RecipeNodeId,
+    frame: Operand,
+    steps: Vec<ProgramStep<Formula>>,
+) -> Scene {
     let ev = eval(&doc);
     let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
-    let frame = frame_at_origin(&doc, cylinder);
     let (doc, footprint) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -160,11 +171,11 @@ fn traced_boss(radius: f64, width: Option<f64>, steps: Vec<ProgramStep<Formula>>
     }
 }
 
-struct Scene {
-    doc: ProfileDoc,
-    cylinder: RecipeNodeId,
-    footprint: RecipeNodeId,
-    boss: RecipeNodeId,
+pub(crate) struct Scene {
+    pub(crate) doc: ProfileDoc,
+    pub(crate) cylinder: RecipeNodeId,
+    pub(crate) footprint: RecipeNodeId,
+    pub(crate) boss: RecipeNodeId,
 }
 
 /// `node`'s body where it stands in its space: each vertex.
@@ -185,7 +196,7 @@ fn vertices<T: geom_core::Decide + topo::AtRestPolicy>(
 }
 
 /// The largest coordinate `axis` of `node`'s vertices.
-fn max_at(ev: &Evaluation<f64>, node: RecipeNodeId, axis: usize) -> f64 {
+pub(crate) fn max_at(ev: &Evaluation<f64>, node: RecipeNodeId, axis: usize) -> f64 {
     vertices(ev, node)
         .into_iter()
         .map(|p| p[axis])
@@ -558,10 +569,11 @@ fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
     );
 }
 
-/// **The union glues the constructed tangency, unproven until D**: the
-/// boss's wall and the cylinder's meet in one `SurfaceTangent` row at
-/// `TangentWitness`, reported unproven exactly as the value-typed
-/// boss's is today (stage 6 A); stage 6 D proves it.
+/// **The union glues the constructed tangency**: the boss's wall and
+/// the cylinder's meet in one `SurfaceTangent` row at `TangentWitness`.
+/// This frame's `z` is read off a rim, the wall's axis only at today's
+/// values, so the door leaves it unproven and asks for the axis read off
+/// the face (`intent_s6_d_tangency` proves the boss so drawn).
 #[test]
 fn the_union_records_the_constructed_tangency_unproven() {
     use editor_core::coincide::{self, Proof};
@@ -596,8 +608,14 @@ fn the_union_records_the_constructed_tangency_unproven() {
     let (row, proof) = tangent[0];
     assert_eq!(row.site, topo::DecisionSite::TangentWitness);
     assert!(
-        matches!(proof, Proof::Unproven { .. }),
-        "unproven until stage 6 D: {proof:?}"
+        matches!(
+            proof,
+            Proof::Unproven {
+                recourse: coincide::Recourse::ReadTheAxis,
+                ..
+            }
+        ),
+        "the frame is read off a rim: {proof:?}"
     );
 }
 
