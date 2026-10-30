@@ -2,7 +2,7 @@
 id: intent
 kind: program
 title: INTENT — build DESIGN.md D10, one way to say dependency, placement and intent
-status: ready
+status: active
 opened: 2026-10-03
 group: api/eval
 prefix: intent/
