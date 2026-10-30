@@ -2,13 +2,14 @@
 id: import-splits-a-foreign-face-or-edge-at-each-c0-knot
 kind: issue
 title: STEP import splits a foreign face or edge at each interior C⁰ knot at its door, so nothing imported carries a crease inside a cell
-status: review
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: M
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
 pr: 6013
 branch: foreign/c0-knot-split
+closed: 2026-10-30
 ---
 
 
@@ -44,3 +45,11 @@ Built and held as **draft PR 6013** (branch `foreign/c0-knot-split`), which stay
   3. re-times the conic quarter torus, in release and debug;
   4. runs the fix pass on the review's findings, un-drafts, and merges, closing this row with `pr: 6013`.
 - **Alongside:** EXCH's `step-import-promotes-torus-sphere-and-cone-nets` (P0) takes the common conics out of the split's reach, but the split does not wait on it.
+
+## Closed
+
+PR 6013, landed by QUAD's orchestrator (Landing, above). The import door splits a foreign chart or edge carrier at every interior knot of multiplicity at least its degree. The split is exact; samples only choose which side to test, and every side left out is certified clear by enclosures, so a crossing is never missed silently. The join keeps the carrier that runs through the vertex, so a line beside a straight spline joins as on main. Two spline halves at a C⁰ knot never join.
+
+**Conic quarter torus, release:** 162 one-span walls; import 5.54 s (the unsplit patch on main took 5.3 s); measure `Met` in 6.92 s at pad 4.12e-4, holding Pappus. Debug: the whole test takes 72.8 s.
+
+**Reviews:** a FULL review, a fix pass, then a delta FULL review and its fixes (`work/quad/log.md`, 2026-10-30). What the split still refuses is on `the-c0-knot-split-refuses-what-it-cannot-place`.

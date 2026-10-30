@@ -452,3 +452,6 @@ PR 5568's fix pass.
   - **The whole patch:** `Wall`, pad 8.64e-4 (main 2.87e-3), pending `[ev]` 6102.
   - **The rational 12×12 set-up** is 2.4× main, from the per-span counts themselves; recorded on `the-area-pass-at-32-cells-a-span-halves-a-one-span-faces-resolution`.
   - **Next:** land PR 6013.
+- 2026-10-30 — **PR 6013 lands** (head `a18f0eae`, green on hosted CI). Main was merged in at `98ba9e6a`; its one conflict was the conic test's `Stop`, kept at `Met`, as a release run reads it. The first gate's five reds were all 6013's own and fixed: the binding census, ruff, a fast-set row, the f64-interim ratchet lowered to 44, the bounds pin.
+  - **The split torus, release:** import 5.54 s, measure `Met` in 6.92 s. **Debug:** 72.8 s.
+  - FOREIGN's row is closed with pr 6013.
