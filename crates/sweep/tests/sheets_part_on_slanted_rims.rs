@@ -4,13 +4,15 @@
 //! by a plane through `(2, 0, 0)`. Where the cut rims cross there, the
 //! two walls leave the point to either side of the rims and part
 //! (`topo::boolean::reduce` `sheets_part`), so both rims split there.
-//! A cut plane slanted about the x axis makes that rim an ellipse.
+//! A cut plane slanted about the x axis makes that rim an ellipse; two
+//! slanted the same way about it, two ellipses in two planes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
+use geom_core::k_stats::Bracket;
+use geom_core::{Affine3, Arc2, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, RawLoop, Segment, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::Body;
@@ -80,28 +82,51 @@ fn op(o: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, 
     )
 }
 
-/// The inner rod below `z = 0` and the outer above `z = y·tan(tilt)`,
-/// their rims crossing at `(2, 0, 0)`.
-fn flat_and_slanted(tilt: f64) -> (Body<f64>, Body<f64>) {
+/// The inner rod below `z = y·tan(t_a)` and the outer above
+/// `z = y·tan(t_b)`, their rims crossing at `(2, 0, 0)`: a circle where
+/// a tilt is zero, an ellipse elsewhere, in two planes where the tilts
+/// differ.
+fn rims(t_a: f64, t_b: f64) -> (Body<f64>, Body<f64>) {
     (
-        cut(&rod(1.0, 1.0), 0.0, true),
-        cut(&rod(2.0, 0.0), tilt, false),
+        cut(&rod(1.0, 1.0), t_a, true),
+        cut(&rod(2.0, 0.0), t_b, false),
     )
 }
 
-/// The ops on [`flat_and_slanted`] at `tilt`, each held to its closed
-/// form, tiers 1–3, and tier 3′ where `census` says it passes.
+/// `o` on `x` and `y`, with the signs `bool_touch_sheets_part` decided
+/// on the way, in decision order.
+fn op_reading_the_parting(
+    o: BooleanOp,
+    x: &Body<f64>,
+    y: &Body<f64>,
+) -> (Result<BooleanResult<f64>, BooleanError>, Vec<Sign>) {
+    let bracket = Bracket::open();
+    let got = op(o, x, y);
+    let parted = bracket
+        .finish()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == "bool_touch_sheets_part")
+        .map(|v| v.sign)
+        .collect();
+    (got, parted)
+}
+
+/// The ops on [`rims`] at `(t_a, t_b)`, each held to its closed form,
+/// tiers 1–3, and tier 3′ where `census` says it passes; and each read
+/// as the walls parting at the crossing, once.
 ///
-/// `A` is the inner rod below `z = 0` (`3π`), `B` the outer above
-/// `z = y·tan t` (`12π`: the plane's `y`-moment vanishes on the disc).
-/// They share the half of `A`'s disc where the plane dips below
-/// `z = 0`, between the two planes: `∫|y|·|tan t| = (2/3)|tan t|`. With
-/// `A` first the sweep reads `A`'s circle rim against `B`'s wall, whose
-/// boundary there is the ellipse; with `B` first, `B`'s ellipse against
-/// `A`'s wall.
-fn builds_at_its_closed_form(tilt: f64, ops: &[(BooleanOp, &str, bool)]) {
-    let (a, b) = flat_and_slanted(tilt);
-    let shared = 2.0 / 3.0 * tilt.tan().abs();
+/// `A` is `3π`, `B` is `12π`: each plane's `y`-moment vanishes on its
+/// disc. They share the part of `A`'s disc between the two planes, on
+/// the side where `B`'s dips below `A`'s: `∫|y|·|tan t_a − tan t_b|`
+/// over a half disc, `(2/3)|tan t_a − tan t_b|`. The walls part there:
+/// each leaves the crossing away from the other, about the ruling, so
+/// `bool_touch_sheets_part` reads Negative. With `A` first the sweep
+/// reads `A`'s rim against `B`'s wall, bounded there by `B`'s rim; with
+/// `B` first, the other way about.
+fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str, bool)]) {
+    let (a, b) = rims(t_a, t_b);
+    let shared = 2.0 / 3.0 * (t_a.tan() - t_b.tan()).abs();
     let (va, vb) = (3.0 * PI, 12.0 * PI);
     for &(o, name, census) in ops {
         let (closed, x, y) = match name {
@@ -111,8 +136,10 @@ fn builds_at_its_closed_form(tilt: f64, ops: &[(BooleanOp, &str, bool)]) {
             "B−A" => (vb - shared, &b, &a),
             _ => panic!("no row {name}"),
         };
-        let what = format!("tilt {tilt} {name}");
-        let res = match op(o, x, y) {
+        let what = format!("tilts ({t_a}, {t_b}) {name}");
+        let (got, parted) = op_reading_the_parting(o, x, y);
+        assert_eq!(parted, [Sign::Negative], "{what}: the walls' parting");
+        let res = match got {
             Ok(BooleanResult::Body(res)) => res,
             other => panic!("{what}: {other:?}"),
         };
@@ -140,23 +167,25 @@ fn builds_at_its_closed_form(tilt: f64, ops: &[(BooleanOp, &str, bool)]) {
     }
 }
 
-/// **A circle rim crossing a wall's ellipse rim on the tangent ruling
-/// builds at its closed form**, tiers 1–3′, read with the circle's
-/// operand first.
+/// **The walls part where an ellipse rim crosses a wall's ellipse rim**
+/// in another plane (tilts `(0.2, 0.5)`), read with the crossing rim's
+/// operand first; the body builds at its closed form, tiers 1–3′.
 #[test]
-fn a_circle_rim_crossing_a_walls_ellipse_rim_builds_at_its_closed_form() {
-    builds_at_its_closed_form(1.0, &[(BooleanOp::Subtract, "A−B", true)]);
+fn an_ellipse_rim_crossing_a_walls_ellipse_rim_reads_the_walls_parting() {
+    builds_at_its_closed_form((0.2, 0.5), &[(BooleanOp::Subtract, "A−B", true)]);
 }
 
-/// **Every op, at two tilts.** Every body passes tiers 1–3 at its
-/// closed form. Tier 3′ passes on `A ∖ B` and `A ∩ B`; on `A ∪ B` and
-/// `B ∖ A` it escalates `curve_pair_coplanar_sub_side` in band
+/// **Every op**, a flat rim against a slanted one and two rims in two
+/// planes, `tan t_a < tan t_b` (the other way about refuses, below).
+/// Every body passes tiers 1–3 at its closed form. Tier 3′ passes on
+/// `A ∖ B` and `A ∩ B`; on `A ∪ B` and `B ∖ A` it escalates
+/// `curve_pair_coplanar_sub_side` in band
 /// (`work/splitdoor/a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation.md`).
 #[test]
-fn a_flat_rim_crossing_a_slanted_rim_on_tangent_walls_builds_every_op() {
-    for tilt in [0.3, 1.0] {
+fn rims_crossing_on_tangent_walls_build_every_op() {
+    for tilts in [(0.0, 0.3), (0.0, 1.0), (0.2, 0.5), (-0.3, 0.6), (0.45, 0.5)] {
         builds_at_its_closed_form(
-            tilt,
+            tilts,
             &[
                 (BooleanOp::Subtract, "A−B", true),
                 (BooleanOp::Intersect, "A∩B", true),
@@ -167,23 +196,30 @@ fn a_flat_rim_crossing_a_slanted_rim_on_tangent_walls_builds_every_op() {
     }
 }
 
-/// **The same rims, the plane slanted the other way, refuse as a
-/// kernel bug**: at `t = −0.5` every op refuses `SeamOrientation`, the
-/// orientation chain's invariant
+/// **Rims crossing with `tan t_a > tan t_b` refuse as a kernel bug**:
+/// every op refuses `SeamOrientation`, the orientation chain's
+/// invariant, whether a rim is flat or both are slanted, and up to the
+/// tilts' near-equality `(0.5, 0.45)`, where `(0.45, 0.5)` builds
+/// (above). The walls' parting is read first, Negative, as where they
+/// build
 /// (`work/splitdoor/a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation.md`).
 #[test]
-fn a_flat_rim_crossing_a_rim_slanted_the_other_way_refuses_seam_orientation() {
-    let (a, b) = flat_and_slanted(-0.5);
-    for (o, name, x, y) in [
-        (BooleanOp::Subtract, "A−B", &a, &b),
-        (BooleanOp::Union, "A∪B", &a, &b),
-        (BooleanOp::Subtract, "B−A", &b, &a),
-    ] {
-        let got = op(o, x, y);
-        assert!(
-            matches!(got, Err(BooleanError::SeamOrientation { .. })),
-            "{name}: {got:?}"
-        );
+fn rims_crossing_with_the_inner_plane_steeper_refuse_seam_orientation() {
+    for (t_a, t_b) in [(0.0, -0.5), (0.3, -0.4), (0.5, 0.2), (0.5, 0.45)] {
+        let (a, b) = rims(t_a, t_b);
+        for (o, name, x, y) in [
+            (BooleanOp::Subtract, "A−B", &a, &b),
+            (BooleanOp::Union, "A∪B", &a, &b),
+            (BooleanOp::Subtract, "B−A", &b, &a),
+        ] {
+            let what = format!("tilts ({t_a}, {t_b}) {name}");
+            let (got, parted) = op_reading_the_parting(o, x, y);
+            assert_eq!(parted, [Sign::Negative], "{what}: the walls' parting");
+            assert!(
+                matches!(got, Err(BooleanError::SeamOrientation { .. })),
+                "{what}: {got:?}"
+            );
+        }
     }
 }
 

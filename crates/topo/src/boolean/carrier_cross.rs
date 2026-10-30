@@ -26,10 +26,13 @@
 //! alone, and split at one only where its covered parent and the face
 //! leave the meeting to opposite sides (`super::reduce`'s
 //! `sheets_part`): a rim whose wall is tangent to the face's carrier and
-//! runs the other way from the face, tangent in its plane to the face's
-//! own rim, touches the face only at that rim, and both are split there
-//! (`a_closed_conic_in_the_partners_face::a_boss_over_a_hole_by_pose`).
-//! Its `Clear` says nothing of such an edge.
+//! runs the other way from the face, meeting the face's own rim on the
+//! ruling the two carriers share, touches the face only at that rim, and
+//! both are split there. The two rims may be tangent in one plane
+//! (`a_closed_conic_in_the_partners_face::a_boss_over_a_hole_by_pose`)
+//! or cross there in two planes, a circle or an ellipse either side
+//! (`sheets_part_on_slanted_rims`). Its `Clear` says nothing of such an
+//! edge.
 //!
 //! **It reads, it does not solve.** Whether and where the edge meets the
 //! face's boundary is the curve × face table's boundary pass

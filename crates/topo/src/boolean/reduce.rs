@@ -3420,8 +3420,9 @@ impl<T: geom_core::Real> Interior<T> {
 /// An edge off the carrier, its parent covered against `face`, is
 /// [`Interior::Unseen`], save where it touches `face`'s boundary at a
 /// point the two tangent sheets only meet at ([`sheets_part`]): a rim
-/// tangent to the face's own rim, the two walls leaving the rims' plane
-/// to either side of it. There both edges are split, as a vertex there
+/// meeting the face's own rim on the ruling the two walls share, tangent
+/// to it in one plane or crossing it in two, the walls leaving the rims
+/// to either side there. There both edges are split, as a vertex there
 /// would split them.
 #[allow(clippy::too_many_arguments)]
 fn interior<T: Decide>(
@@ -3496,8 +3497,9 @@ fn interior<T: Decide>(
 /// seam ruling).
 ///
 /// The boundary edge's direction at `p` is its carrier's derivative at
-/// the parameter read back from `p` ([`geom::Curve3::param_near`],
-/// anchored at the span's midpoint), as the covered edge's is at `t`.
+/// the parameter read back from `p` ([`point_param`]), as the covered
+/// edge's is at `t`. A spline boundary edge, which has no such
+/// parameter, refuses there, before either face's normal is read.
 ///
 /// `false`, with nothing read, where there is nothing to read: a
 /// landing on a vertex, a boundary edge both of whose halves bound
@@ -3508,8 +3510,8 @@ fn interior<T: Decide>(
 ///
 /// [`BooleanError::JoinDesync`] where an entity the sweep holds does not
 /// resolve; [`BooleanError::PointSplitCarrierUnsupported`] where the
-/// boundary edge's carrier is a spline, which has no point parameter
-/// (the split a parting would make there needs one too);
+/// boundary edge's carrier is a spline (the split a parting would make
+/// there needs the same parameter);
 /// [`BooleanError::Escalated`] where a normal is in band; the
 /// [`Coincide::Sectors`] coincidence where the cosine is.
 fn sheets_part<T: Decide>(
@@ -3556,19 +3558,9 @@ fn sheets_part<T: Decide>(
         .certified()
         .ok_or(desync("a boundary edge a crossing lands on is scaffolding"))?;
     let along = |dir: Vec3<T>, forward: bool| if forward { dir } else { -dir };
-    let (s0, s1) = c_y.params();
-    let Some(tau_y) = c_y
+    let tau_y = c_y
         .carrier()
-        .param_near(p, geom::mid_param(s0, s1))
-        .map(|s| c_y.carrier().deriv(s))
-    else {
-        return Err(BooleanError::PointSplitCarrierUnsupported {
-            operand: x_is.other(),
-            edge: y
-                .split_root(e_y, |_| false)
-                .map_err(BooleanError::SplitLineage)?,
-        });
-    };
+        .deriv(point_param(y, x_is.other(), e_y, c_y, p)?);
     let normal = |body: &Body<T>, f: FaceKey| -> Result<Option<Vec3<T>>, BooleanError> {
         match crate::face_normal::face_outward_normal_at(body, f, p, band) {
             Ok(Some(n)) => Ok(Some(n.vec())),
@@ -5176,7 +5168,6 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
-    let (t0, t1) = curve.params();
     // The circle's two preconditions, both of them this site's and
     // neither of them the shared arithmetic's.
     if let geom::Curve3::Circle {
@@ -5211,16 +5202,37 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
         // cannot see it): the edge's certificate holds its turn, which
         // is never over one ([`geom_brep::CertifiedTurn`]).
     }
-    let t = curve
-        .carrier()
-        .param_near(p, geom::mid_param(t0, t1))
-        .ok_or(BooleanError::PointSplitCarrierUnsupported {
-            operand: y_is,
-            edge: y
+    let t = point_param(y, y_is, edge, &curve, p)?;
+    split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
+}
+
+/// **The parameter of `p` on `edge`'s curve**: its carrier's
+/// [`geom::Curve3::param_near`] anchored at the span's midpoint, the
+/// branch inside the stored span ([`split_other_at_point`] carries the
+/// derivation). `p` must lie on the carrier.
+///
+/// # Errors
+///
+/// [`BooleanError::PointSplitCarrierUnsupported`] on a spline carrier,
+/// which has no point parameter; [`BooleanError::SplitLineage`] where
+/// the edge's split root does not resolve while naming it.
+fn point_param<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    edge: EdgeKey,
+    curve: &geom_brep::EdgeCurve<T>,
+    p: Point3<T>,
+) -> Result<T, BooleanError> {
+    let (t0, t1) = curve.params();
+    match curve.carrier().param_near(p, geom::mid_param(t0, t1)) {
+        Some(t) => Ok(t),
+        None => Err(BooleanError::PointSplitCarrierUnsupported {
+            operand,
+            edge: body
                 .split_root(edge, |_| false)
                 .map_err(BooleanError::SplitLineage)?,
-        })?;
-    split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
+        }),
+    }
 }
 
 /// An edge the sweep has yet to read, from face index `start` on.

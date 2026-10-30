@@ -169,7 +169,7 @@ not (
   (binary_id(editor-core::all) & (test(=clearance_refusals_say_what_they_found::a_named_scope_asks_what_a_name_denotes_before_how_many_answer))) |
   (binary_id(geom::all) & (test(=surfaces_rect_enclosure::rect_jet_contains_every_sampled_partial_of_its_rectangle))) |
   (binary_id(sweep::all) & test(=a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms)) |
-  (binary_id(sweep::all) & test(=sheets_part_on_slanted_rims::a_flat_rim_crossing_a_slanted_rim_on_tangent_walls_builds_every_op))
+  (binary_id(sweep::all) & (test(=sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op) | test(=sheets_part_on_slanted_rims::rims_crossing_with_the_inner_plane_steeper_refuse_seam_orientation)))
 )
 """
 
