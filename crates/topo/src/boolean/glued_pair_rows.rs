@@ -7,13 +7,11 @@
 
 use super::carrier_eq;
 use super::carrier_pair::face_carrier;
-use super::{Glue, GluedPairs, Operand, glue, verify_declared_contacts};
+use super::{Glue, GluedPairs, glue, verify_declared_contacts};
 use crate::AtRestBody;
 use crate::contact::GlueClass;
 use crate::test_support::finished;
-use crate::test_support_fixtures::{
-    FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
-};
+use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
 use geom_core::{Band, Margin, Point3, Tol, Vec3};
 
 fn tol() -> Tol {
@@ -34,80 +32,6 @@ fn door(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Glue<f64>, GluedPairs<f64>
     let verified = verify_declared_contacts(a, b, &decls, band()).unwrap();
     let declared = GluedPairs::build(&decls, verified, a, b, Default::default(), band()).unwrap();
     (decls, declared)
-}
-
-/// **A pair the door glued reads, at its consuming site, the relation
-/// the door recorded, in both operand orders, and the face-pair door
-/// over the extent it was decided on agrees.** A brick resting on a
-/// cube (`Rest`) and two cubes side by side (continuations, and `Rest`
-/// across their shared wall): every one-carrier pair the door glued
-/// reads its class's relation from the record
-/// ([`GluedPairs::glued_relation`]) whichever operand is asked first,
-/// and its carriers read over the pair's extent decide the same relation
-/// on a Zero.
-#[test]
-fn a_glued_pair_reads_its_record_in_both_orders() {
-    let cube = || {
-        finished(
-            "the cube",
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
-            tol(),
-        )
-    };
-    let scenes = [
-        (
-            "a brick on a cube",
-            cube(),
-            finished(
-                "the brick",
-                brick((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
-                tol(),
-            ),
-        ),
-        (
-            "two cubes side by side",
-            cube(),
-            finished(
-                "the neighbour",
-                brick((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol()),
-                tol(),
-            ),
-        ),
-    ];
-    let mut classes = std::collections::BTreeSet::new();
-    for (what, a, b) in &scenes {
-        let (decls, declared) = door(a, b);
-        for pair in decls.pairs.iter().filter(|p| p.class.is_one_carrier()) {
-            classes.insert(pair.class);
-            let (ca, cb) = (
-                face_carrier(a, pair.a).unwrap(),
-                face_carrier(b, pair.b).unwrap(),
-            );
-            for (c1, c2, o1, f1, o2, f2) in [
-                (ca, cb, Operand::A, pair.a, Operand::B, pair.b),
-                (cb, ca, Operand::B, pair.b, Operand::A, pair.a),
-            ] {
-                let extent = declared.consumed(o1, f1, o2, f2).unwrap();
-                let (rel, margin) = carrier_eq::pair_door_reading(&c1, &c2, &extent, band())
-                    .unwrap_or_else(|e| panic!("{what}, {o1:?} first: {e:?}"));
-                assert_eq!(
-                    (
-                        declared.glued_relation(o1, f1, o2, f2),
-                        GlueClass::of_senses(rel),
-                        margin.is_some()
-                    ),
-                    (pair.class.carrier_relation(), Some(pair.class), true),
-                    "{what}, {o1:?} first: the consumer reads the door's record, and the \
-                     carriers agree on a Zero"
-                );
-            }
-        }
-    }
-    assert_eq!(
-        classes,
-        [GlueClass::Rest, GlueClass::Continuation].into(),
-        "both one-carrier classes are read"
-    );
 }
 
 /// A point turned by `angle` about the line through `c` along the unit
@@ -131,6 +55,9 @@ fn turned(p: [f64; 3], c: [f64; 3], u: [f64; 3], angle: f64) -> Point3<f64> {
 /// bounds each read Zero off the top (`cos 30°` of the tilt, or none),
 /// and the normals' cross levered at the unit arm is in band: the lump
 /// the corner takes is the glued pair's, which reads no tilt of its own.
+/// A corner site that measured the pair again over its arm would refuse
+/// in band, so the union building, in both operand orders, is what
+/// pins the consuming site to the record.
 #[test]
 fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
     let h = 3f64.sqrt() / 2.0;
@@ -185,12 +112,17 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         .is_err(),
         "the tilt levered at the sector's unit arm is in band"
     );
-    let out = super::union(&lower, &upper, tol());
-    assert!(
-        out.is_ok(),
-        "the union lumps each corner as the glued pair: {:?}",
-        out.err()
-    );
+    for (what, x, y) in [
+        ("lower ∪ upper", &lower, &upper),
+        ("upper ∪ lower", &upper, &lower),
+    ] {
+        let out = super::union(x, y, tol());
+        assert!(
+            out.is_ok(),
+            "{what}: the union lumps each corner as the glued pair: {:?}",
+            out.err()
+        );
+    }
 }
 
 /// **A fold step given two Zeros whose ends stand in band reads the

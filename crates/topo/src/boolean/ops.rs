@@ -6293,6 +6293,9 @@ pub(crate) struct GluedSurfaces {
     pairs: Vec<GluedSurfacePair>,
 }
 
+/// A surface and the sense its faces carry.
+pub(crate) type SensedSurface = (SurfaceKey, bool);
+
 /// **Two surfaces a Boolean glued one carrier**, and whether their
 /// charts face the same way in the result. A face's material side is
 /// its sense applied to its surface's chart, and fragments inherit both
@@ -6311,7 +6314,7 @@ pub(crate) struct GluedSurfacePair {
 impl GluedSurfacePair {
     /// The pair of `a` and `b` whose faces of senses `(sa, sb)` have
     /// material sides that agree or not (`materials_agree`).
-    fn of((a, sa): (SurfaceKey, bool), (b, sb): (SurfaceKey, bool), materials_agree: bool) -> Self {
+    fn of((a, sa): SensedSurface, (b, sb): SensedSurface, materials_agree: bool) -> Self {
         Self {
             a,
             b,
@@ -6335,7 +6338,7 @@ impl GluedSurfaces {
     /// faces of senses `(sa, sb)` face the same way, for the merge rows
     /// that drive its glued path on one body.
     #[cfg(test)]
-    pub(crate) fn of_pairs(pairs: &[((SurfaceKey, bool), (SurfaceKey, bool))]) -> Self {
+    pub(crate) fn of_pairs(pairs: &[(SensedSurface, SensedSurface)]) -> Self {
         Self {
             pairs: pairs
                 .iter()
