@@ -820,10 +820,9 @@ tiers".
      (on the face's edge curves), and tier 3 asks those doors what
      they presume. Its **chart image** drops only spurs (an edge
      walked out and straight back, a wrap tip's included), keeping
-     seams and wrap edges as the chart's cuts: measurement and every
-     chart question (a loop's windings, the mesher's domain) read
-     it, and a chart image empty on a closed surface is the whole
-     surface, signed by the face's sense. No reader reads a turn at
+     seams as the chart's cuts: measurement and a loop's windings
+     read it, and a chart image empty on a closed surface is the
+     whole surface, signed by the face's sense. No reader reads a turn at
      a spur. **Chart singularities as vertices** are an instance (every one in a face's closure is a
      vertex of it, and every wrap edge's tip lies on its face's chart
      singularity);
