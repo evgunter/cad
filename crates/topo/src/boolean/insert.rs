@@ -1859,7 +1859,6 @@ fn mint_directed<T: Decide>(
         };
         let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
         let facing = strut_faces_first(
-            body,
             (operand, sectors),
             (arrival, departure),
             (gf.entry, gf.cells, gf.dir),
@@ -1870,7 +1869,7 @@ fn mint_directed<T: Decide>(
         // At a closed edge's lone vertex the walk orders the germs.
         Some(match facing {
             Some(first) => first,
-            None => walk_faces_first(body, sectors, gf.placed(), gt.placed(), band)?,
+            None => walk_faces_first(sectors, gf.placed(), gt.placed(), band)?,
         })
     } else {
         None
@@ -2196,7 +2195,6 @@ fn strut_facing(
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
 /// each caller states what it does then.
 pub(super) fn strut_faces_first<T: Decide>(
-    body: &Body<T>,
     (operand, sectors): (Operand, &[BoolSector<T>]),
     (arrival, departure): (EdgeKey, EdgeKey),
     first: (usize, Cells, Vec3<T>),
@@ -2214,7 +2212,6 @@ pub(super) fn strut_faces_first<T: Decide>(
         StrutFacing::MinusFirst => Ok(Some(false)),
         StrutFacing::ClosedEdge => Ok(None),
         StrutFacing::Unnamed => walk_faces_first(
-            body,
             sectors,
             ((first.0, first.2), beside[0]),
             ((second.0, second.2), beside[1]),
@@ -2236,7 +2233,6 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// direction in one entry, each beside an edge of the other solid, are
 /// read by their sides ([`beside_tie`]), and only those two.
 fn walk_faces_first<T: Decide>(
-    body: &Body<T>,
     sectors: &[BoolSector<T>],
     (first, first_beside): Placed<T>,
     (second, second_beside): Placed<T>,
@@ -2259,17 +2255,18 @@ fn walk_faces_first<T: Decide>(
         return Ok(tie);
     }
     // The arrival edge bounds the half of its corner that ends on it:
-    // every corner's last sector ends on its own chord.
-    let reach = sectors
+    // every corner's last sector ends on its own chord. Its bound there
+    // is the edge's tangent at the vertex, which a germ leaving along a
+    // curved edge's tangent meets, where the edge's chord would put it
+    // outside the corner.
+    let arrival = sectors
         .iter()
         .find(|t| t.he == s.he && t.end_edge())
         .ok_or(BooleanError::ClassificationInvariant {
             what: "no sector of a corner ends on its arrival edge",
-        })?
-        .end_reach
-        .length();
+        })?;
     strut_order(
-        (anchor_dir(body, s.he), reach),
+        (arrival.end.normalize(), arrival.end_reach.length()),
         s.normal.vec(),
         (first.1, second.1),
         s.arm,
@@ -2337,18 +2334,6 @@ pub(super) fn strut_order<T: Decide>(
         },
         Err(diag) => Err(refuse(diag)),
     }
-}
-
-/// The unit direction of an orbit half-edge, one the sector walk
-/// resolved, away from its start vertex (the strut-order comparison's
-/// angular reference).
-#[track_caller]
-fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Vec3<T> {
-    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-    let end = body.proven_half_edge_end(he);
-    let d = body.resolve_vertex_point(end, Proven)
-        - body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
-    d.normalize()
 }
 
 /// The record's germ direction, by declared class: a `Tangent` pair's
@@ -3504,6 +3489,51 @@ mod tests {
             }
         }
         assert!(pairs > 1000, "{pairs} pairs");
+    }
+
+    /// **A germ along a curved arrival edge's tangent is met first.** A
+    /// corner of a half-turn, bisected as `build_sectors` does, its
+    /// arrival bound the edge's departure tangent `e`: a germ leaving
+    /// along `e` (a section tangent to the edge there, the pinch of two
+    /// rims on tangent walls) lies at the bound, before every germ
+    /// inside the entry, and [`walk_faces_first`] says so either way
+    /// round. An anchor off the bound, such as the edge's chord, which
+    /// lies inside the corner, reads it past a full half-turn.
+    #[test]
+    fn a_germ_along_the_arrival_tangent_is_met_first() {
+        use super::super::sectors::Reach;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        let sector = |end: f64, end_reach, start: f64, start_reach| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: at(start),
+            end: at(end),
+            start_reach,
+            end_reach,
+            face: FaceKey::default(),
+            normal: geom_brep::OutwardNormal::from_chart(n, true),
+            arm: 1.0,
+        };
+        let sectors = [
+            sector(0.0, Reach::Extent(1.0), 90.0, Reach::Bisector(1.0)),
+            sector(90.0, Reach::Bisector(1.0), 180.0, Reach::Extent(1.0)),
+        ];
+        for inside in [10.0, 45.0, 80.0] {
+            let along = ((0, e), None);
+            let other = ((0, at(inside)), None);
+            assert!(
+                walk_faces_first(&sectors, along, other, band).unwrap(),
+                "along the tangent, then {inside}°"
+            );
+            assert!(
+                !walk_faces_first(&sectors, other, along, band).unwrap(),
+                "{inside}°, then along the tangent"
+            );
+        }
     }
 
     /// REVIEW (join/reflex-corner-review): an arrival edge along the
