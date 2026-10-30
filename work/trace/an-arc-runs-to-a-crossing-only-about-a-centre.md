@@ -5,6 +5,7 @@ title: A trace's crossing is reached only by a straight leg or an arc about a wr
 status: open
 opened: 2026-10-29
 priority: P3
+cost: M
 ---
 
 

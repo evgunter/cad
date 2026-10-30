@@ -171,3 +171,4 @@ stays P1, since greening main is this track's central job.
   nightly confirms; check the closure-tier shard balance after #6019;
   check whether `demos` is still the p90 tail. The remaining P0 lever is
   sweep's test runtime in the kernel shard.
+- 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `g-moves-four-main-reds-messages` (P1). INTENT's charter is D10 and these are follow-ups found while building it.

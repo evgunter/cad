@@ -50,12 +50,14 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   at-rest gate (`assemble` and its refusal) and CHECKS DS6's
   product-separation resident (`Separation`) retired (stage 5); an
   operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way; a glued pair read through its record at every
-  consuming site, with the declared rung and its bridged verdict
-  retired (CONTACTHOLD).
+  quieted the same way; coaxiality read at the door as one `Axis` read
+  twice, and tangency constructions, a sketch drawn on a frame
+  continuing tangent to a face's trace, proven at the door and written
+  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
+  its record at every consuming site, with the declared rung and its
+  bridged verdict retired (CONTACTHOLD).
 - **Not built:** an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict); coaxiality read
-  at the door and tangency constructions (stage 6).
+  a coaxiality, a blend's turn, a split's ON verdict).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact

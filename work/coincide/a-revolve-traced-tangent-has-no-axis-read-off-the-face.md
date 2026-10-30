@@ -4,7 +4,7 @@ kind: issue
 title: The trace statement's revolve arm has nothing to read: a revolve's axis is typed in the profile plane, and a sphere's centre needs a kind the door does not hold
 status: open
 opened: 2026-10-30
-priority: P2
+priority: P3
 cost: M
 blocked_on: [coaxial-unions-with-a-torus-or-a-sphere-and-a-tangent-cone-refuse]
 ---

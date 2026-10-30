@@ -4,7 +4,7 @@ kind: issue
 title: A boolean distributed over a ⊔ cuts each nested ⊔ piece with that piece's own records, not the touches its census kept
 status: open
 opened: 2026-10-29
-priority: P3
+priority: P1
 cost: M
 refs: [a-mirror-of-an-assemble-reports-its-findings-twice]
 ---

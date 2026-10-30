@@ -4,7 +4,8 @@ kind: issue
 title: A piece past a cone's apex crosses the carrier's other nappe, which the face does not hold
 status: open
 opened: 2026-10-29
-priority: P3
+priority: P1
+cost: M
 ---
 
 

@@ -4,7 +4,7 @@ kind: issue
 title: on D′3, a product reading one of several cut world copies reads the part's whole ⊔ after split, and inline then flatten leaves that ⊔ as an extra node
 status: open
 opened: 2026-10-26
-priority: P2
+priority: P1
 cost: M
 design: true
 refs: [5636, the-tours-post-cell-split-refuses-the-space-its-copies-read]

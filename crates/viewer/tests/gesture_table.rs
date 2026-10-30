@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 57;
+const OP_COUNT: usize = 58;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -365,6 +365,15 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::AddDrawnProfile {
+            plane: FaceSelection {
+                name: face(node),
+                node,
+                body: 0,
+            },
+            traced: Vec::new(),
+            chains: Vec::new(),
+        },
         SessionOp::SetProduct {
             bodies: vec![node.into()],
         },
@@ -486,6 +495,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // What the document makes: a document edit, fenced with every
         // other one.
         SessionOp::SetProduct { .. } => (56, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddDrawnProfile { .. } => (57, false),
     }
 }
 
@@ -981,6 +992,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -1596,6 +1608,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }

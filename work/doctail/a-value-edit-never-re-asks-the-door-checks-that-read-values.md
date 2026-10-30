@@ -4,8 +4,9 @@ kind: issue
 title: A value edit never re-asks the edit-door checks that read the current values
 status: open
 opened: 2026-10-28
-priority: P3
+priority: P1
 cost: M
+design: true
 ---
 
 Raised by the STYLE review of PR 5926 (F2).

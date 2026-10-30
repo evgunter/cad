@@ -4,7 +4,8 @@ kind: issue
 title: Six rows red on main read G's numbers (four slow rows, the m10_sym_profile plate digest, the sweep thread-count digest at 1e-12); whoever greens them pins G's
 status: open
 opened: 2026-10-29
-priority: P2
+priority: P1
+cost: M
 ---
 
 Found in INTENT stage 3 G (PR 5954). The comparison is the slow set on G's merge base `a195f777` against G's head; the table is on PR 5954.
