@@ -2153,4 +2153,96 @@ mod tests {
             }
         }
     }
+
+    /// Review probes for PR 6013: `rectangle_winding` against the
+    /// shoelace check it replaced, on hand-built walks of the unit
+    /// square.
+    #[allow(clippy::float_cmp)]
+    mod review_6013_winding {
+        use super::super::{ChartSegment, rectangle_winding};
+
+        const R: (f64, f64, f64, f64) = (0.0, 1.0, 0.0, 1.0);
+
+        /// The replaced check: every start on the hull's boundary and
+        /// the start polygon's shoelace exactly ±the area.
+        fn shoelace(segs: &[ChartSegment]) -> Option<f64> {
+            let p: Vec<(f64, f64)> = segs.iter().map(|s| s.0).collect();
+            let mut a = 0.0;
+            for i in 0..p.len() {
+                let ((xa, ya), (xb, yb)) = (p[i], p[(i + 1) % p.len()]);
+                a += xa * yb - xb * ya;
+            }
+            match a * 0.5 {
+                x if x == 1.0 => Some(1.0),
+                x if x == -1.0 => Some(-1.0),
+                _ => None,
+            }
+        }
+
+        /// A walk whose right side starts half way up, not where the
+        /// bottom ended: a gap of half a side. The shoelace refused it;
+        /// the segment walk reads it as once around.
+        #[test]
+        fn a_walk_with_a_gap_is_read_as_once_around() {
+            let w = [
+                ((0.0, 0.0), (1.0, 0.0)),
+                ((1.0, 0.5), (1.0, 1.0)),
+                ((1.0, 1.0), (0.0, 1.0)),
+                ((0.0, 1.0), (0.0, 0.0)),
+            ];
+            assert_eq!(shoelace(&w), None);
+            assert_eq!(rectangle_winding(&w, R), Some(1.0));
+        }
+
+        /// A walk that never reaches the right side's top: right ends
+        /// at v = 0.5 and the top starts at the corner.
+        #[test]
+        fn a_walk_whose_side_stops_short_is_read_as_once_around() {
+            let w = [
+                ((0.0, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (1.0, 0.5)),
+                ((1.0, 1.0), (0.0, 1.0)),
+                ((0.0, 1.0), (0.0, 0.0)),
+            ];
+            assert_eq!(shoelace(&w), Some(1.0));
+            assert_eq!(rectangle_winding(&w, R), Some(1.0));
+        }
+
+        /// A spur on the bottom side (out to 1, back to 1/2, out to 1
+        /// again) passed the shoelace and is refused now: newly refused.
+        #[test]
+        fn a_spur_on_one_side_was_accepted_and_is_refused() {
+            let w = [
+                ((0.0, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (0.5, 0.0)),
+                ((0.5, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (1.0, 1.0)),
+                ((1.0, 1.0), (0.0, 1.0)),
+                ((0.0, 1.0), (0.0, 0.0)),
+            ];
+            assert_eq!(shoelace(&w), Some(1.0));
+            assert_eq!(rectangle_winding(&w, R), None);
+        }
+
+        /// Twice around, closed, and clockwise once around: refused and
+        /// −1 respectively, as before.
+        #[test]
+        fn twice_around_refuses_and_clockwise_reads_minus_one() {
+            let once = [
+                ((0.0, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (1.0, 1.0)),
+                ((1.0, 1.0), (0.0, 1.0)),
+                ((0.0, 1.0), (0.0, 0.0)),
+            ];
+            let twice: Vec<ChartSegment> = once.iter().chain(&once).copied().collect();
+            assert_eq!(rectangle_winding(&twice, R), None);
+            let cw: Vec<ChartSegment> = once.iter().rev().map(|&(a, b)| (b, a)).collect();
+            assert_eq!(rectangle_winding(&cw, R), Some(-1.0));
+            // Five-quarters round, unclosed: bottom again to 1/2.
+            let mut more = once.to_vec();
+            more.push(((0.0, 0.0), (0.5, 0.0)));
+            assert_eq!(shoelace(&more), Some(1.0));
+            assert_eq!(rectangle_winding(&more, R), Some(1.0));
+        }
+    }
 }

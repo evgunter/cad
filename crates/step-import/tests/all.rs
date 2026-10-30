@@ -151,6 +151,8 @@ mod s58_iso_rectangle;
 mod shell_reads_a_chart_worn_both_ways;
 #[path = "spiric_roundtrip.rs"]
 mod spiric_roundtrip;
+#[path = "review_6013_probes.rs"]
+mod review_6013_probes;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
 #[path = "tcost_k3_import_certificate.rs"]

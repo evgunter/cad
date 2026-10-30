@@ -656,3 +656,106 @@ fn split_face_once(
     });
     Ok(Some(solid.faces.len() - 1))
 }
+
+/// Review probe for PR 6013: the side test's nine samples per edge
+/// miss a trim that crosses the knot line between two of them, and the
+/// face keeps its crease inside its cell.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod review_6013_side_test {
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point3, Vec3};
+
+    use super::{sides, split_face_once};
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+
+    /// The flat unit square `z = 0`, degree 1 in `u` with a knot at
+    /// `u = 1/2` (multiplicity 1 = degree: a crease run by structure),
+    /// trimmed by one circle of radius `0.2` about `(0.31, 0.5)`. The
+    /// circle reaches `x = 0.51`, past the knot line by `0.01`, but its
+    /// nine samples, from `π/8` in steps of `π/4`, reach only
+    /// `0.31 + 0.2 cos(π/8) ≈ 0.4948`.
+    fn solid() -> SolidSpec {
+        let s = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            [0.0, 0.5, 1.0]
+                .into_iter()
+                .flat_map(|x| [0.0, 1.0].map(|y| Point3::new(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 6],
+        )
+        .unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.31, 0.5, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let t0 = core::f64::consts::FRAC_PI_8;
+        let p = circle.eval(t0);
+        SolidSpec {
+            id: 1,
+            faces: vec![FaceSpec {
+                id: 10,
+                surface: Surface::Nurbs(Arc::new(s)),
+                sense: true,
+                loops: vec![LoopSpec {
+                    outer: true,
+                    uses: vec![EdgeUse {
+                        edge: 20,
+                        forward: true,
+                    }],
+                }],
+                band: false,
+            }],
+            edges: BTreeMap::from([(
+                20,
+                EdgeSpec {
+                    start: 30,
+                    end: 30,
+                    carrier: circle,
+                    t0,
+                    t1: t0 + core::f64::consts::TAU,
+                    reversed: false,
+                },
+            )]),
+            vertices: BTreeMap::from([(30, p)]),
+            band_seams: BTreeSet::new(),
+        }
+    }
+
+    #[test]
+    fn a_trim_crossing_between_samples_reads_as_one_side_and_keeps_its_crease() {
+        let mut solid = solid();
+        let Surface::Nurbs(ref s) = solid.faces[0].surface else {
+            unreachable!()
+        };
+        let s = Arc::clone(s);
+        // The circle truly reaches past the line.
+        let reach = (0..=10_000)
+            .map(|i| {
+                let t =
+                    core::f64::consts::FRAC_PI_8 + core::f64::consts::TAU * f64::from(i) / 10_000.0;
+                solid.edges[&20].carrier.eval(t).x
+            })
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(reach > 0.509, "the trim crosses u = 1/2: {reach}");
+        // The side test reads it below the line only.
+        assert_eq!(sides(&solid, 0, &s, 0.5, false, 1e-7), Some((true, false)));
+        // So the face is not split and keeps the crease in its cell.
+        let mut n = 100;
+        let mut mint = || {
+            n += 1;
+            n
+        };
+        assert_eq!(
+            split_face_once(&mut solid, 0, 1e-7, &mut mint).unwrap(),
+            None
+        );
+    }
+}
