@@ -882,34 +882,51 @@ fn a_kernel_built_oblique_cut_holds_across_its_curved_corners() {
         report.cornered, report.verdict, report.receipt
     );
     assert_holds("the oblique cut", &report, &cut);
-    assert!(
-        report.cornered >= 1,
-        "the corners are certified by the corner presentation: {}",
-        report.cornered
+    assert_eq!(
+        report.cornered, 14,
+        "the corners are certified by the corner presentation"
     );
 }
 
-/// **The rod less a slab tilted `π/5` holds across its curved corners.**
-/// [`rod`] over `z ∈ [−3, 3]` less the half-space below the plane through
-/// the origin tilted `π/5` about `y`: like [`oblique_cut`], two open arcs
-/// of an ellipse meeting the rod's two seam lines. Red as that row is.
-#[test]
-fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
+/// [`rod`] over `z` less the half-space below the plane through the
+/// origin tilted `π/5` about `y`: like [`oblique_cut`], two open arcs of
+/// an ellipse meeting the rod's two seam lines.
+fn rod_less_a_tilted_slab(z: (f64, f64)) -> topo::AtRestBody<f64> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 5.0);
-    let cut = built(topo::subtract(
-        &rod((-3.0, 3.0)),
-        &moved(&slab(0.0), &tilt),
-        tol(),
-    ));
+    built(topo::subtract(&rod(z), &moved(&slab(0.0), &tilt), tol()))
+}
+
+/// **The rod less a slab tilted `π/5` holds across its curved corners**
+/// ([`rod_less_a_tilted_slab`] over `z ∈ [−3, 3]`). Red as the oblique
+/// cut's row is.
+#[test]
+fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
+    let cut = rod_less_a_tilted_slab((-3.0, 3.0));
     let report = injective(&cut, None, BUDGET);
     println!(
         "[corner] rod at pi/5: cornered = {} {:?} {:?}",
         report.cornered, report.verdict, report.receipt
     );
     assert_holds("the rod less the tilted slab", &report, &cut);
-    assert!(report.cornered >= 1, "the corners are read through");
+    assert_eq!(report.cornered, 14, "the corners are read through");
+}
+
+/// **A rod taller than a turn holds too** ([`rod_less_a_tilted_slab`]
+/// over `z ∈ [−6, 6]`): each wall half's chart extent is a superset over
+/// its arc, more than `2π` tall along the rod's axis. Red if a superset
+/// that wide is refused on the axis that is not periodic, which leaves
+/// the halves' seam lines placed nowhere.
+#[test]
+fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
+    let cut = rod_less_a_tilted_slab((-6.0, 6.0));
+    let report = injective(&cut, None, BUDGET);
+    println!(
+        "[corner] tall rod at pi/5: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
+    assert_holds("the tall rod less the tilted slab", &report, &cut);
 }
 
 /// **SHELL-4's vessel holds**: `vessel(1.0, 2.0)`, a rectangle with a
@@ -917,7 +934,9 @@ fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
 /// whose rims are open half-circles. Each disc's two half-rims meet at
 /// a vertex as one circle, a corner of no angle the plane's chart reads
 /// as two arcs; the wall reads the rims as coordinate lines, so the
-/// pairs certify off the wall's presentation.
+/// pairs certify off the wall's presentation by the disc's carrier. It
+/// is no corner row: it held before the corner presentation, and reads
+/// no corner (`cornered` 0).
 #[test]
 fn shell_4s_vessel_holds() {
     let vessel = crate::common::shell_operands::vessel(1.0, 2.0);
@@ -984,15 +1003,29 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         "the vertex refuses where it is met, not at the floor: {:?}",
         report.receipt
     );
+    assert_eq!(
+        report.receipt.refused, 9,
+        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
+         the mitre's ellipse ({:?})",
+        report.receipt
+    );
 }
 
 /// **A folded oblique cut reads `Violated` off its corners.** Two
 /// [`oblique_cut`]s in one body, the second moved `0.3` along `x` and
-/// grafted in as a solid of its own: the walls pass through each other.
-/// The corners of each still certify; the crossing is two points of M
-/// on no shared cell, found by distance, its witness clear of every
-/// vertex where an arc meets a seam line. Red if a corner certificate
-/// were read as covering the pair it does not touch.
+/// grafted in as a solid of its own: the caps and walls pass through
+/// each other. Faces of the two solids share nothing in M, so every
+/// crossing pair is decided by distance, and the first is found before
+/// any corner is read; the witness is clear of every vertex where an arc
+/// meets a seam line. The row pins that the corner reading leaves a fold
+/// off its corners to be found; it cannot go red for a lax corner guard.
+/// A fold through a corner cell is a crossing of two faces that share
+/// the corner, which no kernel operation builds — the booleans and sweeps
+/// build embedded bodies, and a graft's solids share nothing — so the
+/// corner guards' folds are `injective`'s
+/// `a_fold_through_a_reflex_corner_is_not_certified` and
+/// `a_fold_past_a_line_that_crosses_back_is_not_certified`, at the door
+/// the sweep calls.
 #[test]
 fn a_folded_oblique_cut_reads_violated_off_its_corners() {
     use geom_core::{Affine3, Vec3};

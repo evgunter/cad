@@ -3000,14 +3000,20 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
                 if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
                     if lk == f.outer {
-                        out.extent = extent_of(rows.iter().map(|row| {
-                            let (t0, t1) = row.row.params();
-                            let end = |t: T| {
-                                let q = row.pcurve.eval(t);
-                                [Interval::from_certified(q.x), Interval::from_certified(q.y)]
-                            };
-                            row_of(&row.pcurve, (t0, t1), [end(t0), end(t1)])
-                        }));
+                        let surface = body.get_surface(f.surface)?;
+                        let periodic =
+                            [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
+                        out.extent = extent_of(
+                            periodic,
+                            rows.iter().map(|row| {
+                                let (t0, t1) = row.row.params();
+                                let end = |t: T| {
+                                    let q = row.pcurve.eval(t);
+                                    [Interval::from_certified(q.x), Interval::from_certified(q.y)]
+                                };
+                                row_of(&row.pcurve, (t0, t1), [end(t0), end(t1)])
+                            }),
+                        );
                     }
                     for row in rows {
                         let (t0, t1) = row.row.params();
@@ -3099,7 +3105,8 @@ fn row_of<T: CertifiedBounds>(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        return Some(Row::Bulging(h.over(t)));
+        let (u, v) = h.at(t);
+        return Some(Row::Bulging([u, v]));
     }
     Some(Row::Ends(ends))
 }
@@ -3108,12 +3115,16 @@ fn row_of<T: CertifiedBounds>(
 /// hull, on each axis, of the outer loop's lifted chain. A row that is a
 /// monotone coordinate line contributes its ends, which are its hull; a
 /// harmonic row its enclosure over its span, which holds it, so the
-/// extent is then a superset. A superset spanning a whole turn on any
-/// axis is not taken: a reader would read it as a loop that wraps. Any
+/// extent is then a superset. A superset spanning a whole turn on an
+/// axis `periodic` marks is not taken: a reader would read it as a loop
+/// that wraps. On an axis that is not periodic no width means a wrap. Any
 /// other row, or an end or enclosure not certified, is `None` (`None`
 /// as an item: a row with no closed form), and no reader may take the
 /// face's extent as known.
-fn extent_of(rows: impl Iterator<Item = Option<Row>>) -> Option<[(f64, f64); 2]> {
+fn extent_of(
+    periodic: [bool; 2],
+    rows: impl Iterator<Item = Option<Row>>,
+) -> Option<[(f64, f64); 2]> {
     let mut hull = [(f64::INFINITY, f64::NEG_INFINITY); 2];
     let mut bulged = false;
     for row in rows {
@@ -3133,7 +3144,12 @@ fn extent_of(rows: impl Iterator<Item = Option<Row>>) -> Option<[(f64, f64); 2]>
             }
         }
     }
-    if bulged && hull.iter().any(|&(lo, hi)| injective::whole_turn(lo, hi)) {
+    if bulged
+        && hull
+            .iter()
+            .zip(periodic)
+            .any(|(&(lo, hi), p)| p && injective::whole_turn(lo, hi))
+    {
         return None;
     }
     hull.iter().all(|h| h.0 <= h.1).then_some(hull)
@@ -3787,6 +3803,9 @@ mod extent_rows {
         }
     }
 
+    /// A cylinder's chart: its azimuth periodic, its height not.
+    const CYLINDER: [bool; 2] = [true, false];
+
     /// The arch's chart points at `0` and `t`.
     fn flat(t: f64) -> [[geom_core::interval::Interval; 2]; 2] {
         let at = |x: f64, y: f64| {
@@ -3812,19 +3831,30 @@ mod extent_rows {
             "the enclosure holds the arch: {u:?} {v:?}"
         );
         let [(_, _), (_, top)] =
-            extent_of([row_of(&arch(), (0.0, PI), flat(PI))].into_iter()).expect("an extent");
+            extent_of(CYLINDER, [row_of(&arch(), (0.0, PI), flat(PI))].into_iter())
+                .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
     }
 
-    /// **A superset extent a whole turn wide is not taken**: it would
-    /// read as a loop that wraps its periodic axis, which bounds
-    /// nothing. Red if the whole-turn check on a bulging hull is
-    /// dropped.
+    /// **A superset extent a whole turn wide is not taken on a periodic
+    /// axis**: it would read as a loop that wraps it, which bounds
+    /// nothing. On an axis that is not periodic it is taken. Red if the
+    /// whole-turn check on a bulging hull is dropped, or read on every
+    /// axis.
     #[test]
     fn a_bulging_extent_a_whole_turn_wide_is_unknown() {
         assert!(
-            extent_of([row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()).is_none(),
+            extent_of(
+                CYLINDER,
+                [row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()
+            )
+            .is_none(),
             "a turn-wide superset reads unknown"
+        );
+        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU))];
+        assert!(
+            extent_of([false, false], wide.into_iter()).is_some(),
+            "a superset a turn wide on an axis that is not periodic is taken"
         );
     }
 }
