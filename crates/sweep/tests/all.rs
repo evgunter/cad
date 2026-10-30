@@ -80,6 +80,8 @@ mod a_flat_frustum_revolves;
 mod a_flipped_shallow_dimple;
 #[path = "a_keel_on_a_bores_ruling.rs"]
 mod a_keel_on_a_bores_ruling;
+#[path = "keel_ruling_review2_probes.rs"]
+mod keel_ruling_review2_probes;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
 mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
