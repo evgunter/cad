@@ -2082,6 +2082,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

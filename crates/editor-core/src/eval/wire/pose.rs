@@ -279,10 +279,11 @@ fn output<T: crate::mate::SolveScalar>(
             )
             .map_err(DirectionRefusal::node_error)?;
             // In the revolve's own coordinates, the ones its profile is
-            // drawn in, whatever frame its body was then read into.
+            // drawn in, whatever frame its body was then read into: the
+            // frame the profile is drawn on, where it is drawn on one.
             Ok(Posed {
                 value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
-                frame: Frame::Own,
+                frame: drawn.frame.clone().unwrap_or(Frame::Own),
             })
         }
         // A read the door would have refused, in a document built past

@@ -35,6 +35,7 @@ fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

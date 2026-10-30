@@ -7,13 +7,14 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Three doors, one flip. By key: [`face_outward_normal`] answers for
+//! Four doors, one flip. By key: [`face_outward_normal`] answers for
 //! a PLANE, where the normal does not depend on where you stand, and
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged.
 //! By value, for a caller that has already resolved the face and must
 //! not discard a failed lookup: [`plane_outward_normal`] takes the
-//! [`Face`] and its plane's chart normal. Every one of them spells the
+//! [`Face`] and its plane's chart normal, and [`chart_outward_normal`]
+//! takes a chart normal of any carrier and the bit. Every one of them spells the
 //! fold through [`OutwardNormal::from_chart`], the type's only
 //! constructor, and this file is the only one under `topo/src` that
 //! names it in a file that ALSO destructures a plane pattern — that
@@ -87,6 +88,20 @@ pub(crate) fn plane_outward_normal<T: Real>(
     chart_normal: Vec3<T>,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(chart_normal, face.sense)
+}
+
+/// A face's OUTWARD normal from a chart normal its caller computed
+/// (`du × dv` of the face's chart at a station), with the face's `sense`
+/// folded in. The by-value door for a reader that holds a chart rather
+/// than a face key — the injectivity check's cusp reading — so the fold
+/// stays in this file whatever the carrier: on a plane the chart's
+/// `du × dv` is the plane's normal, and this is [`plane_outward_normal`]'s
+/// flip.
+pub(crate) fn chart_outward_normal<T: Real>(
+    chart_normal: Vec3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(chart_normal, sense)
 }
 
 /// A planar face's OUTWARD normal — the chart normal with the face's

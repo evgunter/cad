@@ -30,6 +30,7 @@ fn square(o: f64, s: f64) -> AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 

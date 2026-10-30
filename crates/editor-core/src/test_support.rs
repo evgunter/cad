@@ -155,7 +155,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f| ProfileProgram::lower(p, f),
+        |p, f, r| ProfileProgram::lower(p, f, r),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
@@ -915,6 +915,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = ins(

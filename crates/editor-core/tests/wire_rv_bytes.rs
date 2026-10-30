@@ -127,6 +127,7 @@ fn program() -> ProfileProgram<Formula> {
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }
 }
 

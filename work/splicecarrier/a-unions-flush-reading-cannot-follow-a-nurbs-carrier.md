@@ -4,7 +4,7 @@ kind: issue
 title: A union's flush reading cannot follow a NURBS carrier: such an edge is a line of its own and covers nothing, whatever lies flush with it
 status: open
 opened: 2026-10-14
-priority: P1
+priority: P3
 cost: M
 refs: [a-flush-reading-finds-no-point-on-a-nurbs-member-edge]
 ---
@@ -47,3 +47,13 @@ order.
 From SEAMRANK. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a union's flush and rest readings on a lofted operand (lily wall 8's sheath on its blade) read these NURBS edges.
 
 Moved from SPLICE to SPLICECARRIER on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## Re-banded P1 → P3 (SPLICE, 2026-10-29)
+
+The consumer that put this row at P1 is gone. Lily wall 8 is no longer
+the sheath grafted on its blade (an exact planar mate between two
+lofts): the scene builds the leaf as one loft, and wall 8 is now the
+leaf grown out of the stem, a transverse crossing with nothing flush
+(`[ev]` PR 5990, PR 6042). The sweep row `a_sheath_grafted_on_its_blade`
+still builds the graft, but it stops at its rim's tangency, before any
+flush reading. No other live demo or row reaches this reading.

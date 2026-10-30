@@ -1,7 +1,7 @@
 ---
 id: a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary
 kind: issue
-title: "The two-chart tube's one-arc walk is undecided where a cut box holds a solution that is no isolated root of one face: a rim along a chart's boundary row, or a carrier ending on the domain sides of both charts (lily wall 8 hits both)"
+title: "The two-chart tube's one-arc walk is undecided where a cut box holds a solution that is no isolated root of one face: a rim along a chart's boundary row, or a carrier ending on the domain sides of both charts (the sheath grafted on its blade hits both)"
 status: open
 opened: 2026-10-28
 priority: P3
@@ -150,7 +150,8 @@ A rim that is a row on both walls' chart boundaries no longer reaches
 this tube: the boolean recovers it as the walls' shared row, D2's
 structural selector, certified per wall with no limb 3
 (`the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`,
-closed). Lily wall 8 is past this site.
+closed). The sheath grafted on its blade (lily wall 8 until 2026-10-29, now
+the sweep row `a_sheath_grafted_on_its_blade`) is past this site.
 
 Of the two owed rows:
 

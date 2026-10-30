@@ -241,6 +241,7 @@ fn sphere(
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![half],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -283,6 +284,7 @@ fn cylinder(
                     radius: len(r),
                 }],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -733,6 +735,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                     radius: len(0.001),
                 }],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },

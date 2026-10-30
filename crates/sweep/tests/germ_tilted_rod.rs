@@ -327,8 +327,8 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
 /// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
-/// carried section, and the run passes the join to the edge join on the
-/// wall's closed spline chord (`JoinCarrierUnsupported`,
+/// carried section, which each op marches once, and the run passes the
+/// join to the edge join on the wall's closed spline chord (`JoinCarrierUnsupported`,
 /// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
 /// result gate's volume (a face the fitted chords bound, a conic trim, a
 /// spiric's lifted image, or a ring left on a curved face; SPIRICARM's
@@ -351,9 +351,14 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let mut got = Vec::new();
     for &(beta, spin) in &poses {
         let c = rod(beta, spin);
+        let before = geom_brep::implicit_pair_marches();
         let mut row = Vec::new();
         for (_, _, _, r) in every_op(&h, &c) {
             row.push(stop_word(&r));
+        }
+        let marches = geom_brep::implicit_pair_marches() - before;
+        if marches != 5 {
+            row.push(format!("{marches} marches over the five ops"));
         }
         got.push(row);
     }
