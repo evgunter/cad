@@ -782,12 +782,13 @@ pub(crate) fn apex_corner_shape<T: Decide>(
     }
 }
 
-/// **The one rule a slit tip's corner reads its whole turn by**: at a
-/// slit's tip (`bounds`), a corner whose straight rung refused it as its
-/// bounds leaving along one ray, the rejected reading `along` (`Positive`
-/// for a tangent plane's `cos θ = +1`, [`corner_shape`]; `Zero` for an
-/// apex window's chord, [`apex_corner_shape`]). Between distinct edges
-/// the same reading is a spike and stays refused.
+/// **Whether a refused corner is a slit tip's whole turn**: `bounds`
+/// is a slit's tip, and `fault` is the straight rung's rejection of the
+/// reading `along`, which says the corner's bounds leave along one ray.
+/// `along` is `Positive` for a tangent plane's `cos θ = +1`
+/// ([`corner_shape`]) and `Zero` for an apex window's chord
+/// ([`apex_corner_shape`]). Between distinct edges the same rejection is
+/// a spike, and it stays refused.
 fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sign) -> bool {
     bounds == CornerBounds::SlitTip
         && matches!(

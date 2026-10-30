@@ -389,13 +389,13 @@ fn the_box_less_the_block_refuses_the_four_sheets_at_the_keel() {
     }
 }
 
-/// Review 2 (PR 6052): the plane `z = 2 + s·y` through the tip, and the
-/// tool on either side of it (`up`: above, the box rows' side). In the
-/// bore's tangent plane `x = 1` the plane's line turns with `s`, so the
-/// side below holds two of the full turn's quarters, a bisector-only
-/// strut run of two when the tool is above. The section and trench are
-/// symmetric in `y`, so the body below holds `2·area − |s|/3` (the
-/// trench's half on the plane's raised side has first moment ⅓).
+/// The plane `z = 2 + s·y` through the tip, and the tool on either side
+/// of it (`up`: above, the box rows' side). In the bore's tangent plane
+/// `x = 1` the plane's line turns with `s`, so the side below holds two
+/// of the full turn's quarters, a bisector-only strut run of two where
+/// the tool is above. The section and trench are symmetric in `y`, so
+/// the body below holds `2·area − |s|/3` (the trench's half on the
+/// plane's raised side has first moment ⅓).
 fn slab_about_x(s: f64, up: bool) -> AtRestBody<f64> {
     let n = Vec3::new(0.0, -s, 1.0);
     let n = n / n.norm();
@@ -411,41 +411,29 @@ fn slab_about_x(s: f64, up: bool) -> AtRestBody<f64> {
     )
 }
 
+/// **A slab tilted about x through the tip cuts both blocks**, the tool
+/// under the plane and over it.
 #[test]
-fn review2_a_slab_tilted_about_x_through_the_tip_cuts_both_blocks() {
-    let mut fails = Vec::new();
+fn a_slab_tilted_about_x_through_the_tip_cuts_both_blocks() {
     for (what, body, area) in [
         ("the bore's block", slit_block(), section().0),
         ("the slotted block", slotted_block(), SLOTTED),
     ] {
         let whole = 4.0 * area - 2.0 * TRENCH.0;
         for up in [true, false] {
-            for s in [0.0, 0.25, -0.25, 0.75, -0.75] {
-                let tool = slab_about_x(s, up);
+            for s in [0.0_f64, 0.25, -0.25, 0.75, -0.75] {
                 let below = 2.0 * area - s.abs() / 3.0;
-                let inside = if up { whole - below } else { below };
-                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    cuts(
-                        &format!(
-                            "{what}, the slab {} z = 2 + {s}·y",
-                            if up { "over" } else { "under" }
-                        ),
-                        &body,
-                        &tool,
-                        whole,
-                        inside,
-                    )
-                }));
-                if let Err(e) = r {
-                    let msg = e
-                        .downcast_ref::<String>()
-                        .cloned()
-                        .or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string()))
-                        .unwrap_or_default();
-                    fails.push(format!("{what} up={up} s={s}: {msg}"));
-                }
+                cuts(
+                    &format!(
+                        "{what}, the slab {} z = 2 + {s}·y",
+                        if up { "over" } else { "under" }
+                    ),
+                    &body,
+                    &slab_about_x(s, up),
+                    whole,
+                    if up { whole - below } else { below },
+                );
             }
         }
     }
-    assert!(fails.is_empty(), "{}", fails.join("\n"));
 }
