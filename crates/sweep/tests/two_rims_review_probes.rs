@@ -153,9 +153,13 @@ fn union_and_lens() -> (Body<f64>, Body<f64>) {
 /// union's boundary, and their midpoints side the shells (the union
 /// `Out` of the lens, the lens `In` the union), so neither reads `On`.
 /// No edge of the union runs inside a face of the lens, so the sides
-/// stand where the op keeps one operand: `∪`, `∩` and `B ∖ A` build at
-/// their closed forms. `A ∖ B` keeps both shells, touching along the
-/// circles, and keeps the deferred pair's refusal. Red if the `On`
+/// stand where the op keeps one operand: `B ∖ A` builds, nothing. `∪`
+/// and `∩` pass the deferral and escalate at the coplanar merge: its
+/// torus witness reads only the faces' vertices, which all lie on the
+/// circles both tori share, so it cannot tell the two rings apart
+/// (`work/contacthold/the-torus-witness-reads-only-vertices-two-tori-share.md`).
+/// `A ∖ B` keeps both shells, touching along the circles, and keeps the
+/// deferred pair's refusal. Red if the `On`
 /// verdict ever weakens on a curved face far enough to read the lens
 /// `On` the union, on a wrong body, or if the refusal moves to another
 /// door.
@@ -188,16 +192,17 @@ fn a_lens_inside_the_union_of_its_tori_is_never_read_on_it() {
     let mut got = vec![("A ∪ B", topo::union(&fu, &fl, tol()))];
     got.extend(subtract_both_orders_and_intersect(&u, &l));
     for (op, r) in got {
-        assert_eq!(
-            r.is_ok(),
-            op != "A ∖ B",
-            "union vs lens, {op}: builds where one operand keeps: {r:?}"
-        );
-        if op == "A ∖ B" {
-            assert!(
+        match op {
+            "B ∖ A" => assert!(r.is_ok(), "union vs lens, {op}: builds: {r:?}"),
+            "A ∖ B" => assert!(
                 matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
                 "union vs lens, {op}: the deferred wall pair's refusal: {r:?}"
-            );
+            ),
+            _ => assert!(
+                matches!(&r, Err(BooleanError::Merge(_)))
+                    && format!("{r:?}").contains("carrier_torus_witness"),
+                "union vs lens, {op}: the merge's torus witness escalates: {r:?}"
+            ),
         }
     }
 }
