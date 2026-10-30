@@ -381,7 +381,9 @@ const BUDGET: usize = 65_536;
 struct Witness {
     a: topo::FaceKey,
     b: topo::FaceKey,
+    /// The middle of the point's bracket.
     pa: Point3<f64>,
+    /// The upper end of the distance's bracket.
     d: f64,
 }
 
@@ -391,8 +393,8 @@ struct Witness {
 /// closest pair of its cells' on-face stations, evaluated afresh, is
 /// decided at distance zero; otherwise none is offered, so a
 /// coincidence refuses rather than reads `Violated`.
-fn injectivity(
-    body: &Body<f64>,
+fn injectivity<T: Decide + Bounds + CertifiedBounds>(
+    body: &Body<T>,
     faces: Option<Vec<topo::FaceKey>>,
     witnessed: bool,
     budget: usize,
@@ -426,29 +428,80 @@ fn injectivity(
         let (fa, fb) = candidate.faces();
         let (sa, sb) = (surface(fa), surface(fb));
         let (la, lb) = candidate.on_face_stations();
-        let mut best: Option<Witness> = None;
+        let at = T::from_f64;
+        let mid = |x: T| 0.5 * (x.lo() + x.hi());
+        let mut best: Option<(Witness, T)> = None;
         for &(au, av) in &la {
-            let pa = sa.eval(au, av);
+            let pa = sa.eval(at(au), at(av));
             for &(bu, bv) in &lb {
-                let d = (pa - sb.eval(bu, bv)).norm();
-                if best.is_none_or(|w| d < w.d) {
-                    best = Some(Witness {
+                let d = (pa - sb.eval(at(bu), at(bv))).norm();
+                if best.is_none_or(|(w, _)| d.hi() < w.d) {
+                    let w = Witness {
                         a: fa,
                         b: fb,
-                        pa,
-                        d,
-                    });
+                        pa: pa.map(mid),
+                        d: d.hi(),
+                    };
+                    best = Some((w, d));
                 }
             }
         }
-        let w = best.ok_or("no station")?;
-        match decide(bound.predicate(), Margin::of(w.d - bound.c()), band) {
+        let (w, d) = best.ok_or("no station")?;
+        match decide(bound.predicate(), Margin::of(d - at(bound.c())), band) {
             Ok(Sign::Negative | Sign::Zero) => Ok(w),
             _ => Err(format!("the closest station pair is {} apart", w.d)),
         }
     });
     assert!(report.receipt.holds(), "{:?}", report.receipt);
     report
+}
+
+/// A verdict's class: `Holds`, `Violated`, or the refusal's arm — an
+/// uncertified pair's certificate arm and the kind of cell it shares.
+fn class<W>(verdict: &topo::clearance::BoundVerdict<W>) -> String {
+    use topo::clearance::{BoundVerdict, EngineRefusal, SharedCell};
+    match verdict {
+        BoundVerdict::Holds => "Holds".to_owned(),
+        BoundVerdict::Violated(_) => "Violated".to_owned(),
+        BoundVerdict::Refused(EngineRefusal::Uncertified { shared, arm, .. }) => {
+            let cell = match shared {
+                SharedCell::Vertex(_) => "vertex",
+                SharedCell::Edge(_) => "edge",
+                SharedCell::Face(_) => "face",
+            };
+            format!("Uncertified {arm:?} at a {cell}")
+        }
+        BoundVerdict::Refused(other) => {
+            let named = format!("{other:?}");
+            named
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        }
+    }
+}
+
+/// **The row's body built at `Interval` reads the `f64` body's verdict
+/// class**, both receipts printed.
+fn same_class(
+    what: &str,
+    float: &topo::clearance::BoundReport<Witness>,
+    interval: &topo::clearance::BoundReport<Witness>,
+) {
+    println!(
+        "[rimscalar] {what}: f64 {} {:?} | Interval {} {:?}",
+        class(&float.verdict),
+        float.receipt,
+        class(&interval.verdict),
+        interval.receipt
+    );
+    assert_eq!(
+        class(&interval.verdict),
+        class(&float.verdict),
+        "{what}: the Interval body reads the f64 body's verdict class: {:?}",
+        interval.verdict
+    );
 }
 
 /// **A curved junction certifies across the departure arm.** The pipe's
@@ -469,6 +522,8 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
         for pose in POSES {
             let body = pipe::<f64>(pose, &f, tol);
             let report = injectivity(&body, None, true, BUDGET, tol);
+            let twin = injectivity(&pipe::<Interval>(pose, &f, tol), None, true, BUDGET, tol);
+            same_class(&format!("pipe {o:?} {axis:?} {pose:?}"), &report, &twin);
             println!(
                 "[curvedep] pipe {o:?} {axis:?} {pose:?}: {:?} {:?}",
                 report.verdict, report.receipt
@@ -516,7 +571,7 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
 /// - `drop > 0` folds it back BELOW the roof, through the wall along the
 ///   second ellipse, a crossing that runs into the junction at the two
 ///   points the cylinders touch.
-fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
+fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<T> {
     let band_sense = drop < 0.0;
     let Pose { r, z0, h, theta } = pose;
     let (s, c) = theta.sin_cos();
@@ -527,17 +582,17 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     let circle = Curve3::Circle {
         center: f.p((0.0, 0.0, z0)),
         axis: f.v((0.0, 0.0, 1.0)),
-        radius: r,
+        radius: T::from_f64(r),
         u_ref: f.v((1.0, 0.0, 0.0)),
     };
     let ellipse = Curve3::Ellipse {
         center: f.p((0.0, 0.0, z0 + h)),
-        axis: -f.v::<f64>(n),
-        semi_u: r / c,
-        semi_v: r,
+        axis: -f.v::<T>(n),
+        semi_u: T::from_f64(r / c),
+        semi_v: T::from_f64(r),
         u_ref: f.v(major),
     };
-    let mut body = Body::<f64>::new();
+    let mut body = Body::<T>::new();
     let seed = body.mvfs(f.p((r, 0.0, z0)), true).unwrap();
     let cyl = body
         .set_face_surface(
@@ -546,7 +601,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
                 surface: Surface::Cylinder {
                     origin: f.p((0.0, 0.0, 0.0)),
                     axis: f.v((0.0, 0.0, 1.0)),
-                    radius: r,
+                    radius: T::from_f64(r),
                     u_ref: f.v((1.0, 0.0, 0.0)),
                 },
                 sense: true,
@@ -605,7 +660,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
             surface: Surface::Cylinder {
                 origin: f.p(o2),
                 axis: f.v(a2),
-                radius: r,
+                radius: T::from_f64(r),
                 u_ref: f.v(u2),
             },
             sense: band_sense,
@@ -616,7 +671,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
         vec![Rechart::new(
             Surface::Plane {
                 origin: f.p((0.0, 0.0, z0)),
-                normal: -f.v::<f64>((0.0, 0.0, 1.0)),
+                normal: -f.v::<T>((0.0, 0.0, 1.0)),
                 u_ref: f.v((1.0, 0.0, 0.0)),
             },
             cap_b.face,
@@ -634,8 +689,8 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
             selector: geom_brep::CurveSelector::Witness(f.p((-r, 0.0, z0))),
         },
         carrier: circle,
-        param_start: 0.0,
-        param_end: TAU,
+        param_start: T::zero(),
+        param_end: T::from_f64(TAU),
     };
     body.set_edge_curve(cap_b.edge, spec, tol).unwrap();
     // The band's far rim: the circle `drop` along the mirrored axis past
@@ -653,7 +708,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     let lower = Curve3::Circle {
         center: f.p(centre),
         axis: f.v(a2),
-        radius: r,
+        radius: T::from_f64(r),
         u_ref: f.v(u2),
     };
     let strut = body
@@ -703,8 +758,8 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
             ))),
         },
         carrier: lower,
-        param_start: 0.0,
-        param_end: TAU,
+        param_start: T::zero(),
+        param_end: T::from_f64(TAU),
     };
     body.set_edge_curve(cap_l.edge, spec, tol).unwrap();
     topo::mint_pcurves(&mut body, tol).unwrap();
@@ -712,7 +767,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
 }
 
 /// The faces of `body` on a cylinder: the wall and the band.
-fn walls(body: &Body<f64>) -> Vec<topo::FaceKey> {
+fn walls<T: Real>(body: &Body<T>) -> Vec<topo::FaceKey> {
     body.faces()
         .map(|(k, _)| k)
         .filter(|&k| {
@@ -740,8 +795,16 @@ fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
     let tol = Tol::witness();
     for (o, axis) in [FRAMES[0], FRAMES[2]] {
         let f = Frame::at(o, axis);
-        let body = mitred(POSES[0], &f, -1.5, tol);
+        let body = mitred::<f64>(POSES[0], &f, -1.5, tol);
         let report = injectivity(&body, None, true, BUDGET, tol);
+        let twin = injectivity(
+            &mitred::<Interval>(POSES[0], &f, -1.5, tol),
+            None,
+            true,
+            BUDGET,
+            tol,
+        );
+        same_class(&format!("mitre {o:?} {axis:?}"), &report, &twin);
         println!(
             "[curvedep] mitre {o:?} {axis:?}: {:?} {:?}",
             report.verdict, report.receipt
@@ -782,9 +845,16 @@ fn the_mitre_folded_back_through_the_wall_reads_violated() {
     use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
     let f = Frame::at(FRAMES[0].0, FRAMES[0].1);
-    let body = mitred(POSES[0], &f, 1.5, tol);
+    let body = mitred::<f64>(POSES[0], &f, 1.5, tol);
     let faces = walls(&body);
     let report = injectivity(&body, Some(faces.clone()), true, BUDGET, tol);
+    let twin = mitred::<Interval>(POSES[0], &f, 1.5, tol);
+    let twin_faces = walls(&twin);
+    same_class(
+        "the folded mitre",
+        &report,
+        &injectivity(&twin, Some(twin_faces), true, BUDGET, tol),
+    );
     println!("[curvedep] fold: {:?} {:?}", report.verdict, report.receipt);
     match report.verdict {
         BoundVerdict::Violated(w) => {
@@ -817,23 +887,29 @@ fn the_mitre_folded_back_through_the_wall_reads_violated() {
 /// the annulus, or the same disk again with its sense flipped (where
 /// `lamina`), a face folded back onto the first along the rim. Returns
 /// the body, the disk, and the other face.
-fn across_a_rim(lamina: bool, tol: Tol) -> (Body<f64>, topo::FaceKey, topo::FaceKey) {
+fn across_a_rim<T: Decide + AtRestPolicy>(
+    lamina: bool,
+    tol: Tol,
+) -> (Body<T>, topo::FaceKey, topo::FaceKey) {
+    let at = T::from_f64;
+    let p = |x, y, z| Point3::new(at(x), at(y), at(z));
+    let v = |x, y, z| Vec3::new(at(x), at(y), at(z));
     let circle = |r: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        center: p(0.0, 0.0, 0.0),
+        axis: v(0.0, 0.0, 1.0),
+        radius: at(r),
+        u_ref: v(1.0, 0.0, 0.0),
     };
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(p(1.0, 0.0, 0.0), true).unwrap();
     let plane = body
         .set_face_surface(
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    origin: p(0.0, 0.0, 0.0),
+                    normal: v(0.0, 0.0, 1.0),
+                    u_ref: v(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -859,7 +935,7 @@ fn across_a_rim(lamina: bool, tol: Tol) -> (Body<f64>, topo::FaceKey, topo::Face
                     he1: disk.he_plus,
                     he2: disk.he_plus,
                 },
-                Point3::new(2.0, 0.0, 0.0),
+                p(2.0, 0.0, 0.0),
                 tol,
             )
             .unwrap();
@@ -894,8 +970,14 @@ fn across_a_rim(lamina: bool, tol: Tol) -> (Body<f64>, topo::FaceKey, topo::Face
 fn a_curved_rim_folded_on_itself_refuses_never_certified() {
     use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
-    let (body, disk, other) = across_a_rim(true, tol);
+    let (body, disk, other) = across_a_rim::<f64>(true, tol);
     let report = injectivity(&body, Some(vec![disk, other]), false, 4096, tol);
+    let (twin, td, to) = across_a_rim::<Interval>(true, tol);
+    same_class(
+        "the lamina",
+        &report,
+        &injectivity(&twin, Some(vec![td, to]), false, 4096, tol),
+    );
     println!(
         "[curvedep] lamina: {:?} {:?}",
         report.verdict, report.receipt
@@ -920,8 +1002,14 @@ fn a_curved_rim_folded_on_itself_refuses_never_certified() {
 fn a_disk_and_its_annulus_certify_across_their_rim() {
     use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
-    let (body, disk, other) = across_a_rim(false, tol);
+    let (body, disk, other) = across_a_rim::<f64>(false, tol);
     let report = injectivity(&body, Some(vec![disk, other]), true, BUDGET, tol);
+    let (twin, td, to) = across_a_rim::<Interval>(false, tol);
+    same_class(
+        "the annulus",
+        &report,
+        &injectivity(&twin, Some(vec![td, to]), true, BUDGET, tol),
+    );
     println!(
         "[curvedep] annulus: {:?} {:?}",
         report.verdict, report.receipt

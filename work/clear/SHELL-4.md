@@ -64,3 +64,29 @@ the carrier arm's ψ, certifies its half-rims; CORNER's lane measured
 this and both reviews confirmed it. CORNER (#6045) has landed anyway,
 so a curved twin with arc necks would also be read at its convex
 corners.
+
+## Re-parked (CLEAR orchestrator, 2026-10-30)
+
+SHELL-4's lane stopped. The WIP is on `clear/shell4` at `623daf636b`
+and is kept. The vessel holds at `Body<f64>` but refuses `Departure` at
+`Body<Interval>`, the scalar the gate runs at. That is a certificate
+change (`injectivity-refuses-at-interval-what-it-certifies-at-f64`,
+unit RIMSCALAR). The unpark note above measured `f64` only.
+
+The lane's other findings, filed where they belong:
+- the curved twin cannot be built at `Interval`: the general offset door
+  refuses `offset_corner_on_surface` first (VERBS);
+- the box-with-void instance is now refused at `f64` by
+  `moved_walls_cross` (`OffsetsCross`), and escalates there at
+  `Interval`. See the curved-residue row.
+
+SHELL-4 resumes on the WIP branch once RIMSCALAR lands. The gate as
+built:
+- `cavity_embedded` runs after `moved_walls_cross`;
+- new arms `CavityCrosses` and `CavityUncertified`;
+- the tube at `Interval` passes in 70 ms.
+
+## Unparked again (CLEAR orchestrator, 2026-10-30)
+
+RIMSCALAR (#6090) landed. The vessel holds at `Body<Interval>`, by the
+corner arm. SHELL-4's lane resumes on its WIP branch, `clear/shell4`.
