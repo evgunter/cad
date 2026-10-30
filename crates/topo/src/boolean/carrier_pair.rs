@@ -440,6 +440,68 @@ mod lever_rows {
         );
     }
 
+    /// **R1 probe (review of #6079).** The torus lever row's `0.6·Kε`
+    /// tilt: every point of the patch (sampled on a 41×41 grid of its
+    /// chart) stands within `Kε` of the tilted twin's carrier, so the two
+    /// faces are in band of each other over their whole extent, yet the
+    /// door reads two carriers definitely apart and contradicts: the ring
+    /// the torus datum is read at lies off the patch.
+    #[test]
+    fn r1_probe_a_torus_pair_in_band_over_its_patch_reads_definite() {
+        let k = 0.6;
+        let theta = k * band().escalate();
+        let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+        let (big, small) = (2.0, 0.5);
+        let (a, fa) = torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            big,
+            small,
+            u,
+            v,
+        );
+        let (mut b, fb) = torus_wall(
+            Point3::origin(),
+            Vec3::new(theta.sin(), 0.0, theta.cos()),
+            Vec3::new(theta.cos(), 0.0, -theta.sin()),
+            big,
+            small,
+            u,
+            v,
+        );
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        // The distance from `p` to the twin: `p` turned back by θ about y,
+        // read against the untilted torus.
+        let to_twin = |x: f64, y: f64, z: f64| {
+            let (s, c) = theta.sin_cos();
+            let (x, z) = (c * x - s * z, s * x + c * z);
+            let rho = (x * x + y * y).sqrt();
+            (((rho - big).powi(2) + z * z).sqrt() - small).abs()
+        };
+        let n = 40;
+        let mut worst: f64 = 0.0;
+        for i in 0..=n {
+            for j in 0..=n {
+                let uu = u.0 + (u.1 - u.0) * f64::from(i) / f64::from(n);
+                let vv = v.0 + (v.1 - v.0) * f64::from(j) / f64::from(n);
+                let r = big + small * vv.cos();
+                worst = worst.max(to_twin(r * uu.cos(), r * uu.sin(), small * vv.sin()));
+            }
+        }
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            worst < band().escalate() && worst > band().zero(),
+            "the patch stands in band of its twin: worst {worst:e}"
+        );
+        assert!(
+            !matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "a pair in band over its whole extent reads definite (Contradicted): worst {worst:e}, \
+             {read:?}"
+        );
+    }
+
     /// **The offset and the tilt in band refuse.** A 1 m band of
     /// cylinder wall at `9 ≤ v ≤ 10` against its twin tilted by
     /// `0.105·K·ε` about `y` through the axis' foot at the origin: the
