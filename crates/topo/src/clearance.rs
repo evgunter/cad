@@ -3907,16 +3907,18 @@ mod extent_rows {
     /// a row that is no monotone line is read by its ends.
     #[test]
     fn a_harmonic_rows_extent_holds_its_bulge() {
-        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI)) else {
+        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI), 0.0) else {
             panic!("the arch is read by its enclosure");
         };
         assert!(
             u.lo() <= 0.0 && PI <= u.hi() && v.hi() >= 1.0,
             "the enclosure holds the arch: {u:?} {v:?}"
         );
-        let [(_, _), (_, top)] =
-            extent_of(CYLINDER, [row_of(&arch(), (0.0, PI), flat(PI))].into_iter())
-                .expect("an extent");
+        let [(_, _), (_, top)] = extent_of(
+            CYLINDER,
+            [row_of(&arch(), (0.0, PI), flat(PI), 0.0)].into_iter(),
+        )
+        .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
     }
 
@@ -3930,16 +3932,123 @@ mod extent_rows {
         assert!(
             extent_of(
                 CYLINDER,
-                [row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()
+                [row_of(&arch(), (0.0, TAU), flat(TAU), 0.0)].into_iter()
             )
             .is_none(),
             "a turn-wide superset reads unknown"
         );
-        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU))];
+        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU), 0.0)];
         assert!(
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod held_lines {
+    use super::{Row, harmonic_of, iso_of, row_of};
+    use crate::injective::{self, Axis};
+    use geom_brep::{Channel, Pcurve};
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds, Real};
+
+    /// The slack a unit edge's image is held within.
+    const SLACK: f64 = 1e-15;
+
+    /// A rim's image on a cylinder's chart at `T`: the azimuth `t`, the
+    /// height `2 + a·cos t`.
+    fn rim<T: Real>(a: T) -> Pcurve<T> {
+        Pcurve::Harmonic {
+            u: Channel::Angle {
+                phase: T::zero(),
+                winding: 1,
+            },
+            v: Channel::Free {
+                c: T::from_f64(2.0),
+                a,
+                b: T::zero(),
+                l: T::zero(),
+            },
+        }
+    }
+
+    /// **A held channel whose oscillation is enclosed within the slack
+    /// of zero is a coordinate line, valued over its strip; one wider,
+    /// or one clear of zero, is not.** Red if the bound on the
+    /// oscillation is dropped, if the value is not widened to the strip
+    /// the oscillation sweeps, or if the rounding-wide one is refused.
+    #[test]
+    fn a_rounding_wide_oscillation_is_held_and_a_wider_one_is_not() {
+        let a = 8.9e-16;
+        let (held, at, angle) =
+            iso_of(&rim(Interval::from_bounds(-a, a)), SLACK).expect("held within the slack");
+        assert_eq!((held, angle), (Axis::V, true), "the height is held");
+        assert!(
+            at.lo() <= 2.0 - a && 2.0 + a <= at.hi(),
+            "the value holds the strip: {at:?}"
+        );
+        assert!(
+            iso_of(&rim(Interval::from_bounds(-1e-3, 1e-3)), SLACK).is_none(),
+            "an oscillation wider than the slack is no line"
+        );
+        assert!(
+            iso_of(&rim(Interval::from_bounds(1e-16, 2e-16)), SLACK).is_none(),
+            "an oscillation clear of zero is no line"
+        );
+        let Some(Row::Ends(ends)) = row_of(
+            &rim(Interval::from_bounds(-a, a)),
+            (Interval::zero(), Interval::pi()),
+            [[Interval::zero(), Interval::from_f64(2.0)]; 2],
+            SLACK,
+        ) else {
+            panic!("a held line is read by its ends");
+        };
+        assert!(
+            ends.iter()
+                .all(|e| e[1].lo() <= 2.0 - a && 2.0 + a <= e[1].hi()),
+            "each end's held coordinate is widened to the strip: {ends:?}"
+        );
+    }
+
+    /// **At `f64` the held channel is exact structure**: a zero
+    /// oscillation is a line and any other is not, however small. Red
+    /// if the slack is granted to a point value.
+    #[test]
+    fn at_f64_a_held_channel_is_exact_structure() {
+        assert!(iso_of(&rim(0.0), SLACK).is_some(), "a zero oscillation");
+        assert!(
+            iso_of(&rim(1e-16), SLACK).is_none(),
+            "a nonzero oscillation within the slack"
+        );
+    }
+
+    /// **An angle channel's rate is its winding count, exactly**, at an
+    /// interval scalar. Red if it is read off the quotient of two
+    /// enclosures of a turn, which is wider than the integer.
+    #[test]
+    fn a_windings_rate_is_its_count() {
+        for winding in [-2, -1, 1, 3] {
+            let image = Pcurve::Harmonic {
+                u: Channel::Angle {
+                    phase: Interval::pi(),
+                    winding,
+                },
+                v: Channel::Free {
+                    c: Interval::zero(),
+                    a: Interval::zero(),
+                    b: Interval::zero(),
+                    l: Interval::zero(),
+                },
+            };
+            let h = harmonic_of(&image).expect("a harmonic image");
+            assert!(
+                injective::exactly(h.pl[0], f64::from(winding)),
+                "winding {winding}: rate {:?}",
+                h.pl[0]
+            );
+        }
     }
 }
 

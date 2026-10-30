@@ -337,14 +337,19 @@ fn same_class(what: &str, float: &BoundReport<Witness>, interval: &BoundReport<W
 }
 
 /// **The body holds at both scalars** ([`assert_holds`]), over every face,
-/// in one verdict class; the `f64` report, for a row's own pins.
-fn holds_at_both(what: &str, float: Body<f64>, interval: Body<Interval>) -> BoundReport<Witness> {
+/// in one verdict class; the `f64` report and the `Interval` one, for a
+/// row's own pins.
+fn holds_at_both(
+    what: &str,
+    float: Body<f64>,
+    interval: Body<Interval>,
+) -> [BoundReport<Witness>; 2] {
     let report = injective(&float, None, BUDGET);
     let twin = injective(&interval, None, BUDGET);
     same_class(what, &report, &twin);
     assert_holds(what, &report, &float);
     assert_holds(&format!("{what} at Interval"), &twin, &interval);
-    report
+    [report, twin]
 }
 
 // ------------------------------------------------------------ fixtures
@@ -711,13 +716,14 @@ fn a_full_torus_certifies_by_kind() {
         .body
     }
     let body = torus::<f64>();
-    let report = holds_at_both("the torus", body.clone(), torus::<Interval>());
-    assert_eq!(
-        report.receipt.by_kind,
-        body.faces().count(),
-        "every torus face against itself discharged by kind, R > r decided: {:?}",
-        report.receipt
-    );
+    for report in holds_at_both("the torus", body.clone(), torus::<Interval>()) {
+        assert_eq!(
+            report.receipt.by_kind,
+            body.faces().count(),
+            "every torus face against itself discharged by kind, R > r decided: {:?}",
+            report.receipt
+        );
+    }
 }
 
 /// **A long helical sweep certifies within the default budget**: a
@@ -1097,15 +1103,16 @@ fn a_kernel_built_oblique_cut_holds_across_its_curved_corners() {
     let cut = oblique_cut::<f64>();
     let arcs = cut.edges().filter(|&(k, _)| is_ellipse(&cut, k)).count();
     assert_eq!(arcs, 2, "two open arcs of the cut");
-    let report = holds_at_both(
+    for report in holds_at_both(
         "the oblique cut",
         cut.into_body(),
         oblique_cut::<Interval>().into_body(),
-    );
-    assert_eq!(
-        report.cornered, 14,
-        "the corners are certified by the corner presentation"
-    );
+    ) {
+        assert_eq!(
+            report.cornered, 14,
+            "the corners are certified by the corner presentation"
+        );
+    }
 }
 
 /// [`rod`] over `z` less the half-space below the plane through the
@@ -1124,12 +1131,13 @@ fn rod_less_a_tilted_slab<T: Scalar>(z: (f64, f64)) -> topo::AtRestBody<T> {
 #[test]
 fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
     let z = (-3.0, 3.0);
-    let report = holds_at_both(
+    for report in holds_at_both(
         "the rod less the tilted slab",
         rod_less_a_tilted_slab(z).into_body(),
         rod_less_a_tilted_slab(z).into_body(),
-    );
-    assert_eq!(report.cornered, 14, "the corners are read through");
+    ) {
+        assert_eq!(report.cornered, 14, "the corners are read through");
+    }
 }
 
 /// **A rod taller than a turn holds too** ([`rod_less_a_tilted_slab`]
@@ -1154,11 +1162,17 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// as two arcs; the wall reads the rims as coordinate lines, so the
 /// pairs certify off the wall's presentation by the disc's carrier. It
 /// is no corner row: it held before the corner presentation, and reads
-/// no corner (`cornered` 0).
+/// no corner (`cornered` 0) at either scalar.
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
-    holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0));
+    for report in holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0)) {
+        assert_eq!(
+            report.cornered, 0,
+            "the rims certify off the wall's coordinate lines, reading no corner: {:?}",
+            report.receipt
+        );
+    }
 }
 
 /// **A cylinder–cylinder tee refuses typed where its junction meets a
