@@ -2067,6 +2067,8 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+_MeasureRef: TypeAlias = tuple[NodeId, str] | PoseDef | Var
+
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
     two references.
@@ -2081,12 +2083,15 @@ class MeasurePrimitive:
     """
 
     @staticmethod
-    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+    def distance(a: _MeasureRef, b: _MeasureRef) -> MeasurePrimitive:
         """The distance between two referenced entities — a length.
-        Each reference names a face, an edge or a vertex (another kind
-        refuses `slot_var_kind` at insert). A carrier pair the v1
-        closed forms have no arm for refuses at `evaluate`
-        (`measure_unsupported`), naming the pair."""
+        Each reference names a face, an edge or a vertex, or is a pose:
+        a point, an axis or a plane read off a cell (`PoseDef.point`,
+        `PoseDef.axis`, `PoseDef.plane`), or a pose `Var` such as a
+        split's tool (another kind refuses `slot_var_kind` at insert).
+        Two axes read as one scalar, zero where they are one line or
+        meet. A carrier pair the v1 closed forms have no arm for refuses
+        at `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
     def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
@@ -2112,15 +2117,18 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
+    def gap(outer: _MeasureRef, inner: _MeasureRef) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
-        the containing carrier (the socket, the bore, the plane the
-        offset is measured from) and `inner` the contained one. C5's
-        formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger. Each
-        reference names a face, an edge or a vertex (a body refuses
+        the containing carrier (the plane the offset is measured from,
+        the outer of two nested faces) and `inner` the contained one,
+        authored rather than inferred from which radius is larger. Two
+        faces are read by both material sides: an opposed pair (a rod on
+        a plate, two rods side by side, a pin in a bore) reads the same
+        in either order, an aligned one (a flush pair) negates. Each
+        reference names a face, an edge or a vertex, or is a plane pose
+        (a split's tool) against a vertex (a body refuses
         `slot_var_kind` at insert). Between a face and an edge or a
         vertex, or an edge and a vertex, the higher-dimensional cell's
         material reads the other in either seat; between two edges or
@@ -2136,9 +2144,9 @@ class MeasurePrimitive:
         """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
-        """The two references, in ARGUMENT order — a gap's pair reads
-        `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[_MeasureRef, _MeasureRef]:
+        """The two references, in ARGUMENT order and as they were passed
+        — a gap's pair reads `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...

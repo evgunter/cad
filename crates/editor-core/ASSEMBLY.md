@@ -564,7 +564,7 @@ A contact row is quiet when a holding assertion reads a `Gap`'s output
 directly, relates it by `=` to a bound decided zero, and its two
 selections are the row's two cells, in either order, each the read its
 arrival entered the `⊔` through and the cell's name there, at whatever
-dimension the cells are (`checks::at_rest::quiet_contact`; the
+dimension the cells are (`checks::at_rest::quiet_row`; the
 `unproven-coincidence` lint reads it). It matches cells, so another
 contact between the same two copies stays loud, and it reads verdicts
 only, so a failed assertion quiets nothing.

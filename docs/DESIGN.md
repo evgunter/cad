@@ -55,11 +55,11 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   continuing tangent to a face's trace, proven at the door and written
   by the viewer's sketch tool (stage 6 B–E); a glued pair read through
   its record at every consuming site, with the declared rung and its
-  bridged verdict retired (CONTACTHOLD).
-- **Not built:** `Gap`'s curved arms reading each face's material
-  side, with a plane against a curved face; a measure's reference
-  reading a pose; and each finding's recourse chosen by its kind
-  ([assertions.quiet], [intent.checked]).
+  bridged verdict retired (CONTACTHOLD); `Gap`'s curved arms reading
+  each face's material side, with a plane against a curved face, a
+  measure's reference reading a pose, and each finding's recourse
+  chosen by whether an assertion can say the row ([assertions.quiet],
+  [intent.checked]).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
