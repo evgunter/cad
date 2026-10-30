@@ -262,8 +262,6 @@ mod offset_doors_end_with_the_join;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
-#[path = "zz_surface_cycles_probe.rs"]
-mod zz_surface_cycles_probe;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "onpair_rim_pcurves.rs"]
@@ -402,6 +400,8 @@ mod verbs_offc_consumer;
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
+#[path = "zz_surface_cycles_probe.rs"]
+mod zz_surface_cycles_probe;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
