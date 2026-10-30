@@ -226,3 +226,12 @@ Signed: (CARVE orchestrator)
     - Fix pass 2 (`c140ecc3`), read and accepted: the audit row; `v` and in-band rows; the hang-prone rows bounded by a nextest timeout; N3 as an explicit refusal; `graph_read`'s whole-turn check gated by `periodic`, with every `whole_turn` caller swept.
   - **Moved to CLEARTAIL:** its P2 and P3 filings.
   - **SHELL-4 is unparked.** Its parking note was wrong: the vessel already held, via the carrier arm. SHELL-4 is CLEAR's last P1.
+- 2026-10-30 — **SHELL-4's lane stopped; RIMSCALAR dispatched** (`docs/RIMSCALAR-SPEC.md`, branch `clear/rimscalar`). The vessel holds at `Body<f64>` but refuses `Departure` at `Body<Interval>`. **Class, recorded:** every self-intersection row runs `Body<f64>` only, so the certifying scalar is untested. CORNER's reviews and SHELL-4's unpark note both read `f64`. New P1 `injectivity-refuses-at-interval-what-it-certifies-at-f64`; SHELL-4 re-parked on it, with its WIP kept at `623daf636b`. Filed on OFFSET (P2): `offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude`. The curved-residue row is updated with the box-with-void's current behaviour. Review for RIMSCALAR: a single FULL review with mutation, since the fix aligns the `Interval` reading with the reviewed `f64` one.
+- 2026-10-30 — **RIMSCALAR merges (#6090)** with this commit last.
+  - **The cause:** `harmonic_of` read an angle rate as `w·τ/τ`, a few ulps wide at `Interval`, so the corner presentation's exact ±1 test failed.
+  - **The fix:** read it off the integer winding. Every self-intersection and pipe row now runs at both scalars, with matching verdict classes.
+  - **The review:** a single FULL review at `534e7b8f39` returned NOT-MERGEABLE-AS-IS. Its MAJOR was that the lane's first fix added "the strip", an `iso_of` slack that is a new ε loosening with no funnel or audit row. Reverting the strip alone left every verdict unchanged, so it bought a receipt count, not a verdict. It also widened the touch concession about 4× past its bound.
+  - **The fix pass (`c1481be9`)** removed the strip and pinned the vessel by verdict at both scalars. The orchestrator read it and accepted it.
+  - **Class, recorded:** a fix that adds a concession must show a verdict that needs it. The reviewer's test, reverting the concession alone and diffing verdicts, goes into future briefs for any unit that adds an ε.
+  - **Filed:** the drum divergence (CLEARTAIL, P2); the home of `angle_rate` (PCERT, P3).
+  - **SHELL-4 is unparked.**
