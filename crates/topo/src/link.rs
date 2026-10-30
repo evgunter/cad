@@ -2140,6 +2140,12 @@ impl<T: Decide> Round<T> {
         self.radius
     }
 
+    /// Whether the material lies on the centre's side: a ball's or a
+    /// pin's, not a socket's or a bore's.
+    pub fn convex(&self) -> bool {
+        self.convex
+    }
+
     /// `v`'s part off the axis: all of it about a centre, its part
     /// normal to the axis about a line.
     fn across(&self, v: Vec3<T>) -> Vec3<T> {

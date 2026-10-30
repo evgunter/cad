@@ -339,14 +339,27 @@ distinct from that carrier by the carrier ladder. Where the ladder does
 not decide a parent distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a recorded pair on same-kind carriers with a
-shared mating frame, g is the carrier-relative signed offset:
+shared mating frame, g is the carrier-relative signed offset of the
+inner face's touching point from the outer face's carrier, along the
+outer face's outward normal, each face read on its material side:
 
-- parallel planes: the material separation along the outer face's
-  outward normal;
-- concentric spheres: R − r − ‖Δc‖;
-- coaxial cylinders: r_b − r_p − d (skew axes refuse).
+- parallel planes: the separation along the outer face's outward
+  normal;
+- two spheres, or two cylinders on parallel axes (skew axes refuse):
+  the inner carrier's point that touches the outer at a tangency, its
+  nearest point to the outer's centre where the two lie apart, its
+  farthest or its nearest where one is nested in the other (a pin in a
+  bore reads r_b − r_p − d, a ball in a socket R − r − ‖Δc‖);
+- a plane and a sphere or a cylinder: the round carrier's point
+  nearest the plane.
 
-**g > 0 clearance, g = 0 contact, g < 0 interference.** The census
+**g = 0 is a touch. Over an opposed pair (each face facing the other's
+material) g > 0 is clearance and g < 0 interference, and g reads the
+same whichever face is the outer. Over an aligned pair (both facing
+one way: a flush pair, an aligned tangency, two rods nested) the sign
+says which face stands outside the other, positive where the inner
+stands out of the outer's material, and swapping the faces negates
+it; it is neither clearance nor interference.** The census
 classes are the strata of g's zero set: g = 0 with structural frame
 sharing is `Rest`; g = 0 with an offset frame is an internal point/curve
 touch. So the conformal limit is reached by structure, never by g
@@ -356,8 +369,9 @@ radii; with independent frames it carries the norm kink ‖Δc‖ at Δc = 0
 straddle-hull treatment). Built as the document layer's
 `MeasurePrimitive::Gap { outer, inner }`
 (`crates/editor-core/src/measure.rs`, evaluated in
-`crates/editor-core/src/eval/measure.rs`), argument order the mating
-role, authored rather than inferred. Between a vertex or an edge and
+`crates/editor-core/src/eval/measure.rs`), argument order the role,
+authored rather than inferred; what the values decide is the
+configuration the two faces meet in. Between a vertex or an edge and
 another cell, g is how far one cell stands out of the other's
 material, read as the reading cell's link, the directions entering
 its solid at the point (a face's, the side of its carrier its material
