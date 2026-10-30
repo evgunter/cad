@@ -242,9 +242,11 @@ pub(crate) enum Scaffolding {
 /// the boundary no reading may step over, and null scaffolding is as
 /// `scaffolding` says. Past those, an edge the face lies on both sides of
 /// ([`Body::both_sides_face`]: a seam, a wrap edge, a spur) is no
-/// boundary of it and is left out, so the edges kept are the face's
-/// surface boundary ([`crate::surface_boundary::surface_cycles`]), in
-/// loop order; none for a face that covers its surface.
+/// boundary of it and is left out. The edges kept are the set the
+/// surface boundary's walk reaches
+/// ([`crate::surface_boundary::surface_cycles`]), by construction: both
+/// drop exactly the edges the predicate names. They are listed in loop
+/// order, not walk order; none for a face that covers its surface.
 ///
 /// # Errors
 ///

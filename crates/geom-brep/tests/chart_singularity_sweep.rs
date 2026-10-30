@@ -30,10 +30,10 @@ fn locate_hand_built(
 
 /// **A hand-built loop's chart image**, the structure a body's caller
 /// reads off half-edge identity (`topo::surface_boundary::chart_image`)
-/// read here off the hand-built tags: a pair of consecutive edges that
-/// walk one edge out and straight back (tags swapped, traversal
-/// reversed, the same stored interval on the same carrier) taken out,
-/// again until none is left.
+/// read here off the hand-built tags: an edge followed by one that walks
+/// it straight back (tags swapped, traversal reversed, the same stored
+/// interval on the same carrier), by the one reduction
+/// ([`geom_brep::chart_image::without_reversals`]).
 fn hand_image(edges: &[LoopEdge<f64>]) -> Vec<LoopEdge<f64>> {
     let back = |e: &LoopEdge<f64>, f: &LoopEdge<f64>| {
         e.start == f.end
@@ -43,19 +43,7 @@ fn hand_image(edges: &[LoopEdge<f64>]) -> Vec<LoopEdge<f64>> {
             && e.t1 == f.t1
             && format!("{:?}", e.carrier) == format!("{:?}", f.carrier)
     };
-    let mut kept: Vec<LoopEdge<f64>> = Vec::new();
-    for e in edges {
-        if kept.last().is_some_and(|k| back(k, e)) {
-            kept.pop();
-        } else {
-            kept.push(e.clone());
-        }
-    }
-    while kept.len() >= 2 && back(&kept[kept.len() - 1], &kept[0]) {
-        kept.pop();
-        kept.remove(0);
-    }
-    kept
+    geom_brep::chart_image::without_reversals(edges, back)
 }
 
 /// Spheres and cones read in closed form and by their walk: tilted

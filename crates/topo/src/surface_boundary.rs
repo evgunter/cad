@@ -11,20 +11,22 @@
 //! - **The surface boundary** ([`surface_cycles`]) drops every such edge:
 //!   what remains is the cycles of edges that have another face on their
 //!   far side, the face's boundary on its surface. Region and point
-//!   placement read it (`boolean::region::boundary`). A face every edge of
-//!   which it lies on both sides of (the one-face ball) has an empty
-//!   surface boundary, and covers its surface.
+//!   placement read it. `boolean::region::boundary` keeps the same edges
+//!   by filtering each loop with the predicate, in loop order rather than
+//!   walk order, so the two agree on the set by construction; the region
+//!   arm (the next unit of this row) reads the walk itself. A face every
+//!   edge of which it lies on both sides of (the one-face ball) has an
+//!   empty surface boundary, and covers its surface.
 //! - **The chart image** ([`chart_image`]) drops only the spurs: a
-//!   half-edge whose next is its own mate turns back along its edge
-//!   ([`Body::turns_back`]), so the pair walks out and straight back and
-//!   bounds no area. It is taken out, again and again until no such pair
-//!   is left, since a spur whose edge was split shows its inner reversal
-//!   first. Seams stay: a Green form written in a lifted chart
-//!   coordinate (the torus's tube angle) reads a seam's two traversals a
-//!   period apart, and that term is the face's area. Every integrator and
-//!   chart reader takes this view (`props::chart_image_edges`). A chart
-//!   image that is empty on a closed surface is the whole surface, signed
-//!   by the face's sense (`geom_brep::props::whole_surface`).
+//!   half-edge followed in its loop by its own mate walks its edge out
+//!   and straight back, which bounds no area. The reduction and the rule
+//!   that a loop left empty bounds nothing are `geom_brep::chart_image`'s.
+//!   Seams stay: a Green form written in a lifted chart coordinate (the
+//!   torus's tube angle) reads a seam's two traversals a period apart, and
+//!   that term is the face's area. Every integrator and chart reader
+//!   takes this view (`props::chart_image_edges`). A chart image that is
+//!   empty on a closed surface is the whole surface, signed by the face's
+//!   sense (`geom_brep::props::whole_surface`).
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary};
@@ -41,43 +43,22 @@ impl<T: Real> Body<T> {
         let face = self.face_of_half_edge(e.he_plus)?;
         Some((self.face_of_half_edge(e.he_minus)? == face).then_some(face))
     }
-
-    /// **Whether `he` turns back along its edge**: its loop's next
-    /// half-edge is its own mate, so the two walk the edge out and
-    /// straight back, a spur of the face [`Body::both_sides_face`] names.
-    /// `None` where `he` or its mate does not resolve.
-    #[must_use]
-    pub fn turns_back(&self, he: HalfEdgeKey) -> Option<bool> {
-        Some(self.get_half_edge(he)?.next == self.mate(he)?)
-    }
 }
 
 /// **A loop's chart image** (module docs): `cycle`, one loop's
-/// half-edges in loop order, with each half-edge that its successor in
-/// what is left walks straight back ([`Body::turns_back`] on the image)
-/// taken out with that successor, until none is left; the pairs that
-/// close across the cycle's start included. Empty where the whole loop is
-/// spurs. `None` where a member's mate does not resolve.
+/// half-edges in loop order, reduced by
+/// [`geom_brep::chart_image::without_reversals`] with a half-edge followed
+/// by its own mate read as its edge walked straight back. Empty where the
+/// whole loop is spurs. `None` where a member's mate does not resolve.
 #[must_use]
 pub fn chart_image<T: Real>(body: &Body<T>, cycle: &[HalfEdgeKey]) -> Option<Vec<HalfEdgeKey>> {
-    let mut kept: Vec<HalfEdgeKey> = Vec::with_capacity(cycle.len());
-    for &he in cycle {
-        if let Some(&last) = kept.last()
-            && body.mate(last)? == he
-        {
-            kept.pop();
-        } else {
-            kept.push(he);
-        }
-    }
-    while let (Some(&last), Some(&first)) = (kept.last(), kept.first()) {
-        if kept.len() < 2 || body.mate(last)? != first {
-            break;
-        }
-        kept.pop();
-        kept.remove(0);
-    }
-    Some(kept)
+    let mates = cycle
+        .iter()
+        .map(|&he| Some((he, body.mate(he)?)))
+        .collect::<Option<Vec<_>>>()?;
+    let image =
+        geom_brep::chart_image::without_reversals(&mates, |&(_, mate), &(next, _)| mate == next);
+    Some(image.into_iter().map(|(he, _)| he).collect())
 }
 
 /// **A face's surface boundary** (module docs): from each half-edge of
@@ -193,7 +174,11 @@ mod tests {
         assert_eq!(body.both_sides_face(strut.edge), Some(Some(seed.face)));
         let e = body.get_edge(strut.edge).unwrap();
         for he in [e.he_plus, e.he_minus] {
-            assert_eq!(body.turns_back(he), Some(true), "{he:?} turns back");
+            assert_eq!(
+                body.get_half_edge(he).unwrap().next,
+                body.mate(he).unwrap(),
+                "{he:?} turns back"
+            );
         }
         let cycle = body.loop_cycle(e.he_plus).unwrap();
         assert_eq!(
@@ -237,7 +222,7 @@ mod tests {
         assert_eq!(cycle.len(), 4, "two struts, each walked both ways");
         let turning = cycle
             .iter()
-            .filter(|&&h| body.turns_back(h) == Some(true))
+            .filter(|&&h| body.get_half_edge(h).unwrap().next == body.mate(h).unwrap())
             .count();
         assert_eq!(turning, 2, "only the far strut and the seed turn back");
         assert_eq!(chart_image(&body, &cycle), Some(Vec::new()));

@@ -672,9 +672,7 @@ impl<'a, T: Decide> Sides<'a, T> {
     ) -> Result<bool, Unread<T>> {
         let mut unread: Option<Unread<T>> = None;
         for l in 0..self.loops.len() {
-            // A loop that is all spurs bounds nothing, and places no
-            // point on either side of it.
-            if self.loops[l].is_empty() {
+            if !crate::chart_image::bounds_area(self.loops[l]) {
                 continue;
             }
             match self.left_holds(l, singularity, x) {

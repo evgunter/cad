@@ -402,30 +402,20 @@ fn loop_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
         .collect()
 }
 
-/// Face `fi`'s loops' chart images, loop for loop: each loop with every
-/// use that the next use left walks straight back along its edge (the
-/// same `EDGE_CURVE`, the other orientation: a spur) taken out with it,
-/// until none is left, as the kernel's
-/// `topo::surface_boundary::chart_image` reads a body's half-edges.
-/// A loop that is all spurs is empty.
+/// Face `fi`'s loops' chart images, loop for loop
+/// ([`geom_brep::chart_image::without_reversals`]): a use followed by a
+/// use of the same `EDGE_CURVE` the other way walks it straight back (a
+/// spur), the reading a body's half-edges and mates give
+/// (`topo::surface_boundary::chart_image`). A loop that is all spurs is
+/// empty.
 fn image_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
-    let back = |a: &EdgeUse, b: &EdgeUse| a.edge == b.edge && a.forward != b.forward;
     solid.faces[fi]
         .loops
         .iter()
         .map(|lp| {
-            let mut kept: Vec<EdgeUse> = Vec::with_capacity(lp.uses.len());
-            for u in &lp.uses {
-                if kept.last().is_some_and(|k| back(k, u)) {
-                    kept.pop();
-                } else {
-                    kept.push(*u);
-                }
-            }
-            while kept.len() >= 2 && back(&kept[kept.len() - 1], &kept[0]) {
-                kept.pop();
-                kept.remove(0);
-            }
+            let kept = geom_brep::chart_image::without_reversals(&lp.uses, |a, b| {
+                a.edge == b.edge && a.forward != b.forward
+            });
             use_edges(solid, &kept)
         })
         .collect()
