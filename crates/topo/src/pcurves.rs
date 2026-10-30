@@ -4066,20 +4066,21 @@ fn singular_at<T: Decide>(
     band: Band,
 ) -> Singular {
     let reach = match *chart.surface() {
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
-            let pole = axis * radius;
-            Margin::of(
-                vertex
-                    .distance(center + pole)
-                    .min(vertex.distance(center - pole)),
-            )
+        // The singular points, from their one home.
+        Surface::Sphere { .. } | Surface::Cone { .. } => {
+            let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
+                return Singular::Off;
+            };
+            let points = geom_brep::chart_singularity::singular_points(&inverse);
+            let Some(nearest) = points
+                .iter()
+                .map(|&(_, p)| vertex.distance(p))
+                .reduce(|a, b| a.min(b))
+            else {
+                return Singular::Off;
+            };
+            Margin::of(nearest)
         }
-        Surface::Cone { apex, .. } => Margin::of(vertex.distance(apex)),
         Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Plane { .. } => {
             return Singular::Off;
         }
@@ -5280,11 +5281,6 @@ pub(crate) mod staleness_posture {
         use Posture::{Completes, Maintains, Neither, Transfers};
         &[
             // ---- Maintains, one delegation away from the re-mint. ----
-            (
-                "merge_coplanar_faces",
-                Maintains,
-                "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
-            ),
             // ---- Maintains: the doors that re-mint their own staged
             // result. They carry prose here rather than in
             // `review_m1_pr5_internal::ALLOWED` because they assert
@@ -5292,7 +5288,7 @@ pub(crate) mod staleness_posture {
             // are no longer allowlisted there; the two tables still
             // have to cover this one population between them. ----
             (
-                "merge_coplanar_faces_declared",
+                "merge_coplanar_faces",
                 Maintains,
                 "calls `merge_coplanar_faces_staged`, which re-mints the staged result \
                  before it is adopted, whenever the operand carried rows, and ends with \
@@ -7707,12 +7703,12 @@ pub(crate) mod pole_slit_tests {
             );
             let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
             let outcome = |a: usize, b: usize, f: FaceKey| {
-                crate::declared_pair_overlap(
+                crate::glued_pair_overlap(
                     &bodies[a],
                     f,
                     &bodies[b],
                     f,
-                    crate::contact::ContactVerdict::Definite,
+                    crate::CarrierPremise::Decided,
                     band,
                 )
             };
@@ -7861,12 +7857,12 @@ pub(crate) mod pole_slit_tests {
                 );
             }
             for (f, _) in body.faces() {
-                let o = crate::declared_pair_overlap(
+                let o = crate::glued_pair_overlap(
                     &body,
                     f,
                     &body,
                     f,
-                    crate::contact::ContactVerdict::Definite,
+                    crate::CarrierPremise::Decided,
                     band,
                 );
                 assert!(

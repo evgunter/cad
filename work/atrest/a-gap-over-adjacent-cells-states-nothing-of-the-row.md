@@ -4,8 +4,9 @@ kind: issue
 title: What assertion could say a tangency, a coaxiality or a blend's common foot? No Gap = 0 does, so those rows are quieted by none
 status: open
 opened: 2026-10-27
-priority: P2
+priority: P0
 cost: M
+design: true
 ---
 
 D10 `[assertions.quiet]` quiets a finding only by an assertion that
@@ -58,3 +59,5 @@ include:
 
 This goes to a designer pair first (`docs/prompts/designer.md`), then
 to an `[ev]` PR on D10.
+
+**Re-priced P0 (2026-10-30, INTENT orchestrator).** DESIGN's "State of the build" lists this as D10's one unbuilt item, and D10's umbrella (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`) now waits on it alone. It is a design question (what a quieting assertion says for a row that decides more than meeting), so the designer pair weighs it first.

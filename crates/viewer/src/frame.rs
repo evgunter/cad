@@ -2363,12 +2363,12 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 /// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The node the finding is about, which the button selects: for a
+    /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places ([`crate::world::seat_of`]), the deciding node of an
-    /// unproven coincidence.
-    pub node: RecipeNodeId,
-    /// That node, spoken.
+    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// unproven coincidence), or the variable an unused finding names.
+    pub select: Selection,
+    /// That node or variable, spoken.
     pub button: String,
     /// The finding, its copies spoken.
     pub sentence: String,
@@ -2449,6 +2449,14 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
+                FindingSubject::Var(var) => {
+                    return CheckRow {
+                        select: Selection::Variable(var),
+                        button: by.read(var),
+                        sentence: Said(finding, by).to_string(),
+                        cells: Vec::new(),
+                    };
+                }
                 FindingSubject::Output { placement, .. } => {
                     crate::world::seat_of(landed, placement)
                 }
@@ -2472,7 +2480,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
             CheckRow {
-                node,
+                select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),

@@ -2,12 +2,14 @@
 id: validity-refuses-an-interior-chart-singularity
 kind: issue
 title: Validity refuses a revolution-chart face whose loop is rims only (a pole or apex interior to the face)
-status: dispatched
+status: closed
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census, import-normalizes-the-rim-only-cap]
 priority: P0
 cost: H
 branch: restcurve/chart-singularity-is-a-vertex
+closed: 2026-10-30
+pr: 6054
 ---
 
 
@@ -256,3 +258,15 @@ Props' arms that become reachable only through an invalid body are PROPS' to ret
 
 - The wrap tip, which is `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity` (parked). Add no valence-1 exemption.
 - The shared corner-turn loop walk (`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`). The new home's winding reading is a loop walk on a chart, so write it as one walk that row can extend, not as a private helper. Name that coupling in the PR.
+
+## Closed (PR 6054, 2026-10-30)
+
+Tier 3 refuses a sphere pole or cone apex that lies in a face's closure and is not a vertex of it. A definite reading refuses as `ChartSingularityNotAVertex` (interior, or inside an edge); a reading in band refuses as `ChartSingularityUndecided`.
+
+The reading has one home, `geom_brep::chart_singularity`, and both step-import's normalization and validate cite it. The sphere's side is read through props' stereographic turning. `sphere_poles` is the one list of a sphere's poles.
+
+What remains exempt is filed on this slate:
+- `a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt` (P3), which includes rational splines;
+- `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` (P3).
+
+The wrap-tip half is `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`, still parked on the shared loop walk.

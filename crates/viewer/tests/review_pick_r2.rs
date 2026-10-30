@@ -74,7 +74,7 @@ struct Tally {
 /// change to which near-degenerate candidates the certification
 /// refuses. The PR that moves it says which documents' landings moved
 /// and why; what it never moves is the empty `genuine_refused` above.
-const PINNED: (usize, usize, usize, usize) = (431_064, 143_421, 27_618, 9_216);
+const PINNED: (usize, usize, usize, usize) = (431_064, 143_483, 14_556, 7_266);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
