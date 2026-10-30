@@ -1103,3 +1103,15 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - The reviewers found that the #6006 premise ("that face's kind's symmetry") is not what the code reads. It went to Ev as `[ev]` #6064, which is open.
   - `intent-stage6-is-built` waits on E alone. D10's umbrella waits on stage 6 and on CONTACTHOLD's declared-rung P0.
 - **2026-10-30, stage 6 E dispatched** (`session_01VyvYnLgN4x5RNGfT71WRpC`), single FULL review. E is an INTENT row at P0 on the viewer's ground, so the sitting continues rather than handing the track back; check-in 103 had planned the handback. The crossing is announced on DOORS', VGEOM's and FORMS' logs, none of which has an orchestrator.
+- **2026-10-30, stage 6 E (#6071), single FULL review.** One reviewer (`session_01VyvYnLT`, probes `review/intent-s6e-R1` @ fe6201c48) returned NOT-MERGEABLE-AS-IS at 1/3/4.
+  - **MAJOR:** a planar cap picked as the sketch plane wrote a frame off the cap's edge, so the door reported `ReadTheAxis`.
+  - **MINOR:**
+    - frame moves were literals computed off the evaluation;
+    - the frame decision lived in the viewer;
+    - the plane pick did not set the plane.
+  - **Ruled and fixed in one pass:** the frame's z is always the traced face's axis, and the plane pick places the origin by a vertex read off it (`Through{Axis{traced}, Point{vertex}}`). This is decided in the façade (`pncad::trace::traced_frame`, Python `Evaluation.traced_frame`) and refused typed where the plane is not square to the axis. The cap, top-cap and offset-cylinder rows prove `Structural`. The viewer builds through `drawn_profile`/`Chain`.
+  - **A class the review named (S1):** the viewer's session repeated the body-operand block (`on_body` → `seat_read` → `body_of`). The pass folded it into `picked_body` for `sketch_on_face`, `add_mirror` and `face_read`.
+  - **Filed:** the preview drawn off its frame is `vgeom/a-profile-drawn-on-a-frame-is-drawn-at-the-worlds-xy` (raised to P2, since this tool's preview shows it).
+  - The orchestrator's read accepted the pass: the frame is built only from reads, with no literal.
+- **Stage 6 closed 2026-10-30** (A #6023, B #6041, C #6043, D #6060, E #6071). D10's umbrella now waits only on CONTACTHOLD's bridging-rung row (P0).
+  - INTENT has no P0/P1 row left to dispatch, so the track is handed back `ready`; its open rows are P2 and below.
