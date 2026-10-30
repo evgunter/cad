@@ -6234,10 +6234,9 @@ mod properties_pane_tests {
         };
         use pncad::geom::SurfaceKind;
         use pncad::geom_core::Point2;
+        use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
         use pncad::profile::{Step, Target};
-        use pncad::select::{
-            all_faces, all_vertices, face_carrier_kind, face_frame, vertex_position,
-        };
+        use pncad::select::{all_faces, all_vertices, vertex_position};
 
         use super::Driven;
         use crate::forms::ShapeKind;
@@ -6287,24 +6286,38 @@ mod properties_pane_tests {
             (session, disc, cylinder)
         }
 
-        /// The cylinder's face on a carrier of `kind`, as a pick on it;
-        /// of planes, the one standing at `z`.
+        /// The cylinder's face on a carrier of `kind`, as a pick on it:
+        /// of planes, its cap at `z` (`0`, its start, or its height, its
+        /// end), named by the extrude's role; its cylinder, the first
+        /// of the two half-walls the disc's split circle sweeps.
         fn face(
             session: &DocSession,
             cylinder: RecipeNodeId,
             kind: SurfaceKind,
             z: f64,
         ) -> FaceSelection {
-            let (_, ev) = session.landed_pair().expect("the cylinder landed");
-            let name = all_faces(ev, cylinder)
-                .into_iter()
-                .find(|name| {
-                    face_carrier_kind(ev, cylinder, name) == Ok(kind)
-                        && (kind != SurfaceKind::Plane
-                            || face_frame(ev, cylinder, name)
-                                .is_ok_and(|f| (f.origin.z - z).abs() < 1e-12))
-                })
-                .unwrap_or_else(|| panic!("a {kind:?} face"));
+            let cap = |end| StableName {
+                kind: EntityKind::Face,
+                node: cylinder,
+                path: vec![RoleSeg::Cap(end)],
+            };
+            let name = match kind {
+                SurfaceKind::Plane if z == 0.0 => cap(CapEnd::Start),
+                SurfaceKind::Plane => cap(CapEnd::End),
+                SurfaceKind::Cylinder => {
+                    let (_, ev) = session.landed_pair().expect("the cylinder landed");
+                    let caps = [cap(CapEnd::Start), cap(CapEnd::End)];
+                    let walls: Vec<_> = all_faces(ev, cylinder)
+                        .into_iter()
+                        .filter(|name| !caps.contains(name))
+                        .collect();
+                    let [wall, _] = walls.as_slice() else {
+                        panic!("two half-walls besides the caps: {walls:?}")
+                    };
+                    wall.clone()
+                }
+                other => unreachable!("the cylinder has no {other:?} face"),
+            };
             FaceSelection {
                 name,
                 node: cylinder,
