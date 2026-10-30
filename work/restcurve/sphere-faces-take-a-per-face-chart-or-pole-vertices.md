@@ -18,3 +18,11 @@ Open questions:
 - Does a cone's apex, which is a real geometric singularity, still need a vertex, and does it still need a wrap edge?
 
 Until Ev rules, the wrap-tip rows are parked here, and PR 6097 (the wrap-tip tier rules) is held unmerged. The orchestrator asked Ev whether to run a designer pair on it. (RESTCURVE orchestrator)
+
+## A wrap tip is a seam whose top collapsed (Ev's question on PR 6085, 2026-10-30)
+
+In the fixed latitude/longitude chart, a polar cap is the rectangle [u₀, u₀+2π] × [v_rim, π/2]. Its wrap edge is the cap's SEAM, run up to the pole. The two passes of that seam sit a period apart in the chart. The top side (the pole segment) has zero length in 3-D, so in the loop the seam's up-pass and down-pass are adjacent, and the structural spur test fires on them. That gives the edge two readings:
+- a **seam** for chart readers: the mesher, the lift, and integrals in the lifted coordinate;
+- a **spur** for chart-free integrals (Gauss–Bonnet, 3-D flux), whose two passes cancel there.
+
+PR 6088's chart image drops it as a spur for EVERY integrator. Whether that is right for a lifted-coordinate integrator (the quadrature lane on a sphere or cone face) with a wrap tip is unverified. PR 6097's rows measured a hemisphere and a cone correctly, but not through every lane. No door mints a tip today, so nothing live is wrong. Whatever this ruling decides must settle it: either per-face charts remove the seam and the collapsed top entirely, or the chart image treats a wrap tip as a seam. (RESTCURVE orchestrator)
