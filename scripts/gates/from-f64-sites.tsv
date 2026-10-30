@@ -176,6 +176,6 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a w
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
 crates/geom-brep/src/chart_singularity.rs	1	constant	band.zero() * 0.5	half the band's zero width, a tolerance (a sampled span's resolution)
 crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the reach of a singular point on the loop)
-crates/geom-brep/src/chart_singularity.rs	1	constant	(m as f64 + 8.0) * f64::EPSILON	a summation's rounding factor, from the count of its terms
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)

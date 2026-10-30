@@ -5684,7 +5684,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   `geom_brep::chart_singularity::locate` answers neither a place nor
 ///   an undecided reading): an edge on a sampled carrier (not a line or
 ///   a circle) whose refinement against its speed bound settles neither
-///   on nor off within its budget, or one with no finite speed bound
+///   on nor off within its budget, or one with no speed bound that holds
+///   at every scalar (a rational spline among them)
 ///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
 ///   and a loop whose chart image states no certified winding about the
 ///   surface axis: a sample with no chart point away from every singular

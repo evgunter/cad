@@ -25,6 +25,8 @@ names it):
 - a step the refinement cannot certify within `WALK_BUDGET`
   (`chart_singularity.rs:779`) or its depth: a curve near the axis that
   the speed bound reads as possibly turning round it;
+- an edge with no speed bound: a rational spline (see
+  `a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt`);
 - a loop winding more than once (row:
   `geom-brep/tests/chart_singularity_locate.rs`
   `a_loop_winding_twice_and_an_unsettled_carrier_are_exempt`).

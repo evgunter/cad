@@ -515,7 +515,7 @@ const SAMPLED_BUDGET: usize = 1 << 14;
 const SAMPLED_DEPTH: u32 = 60;
 
 /// **A sampled carrier's point nearest `x`**, certified by the
-/// carrier's speed bound `L` ([`geom::carrier_speed::speed_range`]): every
+/// carrier's speed bound `L` ([`speed_bound`]): every
 /// point of a span `[a, b]` lies within `L·|b − a|/2` of the midpoint of
 /// its end samples, so the span is clear of `x` where that midpoint's
 /// distance less the reach decides past the band
@@ -531,18 +531,9 @@ const SAMPLED_DEPTH: u32 = 60;
 /// or a refinement past its budget.
 fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T> {
     let (t0, t1) = (e.t0, e.t1);
-    let speed = geom::carrier_speed::speed_range(&e.carrier).1.get();
-    if !matches!(
-        decide(
-            "chart_singularity_sampled_speed",
-            Margin::sign_of(speed),
-            Band::enclosure_sign()
-        ),
-        Ok(Sign::Positive)
-    ) || speed.is_poison()
-    {
+    let Some(speed) = speed_bound(&e.carrier) else {
         return Near::Unsettled;
-    }
+    };
     let n = T::from_f64(f64::from(SAMPLED_SPANS));
     // Each sample with whether it is interior to the edge (its ends are
     // vertices, read before).
@@ -716,7 +707,7 @@ fn without_spurs<T: Decide>(edges: &[LoopEdge<T>]) -> Vec<LoopEdge<T>> {
 /// Whether `f` retraces `e` backwards: their vertex tags reversed, the
 /// same stored interval traversed the other way, the same edge where
 /// both carry one's identity, and the same point at the interval's
-/// middle to its rounding.
+/// middle within the shared rounding charge (`geom_core::rounding_charge`).
 fn retraces<T: Decide>(e: &LoopEdge<T>, f: &LoopEdge<T>) -> bool {
     if e.forward == f.forward || e.start != f.end || e.end != f.start {
         return false;
@@ -733,7 +724,7 @@ fn retraces<T: Decide>(e: &LoopEdge<T>, f: &LoopEdge<T>) -> bool {
     let mid = |x: &LoopEdge<T>| x.carrier.eval((x.t0 + x.t1) * T::from_f64(0.5));
     let (a, b) = (mid(e), mid(f));
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    let rounding = T::from_f64(64.0 * f64::EPSILON) * ((a - origin).norm() + (b - origin).norm());
+    let rounding = geom_core::rounding_charge((a - origin).norm() + (b - origin).norm());
     !below(rounding, (a - b).norm())
 }
 
@@ -827,7 +818,8 @@ struct WalkSample<T: Real> {
 ///
 /// `None` where a sample reads no chart point away from every singular
 /// point, fewer than three samples read, a step cannot be certified to
-/// turn by less than a sixteenth of a turn, or the loop winds more than
+/// turn by less than a sixteenth of a turn, an edge has no speed bound
+/// ([`speed_bound`]: a rational spline), or the loop winds more than
 /// once.
 #[must_use]
 pub fn walk_loop<T: Decide>(
@@ -839,7 +831,7 @@ pub fn walk_loop<T: Decide>(
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
         .map(|e| EdgeShape::of(&e.carrier, chart.axis()))
-        .collect();
+        .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
         let chart_read = chart.point(p, band);
@@ -1030,8 +1022,35 @@ impl<T: Decide> Shape<T> {
     }
 }
 
+/// **A carrier's speed bound, where it is one at every scalar**: the sup
+/// of [`geom::carrier_speed::speed_range`], positive and readable. `None`
+/// for a rational spline, whose bound `speed_range` certifies only at
+/// `Interval`: at `f64` its expressions run in round-to-nearest and are
+/// no bound at extreme weights, and a reading generic over the scalar
+/// cannot tell the two apart. A sampled arm with no bound settles
+/// nothing ([`Unread::Carrier`], and a walk over it [`Unread::Loop`]):
+/// both exempt, never decided on a bound that may not hold.
+fn speed_bound<T: Decide>(carrier: &Curve3<T>) -> Option<T> {
+    if let Curve3::Nurbs(spline) = carrier
+        && crate::props::is_rational(spline)
+    {
+        return None;
+    }
+    let speed = geom::carrier_speed::speed_range(carrier).1.get();
+    (!speed.is_poison()
+        && matches!(
+            decide(
+                "chart_singularity_sampled_speed",
+                Margin::sign_of(speed),
+                Band::enclosure_sign()
+            ),
+            Ok(Sign::Positive)
+        ))
+    .then_some(speed)
+}
+
 /// What a walk's error bound reads of one edge's carrier: its speed
-/// bound ([`geom::carrier_speed::speed_range`]), whether it is a line
+/// bound ([`speed_bound`]), whether it is a line
 /// (whose azimuth is monotone, so a step turns by its principal step),
 /// and a circle's height range about the chart axis over its whole turn,
 /// `2r·|â × n̂|` (zero for a parallel).
@@ -1043,9 +1062,9 @@ struct EdgeShape<T> {
 }
 
 impl<T: Decide> EdgeShape<T> {
-    fn of(carrier: &Curve3<T>, axis: Vec3<T>) -> Self {
-        let speed = geom::carrier_speed::speed_range(carrier).1.get();
-        match *carrier {
+    fn of(carrier: &Curve3<T>, axis: Vec3<T>) -> Option<Self> {
+        let speed = speed_bound(carrier)?;
+        Some(match *carrier {
             Curve3::Line { .. } => Self {
                 speed,
                 line: true,
@@ -1063,7 +1082,7 @@ impl<T: Decide> EdgeShape<T> {
                 line: false,
                 height: None,
             },
-        }
+        })
     }
 }
 
@@ -1240,9 +1259,12 @@ fn sum_walk<T: Decide>(
         },
         _ => 0,
     };
-    // The closing step returns the lifted image to its start less the
-    // turns it wound: a winding loop's area is not read.
-    let rounding = T::from_f64((m as f64 + 8.0) * f64::EPSILON) * magnitude;
+    // The sum's own rounding: not a short chain but `m` terms, each a
+    // few roundings of a quantity its magnitude bounds, summed with one
+    // rounding per addition — Higham's `γ_n·Σ|term|`, `n = m` additions
+    // and a term's own four, at `2u` each with room (`u` the unit
+    // roundoff, `geom_core::UNIT_ROUNDOFF`).
+    let rounding = T::from_f64(2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF) * magnitude;
     let error = errors.iter().fold(rounding, |a, &e| a + e);
     Some(WalkSum {
         winding,

@@ -3525,12 +3525,14 @@ enum Cusp {
 
 /// A junction whose turn's sign survives the tangents' rounding:
 /// `chart_singularity_cusp`, the chord between the departing tangent and
-/// the reversed arriving one held against the rounding of two unit
-/// vectors.
+/// the reversed arriving one held against the shared rounding charge of
+/// the two tangents (`geom_core::rounding_charge`).
 fn require_turn_read<T: Decide>(arrive: Vec3<T>, depart: Vec3<T>) -> Result<(), PropsError> {
     match decide(
         "chart_singularity_cusp",
-        Margin::sign_of((depart + arrive).norm() - T::from_f64(16.0 * f64::EPSILON)),
+        Margin::sign_of(
+            (depart + arrive).norm() - geom_core::rounding_charge(depart.norm() + arrive.norm()),
+        ),
         Band::enclosure_sign(),
     ) {
         Ok(Sign::Positive) => Ok(()),
@@ -4177,21 +4179,18 @@ pub(crate) fn sphere_pole_left<T: Decide>(
         return PoleLeft::NoClosedForm;
     };
     let pole = (p - center) / radius;
-    // The height's rounding: the difference's, at its coordinates'
-    // magnitude, and the dot product's, at its own, twice over.
-    let ulp = T::from_f64(2.0 * f64::EPSILON);
-    let origin = Point3::new(T::zero(), T::zero(), T::zero());
     let circulations: Vec<Option<T>> = lp
         .arcs
         .iter()
         .map(|arc| {
-            let w = p - arc.centre;
-            let height = arc.axis.dot(w);
-            let rounding = ulp
-                * arc.axis.norm()
-                * ((p - origin).norm()
-                    + (arc.centre - origin).norm()
-                    + T::from_f64(3.0) * w.norm());
+            // The height and its rounding, charged along its own chain
+            // (geom-core's running bound): a difference of the stored
+            // points, then a dot product with the stored axis.
+            let exact = |x: Point3<T>| [x.x, x.y, x.z].map(geom_core::running::Rounded::exact);
+            let (pp, cc) = (exact(p), exact(arc.centre));
+            let w = [pp[0] - cc[0], pp[1] - cc[1], pp[2] - cc[2]];
+            let reading = geom_core::running::dot(geom_core::running::exact_vec(arc.axis), w);
+            let (height, rounding) = (reading.value, reading.error);
             let clear = decide(
                 "chart_singularity_pole_plane",
                 Margin::sign_of(height.abs() - rounding),

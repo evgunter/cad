@@ -26,7 +26,14 @@ the not-yet-checked list names it). Two causes remain after PR 6054:
   curve). Row: `geom-brep/tests/chart_singularity_locate.rs`
   `a_loop_winding_twice_and_an_unsettled_carrier_are_exempt`.
 - **no bound**: a carrier whose speed bound is not a finite positive
-  number (`geom::carrier_speed::speed_range`'s sup).
+  number (`geom::carrier_speed::speed_range`'s sup), and every
+  **rational spline** (`speed_bound`): `speed_range` certifies its
+  bound only at `Interval`, and at `f64` the same expressions in
+  round-to-nearest are no bound at extreme weights. The reading is
+  generic over the scalar and cannot tell the two apart, so it takes
+  no bound for a rational spline at either, and a walk over one is
+  `Unread::Loop` (the sibling row). A certified bound at `f64` (or a
+  door that names the scalar) would take both out of the exemption.
 
 Import refuses the same reading (`foreign_carrier`), so nothing passes
 import that tier 3 would refuse; the exemption is a body at rest built
