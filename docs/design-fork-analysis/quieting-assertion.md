@@ -56,3 +56,10 @@ A (Opus, byte 142 even) first report, 09:18Z.
   - NEW: only `= 0` quiets (`≤ t` is a tolerance, not a quiet).
 - **Still differs:** BatteryJoint should carry the operand's verdict rather than get an Angle arm (would accept the Angle arm as an interim).
 - **Flush:** leans (i), quietable by `Distance = 0`, which reopens 5555; Ev's call.
+
+## Round 1 of reconciliation, B (09:31Z): CROSSOVER
+- **Moved to A's round-1 core:** contacts (opposed tangency included) by Gap or construction; everything else by construction only; no pose assertions now (the reversible addition later).
+- **Moved by:** Ev's PR 5555 thread (the flag mate, then the pivot kind for overconstraint, "the kinds are closed under what a mate can read", Ev "nice!"), and FORK-S3O (row 96) withdrawing constraints falling back to assertions.
+- **New:** the cross-part residue (a stack-up pose coincidence that no mate may carry and no construction reaches) is reported with the recourse "mate the part at this feature, or split it". Opposed vs aligned tangency: aligned is a continuation, construction-only like flush.
+- **Corrections:** the box turn is Unreplayed::Numeric, not Budget; split ON via a plane through the vertex is NOT proven at rung one today (a rung to add, COINCIDE).
+- A and B crossed, so round 2 follows (Ev 2026-09-30: a crossover is not a split). Each is shown the other's revised report.
