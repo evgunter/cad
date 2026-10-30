@@ -18,7 +18,12 @@
 //! - `clearance ≥ c` between scopes sharing an edge is `Violated` at 0,
 //!   on the shared cell, and their minimum separation is `[0, 0]`;
 //! - large curved bodies certify within the default budget, their
-//!   cell-pair counts printed.
+//!   cell-pair counts printed;
+//! - kernel-built oblique cuts, whose arcs meet seam lines at corners,
+//!   hold, some certificates read through a corner, and SHELL-4's vessel
+//!   holds; a folded cut reads `Violated` off its corners;
+//! - the cylinder–cylinder tee refuses typed at a vertex its junction
+//!   shares with a cap and nothing else.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
@@ -779,162 +784,283 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     }
 }
 
-/// **A cylinder–cylinder tee refuses typed at its curved corners.** Two
-/// radius-1 rods on crossing axes, one mitred by their bisector plane
-/// (`crossing_equal_rods`' pair at spins `(0, 0)`, `B` from `x = 0.2`),
-/// united: the junction is arcs of the bisector ellipse that meet the
-/// rods' lines and rims at vertices. Every presentation reads a curved
-/// edge only where it is the one boundary edge in reach, so a corner
-/// where a curved shared edge meets another edge is read by none, at any
-/// depth, and the pair refuses `Uncertified { Departure }` there —
-/// never certified, never measured by distance, and without splitting
-/// to the floor. A presentation of a curved corner moves this pin
-/// (`work/clear/departure-reads-no-curved-corner.md`).
-#[test]
-fn a_cylinder_cylinder_tee_refuses_typed_at_its_curved_corners() {
-    use core::f64::consts::{FRAC_PI_2, PI};
-    use geom_core::{Affine3, Vec3};
+/// The certified carrier of edge `e`, where it is an ellipse.
+fn is_ellipse(body: &Body<f64>, e: topo::EdgeKey) -> bool {
+    matches!(
+        body.get_curve_geom(body.get_edge(e).unwrap().curve)
+            .unwrap()
+            .certified()
+            .map(|g| g.carrier().clone()),
+        Some(geom::Curve3::Ellipse { .. })
+    )
+}
+
+/// `b` moved rigidly by `m`, at rest.
+fn moved(b: &topo::AtRestBody<f64>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<f64> {
+    use sweep::test_support::finished;
+    let rigid = geom_core::test_support::rigid(m, tol());
+    finished(
+        "moved",
+        topo::transform_rigid(b, &rigid, tol()).unwrap(),
+        tol(),
+    )
+}
+
+/// The box `(-50, 50)² × (-100, top)`, at rest: a half-space below
+/// `z = top` within reach of every body here.
+fn slab(top: f64) -> topo::AtRestBody<f64> {
     use sweep::test_support::{brick, finished};
-    let tol = tol();
-    let rod = |(z0, z1): (f64, f64)| {
-        let rod = sweep::test_support::prism_at(
-            vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
-            z0,
-            z1 - z0,
-            tol,
-        );
-        finished("the rod", rod, tol)
-    };
-    let moved = |b: &topo::AtRestBody<f64>, m: &Affine3<f64>| {
-        let rigid = geom_core::test_support::rigid(m, tol);
-        finished("moved", topo::transform_rigid(b, &rigid, tol).unwrap(), tol)
-    };
-    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
-    let slab = finished(
+    finished(
         "the slab",
-        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
-        tol,
-    );
-    let under = moved(&slab, &tilt);
-    let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| match r {
+        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol()),
+        tol(),
+    )
+}
+
+/// The body a boolean built.
+fn built(r: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> topo::AtRestBody<f64> {
+    match r {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the op builds: {other:?}"),
-    };
-    let a = body(topo::subtract(&rod((-3.0, 3.0)), &under, tol));
+    }
+}
+
+/// The radius-1 rod `prism_at` builds round the `z` axis over `z`: a
+/// disc of two half-circle arcs, extruded.
+fn rod((z0, z1): (f64, f64)) -> topo::AtRestBody<f64> {
+    use sweep::test_support::finished;
+    let rod = sweep::test_support::prism_at(
+        vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
+        z0,
+        z1 - z0,
+        tol(),
+    );
+    finished("the rod", rod, tol())
+}
+
+/// **The kernel-built oblique cut**: the extruded unit disc over
+/// `z ∈ [0, 2]` less the half-space below the plane through `(0, 0, 1)`
+/// tilted `π/7` about `y`. The extrusion splits its wall in halves, so
+/// the cut is two open arcs of one ellipse, meeting the halves' seam
+/// lines at two vertices.
+fn oblique_cut() -> topo::AtRestBody<f64> {
+    use core::f64::consts::PI;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
+        .validate(tol())
+        .unwrap();
+    let drum = finished(
+        "the drum",
+        extrude(&profile, to_offset(2.0), tol()).unwrap().body,
+        tol(),
+    );
+    let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
+    built(topo::subtract(&drum, &moved(&slab(1.0), &tilt), tol()))
+}
+
+/// **A kernel-built oblique cut holds across its curved corners**
+/// ([`oblique_cut`]). Where an arc of the cut meets a seam line, each
+/// wall half has a corner whose sides are the arc and the line: a cell
+/// holding it is presented through the vertex — by the ellipse's chart
+/// curve continued past it against the cut plane, by the seam line
+/// continued past it against the other half. Holds, every face pair
+/// sharing a vertex certified across, and some of those certificates
+/// read a corner. Red if the corner presentation is withdrawn (the cut
+/// refuses `Uncertified { Departure }` at the corners), or if a wall
+/// half whose loop holds an arc is left without its extent (its seam
+/// lines are then placed nowhere and the caps refuse beside them).
+#[test]
+fn a_kernel_built_oblique_cut_holds_across_its_curved_corners() {
+    let cut = oblique_cut();
+    let arcs = cut.edges().filter(|&(k, _)| is_ellipse(&cut, k)).count();
+    assert_eq!(arcs, 2, "two open arcs of the cut");
+    let report = injective(&cut, None, BUDGET);
+    println!(
+        "[corner] oblique cut: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
+    assert_holds("the oblique cut", &report, &cut);
+    assert_eq!(
+        report.cornered, 14,
+        "the corners are certified by the corner presentation"
+    );
+}
+
+/// [`rod`] over `z` less the half-space below the plane through the
+/// origin tilted `π/5` about `y`: like [`oblique_cut`], two open arcs of
+/// an ellipse meeting the rod's two seam lines.
+fn rod_less_a_tilted_slab(z: (f64, f64)) -> topo::AtRestBody<f64> {
+    use core::f64::consts::PI;
+    use geom_core::{Affine3, Vec3};
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 5.0);
+    built(topo::subtract(&rod(z), &moved(&slab(0.0), &tilt), tol()))
+}
+
+/// **The rod less a slab tilted `π/5` holds across its curved corners**
+/// ([`rod_less_a_tilted_slab`] over `z ∈ [−3, 3]`). Red as the oblique
+/// cut's row is.
+#[test]
+fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
+    let cut = rod_less_a_tilted_slab((-3.0, 3.0));
+    let report = injective(&cut, None, BUDGET);
+    println!(
+        "[corner] rod at pi/5: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
+    assert_holds("the rod less the tilted slab", &report, &cut);
+    assert_eq!(report.cornered, 14, "the corners are read through");
+}
+
+/// **A rod taller than a turn holds too** ([`rod_less_a_tilted_slab`]
+/// over `z ∈ [−6, 6]`): each wall half's chart extent is a superset over
+/// its arc, more than `2π` tall along the rod's axis. Red if a superset
+/// that wide is refused on the axis that is not periodic, which leaves
+/// the halves' seam lines placed nowhere.
+#[test]
+fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
+    let cut = rod_less_a_tilted_slab((-6.0, 6.0));
+    let report = injective(&cut, None, BUDGET);
+    println!(
+        "[corner] tall rod at pi/5: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
+    assert_holds("the tall rod less the tilted slab", &report, &cut);
+}
+
+/// **SHELL-4's vessel holds**: `vessel(1.0, 2.0)`, a rectangle with a
+/// side on the axis revolved a full turn — one wall and two discs,
+/// whose rims are open half-circles. Each disc's two half-rims meet at
+/// a vertex as one circle, a corner of no angle the plane's chart reads
+/// as two arcs; the wall reads the rims as coordinate lines, so the
+/// pairs certify off the wall's presentation by the disc's carrier. It
+/// is no corner row: it held before the corner presentation, and reads
+/// no corner (`cornered` 0).
+#[test]
+fn shell_4s_vessel_holds() {
+    let vessel = crate::common::shell_operands::vessel(1.0, 2.0);
+    let report = injective(&vessel, None, BUDGET);
+    println!(
+        "[corner] vessel: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
+    assert_holds("the vessel", &report, &vessel);
+}
+
+/// **A cylinder–cylinder tee refuses typed where its junction meets a
+/// cap at a vertex alone.** Two radius-1 rods on crossing axes, one
+/// mitred by their bisector plane (`crossing_equal_rods`' pair at spins
+/// `(0, 0)`, `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`,
+/// so the junction never reaches the node plane `x = 0`: it ends where
+/// `B`'s cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, a
+/// vertex `B`'s wall and `A`'s mitre share with no edge. Each face's
+/// corner there has a curved side and neither side on the shared
+/// cell, which no presentation reads, so the pair refuses
+/// `Uncertified { Departure }` naming the vertex — never certified,
+/// never measured by distance, and without splitting to the floor.
+#[test]
+fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_core::{Affine3, Vec3};
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+    let a = built(topo::subtract(
+        &rod((-3.0, 3.0)),
+        &moved(&slab(0.0), &tilt),
+        tol(),
+    ));
     let onto_x = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     let b = moved(&rod((0.2, 3.0)), &onto_x);
-    let tee = body(topo::union(&a, &b, tol));
+    let tee = built(topo::union(&a, &b, tol()));
     let tee: &Body<f64> = &tee;
     let report = injective(tee, None, BUDGET);
-    println!("[curvedep] tee: {:?} {:?}", report.verdict, report.receipt);
+    println!(
+        "[corner] tee: cornered = {} {:?} {:?}",
+        report.cornered, report.verdict, report.receipt
+    );
     match report.verdict {
         BoundVerdict::Refused(EngineRefusal::Uncertified {
             a,
             b,
-            shared: SharedCell::Edge(e),
+            shared: SharedCell::Vertex(v),
             arm: CertificateArm::Departure,
         }) => {
+            let mut kinds = [kind(tee, a), kind(tee, b)];
+            kinds.sort_unstable();
+            assert_eq!(kinds, ["cylinder", "plane"], "a wall and the mitre");
+            let p = *tee.get_point(tee.get_vertex(v).unwrap().point).unwrap();
             assert!(
-                kind(tee, a) == "cylinder" && kind(tee, b) == "cylinder",
-                "the refusal names the two walls"
-            );
-            assert!(
-                matches!(
-                    tee.get_curve_geom(tee.get_edge(e).unwrap().curve)
-                        .unwrap()
-                        .certified()
-                        .map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Ellipse { .. })
-                ),
-                "and the junction ellipse"
+                (p.x - 0.2).abs() < 1e-9
+                    && (p.z - 0.2).abs() < 1e-9
+                    && (p.y.abs() - 0.96f64.sqrt()).abs() < 1e-9,
+                "where B's cap circle meets the mitre plane: {p:?}"
             );
         }
-        other => panic!("the tee refuses at its corners: {other:?}"),
+        other => panic!("the tee refuses at the vertex: {other:?}"),
     }
     assert!(
         report.receipt.splits < 1024,
-        "a corner refuses where it is met, not at the floor: {:?}",
+        "the vertex refuses where it is met, not at the floor: {:?}",
+        report.receipt
+    );
+    assert_eq!(
+        report.receipt.refused, 9,
+        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
+         the mitre's ellipse ({:?})",
         report.receipt
     );
 }
 
-/// **A kernel-built oblique cut refuses typed at its curved corners.**
-/// The extruded unit disc less a half-space tilted `π/7` about `y`
-/// through `(0, 0, 1)`: the extrusion splits its wall in halves, so the
-/// cut is two open arcs of one ellipse meeting the halves' seam lines at
-/// two vertices. The departure arm certifies curved shared edges that
-/// are closed (the pipe's ellipse, the fillet's rim, the mitre's
-/// ellipse); an open arc ending at a corner waits on
-/// `work/clear/departure-reads-no-curved-corner.md`, and refuses
-/// `Uncertified { Departure }` naming an arc — never certified, never
-/// measured by distance, and without splitting to the floor. SHELL-4's
-/// cavity clones are of this shape. A presentation of a curved corner
-/// moves this pin.
+/// **A folded oblique cut reads `Violated` off its corners.** Two
+/// [`oblique_cut`]s in one body, the second moved `0.3` along `x` and
+/// grafted in as a solid of its own: the caps and walls pass through
+/// each other. Faces of the two solids share nothing in M, so every
+/// crossing pair is decided by distance, and the first is found before
+/// any corner is read; the witness is clear of every vertex where an arc
+/// meets a seam line. The row pins that the corner reading leaves a fold
+/// off its corners to be found; it cannot go red for a lax corner guard.
+/// A fold through a corner cell is a crossing of two faces that share
+/// the corner, which no kernel operation builds — the booleans and sweeps
+/// build embedded bodies, and a graft's solids share nothing — so the
+/// corner guards' folds are `injective`'s
+/// `a_fold_through_a_reflex_corner_is_not_certified` and
+/// `a_fold_past_a_line_that_crosses_back_is_not_certified`, at the door
+/// the sweep calls.
 #[test]
-fn a_kernel_built_oblique_cut_refuses_typed_at_its_curved_corners() {
-    use core::f64::consts::PI;
+fn a_folded_oblique_cut_reads_violated_off_its_corners() {
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::{brick, finished};
-    let tol = tol();
-    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
-    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol)
-        .unwrap();
-    let drum = finished(
-        "the drum",
-        extrude(&profile, to_offset(2.0), tol).unwrap().body,
-        tol,
-    );
-    let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
-    let slab = finished(
-        "the slab",
-        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 1.0), tol),
-        tol,
-    );
-    let rigid = geom_core::test_support::rigid(&tilt, tol);
-    let under = finished(
-        "the half-space",
-        topo::transform_rigid(&slab, &rigid, tol).unwrap(),
-        tol,
-    );
-    let cut = match topo::subtract(&drum, &under, tol) {
-        Ok(topo::BooleanResult::Body(b)) => b.body,
-        other => panic!("the cut builds: {other:?}"),
-    };
-    let cut: &Body<f64> = &cut;
-    let report = injective(cut, None, BUDGET);
+    let cut = oblique_cut();
+    let mut folded = cut.clone().into_body();
+    let over = Affine3::translation(Vec3::new(0.3, 0.0, 0.0));
+    let rigid = geom_core::test_support::rigid(&over, tol());
+    let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+    topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+    let report = injective(&folded, None, BUDGET);
     println!(
-        "[curvedep] oblique cut: {:?} {:?}",
+        "[corner] folded cut: {:?} {:?}",
         report.verdict, report.receipt
     );
-    match report.verdict {
-        BoundVerdict::Refused(EngineRefusal::Uncertified {
-            shared: SharedCell::Edge(e),
-            arm: CertificateArm::Departure,
-            ..
-        }) => {
-            let ellipse = |e: topo::EdgeKey| {
-                matches!(
-                    cut.get_curve_geom(cut.get_edge(e).unwrap().curve)
-                        .unwrap()
-                        .certified()
-                        .map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Ellipse { .. })
-                )
-            };
-            assert!(ellipse(e), "the refusal names an arc of the cut");
-            let arcs: Vec<topo::EdgeKey> = cut
-                .edges()
-                .map(|(k, _)| k)
-                .filter(|&k| ellipse(k))
-                .collect();
-            assert_eq!(arcs.len(), 2, "two open arcs of the cut");
-        }
-        other => panic!("the cut refuses at its corners: {other:?}"),
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two cuts cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
+    let corners: Vec<Point3<f64>> = folded
+        .edges()
+        .filter(|&(k, _)| is_ellipse(&folded, k))
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .map(|he| {
+            let v = folded.get_half_edge(he).unwrap().start;
+            *folded
+                .get_point(folded.get_vertex(v).unwrap().point)
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(corners.len(), 8, "four arcs, two corners each");
+    for p in [w.pa, w.pb] {
+        let off = corners
+            .iter()
+            .map(|c| (p - *c).norm())
+            .fold(f64::INFINITY, f64::min);
+        assert!(off > 0.05, "the witness is off every corner: {w:?}, {off}");
     }
-    assert!(
-        report.receipt.splits < 1024,
-        "a corner refuses where it is met, not at the floor: {:?}",
-        report.receipt
-    );
 }

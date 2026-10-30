@@ -74,6 +74,23 @@ class TracedProfileTest(unittest.TestCase):
         self.assertAlmostEqual(max(ys), R, delta=1e-12)
         self.assertEqual(doc.space(boss), doc.space(cyl), "the boss is in the cylinder's space")
 
+    def test_the_traced_frame_stands_on_the_walls_axis_in_the_caps_plane(self):
+        doc = Doc()
+        cyl = cylinder(doc)
+        _, wall = frame_and_wall(doc, cyl)
+        ev = evaluate(doc)
+        caps = [f for f in sorted(ev.all_faces(cyl)) if ev.face_carrier_kind(cyl, f) == SurfaceKind.Plane]
+        bottom = min(caps, key=lambda f: ev.face_frame(cyl, f).origin[2].meters)
+        frame = ev.traced_frame((cyl, bottom), (cyl, wall))
+        sketch = doc.insert(Node.drawn_profile(frame, [(cyl, wall)], footprint()))
+        boss = doc.insert(Node.extrude(sketch, 0.5 * m))
+        ev = evaluate(doc)
+        at = [ev.vertex_position(boss, v) for v in ev.all_vertices(boss)]
+        self.assertAlmostEqual(max(abs(p[1].meters) for p in at), R, delta=1e-12)
+        self.assertAlmostEqual(min(p[2].meters for p in at), 0.0, delta=1e-12)
+        with self.assertRaisesRegex(ValueError, "axis"):
+            ev.traced_frame((cyl, bottom), (cyl, bottom))
+
     def test_a_crossing_the_piece_does_not_make_refuses_as_a_trace(self):
         doc = Doc()
         cyl = cylinder(doc)

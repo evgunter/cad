@@ -330,7 +330,7 @@ impl Partner {
 /// section bounds the part of either surface inside the other solid, so
 /// together the arcs separate even where one component winds round the
 /// torus); each end near a random component or anywhere on the surface,
-/// half of them pushed ±0.9e-9 along the normal, read against
+/// half of them pushed ±0.9 of the band's zero along the normal, read against
 /// membership in the other solid past 1e-8. A pose the value refuses or
 /// carries no fitted component on is passed over.
 #[test]
@@ -477,7 +477,7 @@ fn random_torus_sections() {
                 } else {
                     (q - core(q)) / r
                 };
-                q + n * (0.9e-9 * if rng.below(2) == 0 { 1.0 } else { -1.0 })
+                q + n * (0.9 * band().zero() * if rng.below(2) == 0 { 1.0 } else { -1.0 })
             } else {
                 q
             };
@@ -693,5 +693,72 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
     assert!(
         SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),
         "a component with no certificate gives no spline arc"
+    );
+}
+
+/// **A path on a ball across the torus section, one crossing a
+/// millimetre from its end, reads the membership parity** (shape 2):
+/// `random_torus_sections`' pose for seed `0xfcf36c24b2674116`, its one
+/// carried component uncut, the path from an end pushed 0.9 of the
+/// band's zero off the ball to an end on it. An end pushed past the band
+/// carries its offset round the whole arc, off the section it crosses:
+/// the push is the band's, not a fixed length.
+#[test]
+fn a_ball_path_reads_a_crossing_near_its_end() {
+    let torus = geom::Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 0.6,
+        minor_radius: 0.2,
+        u_ref: Vec3::unit_x(),
+    };
+    let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - 0.6).hypot(q.z) - 0.2;
+    let partner = Partner::Ball {
+        centre: Point3::new(
+            -0.539_789_177_441_680_1,
+            -0.113_374_250_213_059_02,
+            0.241_444_151_539_482_18,
+        ),
+        radius: 0.443_792_980_007_016_17,
+    };
+    let on = partner.project(Point3::new(
+        -0.431_682_161_061_048_3,
+        -0.539_031_459_910_225_6,
+        0.177_561_268_507_832_7,
+    ));
+    let a = on + partner.normal(on) * (0.9 * band().zero());
+    let b = partner.project(Point3::new(
+        -0.365_914_426_294_379_4,
+        -0.519_264_341_531_642,
+        0.197_025_531_723_414_1,
+    ));
+    let other = partner.surface();
+    let geom_brep::SectionRead::Built(section) =
+        geom_brep::pair_section(&torus, &other, band()).unwrap()
+    else {
+        panic!("the value builds sphere × torus");
+    };
+    let carried = match section.carry(Some(geom_brep::SsiLane::marched()), band()) {
+        Ok(carried) => carried,
+        Err(why) => {
+            eprintln!(
+                "STOOD DOWN at {:?}: the section does not carry ({why:?})",
+                band()
+            );
+            return;
+        }
+    };
+    let arcs: Vec<_> = carried
+        .components()
+        .iter()
+        .flat_map(|c| cut_into(c, &[]))
+        .collect();
+    assert_eq!(arcs.len(), 1, "the pose carries one closed component");
+    let paths = Quadric::of(&other).unwrap().paths((a, b), band()).unwrap();
+    assert_eq!(paths.len(), 1, "a ball has one path between two ends");
+    assert_eq!(
+        path_parity(&paths[0], &arcs, None, band()).unwrap(),
+        Some((torus_margin(a) < 0.0) != (torus_margin(b) < 0.0)),
+        "the path reads the oracle's parity across the crossing near its end"
     );
 }

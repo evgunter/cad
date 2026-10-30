@@ -4,7 +4,7 @@ kind: issue
 title: Code and tests call a construction the root of its own space, a sense of root D10 names no word for
 status: open
 opened: 2026-10-28
-priority: P3
+priority: P4
 cost: E
 ---
 

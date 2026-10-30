@@ -50,13 +50,15 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   at-rest gate (`assemble` and its refusal) and CHECKS DS6's
   product-separation resident (`Separation`) retired (stage 5); an
   operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way.
+  quieted the same way; coaxiality read at the door as one `Axis` read
+  twice, and tangency constructions, a sketch drawn on a frame
+  continuing tangent to a face's trace, proven at the door and written
+  by the viewer's sketch tool (stage 6 B–E).
 - **Not built:** a glued pair re-read through the declared rung, which
   bridges an in-band displacement where D10 refuses one
   (`work/contacthold/a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band.md`);
   an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict); coaxiality read
-  at the door and tangency constructions (stage 6).
+  a coaxiality, a blend's turn, a split's ON verdict).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -1188,6 +1190,7 @@ constant rather than a variable.
 **Names.** A variable without a name is read by exactly one slot or
 definition, which is how it is spoken; a variable two readers share
 has a name the person gave it; an output is spoken by its operation.
+A name is also the mark that a value is wanted for itself.
 
 **Poses.** `[variables.poses]` A pose is only ever defined: read off a
 body's geometry (a face's plane, a carrier's axis or centre, a
@@ -1284,9 +1287,14 @@ measurement.
 
 **The product.** A document has one product slot, which reads a body
 in its world space ([placement.world]): `product: p ⊔ bolt ⊔ nut`.
-Nothing is derived from which bodies go unread: an unread body is an
-unread variable, a finding, and a document whose slot reads nothing
-has an empty product.
+Nothing is derived from which bodies go unread: the slot says what
+the product is, and being the product is a use, as being what an
+assertion states is. What the person made and nothing uses is a
+finding: an operation they inserted none of whose outputs is used,
+and a variable they named that nothing uses. What a door minted on
+their behalf (an output nobody named, an anonymous variable) is a
+byproduct of what it was minted for, never a finding of its own. A
+document whose slot reads nothing has an empty product.
 
 ### Repetition `[repetition]`
 
@@ -1568,11 +1576,12 @@ not. Being one construction is the equivalence the document's
 constructions and mates generate, so a wall each part builds through
 the edge of a flag that a flag mate equates is one construction read
 over both, and that mate establishes the flush pair the two walls
-make. A traced profile is that rung's statement too, by the same
-symmetry the verdicts read: a piece drawn along a face's trace and
-swept by a motion in that face's kind's symmetry is tangent to the face
-along the swept curve, and one whose frame's plane contains an axis of
-that symmetry is tangent at the crossing. The second reads each output
+make. A traced profile is that rung's statement too: a piece drawn
+along a face's trace and swept by a motion in the symmetry that face's
+construction states (an extrude's wall slides along its generators, a
+revolve's band turns about its axis) is tangent to the face along the
+swept curve, and one whose frame's plane contains an axis of that
+symmetry is tangent at the crossing. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1602,8 +1611,8 @@ finding quiet ([intent.structural]).
 directly or as projections of one construction; tangency is
 constructed: a profile drawn on a frame reads another surface's trace
 in its plane and continues tangent to it, and a sweep of it stays
-tangent to the surface wherever its motion follows that surface's
-symmetry.
+tangent to the surface wherever its motion follows the symmetry the
+surface's construction states.
 
 **The door and the lint.** `[coincidence.door]` Every coincidence the
 kernel infers from values — a boolean's glue, a split's ON verdict

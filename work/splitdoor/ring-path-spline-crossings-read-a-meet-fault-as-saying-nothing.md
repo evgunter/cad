@@ -2,10 +2,12 @@
 id: ring-path-spline-crossings-read-a-meet-fault-as-saying-nothing
 kind: issue
 title: ring_path: spline_crossings reads a meeting's limit, missing pose and kernel fault alike as a path that says nothing
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: E
+pr: 6069
+closed: 2026-10-30
 ---
 
 

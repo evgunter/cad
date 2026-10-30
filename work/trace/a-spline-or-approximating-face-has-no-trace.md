@@ -5,6 +5,7 @@ title: A face on a spline or approximating carrier has no trace: a step reading 
 status: open
 opened: 2026-10-29
 priority: P3
+cost: H
 ---
 
 

@@ -190,3 +190,19 @@ tolerance"):
 The review measured every one as a cell that refuses with the fusion
 switched off. Tier 3 holds on each; the census cannot decide the touch
 in band. Typed, not fixed here.
+
+## A side that covers a void (SPLITDOOR, PR 6061, 2026-10-30)
+
+Measured on main before PR 6061, at ε 1e-6, 1e-9 and 1e-12: the half-bored
+block `[0,4]×[−2,2]×[0,4]` less the V-trench over `(1,0), (1.6,±0.3)` from
+`z = 2` up, its keel one edge on the bore's ruling (the one-edge form,
+`work/splitdoor/a-keel-on-a-cylinders-ruling-subtracts-with-the-bore-through-its-wedge.md`),
+split at `z = 3`. Each side's cap is the face "square less half-disc" with no
+trench ring, plus a triangle face of the opposite sense over the trench void.
+The volumes hold their closed forms by cancellation and tier 3 passes both
+sides. Tier 3′ refuses each with 8 errors (`EdgeFaceOverlap` and
+`VertexOnFace` at the trench's corners, `VertexOnEdge` at `(1, 0, 3)`,
+`BoundaryCrossesItselfUndecided`), yet `split` returns them `Ok`. PR 6061
+makes the operand refuse (tier 3′ reads the keel in the bore's face, and the
+Boolean refuses `EdgeInFaceGap::CurvedFace`), so this pose no longer reaches
+the split from a validated operand. The gate's tier is unchanged.

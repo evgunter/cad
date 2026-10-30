@@ -274,7 +274,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
-        "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
+        "bool_line_cylinder_clearance" | "bool_line_face_carrier_offset" => {
+            Coincide::EdgeOnCurvedFace.subject()
+        }
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
@@ -5755,8 +5757,8 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         pad_override,
     };
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &crate::sector_shape::SlitTips::of_operands(a_operand, b_operand),
         &declared,
         &mut acc,
         band,
@@ -5802,8 +5804,8 @@ pub fn sweep_split(
     let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &crate::sector_shape::SlitTips::of_operands(a_operand, b_operand),
         &declared,
         &mut acc,
         band,
@@ -5851,8 +5853,8 @@ pub fn sweep_records(
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut a, &mut b),
+        &crate::sector_shape::SlitTips::of_operands(a_operand, b_operand),
         &declared,
         &mut acc,
         band,
@@ -6017,10 +6019,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // The operands' slit and ring tips, read at rest: the reduction may
     // split a slit's two edges apart from its tip
     // ([`crate::sector_shape::SlitTips`]).
-    let tips = [
-        crate::sector_shape::SlitTips::of(a_operand),
-        crate::sector_shape::SlitTips::of(b_operand),
-    ];
+    let tips = crate::sector_shape::SlitTips::of_operands(a_operand, b_operand);
     let mut carved_a = a_operand.clone();
     let mut carved_b = b_operand.clone();
     let mut a = carved_a.begin_surgery();
@@ -6031,8 +6030,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
-        &mut a,
-        &mut b,
+        (&mut *a, &mut *b),
+        &tips,
         &declared,
         &mut acc,
         band,

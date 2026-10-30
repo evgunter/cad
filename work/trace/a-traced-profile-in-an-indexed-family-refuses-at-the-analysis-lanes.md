@@ -4,6 +4,8 @@ kind: issue
 title: A profile drawn on a frame inside an indexed family member refuses Undrawn at every lane but f64
 status: open
 opened: 2026-10-29
+priority: P2
+cost: M
 ---
 
 
