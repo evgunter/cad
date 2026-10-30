@@ -2,10 +2,11 @@
 id: a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation
 kind: issue
 title: Two rims crossing on internally tangent walls refuse SeamOrientation when the inner rod's cut is steeper, and escalate tier 3′ on two ops otherwise
-status: open
+status: dispatched
 opened: 2026-10-30
 priority: P1
 cost: M
+branch: splitdoor/rims-seam-orientation
 ---
 
 
