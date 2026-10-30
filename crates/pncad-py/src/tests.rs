@@ -3681,7 +3681,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        message.ends_with("Recourse: move the geometry so the faces clearly touch or clearly part"),
         "the unrecorded-contact recourse is the actionable half: {message}"
     );
 }
@@ -3723,7 +3723,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             // LIB's row. `what` is production's own string, from
             // `topo::boolean::contact_verify`'s Rest-ladder arm.
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
-                what: "a declared face's surface kind is outside the Rest ladder's \
+                what: "a glued face's surface kind is outside the Rest ladder's \
                        inventory (plane, sphere, cylinder, torus, cone)",
             }),
         }),

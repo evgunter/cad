@@ -4116,14 +4116,10 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTRADICTION_REASON,
             crate::contact::CONTRADICTION_RECOURSE,
         ),
-        // A contact site's recourse has no tolerance arm (SELECT §3d,
-        // `CONTACT_RECOURSE`): loosening ε cannot supply intent.
+        // A contact site's recourse has no tolerance arm
+        // (`CONTACT_RECOURSE`): the faces are moved apart or together.
         ContactRefusal::Escalated { .. } => (
-            "whether the declared faces touch is too close to call",
-            crate::contact::CONTACT_RECOURSE_MARKED,
-        ),
-        ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no contact record behind them",
+            "whether the faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -4588,7 +4584,7 @@ impl fmt::Display for ValidationError {
                 ..
             } => write!(
                 f,
-                "the declared {} contact is contradicted {witness}: {}. {}",
+                "the recorded {} contact is contradicted {witness}: {}. {}",
                 declaration.class.name(),
                 crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,

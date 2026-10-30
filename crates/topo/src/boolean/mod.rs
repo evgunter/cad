@@ -7503,9 +7503,7 @@ fn verify_tangency<T: Decide>(
                 margin: diag,
             });
         }
-        Err(Table::Refused(
-            ContactRefusal::Escalated { diag } | ContactRefusal::Undeclared { diag },
-        )) => {
+        Err(Table::Refused(ContactRefusal::Escalated { diag })) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,
                 read,

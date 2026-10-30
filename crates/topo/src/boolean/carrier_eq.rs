@@ -314,10 +314,10 @@ pub(crate) fn in_inventory(kind: geom::SurfaceKind) -> bool {
     INVENTORY.contains(&kind)
 }
 
-/// The refusal of a declared face outside [`INVENTORY`], at the
-/// declaration door and in the contact lane.
+/// The refusal of a glued face outside [`INVENTORY`], at the glue door
+/// and in the contact lane.
 pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
-    "a declared face's surface kind is outside the Rest ladder's inventory (",
+    "a glued face's surface kind is outside the Rest ladder's inventory (",
     inventory_named!(),
     ")"
 );

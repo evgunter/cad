@@ -657,7 +657,7 @@ impl Coincide {
             }
             Self::TangentLocus => "where two faces of the two solids touch tangentially",
             Self::Rim => "whether a face of each solid ends on one circle",
-            Self::Contact => "whether a declared contact holds along its witness",
+            Self::Contact => "whether a recorded contact holds along its witness",
             Self::Carriers => "whether a face of each solid lies on one surface",
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
@@ -2157,7 +2157,7 @@ pub(in crate::boolean) mod tests {
             }
             Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
             Coincide::Rim => "whether a face of each solid ends on one circle",
-            Coincide::Contact => "whether a declared contact holds along its witness",
+            Coincide::Contact => "whether a recorded contact holds along its witness",
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
         }

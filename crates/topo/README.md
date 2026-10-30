@@ -168,8 +168,9 @@ only what it checked (a patch record's opposed conformal interface; a
 vertex record's coincidence), so no record excuses a meeting or a face
 from being read.
 
-Refusals are typed with `CONTACT_RECOURSE`: declare the class or move
-the geometry. There is no tolerance arm, since ε cannot supply intent.
+Refusals are typed with `CONTACT_RECOURSE`: move the geometry so the
+faces clearly touch or clearly part. There is no tolerance arm, since
+no setting moves a glue.
 Invariant: no flag, mode or setting moves a glue — the Boolean glues
 what its margin decides Zero under every setting, and the lint reads
 what it glued.
@@ -965,8 +966,7 @@ arm, where every verdict but `Distinct` refuses.
 At rest a record is read as the glue door reads a pair: nothing is
 bridged. Each class states the facts that must verify DEFINITE and the
 triggers that contradict it, and a margin in band on either escalates
-(`ContactRefusal::{Contradicted, Escalated, Undeclared,
-NotCertifiable}`).
+(`ContactRefusal::{Contradicted, Escalated, NotCertifiable}`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
   (`carrier_eq::INVENTORY`), each datum and the pair's displacement over

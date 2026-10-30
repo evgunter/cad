@@ -180,7 +180,6 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             diag: contradiction_margin("carrier_cyl_radius"),
         },
         ContactRefusal::Escalated { diag: diag() },
-        ContactRefusal::Undeclared { diag: diag() },
     ];
     // The longest `what`s the raise sites write.
     v.extend(

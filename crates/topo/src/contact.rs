@@ -102,32 +102,27 @@ impl GlueClass {
     }
 }
 
-/// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN
-/// §3d, ratified; C4's failure table verbatim): declare the named
-/// class, or move the geometry.
+/// **The recourse for a contact refusal**: move the geometry so the
+/// faces clearly touch or clearly part.
 ///
-/// This is deliberately NOT `geom_core::COINCIDENCE_RECOURSE`. That
-/// sentence's third arm ("lower the tolerance") predates §3d's
-/// ratification and is wrong at a contact site: a contact refusal is
-/// about intent that was never recorded, and loosening ε cannot
-/// supply intent — it can only hide the absence. The two-tolerance
-/// principle keeps the three-arm sentence at every site whose
-/// question really is "is this margin decidable"; contact sites ask
-/// "did anyone declare this", and answer with these two arms.
-pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the geometry";
+/// This is deliberately NOT `geom_core::COINCIDENCE_RECOURSE`, whose
+/// "lower the tolerance" arm does not reach a contact: the glue door
+/// glues a pair whose margin decides Zero and refuses one in band under
+/// every setting (D10), so a contact that is too close to call is
+/// settled only by geometry that is not.
+pub const CONTACT_RECOURSE: &str = "move the geometry so the faces clearly touch or clearly part";
 
 /// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
 /// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
 /// the two spellings to one).
 pub(crate) const CONTACT_RECOURSE_MARKED: &str =
-    "Recourse: declare the named contact class, or move the geometry";
+    "Recourse: move the geometry so the faces clearly touch or clearly part";
 
-/// The recourse for a contradicted declaration. The declaration is
-/// what the geometry refutes, so re-declaring it is no way through:
-/// the declaration is corrected or removed, or the geometry is moved
-/// until it holds.
+/// The recourse for a contradicted record. The record is what the
+/// geometry refutes: the faces an operation recorded in contact no
+/// longer meet as it read them, so the geometry is moved until they do.
 pub const CONTRADICTION_RECOURSE: &str =
-    "Recourse: correct or remove the declaration, or move the geometry so it holds";
+    "Recourse: move the geometry so the recorded contact holds";
 
 /// A contradiction's reason, as the message states it where the site
 /// carries no fact of its own (a site that does, the Boolean's `Rest`
@@ -157,25 +152,18 @@ pub const CONTRADICTION_REASON: &str = "the geometry does not match it";
     strum_discriminants(name(ContactRefusalKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ContactRefusal {
-    /// Definite counter-evidence: the declaration is contradicted
-    /// where the lie meets geometry. Every definite verdict wins over
-    /// every declaration (C4's invariant).
+    /// Definite counter-evidence: the recorded contact is contradicted
+    /// where it meets geometry. Every definite verdict wins over every
+    /// record.
     Contradicted {
         /// The contradicting predicate's diagnostics — the margin the
         /// message names.
         diag: Indeterminate,
     },
-    /// In-band geometry with no declaration to bridge it, or an
-    /// escalation inside a definite condition: terminal, priced,
-    /// honest.
+    /// In-band geometry, or an escalation inside a definite condition:
+    /// terminal, priced, honest.
     Escalated {
         /// The escalating predicate's diagnostics.
-        diag: Indeterminate,
-    },
-    /// Geometry that touches with no backing declaration at all:
-    /// near-coincidence NEVER silently becomes contact (F6).
-    Undeclared {
-        /// The site's diagnostics.
         diag: Indeterminate,
     },
     /// The configuration is outside the class's certifiable set — the
@@ -189,7 +177,7 @@ pub enum ContactRefusal {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in the contact vocabulary — declaration, definite
+// the PROBLEM in the contact vocabulary — the record, definite
 // counter-evidence, in-band residue, the certifiable set — plus the
 // recourse where an author has one.
 //
@@ -201,10 +189,9 @@ pub enum ContactRefusal {
 // boolean's own refusals make, so one contact story is told in one
 // sentence shape wherever it surfaces.
 //
-// [`Self::NotCertifiable`] carries no recourse: a declaration cannot
-// move a configuration inside the certifiable set, so the two-arm menu
-// would be a false lead, and `what` is the only honest steering there
-// is.
+// [`Self::NotCertifiable`] carries no recourse: moving the geometry
+// within the band does not move a configuration inside the certifiable
+// set, and `what` is the only honest steering there is.
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -213,27 +200,17 @@ impl core::fmt::Display for ContactRefusal {
             // "indeterminate" (`CONTRADICTION_REASON`).
             Self::Contradicted { .. } => write!(
                 f,
-                "the declared contact is contradicted: {CONTRADICTION_REASON}. \
+                "the recorded contact is contradicted: {CONTRADICTION_REASON}. \
                  {CONTRADICTION_RECOURSE}"
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "whether the declared faces touch escalated ({}), and no declaration can \
-                 bridge it; {CONTACT_RECOURSE}",
+                "whether the faces touch escalated ({}); {CONTACT_RECOURSE}",
                 diag.payload()
             ),
-            Self::Undeclared { diag } => write!(
-                f,
-                "the faces touch on the geometry's own evidence ({}) with no declaration \
-                 behind them — near-coincidence never silently becomes contact; \
-                 {CONTACT_RECOURSE}",
-                diag.payload()
-            ),
-            Self::NotCertifiable { what } => write!(
-                f,
-                "this contact cannot be certified ({what}), and a declaration cannot move a \
-                 configuration into the certifiable set"
-            ),
+            Self::NotCertifiable { what } => {
+                write!(f, "this contact cannot be certified ({what})")
+            }
         }
     }
 }
@@ -257,8 +234,8 @@ pub struct ContactPair {
 }
 
 /// **The kernel contact finding** — "this face pair would verify as
-/// this class" (SELECT-DESIGN §3a: a VALUE, never itself a
-/// declaration). A finding is only ever minted on a definite reading.
+/// this class" (SELECT-DESIGN §3a: a VALUE, never itself a record). A
+/// finding is only ever minted on a definite reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContactFinding {
     /// What was found.
@@ -278,29 +255,28 @@ mod tests {
         }
     }
 
-    /// The two-arm menu is exactly two arms: §3d's ratified shape.
-    /// The three-arm coincidence sentence must not leak in — its
-    /// "lower the tolerance" arm cannot supply missing intent.
+    /// The contact recourse moves the geometry and nothing else: the
+    /// three-arm coincidence sentence must not leak in, since no
+    /// tolerance moves a glue (D10), and nothing is declared.
     #[test]
-    fn recourse_has_two_arms_and_no_tolerance_lever() {
-        assert!(CONTACT_RECOURSE.contains("declare"), "{CONTACT_RECOURSE}");
+    fn recourse_moves_the_geometry_and_has_no_tolerance_lever() {
         assert_eq!(
             CONTACT_RECOURSE_MARKED,
             format!("Recourse: {CONTACT_RECOURSE}")
         );
-        assert!(CONTACT_RECOURSE.contains("move the geometry"));
+        assert!(CONTACT_RECOURSE.starts_with("move the geometry"));
         assert!(
-            !CONTACT_RECOURSE.contains("tolerance"),
-            "the #256 ruling: a contact refusal has no tolerance arm"
+            !CONTACT_RECOURSE.contains("tolerance") && !CONTACT_RECOURSE.contains("declare"),
+            "a contact refusal has no tolerance arm and no declaration to make"
         );
         assert!(
-            !geom_core::COINCIDENCE_RECOURSE.contains("contact class"),
+            !geom_core::COINCIDENCE_RECOURSE.contains("faces clearly touch"),
             "the three-arm sentence stays the DECIDABILITY sentence"
         );
     }
 
     #[test]
-    fn class_names_are_the_declaration_spelling() {
+    fn class_names_are_the_records_spelling() {
         assert_eq!(GlueClass::Continuation.name(), "Continuation");
         assert_eq!(GlueClass::Rest.name(), "Rest");
         assert_eq!(GlueClass::Tangent.name(), "Tangent");

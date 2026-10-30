@@ -6757,8 +6757,7 @@ fn pair_lane_refused(
     refusal: crate::contact::ContactRefusal,
 ) -> ValidationError {
     match refusal {
-        crate::contact::ContactRefusal::Escalated { diag }
-        | crate::contact::ContactRefusal::Undeclared { diag } => {
+        crate::contact::ContactRefusal::Escalated { diag } => {
             ValidationError::CensusEscalated { cause: diag }
         }
         refusal => ValidationError::CensusUnsupported {
@@ -10412,8 +10411,7 @@ fn rest_door_one<T: Decide>(
                     margin: diag,
                 }
             }
-            crate::contact::ContactRefusal::Escalated { diag }
-            | crate::contact::ContactRefusal::Undeclared { diag } => {
+            crate::contact::ContactRefusal::Escalated { diag } => {
                 ValidationError::CensusEscalated { cause: diag }
             }
             refusal @ crate::contact::ContactRefusal::NotCertifiable { .. } => {
