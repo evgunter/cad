@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
-blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
+blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band, an-unread-body-is-no-finding]
 ---
 
 
@@ -35,4 +35,4 @@ or the bridging-rung row) is parked on that remainder instead. Units
 already started may finish (Ev). The held rows were re-read against
 this on 2026-10-29 (`d10-hold-reread-2026-10-29.md`).
 
-This row closes when the bridging-rung row is done.
+This row closes when the bridging-rung row and `an-unread-body-is-no-finding` are done. The second is D10 text with no check: `[operations]` "an unread body is an unread variable, a finding", written by `[ev]` D′ (679b4abbf7). The exit walk checked only the mechanisms D10 supersedes, so it did not list it (re-read 2026-10-30).
