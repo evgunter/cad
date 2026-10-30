@@ -83,11 +83,16 @@
 //!   stated once, at arm 2's loop in [`sweep_cross_solid_backstop`].
 //! - **Discovered within one solid**: two faces on distinct carriers
 //!   touching along their closed-form tangent line through both
-//!   interiors ([`sweep_same_solid_tangent_lines`]); and a point where
-//!   a solid touches itself whose link there bounds no one material
-//!   ([`sweep_self_touch_points`]).
+//!   interiors ([`sweep_same_solid_tangent_lines`]); a line edge between
+//!   two planar faces lying in a cylinder or cone face, read for whether
+//!   the face runs through its wedge ([`sweep_edge_in_curved_face`]);
+//!   and a point where a solid touches itself whose link there bounds
+//!   no one material ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid); a point
+//!   distinct-key curved pairs (the backstop is cross-solid), a line
+//!   edge with a curved face of its own lying in a curved face among
+//!   them
+//!   (`work/restread/census-reads-a-line-edge-in-a-curved-face-only-between-two-planes.md`); a point
 //!   where a solid touches itself with a curved face in its link there,
 //!   a face with a curved edge held at its corner, a planar face with a
 //!   spline edge, or the point tied inside a curved edge, which
