@@ -50,9 +50,11 @@
 //!   its face's incidence test shows off it
 //!   ([`PcurveCertifyError::CarrierOffChart`]) is refused. A circle on a
 //!   cone or torus that is none of its circles, or whose class reading is
-//!   in band, has no general lane yet and refuses lever-only "not yet"
-//!   (unit E4); so does a line or ellipse whose class reading is in band
-//!   (unit E2).
+//!   in band, takes no general lane (none is written for the pair) and
+//!   refuses, as does a line or ellipse whose class reading is in band.
+//!   That refusal is owed like any other: the producer refuses, and at
+//!   rest it is a check-8 finding, never excused ([`not_owed`] excuses
+//!   only a scalar with no fitted door refusing a fitted image).
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
@@ -6725,6 +6727,53 @@ mod derive_without_a_door {
                 && !text.contains("check"),
             "the refusal names the dual and who holds the door, and claims no check ran: {text}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod odd_cone_circle {
+    use super::{analytic_derive, not_owed};
+    use crate::entity::HalfEdgeKey;
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **An odd cone circle is owed at `f64`.** A circle about a cone's
+    /// axis at its rim's height and radius, tilted off the rim's plane by
+    /// a growing angle: untilted it is the rim and mints; tilted it is
+    /// none of the cone's circles, read in band or off the chart, and
+    /// refuses. Whichever it does, a refusal is a check-8 finding: the
+    /// one excuse ([`not_owed`]) is a scalar with no fitted door, and
+    /// `f64` holds one.
+    #[test]
+    fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.5_f64;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (h, tau) = (1.0_f64, core::f64::consts::TAU);
+        let mut refused = 0;
+        for tilt in [0.0_f64, 1e-12, 1e-9, 1e-6, 0.3] {
+            let circle = Curve3::Circle {
+                center: Point3::new(0.0, 0.0, h),
+                axis: Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+                radius: h * alpha.tan(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
+                Ok(_) => assert!(tilt < 1e-6, "tilt {tilt}: a circle well off the rim minted"),
+                Err(e) => {
+                    assert!(tilt > 0.0, "tilt {tilt}: the rim itself refused: {e:?}");
+                    assert!(!not_owed::<f64>(&e), "tilt {tilt}: excused: {e:?}");
+                    refused += 1;
+                }
+            }
+        }
+        assert!(refused > 0, "no tilt refused, so no refusal was read");
     }
 }
 

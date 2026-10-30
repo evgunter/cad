@@ -159,6 +159,11 @@ pub fn boundary_material_sign_loops<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
+    if loops.is_empty() {
+        // An empty chart image encodes no side: the face is its whole
+        // closed surface, signed by its bit alone ([`whole_surface`]).
+        return whole_surface(surface, true).map(|_| MaterialSign::Unencoded);
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "boundary_material_sign called on a plane (planar orientation is the \
@@ -1598,6 +1603,9 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    if loops.is_empty() {
+        return whole_surface(surface, sense);
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "curved_face called on a plane (planar faces take the loop route)",
@@ -1633,6 +1641,55 @@ pub fn curved_face_loops<T: Decide>(
         // fitted kind would.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
+}
+
+/// **The empty rule**: a face whose chart image is empty (every loop of
+/// it all spurs, `topo::surface_boundary`) is the whole of its surface
+/// where that surface is closed, its flux signed by the face's sense:
+/// the outward normal is the chart normal's exactly when the bit is set,
+/// and a closed surface's flux is three times the volume it encloses,
+/// wherever the origin lies. The one rule every integrator reads for an
+/// empty chart image, so none sums an empty boundary to a flux of zero.
+///
+/// - a sphere of radius `R`: area `4πR²`, flux `±4πR³`;
+/// - a torus of radii `R`, `r`: area `4π²Rr`, flux `±6π²Rr²`.
+///
+/// # Errors
+///
+/// [`PropsError::DegenerateFace`] on a surface that is not closed (a
+/// plane, a cylinder, a cone), where an empty chart image bounds nothing;
+/// [`PropsError::Unimplemented`] on a spline or offset surface, which
+/// has no closed form here.
+pub fn whole_surface<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+) -> Result<FaceContribution<T>, PropsError> {
+    let pi = T::pi();
+    let (flux, area) = match *surface {
+        Surface::Sphere { radius, .. } => {
+            let area = T::from_f64(4.0) * pi * radius.powi(2);
+            (area * radius, area)
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let ring = pi.powi(2) * major_radius * minor_radius;
+            (
+                T::from_f64(6.0) * ring * minor_radius,
+                T::from_f64(4.0) * ring,
+            )
+        }
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
+            return Err(PropsError::DegenerateFace);
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+    };
+    Ok(FaceContribution {
+        flux: if sense { flux } else { -flux },
+        area,
+    })
 }
 
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the

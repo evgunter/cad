@@ -678,11 +678,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
-    let one_face = |body: &Body<T>, edge: EdgeKey| {
-        let e = body.get_edge(edge)?;
-        let face = body.face_of_half_edge(e.he_plus)?;
-        (body.face_of_half_edge(e.he_minus)? == face).then_some(face)
-    };
+    let one_face = |body: &Body<T>, edge: EdgeKey| body.both_sides_face(edge).flatten();
     let mut closed = Vec::new();
     loop {
         let open: Vec<(EdgeKey, FaceKey)> = candidates

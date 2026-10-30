@@ -4216,16 +4216,23 @@ fn resolve_face<T: Real>(body: &Body<T>, face_key: FaceKey) -> (&crate::entity::
 /// walked, in traversal order.
 pub(crate) type FlatLoop<T> = (Vec<LoopEdge<T>>, Vec<HalfEdgeKey>);
 
-/// A face's loops flattened with their half-edges, the outer first,
-/// then the rings.
+/// A face's loops as every integrator reads them: each loop's chart
+/// image ([`chart_image_edges`]) with its half-edges, the outer first,
+/// then the rings, a loop that is all spurs left out. Empty where every
+/// loop is, which on a closed surface is the whole surface
+/// (`geom_brep::props::whole_surface`).
 fn flat_loops<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
 ) -> Result<Vec<FlatLoop<T>>, MassPropsError> {
-    core::iter::once(&face.outer)
-        .chain(&face.rings)
-        .map(|&lk| Ok(loop_edges(body, lk)?))
-        .collect()
+    let mut loops = Vec::new();
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let image = chart_image_edges(body, lk)?;
+        if !image.0.is_empty() {
+            loops.push(image);
+        }
+    }
+    Ok(loops)
 }
 
 /// A face's loops flattened ([`flat_loops`]), their edges alone.
@@ -4252,6 +4259,9 @@ fn closed_form_of<U: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<U>, PropsError> {
+    if loops.is_empty() {
+        return geom_brep::props::whole_surface(surface, sense);
+    }
     match *surface {
         Surface::Plane { origin, .. } => planar_face(origin, loops),
         _ => {
@@ -5048,39 +5058,14 @@ pub(crate) fn seam_region<T: Decide>(
     }
     let inside =
         |h: HalfEdgeKey| -> Result<bool, &'static str> { Ok(members.contains(&across(h)?)) };
-    let mut open: Vec<HalfEdgeKey> = inside_of
+    let open: Vec<HalfEdgeKey> = inside_of
         .iter()
         .filter(|(_, interior)| !interior)
         .map(|&(h, _)| h)
         .collect();
     let mut boundary = Vec::new();
     let mut pinched = false;
-    while let Some(&first) = open.first() {
-        // One boundary cycle: from a boundary half-edge to the next one
-        // out of its end vertex, turning through the region's interior
-        // edges there.
-        let mut cycle = Vec::new();
-        let mut h = first;
-        loop {
-            cycle.push(h);
-            open.retain(|&x| x != h);
-            let mut n = half_edge(h)?.next;
-            let mut turns = 0;
-            while inside(n)? {
-                n = half_edge(body.mate(n).ok_or(unresolved)?)?.next;
-                turns += 1;
-                if turns > half_edges.len() {
-                    return Err("a seam region's vertex has no finite rotation");
-                }
-            }
-            if n == first {
-                break;
-            }
-            if !open.contains(&n) {
-                return Err("a seam region's boundary half-edge has no one successor");
-            }
-            h = n;
-        }
+    for cycle in crate::surface_boundary::boundary_cycles(body, open, half_edges.len(), inside)? {
         let mut starts = Vec::with_capacity(cycle.len());
         for &h in &cycle {
             starts.push(half_edge(h)?.start);
@@ -5477,6 +5462,27 @@ pub fn loop_edges<T: Decide>(
         return Err(corrupt("broken half-edge cycle"));
     };
     Ok((run_edges(body, &cycle)?, cycle))
+}
+
+/// **A loop's chart image, flattened**: [`loop_edges`] over the loop's
+/// cycle with its spurs taken out ([`crate::surface_boundary::chart_image`]),
+/// its seams kept. The view every integrator and chart reader takes; empty
+/// where the loop is all spurs.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+#[allow(clippy::type_complexity)]
+pub fn chart_image_edges<T: Decide>(
+    body: &Body<T>,
+    lk: LoopKey,
+) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
+    let (_, cycle) = loop_edges(body, lk)?;
+    let image =
+        crate::surface_boundary::chart_image(body, &cycle).ok_or(LoopEdgesError::Corrupt {
+            what: "half-edge mate does not resolve",
+        })?;
+    Ok((run_edges(body, &image)?, image))
 }
 
 /// [`loop_edges`]' flattening over any closed run of half-edges, in

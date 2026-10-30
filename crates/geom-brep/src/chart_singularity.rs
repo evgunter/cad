@@ -49,7 +49,9 @@
 //!   (`chart_singularity_loop_side`, the area against its bound).
 //!
 //! The face's side of each loop is its left under the outward normal,
-//! the chart normal turned by the face's sense.
+//! the chart normal turned by the face's sense. Sides are read on each
+//! loop's chart image, its spurs taken out by the caller from the
+//! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
@@ -313,10 +315,13 @@ pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
 
 /// **Every singular point of `surface` against the face** whose loops
 /// are `loops` (any order; every loop closed, each edge with its stored
-/// interval and traversal, and each vertex's stored point) and whose
-/// sense is `sense` (its outward normal is the chart normal where
-/// `true`), on/off and side decided at `band` (module docs). Empty for a
-/// surface with no singular point.
+/// interval and traversal, and each vertex's stored point), whose
+/// loops' chart images are `images` (loop for loop, each with its spurs
+/// taken out by the caller, `topo::surface_boundary::chart_image`; a spur
+/// is boundary, read at a vertex or inside an edge, and bounds no area,
+/// so no side reads it), and whose sense is `sense` (its outward normal
+/// is the chart normal where `true`), on/off and side decided at `band`
+/// (module docs). Empty for a surface with no singular point.
 ///
 /// Each point is read in turn: at its nearest vertex, else inside an
 /// edge (the loops and edges in order, the first that decides on), else
@@ -329,6 +334,7 @@ pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
 pub fn locate<T: Decide>(
     surface: &Surface<T>,
     loops: &[FaceLoop<'_, T>],
+    images: &[&[LoopEdge<T>]],
     sense: bool,
     band: Band,
 ) -> Vec<Located<T>> {
@@ -339,8 +345,7 @@ pub fn locate<T: Decide>(
     if points.is_empty() {
         return Vec::new();
     }
-    let edges: Vec<&[LoopEdge<T>]> = loops.iter().map(|l| l.edges).collect();
-    let mut sides = Sides::new(surface, &chart, &points, &edges, band);
+    let mut sides = Sides::new(surface, &chart, &points, images, band);
     points
         .iter()
         .map(|&(singularity, x)| Located {
@@ -609,11 +614,10 @@ struct Sides<'a, T: Decide> {
     surface: &'a Surface<T>,
     chart: &'a ChartInverse<T>,
     points: &'a [(Singularity, Point3<T>)],
+    /// Each loop's chart image, its spurs taken out by the caller.
     loops: &'a [&'a [LoopEdge<T>]],
     band: Band,
     walks: Vec<Option<Option<LoopWalk<T>>>>,
-    /// Each loop with its spurs taken out ([`without_spurs`]).
-    trimmed: Vec<Vec<LoopEdge<T>>>,
 }
 
 impl<'a, T: Decide> Sides<'a, T> {
@@ -631,7 +635,6 @@ impl<'a, T: Decide> Sides<'a, T> {
             loops,
             band,
             walks: vec![None; loops.len()],
-            trimmed: loops.iter().map(|edges| without_spurs(edges)).collect(),
         }
     }
 
@@ -645,14 +648,14 @@ impl<'a, T: Decide> Sides<'a, T> {
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
         if let Surface::Sphere { center, radius, .. } = *self.surface {
-            match sphere_pole_left(center, radius, x, &self.trimmed[l], self.band) {
+            match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
                 PoleLeft::Banded(cause) => return Err(side(SideUnread::Banded(cause))),
                 PoleLeft::NoClosedForm => {}
             }
         }
-        let (chart, points, edges, band) = (self.chart, self.points, &self.trimmed[l], self.band);
+        let (chart, points, edges, band) = (self.chart, self.points, self.loops[l], self.band);
         let walk = (*self.walks[l].get_or_insert_with(|| walk_loop(chart, points, edges, band)))
             .ok_or(Unread::Loop { r#loop: l })?;
         loop_holds_on_left(&walk, singularity).map_err(side)
@@ -669,6 +672,11 @@ impl<'a, T: Decide> Sides<'a, T> {
     ) -> Result<bool, Unread<T>> {
         let mut unread: Option<Unread<T>> = None;
         for l in 0..self.loops.len() {
+            // A loop that is all spurs bounds nothing, and places no
+            // point on either side of it.
+            if self.loops[l].is_empty() {
+                continue;
+            }
             match self.left_holds(l, singularity, x) {
                 Ok(left) if left != sense => return Ok(false),
                 Ok(_) => {}
@@ -679,53 +687,6 @@ impl<'a, T: Decide> Sides<'a, T> {
         }
         unread.map_or(Ok(true), Err)
     }
-}
-
-/// **A loop with its spurs taken out**: every pair of consecutive edges
-/// (cyclically) where the second retraces the first ([`retraces`]),
-/// removed until none is left. A spur bounds no area, so it moves no
-/// point off it from one side of the loop to the other, and a point on
-/// it is on the boundary, read before any side; its tip is a cusp, whose
-/// turn of half a turn either way no reading of the turning decides.
-fn without_spurs<T: Decide>(edges: &[LoopEdge<T>]) -> Vec<LoopEdge<T>> {
-    let mut kept: Vec<LoopEdge<T>> = Vec::with_capacity(edges.len());
-    for e in edges {
-        if kept.last().is_some_and(|k| retraces(k, e)) {
-            kept.pop();
-        } else {
-            kept.push(e.clone());
-        }
-    }
-    // The pairs that close across the loop's start.
-    while kept.len() >= 2 && retraces(&kept[kept.len() - 1], &kept[0]) {
-        kept.pop();
-        kept.remove(0);
-    }
-    kept
-}
-
-/// Whether `f` retraces `e` backwards: their vertex tags reversed, the
-/// same stored interval traversed the other way, the same edge where
-/// both carry one's identity, and the same point at the interval's
-/// middle within the shared rounding charge (`geom_core::rounding_charge`).
-fn retraces<T: Decide>(e: &LoopEdge<T>, f: &LoopEdge<T>) -> bool {
-    if e.forward == f.forward || e.start != f.end || e.end != f.start {
-        return false;
-    }
-    if let (Some(a), Some(b)) = (e.carrier_id, f.carrier_id)
-        && a != b
-    {
-        return false;
-    }
-    let same = |a: T, b: T| !below(a, b) && !below(b, a);
-    if !(same(e.t0, f.t0) && same(e.t1, f.t1)) {
-        return false;
-    }
-    let mid = |x: &LoopEdge<T>| x.carrier.eval((x.t0 + x.t1) * T::from_f64(0.5));
-    let (a, b) = (mid(e), mid(f));
-    let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    let rounding = geom_core::rounding_charge((a - origin).norm() + (b - origin).norm());
-    !below(rounding, (a - b).norm())
 }
 
 /// **One loop walked through its surface's chart**, the reading a side
@@ -1345,7 +1306,8 @@ pub fn nappe<T: Decide>(walk: &LoopWalk<T>) -> Result<NonzeroSign, SideUnread> {
 ///
 /// [`Unread::Loop`] for a loop whose walk states no winding, and
 /// [`Unread::Side`] for a side undecided, where no loop settles the point
-/// outside.
+/// outside. `loops` are the face's chart images, as [`locate`] reads its
+/// sides.
 pub fn holds<T: Decide>(
     surface: &Surface<T>,
     loops: &[&[LoopEdge<T>]],

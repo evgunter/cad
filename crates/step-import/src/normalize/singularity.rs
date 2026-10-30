@@ -356,7 +356,9 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         .zip(&corners)
         .map(|(edges, corners)| home::FaceLoop { edges, corners })
         .collect();
-    for (k, located) in home::locate(&face.surface, &views, face.sense, read.coarser)
+    let images = image_edges(solid, fi);
+    let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
+    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.coarser)
         .into_iter()
         .enumerate()
     {
@@ -396,30 +398,62 @@ fn loop_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
     solid.faces[fi]
         .loops
         .iter()
+        .map(|lp| use_edges(solid, &lp.uses))
+        .collect()
+}
+
+/// Face `fi`'s loops' chart images, loop for loop: each loop with every
+/// use that the next use left walks straight back along its edge (the
+/// same `EDGE_CURVE`, the other orientation: a spur) taken out with it,
+/// until none is left, as the kernel's
+/// `topo::surface_boundary::chart_image` reads a body's half-edges.
+/// A loop that is all spurs is empty.
+fn image_edges(solid: &SolidSpec, fi: usize) -> Vec<Vec<LoopEdge<f64>>> {
+    let back = |a: &EdgeUse, b: &EdgeUse| a.edge == b.edge && a.forward != b.forward;
+    solid.faces[fi]
+        .loops
+        .iter()
         .map(|lp| {
-            let mut tags: Vec<u64> = Vec::new();
-            let mut tag = |v: u64| {
-                let i = tags.iter().position(|&t| t == v).unwrap_or_else(|| {
-                    tags.push(v);
-                    tags.len() - 1
-                });
-                u32::try_from(i).unwrap_or(u32::MAX)
-            };
-            lp.uses
-                .iter()
-                .map(|u| {
-                    let spec = &solid.edges[&u.edge];
-                    let (start, end) = (use_start(solid, *u), use_end(solid, *u));
-                    LoopEdge::hand_built(
-                        spec.carrier.clone(),
-                        spec.t0,
-                        spec.t1,
-                        u.forward,
-                        tag(start),
-                        tag(end),
-                    )
-                })
-                .collect()
+            let mut kept: Vec<EdgeUse> = Vec::with_capacity(lp.uses.len());
+            for u in &lp.uses {
+                if kept.last().is_some_and(|k| back(k, u)) {
+                    kept.pop();
+                } else {
+                    kept.push(*u);
+                }
+            }
+            while kept.len() >= 2 && back(&kept[kept.len() - 1], &kept[0]) {
+                kept.pop();
+                kept.remove(0);
+            }
+            use_edges(solid, &kept)
+        })
+        .collect()
+}
+
+/// A run of uses as the kernel's reading takes them, with run-local
+/// vertex tags.
+fn use_edges(solid: &SolidSpec, uses: &[EdgeUse]) -> Vec<LoopEdge<f64>> {
+    let mut tags: Vec<u64> = Vec::new();
+    let mut tag = |v: u64| {
+        let i = tags.iter().position(|&t| t == v).unwrap_or_else(|| {
+            tags.push(v);
+            tags.len() - 1
+        });
+        u32::try_from(i).unwrap_or(u32::MAX)
+    };
+    uses.iter()
+        .map(|u| {
+            let spec = &solid.edges[&u.edge];
+            let (start, end) = (use_start(solid, *u), use_end(solid, *u));
+            LoopEdge::hand_built(
+                spec.carrier.clone(),
+                spec.t0,
+                spec.t1,
+                u.forward,
+                tag(start),
+                tag(end),
+            )
         })
         .collect()
 }
@@ -478,8 +512,8 @@ fn holds(
     else {
         return Err(unreadable(face.id));
     };
-    let loops = loop_edges(solid, fi);
-    let views: Vec<&[LoopEdge<f64>]> = loops.iter().map(Vec::as_slice).collect();
+    let images = image_edges(solid, fi);
+    let views: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
     home::holds(&surface, &views, face.sense, singularity, read.coarser)
         .map_err(|why| read.unread(why, face.id))
 }
@@ -492,9 +526,9 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
         return Err(unreadable(face_id));
     };
     let points = home::singular_points(&inverse);
-    let loops = loop_edges(solid, fi);
+    let images = image_edges(solid, fi);
     let walk =
-        home::walk_loop(&inverse, &points, &loops[0], read.coarser).ok_or(unreadable(face_id))?;
+        home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
         Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
         Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
