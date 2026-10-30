@@ -3018,6 +3018,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    ("slit.rs", "lies_in", "Coincide::EdgeOnCurvedFace", 1),
     ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
     (
         "slit.rs",
