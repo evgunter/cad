@@ -654,7 +654,11 @@ asked.
 A consumer that hands the number on passes a resolution, the width
 predicate: the mean boundary displacement it needs over the measured
 surface as a whole. That is a sizing,
-decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded. It
+is for a consumer that wants the number and nothing else: one that would
+compare the result against anything passes that comparison as its
+predicate instead, so a decision is never made on a bracket sized by a
+guess.
 The model defines its measures only to ε of boundary displacement, so no
 finer resolution is offered. There is no default: every caller states
 its predicate, a resolution included, and its budget at the call, so the
