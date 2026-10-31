@@ -1803,4 +1803,50 @@ mod undecided_tests {
             );
         }
     }
+
+    /// **A pinned-corner or clearance escalation offers the tolerance a
+    /// value in the band gives**: each decides a distance between two
+    /// placed points or cells, a length.
+    #[test]
+    fn a_corner_or_clearance_escalation_ends_in_its_lengths_tolerance() {
+        use crate::swept::undecided_fixtures::{SIZED, expected, readings};
+        let corner = expected(
+            "whether loft sections 1 and 2 hold corner 3 of loop 0 at one point",
+            SIZED,
+        );
+        let apart = expected(
+            "whether loft section 1's segment 2 of loop 0 and section 2's segment 0 of loop 1 \
+             are apart",
+            SIZED,
+        );
+        let at = |loop_index, segment| LoopSegment {
+            loop_index,
+            segment,
+        };
+        for ((source, corner), apart) in readings("loft_corner_pinned")
+            .into_iter()
+            .zip(corner)
+            .zip(apart)
+        {
+            assert_eq!(
+                LoftError::CornerEscalated {
+                    loop_index: 0,
+                    corner: 3,
+                    slab: 1,
+                    source
+                }
+                .to_string(),
+                corner
+            );
+            assert_eq!(
+                LoftError::ClearanceUndecided {
+                    slab: 1,
+                    segments: [at(0, 2), at(1, 0)],
+                    source: Some(source)
+                }
+                .to_string(),
+                apart
+            );
+        }
+    }
 }

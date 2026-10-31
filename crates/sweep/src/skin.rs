@@ -230,8 +230,9 @@ pub enum SkinError {
     /// `f64` resolves against their whole travel. A structure question
     /// about the parameters, decided exactly (C6), and NOT a verdict
     /// that the sections coincide — whether two sections are apart is
-    /// a banded question this module has no band for, and the loft
-    /// asks it before skinning (`LoftError::DegenerateStacking`).
+    /// a banded question this module has no band for, and the loft's
+    /// stacking door asks it before skinning
+    /// (`LoftError::DegenerateStacking`, `LoftError::SectionsTouch`).
     NoParameterStep {
         /// The second section of the stepless pair.
         section: usize,
