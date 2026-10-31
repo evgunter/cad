@@ -11,6 +11,8 @@
 //! in the profile's own plane — is asserted against the committed gallery fixture
 //! (`gallery_ring.pncad`: the ring demo's document as the
 //! exporter saved it, ε re-stamped per `common::gallery_ring_at`).
+//! The authored document is compared under the fixture's id, because
+//! the door mints a random one where the demo derives its own.
 //! The comparator is **`Doc::bit_eq`** — spec D7's replay-identity
 //! comparator, the strongest equality the document layer supports:
 //! every float compares by bits, identity/order/placements structurally.
@@ -179,9 +181,13 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
         .expect("the gallery fixture loads at this run's ε")
         .snapshot;
     assert!(
-        session.committed_doc().bit_eq(&fixture),
+        session
+            .committed_doc()
+            .clone()
+            .under_identity(fixture.id())
+            .bit_eq(&fixture),
         "the ops-authored ring and the demo's saved document are one \
-         document under D7's replay-identity comparator"
+         document's content under D7's replay-identity comparator"
     );
     assert_eq!(
         common::world(session.committed_doc()),
@@ -283,7 +289,7 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
 }
 
 #[test]
-fn the_authored_ring_survives_the_snapshot_and_log_door() {
+fn the_authored_ring_survives_save_and_reload() {
     let tol = Tol::witness();
     let (mut session, _) = authored_ring(tol);
     let dir = common::tempdir("gauth1-ring");
@@ -293,8 +299,7 @@ fn the_authored_ring_survives_the_snapshot_and_log_door() {
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     let authored = session.committed_doc().clone();
 
-    // Reload into the same session through the ordinary open door —
-    // the file's log replays through `apply` on the way in.
+    // Reload into the same session through the ordinary open door.
     let opened = session.perform(SessionOp::Open(path));
     assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
     assert!(
@@ -316,7 +321,6 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         name: "bracket".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    assert_eq!(session.committed_doc().id(), DocumentId::derive("bracket"));
 
     // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
     let (profile, extrude) = common::box_in(&mut session, [0.04, 0.02, 0.01]);
@@ -327,46 +331,40 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         "extruded block volume: {v} vs {want}"
     );
 
+    // Undo walks the session's actions back to the empty document, and
+    // redo restores the whole of it.
+    let authored = session.committed_doc().clone();
+    let mut steps = 0;
+    while session.perform(SessionOp::Undo).refusal.is_none() {
+        steps += 1;
+    }
+    assert!(steps > 0, "the authoring is undoable");
+    assert!(session.committed_doc().is_empty(), "back to empty");
+    assert!(session.committed_doc().node(profile).is_none());
+    for _ in 0..steps {
+        assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    }
+    assert!(session.committed_doc().bit_eq(&authored), "redo restores");
+
     // Save → reload → bit identity, and the SOLID is the same too.
     let dir = common::tempdir("gauth1-bracket");
     let path = dir.join("bracket.pncad");
     let saved = session.perform(SessionOp::Save(path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
-    let authored = session.committed_doc().clone();
     let opened = session.perform(SessionOp::Open(path));
     assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
     assert!(session.committed_doc().bit_eq(&authored));
     let v2 = body_volume(&mut session, extrude, tol);
     assert_eq!(v.to_bits(), v2.to_bits(), "same volume after reload");
 
-    // Undo walks back across the reopened log one edit at a time (the
-    // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, inserted with its identity bundle as
-    // one edit — then the extrude; redo restores the whole document.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(
-        session.committed_doc().placements().is_empty(),
-        "the placement goes first"
-    );
-    assert!(session.committed_doc().node(extrude).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.committed_doc().node(extrude).is_none());
-    assert!(session.committed_doc().node(profile).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.committed_doc().is_empty(), "back to empty");
-    let at_root = session.perform(SessionOp::Undo);
+    // The file is the document's state: undo ends at the open.
     assert!(matches!(
-        at_root.refusal,
+        session.perform(SessionOp::Undo).refusal,
         Some(Refusal::NothingToDo {
             direction: Step::Undo
         })
     ));
-    // Three edits: the profile, the extrude, and its placement with its
-    // identity bundle.
-    for _ in 0..3 {
-        assert!(session.perform(SessionOp::Redo).refusal.is_none());
-    }
-    assert!(session.committed_doc().bit_eq(&authored), "redo restores");
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
 /// The op vocabulary deliberately exceeds the chrome's templates — a
@@ -411,7 +409,7 @@ fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
 }
 
 #[test]
-fn new_document_derives_its_id_and_clears_the_session() {
+fn new_document_mints_its_id_and_clears_the_session() {
     let tol = Tol::witness();
     let mut session = session(tol);
     // Give the session things to clear: a selection, a hover, and —
@@ -434,10 +432,11 @@ fn new_document_derives_its_id_and_clears_the_session() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.committed.is_empty(), "a replacement, not an edit");
     let doc = session.committed_doc();
-    assert_eq!(
-        doc.id(),
+    let fresh = doc.id();
+    assert_ne!(
+        fresh,
         DocumentId::derive("fresh-part"),
-        "the id is authored at creation from the typed name"
+        "the id is minted, not derived from the typed name"
     );
     assert!(doc.is_empty(), "an empty document");
     assert_eq!(session.selection(), &Selection::None);
@@ -452,15 +451,15 @@ fn new_document_derives_its_id_and_clears_the_session() {
         "the old document's history is gone, not underneath"
     );
 
-    // The trim is part of the identity rule: surrounding whitespace
-    // is a typing accident, so " fresh-part " derives the SAME id.
+    // One name twice is two documents.
     let outcome = session.perform(SessionOp::NewDocument {
-        name: "  fresh-part  ".to_owned(),
+        name: "fresh-part".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
+    assert_ne!(
         session.committed_doc().id(),
-        DocumentId::derive("fresh-part")
+        fresh,
+        "a second document of one name is a second identity"
     );
 }
 

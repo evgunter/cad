@@ -1305,6 +1305,25 @@ impl core::fmt::Display for SsiError {
 impl std::error::Error for SsiError {}
 
 impl SsiError {
+    /// **The tangency this refusal reports**, by the decision that
+    /// refused it: the march's transversality, a graze of a side, or a
+    /// side held tangent, each toward the C7 regime. The predicate is the
+    /// escalation's own where it carries one, else the decision's row.
+    /// `None` for every other refusal.
+    #[must_use]
+    pub fn tangency(&self) -> Option<&'static str> {
+        let named = |verdict: &BandVerdict, row: &'static str| match verdict {
+            BandVerdict::Undecided(cause) => cause.predicate.unwrap_or(row),
+            BandVerdict::Refused(_) => row,
+        };
+        match self {
+            Self::TransversalityBand { .. } => Some("ssi_transversality"),
+            Self::BoundaryGraze { verdict, .. } => Some(named(verdict, "ssi_boundary_crossing")),
+            Self::BoundaryTangent { verdict, .. } => Some(named(verdict, "ssi_boundary_strip")),
+            _ => None,
+        }
+    }
+
     /// The march's refusal of a torus `pair`'s pose that was not
     /// decided: the partner's radius decided not positive, a torus
     /// outside its ring convention, two tori decided one, or a pose
@@ -3101,6 +3120,31 @@ pub fn march_torus_torus(
         domain,
         band,
     )
+}
+
+/// **The ℝ³ march of a decided cylinder × cylinder pose** over `domain`,
+/// in the order the pose was asked of: the cube of the one ball the
+/// pose names ([`crate::CylinderCylinderPose::ball`]), so where that is
+/// the region a branch may end on the cube ([`BranchEnd::Cut`]). The section value marches only a transverse
+/// pose; a tangent one's components are its closed forms or refuse
+/// before any march, so a tangent pose here is the caller's defect.
+///
+/// # Errors
+///
+/// [`implicit_pair_r3`]'s; [`SsiError::WrongLane`] for a tangent pose.
+pub(crate) fn march_cylinder_cylinder(
+    pose: &crate::CylinderCylinderPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let (a, b) = pose.operands();
+    checked([("cylinder", a), ("cylinder", b)], domain)?;
+    if pose.tangency().is_some() {
+        return Err(SsiError::WrongLane {
+            expected: "a transverse cylinder pair, whose tangent poses are never marched",
+        });
+    }
+    implicit_pair_r3(a, b, domain, band)
 }
 
 /// **The door's own checks**: the operands, by name, shown finite and

@@ -101,7 +101,7 @@ pub use op::{
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    GestureFrameFault, NodeKindWanted, Refusal, Step, VersionOffer, admits, admits_read,
+    GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -1680,6 +1680,7 @@ impl DocSession {
             }
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
+            SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
             SessionOp::SetInstanceHidden { instance, hidden } => {
                 match self
                     .display
@@ -2030,7 +2031,7 @@ impl DocSession {
         resolver
             .workspace()
             .and_then(|ws| read(&ws))
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+            .map_err(Refusal::from)
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
@@ -2640,7 +2641,7 @@ impl DocSession {
                 // The directory rule: the resolver is the opened
                 // file's own directory, consulted lazily at each
                 // resolution (DirResolver's docs carry the posture).
-                self.resolver = Some(Arc::new(DirResolver::new(session_dir(path))));
+                self.resolver = Some(Arc::new(DirResolver::new(docio::file_dir(path))));
                 self.history = history;
                 self.path = Some(path.to_path_buf());
                 self.clear_for_new_document();
@@ -2651,39 +2652,73 @@ impl DocSession {
         }
     }
 
+    /// Write the committed document at `path` through that folder's
+    /// store ([`docio::save`]), identity kept.
     fn save(&mut self, path: &Path) -> OpOutcome {
-        match docio::save_path(path, &self.history, self.tol) {
-            Ok(()) => {
-                self.path = Some(path.to_path_buf());
-                // Save-as moves the backing file, and the directory
-                // rule follows the file: rebind the resolver to the
-                // new parent and re-evaluate, since references may
-                // resolve differently there.
-                let dir = session_dir(path);
-                if self.resolver.as_deref().map(DirResolver::dir) != Some(dir.as_path()) {
-                    self.resolver = Some(Arc::new(DirResolver::new(dir)));
+        match docio::save(path, self.history.doc(), self.tol) {
+            Ok(_) => {
+                self.bind_file(path);
+                OpOutcome::default()
+            }
+            Err(error) => OpOutcome::refused(error.into()),
+        }
+    }
+
+    /// The fork (DI4): the committed document under a fresh random
+    /// id, written at `path` through that folder's store
+    /// ([`docio::save_as_new_document`]), and then the whole history
+    /// re-identified under the new id. The write comes first, so a
+    /// refused one leaves the session as it was.
+    fn save_as_new_document(&mut self, path: &Path) -> OpOutcome {
+        match docio::save_as_new_document(path, self.history.doc(), self.tol) {
+            Ok(id) => {
+                self.history.under_identity(id);
+                // The landed run is of the old identity, so a run is
+                // owed whether or not the folder moved.
+                if !self.bind_file(path) {
                     self.request_eval();
                 }
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
+            Err(error) => OpOutcome::refused(error.into()),
         }
     }
 
-    /// Replace the session with a fresh empty document — the
-    /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
-    /// the identity ruling and what is cleared).
+    /// **The session is now backed by `path`.** The directory rule
+    /// follows the file: a save into another folder rebinds the
+    /// resolver to it and re-evaluates, since references may resolve
+    /// differently there. Answers whether it did.
+    fn bind_file(&mut self, path: &Path) -> bool {
+        self.path = Some(path.to_path_buf());
+        let dir = docio::file_dir(path);
+        let rebinds = self.resolver.as_deref().map(DirResolver::dir) != Some(dir.as_path());
+        if rebinds {
+            self.resolver = Some(Arc::new(DirResolver::new(dir)));
+            self.request_eval();
+        }
+        rebinds
+    }
+
+    /// Replace the session with a fresh empty document under a fresh
+    /// random id — the [`SessionOp::NewDocument`] semantics (that arm's
+    /// docs say what is cleared). Both refusals, a blank name and
+    /// unavailable randomness, come before anything is replaced.
     ///
     /// The same two doors as [`DocSession::open`] — a new history and
     /// [`DocSession::clear_for_new_document`] — with the file-shaped
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        let name = match Refusal::new_document_name(name) {
-            Ok(name) => name,
-            Err(refusal) => return OpOutcome::refused(refusal),
+        if let Err(refusal) = Refusal::new_document_name(name) {
+            return OpOutcome::refused(refusal);
+        }
+        // The `Err` arm is UNTESTED, and labelled as such: `getrandom`
+        // has no injection seam.
+        let id = match pncad::workspace::random_document_id() {
+            Ok(id) => id,
+            Err(error) => return OpOutcome::refused(error.into()),
         };
-        self.history = History::new(Doc::empty_derived(name, self.tol));
+        self.history = History::new(Doc::empty(id, self.tol));
         self.path = None;
         self.resolver = None;
         self.clear_for_new_document();
@@ -4670,15 +4705,6 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Assemble { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
-    }
-}
-
-/// The directory a document at `path` resolves against — its parent,
-/// with a bare filename reading as the current directory.
-fn session_dir(path: &Path) -> PathBuf {
-    match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
-        _ => PathBuf::from("."),
     }
 }
 
