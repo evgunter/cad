@@ -1,13 +1,14 @@
-//! M8-14 (#222): **long-turn sweeps certify.** The executed frontier
-//! this unit retires: `sweep_body` on helix arc paths ≥ ~0.5 turn
-//! refused at `nurbs_span_meter` (`ParamSpan` escalation) because the
-//! integral speed meter's single global chord collapsed under
-//! `sweep_places`' near-antipodal frame roll. The meter's integral arm
-//! now joins a per-span scan with the global chord (derivation on
+//! M8-14 (#222): **long-turn sweeps certify.** `sweep_body` on helix
+//! arc paths of half a turn or more needs the integral speed meter's
+//! per-span scan beside its global chord (derivation on
 //! `NurbsCurve3::speed_lower_bound`; corpus + flips in
-//! `geom/tests/curves/m8_14_long_turn_meter.rs`), so a long-turn
-//! corner path whose speed never drops meters positively and the body
-//! assembles and certifies.
+//! `geom/tests/curves/m8_14_long_turn_meter.rs`): a wall's seam iso
+//! follows the helix round, so some of its control-polygon legs lean
+//! back against the iso's end-to-end chord (measured: the worst leg's
+//! cosine to the chord is −0.036 on the whole turn and −0.042 on two),
+//! and the global chord alone meters no positive speed. With the
+//! per-span arm, a long-turn corner path whose speed never drops
+//! meters positively and the body assembles and certifies.
 //!
 //! The oracle is independent (Pappus-style): a constant CENTERED
 //! SYMMETRIC profile swept in a normal-section path-following frame
@@ -20,16 +21,16 @@
 //! above.
 //!
 //! The certified volume is the volume of the BODY the kernel built —
-//! a stack of station-to-station skinned slabs whose frame turns by
-//! `θ_slab` per slab — not of the continuum tube, and the two differ
-//! by a MEASURED `≈ θ_slab²/4` (0.0099 at θ_slab ≈ 0.196 across the
-//! half/full/two-turn rows, which share that per-slab turn). So the
-//! oracle here is a CONVERGENCE pin, which is the stronger statement:
-//! doubling the stations must shrink the A·L gap by ~4× (second
-//! order), on top of an absolute cap at the measured level and the
-//! certified enclosure pad staying orders tighter than the
-//! discretization bracket. A volume bug would break the order; a
-//! meter regression would refuse the build outright.
+//! a stack of station-to-station skinned slabs — not of the continuum
+//! tube, and the two differ by a measured discretization gap: 3.4e-6
+//! on the whole turn at 33 stations, 1.2e-6 on the half turn at 17.
+//! So the oracle here is a CONVERGENCE pin, which is the stronger
+//! statement: doubling the stations must shrink the A·L gap at least
+//! as a second-order quantity would (measured 5.5× on the half turn's
+//! first doubling and 18× on the whole turn's), on top of an absolute
+//! cap at the measured level and the certified enclosure pad staying
+//! orders tighter than the discretization bracket. A volume bug would
+//! break the order; a meter regression would refuse the build outright.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -121,33 +122,33 @@ fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     rel
 }
 
-/// The convergence pin (module docs): the coarse gap sits at the
-/// measured `θ_slab²/4` level, and doubling the stations shrinks it
-/// like the second-order quantity it is.
-fn assert_second_order(what: &str, coarse: f64, fine: f64, cap: f64) {
+/// The convergence pin (module docs): the coarse gap sits under its
+/// measured level, and doubling the stations shrinks it at least as a
+/// second-order quantity would.
+fn assert_converges(what: &str, coarse: f64, fine: f64, cap: f64) {
     assert!(
         coarse <= cap,
         "{what}: coarse A·L gap {coarse} above the measured discretization \
          level {cap} — the body is not the tube the oracle prices"
     );
     assert!(
-        fine <= coarse / 3.0,
+        fine <= coarse / 4.0,
         "{what}: refining 2x only moved the A·L gap {coarse} -> {fine} — \
-         not second-order convergence; the certified volume is off for a \
+         not even second-order convergence; the certified volume is off for a \
          reason discretization does not explain"
     );
 }
 
 /// **The flip this unit exists for**: a FULL-TURN helical sweep — a
-/// complete revolution of frame roll, straight through the
-/// near-antipodal band that used to collapse the chord meter — builds
-/// and certifies, and its volume converges to the independent Pappus
-/// oracle at second order in the station spacing.
+/// complete revolution of its tangent, where the global chord alone
+/// meters no positive speed — builds and certifies, and its volume
+/// converges to the independent Pappus oracle at least at second order
+/// in the station spacing.
 #[test]
 fn a_full_turn_helical_sweep_builds_and_certifies() {
     let coarse = helix_oracle_gap(1.0, 33);
     let fine = helix_oracle_gap(1.0, 65);
-    assert_second_order("full turn", coarse, fine, 1.2e-2);
+    assert_converges("full turn", coarse, fine, 5e-6);
     // The analytic continuum length brackets the interpolant's from
     // above (a chord never beats its arc), and tightly.
     let analytic = std::f64::consts::TAU * (R * R + (PITCH / std::f64::consts::TAU).powi(2)).sqrt();
@@ -162,12 +163,9 @@ fn a_full_turn_helical_sweep_builds_and_certifies() {
 /// filed (`≥ ~0.5 revolutions refuse`) — now builds and certifies.
 #[test]
 fn a_half_turn_helical_sweep_builds_and_certifies() {
-    // The cap is looser than the longer rows' (measured 0.0147 at 17
-    // stations vs 0.0099): a half-turn tube is short enough that its
-    // two end slabs — where the roll is one-sided — carry real weight.
     let coarse = helix_oracle_gap(0.5, 17);
     let fine = helix_oracle_gap(0.5, 33);
-    assert_second_order("half turn", coarse, fine, 2e-2);
+    assert_converges("half turn", coarse, fine, 2e-6);
 }
 
 // ---------------------------------------------------------------------
@@ -303,3 +301,4 @@ fn a_full_turn_helical_sweeps_walls_face_out() {
 fn a_two_turn_helical_sweeps_walls_face_out() {
     assert_helix_walls_face_out(2.0, 65);
 }
+
