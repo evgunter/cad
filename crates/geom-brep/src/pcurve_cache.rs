@@ -3391,9 +3391,11 @@ fn spans_of(
 /// escalation and no decision count; the twin's own scalars are crossed
 /// into the form and the conversion on every call, before the memo is
 /// read ([`twin_span_hulls`]). Each `Interval` enters the key as its
-/// stored bounds' bits and its decoration ([`geom_core::Interval::repr_bits`]),
-/// each `f64` as its bits, and the key is compared whole: no hash stands
-/// for it, so a hit returns exactly what a miss computes (D9). It is a
+/// certified bracket's two ends (NaN where it does not certify, which is
+/// all the parts read of it: a part an uncertified control reaches
+/// reads NaN), each `f64` as its bits, and the key is compared whole: no
+/// hash stands for it, so a hit returns exactly what a miss computes
+/// (D9). It is a
 /// bounded thread-local memo ([`crate::memo`]), so an entry left from
 /// another operation is still that key's value, never stale.
 mod span_memo {
@@ -3405,7 +3407,7 @@ mod span_memo {
     type Spans = Result<Vec<projected::SpanHull>, PcurveCertifyError>;
 
     std::thread_local! {
-        static MEMO: core::cell::RefCell<crate::memo::Memo<Vec<u64>, Spans>> =
+        static MEMO: core::cell::RefCell<crate::memo::Memo<String, Spans>> =
             core::cell::RefCell::new(crate::memo::Memo::new());
     }
 
@@ -3422,55 +3424,54 @@ mod span_memo {
         crate::memo::read(&MEMO, key(twin_net, form, meters, per_span, cuts), compute)
     }
 
-    /// The input rendered whole: each list behind its length, each
-    /// variant behind its tag.
+    /// The input rendered whole, each scalar as its certified bracket's
+    /// two ends (NaN where it does not certify), as limb 2's round memo
+    /// renders its own.
     fn key(
         twin_net: &NurbsCurve3<Interval>,
         form: &CanonicalSurface,
         meters: projected::Meters<Interval>,
         per_span: usize,
         cuts: &[f64],
-    ) -> Vec<u64> {
+    ) -> String {
+        use geom_core::CertifiedEnclosure as _;
         use projected::Meters;
-        let len = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
-        let mut k = Vec::new();
-        let scalars = |k: &mut Vec<u64>, tag: u64, xs: &[Interval]| {
-            k.push(tag);
-            for x in xs {
-                let (lo, hi, dec) = x.repr_bits();
-                k.extend([lo, hi, u64::from(dec)]);
-            }
+        let end = |x: Interval, hi: bool| {
+            x.certified_bracket()
+                .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
         };
-        match *form {
-            CanonicalSurface::Plane => scalars(&mut k, 0, &[]),
-            CanonicalSurface::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
-            CanonicalSurface::Sphere { radius } => scalars(&mut k, 2, &[radius]),
-            CanonicalSurface::Cone { cos2, sin2 } => scalars(&mut k, 3, &[cos2, sin2]),
-            CanonicalSurface::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
-        }
-        match meters {
-            Meters::Plane => scalars(&mut k, 0, &[]),
-            Meters::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
-            Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
-            Meters::Cone { sin, cos, nappe } => {
-                scalars(&mut k, 3, &[sin, cos]);
-                k.push(u64::from(nappe == crate::offset::Nappe::Opening));
-            }
-            Meters::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
-        }
-        let knots = twin_net.knots_f64_interim();
-        let weights = twin_net.weights_f64_interim();
-        k.extend([len(per_span), len(knots.degree()), len(knots.knots().len())]);
-        k.extend(knots.knots().iter().map(|x| x.to_bits()));
-        k.push(len(weights.len()));
-        k.extend(weights.iter().map(|x| x.to_bits()));
-        k.push(len(twin_net.control().len()));
-        for c in twin_net.control() {
-            scalars(&mut k, 5, &[c.x, c.y, c.z]);
-        }
-        k.push(len(cuts.len()));
-        k.extend(cuts.iter().map(|x| x.to_bits()));
-        k
+        let ends = |xs: &[Interval]| -> Vec<u64> {
+            xs.iter()
+                .flat_map(|&x| [end(x, false).to_bits(), end(x, true).to_bits()])
+                .collect()
+        };
+        let form = match *form {
+            CanonicalSurface::Plane => (0, ends(&[])),
+            CanonicalSurface::Cylinder { radius } => (1, ends(&[radius])),
+            CanonicalSurface::Sphere { radius } => (2, ends(&[radius])),
+            CanonicalSurface::Cone { cos2, sin2 } => (3, ends(&[cos2, sin2])),
+            CanonicalSurface::Torus { major, minor } => (4, ends(&[major, minor])),
+        };
+        let meters = match meters {
+            Meters::Plane => (0, ends(&[])),
+            Meters::Cylinder { radius } => (1, ends(&[radius])),
+            Meters::Sphere { radius } => (2, ends(&[radius])),
+            Meters::Cone { sin, cos, nappe } => (
+                if nappe == crate::offset::Nappe::Opening {
+                    3
+                } else {
+                    5
+                },
+                ends(&[sin, cos]),
+            ),
+            Meters::Torus { major, minor } => (4, ends(&[major, minor])),
+        };
+        format!(
+            "{:?}|{:?}|{form:x?}|{meters:x?}|{per_span}|{:x?}",
+            twin_net.map_scalar(|x| end(x, false)),
+            twin_net.map_scalar(|x| end(x, true)),
+            cuts.iter().map(|c| c.to_bits()).collect::<Vec<_>>(),
+        )
     }
 
     /// This thread's memo hits and misses so far.
