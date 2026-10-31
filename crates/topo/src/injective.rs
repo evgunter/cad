@@ -7513,10 +7513,12 @@ mod presentation_rows {
 
     /// **A wall read through a corner is continued less than a turn**
     /// ([`through_of`]'s cap): the wall over `t ∈ [0, 4]` read through its
-    /// vertex at `t = 0` is continued past it by `(τ − 4)/2`, so columns
-    /// reaching `3` below the vertex are not presented. Continued by its
-    /// own span, the curve would reach round to its far end, whose lift a
-    /// turn down lies in those columns. Red if the cap is dropped.
+    /// vertex at `t = 0` is continued past it by `(τ − 4)/2 ≈ 1.14`, so
+    /// columns reaching `2` below the vertex are not presented. This pins
+    /// the cap's definition: continued by its own span instead, those
+    /// columns are presented, soundly here, since no other lift meets
+    /// them. Where one would, the continued span is a turn long, which
+    /// step 1's premise excludes; the argument is at [`through_of`].
     #[test]
     fn a_wall_read_through_a_corner_is_continued_less_than_a_turn() {
         let mut b = walled(
@@ -7544,7 +7546,8 @@ mod presentation_rows {
             )
         };
         assert!(cornered(&near((-0.01, 0.01))), "at the vertex");
-        assert!(!cornered(&near((-3.0, 0.01))), "three below it");
+        assert!(cornered(&near((-1.0, 0.01))), "one below it");
+        assert!(!cornered(&near((-2.0, 0.01))), "two below it");
     }
 
     /// **A shared spiric between two tori refuses at once**
