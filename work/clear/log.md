@@ -235,3 +235,11 @@ Signed: (CARVE orchestrator)
   - **Class, recorded:** a fix that adds a concession must show a verdict that needs it. The reviewer's test, reverting the concession alone and diffing verdicts, goes into future briefs for any unit that adds an ε.
   - **Filed:** the drum divergence (CLEARTAIL, P2); the home of `angle_rate` (PCERT, P3).
   - **SHELL-4 is unparked.**
+- 2026-10-30 — **SHELL-4 parked again; CAVITYDIAG dispatched** (`docs/CAVITYDIAG-SPEC.md`, branch `clear/cavitydiag`, diagnosis first). SHELL-4's lane finished its rows (`7d97070458`), but the gate over-refuses three valid bodies: the corpus pot at Interval (sphere/cylinder vertex), and the cavities of the klein elbow (Departure) and the cone frustum (budget). Filed as `shell-cavity-gate-over-refuses-three-valid-bodies` (P1). Over-refusing legitimate shells is ruled out, so the gate cannot ship until these are fixed or the design question is put.
+- 2026-10-31 — **CAVITYDIAG merges (#6105)** with this commit last.
+  - **The pot is fixed at the source.** `pcurve_cache`'s cylinder arm decides a rim's axial terms `Zero` at `pcurve_cylinder_chart_axial`, the cone arm's twin.
+  - **The review.** A single FULL review at `685ab423a5` returned APPROVE-WITH-FIXES. It probed the source fix and found it reproduces the lane's topo concession bit for bit, so the orchestrator chose the source fix. CLEAR crosses into PCERT's file `pcurve_cache.rs` for this (announced). PCERT's row is closed.
+  - **Disclosed:** a route split on tilted cylinders. f64 reads a curve where Interval reads the line, and verdicts match.
+  - **The orchestrator's read** also fixed a doc comment that the insertion had moved onto the new function.
+  - **Filed (P1):** the frustum (`cone-window-reaches-the-apex-past-a-frustums-face`, decided shape) and the elbow (`injectivity-reads-no-spiric-edge-on-a-torus`, a new arm). SHELL-4 is parked on both.
+  - **Class, recorded:** a fix at the reader that copies a producer's decision should first be tried at the producer. This is the second time in two units that the review found the source fix both smaller and concession-free.

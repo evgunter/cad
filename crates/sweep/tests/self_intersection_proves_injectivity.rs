@@ -21,9 +21,14 @@
 //!   cell-pair counts printed;
 //! - kernel-built oblique cuts, whose arcs meet seam lines at corners,
 //!   hold, some certificates read through a corner, and SHELL-4's vessel
-//!   holds; a folded cut reads `Violated` off its corners;
+//!   holds, on one receipt at both scalars as an axis-aligned body; a
+//!   folded cut reads `Violated` off its corners;
 //! - the cylinder–cylinder tee refuses typed at a vertex its junction
-//!   shares with a cap and nothing else.
+//!   shares with a cap and nothing else;
+//! - of the three bodies the shell's cavity gate asks, the corpus pot
+//!   holds at both scalars, and the klein elbow's cavity (at a spiric
+//!   cap edge) and the cone frustum's (at its apex, by budget) refuse
+//!   typed.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
@@ -1159,28 +1164,33 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// side on the axis revolved a full turn — one wall and two discs,
 /// whose rims are open half-circles. Each disc's two half-rims meet at
 /// a vertex as one circle, a corner of no angle the plane's chart reads
-/// as two arcs. Holds at both scalars, nothing refused, by two routes:
-///
-/// - at `f64` the wall reads the rims as coordinate lines, so the pairs
-///   certify off the wall's presentation by the disc's carrier, reading
-///   no corner (`cornered` 0);
-/// - at `Interval` the rim images' heights oscillate within rounding of
-///   zero, so they are no coordinate lines; the wall reads each rim as
-///   a curve through its corners (`cornered` 8), which needs the
-///   winding's rate exactly.
+/// as two arcs. Holds at both scalars, nothing refused, on one receipt:
+/// the wall reads the rims as coordinate lines, so the pairs certify off
+/// the wall's presentation by the disc's carrier, reading no corner. At
+/// `Interval` the rims' axial terms on the wall's chart are enclosures of
+/// zero, which the pcurve derivation decides zero at
+/// `pcurve_cylinder_chart_axial`. Red if it does not: the wall then reads
+/// each rim as a curve through its corners (`cornered` 8). One receipt at
+/// both scalars is this axis-aligned vessel's: on a cylinder whose axis
+/// is not a coordinate axis, `f64` rounds a rim's terms to nonzero values
+/// and reads a curve where `Interval` reads the line.
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
-    let reports = holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0));
-    for (report, at, cornered) in [(&reports[0], "f64", 0), (&reports[1], "Interval", 8)] {
+    let [float, interval] = holds_at_both("the vessel", vessel_at(1.0, 2.0), vessel_at(1.0, 2.0));
+    assert_eq!(
+        interval.receipt, float.receipt,
+        "the vessel at Interval reads the f64 receipt"
+    );
+    for (report, at) in [(&float, "f64"), (&interval, "Interval")] {
         assert_eq!(
             report.receipt.refused, 0,
             "the vessel at {at} refuses nothing: {:?}",
             report.receipt
         );
         assert_eq!(
-            report.cornered, cornered,
-            "the vessel at {at} reads its route's corners: {:?}",
+            report.cornered, 0,
+            "the vessel at {at} reads no corner: {:?}",
             report.receipt
         );
     }
@@ -1324,4 +1334,209 @@ fn a_folded_oblique_cut_reads_violated_off_its_corners() {
             .fold(f64::INFINITY, f64::min);
         assert!(off > 0.05, "the witness is off every corner: {w:?}, {off}");
     }
+}
+
+// ------------------------------------------ the cavity gate's three bodies
+
+/// **The corpus pot** (`editor-core`'s `corpus/vessel.rs`, station for
+/// station): a base disc, a cylinder foot of radius `4/64` up to
+/// `y = 1/64`, a spherical belly of radius `5/64` about `(0, 4/64)` up to
+/// the mouth at `(3/64, 8/64)`, and the mouth disc, revolved a full turn.
+fn corpus_pot<T: Scalar>() -> Body<T> {
+    let p = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let (foot, mouth) = (p(4.0 / 64.0, 1.0 / 64.0), p(3.0 / 64.0, 8.0 / 64.0));
+    let belly = profile::bulge_from_center(foot, mouth, p(0.0, 4.0 / 64.0), profile::ArcSweep::Ccw);
+    let lp = profile::test_support::bulge_loop(vec![
+        (p(0.0, 0.0), T::zero()),
+        (p(4.0 / 64.0, 0.0), T::zero()),
+        (foot, belly),
+        (mouth, T::zero()),
+        (p(0.0, 8.0 / 64.0), T::zero()),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+}
+
+/// **The corpus pot holds at both scalars, reading no corner.** At
+/// `Interval` the circle where the foot meets the belly has, on the
+/// cylinder's chart, an axial coordinate `0 + a·cos t` with `a` an
+/// enclosure of zero, the rounding of the rim's reference direction
+/// against the axis; at `f64` it is `0.0`. The pcurve derivation decides
+/// it zero at `pcurve_cylinder_chart_axial`, so the presentation reads
+/// the line `v = 0`. Read as a curve, the
+/// cylinder half refuses `Departure` at the vertex where its seam meets
+/// the sphere's other half, which is how the cavity gate over-refused
+/// this pot's operand (`shell-cavity-gate-over-refuses-three-valid-bodies`).
+/// Red if the rim is not decided: the `Interval` twin then refuses where
+/// `f64` holds.
+#[test]
+fn the_corpus_pot_holds_at_both_scalars() {
+    let [float, interval] = holds_at_both("the corpus pot", corpus_pot(), corpus_pot());
+    assert_eq!(
+        (float.cornered, interval.cornered),
+        (0, 0),
+        "no certificate is read through a corner"
+    );
+}
+
+/// The faces of `body` shelled to `t` on its cavity's shell, with the
+/// shelled body: the clone the cavity gate asks.
+fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
+    let hollow = topo::shell(
+        &sweep::test_support::finished("the operand", body, tol()),
+        T::from_f64(t),
+        tol(),
+    )
+    .expect("the operand shells")
+    .body;
+    let roles = topo::classify_shells(
+        &sweep::test_support::finished("the hollow", hollow.clone(), tol()),
+        tol(),
+    )
+    .expect("the hollow classifies");
+    let [void] = roles
+        .iter()
+        .filter(|c| c.role == topo::ShellRole::Void)
+        .map(|c| c.shell)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one cavity")
+    };
+    let faces = hollow
+        .faces()
+        .filter(|(_, f)| f.shell == void)
+        .map(|(k, _)| k)
+        .collect();
+    (hollow, faces)
+}
+
+/// **The klein elbow** (`torax_interval`'s): a disc of radius `0.275`
+/// revolved a quarter turn about an axis `1.2` off its centre.
+fn klein_elbow<T: Scalar>() -> Body<T> {
+    let r = 0.275;
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(-r, 0.0).map(T::from_f64), T::one()),
+        (Point2::new(r, 0.0).map(T::from_f64), T::one()),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(1.2, 0.0).map(T::from_f64),
+        dir: geom_core::Vec2::new(0.0, -1.0).map(T::from_f64),
+    };
+    let quarter = Revolution::Partial(T::from_f64(-core::f64::consts::FRAC_PI_2));
+    revolve(&profile, axis, quarter, tol()).unwrap().body
+}
+
+/// **The klein elbow's cavity refuses typed at both scalars, unsplit**,
+/// shelled `0.05`. The cavity's caps are the operand's moved `0.05`
+/// along their normals, off the torus's axis, so each meets the
+/// cavity's torus in a spiric section: no conic of the cap's plane and
+/// no harmonic row of the torus's chart. Neither face is presented
+/// beside it, and the pair refuses `Uncertified { Departure }` at the
+/// shared edge at the root. The operand holds. Pinned, not fixed: the
+/// row `shell-cavity-gate-over-refuses-three-valid-bodies` states what a
+/// presentation across that edge would have to argue.
+#[test]
+fn the_klein_elbows_cavity_refuses_at_its_spiric_caps() {
+    holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
+    fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
+        let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
+        let report = injective(&hollow, Some(faces), BUDGET);
+        let BoundVerdict::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::Departure,
+        }) = report.verdict
+        else {
+            panic!(
+                "the elbow's cavity refuses at a cap's edge: {:?}",
+                report.verdict
+            )
+        };
+        let mut kinds = [kind(&hollow, a), kind(&hollow, b)];
+        kinds.sort_unstable();
+        assert_eq!(kinds, ["plane", "torus"], "a cap and the torus");
+        let carrier = hollow
+            .get_curve_geom(hollow.get_edge(e).unwrap().curve)
+            .and_then(|c| c.certified())
+            .map(|c| c.carrier().kind());
+        assert_eq!(
+            carrier,
+            Some(geom::CurveKind::Spiric),
+            "the shared edge is a spiric section"
+        );
+        assert_eq!(report.receipt.splits, 0, "refused at the root");
+        report
+    }
+    same_class(
+        "the elbow's cavity",
+        &cavity_at::<f64>(),
+        &cavity_at::<Interval>(),
+    );
+}
+
+/// **A frustum** of base radius `4/64`, top radius `r1` and height
+/// `8/64`, revolved a full turn.
+fn frustum<T: Scalar>(r1: f64) -> Body<T> {
+    let (r0, h) = (4.0 / 64.0, 8.0 / 64.0);
+    let lp = profile::test_support::bulge_loop(
+        [(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y).map(T::from_f64), T::zero()))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+}
+
+/// **The cone frustum's cavity exhausts the default budget at both
+/// scalars** (`sf2b_interval_probe`'s frustum, top radius `2/64`,
+/// shelled `1/128`). A cone face's window reaches its apex
+/// (`clearance::window_of`), where the cone's two halves meet in space
+/// and share no point of M. A cell holding the apex is never decided
+/// outside its face (`cell_region` never clears a cone's apex), and is
+/// never apart from the other half's by distance, so it splits until the
+/// budget is spent. The operand holds only because its top rim lies on
+/// its window's first `v` bisection, so its apex cells read vacuous
+/// across the seam. A frustum whose rim does not, top radius `3/64`,
+/// exhausts the budget as an operand too. Pinned, not fixed: the row
+/// `shell-cavity-gate-over-refuses-three-valid-bodies` states where the
+/// pairs go.
+#[test]
+fn a_cone_frustums_cavity_exhausts_the_budget_at_its_apex() {
+    holds_at_both("the frustum", frustum(2.0 / 64.0), frustum(2.0 / 64.0));
+    fn exhausts<T: Scalar>(what: &str, body: &Body<T>, faces: Option<Vec<FaceKey>>) -> String {
+        let report = injective(body, faces, BUDGET);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Budget(_))
+            ),
+            "{what} exhausts the budget: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+        class(&report.verdict)
+    }
+    fn cavity_at<T: Scalar>() -> String {
+        let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
+        exhausts("the frustum's cavity", &hollow, Some(faces))
+    }
+    assert_eq!(
+        cavity_at::<f64>(),
+        cavity_at::<Interval>(),
+        "one class at both scalars"
+    );
+    exhausts("the 3/64 frustum", &frustum::<f64>(3.0 / 64.0), None);
 }
