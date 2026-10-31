@@ -1450,7 +1450,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// [`loft_geometry`](crate::loft_geometry) and assembles the closed solid around it.
 ///
 /// `sections[i][l][j]` is section `i`, loop `l`, segment `j` in sketch
-/// coordinates; `places[i]` its rigid placement; `v_degree` the
+/// coordinates; `places[i]` its placement, rigid and right-handed by
+/// its type ([`SketchPlane`] is a [`geom_core::RigidMotion`], so a
+/// mirrored frame refuses where it is minted); `v_degree` the
 /// skinning degree in the section direction, all in `T`. Structure is
 /// selected at `f64` on their value channel (C6), and the body is
 /// computed in `T` (module docs, "Scalar posture").

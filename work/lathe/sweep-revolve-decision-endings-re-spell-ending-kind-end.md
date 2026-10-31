@@ -5,6 +5,7 @@ priority: P3
 title: sweep's ClearanceDecision::ending and TubeDecision::ending re-spell geom-core EndingKind::end
 status: open
 opened: 2026-10-13
+cost: C
 ---
 
 
