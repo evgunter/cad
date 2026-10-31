@@ -80,12 +80,7 @@ use crate::validate::ValidationError;
 /// **The rule for a reader:** a decision on a zero-pad value re-derives
 /// it (`certify_role`: the body's interval re-derivation, or a stated
 /// bound on its rounding where there is no lane), or decides on an
-/// enclosure of it. It never takes a zero pad as exactness. The readers
-/// known to break the rule are the boolean volume backstop's: its
-/// magnitude arm
-/// (`work/cleave/the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`),
-/// and its Bound arm's held read, its operand gate and its +V posture
-/// (`work/cleave/the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`).
+/// enclosure of it. It never takes a zero pad as exactness.
 #[derive(Clone, Copy, Debug)]
 pub struct MassProperties<T: Real> {
     /// The **signed** enclosed volume by the divergence theorem —
@@ -1186,39 +1181,12 @@ impl<U: Real> SignReading<U> {
             Self::Bracket(e) => (e.volume_lo, e.volume_hi, e.surface_area),
         }
     }
-
-    /// Whether this is one value rather than a bracket.
-    pub(crate) fn is_exact(self) -> bool {
-        matches!(self, Self::Exact { .. })
-    }
-
-    /// The signed sum `self + sign·other` of two readings over the sum of
-    /// their levers: exact when both are, else the bracket of the two
-    /// ends that make it widest.
-    pub(crate) fn plus(self, other: Self, negate_other: bool) -> Self {
-        let (lo, hi, lever) = self.ends();
-        let (olo, ohi, olever) = other.ends();
-        let (olo, ohi) = if negate_other {
-            (-ohi, -olo)
-        } else {
-            (olo, ohi)
-        };
-        match (self, other) {
-            (Self::Exact { .. }, Self::Exact { .. }) => Self::exact(lo + olo, lever + olever),
-            _ => Self::Bracket(VolumeEnclosure {
-                volume_lo: lo + olo,
-                volume_hi: hi + ohi,
-                surface_area: lever + olever,
-            }),
-        }
-    }
 }
 
 impl<T: Real> MassProperties<T> {
     /// This sum as a role read takes it: one value where no face carried
     /// a quadrature pad, else the bracket. One value is not an exact one:
-    /// its rounding is the reader's to state ([`certify_role`]; the type's
-    /// docs name the reader that does not).
+    /// its rounding is the reader's to state ([`certify_role`]).
     pub(crate) fn reading(&self) -> SignReading<T> {
         if self.volume_pad == 0.0 {
             SignReading::exact(self.volume, self.surface_area)
@@ -1291,51 +1259,6 @@ impl RoleUnread {
     }
 }
 
-/// **The role read** — the one place a volume's sign becomes a role,
-/// every caller's: check 7, check 10, the shell classification and
-/// point containment's side at infinity. `V/A` is a length (check 7's
-/// margin convention): the mean displacement of the boundary the volume
-/// corresponds to. An exact volume is decided once; a bracket's high end
-/// first, then its low end only when the high end decides nothing
-/// ([`ShellRole::decided_at`]).
-///
-/// [`RoleRead::Unread`] when no end decides a role.
-pub(crate) fn read_role<U: Decide>(
-    reading: SignReading<U>,
-    names: RoleNames,
-    band: Band,
-) -> RoleRead {
-    let sign = |name, volume, lever| {
-        crate::validate::decide_reported(name, Margin::over_lever(volume, lever), band)
-    };
-    let role_at = |end, decided: Result<Decided, Indeterminate>| {
-        decided
-            .ok()
-            .and_then(|decided| ShellRole::decided_at(end, decided.sign))
-    };
-    let read = |role: Option<ShellRole>, unread| match role {
-        Some(role) => RoleRead::Decided(role),
-        None => RoleRead::Unread(unread),
-    };
-    match reading {
-        SignReading::Exact { volume, lever } => {
-            let one = sign(names.high, volume, lever);
-            read(
-                role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
-                RoleUnread { lo: one, hi: one },
-            )
-        }
-        SignReading::Bracket(ends) => {
-            let hi = sign(names.high, ends.volume_hi, ends.surface_area);
-            if let Some(role) = role_at(BracketEnd::High, hi) {
-                return RoleRead::Decided(role);
-            }
-            let lo = sign(names.low, ends.volume_lo, ends.surface_area);
-            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
-        }
-    }
-}
-
 /// **The bandless sign read** (D10): `reading`'s ends read for their
 /// sign alone ([`Margin::sign_of`] against [`Band::enclosure_sign`]), the
 /// high end first, the low end only where it decides nothing
@@ -1374,7 +1297,7 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     }
 }
 
-/// What [`read_role`] read.
+/// What [`read_sign`] read.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum RoleRead {
     /// An end decided the role.
@@ -6783,10 +6706,7 @@ mod wiring_rows {
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
 /// consumer of [`crate::validate_geometric`] /
-/// [`crate::validate_pseudomanifold`] runs them at this scalar, and
-/// whether the boolean engine runs its volume backstop
-/// ([`AtRestPolicy::gate_volume_backstop`]), which measures its
-/// operands and its result through the certified quadrature.
+/// [`crate::validate_pseudomanifold`] runs them at this scalar.
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
@@ -7120,23 +7040,6 @@ pub trait AtRestPolicy: Decide {
         group: &dyn Fn(crate::SolidKey) -> Option<u32>,
         band: Band,
     ) -> crate::FlushAtRest;
-
-    /// The boolean engine's volume backstop over an op's two operands
-    /// and its result (`crate::boolean::volume_backstop`, measuring
-    /// through [`QuadLane::certified`], at certifying scalars; absent at
-    /// duals, and the outcome says which).
-    ///
-    /// # Errors
-    ///
-    /// The backstop's own refusal, verbatim, where the scalar runs it.
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError>;
 }
 
 /// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
@@ -7280,18 +7183,6 @@ impl AtRestPolicy for f64 {
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
-    }
 }
 
 #[cfg(feature = "probe")]
@@ -7429,18 +7320,6 @@ impl AtRestPolicy for geom_core::Probe {
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
-    }
 }
 
 impl AtRestPolicy for geom_core::interval::Interval {
@@ -7572,18 +7451,6 @@ impl AtRestPolicy for geom_core::interval::Interval {
         band: Band,
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
-    }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
     }
 }
 
@@ -7733,18 +7600,6 @@ where
         band: Band,
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
-    }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
     }
 }
 
@@ -7904,20 +7759,6 @@ where
         _band: Band,
     ) -> crate::FlushAtRest {
         crate::FlushAtRest::default()
-    }
-
-    /// The backstop is a validation of the result, and the quadrature
-    /// it measures with is certification arithmetic: absent here, the
-    /// base-scalar run of the same recipe is the check of record.
-    fn gate_volume_backstop(
-        _op: crate::BooleanOp,
-        _a: &Body<Self>,
-        _b: &Body<Self>,
-        _result: &Body<Self>,
-        _band: Band,
-        _tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 }
 
@@ -8209,27 +8050,6 @@ mod at_rest_policy_tests {
             T::spline_foot().is_some(),
             "a certifying scalar holds the spline foot"
         );
-        // The volume backstop runs, on a planted wrong result: a union
-        // "result" half the size of an operand.
-        let (cube, half) = planted_union::<T>(tol);
-        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
-        assert!(
-            matches!(
-                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
-                Err(crate::BooleanError::ResultVolumeImplausible { .. })
-            ),
-            "the certifying arm runs the volume backstop"
-        );
-    }
-
-    /// A unit cube and a half-height brick on it, the second standing
-    /// in as a union's "result" that is smaller than an operand.
-    fn planted_union<T: Decide + crate::props::AtRestPolicy>(tol: Tol) -> (Body<T>, Body<T>) {
-        let brick = crate::test_support_fixtures::brick::<T>;
-        (
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 0.5), tol),
-        )
     }
 
     #[test]
@@ -8292,21 +8112,6 @@ mod at_rest_policy_tests {
                 tol
             ),
             Ok(AtRestOutcome::NotRunAtThisScalar)
-        );
-        let (cube, half) = planted_union::<geom_core::Dual64>(tol);
-        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
-        assert_eq!(
-            <geom_core::Dual64 as AtRestPolicy>::gate_volume_backstop(
-                crate::BooleanOp::Union,
-                &cube,
-                &cube,
-                &half,
-                band,
-                tol
-            )
-            .map_err(|e| e.kind()),
-            Ok(AtRestOutcome::NotRunAtThisScalar),
-            "a dual runs no volume backstop, even on a result a certifying scalar refuses"
         );
         // The shell door's absence is the same fact one step earlier:
         // the call is never formed at all, so there is no refusal to

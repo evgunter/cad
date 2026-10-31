@@ -50,3 +50,7 @@ the list's rows, as `every_forwarded_arm_has_a_row` does; then a row
 per arm the roster turns up, or a named reason. When it lands, move
 `NodeErrorKind::Boolean` in the chains census's `forward` off
 `Unwelded(UNWELDED_BOOLEAN)`.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Four of the arms it lists are gone with the enum's variants; the hand-kept list is still this row's.

@@ -22,3 +22,7 @@ The lane that built PR 5008 agrees the recourse should name the looser tolerance
 ## Owed
 
 Where a refusal quotes the glue door's in-band reading, its recourse also names the tolerance above which the door decides the pair Zero and glues it, read off the door's margin. Execute that tolerance on the review's witnesses (`corner_names_glue_review_probes.rs`, φ = 2°, ε 1e-11 and 1e-10) to show it clears the reading. Only an offer that executes true is quoted.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The two ops that met CLEAVE's volume-backstop refusal at the looser tolerance no longer meet it (CLEAVE's `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`, closed), so all six may build there; not re-measured.

@@ -3619,32 +3619,26 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-/// **What a mass-properties refusal says about the body** — the one
-/// reading tier 3's check 7 and the boolean's volume backstop share:
-/// why the volume is missing, what the user can do, and whether that is
-/// a defect in the body. Only structure that does not resolve is one; a
+/// **What a mass-properties refusal says about the body**, as tier 3's
+/// check 7 reads it: why the volume is missing, and what the user can
+/// do, or that it is a defect in the body. Only structure that does not resolve is one; a
 /// face the property layer has no measurement for, a decision too close
 /// to call, a quadrature that ran out are measurements the kernel does
 /// not have, however the face came to need them.
 pub(crate) struct MassPropsReading {
     /// Why the volume is missing, as a clause.
     pub(crate) why: &'static str,
-    /// What to do about it — or the defect ending, when `defect`.
+    /// What to do about it — or the defect ending, where the body's own
+    /// structure is at fault.
     pub(crate) recourse: Cow<'static, str>,
-    /// The body's own structure is at fault.
-    pub(crate) defect: bool,
 }
 
 pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
     use geom_brep::props::{PropsCheck, PropsError as P};
-    let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
-        why,
-        recourse,
-        defect,
-    };
+    let reading = |why, recourse: Cow<'static, str>| MassPropsReading { why, recourse };
     match e {
-        M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
+        M::Band { error } => reading(classify_band(error), TOLERANCE.into()),
         M::Face { source, .. } => match source {
             // **Both halves read the variant's own check**, so this
             // window and the refusal itself cannot disagree about what
@@ -3666,7 +3660,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
-                *check == PropsCheck::Exact,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
@@ -3675,7 +3668,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             | P::QuadratureUnsupported { .. } => reading(
                 "the kernel cannot yet measure a face of this kind",
                 NOT_YET_ENDING.into(),
-                false,
             ),
             // An edge that does not lie on its own face's surface: a
             // premise no valid body violates, so it is the body's own
@@ -3683,7 +3675,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::OffSurface { .. } => reading(
                 "a stored boundary edge does not lie on its own face's surface",
                 DEFECT.into(),
-                true,
             ),
             // A sphere face whose loops do not bound a region of its
             // sphere, or whose bit its boundary contradicts (an inverted
@@ -3692,58 +3683,47 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::SphereLoop { .. } => reading(
                 "a sphere face's boundary does not bound a region of its sphere",
                 DEFECT.into(),
-                true,
             ),
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary, or holds a pole of \
                  its sphere inside it",
                 DEFECT.into(),
-                true,
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionOvercovered { .. } => reading(
                 "the faces of one sphere overlap, covering their region more than once",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionCoverUnresolved => reading(
                 geom_core::undecided!("whether the faces of one sphere overlap"),
                 TOLERANCE.into(),
-                false,
             ),
             P::SeamRegionSensesDisagree => reading(
                 "two faces of one sphere meet with their material on one side of their seam",
                 DEFECT.into(),
-                true,
             ),
             P::ConeLoop { .. } => reading(
                 "a cone face's boundary does not bound a region of its cone once",
                 DEFECT.into(),
-                true,
             ),
             P::HolesExceedFace => reading(
                 "a face's holes cover more area than its outer boundary encloses",
                 DEFECT.into(),
-                true,
             ),
             P::RingWoundWithFace => reading(
                 "a hole in a face is wound the same way as the face",
                 DEFECT.into(),
-                true,
             ),
             P::ChartLoopOpen => reading(
                 "a face's stored boundary does not close on its surface",
                 DEFECT.into(),
-                true,
             ),
             P::LoopsWindChart => reading(
                 "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
-                true,
             ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
@@ -3753,36 +3733,30 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 geom_brep::props::FACE_EXTENT
                     .recourse(RefusedArm::SignCertain(None), Reading::AtRest)
                     .into(),
-                false,
             ),
         },
         M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
             NOT_YET_ENDING.into(),
-            false,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
-            reading("its structure is incomplete", DEFECT.into(), true)
+            reading("its structure is incomplete", DEFECT.into())
         }
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
-            false,
         ),
         M::EmptyContains => reading(
             "a measurement was asked whether the volume lies in a range whose least value is above its greatest",
             "Recourse: give the least value first".into(),
-            false,
         ),
         M::Undecided { .. } => reading(
             "the measurement's question is still undecided where refinement stopped",
             geom_core::NOT_YET_ENDING.into(),
-            false,
         ),
         M::Poisoned { cause } => reading(
             "the measurement's question could not be decided",
             cause.to_string().into(),
-            false,
         ),
     }
 }
@@ -6629,15 +6603,6 @@ pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames 
     walk: PLUS_V,
     certified: PLUS_V_EXACT,
 };
-
-/// Check 7's reading of one volume ([`crate::props::read_role`] under
-/// [`PLUS_V`]).
-pub(crate) fn plus_v_read<T: geom_core::Decide>(
-    reading: crate::props::SignReading<T>,
-    band: Band,
-) -> crate::props::RoleRead {
-    crate::props::read_role(reading, PLUS_V, band)
-}
 
 /// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
 /// a positive volume passes, a negative one refuses; where the walk

@@ -558,8 +558,6 @@ enum Want {
     Builds,
     /// The reduction's sector question refuses (the GERMCERT row).
     Sector,
-    /// The subtract volume backstop refuses (the HONE row).
-    Backstop,
 }
 
 /// Every distinct point of `shell`'s loops.
@@ -657,18 +655,6 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
                 );
                 continue;
             }
-            Want::Backstop => {
-                assert!(
-                    matches!(
-                        &run,
-                        Err(BooleanError::ResultVolumeImplausible { which, .. })
-                            if *which == "vol(A ∖ B) ≥ vol(A) − vol(B)"
-                    ),
-                    "{what}: refuses on the backstop, got {:?}",
-                    run.map(|_| ())
-                );
-                continue;
-            }
             Want::Builds => {}
         }
         let body = built(&what, run);
@@ -715,10 +701,6 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 /// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
 /// reduction's sector question (`bool_sector_coplanar`)
 /// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
-/// Turned at ε 1e-6, the 30ε bar `slab ∖ fill` refuses
-/// `ResultVolumeImplausible`: the backstop holds the operands' flush
-/// faces bit-exact
-/// (`work/hone/the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     let tol = Tol::witness();
@@ -728,9 +710,8 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
     for pose in [Pose::Aligned, Pose::Turned, Pose::Moved] {
         for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
-            channel_rows(pose, m, 0.0, tol, |op| match pose {
+            channel_rows(pose, m, 0.0, tol, |_| match pose {
                 Pose::Turned if at_1e9 && m == 12.0 => Want::Sector,
-                Pose::Turned if !at_1e9 && m == 30.0 && op == "slab ∖ fill" => Want::Backstop,
                 _ => Want::Builds,
             });
         }
@@ -742,20 +723,15 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
 /// floor to `1.5w` at the ceiling, 30ε across, so the cavity's cross
 /// section is a trapezoid. Its rim lies on the cavity's walls as the
 /// upright face's does, and its germ there reads it. Both poses build
-/// every op, but for the turned bar `slab ∖ fill` at ε 1e-6, which
-/// refuses on the backstop as the upright channel's does.
+/// every op.
 #[test]
 fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
     }
-    let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
     for pose in [Pose::Aligned, Pose::Turned] {
-        channel_rows(pose, 30.0, 0.5, tol, |op| match pose {
-            Pose::Turned if !at_1e9 && op == "slab ∖ fill" => Want::Backstop,
-            _ => Want::Builds,
-        });
+        channel_rows(pose, 30.0, 0.5, tol, |_| Want::Builds);
     }
 }
 

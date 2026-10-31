@@ -529,10 +529,9 @@ fn revalue_boss_union_apart_to_its_parting() {
 
 // The corpus documents this row runs: those a debug build replays twice
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
-// through `revalue_census`; `kiss_carry` and `face_sketch` change branch
-// under both moves and are not compared (`face_sketch`'s union of a box and
-// the boss resting on its top decides `volume_backstop_violation` exactly
-// zero at the nominal: `work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
+// through `revalue_census`; `kiss_carry` changes branch under both moves
+// and is not compared, and `face_sketch` is not compared yet: it parts
+// under the apart move (`work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
 // Each row's move is pinned, and its floor is half the margins it moved
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
@@ -765,13 +764,11 @@ fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
 
 /// A decision the two builds answer with different signs: a later
 /// mismatch is kept apart from the launderings, and a later match still
-/// counts. The branching build has the shape of `topo`'s volume
-/// backstop, whose exact-band violation read answers `Zero` on a margin
-/// that cancels exactly at `p0` and `Negative` on its rounding at `p1`,
-/// and whose next decision is `volume_backstop` either way, over two
-/// margins (`die`'s census candidate at decision #10548). The other
-/// build's split steers nothing, as `join.rs`'s `nearer` reads `Zero`
-/// and `Positive` alike.
+/// counts. The branching build's split answers `Zero` on a margin that
+/// cancels exactly at `p0` and `Negative` on its rounding at `p1`, and
+/// its next decision is the same either way, over two margins. The
+/// other build's split steers nothing, as `join.rs`'s `nearer` reads
+/// `Zero` and `Positive` alike.
 #[test]
 fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
     use geom_core::Real;

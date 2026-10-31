@@ -240,6 +240,8 @@ mod curved_copy_review_probes;
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
 mod curved_edge_ray_probes;
+#[path = "curved_trims_build_at_their_volumes.rs"]
+mod curved_trims_build_at_their_volumes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "degree1_loft_slabs.rs"]
@@ -665,8 +667,6 @@ mod reach_split_gate_per_face;
 mod reach_split_gate_pose;
 #[path = "reach_split_gate_window.rs"]
 mod reach_split_gate_window;
-#[path = "reach_volume_backstop.rs"]
-mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
 mod reach_wall_chord_rows;
 #[path = "readback_doors.rs"]
