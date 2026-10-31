@@ -392,3 +392,18 @@ Tier: **orchestrator's read** (a test-only counter and two pins).
 - The account's weekly usage limit stopped `sect-seamslow` mid-poll
   (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
   (review: APPROVE-WITH-FIXES, no MAJOR).
+
+## 2026-10-31 — the seam-region door row at its cost again (PR 6062)
+
+PR 6062 closes `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`:
+PR 5894 let 20 of the row's 24 ball × cylinder booleans certify chords
+before refusing at the result gate; the projected-pcurve door recomputed
+`twin_span_hulls` per image, now memoized (`pcurve_cache::span_memo`, keyed
+by everything `spans_of` reads); the row is five tests, each pinning every
+boolean's stop by variant and raising door; the nightly's 1e-12 hold-out is
+removed (each part ≤ ~190 s at 1e-12). Tier: **single FULL**:
+APPROVE-WITH-FIXES, no MAJOR; one fix pass took all items, including a
+latent key collision (uncertified knots/weights keyed NaN) closed here and
+its twin in `limb2_memo` filed on PCERT. The lane found the nightly
+`full-suite` job no longer fits 180 min on slow nights (build 50–76 min);
+filed on GREEN (P1).

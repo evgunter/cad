@@ -1007,6 +1007,8 @@ mod mate7a_torus_rest;
 mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
+#[path = "nurbs_plane_guard.rs"]
+mod nurbs_plane_guard;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]

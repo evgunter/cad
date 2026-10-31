@@ -438,19 +438,23 @@ fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
 ///
 /// # The measure is a BRACKET, and why it has to be
 ///
-/// The frame `sweep_places` builds for a planar arc is exactly the
-/// rigid rotation about the arc's own axis (minimal rotation from the
-/// base tangent, then translation onto the path — for a planar arc
-/// starting at the frame origin those compose to rotation about the
-/// arc centre), so the STATIONS lie exactly on the quarter torus of
-/// square cross-section whose Pappus volume is `A·R̄·θ =
-/// (2h)²·R·(π/2)`. The WALLS, though, are the degree-3 v-interpolation
-/// through nine such stations — a polynomial approximation of circular
-/// motion, not the torus. So the honest claim is convergence to
-/// Pappus, not equality with it: at 9 stations the relative gap is
-/// ≈ 4e-6, and it fell by ~1.8 decades when the station count went
-/// 5 → 9 (measured 2.2e-4 → 3.8e-6). The certified enclosure `pad` is
-/// ~1e-13 here, four orders TIGHTER than that gap — the bracket is a
+/// The frame `sweep_places` carries along a planar arc turns only
+/// about the arc's own axis (`crates/sweep/README.md` `[sweep.frame]`),
+/// and the path starts at the frame origin, so every station is the
+/// start frame rotated about the arc centre: the STATIONS lie exactly
+/// on the quarter torus of square cross-section whose Pappus volume is
+/// `A·R̄·θ = (2h)²·R·(π/2)`. The WALLS, though, are the degree-3
+/// v-interpolation through nine such stations — a polynomial
+/// approximation of circular motion, not the torus. So the honest
+/// claim is convergence to Pappus, not equality with it: measured
+/// 8.6e-4 at 5 stations, 1.03e-5 at 9 and −2.1e-7 at 17.
+///
+/// The stations sit at the path's parameter, and this path is a
+/// rational quarter arc, whose parameter is not its arc length, so the
+/// cubic fits the circular motion about 2.7× worse than stations at
+/// their chord lengths did (3.8e-6 at 9). The cap is that measurement
+/// plus a tenth. The certified enclosure `pad` is ~1e-14 relative here,
+/// eight orders TIGHTER than that gap — the bracket is a
 /// discretization statement, and the assertion below pins the pad
 /// separately so the tolerance can never be silently absorbed by a
 /// loosening enclosure.
@@ -499,7 +503,7 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
     let rel = ((m.enclosure.volume - pappus) / pappus).abs();
     assert!(
-        rel <= 1e-5,
+        rel <= 1.1e-5,
         "swept volume {} vs Pappus {pappus} (rel {rel}) — the 9-station \
          discretization bracket",
         m.enclosure.volume
@@ -635,8 +639,10 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
 ///
 /// Its walls interpolate the torus through nine stations rather than
 /// being it, so Pappus is not its volume: the two differ by the fit,
-/// measured at 3.9e-6 of Pappus, and the row holds the bracket to
-/// Pappus within 5e-6 of it beyond the pad. Acceptance 5's exact
+/// measured at 1.03e-5 of Pappus, and the row holds the bracket to
+/// Pappus within 1.1e-5 of it beyond the pad. The fit is the square
+/// elbow's above: stations at the rational arc's parameter, which is
+/// not its arc length (3.9e-6 when they sat at chord lengths). Acceptance 5's exact
 /// oracle is the conic quarter torus, whose walls ARE the torus
 /// (`step-import`'s
 /// `a_conic_quarter_torus_measures_a_bracket_at_the_wall`).
@@ -668,7 +674,7 @@ fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
     );
     let e = measured.enclosure;
     let pappus = PI * ELBOW_H * ELBOW_H * ELBOW_R * FRAC_PI_2;
-    let gap = 5e-6 * pappus;
+    let gap = 1.1e-5 * pappus;
     assert!(
         (e.volume - pappus).abs() <= e.volume_pad + gap,
         "the bracket {} ± {:e} holds Pappus's {pappus} within the fit's {gap:e}",

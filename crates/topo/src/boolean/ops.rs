@@ -1916,7 +1916,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => of_pair_section(held, |_| {
+        Some(held) => of_pair_section(held, band, |_| {
             match sections.carried((a, fa.face), (b, fb.face)) {
                 Some(Ok(carried)) => of_carried(Ok(carried)),
                 Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
