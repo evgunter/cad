@@ -5,11 +5,10 @@ in force now; it is edited in place when the protocol changes and
 carries no history — git does. The rows live in
 `docs/DESIGN-FORK-LOG.md`.
 
-**The questions: how do the designers' recommendations compare
-with what Ev decides, and does a second designer of the same model
-add as much as one of the other model?** Every design fork put to Ev
-is first weighed by one Opus and one Fable designer, and on a random
-third of forks by a second Opus designer as well
+**The question: how do the designers' recommendations compare
+with what Ev decides?** Every design fork put to Ev is first weighed
+by one Opus and one Fable designer, and on a randomly drawn third of
+forks by a second Opus designer as well
 (`memories/orchestration-model.md`, `docs/prompts/designer.md`);
 this log records what each recommended and, once Ev answers, what Ev
 decided. This is process data, not a design reference: nothing here
