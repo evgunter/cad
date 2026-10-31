@@ -20,7 +20,23 @@ y/n, ratified text challenged y/n); **agree** (on the first reports);
 "none"); **to Ev** (the recommendation or stated split the PR
 carried); **Ev** (the decision, and date); **match** (which of the
 first recommendations, if any, Ev's decision took); **A/B** (the
-urandom byte and which model was A — filled in only after Ev decides).
+urandom bytes and which model was A — filled in only after Ev decides).
+
+Forks drawn for three designers are rows in the first table below;
+every other fork is a row in the second, which runs to the end of the
+log.
+
+### Three designers
+
+Columns as for two designers, with **C** after **B**, and two more:
+**tokens** (each label's harness token count, first report / total,
+filled in with the mapping) and **A/B/C** (the urandom bytes and each
+label's model, filled in only after Ev decides).
+
+| # | date | protocol | fork | problem | A | B | C | agree | reconciliation | to Ev | Ev | match | tokens | A/B/C |
+|---|------|----------|------|---------|---|---|---|-------|----------------|-------|----|-------|--------|-------|
+
+### Two designers
 
 | # | date | protocol | fork | problem | A | B | agree | reconciliation | to Ev | Ev | match | A/B |
 |---|------|----------|------|---------|---|---|-------|----------------|-------|----|-------|-----|
