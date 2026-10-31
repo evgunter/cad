@@ -2899,8 +2899,8 @@ fn workspace_error_tags_are_stable() {
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
 
-    // The save door's own two arms, constructed: neither is reachable
-    // from a store that holds nothing, and both are Python-visible.
+    // The save door's own three arms, constructed: none is reachable
+    // from a store that holds nothing, and all are Python-visible.
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
             id: pncad::document::DocumentId::derive("tagged"),
@@ -2908,6 +2908,13 @@ fn workspace_error_tags_are_stable() {
             requested: std::path::PathBuf::from("/store/b.pncad"),
         }),
         "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldReplaceDocument {
+            id: pncad::document::DocumentId::derive("tagged"),
+            path: std::path::PathBuf::from("/store/a.pncad"),
+        }),
+        "save_would_replace_document"
     );
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
@@ -5768,9 +5775,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fit",
             "knot_algebra",
             "no_parameter_step",
-            "path_tangent_reversal",
-            "path_tangent_undecided",
+            "path_folds_back",
+            "path_stations_coincide",
             "path_tangent_vanishes",
+            "path_undecided",
             "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
@@ -6235,6 +6243,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "save",
             "save_target_not_in_store",
             "save_would_duplicate_id",
+            "save_would_replace_document",
             "unknown_id",
             "update",
         ],

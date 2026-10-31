@@ -2,11 +2,14 @@
 id: a-half-turn-spine-sweeps-only-off-its-exact-tangents
 kind: issue
 title: sweep_body refuses a planar half-turn spine with exact end tangents (PathTangentReversal) and builds it only off a float knife edge
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
 refs: [sweep-frame-is-a-minimal-rotation-from-the-start-tangent]
+rides_with: sweep-frame-is-a-minimal-rotation-from-the-start-tangent
+closed: 2026-10-31
+pr: 6138
 ---
 
 Found by SHOW's `klein-scene-should-adopt-the-one-body-loop-sweep`
@@ -109,3 +112,7 @@ and has no axis at it. Its shape, an incremental rotation-minimizing
 frame or a stated frame law, is this row's first ask. It is
 `design: true` (which frame a sweep follows), so this P0 waits on that
 design question. Whichever row lands the frame should close both.
+
+## Closed (2026-10-31, PR 6138, riding with the frame row)
+
+The start-tangent law's single singular point is gone with that law. A planar U-turn spine now sweeps at every station count. The klein loop sweeps `exact_spine` through `sweep_body`, and `review_half_turn_path…` builds.

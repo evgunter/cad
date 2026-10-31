@@ -683,6 +683,7 @@ which is what actually moves the number.
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_wall_seam | a seam's carrier points at both ends and a quarter span in, against the chart's point at a candidate image's own parameter there: the largest of the three 3-D distances, for a seam stated as an iso line in another chart. The label decides every candidate the wall-seam arm hands the boundary-iso schedule: the stated columns (each chart boundary and the column the start's foot names), the closed-form columns and rows, and the measured maps | m | OK (as `pcurve_iso_line_rim`: `Margin::of` a distance, only a decided `Zero` selects, an escalation is deferred and answered only when no candidate holds, and the full iso certification follows the selection) |
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_seam_column | as `pcurve_iso_line_rim`, for an `Intersection` or `OnPair` seam on a spline chart: the largest of the carrier's 3-D distances from the chart at a candidate column's or row's own parameter, at both ends and a quarter span in, over the closed-form columns and rows and the measured maps | m | OK (as `pcurve_iso_line_rim`) |
 | pcurves.rs (`net_closes`, for `chart_u_period` and `chart_v_period`; the name rides a `(name, pairs)` tuple) | pcurve_chart_u_closed / pcurve_chart_v_closed | `‖P_first − P_last‖`, each control point of the net's first boundary column (row) against the matching one of its last, bare | m | OK (only a decided `Zero` at every pair closes the channel; the weights the test does not compare, and the in-band fold, are `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s, neither a dimension question) |
+| pcurves.rs (`chart_side_bounds`, `section_cert`'s W1′) | pcurve_chart_side_spans | `‖P_first − P_k‖`, the first control point of the net's row along a chart side against each other one, bare | m | OK (`Margin::of` a distance; only a decided `Positive` at some pair reads the side as spanning, and spanning is the side's condition to clear: a decided `Zero` or an escalation keeps it collapsed, the refusing side) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
@@ -1288,7 +1289,9 @@ Flagged, NOT fixed here (dispositions):
 - **F22** (added by PATHS' sketch-plane frame unit)
   `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
   under the caller's site name (`sweep`'s `sweep_path_turn`, a path
-  sweep's turn from the start tangent onto a station's): `1 + a·b`,
+  sweep's step turn from station `i`'s tangent mirrored in the chord
+  onto station `i + 1`'s, the second reflection of the double
+  reflection, `crates/sweep/README.md` `[sweep.frame]`): `1 + a·b`,
   the scalar part of the quaternion `(1 + a·b, a × b)` whose matrix
   the turn is, for `a`, `b` direction witnesses, evaluated as
   `|a + b|²/2`. Dimensionless — a defect of the pair, zero exactly when
@@ -1297,7 +1300,7 @@ Flagged, NOT fixed here (dispositions):
   own (it acts on the section, whose extent is the caller's). The
   margin is where the turn stops being THE minimal rotation, so the
   decision sits on that rather than on an axis `a × b`, which would
-  escalate on a nearly straight path where any axis serves. It is not
+  escalate on a nearly straight step where any axis serves. It is not
   also a conditioning threshold: the quaternion matrix is orthogonal to
   rounding at every angle, and with both parts evaluated through
   `a + b` it carries `a` onto `b` to a few ulps at every margin the

@@ -354,7 +354,7 @@ fn a_square_wall_is_read_within_the_band_only() {
 /// Whether the section value reads the pair's components from the march:
 /// no closed form counts them.
 fn marched(f: &geom::Surface<f64>, g: &geom::Surface<f64>) -> bool {
-    match geom_brep::pair_section(f, g, band()) {
+    match geom_brep::pair_section(f, g, None, None, band()) {
         Ok(geom_brep::SectionRead::Built(s)) => s.counted().is_none(),
         other => panic!("the value builds the pair: {other:?}"),
     }

@@ -2,7 +2,8 @@
 id: torus-germ-pairs-have-no-section-frame
 kind: issue
 title: A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame names its section
-status: dispatched
+status: closed
+closed: 2026-10-29
 opened: 2026-10-04
 priority: P0
 cost: H
@@ -201,3 +202,20 @@ Pinned by `crates/sweep/tests/germ_sphere_torus_placements.rs` (each
 ring placement at its face and payload, the about-the-axis placement at
 `Untold`). The row stays open for the site reading and for its cylinder
 × torus and torus × torus halves.
+
+## Closed
+
+2026-10-29, by SECT's orchestrator. Every pair this row measured now has a
+section and reaches past the germ mint: sphere × torus by its closed-form
+readings and the torus ring path (PR 5974), cylinder × torus and torus ×
+torus by their doors (PR 5972), and every pose by its foot on the carried
+section (PR 6011, `components-by-foot` above). What each stops at now is
+another row's: the volume doors (SPIRICARM's
+`a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`), the cap
+plane's spiric (plane × torus, `c5-plane-torus-cone-cylinder-arms`), a wall
+run's image (`RunImageNotYet`, SECT's
+`a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`
+where it is that site), the lily's march budget (SECTRUNG's
+`torus-germ-rows-march-for-an-hour-at-a-fine-band`), and the spline edge
+join (SPLICE's `joining-a-spline-carrier-is-unbuilt`). No frame is owed:
+the section-first design retired frames.

@@ -37,14 +37,18 @@
 //! # Reading a ball against the face
 //!
 //! ρ is the carrier's reach — the distance from it to its medial axis:
-//! a sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`. A
-//! ball about a point of the carrier with radius below ρ meets the
-//! carrier in one disc. With no vertex or edge of the face inside the
+//! a sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`,
+//! and no bound on a plane. A ball about a point of the carrier with
+//! radius below ρ meets the carrier in one disc. With no vertex or edge of the face inside the
 //! ball, the face holds all of that disc or none of it, and the foot,
 //! placed `Out` of the face by its door
 //! ([`super::contain::curved_face_placement`]), says none. Every edge is
 //! decided clear by a lower bound on its distance from the foot
 //! ([`edge_clear_of_ball`]).
+//!
+//! On a plane the level sets are flat, so the second bound charges the
+//! curve's curvature alone, and the walk stops at the floor the curve's
+//! own bend sets.
 //!
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! localizes nothing, and the door stays.
@@ -108,22 +112,30 @@ pub(super) fn off_face<T: Decide + Bounds>(
     Ok(true)
 }
 
-/// The carrier's reach, ρ in the module docs; `None` for a kind with no
-/// distance here.
-pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
+/// A carrier's reach, ρ in the module docs.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Reach<T> {
+    /// The distance to the medial axis.
+    Bounded(T),
+    /// A plane's: it has no medial axis, and its level sets do not bend.
+    Unbounded,
+}
+
+/// The carrier's reach; `None` for a kind with no distance here.
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<Reach<T>> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
-            Some(radius)
+            Some(Reach::Bounded(radius))
         }
         geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Some(minor_radius.min(major_radius - minor_radius)),
-        geom::Surface::Plane { .. }
-        | geom::Surface::Cone { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
+        } => Some(Reach::Bounded(
+            minor_radius.min(major_radius - minor_radius),
+        )),
+        geom::Surface::Plane { .. } => Some(Reach::Unbounded),
+        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -175,10 +187,12 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             let d = v.norm();
             Some((d - minor_radius, core + v * (minor_radius / d), v / d))
         }
-        geom::Surface::Plane { .. }
-        | geom::Surface::Cone { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
+        geom::Surface::Plane { origin, normal, .. } => {
+            let n = normal / normal.norm();
+            let d = (q - origin).dot(n);
+            Some((d, q - n * d, n))
+        }
+        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -187,19 +201,26 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
 struct Unlocalized;
 
 /// The parameter runs of the span that may meet the carrier, in order
-/// (module docs), the curve's speed and curvature bounds given; `None`
-/// past the budgets.
+/// (module docs), the curve's speed and curvature bounds and the
+/// carrier's reach given; `None` past the budgets.
 fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     (speed, bend): (SupSpeed<T>, T),
-    rho: T,
+    rho: Reach<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
-    // The carrier's reach is the radius its level sets part from a
-    // tangent curve over (module docs).
-    let floor = geom_core::bisect::tangency_floor(rho, band.escalate()).hi();
+    // The radius the carrier's level sets part from a tangent curve over
+    // (module docs): its reach, or on a plane the curve's own radius of
+    // curvature. A bend with no finite bound sets no floor, and the walk
+    // runs to its budget.
+    let parting = match rho {
+        Reach::Bounded(rho) => rho,
+        Reach::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
+        Reach::Unbounded => T::zero(),
+    };
+    let floor = geom_core::bisect::tangency_floor(parting, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.
@@ -214,20 +235,26 @@ fn clusters<T: Decide + Bounds>(
         let tangent = carrier.deriv(mid);
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
-        let axis_gap = rho - dist.abs() - ell;
         // A bend with no finite bound (a spline's crease or cusp) takes
         // the first bound alone. At `Interval` a bend unbounded above (a
         // speed floor straddling zero) passes here, and leaves the second
         // bound's lower end unbounded below, so the `max` keeps the
-        // first's.
-        let bound = if geom_core::is_finite_length(bend)
-            && let Ok(Sign::Positive) =
-                decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
-        {
-            let curl = T::one() / axis_gap + bend;
-            lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)
-        } else {
-            lipschitz
+        // first's. A plane's level sets do not bend.
+        let curl = match rho {
+            _ if !geom_core::is_finite_length(bend) => None,
+            Reach::Unbounded => Some(bend),
+            Reach::Bounded(rho) => {
+                let axis_gap = rho - dist.abs() - ell;
+                matches!(
+                    decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band),
+                    Ok(Sign::Positive)
+                )
+                .then(|| T::one() / axis_gap + bend)
+            }
+        };
+        let bound = match curl {
+            Some(curl) => lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half),
+            None => lipschitz,
         };
         if let Ok(Sign::Positive) = decide("bool_touch_piece_clear", Margin::of(bound), band) {
             broken = true;
@@ -258,7 +285,7 @@ fn clusters<T: Decide + Bounds>(
 /// point of `face` (module docs).
 ///
 /// The face's boundary is read against the ball before the foot is
-/// placed. The ball's radius is at least `escalate`, so a vertex or
+/// placed, by the plane's door on a plane and the curved one elsewhere. The ball's radius is at least `escalate`, so a vertex or
 /// edge the placement could not tell from the foot lies inside it and
 /// answers `false`; the placement is asked only of a foot every member
 /// stands clear of.
@@ -267,13 +294,15 @@ fn ball_off_face<T: Decide + Bounds>(
     face: FaceKey,
     foot: Point3<T>,
     radius: T,
-    rho: T,
+    rho: Reach<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if !matches!(
-        decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
-        Ok(Sign::Positive)
-    ) {
+    if let Reach::Bounded(rho) = rho
+        && !matches!(
+            decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
+            Ok(Sign::Positive)
+        )
+    {
         return Ok(false);
     }
     let f = crate::live::proven(&y.faces, face, EntityId::Face);
@@ -286,7 +315,14 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    match super::contain::curved_face_placement(y, face, foot, band) {
+    let placed = match *y.face_surface_linked(face, f) {
+        geom::Surface::Plane { normal, .. } => {
+            super::contain::contfp_decided(y, face, normal, foot, band)
+                .map(|(at, _)| CurvedPlacement::Trim(Some(at)))
+        }
+        _ => super::contain::curved_face_placement(y, face, foot, band),
+    };
+    match placed {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)
         | Err(
