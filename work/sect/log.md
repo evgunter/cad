@@ -421,3 +421,22 @@ one fix pass; every slow row it adds or re-pins run by the lane at
 opt-level 2 at all three ε (drum × donut 12.7 min, two balls 4.7 min at
 1e-12). An essential run on a seamless band is documented, not refused
 (not a regression; `pctail/a-seamless-band-mints-…`).
+
+## 2026-10-31 — the torus rows read at 1e-6 again (PR 6153)
+
+PR 6153 closes `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`.
+Cause: PR 6011's second fix pass grew each marched loop's pad to 0.11–0.13 m
+at 1e-6, reaching the axis or core. Now `winds` reads a loop's turns over
+its tube boxes (limb 3's one piece per box), checks the walk has degree ±1
+(`once_round` or `gated`, else `Unordered`), the pad is the tube's farthest
+point from the carrier, and W3 reads a witness `reach`. Four rows un-pinned
+(two now stop at GREEN's open default-ε P0, as on main); `close_rings` stays
+pinned on SSIMARCH's `an-r3-tube-no-rung-makes-a-graph-is-never-refined`.
+Tier: **single FULL** (APPROVE-WITH-FIXES, no MAJOR; independent winding
+oracle 1,612 comparisons, 0 wrong), then a **confirmation review** of the
+fix pass's degree check (no MAJOR; mutation run showed the guards
+untested alone, now each pinned). Filed: the closed chain's seam link
+(SSIMARCH P3), the oracle's blindness and residue (SECT P3). Process note:
+the lane pushed a comment-only commit to re-run CI after an unrelated
+editor-core fast-set timing flake (1.020 s vs 1.0 s) when a re-run was
+refused (403); the brief's rule forbids kicking CI that way.

@@ -269,21 +269,30 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
     }
 }
 
-/// A face's OUTWARD normal at a point on a curved carrier: the
+/// A face's OUTWARD normal at the foot of `p` on a curved carrier: the
 /// implicit gradient at `p`, normalized, folded through the face's
 /// `sense` bit — the one home of that fold for a door handed a
 /// carrier and the bit rather than a face (the contact verifier
 /// reading two bodies' faces, the dihedral's material pairing, a blend
-/// battery's supports).
+/// battery's supports, `topo`'s `face_outward_normal_at_foot`).
 ///
-/// INVARIANT, enforced by the caller and not here: `p` lies ON `s` (an
-/// off-surface gradient is a direction of nothing, and this door reads
-/// no residual), and `sense` is a `Face::sense` the caller resolved,
-/// never a decided sign. A door that certifies the point onto the
-/// chart first folds the RAW gradient it has just certified
-/// unit-magnitude; this one normalizes, so the two readings can differ
-/// in the last ulps on the same input and neither substitutes for the
-/// other.
+/// The level sets of each implicit form here are the carrier's
+/// parallel offsets, so the gradient's direction at `p` is the
+/// carrier's normal at the point of it nearest `p`, on the carrier or
+/// off it, wherever that point is one point; this door reads no
+/// residual, and a caller that needs `p` ON `s` certifies it. Where the
+/// foot is not one point the answer is no normal of it: poison on a
+/// cylinder's axis, a sphere's centre, a cone's axis and a torus's axis
+/// or core circle, and on the plane through a cone's apex square to its
+/// axis, where the two nappes are equally near, one nappe's normal by
+/// the sign of zero. A caller reading a foot guards those loci itself.
+///
+/// INVARIANT, enforced by the caller and not here: `sense` is a
+/// `Face::sense` the caller resolved, never a decided sign. A door that
+/// certifies the point onto the chart first folds the RAW gradient it
+/// has just certified unit-magnitude; this one normalizes, so the two
+/// readings can differ in the last ulps on the same input and neither
+/// substitutes for the other.
 pub fn implicit_outward_normal<T: Real>(
     s: &Surface<T>,
     sense: bool,
