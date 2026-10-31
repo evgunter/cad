@@ -1515,7 +1515,10 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
             report.receipt
         );
     }
-    for (what, r1) in [("the 2/64 frustum", 2.0 / 64.0), ("the 3/64 frustum", 3.0 / 64.0)] {
+    for (what, r1) in [
+        ("the 2/64 frustum", 2.0 / 64.0),
+        ("the 3/64 frustum", 3.0 / 64.0),
+    ] {
         for report in &holds_at_both(what, frustum(r1), frustum(r1)) {
             within(what, report);
         }
