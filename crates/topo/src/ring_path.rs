@@ -50,7 +50,13 @@
 //! the axis), so two paths with the same ends cross any closed curve
 //! alike; and an embedded closed curve on it, winding round the axis
 //! (a drum wall's section loop, which goes all the way round) or not,
-//! separates it. On a cone, the paths run on the punctured nappe, an annulus, and
+//! separates it. Which side of it is the region a curve bounds is the
+//! curve's to say only where it does not wind: there it bounds a disc.
+//! So a parity read as membership of a cylinder face's region (the ring
+//! re-homing's) rests on the face being a disc of the chart, no loop of
+//! it winding round the axis, as on a cone and a torus; a run that
+//! winds (a seamless band's) bounds no disc, and its side would be read
+//! off its orientation, which the parity does not see. On a cone, the paths run on the punctured nappe, an annulus, and
 //! the curve bounds a disc of it: it lies on one face, and no loop of the
 //! face winds round the axis, so no curve on it winds round the apex. On
 //! a torus, the paths run anywhere on it and the curve bounds a disc: it
@@ -1957,6 +1963,24 @@ mod spline_fuzz;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod torus_islands;
 
+/// The ellipse the plane through `(0, 0, h)`, tilted `atan(tilt)` about
+/// `y`, cuts the unit cylinder about `z` in, its parameter the azimuth
+/// (its point at azimuth `u` is at height `h + tilt·cos u`), and that
+/// plane's normal.
+#[cfg(test)]
+pub(crate) fn tilted_section(h: f64, tilt: f64) -> (geom::Curve3<f64>, Vec3<f64>) {
+    let alpha = tilt.atan();
+    let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
+    let ellipse = geom::Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, h),
+        axis: normal,
+        semi_u: 1.0 / alpha.cos(),
+        semi_v: 1.0,
+        u_ref: Vec3::new(alpha.cos(), 0.0, alpha.sin()),
+    };
+    (ellipse, normal)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -2082,12 +2106,6 @@ mod tests {
         }
     }
 
-    /// **Every path on a cone reads the parity the islands' oracles
-    /// give**, on both nappes, in three frames, and near the apex: a grid
-    /// of points (heights 0.05 to 2.9, at 16 azimuths) taken pairwise,
-    /// every path [`Quadric::paths`] offers between them. Nearly every
-    /// pair is decided (the undecided ones run through a loop vertex),
-    /// and both parities are read.
     /// **A segment from a point on an arc's plane, off the arc, meets
     /// the arc nowhere.** The unit cylinder about `z` cut by a plane
     /// tilted `atan 2.5` about `y`, in an ellipse whose semi-axes differ
@@ -2098,16 +2116,8 @@ mod tests {
     /// and crosses the arc an even number of times.
     #[test]
     fn a_segment_from_an_arcs_plane_off_the_arc_meets_it_nowhere() {
-        let tilt: f64 = 2.5;
-        let alpha = tilt.atan();
-        let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
-        let ellipse = geom::Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: normal,
-            semi_u: 1.0 / alpha.cos(),
-            semi_v: 1.0,
-            u_ref: Vec3::new(alpha.cos(), 0.0, alpha.sin()),
-        };
+        let tilt = 2.5;
+        let (ellipse, _) = tilted_section(0.0, tilt);
         let arc = LoopArc::of(&ellipse, (0.5, 1.0)).unwrap();
         let cylinder = geom::Surface::Cylinder {
             origin: Point3::origin(),
@@ -2133,6 +2143,12 @@ mod tests {
         }
     }
 
+    /// **Every path on a cone reads the parity the islands' oracles
+    /// give**, on both nappes, in three frames, and near the apex: a grid
+    /// of points (heights 0.05 to 2.9, at 16 azimuths) taken pairwise,
+    /// every path [`Quadric::paths`] offers between them. Nearly every
+    /// pair is decided (the undecided ones run through a loop vertex),
+    /// and both parities are read.
     #[test]
     fn a_cone_path_crosses_an_island_by_the_oracle_parity() {
         for f in frames() {
