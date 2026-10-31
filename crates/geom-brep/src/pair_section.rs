@@ -84,7 +84,7 @@ mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
-pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose};
+pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
@@ -556,7 +556,9 @@ pub enum ComponentShape {
 pub struct ComponentEnds {
     /// The rectangle sides it reaches on each surface.
     pub rims: [ChartReach; 2],
-    /// It reaches the region's boundary.
+    /// The region cuts it: a marched branch ends on the march domain's
+    /// cube, or a closed form runs past the region (it is carried whole,
+    /// its carrier exact there).
     pub cut: bool,
     /// The nodes its ends stand at.
     pub nodes: [Option<usize>; 2],
@@ -729,9 +731,10 @@ impl PairPose<f64> {
     /// a hundredth of its radius so the slab's faces stand off the ball,
     /// which the bounding surface reaches (a sphere everywhere, a torus
     /// round its outer equator); the feature extent the ball's diameter,
-    /// the standard accounting floor. For two cylinders the domain is
-    /// their ball cut by the region, held in the cube of the one of the
-    /// two that [`Self::ball`] names.
+    /// the standard accounting floor. For two cylinders it is the cube of
+    /// one ball ([`CylinderCylinderPose::ball`]): their own ball where
+    /// the region holds it, else the region's, each a superset of their
+    /// ball cut by the region.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
         let ball = self.ball();

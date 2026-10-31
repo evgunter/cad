@@ -395,3 +395,288 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         "{got:?}"
     );
 }
+
+/// The section's listed components, counted.
+fn listed(section: &PairSection<f64>) -> &[geom_brep::SectionComponent<f64>] {
+    section.counted().expect("a counted section")
+}
+
+/// **Coaxial walls of two radii nest and have no section**: a coincidence
+/// is the axes' distance and the radii both `Zero`, never the distance
+/// alone. Concentric at `d = 0` and at `d` in the band, a pipe's two
+/// walls a little off one axis, and a boss in its bore: each empty, in
+/// both orders, at the value, at the closed-form door and at the C5 pose
+/// question, which serves it.
+#[test]
+fn coaxial_walls_of_two_radii_nest_and_have_no_section() {
+    let z = Vec3::unit_z();
+    let eps = band().zero();
+    let poses = [
+        (
+            "concentric, 0.5 and 0.2",
+            drum(),
+            wall(Point3::origin(), z, 0.2),
+        ),
+        (
+            "concentric, 0.5 and 0.3",
+            drum(),
+            wall(Point3::origin(), z, 0.3),
+        ),
+        (
+            "concentric, d in the band",
+            drum(),
+            wall(Point3::new(3.0 * eps, 0.0, 0.0), z, 0.3),
+        ),
+        (
+            "a pipe's walls",
+            drum(),
+            wall(Point3::new(0.05, 0.0, 0.0), z, 0.4),
+        ),
+        (
+            "a boss in its bore",
+            drum(),
+            wall(Point3::new(0.1, 0.05, 0.0), z, 0.3),
+        ),
+    ];
+    let edge = geom_brep::Reach::Ball(region());
+    for (label, a, b) in &poses {
+        for (order, x, y) in [("a, b", a, b), ("b, a", b, a)] {
+            let section = built(x, y, region());
+            assert!(
+                listed(&section).is_empty(),
+                "{label} ({order}): nested walls, no section"
+            );
+            assert!(
+                section.decided().is_empty(),
+                "{label} ({order}): {:?}",
+                section.decided()
+            );
+            let closed = geom_brep::cylinder_cylinder_section(x, y, &region(), band());
+            assert!(
+                matches!(closed, Ok(geom_brep::EqualCylinderSection::Empty)),
+                "{label} ({order}): the closed-form door: {closed:?}"
+            );
+            let posed = geom_brep::route_pose(x, y, &edge, band());
+            assert!(
+                matches!(posed, Ok(r) if r.implemented),
+                "{label} ({order}): the pose question serves it: {posed:?}"
+            );
+        }
+    }
+}
+
+/// **Coaxial walls of one radius are one surface**: the distance and the
+/// radii both `Zero` refuse as a coincidence, in both orders and at the
+/// closed-form door.
+#[test]
+fn coaxial_walls_of_one_radius_are_one_surface() {
+    let (a, b) = (
+        drum(),
+        wall(Point3::new(0.0, 0.0, 0.4), Vec3::unit_z(), 0.5),
+    );
+    for (order, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+        let got = geom_brep::pair_section(x, y, Some(region()), band());
+        assert!(
+            matches!(got, Err(SectionError::CoincidentSurfaces)),
+            "{order}: {got:?}"
+        );
+        let closed = geom_brep::cylinder_cylinder_section(x, y, &region(), band());
+        assert!(
+            matches!(closed, Err(SectionError::CoincidentSurfaces)),
+            "{order}: {closed:?}"
+        );
+    }
+}
+
+/// **Parallel walls of two radii cut in the two circles' chord**,
+/// `x = (d² + r₁² − r₂²)/(2d)` from the first axis: two rulings while
+/// `|r₁ − r₂| < d < r₁ + r₂`, one tangent ruling at either level (its
+/// point on both walls), nothing nested or apart; both orders.
+#[test]
+fn parallel_walls_of_two_radii_cut_in_the_circles_chord() {
+    let z = Vec3::unit_z();
+    for (d, rulings, tangent) in [
+        (0.1, 0, false),
+        (0.2, 0, true),
+        (0.3, 2, false),
+        (0.6, 2, false),
+        (0.8, 0, true),
+        (1.0, 0, false),
+    ] {
+        let b = wall(Point3::new(d * 0.6, d * 0.8, 0.0), z, 0.3);
+        let a = drum();
+        for (order, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+            let label = format!("d = {d} ({order})");
+            let section = built(x, y, region());
+            let got = listed(&section);
+            let want = if tangent { 1 } else { rulings };
+            assert_eq!(got.len(), want, "{label}: components");
+            assert_eq!(section.tangency().is_some(), tangent, "{label}: tangency");
+            for c in got {
+                on_both(c.witness.expect("a witness"), x, y, &label);
+                if let ClassCarrier::Span { curve, span } = &c.carrier {
+                    on_both(curve.eval(span.0), x, y, &label);
+                }
+            }
+        }
+    }
+}
+
+/// **Coplanar axes with two radii** (`e = 0`): the thinner wall passes
+/// through the fatter one in two loops, each winding about it, counted
+/// and carried; both orders, `r₂` 0.2 and 0.45.
+#[test]
+fn meeting_axes_of_two_radii_cut_in_two_loops_about_the_thinner_wall() {
+    let a = drum();
+    for r2 in [0.2, 0.45] {
+        let b = wall(Point3::origin(), Vec3::unit_x(), r2);
+        for (order, x, y, winds) in [
+            ("a, b", &a, &b, [false, true]),
+            ("b, a", &b, &a, [true, false]),
+        ] {
+            let label = format!("r₂ = {r2} ({order})");
+            let section = built(x, y, region());
+            let got = listed(&section);
+            assert_eq!(got.len(), 2, "{label}: two loops");
+            assert!(
+                got.iter().all(|c| c.winds == winds),
+                "{label}: about the thinner wall"
+            );
+            let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+            assert_eq!(carried.components().len(), 2, "{label}: carried");
+            assert!(carried.components().iter().all(|c| c.closed()), "{label}");
+        }
+    }
+}
+
+/// **A region clear of the pair lists nothing, in every stance**: the
+/// parallel rulings, a tangent ruling, the outer touch, one loop, two
+/// loops, the bisector arcs and the pinch, each against a ball of radius
+/// 0.1 at `(0, 0, 30)`.
+#[test]
+fn a_region_clear_of_the_pair_lists_nothing() {
+    let far = ExtentBall::new(Point3::new(0.0, 0.0, 30.0), 0.1);
+    let a = drum();
+    let poses = [
+        ("rulings", placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05))),
+        (
+            "a tangent ruling",
+            wall(Point3::new(0.8, 0.0, 0.0), Vec3::unit_z(), 0.3),
+        ),
+        (
+            "the outer touch",
+            wall(Point3::new(0.0, 0.7, 0.0), Vec3::unit_x(), 0.2),
+        ),
+        (
+            "one loop",
+            wall(Point3::new(0.0, 0.4, 0.0), Vec3::unit_x(), 0.2),
+        ),
+        (
+            "two loops",
+            wall(Point3::new(0.0, 0.1, 0.0), Vec3::unit_x(), 0.2),
+        ),
+        ("the bisector", placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0))),
+        (
+            "the pinch",
+            wall(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x(), 0.2),
+        ),
+    ];
+    for (label, b) in &poses {
+        let section = built(&a, b, far);
+        assert!(
+            section.counted().is_some_and(<[_]>::is_empty),
+            "{label}: no component, counted: {:?}",
+            section.components()
+        );
+    }
+}
+
+/// **The bisector arcs against a region that cuts them**: a ball of
+/// radius 0.6 about the axes' meeting point holds the short ellipse's
+/// two arcs and cuts the long one's, which are carried whole and flagged
+/// cut; every arc keeps its nodes.
+#[test]
+fn a_region_that_cuts_the_bisector_flags_the_long_arcs_cut() {
+    let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
+    let whole = built(&a, &b, region());
+    let meet = whole.nodes()[0] + (whole.nodes()[1] - whole.nodes()[0]) * 0.5;
+    let section = built(&a, &b, ExtentBall::new(meet, 0.6));
+    let got = listed(&section);
+    assert_eq!(got.len(), 4, "four arcs");
+    let cut: Vec<bool> = got
+        .iter()
+        .map(|c| match c.shape {
+            ComponentShape::Open { ends } => {
+                assert!(
+                    ends.nodes.iter().all(Option::is_some),
+                    "an arc keeps its nodes"
+                );
+                ends.cut
+            }
+            other => panic!("an arc: {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        cut.iter().filter(|&&c| c).count(),
+        2,
+        "the long ellipse's arcs: {cut:?}"
+    );
+}
+
+/// **A ruling the region misses is not listed**: a small region about one
+/// of p0's rulings lists that ruling alone.
+#[test]
+fn a_ruling_the_region_misses_is_not_listed() {
+    let (a, b) = (drum(), placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05)));
+    let whole = built(&a, &b, region());
+    let p = listed(&whole)[0].witness.expect("a witness");
+    let section = built(&a, &b, ExtentBall::new(p, 0.05));
+    let got = listed(&section);
+    assert_eq!(got.len(), 1, "one ruling reaches the region");
+    let w = got[0].witness.expect("a witness");
+    assert!(
+        (w - p).norm() < 0.05 + 1e-9,
+        "the ruling through the region"
+    );
+}
+
+/// **A region off the pair that cuts its loop does not count it**: p2's
+/// one loop against a ball of radius 3.2 about `(0, 0, 3)`, which holds
+/// the pair's ball's size but not its place.
+#[test]
+fn a_region_off_the_pair_that_cuts_the_loop_marches_it() {
+    let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
+    let section = built(&a, &b, ExtentBall::new(Point3::new(0.0, 0.0, 3.0), 3.2));
+    assert!(
+        matches!(section.components(), Components::Marched),
+        "cut by the region: {:?}",
+        section.components()
+    );
+}
+
+/// **Every carried point lies within the domain's ball**: the
+/// perpendicular pair `e = 0.9`, `r₁ = 1`, `r₂ = 0.2`, whose one loop the
+/// region holds, sampled along its fitted carrier.
+#[test]
+fn the_carried_loop_lies_within_the_pairs_ball() {
+    let a = wall(Point3::origin(), Vec3::unit_z(), 1.0);
+    let b = wall(Point3::new(0.0, 0.9, 0.0), Vec3::unit_x(), 0.2);
+    let section = built(&a, &b, ExtentBall::new(Point3::origin(), 4.0));
+    let geom_brep::PairPose::CylinderCylinder(pose) = section.pose() else {
+        panic!("a cylinder pair's pose");
+    };
+    assert_eq!(
+        pose.placed(),
+        geom_brep::RegionPlacement::Inside,
+        "the region holds it"
+    );
+    let ball = pose.ball();
+    let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+    for c in carried.components() {
+        for i in 0..=64 {
+            let t = c.span.0 + (c.span.1 - c.span.0) * f64::from(i) / 64.0;
+            let out = (c.carrier.eval(t) - ball.center()).norm() - ball.radius();
+            assert!(out <= c.pad, "{out:e} past the pair's ball");
+        }
+    }
+}

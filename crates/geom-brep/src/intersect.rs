@@ -1579,7 +1579,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
     region: &ExtentBall<T>,
     band: Band,
 ) -> Result<EqualCylinderSection<T>, SectionError> {
-    use crate::pair_section::cylinders::{bisector_ellipses, parallel_rulings};
+    use crate::pair_section::cylinders::{ParallelSection, bisector_ellipses};
     use crate::{CcNode, CcStance, CylinderCylinderPose};
     let pose = CylinderCylinderPose::decide(c1, c2, &Reach::Ball(*region), band).ok_or(
         SectionError::WrongLane {
@@ -1587,28 +1587,18 @@ pub fn cylinder_cylinder_section<T: Decide>(
         },
     )??;
     let [a1, a2] = pose.axes();
+    let line = |origin| Curve3::Line { origin, dir: a1 };
+    if let Some(parallel) = pose.parallel_section() {
+        return Ok(match parallel {
+            ParallelSection::Empty => EqualCylinderSection::Empty,
+            ParallelSection::Tangent(p) => EqualCylinderSection::TangentLine(line(p)),
+            ParallelSection::Rulings([p, q]) => EqualCylinderSection::ParallelLines {
+                l1: line(p),
+                l2: line(q),
+            },
+        });
+    }
     match pose.stance() {
-        CcStance::Parallel {
-            foot,
-            across,
-            gap,
-            nest,
-        } => {
-            let [p, q] = parallel_rulings(foot, across, a1, pose.radii());
-            let line = |origin| Curve3::Line { origin, dir: a1 };
-            Ok(match (gap.sign, nest.map(|n| n.sign)) {
-                (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => {
-                    EqualCylinderSection::Empty
-                }
-                (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
-                    EqualCylinderSection::TangentLine(line(p + (q - p) * T::from_f64(0.5)))
-                }
-                (Sign::Positive, _) => EqualCylinderSection::ParallelLines {
-                    l1: line(p),
-                    l2: line(q),
-                },
-            })
-        }
         CcStance::Crossing {
             foot,
             node: Some(CcNode::Bisector { radii, meet }),
@@ -1622,6 +1612,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
                 margins: [radii, meet],
                 nodes: [nodes[0], nodes[1]],
             })
+        }
+        CcStance::Parallel { .. } => {
+            unreachable!("a parallel pose's section is its closed form, answered above")
         }
         CcStance::Crossing { .. } => Err(SectionError::RoutesToGeneralRung {
             pair: "cylinder×cylinder",

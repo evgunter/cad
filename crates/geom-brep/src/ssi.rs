@@ -3103,12 +3103,10 @@ pub fn march_torus_torus(
     )
 }
 
-/// **The door's own checks**: the operands, by name, shown finite and
-/// the domain usable, before any pose or rung reads them.
 /// **The ℝ³ march of a decided cylinder × cylinder pose** over `domain`,
-/// in the order the pose was asked of: the pair's ball cut by the
-/// region, so a branch may end on the domain's boundary
-/// ([`BranchEnd::Cut`]). The section value marches only a transverse
+/// in the order the pose was asked of: the cube of the one ball the
+/// pose names ([`crate::CylinderCylinderPose::ball`]), so where that is
+/// the region a branch may end on the cube ([`BranchEnd::Cut`]). The section value marches only a transverse
 /// pose; a tangent one's components are its closed forms or refuse
 /// before any march, so a tangent pose here is the caller's defect.
 ///
@@ -3130,6 +3128,8 @@ pub(crate) fn march_cylinder_cylinder(
     implicit_pair_r3(a, b, domain, band)
 }
 
+/// **The door's own checks**: the operands, by name, shown finite and
+/// the domain usable, before any pose or rung reads them.
 fn checked(named: [(&'static str, &Surface<f64>); 2], domain: SsiDomain) -> Result<(), SsiError> {
     for (name, operand) in named {
         finite_operand(name, operand)?;

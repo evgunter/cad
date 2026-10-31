@@ -66,7 +66,9 @@ Re-measured on main at b357165a (a survey probe, uncommitted):
   (filed: `apex/a-near-right-angle-cylinder-pair-stops-at-a-first-order-sector-side`).
 
 **Coplanar axes with unequal radii are a second unserved family.**
-`intersecting_cylinder_axes` maps `SectionError::UnequalRadii` to `NoArm`.
+`intersecting_cylinder_axes` maps the closed-form door's refusal of that
+pose (`SectionError::UnequalRadii` at the survey; `RoutesToGeneralRung`
+since PR 6139) to `NoArm`.
 
 **The design retires the frame this row asked for.** The fix is to put
 cylinder × cylinder on `geom_brep::pair_section`. The tangency margins are

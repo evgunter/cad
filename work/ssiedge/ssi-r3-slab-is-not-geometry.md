@@ -74,10 +74,12 @@ ball about the operands' box overlap, padded), which holds every section
 point the operation can use. A branch that reaches it ends there, a cut
 end, not a refusal. SECTARMS's cylinder × cylinder stage 1 builds that
 for the first pair with no bounded side
-(`pair_section::cylinders`, `PairPose::domain`): the domain is the meet
-of the two balls, held in the cube of the smaller of them, so the slab
-is a superset of the domain and every cut end lies on a face of a
-cube the region names. `BranchEnd::Slab` and `SlabInBand` fold into one
+(`pair_section::cylinders`, `PairPose::domain`): the slab is the cube
+of one ball, the pair's own where the region holds it and the region's
+otherwise. Either cube is a superset of the pair's ball cut by the
+region, not the meet itself, and every cut end lies on the region's
+cube. C3's "cut by the region" stays the target; the ruling-sweep stage
+(Ev, PR 6137) ends the march at the region's ball. `BranchEnd::Slab` and `SlabInBand` fold into one
 `BranchEnd::Cut` (the in-band label had no reader outside `march.rs`),
 and the plane × NURBS lane's `Crossings` becomes `BranchEnd::Rim`.
 

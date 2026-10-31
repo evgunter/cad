@@ -7,11 +7,12 @@
 //! hands it: parallelism is `‖a₁ × a₂‖` levered across it
 //! ([`crate::cylinder_axes_parallel`] at the region's ball), and the
 //! axis rows are read at the feet of its centre. Parallel axes are then
-//! read by their distance `d` against zero (one surface), `r₁ + r₂` and
-//! `|r₁ − r₂|`; crossing axes by the gap `e` along `a₁ × a₂` against the
-//! same two levels. The inner level decided `Zero` is a node pose: the
-//! bisector ellipses where the radii decide equal and the axes meet,
-//! the pinch otherwise.
+//! read by their distance `d` against `r₁ + r₂` and `|r₁ − r₂|`, the
+//! inner level's `Zero` one surface only where the radii are one too and
+//! `d` is `Zero`, a tangent ruling inside otherwise; crossing axes by the
+//! gap `e` along `a₁ × a₂` against the same two levels, the inner
+//! level's `Zero` a node pose: the bisector ellipses where the radii
+//! decide equal and the axes meet, the pinch otherwise.
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
@@ -75,6 +76,51 @@ impl CcDecision {
             Self::Thinner => "cc_thinner",
         }
     }
+
+    /// The floor row of a decision read across the region's swing
+    /// ([`decide_across_reported`]), which decides its definite side.
+    #[must_use]
+    pub const fn floor(self) -> &'static str {
+        match self {
+            Self::Coaxial => "cc_coaxial_floor",
+            Self::ParallelGap => "cc_parallel_gap_floor",
+            Self::ParallelNest => "cc_parallel_nest_floor",
+            Self::Radius
+            | Self::Parallel
+            | Self::CrossingGap
+            | Self::CrossingNest
+            | Self::RadiusEquality
+            | Self::AxesMeet
+            | Self::Thinner => self.name(),
+        }
+    }
+}
+
+/// **Where a ball stands against the region**: wholly inside it, wholly
+/// clear of it, or across its boundary (or undecided there, which reads
+/// as across: the region is padded, so nothing the operation uses lies
+/// at its boundary).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RegionPlacement {
+    /// Wholly inside the region.
+    Inside,
+    /// Wholly clear of it.
+    Outside,
+    /// Across its boundary.
+    Straddles,
+}
+
+/// **The parallel pose's section, in closed form**: nothing, the tangent
+/// ruling through the point, or the two rulings through the two points,
+/// each along the axes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ParallelSection<T: Real> {
+    /// The walls clear each other, or one nests inside the other.
+    Empty,
+    /// They touch along one ruling, outside or inside.
+    Tangent(Point3<T>),
+    /// They cross along two rulings.
+    Rulings([Point3<T>; 2]),
 }
 
 /// **The node pose at the inner level.**
@@ -138,7 +184,7 @@ pub struct CylinderCylinderPose<T: Real> {
     radii: [T; 2],
     region: ExtentBall<T>,
     stance: CcStance<T>,
-    held: bool,
+    placed: RegionPlacement,
 }
 
 /// `Ok` where the margin decides, the predicate named.
@@ -155,10 +201,13 @@ impl<T: Decide> CylinderCylinderPose<T> {
     ///
     /// 1. `cc_cylinder_radius`, each radius definitely positive.
     /// 2. `cc_axes_parallel`, levered across `reach`.
-    /// 3. Parallel: `cc_coaxial`, `d` read across the region with its
-    ///    swing beside it, `Zero` one surface; then `cc_parallel_gap`
-    ///    and, where it is positive, `cc_parallel_nest`, each read
-    ///    across the same swing.
+    /// 3. Parallel: `cc_parallel_gap`, read across the region with the
+    ///    axes' swing beside it; where it is positive,
+    ///    `cc_radius_equality`, then the inner level across the same
+    ///    swing: for one radius `cc_coaxial` (`d` against zero), whose
+    ///    `Zero` is one surface, and for two `cc_parallel_nest`
+    ///    (`d − |r₁ − r₂|`). Only both `Zero` are a coincidence: coaxial
+    ///    walls of two radii nest.
     /// 4. Crossing: `cc_crossing_gap`, then where the walls cross
     ///    `cc_crossing_nest`; at its `Zero` the node pose, by
     ///    `cc_radius_equality` and `cc_axes_coplanar`; at two loops
@@ -198,14 +247,14 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let lines = [(o1, a1), (o2, a2)];
         let region = reach.ball();
         Some(
-            Self::decide_stance(lines, [r1, r2], reach, band).map(|(stance, held)| Self {
+            Self::decide_stance(lines, [r1, r2], reach, band).map(|(stance, placed)| Self {
                 first: a.clone(),
                 second: b.clone(),
                 lines,
                 radii: [r1, r2],
                 region,
                 stance,
-                held,
+                placed,
             }),
         )
     }
@@ -215,7 +264,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         [r1, r2]: [T; 2],
         reach: &Reach<T>,
         band: Band,
-    ) -> Result<(CcStance<T>, bool), SectionError> {
+    ) -> Result<(CcStance<T>, RegionPlacement), SectionError> {
         for r in [r1, r2] {
             match geom_core::k_stats::decide_reported(
                 CcDecision::Radius.name(),
@@ -244,22 +293,30 @@ impl<T: Decide> CylinderCylinderPose<T> {
         if parallel.sign == Sign::Zero {
             let at = parallel_axes_at(reach, l1, l2);
             let swing = parallel_swing(reach, l1, l2, at.d);
-            let across = |names: [&'static str; 2], value: T| {
-                decide_across_reported(names, value, swing, band)
+            let across = |decision: CcDecision, value: T| {
+                decide_across_reported([decision.name(), decision.floor()], value, swing, band)
                     .map(|(sign, margin)| Decided { sign, margin })
                     .map_err(SectionError::Escalated)
             };
-            if across(["cc_coaxial", "cc_coaxial_floor"], at.d)?.sign == Sign::Zero {
-                return Err(SectionError::CoincidentSurfaces);
-            }
             let gap = parallel_cylinder_gap_reported((r1, r2), at.d, swing, band)
                 .map(|(sign, margin)| Decided { sign, margin })
                 .map_err(SectionError::Escalated)?;
+            // The inner level. Walls of one radius read it as their
+            // axes' distance against zero, whose `Zero` is one surface;
+            // walls of two radii as `d − |r₁ − r₂|`, whose `Zero` is a
+            // tangent ruling inside and whose `Negative` nests them.
             let nest = match gap.sign {
-                Sign::Positive => Some(across(
-                    ["cc_parallel_nest", "cc_parallel_nest_floor"],
-                    at.d - (r1 - r2).abs(),
-                )?),
+                Sign::Positive => {
+                    if read(CcDecision::RadiusEquality, r1 - r2, band)?.sign == Sign::Zero {
+                        let coaxial = across(CcDecision::Coaxial, at.d)?;
+                        if coaxial.sign == Sign::Zero {
+                            return Err(SectionError::CoincidentSurfaces);
+                        }
+                        Some(coaxial)
+                    } else {
+                        Some(across(CcDecision::ParallelNest, at.d - (r1 - r2).abs())?)
+                    }
+                }
                 Sign::Zero | Sign::Negative => None,
             };
             let stance = CcStance::Parallel {
@@ -268,7 +325,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
                 gap,
                 nest,
             };
-            return Ok((stance, false));
+            return Ok((stance, RegionPlacement::Straddles));
         }
         let (a1, a2) = (l1.1, l2.1);
         let cross = a1.cross(a2);
@@ -297,7 +354,10 @@ impl<T: Decide> CylinderCylinderPose<T> {
                             meet: meet.margin,
                         }),
                         // Equal radii put the inner level at the gap
-                        // itself, which the nest just read `Zero`.
+                        // itself, within the zero band of the nest's
+                        // `Zero`: definite only under a band whose
+                        // escalation edge stands within twice its zero,
+                        // which `Band::new` admits.
                         Sign::Positive | Sign::Negative => {
                             return Err(SectionError::Pinched {
                                 predicate: CcDecision::AxesMeet.name(),
@@ -324,12 +384,12 @@ impl<T: Decide> CylinderCylinderPose<T> {
             node,
             thinner,
         };
-        let held = region_holds(
+        let placed = placement(
             crossing_ball(foot, normal, sin, gap, [r1, r2]),
             reach.ball(),
             band,
         );
-        Ok((stance, held))
+        Ok((stance, placed))
     }
 
     /// The two surfaces in the order the pose was asked of.
@@ -357,11 +417,12 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.stance
     }
 
-    /// **The ball the section is read over**: the pair's own ball
-    /// `(r₁ + r₂)/sin θ` across and `min r + |e|/2` along the common
-    /// perpendicular about its midpoint, where the region holds it;
-    /// otherwise the region, which holds every section point the
-    /// operation can use.
+    /// **The one ball the march's domain is the cube of**: the pair's
+    /// own ball (`(r₁ + r₂)/sin θ` across and `min r + |e|/2` along the
+    /// common perpendicular, about its midpoint) where the region holds
+    /// it, and otherwise the region, which holds every section point the
+    /// operation can use. Either cube holds the pair's ball cut by the
+    /// region, so the domain is a superset of it, not the meet itself.
     pub fn ball(&self) -> ExtentBall<T> {
         match self.stance {
             CcStance::Crossing {
@@ -370,15 +431,47 @@ impl<T: Decide> CylinderCylinderPose<T> {
                 sin,
                 gap,
                 ..
-            } if self.held => crossing_ball(foot, normal, sin, gap, self.radii),
+            } if self.placed == RegionPlacement::Inside => {
+                crossing_ball(foot, normal, sin, gap, self.radii)
+            }
             CcStance::Crossing { .. } | CcStance::Parallel { .. } => self.region,
         }
+    }
+
+    /// Where the pair's own ball stands against the region; parallel
+    /// walls have none, and the region always cuts their rulings.
+    pub fn placed(&self) -> RegionPlacement {
+        self.placed
     }
 
     /// Whether the region cuts the section, so that a component may end
     /// on the domain's boundary.
     pub fn cut(&self) -> bool {
-        !self.held
+        self.placed != RegionPlacement::Inside
+    }
+
+    /// **The parallel pose's section in closed form** ([`parallel_rulings`]),
+    /// where the axes are parallel: the one reading of the gap and the
+    /// nest ladder, which [`cylinder_cylinder`] lists and
+    /// [`crate::cylinder_cylinder_section`] mints.
+    pub(crate) fn parallel_section(&self) -> Option<ParallelSection<T>> {
+        let CcStance::Parallel {
+            foot,
+            across,
+            gap,
+            nest,
+        } = self.stance
+        else {
+            return None;
+        };
+        let [p, q] = parallel_rulings(foot, across, self.lines[0].1, self.radii);
+        Some(match (gap.sign, nest.map(|n| n.sign)) {
+            (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => ParallelSection::Empty,
+            (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
+                ParallelSection::Tangent(p + (q - p) * T::from_f64(0.5))
+            }
+            (Sign::Positive, _) => ParallelSection::Rulings([p, q]),
+        })
     }
 
     /// **The tangency the pose decided**, if any: a tangent ruling, an
@@ -453,31 +546,70 @@ fn crossing_ball<T: Real>(
     )
 }
 
-/// **Whether the region holds the pair's whole ball**, the one place a
-/// crossing pose is listed counted or marched: counted where it does,
-/// the closed form then counting every component the domain holds, and
-/// marched where the region cuts the section. A choice of listing, not
-/// a decision about the pair, so it reads the margin's sign without
-/// recording it.
-fn region_holds<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> bool {
-    let spare = region.radius() - ((ball.center() - region.center()).norm() + ball.radius());
-    matches!(
-        spare.sign_within(band),
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        })
-    )
+/// **Where `ball` stands against `region`** ([`RegionPlacement`]), the one
+/// reading every listing of the pair takes: the crossing loops are
+/// counted where the region holds the pair's ball, none where it is
+/// clear of it, and marched where it cuts it; a closed-form component
+/// is dropped where its own ball is clear of the region, and carried
+/// whole, flagged cut, where the region cuts it. A choice of listing,
+/// not a decision about the pair, so it reads the margins' signs without
+/// recording them.
+fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
+    let apart = (ball.center() - region.center()).norm();
+    let positive = |m: T| {
+        matches!(
+            m.sign_within(band),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        )
+    };
+    if positive(region.radius() - (apart + ball.radius())) {
+        RegionPlacement::Inside
+    } else if positive(apart - (region.radius() + ball.radius())) {
+        RegionPlacement::Outside
+    } else {
+        RegionPlacement::Straddles
+    }
 }
 
-/// The parameter span of the line `origin + t·dir` (`dir` unit) inside
-/// `region`, empty at the foot of its centre where the line misses it.
-fn region_span<T: Real>(region: ExtentBall<T>, origin: Point3<T>, dir: Vec3<T>) -> (T, T) {
+/// A closed conic's ball: its centre, out to its larger semi-axis.
+fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
+    match *curve {
+        Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } => Some(ExtentBall::new(
+            center,
+            Curve3::semi_axes_by_size(semi_u, semi_v).0,
+        )),
+        Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
+        Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+    }
+}
+
+/// **The parameter span of the line `origin + t·dir`** (`dir` unit)
+/// inside `region`, `None` where the line is clear of it.
+fn region_span<T: Decide>(
+    region: ExtentBall<T>,
+    origin: Point3<T>,
+    dir: Vec3<T>,
+    band: Band,
+) -> Option<(T, T)> {
     let to = region.center() - origin;
     let t = to.dot(dir);
-    let off = to.norm_squared() - t.powi(2);
-    let half = (region.radius().powi(2) - off).max(T::zero()).sqrt();
-    (t - half, t + half)
+    let off = (to.norm_squared() - t.powi(2)).max(T::zero()).sqrt();
+    let foot = ExtentBall::point(origin + dir * t);
+    if placement(foot, region, band) == RegionPlacement::Outside {
+        return None;
+    }
+    let half = (region.radius().powi(2) - off.powi(2))
+        .max(T::zero())
+        .sqrt();
+    Some((t - half, t + half))
 }
 
 /// The two bisector-plane ellipses through the axes' meeting point `p`,
@@ -537,7 +669,12 @@ pub(crate) fn parallel_rulings<T: Real>(
     [at + side * h, at - side * h]
 }
 
-/// **The cylinder pair's section over its decided pose** (module docs).
+/// **The cylinder pair's section over its decided pose** (module docs),
+/// listed over the domain ([`placement`]): a closed form clear of the
+/// region is not listed, and one the region cuts is carried whole, its
+/// carrier exact past the region, flagged cut; the crossing loops are
+/// counted where the region holds the pair's ball, none where it is
+/// clear of it, and marched where it cuts it.
 ///
 /// # Errors
 ///
@@ -558,52 +695,50 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     let cut = ComponentShape::Open {
         ends: ComponentEnds::cut(),
     };
+    // A closed form's own ball against the region; inside throughout
+    // where the region holds the pair's ball.
+    let against = |ball: ExtentBall<T>| match pose.placed {
+        RegionPlacement::Inside => RegionPlacement::Inside,
+        RegionPlacement::Outside | RegionPlacement::Straddles => placement(ball, pose.region, band),
+    };
+    // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
-        let span = region_span(pose.region, p, axis);
-        let line = Curve3::Line {
-            origin: p,
-            dir: axis,
-        };
-        let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
-        (line, span, witness)
+        region_span(pose.region, p, axis, band).map(|span| {
+            let line = Curve3::Line {
+                origin: p,
+                dir: axis,
+            };
+            let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
+            (line, span, witness)
+        })
     };
     let components = match pose.stance {
-        CcStance::Parallel {
-            foot,
-            across,
-            gap,
-            nest,
-        } => {
-            let [p, q] = parallel_rulings(foot, across, axis, pose.radii);
-            match (gap.sign, nest.map(|n| n.sign)) {
-                (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => {
-                    Components::Counted(Vec::new())
-                }
-                (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
-                    let (_, _, witness) = ruling(p + (q - p) * T::from_f64(0.5));
-                    Components::Counted(vec![component(
+        CcStance::Parallel { .. } => Components::Counted(match pose.parallel_section() {
+            Some(ParallelSection::Rulings(points)) => points
+                .into_iter()
+                .filter_map(ruling)
+                .map(|(curve, span, witness)| {
+                    component(
+                        cut,
+                        [false, false],
+                        Some(witness),
+                        ClassCarrier::Span { curve, span },
+                    )
+                })
+                .collect(),
+            Some(ParallelSection::Tangent(p)) => ruling(p)
+                .map(|(_, _, witness)| {
+                    component(
                         cut,
                         [false, false],
                         Some(witness),
                         ClassCarrier::Unminted(TANGENT_COMPONENT),
-                    )])
-                }
-                (Sign::Positive, _) => Components::Counted(
-                    [p, q]
-                        .into_iter()
-                        .map(|p| {
-                            let (curve, span, witness) = ruling(p);
-                            component(
-                                cut,
-                                [false, false],
-                                Some(witness),
-                                ClassCarrier::Span { curve, span },
-                            )
-                        })
-                        .collect(),
-                ),
-            }
-        }
+                    )
+                })
+                .into_iter()
+                .collect(),
+            Some(ParallelSection::Empty) | None => Vec::new(),
+        }),
         CcStance::Crossing {
             foot,
             normal,
@@ -615,12 +750,18 @@ pub(super) fn cylinder_cylinder<T: Decide>(
             ..
         } => match (reach.sign, nest.map(|n| n.sign)) {
             (Sign::Positive, _) => Components::Counted(Vec::new()),
-            (Sign::Zero, _) => Components::Counted(vec![component(
-                ComponentShape::Point,
-                [false, false],
-                Some(pose.touch(foot, normal, gap)),
-                ClassCarrier::Unminted(TANGENT_COMPONENT),
-            )]),
+            (Sign::Zero, _) => {
+                let at = pose.touch(foot, normal, gap);
+                Components::Counted(match against(ExtentBall::point(at)) {
+                    RegionPlacement::Outside => Vec::new(),
+                    RegionPlacement::Inside | RegionPlacement::Straddles => vec![component(
+                        ComponentShape::Point,
+                        [false, false],
+                        Some(at),
+                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                    )],
+                })
+            }
             (Sign::Negative, Some(Sign::Zero)) => match node {
                 Some(CcNode::Bisector { radii, meet }) => {
                     for (c, margin) in [
@@ -642,30 +783,39 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         (&e2, (T::zero() - half, half), [0, 1]),
                         (&e2, (half, half + T::pi()), [1, 0]),
                     ];
-                    Components::Counted(
-                        arcs.into_iter()
-                            .map(|(curve, span, [from, to])| {
-                                component(
-                                    ComponentShape::Open {
-                                        ends: ComponentEnds::nodes(from, to),
-                                    },
-                                    [false, false],
-                                    Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
-                                    ClassCarrier::Span {
-                                        curve: curve.clone(),
-                                        span,
-                                    },
-                                )
-                            })
-                            .collect(),
-                    )
+                    let mut listed = Vec::new();
+                    for (curve, span, [from, to]) in arcs {
+                        let placed = conic_ball(curve).map_or(RegionPlacement::Straddles, &against);
+                        if placed == RegionPlacement::Outside {
+                            continue;
+                        }
+                        listed.push(component(
+                            ComponentShape::Open {
+                                ends: ComponentEnds {
+                                    cut: placed == RegionPlacement::Straddles,
+                                    ..ComponentEnds::nodes(from, to)
+                                },
+                            },
+                            [false, false],
+                            Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
+                            ClassCarrier::Span {
+                                curve: curve.clone(),
+                                span,
+                            },
+                        ));
+                    }
+                    Components::Counted(listed)
                 }
-                Some(CcNode::Pinch) | None => Components::Counted(
-                    (0..2)
+                Some(CcNode::Pinch) | None => Components::Counted(match pose.placed {
+                    RegionPlacement::Outside => Vec::new(),
+                    placed @ (RegionPlacement::Inside | RegionPlacement::Straddles) => (0..2)
                         .map(|_| {
                             component(
                                 ComponentShape::Open {
-                                    ends: ComponentEnds::nodes(0, 0),
+                                    ends: ComponentEnds {
+                                        cut: placed == RegionPlacement::Straddles,
+                                        ..ComponentEnds::nodes(0, 0)
+                                    },
                                 },
                                 [false, false],
                                 None,
@@ -673,39 +823,43 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             )
                         })
                         .collect(),
-                ),
+                }),
             },
-            _ if !pose.held => Components::Marched,
-            // One loop, witnessed on the second wall's ruling on the
-            // first axis's side, where that ruling enters the first wall.
-            (Sign::Negative, Some(Sign::Positive)) => {
-                let (o1, a1) = pose.lines[0];
-                let (o2, a2) = pose.lines[1];
-                let q = o2 - normal * r2.copysign(gap);
-                let (av, bv) = (a2.cross(a1), (q - o1).cross(a1));
-                let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
-                let t = ((qb.powi(2) - qa * qc).max(T::zero()).sqrt() - qb) / qa;
-                Components::Counted(vec![component(
-                    ComponentShape::Loop,
-                    [false, false],
-                    Some(q + a2 * t),
-                    ClassCarrier::General,
-                )])
-            }
-            // Two loops, each encircling the thinner wall.
-            _ => {
-                let winds = match thinner {
-                    Some(Sign::Negative) => [true, false],
-                    _ => [false, true],
-                };
-                Components::Counted(
-                    (0..2)
-                        .map(|_| {
-                            component(ComponentShape::Loop, winds, None, ClassCarrier::General)
-                        })
-                        .collect(),
-                )
-            }
+            _ => match pose.placed {
+                RegionPlacement::Outside => Components::Counted(Vec::new()),
+                RegionPlacement::Straddles => Components::Marched,
+                // One loop, witnessed on the second wall's ruling on the
+                // first axis's side, where that ruling enters the first
+                // wall.
+                RegionPlacement::Inside if nest.map(|n| n.sign) == Some(Sign::Positive) => {
+                    let (o1, a1) = pose.lines[0];
+                    let (o2, a2) = pose.lines[1];
+                    let q = o2 - normal * r2.copysign(gap);
+                    let (av, bv) = (a2.cross(a1), (q - o1).cross(a1));
+                    let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
+                    let t = ((qb.powi(2) - qa * qc).max(T::zero()).sqrt() - qb) / qa;
+                    Components::Counted(vec![component(
+                        ComponentShape::Loop,
+                        [false, false],
+                        Some(q + a2 * t),
+                        ClassCarrier::General,
+                    )])
+                }
+                // Two loops, each encircling the thinner wall.
+                RegionPlacement::Inside => {
+                    let winds = match thinner {
+                        Some(Sign::Negative) => [true, false],
+                        _ => [false, true],
+                    };
+                    Components::Counted(
+                        (0..2)
+                            .map(|_| {
+                                component(ComponentShape::Loop, winds, None, ClassCarrier::General)
+                            })
+                            .collect(),
+                    )
+                }
+            },
         },
     };
     decided.extend(pose.tangency());

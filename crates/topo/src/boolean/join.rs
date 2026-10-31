@@ -4363,26 +4363,28 @@ pub(super) fn crossing_cylinder_margins<T: Decide>(
     crossing_cylinder_section(a, b, band).map(|s| s.margins)
 }
 
-/// **The intersecting-axes cylinder pair, routed by whether its radii
-/// decide equal** (`cylinder_cylinder_section`'s `cc_radius_equality`):
+/// **The intersecting-axes cylinder pair, routed by the pose's node
+/// question** (`cylinder_cylinder_section`, the section value's
+/// `CylinderCylinderPose`):
 ///
-/// * equal — the table constructs the two bisector-plane ellipses, two
-///   loops each turning about its own plane's normal through the axes'
-///   meeting point, a centre of symmetry of both; the bisector split
-///   tells them apart ([`LoopSplit::Bisector`]), and they cross at two
-///   nodes where it is zero;
-/// * unequal — the locus is a space quartic, the skew pair's unbuilt
-///   class ([`FrameError::NoArm`]).
+/// * the bisector pose (`cc_crossing_nest` Zero, the radii equal and the
+///   axes meeting) — the table constructs the two bisector-plane
+///   ellipses, two loops each turning about its own plane's normal
+///   through the axes' meeting point, a centre of symmetry of both; the
+///   bisector split tells them apart ([`LoopSplit::Bisector`]), and they
+///   cross at two nodes where it is zero;
+/// * every other pose — no conic section, which this frame has no arm
+///   for ([`FrameError::NoArm`]); the section value marches it.
 fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<SectionLoops<T>, FrameError> {
-    // The table reads the same `reach` the parallelism gate above
-    // levered from, because it re-decides the two axis margins this
-    // dispatch just decided and must reach the same verdicts from the
-    // same margins.
+    // The table reads the ball of the `reach` the parallelism gate above
+    // levered from. Its lever there is no shorter, so a tilt the gate
+    // read definite reads definite again; the coplanarity row reads at
+    // the same feet.
     //
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
@@ -4432,10 +4434,10 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
         // The table's own routing verdict: NOT a desync, since nothing
-        // is contradicted — the pair marches one rung down. Reachable only
-        // if the table's coplanarity verdict differed from this
-        // dispatch's on the same margin, and the general rung is the
-        // right home for a skew pair either way.
+        // is contradicted — the pose is not the bisector one (unequal
+        // radii on meeting axes, or the table's coplanarity reading the
+        // other way on the same margin), and the section value marches
+        // it.
         Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => FrameError::NoArm,
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
