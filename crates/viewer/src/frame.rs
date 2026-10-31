@@ -2153,7 +2153,9 @@ pub fn tool_notice(
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
-            | BlendEvent::TargetHasNoValue { .. },
+            | BlendEvent::TargetHasNoValue { .. }
+            | BlendEvent::Unindexed { .. }
+            | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.said(landed), retold)

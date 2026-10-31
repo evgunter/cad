@@ -81,7 +81,13 @@ fn mirror_tool_picking(session: &DocSession, faces: &[FaceSelection]) -> Tools {
         .map(|face| SessionOp::Select(Selection::Face(face.clone())))
         .collect();
     assert!(
-        tools.feed(session.committed_doc(), &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick is taken"
     );
     tools
@@ -587,6 +593,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         tools
             .feed(
                 session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(common::copy_of(
                     session.committed_doc(),
                     torus
@@ -610,6 +617,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.002, 0.003));
     let _ = tools.feed(
         session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Face(wall))],
     );
     assert_eq!(
@@ -764,6 +772,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         tools
             .feed(
                 session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(b))]
             )
             .is_empty()
@@ -824,7 +833,15 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         ))),
         SessionOp::Select(Selection::Face(floor)),
     ];
-    assert!(tools.feed(session.committed_doc(), &picks).is_empty());
+    assert!(
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty()
+    );
     let outcome = session.perform(mirror_op(&tools));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let read = outcome.committed.iter().find_map(|edit| match edit {

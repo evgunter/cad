@@ -2136,7 +2136,11 @@ impl eframe::App for ViewerApp {
         // back as a notice through the same door as a survival drop.
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
-        let declined = self.tools.feed(self.session.doc(), &ops);
+        let declined = self.tools.feed(
+            self.session.doc(),
+            self.picks.index_or_why(self.fit.as_ref()),
+            &ops,
+        );
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -5655,7 +5659,11 @@ mod properties_pane_tests {
     /// the frame's batch.
     fn clicked(app: &mut ViewerApp, selections: Vec<Selection>) {
         let ops: Vec<SessionOp> = selections.into_iter().map(SessionOp::Select).collect();
-        let declined = app.tools.feed(app.session.doc(), &ops);
+        let declined = app.tools.feed(
+            app.session.doc(),
+            app.picks.index_or_why(app.fit.as_ref()),
+            &ops,
+        );
         assert!(declined.is_empty(), "{declined:?}");
         app.perform_batch(ops);
     }
@@ -6979,6 +6987,113 @@ mod properties_pane_tests {
                 Err(SketchTraceFault::Unevaluated)
             ));
         }
+    }
+
+    /// **A real viewport click on a full-revolve rim, with the blend
+    /// tool open, holds the whole circle** (review of PR 6129): the
+    /// click goes through the frame's own `Tools::feed` call, so the
+    /// `self.picks.index()` wiring is what this row reads. The startup
+    /// plate is deleted first so nothing occludes the cylinder.
+    #[test]
+    fn a_viewport_click_on_a_seam_split_rim_holds_the_whole_circle() {
+        use crate::session::EdgeSelection;
+        use pncad::select::RoleSeg;
+        let side = 0.01;
+        let mut driven = Driven::with(vec![
+            SessionOp::DeleteNode { node: placement() },
+            SessionOp::DeleteNode { node: extrude() },
+            SessionOp::DeleteNode {
+                node: startup_node(0),
+            },
+            SessionOp::AddProfile {
+                loops: vec![crate::test_support::rectangle_loop(
+                    [0.0, 0.0],
+                    side * 0.5,
+                    side,
+                )],
+            },
+        ]);
+        let profile = *driven
+            .app
+            .session
+            .committed_doc()
+            .ids()
+            .last()
+            .expect("the profile was added");
+        driven.perform(SessionOp::AddRevolve {
+            profile,
+            axis_through: [
+                pncad::document::Formula::zero(pncad::document::Dimension::Length),
+                pncad::document::Formula::zero(pncad::document::Dimension::Length),
+            ],
+            axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
+            angle: crate::test_support::ang(core::f64::consts::TAU),
+        });
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.quiet();
+
+        let rect = driven
+            .app
+            .tree
+            .tiles
+            .iter()
+            .find(|(_, tile)| matches!(tile, egui_tiles::Tile::Pane(super::Pane::Viewport)))
+            .and_then(|(id, _)| driven.app.tree.tiles.rect(*id))
+            .expect("the viewport is laid out");
+        let ppp = f64::from(driven.ctx.pixels_per_point());
+        let viewport = crate::input::ViewportSize {
+            width_px: f64::from(rect.width()) * ppp,
+            height_px: f64::from(rect.height()) * ppp,
+        };
+        let is_rim = |name: &pncad::prelude::StableName| {
+            matches!(
+                name.path.as_slice(),
+                [.., RoleSeg::BandRim(_) | RoleSeg::BandRimPi(_)]
+            )
+        };
+        let aimed = {
+            let index = driven.on_screen();
+            let (_, eval) = driven.app.session.landed_pair().expect("landed");
+            let display = driven.app.session.display_view();
+            let mut found = None;
+            'scan: for i in 1..80 {
+                for j in 1..50 {
+                    let cursor = [
+                        viewport.width_px * f64::from(i) / 80.0,
+                        viewport.height_px * f64::from(j) / 50.0,
+                    ];
+                    if let Ok(Some(pick)) =
+                        index.edge_at_for(eval, &driven.app.camera, viewport, cursor, &display)
+                        && is_rim(&pick.name)
+                        && pick.distance_px < 1.0
+                    {
+                        found = Some((cursor, pick.name.clone(), pick.node, pick.body));
+                        break 'scan;
+                    }
+                }
+            }
+            found.expect("a rim is under some pixel of the viewport")
+        };
+        let (cursor, name, node, body) = aimed;
+        let whole = driven
+            .on_screen()
+            .whole_edge(&EdgeSelection { name, node, body })
+            .expect("the index answers the rim");
+        assert_eq!(whole.len(), 2, "the circle under the cursor is two arcs");
+        let at = egui::pos2(
+            rect.min.x + (cursor[0] / ppp) as f32,
+            rect.min.y + (cursor[1] / ppp) as f32,
+        );
+        driven.click_at(at);
+        driven.quiet();
+        let tool = driven.app.tools.blend().expect("the blend tool is open");
+        let mut held = tool.selection();
+        held.sort();
+        let mut want = whole.clone();
+        want.sort();
+        assert_eq!(held, want, "one viewport click holds both arcs");
+        assert_eq!(tool.count(), 1, "and counts one pick");
     }
 }
 
