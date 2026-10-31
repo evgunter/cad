@@ -3407,7 +3407,7 @@ mod span_memo {
     type Spans = Result<Vec<projected::SpanHull>, PcurveCertifyError>;
 
     std::thread_local! {
-        static MEMO: core::cell::RefCell<crate::memo::Memo<String, Spans>> =
+        static MEMO: core::cell::RefCell<crate::memo::Memo<Vec<u64>, Spans>> =
             core::cell::RefCell::new(crate::memo::Memo::new());
     }
 
@@ -3424,54 +3424,60 @@ mod span_memo {
         crate::memo::read(&MEMO, key(twin_net, form, meters, per_span, cuts), compute)
     }
 
-    /// The input rendered whole, each scalar as its certified bracket's
-    /// two ends (NaN where it does not certify), as limb 2's round memo
-    /// renders its own.
+    /// The input whole, each scalar as its certified bracket's two ends'
+    /// bits (NaN where it does not certify), each list behind its length
+    /// and each variant behind its tag.
     fn key(
         twin_net: &NurbsCurve3<Interval>,
         form: &CanonicalSurface,
         meters: projected::Meters<Interval>,
         per_span: usize,
         cuts: &[f64],
-    ) -> String {
+    ) -> Vec<u64> {
         use geom_core::CertifiedEnclosure as _;
         use projected::Meters;
-        let end = |x: Interval, hi: bool| {
-            x.certified_bracket()
-                .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
+        let len = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+        let mut k = Vec::new();
+        let scalars = |k: &mut Vec<u64>, tag: u64, xs: &[Interval]| {
+            k.extend([tag, len(xs.len())]);
+            for x in xs {
+                let (lo, hi) = x.certified_bracket().unwrap_or((f64::NAN, f64::NAN));
+                k.extend([lo.to_bits(), hi.to_bits()]);
+            }
         };
-        let ends = |xs: &[Interval]| -> Vec<u64> {
-            xs.iter()
-                .flat_map(|&x| [end(x, false).to_bits(), end(x, true).to_bits()])
-                .collect()
-        };
-        let form = match *form {
-            CanonicalSurface::Plane => (0, ends(&[])),
-            CanonicalSurface::Cylinder { radius } => (1, ends(&[radius])),
-            CanonicalSurface::Sphere { radius } => (2, ends(&[radius])),
-            CanonicalSurface::Cone { cos2, sin2 } => (3, ends(&[cos2, sin2])),
-            CanonicalSurface::Torus { major, minor } => (4, ends(&[major, minor])),
-        };
-        let meters = match meters {
-            Meters::Plane => (0, ends(&[])),
-            Meters::Cylinder { radius } => (1, ends(&[radius])),
-            Meters::Sphere { radius } => (2, ends(&[radius])),
-            Meters::Cone { sin, cos, nappe } => (
+        match *form {
+            CanonicalSurface::Plane => scalars(&mut k, 0, &[]),
+            CanonicalSurface::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            CanonicalSurface::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            CanonicalSurface::Cone { cos2, sin2 } => scalars(&mut k, 3, &[cos2, sin2]),
+            CanonicalSurface::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        match meters {
+            Meters::Plane => scalars(&mut k, 0, &[]),
+            Meters::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            Meters::Cone { sin, cos, nappe } => scalars(
+                &mut k,
                 if nappe == crate::offset::Nappe::Opening {
                     3
                 } else {
                     5
                 },
-                ends(&[sin, cos]),
+                &[sin, cos],
             ),
-            Meters::Torus { major, minor } => (4, ends(&[major, minor])),
-        };
-        format!(
-            "{:?}|{:?}|{form:x?}|{meters:x?}|{per_span}|{:x?}",
-            twin_net.map_scalar(|x| end(x, false)),
-            twin_net.map_scalar(|x| end(x, true)),
-            cuts.iter().map(|c| c.to_bits()).collect::<Vec<_>>(),
-        )
+            Meters::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        let knots = twin_net.knot_values();
+        k.extend([len(per_span), len(knots.degree())]);
+        scalars(&mut k, 6, knots.values());
+        scalars(&mut k, 7, twin_net.weights());
+        k.push(len(twin_net.control().len()));
+        for c in twin_net.control() {
+            scalars(&mut k, 8, &[c.x, c.y, c.z]);
+        }
+        k.push(len(cuts.len()));
+        k.extend(cuts.iter().map(|x| x.to_bits()));
+        k
     }
 
     /// This thread's memo hits and misses so far.
