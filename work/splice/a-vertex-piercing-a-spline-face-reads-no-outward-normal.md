@@ -7,6 +7,7 @@ opened: 2026-10-30
 priority: P1
 cost: M
 closed: 2026-10-31
+pr: 6152
 branch: splice/vertex-on-spline-face
 ---
 
