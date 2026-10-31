@@ -82,7 +82,11 @@ fn certify<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Bod
         }
         BoundVerdict::Refused(e) => format!("Refused {}: {}", e.name(), e.payload()),
     };
-    format!("{v} | cert {c:.3}s | faces {} | {:?}", body.faces().count(), r.receipt)
+    format!(
+        "{v} | cert {c:.3}s | faces {} | {:?}",
+        body.faces().count(),
+        r.receipt
+    )
 }
 
 #[test]
@@ -91,7 +95,10 @@ fn carve_embed_scratch_tour() {
     let tol = Tol::witness();
     let t = Instant::now();
     let stops = skinned::stops(tol);
-    println!("[embed-tour] skinned::stops built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] skinned::stops built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     for stop in &stops {
         for b in &stop.bodies {
             println!("[embed-tour] skinned/{} f64: {}", b.name, certify(&b.body));
@@ -99,14 +106,23 @@ fn carve_embed_scratch_tour() {
     }
     let t = Instant::now();
     let leaf_a = lily::leaf_a::<f64>(lily::leaf_a_plan(), tol);
-    println!("[embed-tour] lily leaf_a alone built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] lily leaf_a alone built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     drop(leaf_a);
     let t = Instant::now();
     let p64 = lily::plant::<f64>(tol);
-    println!("[embed-tour] lily::plant<f64> built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] lily::plant<f64> built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     let t = Instant::now();
     let pi = lily::plant::<Interval>(tol);
-    println!("[embed-tour] lily::plant<Interval> built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] lily::plant<Interval> built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     let wanted = |n: &str| n.starts_with("lily_leaf") || n.starts_with("lily_sepal");
     for p in p64.iter().filter(|p| wanted(p.name)) {
         println!("[embed-tour] {} f64: {}", p.name, certify(&p.body));
@@ -116,10 +132,16 @@ fn carve_embed_scratch_tour() {
     }
     let t = Instant::now();
     let b64 = klein::bottle::<f64>(tol);
-    println!("[embed-tour] klein bottle<f64> built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] klein bottle<f64> built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     println!("[embed-tour] klein loop f64: {}", certify(&*b64.top));
     let t = Instant::now();
     let bi = klein::bottle::<Interval>(tol);
-    println!("[embed-tour] klein bottle<Interval> built in {:.3}s", t.elapsed().as_secs_f64());
+    println!(
+        "[embed-tour] klein bottle<Interval> built in {:.3}s",
+        t.elapsed().as_secs_f64()
+    );
     println!("[embed-tour] klein loop Interval: {}", certify(&*bi.top));
 }
