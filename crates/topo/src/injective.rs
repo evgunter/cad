@@ -1312,6 +1312,57 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
     Some(out)
 }
 
+/// **The ranges a clip's side is the edges' own over**: its edges'
+/// ([`edge_ranges`]), each run on past a corner it shares with a clip
+/// on the other axis to that clip's line's far bound. The rectangle's
+/// side ends at that bound, while the edge ends at the corner, whose
+/// coordinate the line's enclosure and the edge end's both hold: two
+/// enclosures of one point, which no cell narrows. Past the edge end's
+/// own enclosure is past the corner, on the other line's non-face side,
+/// where the face has no point to wrap round the end into. That the
+/// other line bounds the face there is its own coverage, and that the
+/// corner is the face's is [`convex`]; both are read beside this.
+fn side_ranges(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
+    let held = c.side.axis();
+    let mut out = edge_ranges(b, &c.edges, held)?;
+    for d in merged
+        .iter()
+        .filter(|d| d.side.axis() != held && d.collapsed.is_none())
+    {
+        let on_d = |v: &VertexKey| {
+            d.edges
+                .iter()
+                .any(|&j| b.edges.get(j).is_some_and(|f| f.ends.contains(v)))
+        };
+        for &ei in &c.edges {
+            let e = b.edges.get(ei)?;
+            for (k, _) in e.ends.iter().enumerate().filter(|(_, v)| on_d(v)) {
+                for u in &e.uses {
+                    let iso = u.iso?;
+                    if iso.held != held || iso.full {
+                        continue;
+                    }
+                    let end = iso.moving(u.image?[k]);
+                    let end = if periodic {
+                        wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
+                    } else {
+                        end
+                    };
+                    out.push(match d.side {
+                        Side::XHi | Side::YHi => {
+                            Interval::from_bounds(end.lo(), end.hi().max(d.at.hi()))
+                        }
+                        Side::XLo | Side::YLo => {
+                            Interval::from_bounds(end.lo().min(d.at.lo()), end.hi())
+                        }
+                    });
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
 /// **A cone face's nappe**: `true` where its vertices off the apex stand
 /// on the axis's positive side. Every vertex whose signed height is
 /// decided must agree — a face across the apex is on both nappes and has
@@ -1576,10 +1627,11 @@ fn present_chart<'a>(
         }
         let axis = c.side.axis().other();
         let want = axis.of((x, y));
-        let Some(ranges) = edge_ranges(b, &c.edges, c.side.axis()) else {
+        let periodic = periodic(piece.surface, axis);
+        let Some(ranges) = side_ranges(b, c, &merged, periodic) else {
             return Err(Unpresented::Local);
         };
-        if !covered(want, &ranges, periodic(piece.surface, axis)) {
+        if !covered(want, &ranges, periodic) {
             return Err(Unpresented::Local);
         }
     }
@@ -5128,6 +5180,145 @@ mod presentation_rows {
     /// **`convex`**: the strip's corner where its right line meets its
     /// bottom one is convex; the same two lines read with the right one
     /// as a LOW clip are not.
+    /// **A rectangle on the cylinder's chart**, `u ∈ [1, 2]`,
+    /// `v ∈ [0, 1]`, counter-clockwise: its ends' images exact, its
+    /// lines' values held `w` wide either side, as an intersection's
+    /// pcurve holds its line wider than another edge's end at the corner
+    /// they share. `right` is the `u = 2` edge's `[start, end]` in `v`,
+    /// and its end vertices.
+    fn wide_rectangle(w: f64, right: (f64, f64), ends: [u64; 2]) -> Boundary {
+        let mut edges = vec![
+            rim(1, [1, 2], Axis::V, 0.0, (1.0, 0.0), (2.0, 0.0)),
+            rim(2, ends, Axis::U, 2.0, (2.0, right.0), (2.0, right.1)),
+            rim(3, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+            rim(4, [4, 1], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0)),
+        ];
+        for e in &mut edges {
+            for u in &mut e.uses {
+                if let Some(iso) = u.iso.as_mut() {
+                    let at = iso.at.lo();
+                    iso.at = Interval::from_bounds(at - w, at + w);
+                }
+            }
+        }
+        Boundary {
+            sense: true,
+            edges,
+            vertices: BTreeMap::new(),
+            extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+        }
+    }
+
+    /// **Each corner of a rectangle presents, its lines held far wider
+    /// than its edges' ends** ([`side_ranges`]): at every corner the
+    /// rectangle's side runs to the other line's outer bound, past the
+    /// edge's exact end, and the side is still the edge's own because
+    /// the edge ends on that line, on the cell's own sheet a turn round
+    /// too. Red if a side must be covered by its edges alone: the corner
+    /// then reads `Local` at every depth, the lines' widths being no
+    /// cell's; or if the edge's end is not moved to the line's sheet.
+    #[test]
+    fn a_corner_presents_though_its_lines_are_wider_than_its_edges_ends() {
+        let s = cylinder();
+        let b = wide_rectangle(1e-9, (0.0, 1.0), [2, 3]);
+        let corners = [
+            ((1.5, 2.5), (0.5, 1.5)),
+            ((1.5, 2.5), (-0.5, 0.5)),
+            ((0.5, 1.5), (0.5, 1.5)),
+            ((0.5, 1.5), (-0.5, 0.5)),
+        ];
+        let turned = corners.map(|((a, b), v)| ((a + TURN, b + TURN), v));
+        for (u, v) in corners.into_iter().chain(turned) {
+            assert!(
+                matches!(chart(&s, &b, &all(4), u, v), Read::Of(..)),
+                "the corner in {u:?} × {v:?} presents: {:?}",
+                chart(&s, &b, &all(4), u, v)
+            );
+        }
+    }
+
+    /// **An edge that stops short of a line it does not end on runs on
+    /// past nothing**: the `u = 2` edge ends `1e-7` below the top line,
+    /// inside that line's `1e-6` enclosure, at a vertex the line's edge
+    /// does not have. The face may turn round that end, so the corner
+    /// cell is not presented. Red if an edge is run on to a line it
+    /// shares no vertex with.
+    #[test]
+    fn an_edge_ending_short_of_a_line_it_shares_no_vertex_with_is_not_run_on() {
+        let s = cylinder();
+        let b = wide_rectangle(1e-6, (0.0, 1.0 - 1e-7), [2, 9]);
+        assert_eq!(chart(&s, &b, &[1, 2], (1.5, 2.5), (0.5, 1.5)), Read::Local);
+    }
+
+    /// **An edge is run on from its own end, outward, not across the
+    /// line's whole enclosure**: the `u = 2` edge runs `1e-7` up to the
+    /// corner it shares with the top line, held `1e-6` wide, and the
+    /// cell's side reaches `5e-7` below the corner, below the edge's
+    /// start. Only past the corner is the face's absence read. Red if
+    /// the line's whole enclosure is taken as the edge's: the cell then
+    /// presents with its side running below the edge.
+    #[test]
+    fn a_corner_runs_its_edge_on_from_its_own_end_only() {
+        let s = cylinder();
+        let b = wide_rectangle(1e-6, (1.0 - 1e-7, 1.0), [2, 3]);
+        assert_eq!(
+            chart(&s, &b, &[1, 2], (1.5, 2.5), (1.0 - 5e-7, 1.5)),
+            Read::Local
+        );
+        assert!(
+            matches!(
+                chart(&s, &b, &[1, 2], (1.5, 2.5), (1.0 - 5e-8, 1.5)),
+                Read::Of(..)
+            ),
+            "a cell above the edge's start presents"
+        );
+    }
+
+    /// **On the periodic axis, an edge is run on from its end moved to
+    /// the line's sheet**: the `v = 1` edge runs `1e-7` along `u` from
+    /// the corner it shares with the `u = 2` line, held `1e-6` wide, and
+    /// the cell reaches `5e-7` short of the corner along `u`, on the
+    /// stored sheet and a turn round. Red if the edge's end is read on
+    /// its stored sheet against a line placed on the cell's: the run-on
+    /// then spans the turn between them and the cell presents.
+    #[test]
+    fn a_corner_on_the_periodic_axis_runs_its_edge_on_from_the_lines_sheet() {
+        let s = cylinder();
+        let (w, short) = (1e-6, 1e-7);
+        let mut edges = vec![
+            rim(1, [2, 3], Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0)),
+            rim(2, [3, 9], Axis::V, 1.0, (2.0, 1.0), (2.0 - short, 1.0)),
+        ];
+        for e in &mut edges {
+            for u in &mut e.uses {
+                if let Some(iso) = u.iso.as_mut() {
+                    let at = iso.at.lo();
+                    iso.at = Interval::from_bounds(at - w, at + w);
+                }
+            }
+        }
+        let b = Boundary {
+            sense: true,
+            edges,
+            vertices: BTreeMap::new(),
+            extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+        };
+        for turn in [0.0, TURN] {
+            assert_eq!(
+                chart(&s, &b, &[0, 1], (2.0 - 5e-7 + turn, 2.5 + turn), (0.5, 1.5)),
+                Read::Local,
+                "a cell past the edge's far end is not presented, {turn} round"
+            );
+            assert!(
+                matches!(
+                    chart(&s, &b, &[0, 1], (2.0 - 5e-8 + turn, 2.5 + turn), (0.5, 1.5)),
+                    Read::Of(..)
+                ),
+                "a cell within the edge presents, {turn} round"
+            );
+        }
+    }
+
     #[test]
     fn convex_reads_a_corner_the_edges_leave_into() {
         let b = seam_strip(true);

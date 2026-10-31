@@ -2,7 +2,7 @@
 id: document-pot-cavity-refuses-departure-at-its-mouth-rim-at-interval
 kind: issue
 title: the editor-core corpus pot's cavity refuses Departure at its mouth rim at Interval, though the same pot built in sweep shells Ok, so SHELL-4's gate over-refuses a valid document body
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P1
 cost: M
@@ -35,3 +35,36 @@ way it is oriented.
 
 Over-refusing a valid shell is ruled out (SHELL-4's ruling), so SHELL-4
 is parked on this row.
+
+## Diagnosis
+
+The readings part at **the presentation the departure arm takes**. The
+two pots are the same B-rep: the same faces, edges, charts, seams,
+senses and pcurve forms, the band split the same way. They differ only
+in width. The document's `ProgramArcData::Center` lands the belly
+sphere exactly (`c = (0, 1/16)`, `r = 5/64`, point intervals), and
+`bulge_from_center` carries it about `1e-16` wide.
+
+The refusal is at the cavity's mouth-rim corner on a band half, where
+the seam meets the rim (`v = asin 7/9`). `present_chart` clips the
+corner cell to the seam line `u = 2π` and the rim line, and then asks
+that the seam's `v` range cover the rectangle's side. That side ends
+at the rim line's outer bound, while the seam's range ends at its own
+end enclosure: these are two enclosures of the one corner vertex,
+rounded by two routes.
+
+| build | seam end `hi` | rim line `hi` | gap | `few_ulps` |
+|---|---|---|---|---|
+| document | `0.891122507886654` | `0.8911225078866563` | `2.3e-15` | `1.8e-15` |
+| sweep | `0.8911225078866712` | `0.8911225078866714` | `2e-16` | `1.8e-15` |
+
+Sweep's wide sphere dominates both roundings, so its gap falls inside
+`covered`'s concession. The exact sphere exposes the route difference.
+No cell narrows either enclosure, so the corner cell reads `Local` at
+every depth and the pair refuses `Uncertified { Departure }`.
+
+The fix is in the reader (`injective.rs`, `side_ranges`): a clip side's
+edge that ends at a corner it shares with a clip on the other axis runs
+on from its end's own enclosure to that line's far bound. No producer
+changes.
+
