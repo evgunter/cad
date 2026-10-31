@@ -1,0 +1,4 @@
+fork: a-profile-reopens-as-its-template (vseam, the-rectangle-and-circle-templates-reopen-as-paths)
+drawn: 2026-10-31, /dev/urandom one byte
+byte: 106
+mapping: even -> A = Opus designer, B = Fable designer
