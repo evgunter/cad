@@ -7,7 +7,6 @@ opened: 2026-10-04
 priority: P1
 cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
-design: true
 ---
 
 Found by the cylinder × sphere frame lane's sweep of the germ pairs that
@@ -89,3 +88,32 @@ whose ellipses cross at two nodes, lives on the value with nodes. Moving
 it there as the value stands would regress p4. The cone-frames row
 (`cone-germ-pairs-against-a-curved-face-have-no-section-frame`) has the
 same unbounded-pair question.
+
+## Decided (2026-10-31, Ev on `[ev]` PR 6127; fork row 224, revised by 226)
+
+Cylinder × cylinder goes on the section value in every pose, decided once
+on closed-form margins:
+- parallelism as `sin θ · L`, at the radius `L` of the operation's region;
+- crossing axes: the gap `e` against `r₁ + r₂` and against `|r₁ − r₂|`;
+- parallel axes: the axis distance against the same two levels.
+
+A pair traced in ℝ³ is read over its own ball cut by one region per
+operation: the ball about the operands' overlap, padded. No face's extent
+enters it.
+
+Components are closed, end on the domain's boundary, or end at a node.
+Every node is a recorded Zero tangency placed in closed form. The bisector
+ellipses carry, so p4 keeps building. The pinch refuses typed. No march
+that starts at a node is built.
+
+The build retires five readings: the frame's cylinder arm,
+`cylinder_pair_axes`, `crossing_cylinder_margins`,
+`section_cert::cylinder_cylinder` and `section_cert::Reach`. It shares the
+component-with-ends type with the NURBS arm (PR 6121), so that type lands
+once.
+
+Build-time items:
+- `of_pair_section` must read a node's connected set as one component;
+- reading a pinch as the guard's `Touch` needs its own argument;
+- the march door seeds on the thinner wall's chart cut by the region;
+- seeding uses the pair's scale, not the region's.
