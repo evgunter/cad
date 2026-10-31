@@ -2,11 +2,12 @@
 id: SHELL-4
 kind: unit
 title: shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion
-status: dispatched
+status: parked
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, shell-curved-wall-clearance-window, 1737]
 priority: P1
 cost: H
+blocked_on: [document-pot-cavity-refuses-departure-at-its-mouth-rim-at-interval]
 ---
 
 
