@@ -1,59 +1,44 @@
-# Reviewer brief: SECT PR 6153 (the torus rows read at 1e-6 again)
+# Confirmation brief: SECT PR 6153 fix pass (the one-pass check)
 
-You are the single FULL reviewer (claims to falsify plus the style lane).
+You are a single confirmation reviewer on new reasoning a fix pass added.
+FULL on the delta. Head `cbf4d5b4328b29bfbe7fb864faf99db4dc68681f` of https://github.com/evgunter/cad/pull/6153
+(branch `sect/torus-rows-at-1e-6`): `git fetch origin sect/torus-rows-at-1e-6 && git checkout --detach cbf4d5b4328b29bfbe7fb864faf99db4dc68681f`.
+The previous review was on `96368e32`. Read the PR body (its fix-pass section)
+via the GitHub MCP tools; not its comments or reviews. Post nothing, push nothing.
 
-**Frozen head.** `96368e32997a5d6316d65b6cae3793e431561383` of https://github.com/evgunter/cad/pull/6153
-(branch `sect/torus-rows-at-1e-6`): `git fetch origin sect/torus-rows-at-1e-6 && git checkout --detach 96368e32997a5d6316d65b6cae3793e431561383`.
-Read the PR body via the GitHub MCP tools (ToolSearch; no gh). Do not read its
-comments or reviews. Post nothing, push nothing.
+**Read first:** `docs/prompts/reviewer-style-lane.md`; `CLAUDE.md`; C2 (limb 3)
+in `crates/geom-brep/README.md`; `crates/geom-brep/src/ssi/one_arc.rs` (what
+limb 3 proves). Builds: `CARGO_TARGET_DIR` outside the checkout,
+`CARGO_INCREMENTAL=0`, opt-level 2 for marching rows, foreground, anything past
+600 s `setsid`-detached and polled, nothing left running. **Budget: about 90 minutes.**
 
-**Read first, in full:** `docs/prompts/reviewer-style-lane.md`; `CLAUDE.md`;
-C2 (limbs 1–3), C5 and C7 in `crates/geom-brep/README.md`; the row
-`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`
-as on main; `work/sect/a-general-torus-pose-lists-no-components.md`
-(`## Decided`, `## Closed`).
+## What to falsify
 
-**Builds.** `CARGO_TARGET_DIR` outside the checkout, `CARGO_INCREMENTAL=0`;
-opt-level 2 for marching rows; foreground; anything past 600 s
-`setsid`-detached and polled; nothing left running. These are slow-set rows
-the per-PR gate does not run: run them yourself (`--run-ignored all`) at the
-default ε, 1e-6 and 1e-12 (`CAD_TOLERANCE_EPS`). **Budget: about 3 hours.**
-
-## Claims to falsify
-
-1. **Winding over the tube boxes** (`pair_section/winds.rs`, new
-   `ssi::certify::tube_chain`): limb 3 proves one arc with a piece in every
-   box, so the component and the carrier pass through the same convex boxes in
-   order and wind alike, with no closeness bound and no halving. Is that the
-   lemma limb 3 actually proves (boxes in order? overlapping or adjacent? does
-   the arc visit each box once?), and does winding about the axis or core
-   follow when a box straddles the axis or core? Falsify with an independent
-   winding count (dense sampling of the true section) on random transverse
-   poses, near the axis and core, near tangency, at all three ε; check
-   `Untiled` is typed and raised only where the pieces really don't tile.
-2. **The pad** (`Tube::of`): the tube's farthest point from the carrier,
-   bounded per slab (8 slabs × 9 interval carrier samples). Is that an upper
-   bound (between samples, at slab ends, for the cubic box padding)? Try to find
-   a point of a tube box farther from the carrier than the pad.
-3. **W3's `reach`** (`CarriedComponent::reach`, passed as
-   `section_cert::Component::pad`): the diameter of a tube box holding the
-   witness. Does it bound the witness-to-component distance the certificate
-   needs?
-4. **Per-row decisions**: four rows un-pinned (two stop where main stops them
-   at the default ε, on GREEN's open P0
-   `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`);
-   `close_rings_carry_counted_and_marched` stays pinned on a march defect
-   filed on SSIMARCH. Reproduce at 1e-6 and check each decision. Is
-   `two_loops_keep_their_sites_and_order_near_the_node`'s thin margin (pad
-   ~0.10 m against a sheet 0.10–0.21 m away) a pass that a nearby pose would
-   turn into a wrong reading rather than a refusal?
-5. **No verdict moved at the default ε or 1e-12** across PR 6011's touched rows
-   (the PR's 444/461-test table): reproduce on head and merge-base.
-6. **Suites:** `geom-brep`, `topo`, `sweep` (`--profile ci`) on head and merge-base.
+1. **The degree check** (`pair_section/winds.rs`, `WindsRefusal::Unordered`,
+   `once_round`, `gated`, `tube_chain`'s per-box graph axis). The argument: the
+   carrier's turns are m × the component's; nonzero carrier turns ⇒ essential for
+   any m; a tube hull clearing a centre ⇒ null about that channel; any other
+   null reading needs m ≠ 0, shown by `once_round` (≥ 4 runs of consecutive boxes
+   whose non-neighbouring runs are certainly apart) or `gated` (one box whose two
+   neighbour meets lie on opposite sides of a slice along limb 3's graph axis, a
+   slice no other box reaches). A wrong guard here reads an essential component
+   as null **silently**. Is each guard a proof that the component's walk has
+   degree ±1 (or at least m ≠ 0)? Construct a pose (or a synthetic chain) where a
+   guard passes and m = 0 or the component is essential with zero carrier turns.
+   Are "certainly apart" and "no other box reaches" decided by certified
+   readings, never f64 comparisons?
+2. **The refusal handling** (`farthest`, `winds::clears`, the box meet/hull testing
+   `is_certified`; parts from `Box3::split`; `reach` ignoring a refused box) and
+   the tighter `reach` (least `farthest(box, witness)` over boxes whose span holds
+   the witness): sound?
+3. **Rows:** the new fast and unit rows go red when they should (mutate a guard);
+   the oracle fuzz row reads few components (28/24/16 comparisons) — is that
+   enough to say anything, and can it be made to read more?
+4. Run the slow rows the PR edits at the default ε, 1e-6 and 1e-12 (opt-level 2,
+   `--run-ignored all`): the PR reports 81/85 at each, the 4 failing being GREEN's
+   open P0 with identical stops.
 
 ## Report
 
-Final message, ≤150 lines: verdict (APPROVE · APPROVE-WITH-FIXES ·
-NOT-MERGEABLE-AS-IS · REJECT); findings MAJOR/MINOR/NOTE with `file:line`,
-evidence, executed or by inspection; `## Style`; tests worth keeping as code
-(commit nothing).
+Final message, ≤100 lines: verdict; findings MAJOR/MINOR/NOTE with `file:line`,
+evidence, executed or by inspection; tests worth keeping as code.
