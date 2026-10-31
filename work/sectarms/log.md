@@ -29,7 +29,47 @@ and bodies unchanged. No orchestrator yet.
   - **Premise corrections carried in the PR:** the row's fitted-cubic vs per-span fork is false, no demo joins on the arm alone, and klein also needs cone × NURBS.
   - **Off-question findings:** `boundary_section` and `sweep_chart_plane` hand-roll `f∘C` beside `geom_core::spline::compose`, and the route table's note plans a chart tube for the analytic partner. Both retire inside the arm's build (named in the PR), so neither is filed separately. Measure before the build: does klein's rim read Zero or in band at ε 1e-9 (cap tilt 3.99e-4 rad)?
   - The P0 row keeps `design: true` until Ev answers.
+- 2026-10-31 — **Unbounded-pair fork converged; `[ev]` PR 6127 opened** (fork row 224, record `analysis/design-fork/unbounded-pair-section`). It covers the skew-cylinder and cone-frame rows.
+  - **The design:** one region per operation, the ball about the operands' overlap, owned like the band. A pair's domain is its own ball cut by that region. Components can be open, or end at a node (D2's page). Every node is a recorded Zero tangency in closed form, with no node march built. Cylinder × cylinder goes on the value in every pose, on closed-form margins. The cone pose is `section_cert/ruling.rs`'s sweep with its double root decided. C5's no-face-extent sentence is restated.
+  - **Rounds:** round 1 crossed on nodes and on whether D2 lets a branch end at a node. I settled D2 myself: the sentence is in the geom-brep README's Edge descriptions. Round 2 converged.
+  - **Coupling:** shares the "component with ends" type with PR 6121. The two builds are sequenced so `Components`/`CarriedComponent` change once.
+  - **Build-time items (not forks):**
+    - Reading a pinch as the guard's `Touch` needs its own argument (A).
+    - A Zero double root needs an upper clearance bound at the root (A).
+    - `of_pair_section` must read a node's connected set as one component (B).
+    - The cylinder march door seeds on the thinner wall's chart cut by the region, since a 3-D tree is `(L/r)³` (B).
+  - **Off-question, retires inside the build:** `cylinder_cylinder_section` decides radii before parallelism, so parallel unequal radii reach only the frame.
+  - Both rows keep `design: true` until Ev answers.
+- 2026-10-31 — **Ev's questions on PR 6121 open a third fork** (record `analysis/design-fork/section-trace-domain`). Ev asked why analytic pairs are traced over a ball rather than a chart, and whether general NURBS and well-behaved analytic charts should share the knot-rectangle form. I answered the factual parts on the PR: the trace space is chosen by where each side has a compact, regular, exact description, and analytic carriers are whole closed or infinite surfaces. The architectural question went to a fresh designer pair: in which space and over which domain each kind pair is traced, and whether 6121 and 6127 together are the final state or a local optimum. Neither PR merges before this is back.
+- 2026-10-31 — Walk order: PR 6126 style review APPROVE-WITH-FIXES. MINOR: the boolean lanes were not scrambled, so a ranking that decided nothing passed the ccw walk. Fix pass dispatched: scramble every lane, rank through production's pick, add off-conic sites. **A class to watch:** the test rows hand-build `Reach`/`Turn::facing` records in three places (`join.rs` nearer_along rows, the new walk-order rows, `partners`' tail), so a production change to `Reach` passes them silently. If a fourth copy appears, give the builder one test home.
+- 2026-10-31 — **Trace-domain fork converged** (fork row 225, on PR 6121). The two PRs stand in substance under one per-side rule: each side enters through its exact description, residual else chart, and the domain is the trace space's compact part. Analytic charts gain nothing; the cone's chart is a named fallback only. Edits pushed:
+  - **6121 C3:** the domain rule, three trace shapes, and rim/cut/node ends.
+  - **6121 C5:** an indefinite-Hessian node is decided Zero, as 6127 decides it. A collapsed side not decided clear of the partner refuses before the sweep. Spline × spline is worded as unbuilt.
+  - **6127:** the region is scoped to ℝ³ pairs, and `section_cert::Reach` retires into it.
+  - Corrected on the PR: my "compact, regular, exact" rule and my collapsed-side gradient claim were both wrong.
+  - Build-time notes: closed nets need nothing (D1's seam edge). An interior fold belongs to surface validity, outside SECTARMS. `ChartedNurbs::mint` refuses a zero sup speed, not a collapsed side, so the pre-sweep refusal must read C4's collapsed decision.
 - 2026-10-31 — **Walk order held (PR 6126; `the-walk-order-is-spelled-twice` closed).** `join_walk_order_rows.rs` holds the boolean's turn order against the split's walk on a tilted ellipse and a circle, plus the carried lane's foot order on the circle (no carried ellipse exists). Each lane gets one scrambled order, ranked through production's `keep_nearer`, both senses, on and off the conic.
   - **Tier: single style review.** APPROVE-WITH-FIXES with one MINOR: the boolean lanes were unscrambled, so a no-op ranking passed ccw. Fixed. Mutants N, N2 and A–G now go red in each sense alone.
   - **What the off-conic rows found:** the orders never diverge, but at a steep flank the split's walk decides two sites the band cannot order, and refuses them as `NotAlternating`, a face claim, where the boolean escalates. Filed `the-splits-walk-decides-off-conic-sites-the-band-cannot-order` (P3 M), held by a disabled red.
   - **Retiring the frame lane's spelling** remains `conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter`.
+- 2026-10-31 — **Ev approved both forks.** PR 6121 merged ("cool, i think this design sounds good!"). The P0 row is decided and the torus row is covered by it. PR 6127 was approved ("ok, this looks good!") and merges next; the skew-cylinder and cone rows are decided. Fork rows: the NURBS arm is **225** and the trace domain **226** (renumbered at the merge, since main took 223 for another fork); the unbounded pair is 224. Earlier entries here cite 223 and 225; read them as 225 and 226. PR 6126 merged, closing the walk-order row.
+- 2026-10-31 — **Process findings (mine):**
+  - **A brief restated Ev's question in my words.** "Local optimum" came back in both designers' reports and in my summary as if Ev had asked it, and Ev caught it. A designer brief quotes Ev's question verbatim and keeps any framing of mine visibly separate.
+  - **A chained shell command committed a conflicted merge.** It ran `git merge … && python3 …; …; git commit`, and the `;` after a failed merge let the commit run, pushing conflict markers to the 6121 branch. I fixed it forward. The rule I now follow: a merge in a script stops the whole script on a non-zero exit, and markers are checked with `git grep` before any commit.
+- 2026-10-31 — **Next:** the builds.
+  - The NURBS arm is staged behind SPLICE's PR 6026, open and idle since 10-29. That PR adds `ComponentShape::Open { reaches }` and the `(Plane, Nurbs)` arm, and the W5 row follows it.
+  - The cylinder × cylinder build depends on nothing open, but it shares the component-ends type with 6026, so its spec reuses whatever 6026 lands rather than adding a second.
+- 2026-10-31 — **Cylinder × cylinder: phase 0 plan accepted; stage 1 dispatched** (`sectarms/cylinder-pair-on-the-value`).
+  - **Measured:** the ℝ³ march already handles two cylinders. Seeding is cheap at the current floor.
+  - **The stages:**
+    - **1** (geom-brep, H, **dual**): the pose with the region and the shared end type, which folds `BranchEnd::Slab`/`SlabInBand` into one cut end.
+    - **2** (M, single full): the region at the glue door, plus `section_door` and `section_cert` reading the value.
+    - **3** (topo, H, dual): the join reads the value, and the frame's cylinder arm retires.
+    - **4** (conditional): chart seeding, only if a witness row shows region-scale seeding misses a loop.
+  - **Not waiting on SPLICE's PR 6026** (590 commits behind, idle). Stage 1 builds the end type in a shape 6026 adopts mechanically; a coupling note is on SPLICE's log.
+  - **Adjudication of the plan's findings:**
+    - **(1)** The accounting cost grows with the region, and 6127's worked example refuses `CellBudget` rather than listing arcs. Filed `a-near-parallel-pairs-accounting-grows-with-the-operation-region` (P1 H, design). It goes to designers, and to Ev if it moves C3. Ev is told the example overclaimed.
+    - **(2)** Count components only when the pose's ball lies inside the region, else march. Accepted.
+    - **(3)** `cylinder_cylinder_section` becomes the pose's closed-form constructor. Accepted.
+    - **(4)** `section_cert::Reach` also serves the cone and torus arms. This unit removes only the cylinder use, and the rest goes to the cone row (noted there).
+    - **(5)** The march domain is the meet of two boxes, a sound superset. Stage 1 adds that evidence to SSIEDGE's `ssi-r3-slab-is-not-geometry`.

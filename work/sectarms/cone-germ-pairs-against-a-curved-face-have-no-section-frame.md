@@ -58,3 +58,10 @@ march does, on SECTRUNG's `cone-torus-rung-three-arm-waits-on-the-cone`.
 
 Build-time item: a Zero double root needs an upper clearance bound at the
 root, since the sweep's residual is a lower bound.
+
+## Note (2026-10-31, the cylinder unit's phase 0)
+
+`section_cert::Reach`, the face-pair extent 6127 retires, also serves
+`cone_pair`, `torus_pair` and the square and cone searches. The cylinder unit
+removes only the cylinder use. The rest is rebased onto the operation region,
+or retired, by this row's build.
