@@ -248,6 +248,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }

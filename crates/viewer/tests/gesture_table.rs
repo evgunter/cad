@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 58;
+const OP_COUNT: usize = 59;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -226,6 +226,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Reevaluate,
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
+        SessionOp::SaveAsNewDocument(save_to.with_file_name("forked.pncad")),
         SessionOp::SetInstanceHidden {
             instance: node,
             hidden: true,
@@ -497,6 +498,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetProduct { .. } => (56, false),
         // An insert door, fenced with every other one.
         SessionOp::AddDrawnProfile { .. } => (57, false),
+        // The fork re-identifies every state of the history the drag
+        // previews against.
+        SessionOp::SaveAsNewDocument(_) => (58, false),
     }
 }
 
@@ -985,6 +989,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
