@@ -171,6 +171,8 @@ mod review_m10_1_r1;
 mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
+#[path = "save_and_fork_doors.rs"]
+mod save_and_fork_doors;
 
 #[path = "scene_build.rs"]
 mod scene_build;
@@ -196,5 +198,7 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "whole_rim_pick.rs"]
+mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();

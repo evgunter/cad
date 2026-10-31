@@ -2869,7 +2869,7 @@ fn carried_chord_spec<T: Decide>(
     let (lo, hi) = component.span;
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
-        if !component.closed {
+        if !component.closed() {
             return Ok(false);
         }
         Ok(

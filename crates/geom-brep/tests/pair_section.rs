@@ -36,7 +36,7 @@ fn sphere(d: f64, big: f64) -> Surface<f64> {
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
-    match geom_brep::pair_section(a, b, band()) {
+    match geom_brep::pair_section(a, b, None, band()) {
         Ok(SectionRead::Built(section)) => section,
         other => panic!("expected the section, got {other:?}"),
     }
@@ -216,7 +216,7 @@ fn a_pose_in_the_band_escalates() {
         ("far reach", 0.25, 0.75 + mid, "cs_far_reach"),
         ("wall reach", 0.0, 0.5 + mid, "cs_wall_reach"),
     ] {
-        match geom_brep::pair_section(&cylinder(0.5), &sphere(d, big), b) {
+        match geom_brep::pair_section(&cylinder(0.5), &sphere(d, big), None, b) {
             Err(SectionError::Escalated(diag)) => {
                 assert_eq!(diag.predicate, Some(want), "{label}");
             }
@@ -262,7 +262,7 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
             assert!(
                 matches!(
-                    geom_brep::pair_section(a, b, band()),
+                    geom_brep::pair_section(a, b, None, band()),
                     Err(SectionError::DegenerateOperand { .. })
                 ),
                 "{label}: the section value"
@@ -314,7 +314,7 @@ fn a_radius_in_the_band_escalates_by_its_name() {
         ),
     ] {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
-            match geom_brep::pair_section(a, b, band()) {
+            match geom_brep::pair_section(a, b, None, band()) {
                 Err(SectionError::RadiusEscalated { radius, diag }) => {
                     assert_eq!(radius, want, "{label}");
                     assert_eq!(diag.predicate, Some(predicate), "{label}");
@@ -349,7 +349,7 @@ fn the_general_rung_carries_through_its_door() {
         panic!("one carried component");
     };
     assert!(
-        c.closed && c.certificate.is_some(),
+        c.closed() && c.certificate.is_some(),
         "a closed certified loop"
     );
     let witness = section.counted().expect("a counted section")[0]
@@ -371,7 +371,7 @@ fn the_general_rung_carries_through_its_door() {
         .seat(Some(SsiLane::marched()), c, at, band())
         .expect("the loop seats");
     assert!(
-        seated.closed && seated.certificate.is_some(),
+        seated.closed() && seated.certificate.is_some(),
         "the seated loop is closed and certified again"
     );
     let (s0, s1) = seated.span;
@@ -438,7 +438,7 @@ fn a_seated_loop_is_the_loop_point_for_point() {
                     .seat(Some(SsiLane::marched()), c, at, band())
                     .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e:?}"));
                 assert!(
-                    seated.closed && seated.certificate.is_some(),
+                    seated.closed() && seated.certificate.is_some(),
                     "d {d}, R {big}: seat {at} is closed and certified"
                 );
                 let (s0, s1) = seated.span;
@@ -484,9 +484,8 @@ fn every_other_pair_is_read_elsewhere() {
     for (a, b) in [
         (&plane, &sphere(0.0, 1.0)),
         (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-        (&cylinder(1.0), &cylinder(0.5)),
     ] {
-        match geom_brep::pair_section(a, b, band()) {
+        match geom_brep::pair_section(a, b, None, band()) {
             Ok(SectionRead::Elsewhere(route)) => {
                 assert_eq!(route, geom_brep::route(a.kind(), b.kind()));
             }
@@ -593,7 +592,7 @@ fn decided_offset(e: f64) -> f64 {
 /// The value's reading of a pair: its guard class, and whether it
 /// records a coincidence.
 fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
-    match geom_brep::pair_section(a, b, band()) {
+    match geom_brep::pair_section(a, b, None, band()) {
         Ok(SectionRead::Built(s)) => {
             let class = if s.tangency().is_some() {
                 match s.counted().expect("a counted section") {

@@ -381,17 +381,16 @@ pub enum SessionOp {
     Reevaluate,
     /// Replace the session's document with a file's.
     Open(PathBuf),
-    /// Write the current path to a file.
+    /// Write the committed document at a path, identity kept (DI4):
+    /// through the store of the folder the file lands in, with no
+    /// edit log (GQ3). Save and Save As… both push this.
     ///
-    /// **Saving a COPY beside the original bricks the store for both**
-    /// (issue #1117): the copy claims the same document id, so the
-    /// directory then holds two files with one identity and every
-    /// resolution through it refuses `DuplicateId` — typed and
-    /// recoverable (delete either file), but a surprising blast
-    /// radius for an ordinary act. The identity is the document's, not
-    /// the file's, so a cheap rename-on-save cannot fix it without
-    /// forking the document; the issue carries the design question.
-    /// Save over the original, or save into a different directory.
+    /// That folder's scan decides the act before anything is written:
+    /// a resave, a create at the chosen name, or a refusal. A folder
+    /// that already holds this document under another name refuses
+    /// `SaveWouldDuplicateId` ([`Refusal::save_choice`] reads the two
+    /// ways on out of it), and a folder whose scan refuses gives that
+    /// refusal; both arrive as [`Refusal::Workspace`].
     ///
     /// **A save-as MOVES the document seam**: the directory rule
     /// follows the file, so an assembly saved into a directory that
@@ -401,6 +400,14 @@ pub enum SessionOp {
     /// first. Recorded with the rest of the seam's newly-reachable
     /// edges in issue #1387.
     Save(PathBuf),
+    /// **Save as a new document** (DI4): the committed document under
+    /// a fresh random id, written at the path through that folder's
+    /// store, and the session's whole history re-identified under the
+    /// new id as one operation, so no undo returns to the original's
+    /// identity. The original's file is untouched, and inbound
+    /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
+    /// is then backed by the path and its resolver follows the folder.
+    SaveAsNewDocument(PathBuf),
     /// Hide or show one instance (G3): a DISPLAY operation — the
     /// scene and the pick index drop a hidden instance; the document
     /// and the feature tree keep it, and nothing is persisted.
@@ -1245,6 +1252,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
+            | Self::SaveAsNewDocument(_)
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1313,6 +1321,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
+            | Self::SaveAsNewDocument(_)
             | Self::SetInstanceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
@@ -1464,7 +1473,7 @@ impl SessionOp {
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
-    ///   about both. It writes the COMMITTED history, so it ignores a
+    ///   about both. It writes the COMMITTED document, so it ignores a
     ///   preview that is not in it; and on a save-as whose parent
     ///   directory differs it rebinds the resolver and re-evaluates,
     ///   which submits the SHOWN document — mid-gesture, the scratch.
@@ -1539,6 +1548,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
+            | Self::SaveAsNewDocument(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
             | Self::AddProfile { .. }
@@ -1628,7 +1638,7 @@ impl SessionOp {
     /// is a function of the operation alone.
     ///
     /// [`SessionOp::Save`] is `true`, as it is in the value table and
-    /// for a narrower reason: a save writes the committed history and
+    /// for a narrower reason: a save writes the committed document and
     /// a free-move probe enters no history at all, so there is nothing
     /// of the drag for a save to write or to lose.
     #[must_use]
@@ -1645,6 +1655,7 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
+            | Self::SaveAsNewDocument(_)
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1717,6 +1728,7 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
+            | Self::SaveAsNewDocument(_)
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
