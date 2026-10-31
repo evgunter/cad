@@ -2,7 +2,8 @@
 id: viewerapp-document-derived-state-has-no-boundary
 kind: issue
 title: ViewerApp's document-derived fields are reset by hand at one door with nothing at the declaration naming the set
-status: open
+status: closed
+closed: 2026-10-31
 opened: 2026-09-07
 refs: [2103]
 priority: P1
@@ -76,3 +77,17 @@ The fix is written above: the `Derived` move, one layer up. It is
 best built together with `new-document-owes-the-reframe-open-gets`,
 whose three fields are the population this row's boundary would
 collect.
+
+## Closed 2026-10-31
+
+`ViewerApp`'s document-derived fields are one value, `DocumentDerived`
+(`crates/viewer/src/app.rs`): `fit_camera`, `fit_delta` and
+`budget_delta`. `DocumentDerived::owed()` is the constructor's value and
+the value `ViewerApp::document_replaced` installs — the one door, called
+from `perform_batch` for every op `SessionOp::replaces_the_document`
+names — so a field added there is reset by being declared. The type's
+doc states why each other field is outside it (chrome that must survive,
+or a value its own currency key retires). The drafts' and the open
+tool's `document_replaced` are that door's halves inside values that
+also hold chrome, not a second spelling; the drafts' half is
+incomplete, filed as `doors/the-drafts-keep-held-slot-ids-across-a-document-replacement`.
