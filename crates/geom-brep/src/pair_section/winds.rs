@@ -46,6 +46,14 @@
 //! reaches a centre the walk winds as the carrier does. That needs no
 //! bound on how far a point of the component lies from the carrier.
 //!
+//! **The premise at the seam**: for a closed carrier, the last box's
+//! piece and the first's share a point, as every other neighbouring
+//! pair's do. Limb 3 links each box to the next along the chain and
+//! puts both end pieces within ε of the start, but does not link the
+//! last box to the first (`ssi::one_arc::one_arc_r3`); the homotopy,
+//! [`once_round`]'s wrap and [`gated`]'s neighbour rest on it
+//! (`work/ssimarch/limb-three-does-not-link-a-closed-chains-last-box-to-its-first.md`).
+//!
 //! **The walk winds as many times round the component as it goes
 //! round it**, a number `m` limb 3 does not fix: it puts a piece in
 //! every box and links neighbours, but a walk could double back
@@ -461,9 +469,9 @@ fn gated(pieces: &[Piece]) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{Box3, Piece, Winding, WindsRefusal, lift, winding};
+    use super::{Box3, Piece, Winding, WindsRefusal, gated, lift, once_round, winding};
     use geom::{Curve3, Surface};
-    use geom_core::{Interval, Point3, Vec3};
+    use geom_core::{Interval, Point3, Real as _, Vec3};
 
     /// The loop's pieces: each knot span's control hull, padded by `pad`.
     fn pieces(c: &Curve3<f64>, pad: f64) -> Vec<Piece> {
@@ -646,6 +654,125 @@ mod tests {
             winding(&wall, &ring, (0.0, 1.0), &gap),
             Err(WindsRefusal::Untiled),
             "a span no piece covers"
+        );
+    }
+
+    /// The cylinder of radius `1/2` about `z`.
+    fn wall() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// **A gate alone shows a pinched walk once round**: a thin null
+    /// loop on the wall, out along `0.95` of a turn above and back below,
+    /// its two passes `1e-3` apart at the half turn, read over boxes
+    /// padded by `2e-3`. Its hull holds the axis, so the null reading
+    /// needs the walk once round; the pinched passes meet across runs,
+    /// so the runs test fails, and a box away from the pinch is a gate.
+    #[test]
+    fn a_pinched_null_loop_is_read_by_its_gate() {
+        let c = polygon(96, |s| {
+            let phi = 0.95 * core::f64::consts::PI * (1.0 - s.cos());
+            let w = 0.01 + 0.99 * ((phi - core::f64::consts::PI) / core::f64::consts::PI).powi(2);
+            Point3::new(0.5 * phi.cos(), 0.5 * phi.sin(), 0.1 * w * s.sin())
+        });
+        let p = pieces(&c, 2e-3);
+        assert_eq!(
+            (once_round(&p), gated(&p)),
+            (false, true),
+            "the runs test fails and a gate holds"
+        );
+        assert_eq!(
+            winding(&wall(), &c, (0.0, 1.0), &p),
+            Ok(Winding::default()),
+            "the pinched loop reads null"
+        );
+    }
+
+    /// **The runs alone show a walk once round**: a thin null loop over
+    /// half the wall, out above and back below, read over boxes padded
+    /// by `5e-2`, wider than its `64` spans, so each box's neighbours
+    /// cover it and no box is a gate; its passes stand apart away from
+    /// its ends, so the runs test holds.
+    #[test]
+    fn a_wide_padded_null_loop_is_read_by_its_runs() {
+        // Out at an even pace to the half turn, and back.
+        let half = |s: f64| core::f64::consts::PI - (core::f64::consts::PI - s).abs();
+        let c = polygon(64, |s| {
+            Point3::new(0.5 * half(s).cos(), 0.5 * half(s).sin(), 0.1 * s.sin())
+        });
+        let p = pieces(&c, 5e-2);
+        assert_eq!(
+            (once_round(&p), gated(&p)),
+            (true, false),
+            "the runs test holds and no gate does"
+        );
+        assert_eq!(
+            winding(&wall(), &c, (0.0, 1.0), &p),
+            Ok(Winding::default()),
+            "the loop reads null"
+        );
+    }
+
+    /// **Three runs show nothing**: a null triangle far off the axis
+    /// read over three boxes that each clear the axis but whose hull
+    /// holds it, all three meeting. Three runs are each other's
+    /// neighbours, so they cannot order a walk; it refuses.
+    #[test]
+    fn a_three_box_null_loop_refuses() {
+        let c = polygon(3, |s| {
+            let k = (3.0 * s / core::f64::consts::TAU).round();
+            [(1.0, 1.0), (2.0, 1.0), (1.0, 2.0)]
+                .get(k as usize % 3)
+                .map(|&(x, y)| Point3::new(x, y, 0.0))
+                .unwrap_or(Point3::origin())
+        });
+        let iv = |lo, hi| Interval::from_bounds(lo, hi);
+        let z = iv(-1.0, 1.0);
+        let boxes = [
+            (iv(0.5, 3.0), iv(0.5, 3.0)),
+            (iv(-3.0, 3.0), iv(0.5, 3.0)),
+            (iv(0.5, 3.0), iv(-3.0, 3.0)),
+        ];
+        let p: Vec<Piece> = boxes
+            .iter()
+            .enumerate()
+            .map(|(i, &(x, y))| {
+                #[allow(clippy::cast_precision_loss)]
+                let span = (i as f64 / 3.0, (i + 1) as f64 / 3.0);
+                let span = (
+                    if i == 0 { 0.0 } else { span.0 },
+                    if i == 2 { 1.0 } else { span.1 },
+                );
+                (Box3 { x, y, z }, Vec3::unit_x(), span)
+            })
+            .collect();
+        assert_eq!(
+            winding(&wall(), &c, (0.0, 1.0), &p),
+            Err(WindsRefusal::Unordered),
+            "a three-box null loop"
+        );
+    }
+
+    /// **A refused side clears nothing**: a ring round the axis whose
+    /// first box has its `x` side refused, with endpoints `[5, 7]` that
+    /// would clear the axis, and its `y` side across it; it refuses.
+    #[test]
+    fn a_refused_side_does_not_clear_the_axis() {
+        let ring = polygon(64, |s| Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.0));
+        let mut p = pieces(&ring, 1e-9);
+        let refused = Interval::from_bounds(-1.0, 4.0).sqrt() + lift(5.0);
+        assert!(!refused.is_certified(), "the side is refused");
+        p[0].0.x = refused;
+        p[0].0.y = Interval::from_bounds(-1.0, 1.0);
+        assert_eq!(
+            winding(&wall(), &ring, (0.0, 1.0), &p),
+            Err(WindsRefusal::Unseparated),
+            "a refused side"
         );
     }
 }

@@ -876,7 +876,7 @@ fn one_loop_keeps_its_order_near_the_node() {
 /// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
 /// whose foot is read lies on its own sheet's component, and the two
 /// sheets' components differ; a refusal, of the carry or of a foot, is
-/// allowed. Marches: in the slow set.
+/// allowed, but most sites read. Marches: in the slow set.
 #[test]
 fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     let (r, d) = (0.5, 0.2);
@@ -916,4 +916,7 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
         }
     }
     eprintln!("near the node: {read} sites read, {refused} refusals");
+    // The row is a reading, not a run of refusals: 2716 of its 3104
+    // sites read on main at every ε.
+    assert!(read >= 2500, "{read} sites read, {refused} refusals");
 }
