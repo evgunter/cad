@@ -2,12 +2,13 @@
 id: main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond
 kind: issue
 title: Main red (fuzz): a ray in band of a 1.5-turn revolved torus's plane|torus rim counts its ends but reads no material beyond, at ε 1e-6
-status: dispatched
+status: review
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
 branch: flush/partial-torus-rim-ray
+pr: 6168
 ---
 
 
@@ -58,3 +59,54 @@ an everyday solid. No verb is yet shown to answer wrong because of it.
 Reproduce: `CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0x003481ce0ba06522
 CAD_FUZZ_EFFORT=1 cargo test -p sweep --test all --
 a_ray_meets_a_curved_edge_once_for_both_faces::every_crossing_of_a_ray_about_the_corpuss_edges_counts_right`.
+
+## Measured
+
+The seed reproduces on main (`45f6be756b`) and on PR 5781's head
+(`ba313795a9`) alike, at ε 1e-6 only. Through `ray_crossings`
+(`crates/topo/src/boolean/solid_contain.rs`) the ray meets two planes,
+the cap `FaceKey(1v1)` at t 7.99890 and the far cap at 6.005, and the
+torus carrier at two roots only, 3.7518 and 4.2466, where it crosses
+the tube across the axis. Near the rim it grazes the tube's bottom
+just outside, and crosses the carrier nowhere near there. The met
+rim `EdgeKey(6v1)` stood for the cap's plane crossing and for the
+torus face `FaceKey(4v1)`'s root at 4.2466, the root
+`curved_edges::nearest` reads nearest, 3.75 along the ray from the
+passage. That root is not near, but `FaceKey(4v1)` definitely holds
+it, so it stood. The cluster from 4.2466 to 7.9989 counted
+(−1 + 1)/2 = 0 where the ray leaves the tube at 4.2466: one exit lost.
+The row's guess was right: a graze on the rim's plane side.
+
+**The family.** A ray along a torus rim's tangent near the tube's top
+or bottom, just outside the tube, tilted off the cap's plane, and
+crossing the tube again across the axis. On main it reads 73 of 9025
+rays wrong at ε 1e-6, on every rim of three partial turns (1.25π, 1.5π,
+1.75π; 6 rays per rim, plus the seed). On PR 5781's head it reads 73,
+72 and 72 wrong at ε 1e-6, 1e-9 and 1e-12, so 5781 does not change the
+reading.
+
+## Fix
+
+A met edge's half stands for a curved face's root far from the passage
+only where the ray reaches that root in band of the carrier: where
+`off · |n·d|` (the distance from the passage, times the incidence at
+the root against `geom_brep::implicit_gradient`) is not definitely
+past the band. Otherwise the edge reads nothing, graze-marked as
+before. A plane's held crossing still stands: a ray's distance from a
+plane is linear. On a convex carrier (a cylinder, a cone's nappe, a
+sphere) a root reached from outside satisfies the bound. A graze there
+is followed by no far root at all. On the torus, the root across the
+axis fails the bound by about six orders of magnitude.
+
+Of the about 800 far, held roots one fuzz run at ε 1e-6 met, 98.5%
+satisfy the bound and still stand. The rest, up to 1.5 bands, are set
+aside.
+
+Pinned in `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
+the seed's ray by `the_nightlys_ray_grazing_a_torus_rim_reads_right`
+(fast), and the family by
+`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`
+(3 s in a debug build, so in the slow set), both at every ε. It reads 0 wrong with the
+fix, after merging main with PR 5781. The fuzz rows ran with 18 fresh
+seeds plus the nightly's at effort 2, at ε 1e-9, 1e-6 and 1e-12: 57
+runs, 0 wrong.
