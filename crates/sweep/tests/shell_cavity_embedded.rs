@@ -347,3 +347,89 @@ fn the_vessel_holds() {
         at_sym.err()
     );
 }
+
+/// **The corpus pot**: a revolved meridian of a foot, a spherical belly
+/// and a mouth (`editor-core`'s `corpus/vessel.rs`, sealed here).
+fn corpus_pot<T: Decide + topo::AtRestPolicy>() -> Body<T> {
+    let p = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let (foot, mouth) = (p(4.0 / 64.0, 1.0 / 64.0), p(3.0 / 64.0, 8.0 / 64.0));
+    let belly = profile::bulge_from_center(foot, mouth, p(0.0, 4.0 / 64.0), profile::ArcSweep::Ccw);
+    revolved_about_y_at(
+        vec![
+            (p(0.0, 0.0), T::zero()),
+            (p(4.0 / 64.0, 0.0), T::zero()),
+            (foot, belly),
+            (mouth, T::zero()),
+            (p(0.0, 8.0 / 64.0), T::zero()),
+        ],
+        Revolution::Full,
+        tol(),
+    )
+}
+
+/// **The cone frustum** (`sf2b_interval_probe`'s): base radius `4/64`,
+/// top `2/64`, height `8/64`.
+fn cone_frustum<T: Decide + topo::AtRestPolicy>() -> Body<T> {
+    let v = |x: f64, y: f64| (Point2::new(x / 64.0, y / 64.0).map(T::from_f64), T::zero());
+    revolved_about_y_at(
+        vec![v(0.0, 0.0), v(4.0, 0.0), v(2.0, 8.0), v(0.0, 8.0)],
+        Revolution::Full,
+        tol(),
+    )
+}
+
+/// **The klein elbow** (`torax_interval`'s): a disc of radius 0.275
+/// revolved a quarter turn about an axis 1.2 off its centre.
+fn klein_elbow<T: Decide + topo::AtRestPolicy>() -> Body<T> {
+    let p = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let profile = Profile::new(
+        SketchPlane::<T>::xy(),
+        vec![bulge_loop(vec![
+            (p(-0.275, 0.0), T::one()),
+            (p(0.275, 0.0), T::one()),
+        ])],
+    )
+    .validate(tol())
+    .expect("the cross-section validates");
+    let axis = RevolveAxis {
+        origin: p(1.2, 0.0),
+        dir: Vec2::new(0.0, -1.0).map(T::from_f64),
+    };
+    let quarter = Revolution::Partial(T::from_f64(-core::f64::consts::FRAC_PI_2));
+    revolve(&profile, axis, quarter, tol())
+        .expect("the elbow revolves")
+        .body
+}
+
+/// `what` shells Ok at `T`, the time printed.
+fn shells<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+    what: &str,
+    body: Body<T>,
+    t: f64,
+) {
+    let start = Instant::now();
+    let r = shell(body, t);
+    let scalar = core::any::type_name::<T>();
+    assert!(r.is_ok(), "{what} shells at {scalar}: {:?}", r.err());
+    println!("[shell4] {what} at {scalar}: {:?}", start.elapsed());
+}
+
+/// **Valid bodies shell at both certifying scalars**: the tube, and the
+/// three whose cavities the engine once could not certify — the corpus
+/// pot's sphere meeting its cylinder at a vertex, the cone frustum's
+/// window, the klein elbow's spiric caps — at `Interval` and at the
+/// `Sym` rebuild.
+#[test]
+fn valid_bodies_shell_at_both_certifying_scalars() {
+    shells("the tube", tube_at::<Sym<Interval>>(0.4, 0.8, 0.6), 0.1);
+    shells("the corpus pot", corpus_pot::<Interval>(), 1.0 / 128.0);
+    shells("the corpus pot", corpus_pot::<Sym<Interval>>(), 1.0 / 128.0);
+    shells("the cone frustum", cone_frustum::<Interval>(), 1.0 / 128.0);
+    shells(
+        "the cone frustum",
+        cone_frustum::<Sym<Interval>>(),
+        1.0 / 128.0,
+    );
+    shells("the klein elbow", klein_elbow::<Interval>(), 0.05);
+    shells("the klein elbow", klein_elbow::<Sym<Interval>>(), 0.05);
+}
