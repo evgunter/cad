@@ -37,6 +37,4 @@ identity).
 
 ## Why P0
 
-It blocks the P0 `work/vseam/session-save-is-two-acts`, which routes
-the viewer's everyday Save through `save_at`. (1) is silent loss of a
-part through that verb.
+(1) silently deletes a part through the library's ordinary save door. It is a live wrong answer, whoever calls the door. As of 2026-10-31 it does not block `work/vseam/session-save-is-two-acts`: the viewer's `docio::save_path` overwrites any target already, so routing through `save_at` loses nothing new. Once this lands, the viewer's Save inherits the refusal.

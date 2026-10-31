@@ -7,7 +7,6 @@ opened: 2026-09-08
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
 priority: P0
 cost: M
-design: true
 ---
 
 ## The hand-off
@@ -80,3 +79,43 @@ reading is wrong.
 ## 2026-10-21 — re-banded
 
 P1 → P0. The viewer's Save still writes through `docio::save_path` (`DocSession::save`, `crates/viewer/src/session.rs:2647`), not `Workspace::save_at`, so Save As… beside the original writes a second file under the same id and the store's scan then refuses `DuplicateId` for every document in that directory. The library half closed (`work/lib/save-a-copy-duplicate-id-bricks-store`); this is the half a user meets, through an everyday verb.
+
+## 2026-10-31 — ruled (Ev, `[ev]` PR 6123): a save file is the document's state
+
+The design is settled. GQ3 and DI4 are re-worded on main, and fork-log
+row 223 records the decision. What the build is:
+
+- **Every viewer save goes through the store of the folder the file
+  lands in.** `Workspace::open(session_dir(target))`, then
+  `save_at(history.doc(), file name)`. The file carries the CURRENT
+  document with an empty edit log. `docio::save_path` is deleted, and so
+  are `History::replayed` and `DocIoError::Replay`. Reopen is
+  `History::new(loaded doc)`: undo ends at an open.
+- **Three verbs.** Save (the session's own path, or the dialog when
+  there is none), Save As… (a chosen path, identity kept; both push
+  `SessionOp::Save(path)`), and a new `SessionOp::SaveAsNewDocument(path)`.
+  The fork is a random id (`pncad::workspace::random_document_id`),
+  `under_identity`, then `save_at` at the chosen name. The whole session
+  history is re-identified under the new id as one operation (DI4).
+  This viewer-side composition is a second spelling of the fork until
+  `work/lib/save-as-new-document-writes-at-a-chosen-name` lands.
+- **The refusal is a choice.** `SaveWouldDuplicateId { existing,
+  requested }` is drawn from its own payload as "Save over
+  <existing>" (`Save(existing)`), "Save <requested> as a new document"
+  (`SaveAsNewDocument(requested)`), or dismiss. A save into a folder
+  whose scan refuses (a corrupt header, an existing duplicate) refuses
+  with the scan's own sentence.
+- The chrome appends `.pncad` to a typed name that lacks it, before
+  the store sees the name.
+- `SessionOp::Save`'s "#1117 bricks the store" paragraph is deleted,
+  and its "#1387 moves the seam" paragraph stays.
+- `an-action-of-several-edits-becomes-several-undos-after-reopen` is
+  dissolved: with no reopened undo there is nothing to group. It closes
+  in the build's PR.
+
+Out of this row: dropping `edits` from the format
+(`work/doctail/the-save-format-drops-its-edit-log`), and the store's
+overwrite of a different document's file
+(`work/lib/save-at-overwrites-a-file-holding-another-document`).
+Neither blocks the build, because `docio::save_path` overwrites any
+target today.
