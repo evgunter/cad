@@ -59,3 +59,12 @@ The extent is honest: the edge's span really is that wide at
   vacuous. That is a new corner argument.
 - A wall row's `v` ends are read off its neighbours' ends (its `v` is
   monotone). This is tolerance-dependent, which is also an ε.
+
+**The line-corner sliver absorbs the same overshoot.** On the klein
+elbow's cavity at `Interval`, the same wide extent clips a line-corner
+cell beside a torus half's parallel to a zero-width rectangle.
+`present_line_corner`'s sliver (SPIRIC, #6159) reads that rectangle
+vacuous; without it the cavity refuses `Departure` at the parallel. A fix
+here changes what reaches that sliver, so re-check that site and its row
+`a_line_corner_cell_reaching_the_line_from_outside_reads_vacuous` when
+this row is fixed.

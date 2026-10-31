@@ -1485,22 +1485,8 @@ fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
     fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
-        let spiric: Vec<(FaceKey, FaceKey)> = hollow
-            .edges()
-            .filter(|(_, e)| {
-                hollow
-                    .get_curve_geom(e.curve)
-                    .and_then(|c| c.certified())
-                    .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
-            })
-            .map(|(_, e)| {
-                let face = |he| {
-                    let l = hollow.get_half_edge(he).unwrap().parent_loop;
-                    hollow.get_loop(l).unwrap().face
-                };
-                let (a, b) = (face(e.he_plus), face(e.he_minus));
-                (a.min(b), a.max(b))
-            })
+        let spiric: Vec<(FaceKey, FaceKey)> = spiric_pairs(&hollow)
+            .into_iter()
             .filter(|(a, b)| faces.contains(a) && faces.contains(b))
             .collect();
         assert_eq!(spiric.len(), 4, "two spiric arcs on each cap");
@@ -1588,6 +1574,165 @@ fn a_torus_cut_off_its_axis_holds_across_its_spiric_caps() {
     ) {
         assert!(report.cornered > 0, "a corner of the torus is read through");
     }
+}
+
+/// The spiric edges of `body`: each one's carrier sampled at 512
+/// points of its span.
+fn spiric_points(body: &Body<f64>) -> Vec<Point3<f64>> {
+    body.edges()
+        .filter_map(|(_, e)| body.get_curve_geom(e.curve).and_then(|c| c.certified()))
+        .filter(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        .flat_map(|c| {
+            let (t0, t1) = c.params();
+            (0..=512).map(move |k| c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 512.0))
+        })
+        .collect()
+}
+
+/// **A folded torus cut reads `Violated` off its spiric edges.** Two
+/// [`torus_cut_off_its_axis`]es in one body, the second moved `0.2`
+/// along `x` and grafted in as a solid of its own: its caps stand inside
+/// the first's tube, so each cap face crosses the first's torus faces.
+/// Faces of the two solids share nothing in M, so the crossing is found
+/// by distance, and the witness is clear of every spiric edge. As for the
+/// folded oblique cut, a fold across a shared spiric is a crossing of two
+/// faces that share the edge, which no kernel operation builds; the
+/// arm's own fold is `injective`'s
+/// `a_torus_folded_back_across_its_caps_plane_is_not_certified`.
+#[test]
+fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
+    fn folded_at<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let cut = torus_cut_off_its_axis::<T>();
+        let mut folded = cut.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.2, 0.25, 0.0)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    let folded = folded_at::<f64>();
+    let report = injective(&folded, None, BUDGET);
+    same_class(
+        "the folded torus cut",
+        &report,
+        &injective(&folded_at::<Interval>(), None, BUDGET),
+    );
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two cuts cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
+    let edges = spiric_points(&folded);
+    assert!(!edges.is_empty(), "the spiric edges are sampled");
+    for p in [w.pa, w.pb] {
+        let off = edges
+            .iter()
+            .map(|q| (*q - p).norm())
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            off >= 0.01,
+            "the witness {p:?} is off every spiric edge: {off}"
+        );
+    }
+}
+
+/// **The one-face torus `(2, 0.5)` about `y`, less the half-space
+/// `x < 0.3`**: the profile one circle from profile angle `0.3`, so the
+/// torus closes on itself across a meridian and a parallel through that
+/// point. The cut splits it into two faces across the meridian, each
+/// holding one whole spiric oval, closed at a vertex on its parallel
+/// seam, beside one cap.
+fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    let phase = 0.3f64;
+    let lp: ProfileLoop<T> = RawLoop::new([(
+        Point2::new(2.0 + 0.5 * phase.cos(), 0.5 * phase.sin()).map(T::from_f64),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(2.0, 0.0).map(T::from_f64),
+            radius: T::from_f64(0.5),
+            sweep: T::from_f64(TAU),
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let ring = finished("the one-face torus", ring, tol());
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
+}
+
+/// **A one-face torus cut certifies its caps by the wall alone**
+/// ([`one_face_torus_cut`]): each cap shares a whole oval with its torus
+/// face, with no corner on it, so each cap–torus pair is certified across
+/// by the plain wall presentation, none through a corner. The body
+/// refuses `Departure` across the meridian the two torus faces share,
+/// pinned typed at both scalars
+/// (`one-face-torus-cut-refuses-across-its-meridian`). Red if the plain
+/// wall presentation is withdrawn.
+#[test]
+fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
+    fn at<T: Scalar>() -> BoundReport<Witness> {
+        let body = one_face_torus_cut::<T>().into_body();
+        let cut = spiric_pairs(&body);
+        let report = injective(&body, None, BUDGET);
+        let BoundVerdict::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::Departure,
+        }) = report.verdict
+        else {
+            panic!("the cut refuses at its meridian: {:?}", report.verdict)
+        };
+        assert_eq!(
+            [kind(&body, a), kind(&body, b)],
+            ["torus", "torus"],
+            "the two torus faces"
+        );
+        let carrier = body
+            .get_curve_geom(body.get_edge(e).unwrap().curve)
+            .and_then(|c| c.certified())
+            .map(|c| c.carrier().kind());
+        assert_eq!(
+            carrier,
+            Some(geom::CurveKind::Circle),
+            "across the meridian"
+        );
+        assert_eq!(cut.len(), 2, "two caps, each on one whole oval");
+        for p in &cut {
+            assert!(
+                report.across.get(p).is_some_and(|&n| n > 0),
+                "a cap and its torus face certified across their oval: {p:?}"
+            );
+        }
+        assert_eq!(report.cornered, 0, "no corner is read");
+        report
+    }
+    same_class("the one-face torus cut", &at::<f64>(), &at::<Interval>());
+}
+
+/// The face pairs of `body` sharing a spiric edge, in key order.
+fn spiric_pairs<T: Real>(body: &Body<T>) -> Vec<(FaceKey, FaceKey)> {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(|c| c.certified())
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        })
+        .map(|(_, e)| {
+            let face = |he| {
+                let l = body.get_half_edge(he).unwrap().parent_loop;
+                body.get_loop(l).unwrap().face
+            };
+            let (a, b) = (face(e.he_plus), face(e.he_minus));
+            (a.min(b), a.max(b))
+        })
+        .collect()
 }
 
 /// **A frustum** of base radius `4/64`, top radius `r1` and height

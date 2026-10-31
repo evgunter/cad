@@ -68,8 +68,9 @@
 //!   it;
 //! - **the cover** ([`covered`]): an edge whose range stops within
 //!   [`few_ulps`] of the cell's side covers it;
-//! - **the join** ([`present_curved`]): a closed edge's periodic chart
-//!   curve is read through its vertex by its closed form, past a span
+//! - **the join** ([`present_curved`], [`present_wall`]): a closed
+//!   edge's periodic chart curve is read through its vertex by its
+//!   closed form, past a span
 //!   that stops short of the period, in the curve's parameter, by the
 //!   rounding of `τ`;
 //! - **the vertex** ([`on_vertex`]): at a corner the two edges' points at
@@ -2894,6 +2895,8 @@ fn present_wall<'a>(
             return Err(Unpresented::Local);
         }
         let along = w.on(Axis::V, at(th.t)) + turns(lift);
+        // The other edge is a parallel ([`reading`]), so its direction
+        // has no `v` part and the curve's rate on `u` multiplies zero.
         let tau = (w.rate(Axis::V, t), w.rate(Axis::U, t));
         let vertex = [held, along];
         match leaves_graph(
@@ -2970,8 +2973,10 @@ pub(crate) const CORNER_VERTEX: &str = "self_intersection_corner_vertex";
 ///
 /// The chart gap is levered into metres by `speed`, the chart's speed
 /// bound over the rectangle: exact on a constant-speed chart (a plane's,
-/// a cylinder's — the two read through a corner), an upper bound
-/// otherwise.
+/// a cylinder's), an upper bound on a torus's. Every chart read through a
+/// corner is orthogonal (`S_u ⊥ S_v`), so the root of the two levered
+/// squares bounds the metres between the two points over the rectangle,
+/// and a gap decided `Zero` on it is within the band.
 fn on_vertex(a: [Interval; 2], b: [Interval; 2], speed: [f64; 2], band: Band) -> bool {
     let off = |i: usize| ((a[i] - b[i]) * at(speed[i])).powi(2);
     let gap = (off(0) + off(1)).sqrt();
@@ -3406,7 +3411,11 @@ fn present_line_corner<'a>(
         band,
     )?;
     // [`present_chart`]'s sliver, on a rectangle the reading above has
-    // proven holds the face's part of the cell.
+    // proven holds the face's part of the cell; read before that, a
+    // reflex corner's thin cell would drop the face beyond the vertex.
+    // The strip is within the band of the shared line, and the points it
+    // drops lie within the band of it or, by the vertex concession, of
+    // the other edge.
     let width = at(across.1 - across.0) * at(speed[held.index()]);
     if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
         return Ok(Presentation::Vacuous);
