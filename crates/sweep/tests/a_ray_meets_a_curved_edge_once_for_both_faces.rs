@@ -468,29 +468,26 @@ fn rays_in_band_of_a_curved_edge_read_it_once() {
     }
 }
 
-/// The tube of [`a_ray_grazing_a_torus_rim_counts_no_crossing_of_the_tube_elsewhere`]:
+/// The tube of [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`]:
 /// radius 0.5 about `r = 2`.
 fn tube() -> Vec<(Point2<f64>, f64)> {
     vec![(Point2::new(1.5, 0.0), 1.0), (Point2::new(2.5, 0.0), 1.0)]
 }
 
-/// **A ray grazing a partial torus's rim counts no crossing of the tube
-/// elsewhere for it** (`work/flush/main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond.md`).
-/// A ray along a rim's tangent, just outside the tube, passes the rim
-/// within the band and crosses the torus's carrier nowhere near it. Past
-/// a half turn it crosses the tube again across the axis, and that root,
-/// held by its face, is the one the met edge's torus half reads nearest.
-/// It is a crossing of its own, and the rim stands for no root of the
-/// tube that far off. The seed's ray (nightly 2026-10-29, at ε 1e-6:
-/// `CAD_FUZZ_SEED=0x003481ce0ba06522`) and its family, three partial
-/// turns, each rim of each, both ways along it, from 8 m and from 5 cm
-/// back, each read whole.
+/// **The nightly's ray grazing a partial torus's rim counts no crossing
+/// of the tube elsewhere for it**
+/// (`work/flush/main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond.md`;
+/// nightly 2026-10-29 at ε 1e-6, `CAD_FUZZ_SEED=0x003481ce0ba06522`). It
+/// passes the 1.5-turn torus's rim within the band, just outside the
+/// tube's bottom, and crosses the carrier nowhere near it. The rim's
+/// torus half read nearest the root where the ray leaves the tube
+/// across the axis, 3.75 back, and counted that exit as half the rim's.
+/// Its family is [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`].
 #[test]
-fn a_ray_grazing_a_torus_rim_counts_no_crossing_of_the_tube_elsewhere() {
+fn the_nightlys_ray_grazing_a_torus_rim_reads_right() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the run's band");
     let k_eps = tol.k() * tol.eps();
-    let clear = 10.0 * k_eps;
     let (body, truth) = revolved(
         "rev torus 1.5pi",
         tube(),
@@ -505,10 +502,31 @@ fn a_ray_grazing_a_torus_rim_counts_no_crossing_of_the_tube_elsewhere() {
         -0.01637304530398302,
         0.9996519205811447,
     );
+    assert_eq!(
+        whole_ray(&body, face, (q, d), (&truth, false), band, 10.0 * k_eps),
+        Ok(()),
+        "at ε {:e}",
+        tol.eps()
+    );
+}
+
+/// **A ray grazing a partial torus's rim counts no crossing of the tube
+/// elsewhere for it**. A ray along a rim's tangent, just outside the
+/// tube and tilted off the cap's plane, passes the rim within the band
+/// and crosses the carrier nowhere near it. Past a half turn it crosses
+/// the tube again across the axis, and that root, held by its face, is
+/// the one the met edge's torus half reads nearest. That root is a
+/// crossing of its own, and the rim stands for no root of the tube that
+/// far off. Three partial turns, each rim of each, both ways along it,
+/// from 8 m and from 5 cm back, each read whole. Before the fix, 72 of
+/// 9024 rays read wrong at each of ε 1e-9, 1e-6 and 1e-12.
+#[test]
+fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let clear = 10.0 * k_eps;
     let mut wrong = Vec::new();
-    if let Err(w) = whole_ray(&body, face, (q, d), (&truth, false), band, clear) {
-        wrong.push(format!("the seed's ray: {w}"));
-    }
     let fractions: Vec<f64> = (1..48).map(|i| f64::from(i) / 48.0).collect();
     let (mut n, mut across) = (0, 0);
     for turn in [1.25, 1.5, 1.75] {
@@ -554,9 +572,8 @@ fn a_ray_grazing_a_torus_rim_counts_no_crossing_of_the_tube_elsewhere() {
     );
     assert!(
         wrong.is_empty(),
-        "at ε {:e}, {} of {} rays read wrong: {wrong:#?}",
+        "at ε {:e}, {} of {n} rays read wrong: {wrong:#?}",
         tol.eps(),
-        wrong.len(),
-        n + 1
+        wrong.len()
     );
 }
