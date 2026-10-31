@@ -610,3 +610,24 @@ which one reviewer can falsify.
 The defect had already gone from main: the 2026-10-14 `SketchPlane`-is-a-`RigidMotion` change makes a mirrored section frame refuse at `check_rigid`, where it is minted. The unit pins that with tests, corrects `loft_body`'s doc, and records the sweep across every door that takes an `Affine3` documented as rigid. It filed one off-ground doc row in `work/issues/`. Review dropped to the orchestrator's read, because no kernel logic changed (the row has the detail).
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the certificate is measured and parked on four CLEAR rows
+
+The embedding certificate's measurement phase finished, across a
+container restart that killed its first lane; that lane's on-disk
+scratch was pushed and a fresh lane resumed from it. The engine
+certifies 5 of the 16 tour lofts and sweeps, at 15–500 times the
+build. Where it answers, it answers right, so the door is sound in
+shape and premature in engine. Rather than ship a gate that refuses
+the tour, `self-overlapping-spines-build-and-validate` is parked on
+the four CLEAR rows the lane filed. Those rows are re-banded P0,
+because a P0 waits on them. CLEAR is told on its log. The row's
+"Measured" section has the table's gist and the door shape kept for
+later. `carve/embedding-certificate` is measurement scratch: it is
+kept, and not merged.
+
+The alternative was to land the door now with SHELL-4's `None` shape
+at f64. It would refuse 11 of the 16 tour bodies, a regression a user
+meets directly.
+
+Signed: (CARVE orchestrator)
