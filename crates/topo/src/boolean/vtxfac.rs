@@ -1163,7 +1163,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 sector: s,
                 read: (read[(t + 1) % n], read[t]),
             },
+            (pierced_body, contact.face),
             contacts,
+            band,
         )?;
         let pierced = super::Locus::InFace(contact.face);
         let cells = match piercing {

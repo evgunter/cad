@@ -1471,16 +1471,73 @@ struct Along {
 /// lying on the partner ends where it records a touch. An edge whose far
 /// end it records none at leaves the partner, the germ is only tangent
 /// to it, and it stays inside the sector's face, as it does under a
-/// bisector or with no bound On. Called by every site kind, before that
-/// site's surgery moves the orbit the bounds are read from.
+/// bisector or with no bound On. A closed edge's far end is the site
+/// itself, whose record is the site's own contact, so whether it lies on
+/// `partner`, the face the germ runs in on the other operand, is read
+/// from its midpoint instead ([`closed_on_partner`]). Called by every
+/// site kind, before that site's surgery moves the orbit the bounds are
+/// read from.
 pub(super) fn germ_locus<T: Decide>(
     side: GermSide<'_, T>,
+    partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
+    band: Band,
 ) -> Result<super::Locus, BooleanError> {
-    let in_face = super::Locus::InFace(side.sector.face);
-    Ok(match along(side)? {
-        Some(e) if touch(side, e.far, contacts)? != Touch::Apart => super::Locus::OnEdge(e.edge),
-        _ => in_face,
+    let Some(e) = along(side)? else {
+        return Ok(super::Locus::InFace(side.sector.face));
+    };
+    let on = match closed_on_partner(side, e, partner, band)? {
+        Some(on) => on,
+        None => touch(side, e.far, contacts)? != Touch::Apart,
+    };
+    Ok(if on {
+        super::Locus::OnEdge(e.edge)
+    } else {
+        super::Locus::InFace(side.sector.face)
+    })
+}
+
+/// The name [`closed_on_partner`] decides a closed edge's midpoint off a
+/// curved face's carrier under.
+pub(super) const CLOSED_ON_CARRIER: &str = "bool_germ_closed_on_carrier";
+
+/// **Whether closed edge `e` of `side` lies on the partner's face**
+/// `face` of `body`, read at its midpoint, where its two-arc form's far
+/// vertex would be: on a planar face's plane ([`on_planar_face`]), or
+/// within the band of a curved face's carrier by its linearized residual
+/// ([`geom_brep::implicit_residual`], [`CLOSED_ON_CARRIER`]). The sweep
+/// splits an edge at every crossing of the partner, so the midpoint
+/// speaks for the whole edge: on the carrier, the edge runs in the face
+/// from the site; off it, the edge only touches the germ there. `None`
+/// where `e` is not closed at the site, or the carrier has no implicit
+/// form (a spline), whose edge keeps the record's reading.
+fn closed_on_partner<T: Decide>(
+    side: GermSide<'_, T>,
+    e: Along,
+    (body, face): (&Body<T>, FaceKey),
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    if !site_of(side.body, e.far)?.contains(&side.site) {
+        return Ok(None);
+    }
+    let p = germ_curve(side.body, e.edge)?.mid_point();
+    let (_, surface, _) = crate::readback::carrier_surface(body, face).map_err(|_| {
+        BooleanError::ClassificationInvariant {
+            what: "a germ's partner face carrier does not read",
+        }
+    })?;
+    Ok(match surface {
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Plane { .. } => {
+            Some(on_planar_face(body, face, p, band)? != PlaneRead::OffPlane)
+        }
+        _ => {
+            let off = Margin::of(geom_brep::implicit_residual(surface, p));
+            let sign = decide(CLOSED_ON_CARRIER, off, band).map_err(|diag| {
+                BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag)
+            })?;
+            Some(sign == Sign::Zero)
+        }
     })
 }
 
@@ -1511,7 +1568,10 @@ pub(super) fn germ_loci<T: Decide>(
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
-        return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
+        return Ok((
+            germ_locus(a, (b.body, b.sector.face), contacts, band)?,
+            germ_locus(b, (a.body, a.sector.face), contacts, band)?,
+        ));
     };
     let (ca, cb) = (closed_reach(a, ea, b, band)?, closed_reach(b, eb, a, band)?);
     let (ta, tb) = match (ca, cb) {

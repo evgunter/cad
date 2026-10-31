@@ -115,7 +115,10 @@
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
 //! split or the boolean, and in the boolean also the partner's planar
 //! face, whose interior that edge pierces
-//! ([`ChordJoiner::join_lone_ring`]); and in the boolean a closed edge
+//! ([`ChordJoiner::join_lone_ring`]) or whose boundary it meets at a
+//! vertex, where the null edge hangs from that vertex into the face as a
+//! strut ([`strut_half`], [`ChordJoiner::place_strut`]); and in the
+//! boolean a closed edge
 //! (one vertex, both its ends) lying in the other operand, which copies
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
 //! section conic in the partner's planar or spherical face. There the
@@ -332,8 +335,9 @@ pub enum SplitJoinError {
     /// A closed section loop has ONE site that the join does not close
     /// a loop at: the one vertex on the loop holds both its ends, and
     /// the join closes a loop on itself only at a wrap edge crossing a
-    /// planar face, or along a closed edge lying in a planar or a
-    /// spherical face or along another closed edge
+    /// planar face or meeting a vertex of its boundary, or along a closed
+    /// edge lying in a planar or a spherical face or along another closed
+    /// edge
     /// (`boolean::join::one_site_segments`). Any other is refused typed,
     /// before the loose ends are counted.
     SingleSiteSectionLoop {
@@ -705,9 +709,9 @@ impl core::fmt::Display for SplitJoinError {
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
                 "{count} section loop(s) close through a single vertex where neither a wrap \
-                 edge crosses a planar face nor a closed edge lies in a planar or spherical \
-                 face or along another closed edge, and such a loop joined at one site is not \
-                 built. {}",
+                 edge crosses a planar face or meets a vertex of its boundary nor a closed \
+                 edge lies in a planar or spherical face or along another closed edge, and \
+                 such a loop joined at one site is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
@@ -4883,6 +4887,30 @@ fn second_chord<T: Decide>(
     }))
 }
 
+/// **A null strut's two chords** ([`JoinPlan::of`]): where the joined
+/// halves are one null edge hanging from a vertex of a ring into the
+/// face, exactly one of the two `mef`s walls off an empty run (`he1 =
+/// he2`), the one at the strut's free end. Each `mef` gives the run from
+/// its `he1` up to its `he2` to the new face with the chord's minus half;
+/// the empty one walls off the chord's minus half alone and keeps its
+/// plus half with the strut, the other gives its minus half to the
+/// strut. So the face left holding the strut, which bounds no area,
+/// holds the two chords' halves of opposite signs, and both chords run
+/// one way. That way is read at the ring's vertex, the strut's only end
+/// with a sector: from the strut's half leaving it, which leaves the
+/// corner after the ring half arriving there, as the chord's plus half
+/// does: the half the other `mef` runs from. `None` for any other pair
+/// of chords, which keep their own halves.
+fn strut_half(first: Option<&ChordPlan>, second: Option<&ChordPlan>) -> Option<HalfEdgeKey> {
+    let empty = |plan: &ChordPlan| matches!(plan.site, ChordSite::Mef(MefSite::Chords { he1, he2 }) if he1 == he2);
+    let (first, second) = (first?, second?);
+    match (empty(first), empty(second)) {
+        (true, false) => Some(second.from),
+        (false, true) => Some(first.from),
+        _ => None,
+    }
+}
+
 /// **A join's two chords, planned once** — each one's site, end
 /// vertices and the half its curve runs from, or `None` where the
 /// adjacency skip drops it — read by everything that curves or mints
@@ -4908,6 +4936,10 @@ pub(crate) struct JoinPlan {
     /// ([`closed_edge_spec`]), and a ring that holds nothing but it and
     /// the null edge joins as a lone ring ([`lone_ring`]).
     closed: Option<EdgeKey>,
+    /// Whether the halves are a null strut's ([`strut_half`]): one of the
+    /// two chords walls off a face of its own, placed after the join
+    /// ([`ChordJoiner::place_strut`]).
+    strut: bool,
 }
 
 impl JoinPlan {
@@ -4939,13 +4971,22 @@ impl JoinPlan {
             None => None,
         };
         let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
+        let mut first = first_chord(body, halves, face, &shape, &mut skip)?;
+        let mut second = second_chord(body, halves, &mut skip)?;
+        let strut = strut_half(first.as_ref(), second.as_ref());
+        if let Some(from) = strut {
+            for chord in [&mut first, &mut second].into_iter().flatten() {
+                chord.from = from;
+            }
+        }
         Ok(Self {
             halves,
             face,
-            first: first_chord(body, halves, face, &shape, &mut skip)?,
-            second: second_chord(body, halves, &mut skip)?,
+            first,
+            second,
             locus,
             closed,
+            strut: strut.is_some(),
         })
     }
 
@@ -5249,6 +5290,7 @@ impl ChordJoiner {
         let (h2, oldf) = (plan.halves.1, plan.face);
         let mut minted = Vec::new();
         let mut newf = None;
+        let mut second = None;
         if let Some(chord) = &plan.first {
             let spec = curve.running_from(chord.from, oldf)?;
             let refused = curve.refusal(body, oldf, chord.ends, spec.as_ref(), self.band);
@@ -5316,6 +5358,14 @@ impl ChordJoiner {
                 .push((created.face, owner))
                 .map_err(SplitJoinError::LineageRow)?;
             minted.push(created.edge);
+            second = Some(created.face);
+        }
+        if plan.strut
+            && curve.spec.is_some()
+            && let (Some((first, _)), Some(second), &[e1, e2]) = (newf, second, &minted[..])
+            && self.place_strut(body, plan, [(first, e1), (second, e2)], tol)?
+        {
+            return Ok(minted);
         }
         // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror
         // site): whenever the FIRST mef divided a face that still owns
@@ -5337,6 +5387,83 @@ impl ChordJoiner {
             self.rehome_rings(body, oldf, newf, remainder)?;
         }
         Ok(minted)
+    }
+
+    /// **Where a null strut's chords leave the faces** ([`Self::join`]):
+    /// `chords` the two `(new face, chord)` of the join in order. One
+    /// chord walls off a face bounded by it alone, and the other's plus
+    /// half stays in the loop of `oldf` that holds the strut's vertex.
+    /// Where the lone chord's region holds `oldf`'s outer loop
+    /// ([`RimSide::holds_outer`]), the conic encloses the strut's vertex
+    /// with the ring it lies on, so the lone face is the hole the conic
+    /// cuts in `oldf` and becomes its ring (`kfmrh_minting`), and that
+    /// ring bounds the region the conic encloses, promoted to a face of
+    /// its own (`mfkrh`), as in a lone ring ([`Self::join_lone_ring`]).
+    /// Otherwise the lone face is the region the conic encloses. The
+    /// enclosed region takes the rings of `oldf` it holds. `false`, with
+    /// nothing done, on a face no whole conic is sided on: the join's
+    /// own re-homing places its rings, as it does a placeholder's
+    /// ([`Self::join`] asks only of a chord with a curve).
+    fn place_strut<T: Decide + crate::props::AtRestPolicy>(
+        &mut self,
+        body: &mut Body<T>,
+        plan: &JoinPlan,
+        chords: [(FaceKey, EdgeKey); 2],
+        tol: Tol,
+    ) -> Result<bool, SplitJoinError> {
+        let oldf = plan.face;
+        let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
+        let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let (outer, sense) = (old.outer, old.sense);
+        let surface = body
+            .get_surface(old.surface)
+            .ok_or_else(|| corrupt_face(oldf))?;
+        let Some(side) = RimSide::of(surface) else {
+            return Ok(false);
+        };
+        let lone = |face: FaceKey| -> Result<bool, SplitJoinError> {
+            Ok(outer_cycle(body, face)?.is_some_and(|cycle| cycle.len() == 1))
+        };
+        let [(f1, e1), (f2, e2)] = chords;
+        let (lone, kept) = match (lone(f1)?, lone(f2)?) {
+            (true, false) => (f1, e2),
+            (false, true) => (f2, e1),
+            _ => {
+                return Err(invariant(
+                    "a null strut's join walled off other than one lone conic",
+                ));
+            }
+        };
+        let plus = body
+            .get_edge(kept)
+            .ok_or_else(|| corrupt_edge(kept))?
+            .he_plus;
+        let held = body
+            .get_half_edge(plus)
+            .ok_or_else(|| corrupt_he(plus))?
+            .parent_loop;
+        if !side.holds_outer(body, oldf, outer, lone, self.band)? {
+            self.rehome_rings(body, oldf, lone, held)?;
+            return Ok(true);
+        }
+        if held == outer {
+            return Err(invariant(
+                "a null strut's conic encloses the outer loop its vertex lies on",
+            ));
+        }
+        let cut = body.kfmrh_minting(oldf, lone, tol)?.ring;
+        self.slivers.remove(lone);
+        self.absorbed
+            .push((lone, oldf))
+            .map_err(SplitJoinError::LineageRow)?;
+        let enclosed = body.mfkrh(held, FaceSurface::Inherit)?.face;
+        body.set_face_sense(enclosed, sense)?;
+        self.slivers.insert(enclosed, ());
+        self.fragments
+            .push((enclosed, oldf))
+            .map_err(SplitJoinError::LineageRow)?;
+        self.rehome_rings(body, oldf, enclosed, cut)?;
+        Ok(true)
     }
 
     /// [`Self::join`] of a one-site section loop whose site is a pierce
