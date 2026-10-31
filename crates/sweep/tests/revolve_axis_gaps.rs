@@ -686,7 +686,7 @@ fn a_kink_in_a_pocket_has_the_outer_loops_reading() {
             Ok(t) => t,
             // The kink's collapsed run fails attachment at some ε, on a
             // single-run shell as well:
-            // work/carve/a-near-collinear-kink-on-a-full-revolve-refuses-as-a-kernel-defect.md.
+            // work/lathe/a-near-collinear-kink-on-a-full-revolve-refuses-as-a-kernel-defect.md.
             Err(e) if e.to_string().contains("geometry attachment gate") => {
                 println!("SKIPPED at ε {eps:e}: {what}: the filed kink attachment defect: {e}");
                 continue;
