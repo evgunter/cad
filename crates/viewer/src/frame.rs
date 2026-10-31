@@ -783,6 +783,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -2152,7 +2153,9 @@ pub fn tool_notice(
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
-            | BlendEvent::TargetHasNoValue { .. },
+            | BlendEvent::TargetHasNoValue { .. }
+            | BlendEvent::Unindexed { .. }
+            | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.said(landed), retold)

@@ -24,13 +24,13 @@ torus wall and gets past them. The union then refuses
 `face` is a NURBS wall of `lily_leaf_a`. It does so at ε 1e-9 and 1e-6;
 at 1e-12 the stem's declared frontier stands the walls down first.
 
-The site, traced at 1e-9, is `boolean::vtxfac::classify_vertex_on_face`.
-A vertex of the stem pierces the leaf's NURBS wall. The pass reads the
-pierced face's oriented datum at the point through
-`face_normal::face_outward_normal_at`, which answers `Ok(None)` for a
-`Nurbs` or `Approx` surface ("no implicit form"). The pass maps that
-answer to the C5 typed refusal. At 1e-6 the refusal is the same value;
-its site was not traced separately.
+The site, traced at both ε, is `boolean::vtxfac::classify_vertex_on_face`.
+The stem's vertex `5v1` pierces the first of the leaf's two NURBS walls
+(`3v1`), at (−0.0611, 0, 0.1045). The same vertex, wall and point are
+reached at 1e-9 and at 1e-6. The pass reads the pierced face's oriented
+datum at the point through `face_normal::face_outward_normal_at`, which
+answers `Ok(None)` for a `Nurbs` or `Approx` surface ("no implicit
+form"). The pass maps that answer to the C5 typed refusal.
 
 ## What it needs
 

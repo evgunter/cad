@@ -2,12 +2,13 @@
 id: session-save-is-two-acts
 kind: issue
 title: SessionOp::Save routes through the workspace save door; a save-as-new-document op spells the fork
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-10-31
+pr: 6135
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
 priority: P0
 cost: M
-design: true
 ---
 
 ## The hand-off
@@ -80,3 +81,81 @@ reading is wrong.
 ## 2026-10-21 — re-banded
 
 P1 → P0. The viewer's Save still writes through `docio::save_path` (`DocSession::save`, `crates/viewer/src/session.rs:2647`), not `Workspace::save_at`, so Save As… beside the original writes a second file under the same id and the store's scan then refuses `DuplicateId` for every document in that directory. The library half closed (`work/lib/save-a-copy-duplicate-id-bricks-store`); this is the half a user meets, through an everyday verb.
+
+## 2026-10-31 — ruled (Ev, `[ev]` PR 6123): a save file is the document's state
+
+The design is settled. GQ3 and DI4 are re-worded on main, and fork-log
+row 223 records the decision. What the build is:
+
+- **Every viewer save goes through the store of the folder the file
+  lands in.** `Workspace::open(session_dir(target))`, then
+  `save_at(history.doc(), file name)`. The file carries the CURRENT
+  document with an empty edit log. `docio::save_path` is deleted, and so
+  are `History::replayed` and `DocIoError::Replay`. Reopen is
+  `History::new(loaded doc)`: undo ends at an open.
+- **Three verbs.** Save (the session's own path, or the dialog when
+  there is none), Save As… (a chosen path, identity kept; both push
+  `SessionOp::Save(path)`), and a new `SessionOp::SaveAsNewDocument(path)`.
+  The fork is a random id (`pncad::workspace::random_document_id`),
+  `under_identity`, then `save_at` at the chosen name. The whole session
+  history is re-identified under the new id as one operation (DI4).
+  This viewer-side composition is a second spelling of the fork until
+  `work/lib/save-as-new-document-writes-at-a-chosen-name` lands.
+- **The refusal is a choice.** `SaveWouldDuplicateId { existing,
+  requested }` is drawn from its own payload as "Save over
+  <existing>" (`Save(existing)`), "Save <requested> as a new document"
+  (`SaveAsNewDocument(requested)`), or dismiss. A save into a folder
+  whose scan refuses (a corrupt header, an existing duplicate) refuses
+  with the scan's own sentence.
+- The chrome appends `.pncad` to a typed name that lacks it, before
+  the store sees the name.
+- `SessionOp::Save`'s "#1117 bricks the store" paragraph is deleted,
+  and its "#1387 moves the seam" paragraph stays.
+- `an-action-of-several-edits-becomes-several-undos-after-reopen` is
+  dissolved: with no reopened undo there is nothing to group. It closes
+  in the build's PR.
+
+Out of this row: dropping `edits` from the format
+(`work/doctail/the-save-format-drops-its-edit-log`), and the store's
+overwrite of a different document's file
+(`work/lib/save-at-overwrites-a-file-holding-another-document`).
+Neither blocks the build, because `docio::save_path` overwrites any
+target today.
+
+## 2026-10-31 — closed (PR 6135)
+
+Built to the ruling above. `SessionOp::Save` and the new
+`SessionOp::SaveAsNewDocument` both write through `docio::save`, which
+is `Workspace::open(docio::file_dir(path))` then `save_at` with the
+committed document and an empty log. `docio::save_path`,
+`History::replayed`, `History::path_edits`, `ReplayError` and
+`DocIoError::{Replay, Write}` are deleted, and `docio::open` answers
+`History::new(loaded.doc)`. The fork mints `random_document_id`, writes
+the forked document first, and only then re-identifies every history
+state (`History::under_identity`). A refused write leaves the session
+as it was. A refusal arrives as `Refusal::Workspace`.
+`Refusal::save_choice` reads `SaveWouldDuplicateId`'s `existing` and
+`requested` into a `SaveChoice`, which the toolbar draws as "Save over
+…", "Save … as a new document" and "Dismiss". The toolbar gains a plain
+Save, and the save dialog appends `.pncad` to a typed name that lacks
+it. The fork is refused while a value gesture is open, and is allowed
+during a free move. The doors are measured in `crates/viewer/tests/doc_io.rs`.
+
+Filed from the sweep: `work/issues/the-tour-gallery-writes-its-documents-around-the-store`,
+plus a dated note on `work/doctail/the-save-format-drops-its-edit-log`
+(the die corpus still writes a non-empty log).
+
+## 2026-10-31 — review fix pass (PR 6135)
+
+The review found that a fork, and the refusal's fork button, could
+overwrite a file holding another document. The fix is at the source, on
+LIB's ground, authorised by the VSEAM orchestrator:
+
+- `Workspace::save_at` refuses `SaveWouldReplaceDocument`, and checks
+  it before the duplicate-id check, so a choice is offered only when
+  both of its saves would land.
+- `Workspace::save_as_new_document` takes a `target`. The viewer's fork
+  calls it, so the viewer-side composition is gone
+  (`work/lib/save-as-new-document-writes-at-a-chosen-name` closed).
+
+The toolbar choice now stays up through a refusal that answers nothing.

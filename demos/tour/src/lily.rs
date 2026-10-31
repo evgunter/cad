@@ -2456,13 +2456,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    The union's sweep reads the leaf's spline seams against the
     //    tube's torus wall through the curve × face table's ring
     //    composite, and gets past them. A vertex of the stem, operand A,
-    //    pierces a NURBS wall of the leaf, and the vertex-on-face pass
-    //    reads the wall's outward normal at the chart point the sweep
-    //    placed the pierce at. The pierce crosses the wall, so the pass
-    //    mints its ring there, and that refuses: the ring vertex's chord
-    //    strut is a new edge in a complete spline face, whose row the
-    //    Euler operators cannot derive (`PcurveMint { SplineChart }`), at
-    //    1e-9 and 1e-6 alike
+    //    pierces the first of the leaf's two NURBS walls, at (−0.061, 0,
+    //    0.105), and the vertex-on-face pass reads the wall's outward
+    //    normal at the chart point the sweep placed the pierce at. The
+    //    pierce crosses the wall, so the pass mints its ring there, and
+    //    that refuses: the ring vertex's chord strut is a new edge in a
+    //    complete spline face, whose row the Euler operators cannot derive
+    //    (`PcurveMint { SplineChart }`). The same wall at 1e-9 and 1e-6
     //    (`work/splice/a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`).
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
@@ -2473,12 +2473,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
+            let first_wall = query::all_faces(leaf_a)
+                .into_iter()
+                .find(|&f| query::face_surface_kind(leaf_a, f) == Some(SurfaceKind::Nurbs));
             matches!(
                 e,
                 BooleanError::Euler(EulerOpError::PcurveMint {
                     face,
                     refusal: SiteRowRefusal::SplineChart,
-                }) if query::face_surface_kind(leaf_a, *face) == Some(SurfaceKind::Nurbs)
+                }) if Some(*face) == first_wall
             )
         },
         "join the long leaf to the stem it grows from",

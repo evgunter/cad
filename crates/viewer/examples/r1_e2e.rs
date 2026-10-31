@@ -131,14 +131,13 @@ fn main() {
     session.perform(SessionOp::Undo);
     session.perform(SessionOp::Redo);
     pump_until_idle(&mut session, "after undo/redo");
-    println!(
-        "   history states: {}, path edits: {}",
-        session.history().len(),
-        session.history().path_edits().len()
-    );
+    println!("   history states: {}", session.history().len());
 
-    // Save the branch's path and re-open it.
-    let out = std::env::temp_dir().join("r1-e2e-ring-branch.pncad");
+    // Save the branch's current document and re-open it: a file is the
+    // document's state, so the reopened history has nothing to undo.
+    let scratch = std::env::temp_dir().join(format!("r1-e2e-{}", std::process::id()));
+    std::fs::create_dir_all(&scratch).expect("a scratch folder");
+    let out = scratch.join("ring-branch.pncad");
     assert!(
         session
             .perform(SessionOp::Save(out.clone()))
@@ -146,15 +145,12 @@ fn main() {
             .is_none()
     );
     let reopened = docio::open(&out, tol).expect("the saved branch opens");
-    assert_eq!(
-        reopened.path_edits().len(),
-        2,
-        "the current path (edit + sibling), not the abandoned branch"
+    assert!(
+        reopened.doc().bit_eq(session.committed_doc()),
+        "the current document, not the abandoned branch"
     );
-    println!(
-        "   saved + reopened: {} path edits",
-        reopened.path_edits().len()
-    );
+    assert!(!reopened.can_undo(), "undo ends at an open");
+    println!("   saved + reopened: the current document, nothing to undo");
 
     // -- 2. The long evaluation: diefillet on the threaded seam, with
     // a real mid-flight cancel. -------------------------------------
@@ -290,7 +286,7 @@ fn main() {
     let mut session = DocSession::inline(history.doc().clone(), tol);
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
-    let out = std::env::temp_dir().join("r1-e2e-checks.pncad");
+    let out = scratch.join("checks.pncad");
     assert!(
         session
             .perform(SessionOp::Save(out.clone()))

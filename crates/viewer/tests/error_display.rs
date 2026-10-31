@@ -26,12 +26,11 @@
 
 use bvh::Aabb;
 use editor_core::{HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity};
-use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
+use pncad::document::{RecipeNodeId, Said, Speaker};
 use pncad::geom_core::Point3;
 use pncad::mesh::TessellateError;
 use test_utils::refusal::tagged;
 use viewer::camera::{Camera, CameraError, CameraOp, CameraOpError};
-use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
 use viewer::pickindex::{
     EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
@@ -477,28 +476,6 @@ fn edge_names_refused_forwards_its_first_refusal() {
     prose(&said, "EdgeNamesRefused");
 }
 
-/// The replay forwards the refusal's problem and ends as a damaged
-/// file or a defect does: nobody is making the logged edit, so the edit
-/// door's recourse is not the reader's.
-#[test]
-fn replay_error_names_the_log_position_and_forwards_the_problem() {
-    let inner = EditError::UnknownNode {
-        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
-    };
-    let outer = ReplayError::Refused {
-        index: 3,
-        error: inner.clone(),
-    }
-    .to_string();
-    assert!(outer.contains('3'), "{outer}");
-    assert!(outer.contains(&inner.problem().to_string()), "{outer}");
-    assert!(
-        outer.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING) && !outer.contains("Recourse:"),
-        "{outer}"
-    );
-    prose(&outer, "Refused");
-}
-
 /// The indeterminate-resolution status line forwards the cause's own
 /// words and contributes only the noun it is talking about.
 #[cfg(feature = "app")]
@@ -539,6 +516,12 @@ fn startup_error_forwards_every_payload_arm() {
         doc.contains(&SceneDocError::NoNodeMinted.to_string()),
         "{doc}"
     );
+
+    let entropy = || pncad::workspace::WorkspaceError::RandomnessUnavailable {
+        message: "the entropy source is closed".to_owned(),
+    };
+    let id = StartupError::Identity(entropy()).to_string();
+    assert!(id.contains(&entropy().to_string()), "{id}");
 
     prose(
         &StartupError::NoWgpuRenderState.to_string(),

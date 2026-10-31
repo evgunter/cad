@@ -89,12 +89,8 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let rho = match surface {
-        geom::Surface::Plane { .. } => None,
-        _ => match reach(surface) {
-            Some(rho) => Some(rho),
-            None => return Ok(false),
-        },
+    let Some(rho) = reach(surface) else {
+        return Ok(false);
     };
     let speed = geom::carrier_speed::speed_range(carrier).1;
     let bend = geom::carrier_speed::curvature_hi(carrier);
@@ -116,22 +112,30 @@ pub(super) fn off_face<T: Decide + Bounds>(
     Ok(true)
 }
 
-/// The carrier's reach, ρ in the module docs; `None` for a kind with no
-/// distance here, and for the plane, whose reach is unbounded.
-pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
+/// A carrier's reach, ρ in the module docs.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Reach<T> {
+    /// The distance to the medial axis.
+    Bounded(T),
+    /// A plane's: it has no medial axis, and its level sets do not bend.
+    Unbounded,
+}
+
+/// The carrier's reach; `None` for a kind with no distance here.
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<Reach<T>> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
-            Some(radius)
+            Some(Reach::Bounded(radius))
         }
         geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Some(minor_radius.min(major_radius - minor_radius)),
-        geom::Surface::Plane { .. }
-        | geom::Surface::Cone { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
+        } => Some(Reach::Bounded(
+            minor_radius.min(major_radius - minor_radius),
+        )),
+        geom::Surface::Plane { .. } => Some(Reach::Unbounded),
+        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -198,12 +202,12 @@ struct Unlocalized;
 
 /// The parameter runs of the span that may meet the carrier, in order
 /// (module docs), the curve's speed and curvature bounds and the
-/// carrier's reach (`None` unbounded) given; `None` past the budgets.
+/// carrier's reach given; `None` past the budgets.
 fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     (speed, bend): (SupSpeed<T>, T),
-    rho: Option<T>,
+    rho: Reach<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
@@ -212,9 +216,9 @@ fn clusters<T: Decide + Bounds>(
     // curvature. A bend with no finite bound sets no floor, and the walk
     // runs to its budget.
     let parting = match rho {
-        Some(rho) => rho,
-        None if geom_core::is_finite_length(bend) => T::one() / bend,
-        None => T::zero(),
+        Reach::Bounded(rho) => rho,
+        Reach::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
+        Reach::Unbounded => T::zero(),
     };
     let floor = geom_core::bisect::tangency_floor(parting, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
@@ -238,8 +242,8 @@ fn clusters<T: Decide + Bounds>(
         // first's. A plane's level sets do not bend.
         let curl = match rho {
             _ if !geom_core::is_finite_length(bend) => None,
-            None => Some(bend),
-            Some(rho) => {
+            Reach::Unbounded => Some(bend),
+            Reach::Bounded(rho) => {
                 let axis_gap = rho - dist.abs() - ell;
                 matches!(
                     decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band),
@@ -290,10 +294,10 @@ fn ball_off_face<T: Decide + Bounds>(
     face: FaceKey,
     foot: Point3<T>,
     radius: T,
-    rho: Option<T>,
+    rho: Reach<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if let Some(rho) = rho
+    if let Reach::Bounded(rho) = rho
         && !matches!(
             decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
             Ok(Sign::Positive)

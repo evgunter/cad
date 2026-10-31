@@ -3,8 +3,8 @@
 //! crossing, three crossings (the first and third of one sense), a
 //! tangency, a crossing on a knot, a meeting at a crease, an in-band
 //! apex and dip there, a crossing within the band of one and one away
-//! from it, an end on the surface, a rational arc, and a frame off
-//! orthonormal.
+//! from it, an end on the surface, a rational arc, a frame off
+//! orthonormal, a degenerate frame, and the divisor's pointwise factor.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -389,9 +389,8 @@ fn a_frame_off_orthonormal_reads_the_surface_it_names() {
 }
 
 /// **The metering divisor is a factor of the form at each point**, not a
-/// bound on its gradient along a path to the surface: `|f(p)|` is at
-/// most `d(p)` times the divisor at `p` itself, `d` the distance from the
-/// surface. So the net's hull, which holds every point of the span, is
+/// bound along a path to the surface: `|f(p)|` is at most `d(p)` times
+/// the divisor at `p` itself, `d` the distance from the form's zero set. So the net's hull, which holds every point of the span, is
 /// the region the divisor is read over, and a path from a point to its
 /// foot that leaves the hull charges nothing. Read on a grid of points
 /// in and well past each surface's band, against the closed-form
@@ -434,7 +433,7 @@ fn the_divisor_is_a_pointwise_factor_of_the_form() {
                 let (near, far) = ((rho - big).hypot(z), (rho + big).hypot(z));
                 (
                     (near * near - small * small) * (far * far - small * small),
-                    (near - small).abs(),
+                    (near - small).abs().min((far - small).abs()),
                 )
             },
         ),
@@ -453,4 +452,22 @@ fn the_divisor_is_a_pointwise_factor_of_the_form() {
             }
         }
     }
+}
+
+/// **A face whose frame describes no chart is refused as degenerate**,
+/// not as an arm that could not form: a cylinder whose reference
+/// direction runs along its axis has no radial plane to read.
+#[test]
+fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
+    let along = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_z(),
+    };
+    let got = read(&cubic([-1.0, -0.5, 0.5, 1.0]), &along);
+    assert!(
+        matches!(got, Err(CompositeRefusal::FaceDegenerate(_))),
+        "{got:?}"
+    );
 }

@@ -1009,7 +1009,8 @@ class IdentityError(PncadError):
     `variant` is the workspace refusal's own tag:
     `randomness_unavailable`, `io`, `duplicate_id`, `header`,
     `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
-    `save_would_duplicate_id`, `save_target_not_in_store` or `update`.
+    `save_would_duplicate_id`, `save_would_replace_document`,
+    `save_target_not_in_store` or `update`.
     Only `randomness_unavailable` is reachable through this door today
     — minting an identity has one failure mode, the OS entropy source
     refusing — but the tag names the refusal that actually occurred, so
@@ -1024,8 +1025,8 @@ class WorkspaceError(PncadError):
 
     `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
     `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
-    `save_would_duplicate_id`, `save_target_not_in_store`,
-    `randomness_unavailable` or `update`.
+    `save_would_duplicate_id`, `save_would_replace_document`,
+    `save_target_not_in_store`, `randomness_unavailable` or `update`.
 
     The arm's payload rides as attributes, every one present on every
     arm and `None` where that arm does not carry it — so error
@@ -4356,6 +4357,11 @@ class Workspace:
         document in it. To write the content as a SECOND part, use
         `save_as_new_document`.
 
+        A `target` that is the file of a DIFFERENT document refuses too
+        (`save_would_replace_document`, with `id` the document that
+        file holds and `path` the file): the write would delete that
+        part from the store.
+
         Otherwise the scan says which act this is: at the id's own
         scanned path it is a resave; for an unclaimed id it is a
         create at the caller's name, which `create` cannot spell
@@ -4369,9 +4375,10 @@ class Workspace:
 
         Raises WorkspaceError, typed."""
 
-    def save_as_new_document(self, doc: Doc) -> tuple[str, str]:
+    def save_as_new_document(self, doc: Doc, target: str) -> tuple[str, str]:
         """Save `doc` AS A NEW DOCUMENT — the same content under a
-        fresh random identity, at `{newid}.pncad` — and answer
+        fresh random identity, at `target` (a save file of this store,
+        read as `save_at` reads it) — and answer
         `(new id, path)`. The SECOND of the two acts a save is
         (ASSEMBLY-DESIGN A4): an explicit fork.
 

@@ -405,23 +405,27 @@ fn tangent_wall() -> (Body<f64>, FaceKey) {
     wall(1.0, 1.0, 1.2, (-0.3, 1.0))
 }
 
-/// **A spline touching the wall inside the face escalates** when no
-/// declaration covers it: the arm reads the touch in the band's gap, where
-/// it cannot tell it from two crossings, and the face holds it.
+/// **A spline touching the wall inside the face escalates, located at
+/// the edge and the face**, when no declaration covers it: the arm reads
+/// the touch in the band's gap, where it cannot tell it from two
+/// crossings, and the face holds it.
 #[test]
 fn an_uncovered_spline_touching_a_wall_escalates() {
     assert!(
         bernstein(TANGENT, 0.5).z.abs() < 1e-15,
         "the oracle touches at (0, 1, 0)"
     );
-    let (a, _, _) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
+    let (a, _, edge) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
     let (b, _) = tangent_wall();
     match sweep_a(&a, &b) {
-        Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
-            diag.predicate,
-            Some("spline_composite_past_the_band"),
-            "the composite's reading escalates"
-        ),
+        Err(BooleanError::CurvedPierceEscalated { edge: e, diag, .. }) => {
+            assert_eq!(e, edge, "located at the spline");
+            assert_eq!(
+                diag.predicate,
+                Some("spline_composite_past_the_band"),
+                "the composite's reading escalates"
+            );
+        }
         other => panic!("the spline touches the wall: {other:?}"),
     }
 }
@@ -450,32 +454,6 @@ fn a_spline_touching_a_wall_below_the_face_is_no_event() {
     assert!(got.is_empty(), "nothing on the wall: {got:?}");
 }
 
-/// **Under the one-sided cover the same touch is deferred to the
-/// fragments.** The sheet's plane `y = 1` lies outside the cylinder,
-/// which the cover certifies: the spline, with both ends off the wall on
-/// that side, touches it, if at all, strictly inside, and the sweep goes
-/// on.
-#[test]
-fn a_covered_spline_touching_a_wall_is_deferred() {
-    let (a, sheet, _) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
-    let (b, face) = tangent_wall();
-    let mut declared = GluedPairs::<f64>::default();
-    for parent in a.faces().map(|(k, _)| k) {
-        for target in b.faces().map(|(k, _)| k) {
-            declared.one_sided.insert(
-                (
-                    super::super::tagged(Operand::A, parent),
-                    super::super::tagged(Operand::B, target),
-                ),
-                CoverSide::Off(Sign::Positive),
-            );
-        }
-    }
-    let _ = (sheet, face);
-    let got = sweep_declared(&a, &b, &declared);
-    assert!(got.is_ok(), "the touch is deferred: {:?}", got.err());
-}
-
 /// [`sweep_a`] under `declared`.
 fn sweep_declared(
     a: &Body<f64>,
@@ -500,4 +478,99 @@ fn sweep_declared(
         Tol::witness(),
     )
     .map(|_| ())
+}
+
+/// [`TANGENT`] moved off the wall by `delta` along `+y`, so it passes the
+/// unit cylinder at distance `delta` at `t = ½`.
+fn tangent_off(delta: f64) -> [Point3<f64>; 3] {
+    TANGENT.map(|p| Point3::new(p.x, p.y + delta, p.z))
+}
+
+/// **A spline passing the wall inside the face at a distance in the
+/// band's gap does not read clear.** Half the escalation threshold from
+/// the cylinder, inside the window: the meter's lower bound on the
+/// distance there is below `escalate`, so no piece about the near point
+/// reads past the band, and the arm refuses rather than answer no event.
+/// Reds a meter that divides by less than an upper bound on the divisor
+/// (a quartered divisor, or its lower end).
+#[test]
+fn a_spline_passing_the_wall_in_the_gap_does_not_read_clear() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let delta = 0.5 * band.escalate();
+    let control = tangent_off(delta);
+    let (a, _, _) = spline_sheet(control, [1.0; 3], -Vec3::unit_y());
+    let (b, _) = tangent_wall();
+    let got = sweep_a(&a, &b);
+    assert!(
+        got.is_err(),
+        "a pass at {delta} m, in the band's gap, inside the face, reads clear"
+    );
+}
+
+/// **Under the one-sided cover the same touch is deferred to the
+/// fragments.** The sheet's plane `y = 1` lies outside the cylinder,
+/// which the cover certifies: the spline, with both ends off the wall on
+/// that side, touches it, if at all, strictly inside. The pair lands in
+/// the deferred list, not cleared.
+#[test]
+fn a_covered_spline_touch_lands_in_the_deferred_list() {
+    let (a, _, edge) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
+    let (b, face) = tangent_wall();
+    let declared = cover_all(&a, &b, CoverSide::Off(Sign::Positive));
+    let (mut x, mut y) = (a.clone(), b.clone());
+    let mut acc = super::ContactAcc::default();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let mut deferred = Vec::new();
+    super::sweep_direction(
+        (&mut x, &crate::sector_shape::SlitTips::of(&a)),
+        &mut y,
+        Operand::A,
+        &declared,
+        &mut acc,
+        band,
+        super::SweepStrategy::Realized,
+        &super::SweepKnobs::default(),
+        None,
+        &mut deferred,
+        &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert!(
+        deferred.iter().any(|d| d.edge == edge && d.face == face),
+        "the spline × wall pair is deferred: {deferred:?}"
+    );
+}
+
+/// **An end off the carrier on the side no cover admits keeps the
+/// door.** The sheet lies outside the cylinder (its ends read positive),
+/// but the cover certifies the negative side: the spline arm refuses.
+#[test]
+fn a_covered_spline_with_an_end_on_the_unadmitted_side_keeps_the_door() {
+    let (a, _, edge) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
+    let (b, _) = tangent_wall();
+    let declared = cover_all(&a, &b, CoverSide::Off(Sign::Negative));
+    match sweep_declared(&a, &b, &declared) {
+        Err(BooleanError::CurvedPierceUnsupported { edge: e, .. }) => {
+            assert_eq!(e, edge, "the refusal names the spline");
+        }
+        other => panic!("the cover contradicts the ends: {other:?}"),
+    }
+}
+
+/// Every face of `a` covered against every face of `b` on `side`.
+fn cover_all(a: &Body<f64>, b: &Body<f64>, side: CoverSide) -> GluedPairs<f64> {
+    let mut declared = GluedPairs::<f64>::default();
+    for parent in a.faces().map(|(k, _)| k) {
+        for target in b.faces().map(|(k, _)| k) {
+            declared.one_sided.insert(
+                (
+                    super::super::tagged(Operand::A, parent),
+                    super::super::tagged(Operand::B, target),
+                ),
+                side,
+            );
+        }
+    }
+    declared
 }

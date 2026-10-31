@@ -16,10 +16,11 @@
 //! by an upper bound on the form's distance divisor over the net's hull
 //! (the plane's is one), bounds the part's distance from the surface from
 //! below, and that is what is decided against the band `implicit_residual`
-//! is decided against. The divisor is a factor of `f` at each point
-//! (`|f(p)| ≤ d(p)·divisor(p)`), not a gradient bound along a path to the
-//! surface, so the hull, which holds every point of the span, is the
-//! region it is read over. **A piece never straddles a knot**: the pieces
+//! is decided against. The divisor is a factor of `f` at each point,
+//! `|f(p)| ≤ d(p)·divisor(p)` with `d` the distance from the form's zero
+//! set (`projected::Meters::divisor`), not a bound along a path to it, so
+//! the hull, which holds every point of the span, is the region it is
+//! read over. **A piece never straddles a knot**: the pieces
 //! start as the carrier's knot spans cut at the span's ends, and every
 //! later piece is a part of one, so each row is one polynomial and a
 //! derivative read on it is the derivative there. On a piece:
@@ -78,9 +79,17 @@ pub enum CompositeRefusal {
     /// [`Unsettled::Meter`] (a located crossing reads definitely off the
     /// surface) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
+    /// The face's surface describes no frame or no positive meter: its
+    /// chart frame does not certify (a reference direction along its
+    /// axis, a zero or non-finite direction), or the form's distance
+    /// divisor has no positive upper bound over the net's hull (a
+    /// non-positive or non-finite radius). A surface tier 3 refuses
+    /// ([`geom::Surface::representability_margins`]), read here because
+    /// the arm does not re-validate its inputs.
+    FaceDegenerate(&'static str),
     /// The composite could not be formed: the face has no canonical form
-    /// (a spline face), or a control point, a knot, a frame scalar or the
-    /// net's structure did not certify.
+    /// (a spline face), or a control point, a knot or the net's structure
+    /// did not certify.
     Unread(&'static str),
 }
 
@@ -286,6 +295,14 @@ fn composite_rows<T: Real>(
     let radial = u_ref - e2 * u_ref.dot(e2);
     let e0 = radial / radial.norm();
     let e = [e0, e2.cross(e0), e2];
+    if !e
+        .iter()
+        .all(|v| v.x.is_certified() && v.y.is_certified() && v.z.is_certified())
+    {
+        return Err(CompositeRefusal::FaceDegenerate(
+            "the face's chart frame does not certify",
+        ));
+    }
     let framed: Vec<Vec3<Interval>> = net
         .control()
         .iter()
@@ -298,9 +315,7 @@ fn composite_rows<T: Real>(
         .iter()
         .all(|g| g.x.is_certified() && g.y.is_certified() && g.z.is_certified())
     {
-        return Err(unread(
-            "a control point or the chart frame does not certify",
-        ));
+        return Err(unread("a control point does not certify"));
     }
     let coords = [
         framed.iter().map(|g| g.x).collect::<Vec<_>>(),
@@ -363,7 +378,9 @@ fn composite_rows<T: Real>(
         ))
         .abs();
     if !(divisor.is_certified() && divisor.hi() > 0.0) {
-        return Err(unread("a scalar of the surface does not certify"));
+        return Err(CompositeRefusal::FaceDegenerate(
+            "the form's distance divisor has no positive upper bound",
+        ));
     }
     let divisor = Interval::from_bounds(divisor.hi(), divisor.hi());
     let ends = [a, b];

@@ -487,7 +487,7 @@ fn the_lilys_tori_exhaust_the_doors_cell_budget() {
     let stem = ring(Point3::new(-STEM_RING, 0.0, 0.0), STEM_RING, STEM_TUBE);
     let arch = ring(arch_frame().center, ARCH_RING, ARCH_TUBE);
     let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&stem, &arch, band).expect("the pose decides")
+        geom_brep::pair_section(&stem, &arch, None, None, band).expect("the pose decides")
     else {
         panic!("the value builds two tori");
     };

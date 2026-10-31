@@ -4274,7 +4274,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Ok(CylinderAxes::Parallel) => return Ok(None),
         Err(e) => return Err(refused(e)),
     };
-    match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
+    match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses {
             e1,
             e2,
@@ -4314,8 +4314,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::EqualCylinderSection::Empty,
         )
         | Err(
-            geom_brep::SectionError::UnequalRadii
-            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            geom_brep::SectionError::RoutesToGeneralRung { .. }
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
         ) => Ok(None),
@@ -4333,6 +4332,9 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
@@ -4363,31 +4365,33 @@ pub(super) fn crossing_cylinder_margins<T: Decide>(
     crossing_cylinder_section(a, b, band).map(|s| s.margins)
 }
 
-/// **The intersecting-axes cylinder pair, routed by whether its radii
-/// decide equal** (`cylinder_cylinder_section`'s `cc_radius_equality`):
+/// **The intersecting-axes cylinder pair, routed by the pose's node
+/// question** (`cylinder_cylinder_section`, the section value's
+/// `CylinderCylinderPose`):
 ///
-/// * equal — the table constructs the two bisector-plane ellipses, two
-///   loops each turning about its own plane's normal through the axes'
-///   meeting point, a centre of symmetry of both; the bisector split
-///   tells them apart ([`LoopSplit::Bisector`]), and they cross at two
-///   nodes where it is zero;
-/// * unequal — the locus is a space quartic, the skew pair's unbuilt
-///   class ([`FrameError::NoArm`]).
+/// * the bisector pose (`cc_crossing_nest` Zero, the radii equal and the
+///   axes meeting) — the table constructs the two bisector-plane
+///   ellipses, two loops each turning about its own plane's normal
+///   through the axes' meeting point, a centre of symmetry of both; the
+///   bisector split tells them apart ([`LoopSplit::Bisector`]), and they
+///   cross at two nodes where it is zero;
+/// * every other pose — no conic section, which this frame has no arm
+///   for ([`FrameError::NoArm`]); the section value marches it.
 fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<SectionLoops<T>, FrameError> {
-    // The table reads the same `reach` the parallelism gate above
-    // levered from, because it re-decides the two axis margins this
-    // dispatch just decided and must reach the same verdicts from the
-    // same margins.
+    // The table reads the ball of the `reach` the parallelism gate above
+    // levered from. Its lever there is no shorter, so a tilt the gate
+    // read definite reads definite again; the coplanarity row reads at
+    // the same feet.
     //
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
-    let e = match geom_brep::cylinder_cylinder_section(sa, sb, reach, band) {
+    let e = match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
             let (
                 geom::Curve3::Ellipse {
@@ -4416,7 +4420,6 @@ fn intersecting_cylinder_axes<T: Decide>(
                 },
             });
         }
-        Err(geom_brep::SectionError::UnequalRadii) => FrameError::NoArm,
         // The three parallel-axes answers, from a table whose
         // parallelism verdict this dispatch already took the other
         // way on the same margin.
@@ -4433,10 +4436,10 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
         // The table's own routing verdict: NOT a desync, since nothing
-        // is contradicted — the pair marches one rung down. Reachable only
-        // if the table's coplanarity verdict differed from this
-        // dispatch's on the same margin, and the general rung is the
-        // right home for a skew pair either way.
+        // is contradicted — the pose is not the bisector one (unequal
+        // radii on meeting axes, or the table's coplanarity reading the
+        // other way on the same margin), and the section value marches
+        // it.
         Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => FrameError::NoArm,
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
@@ -4458,6 +4461,9 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \
@@ -4576,7 +4582,7 @@ fn along_facing<T: Decide>(
     let ahead = Margin::metered(forward, geom_core::InfSpeed::new(speed));
     let travel = match decide("bool_join_foot_ahead", ahead, band).map_err(join_escalate)? {
         Sign::Positive => forward,
-        Sign::Negative if component.closed => forward + (hi - lo),
+        Sign::Negative if component.closed() => forward + (hi - lo),
         Sign::Negative => return Ok(Faced::Apart),
         Sign::Zero => return Err(desync("two distinct sites have one foot on their section")),
     };
@@ -6919,7 +6925,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();
@@ -7112,7 +7118,7 @@ mod frame_dispatch_tests {
                 lever: 1.0,
             };
             let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-                cylinder_cylinder_section(&sa, &sb, &reach, band())
+                cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
             else {
                 panic!("{deg}°: the table constructs the ellipses");
             };
@@ -7213,8 +7219,9 @@ mod frame_dispatch_tests {
     /// is neither the nodes nor the unequal pair's `NoArm`, each of which
     /// claims a definite class. The partner's radius is `1 + 2·zero` of
     /// the band, past the zero band and short of escalation's edge, so
-    /// the table's `cc_radius_equality` reads it in band; a dispatch that
-    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
+    /// the pose's inner level `e − |r₁ − r₂|` (`cc_crossing_nest`, `e`
+    /// zero at meeting axes) reads it in band; a dispatch that mapped
+    /// that escalation to `NoArm` (or to the nodes) reds here.
     #[test]
     fn an_in_band_radius_at_meeting_axes_escalates() {
         let z = Vec3::new(0.0, 0.0, 1.0);
@@ -7232,7 +7239,7 @@ mod frame_dispatch_tests {
             );
             assert!(
                 matches!(&got, Err(FrameError::Escalated { diag, .. })
-                    if diag.predicate == Some("cc_radius_equality")),
+                    if diag.predicate == Some("cc_crossing_nest")),
                 "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
                  escalate, got {}",
                 outcome(&got)
@@ -7273,16 +7280,9 @@ mod frame_dispatch_tests {
                 radius: r,
                 u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
             };
-            let sec = cylinder_cylinder_section(
-                &c1,
-                &c2,
-                &geom_brep::Reach::Measured {
-                    at: at(),
-                    lever: 1.0,
-                },
-                band(),
-            )
-            .expect("intersecting equal-radius axes have a section");
+            let sec =
+                cylinder_cylinder_section(&c1, &c2, &geom_brep::ExtentBall::new(at(), 1.0), band())
+                    .expect("intersecting equal-radius axes have a section");
             let EqualCylinderSection::TwoEllipses { e1, e2, .. } = sec else {
                 panic!("{deg}°: the intersecting equal-radius section is the ellipse pair");
             };
