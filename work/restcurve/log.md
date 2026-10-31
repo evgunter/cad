@@ -38,3 +38,4 @@
   - Unparked: the wrap-tip rows (this slate's tier row, TESSWALK, SPLITDOOR, CARVE), the side-datum row, and curved containment.
   - Dispatched PR 6097's fix pass.
   - My slip: a merge of main into the `[ev]` branch committed conflict markers (`b38160f`). It was resolved in `43b0347` before merge and reported on the PR.
+- 2026-10-31 — `[ev]` PR 6085 merged. Containment unit 2 (the region arm: (b) cycle sides through the doors, (c) open ends, (d) torus windings from the lift, (e) chart-singularity inside test, walk_loop retires, region::boundary through surface_cycles) specced and dispatched. Branch `restcurve/region-arm`; tier dual, concurrent (H). (a) the meeting arms stays its own P3.
