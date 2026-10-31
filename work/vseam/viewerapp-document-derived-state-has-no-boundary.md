@@ -4,6 +4,7 @@ kind: issue
 title: ViewerApp's document-derived fields are reset by hand at one door with nothing at the declaration naming the set
 status: closed
 closed: 2026-10-31
+pr: 6125
 opened: 2026-09-07
 refs: [2103]
 priority: P1

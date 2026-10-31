@@ -5,6 +5,7 @@ title: app.rs re-frames and drops the delta budget for Open only, though NewDocu
 refs: [1885]
 status: closed
 closed: 2026-10-31
+pr: 6125
 opened: 2026-09-05
 priority: P1
 cost: E
