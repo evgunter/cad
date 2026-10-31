@@ -94,15 +94,9 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             Door::ConicTorus,
             "the torus residual along the conic, of degree two on a circle and four on an ellipse",
         ),
-        (Nurbs, Plane) => built(
+        (Nurbs, Plane | Cylinder | Cone | Sphere | Torus) => built(
             Door::SplineComposite,
-            "the plane's residual composed along the spline span, read on its pieces",
-        ),
-        (Nurbs, Cylinder | Cone | Sphere | Torus) => unbuilt(
-            Door::SplineComposite,
-            "the face's residual composed along the spline span, which the curved \
-             lane does not read yet \
-             (work/splice/nurbs-edge-crossing-rung-is-the-ring-composite)",
+            "the face's residual composed along the spline span, read on its pieces",
         ),
         (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,

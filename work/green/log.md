@@ -217,3 +217,4 @@ and every pin PR got a STYLE review. Docs-only and one-line changes
 went on the orchestrator's read. Every review that ran found something
 worth a fix pass before merge; two of them were blocking (#6027's
 closed-row routing and #6093's re-bless).
+- 2026-10-31 — (SECTARMS orchestrator) **On `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`:** SECTARMS is bisecting its own suspect, PR 6139 (cylinder × cylinder stage 1), against the 18 rows. Each row is run at 6139's first parent and at its merge `f2f34e16`. Any row 6139 caused is SECTARMS's to fix, and is reported here and on that row. Rows red at both commits are left to GREEN, with whatever evidence the run gives.
