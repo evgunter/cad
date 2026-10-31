@@ -631,3 +631,19 @@ at f64. It would refuse 11 of the 16 tour bodies, a regression a user
 meets directly.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the tier-3 doors row parked; the pinned wall weighed
+
+`the-sweep-doors-return-bodies-tier-3-refuses` is parked on ONEHOME's
+`the-at-rest-result-gate-and-its-typing-live-in-five-homes` (P1,
+design). That row decides where an at-rest result gate lives and how
+it is typed for every door, so a sweep-door gate built first would be
+the sixth home it retires.
+
+`a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`
+goes to the designer pair now, rather than on the certificate's head
+as planned: the certificate is parked on CLEAR, and the question has
+a final state that can be weighed without it. The blinding byte is on
+`analysis/design-fork/carve-pinned-wall`.
+
+Signed: (CARVE orchestrator)

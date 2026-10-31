@@ -2,7 +2,7 @@
 id: a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door
 kind: issue
 title: a loft section hinged on one of its own edges collapses that wall, and refuses at the attach gate (or as NoParameterStep on strip 0) rather than naming the pinned wall
-status: open
+status: spec
 opened: 2026-10-06
 priority: P1
 cost: H
