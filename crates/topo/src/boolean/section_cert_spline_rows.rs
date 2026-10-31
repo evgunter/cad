@@ -527,3 +527,19 @@ fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
         );
     }
 }
+
+/// Review 6150: a biquadratic planar wall tilted so that its every point
+/// lies within a tenth of the zero band of the plane `z = 0`, and the
+/// exact point graze of a wall's side. Printed, not asserted.
+#[test]
+fn review_6150_in_band_wall_and_graze() {
+    let t = 0.1 * band().zero();
+    let tilted = net(&|i, _| t * (f64::from(u8::try_from(i).unwrap()) - 1.0));
+    eprintln!(
+        "REVIEW in-band tilted wall: {:?}",
+        read(&level(0.0), &tilted)
+    );
+    let g = [0.25, -0.25, 0.25];
+    let trough = net(&|i, j| g[i] - 0.25 * f64::from(u8::try_from(j).unwrap()));
+    eprintln!("REVIEW trough graze: {:?}", read(&level(0.0), &trough));
+}
