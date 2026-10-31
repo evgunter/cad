@@ -1,7 +1,7 @@
 ---
-id: eight-sweep-slow-rows-are-red-on-main
+id: eighteen-sweep-slow-rows-are-red-on-main
 kind: issue
-title: Eight slow-set rows in crates/sweep/tests fail on main (a7fdbf5db8): boolean refusals on extrude-built operands, one escalation, one quadrature gap
+title: Eighteen slow-set rows in crates/sweep/tests fail on main (a7fdbf5db8, 80b4615683), none of them a sweep: boolean refusals, quadrature gaps, an escalation
 status: open
 opened: 2026-10-31
 ---
@@ -41,3 +41,30 @@ Log: the reviewer's run on main,
 (local to the machine it ran on). Four of the eight (the
 `a_pierce_held…` and `a_ruling_lying…` pairs) were reproduced again at
 PR 6138's head, merged with main.
+
+## Ten more, on main `80b4615683` (CARVE, 2026-10-31)
+
+PR 6138's fix pass ran the whole `sweep` suite with no profile
+filter, in a release build. Ten more rows failed at its head. The same
+ten fail at origin/main `80b4615683` (the PR's merge base), run in a
+release build in a separate worktree, so they are inherited too. None
+of them calls a sweep or a loft.
+
+| row | failure |
+|---|---|
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_centre_inside` (`:356`) | `A ∪ B`: `VolumeUncomputable { QuadratureUnsupported { "curved-cut face half-edge carries a pcurve with no harmonic form …" } }` |
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_centre_on_the_wall` | `A ∩ B`: the same |
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_centre_outside` | `A ∩ B`: the same |
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall` | `A ∩ B`: the same |
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim` | `A ∪ B`: `QuadratureUnsupported { "conic trim on a cone/sphere/torus chart …" }` |
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_2_across_the_rim` | `A ∩ B`: the same |
+| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_join` (`:152`) | an `assert_eq` on where the rod stops |
+| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join` | the same |
+| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join` | the same |
+| `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` (`:415`) | at ε 1e-9, β 0.5, spin 0: the refusal list reads `"ring volume"` / `"quadrature volume"` where the row expects germs |
+
+Seven of these ten fail on volume quadrature (`QuadratureUnsupported`
+on a curved-cut face's pcurve, or on a conic trim), which matches
+`conic_edge_curved_face::a_rim_crossing_reaches_the_join` above. That
+suggests one recent change to the quadrature's admitted faces, and it
+is the first thing to bisect.
