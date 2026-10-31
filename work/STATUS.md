@@ -274,7 +274,7 @@ prefix `sectarms/`; tag `(SECTARMS orchestrator)`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P0 | `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | issue | H | open | A NURBS face against a cone or sphere face has no C5 section arm, and no boolean reads a rung-3 section, so klein wall 3 and teapot wall 3 cannot join |  |  |
-| P1 | `a-near-parallel-pairs-accounting-grows-with-the-operation-region` | issue | H +design | open | A near-parallel ℝ³ pair's accounting sweep runs over the whole operation region, so small near-parallel faces in a large part refuse CellBudget instead of listing their arcs |  |  |
+| P1 | `a-near-parallel-pairs-accounting-grows-with-the-operation-region` | issue | H | open | A near-parallel ℝ³ pair's accounting sweep runs over the whole operation region, so small near-parallel faces in a large part refuse CellBudget instead of listing their arcs |  |  |
 | P1 | `a-nurbs-face-against-a-torus-has-no-section-arm` | issue | H | open | A NURBS face against a torus face has no C5 section arm, so lily wall 8 (the leaf grown out of the stem) cannot join once its spline seams cross |  |  |
 | P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | issue | H | open | A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame names its section |  |  |
 | P1 | `conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter` | issue | H | open | The conic germ pairs still on the frame lane rank partners by the frame's turn, not the section value's foot parameter |  |  |
