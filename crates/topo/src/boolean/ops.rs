@@ -5772,29 +5772,30 @@ pub(crate) struct GluedSurfaces {
 /// A surface and the sense its faces carry.
 pub(crate) type SensedSurface = (SurfaceKey, bool);
 
-/// **Two surfaces a Boolean glued one carrier**, and whether their
-/// charts face the same way in the result. A face's material side is
-/// its sense applied to its surface's chart, and fragments inherit both
-/// from their parent, so which way the two charts face holds for every
-/// face either surface carries.
+/// **Two surfaces a Boolean glued one carrier**, the kept side's first
+/// ([`super::glue::kept_first`]: the description the merged face
+/// keeps), and whether their charts face the same way in the result. A
+/// face's material side is its sense applied to its surface's chart,
+/// and fragments inherit both from their parent, so which way the two
+/// charts face holds for every face either surface carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GluedSurfacePair {
-    /// The first surface.
-    pub(crate) a: SurfaceKey,
-    /// The second surface.
-    pub(crate) b: SurfaceKey,
+    /// The kept side's surface.
+    pub(crate) kept: SurfaceKey,
+    /// The other side's surface.
+    pub(crate) other: SurfaceKey,
     /// Whether the two charts face the same way.
     pub(crate) charts_agree: bool,
 }
 
 impl GluedSurfacePair {
-    /// The pair of `a` and `b` whose faces of senses `(sa, sb)` have
-    /// material sides that agree or not (`materials_agree`).
-    fn of((a, sa): SensedSurface, (b, sb): SensedSurface, materials_agree: bool) -> Self {
+    /// The pair of `kept` and `other` whose faces of senses `(sk, so)`
+    /// have material sides that agree or not (`materials_agree`).
+    fn of((kept, sk): SensedSurface, (other, so): SensedSurface, materials_agree: bool) -> Self {
         Self {
-            a,
-            b,
-            charts_agree: materials_agree == (sa == sb),
+            kept,
+            other,
+            charts_agree: materials_agree == (sk == so),
         }
     }
 }
@@ -5811,8 +5812,8 @@ impl GluedSurfaces {
     }
 
     /// `pairs` as a Boolean would glue them, each two surfaces whose
-    /// faces of senses `(sa, sb)` face the same way, for the merge rows
-    /// that drive its glued path on one body.
+    /// faces of senses `(sk, so)` face the same way, kept side first,
+    /// for the merge rows that drive its glued path on one body.
     #[cfg(test)]
     pub(crate) fn of_pairs(pairs: &[(SensedSurface, SensedSurface)]) -> Self {
         Self {
@@ -5864,11 +5865,11 @@ impl GluedSurfaces {
                     let materials_agree = (relation == super::CarrierRelation::SameOriented)
                         != (op == BooleanOp::Subtract);
                     (ka != kb).then_some(())?;
-                    Some(GluedSurfacePair::of(
-                        (ka, sense_on(ka)?),
+                    let (kept, other) = super::glue::kept_first(
+                        (Operand::A, (ka, sense_on(ka)?)),
                         (kb, sense_on(kb)?),
-                        materials_agree,
-                    ))
+                    );
+                    Some(GluedSurfacePair::of(kept, other, materials_agree))
                 })
                 .collect(),
         }
@@ -5881,7 +5882,9 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .copied()
-                .filter(|p| body.get_surface(p.a).is_some() && body.get_surface(p.b).is_some())
+                .filter(|p| {
+                    body.get_surface(p.kept).is_some() && body.get_surface(p.other).is_some()
+                })
                 .collect(),
         }
     }

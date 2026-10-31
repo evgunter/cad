@@ -177,3 +177,7 @@ points), and the scene is being re-spelled as one loft. No consumer
 reaches this shape today. It is still a real gap for a witness-selected
 carrier, so it stays open at P3 until one does.
 
+
+## A departure reading for the end-on-sides case (2026-10-31)
+
+From `splice/rim-sector-clearance` (PR 6157), via its review's sweep. `ssi/four.rs` reads an end lying on two or more domain sides only by box walk and `end_box`, and names the failure `Shortfall::EndOnSides` (`one_arc_pair`, `sides_at`). It has no departure reading. The curve × face arm had the same gap at an end on a chart's domain edge, and now clears it with a sector (`geom_brep::curve_face::spline_face`, `Pair::sector`). The mean value theorem over a one-sided box at the end bounds every solution within the band of the end wherever the departure is certified to leave on the far side of each side. The two-chart tube's analogue would be the section's departure at the end against each side's inward direction on both charts: a box one-sided in each held coordinate, its solutions bounded by `F`'s value at the end alone. This is one candidate certificate for this row's corner case, not a ruling on it. See `an-end-on-a-rim-inside-its-carrier-reads-no-sector` for the arm's other residue.

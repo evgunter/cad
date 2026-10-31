@@ -1063,6 +1063,21 @@ Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
 SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
 general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
 6026's shapes.
+- 2026-10-31 — **A span ending tangent on a face's rim is cleared by its sector departure** (PR 6157, closing `a-span-ending-on-a-faces-rim-has-no-sector-clearance`, released by CARVE's PR 6138). Review tier: single FULL (a departure leaning the wrong way clears a crossing).
+  - **Phase 0** gave a witness at all three ε. Klein wall 3's neck seam line starts at a rim vertex. The boundary pass reads it `Hit::End`, and `isolate` then refused, because the end sits on the arc-joint crease.
+  - **Built:** `Pair::sector`. An end on a chart's domain edge is read over a one-sided state box, by mean value with the partials hulled over the window: the Clarke hull, valid across a C0 crease. The face's inward departure is weighed against the line's departure.
+  - **Review** (frozen at `a081c2eb`): APPROVE-WITH-FIXES, no MAJOR. The algebra holds, and so do the crease hull and the signs in all 8 orientations. A strictly one-sided derivative window would be unsound, and the code does not use one.
+    - γ (the rim's lean) was unpinned. The reviewer's bending row reds under γ=0, so γ is load-bearing. Near the walk's floor scale the row accepts only a refusal, never a clear.
+  - **Class, a third time today: a demo pin loose enough that the stop moves unseen.** Klein's `|dir.x| > 0.1` admitted at least 4 edges. It is now pinned by the edge's endpoints and the face's crease geometry. (The same shape as 6136's lily pin and 6152's S11.)
+  - **Fixed:**
+    - the shared `mag`, `midpoint` and `dot` replace the local copies;
+    - the redundant arguments are dropped;
+    - the foot is read once;
+    - a miss continues the ladder;
+    - a `|g|` prefilter runs before any `deriv_box`;
+    - the docs say the reach past an end is conditional.
+  - **Filed:** `an-end-on-a-rim-inside-its-carrier-reads-no-sector` (P2), for the composite, the analytic root doors and trimmed rims. `ssi/four.rs` `EndOnSides` is the same class; its evidence was added to `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary` rather than filed twice.
+  - **Klein's next stop:** edge 4v1, the flare cone seam, crosses the loop's half tube on its u=½ double knot. CARVE owes it (`carvetail/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`), and the evidence is added there.
 - 2026-10-31 — **A vertex piercing a spline face reads the face's outward normal** (PR 6152, closing `a-vertex-piercing-a-spline-face-reads-no-outward-normal`). Review tier: single FULL (the face sense, creases and sheets were at stake).
   - **Fork on the second sheet, ruled by the orchestrator** (no ratified text moves). The normal is read at the chart point the sweep itself certified: `ChartMeeting.uv`, or `spline_region::read`'s In point, carried in `ContactAcc::charts`. It is never a projection foot.
     - A second in-trim foot within the band is the placement read's own gap: `spline_region::read` returns the first foot it finds. It is filed as `spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot` (P3, H), and cited at the site.
@@ -1081,3 +1096,32 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **The lane's calls, taken:** S6 (newtype) and S7 (comparing two uvs) were not done; S7 would be the forbidden weaker predicate.
   - **Lily wall 8's next stop:** `Euler(PcurveMint { face 3v1, SplineChart })` at 1e-9 and 1e-6, `vtxfac::ring_vertex_in`. It is filed as `a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex` (P1, M).
   - **Main reds** found on the way: six editor-core interval rows, hidden by the nightly's cancelled full suite. Filed on GREEN (PR 6156).
+- 2026-10-31 — **W5: the plane × spline pose's loop-free sweep, read by the interior-loop guard** (PR 6150, closing `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`). Built per `[ev]` PR 6121 as the plane instance of C5's pose classification: hull, boundary pass, regularity sweep. Review tier: single FULL, then a re-review (a bound leaning the wrong way would clear a real loop).
+  - **The lane corrected the brief.** "Every cell excluded or regular ⇒ loop-free" is unsound, because an excluded cell can hold the very extremum a loop encloses. The sweep therefore also requires every non-regular cell to be joined to the rectangle's boundary through cells excluded on the same side. It declines on any interior crease.
+  - **First review** (frozen at `5e0132e8`): NOT-MERGEABLE-AS-IS. Two MAJORs, demonstrated, with one root: the guard read the sweep before C5's stage-1 coincidence call and stage-2 boundary pass.
+    - A wall within the band everywhere cleared.
+    - A boundary graze cleared.
+    - Main refuses both as tangent.
+  - **Class: a stage built in front of the ratified stages skips their decisions.** Any later stage-3 build, such as SECTARMS's NURBS × implicit arm, runs the hull and the pass first.
+  - **Fixed, in the ratified order:**
+    - the hull decides apart, coincident (a D10 record) or in band;
+    - a door refuses a collapsed side not decided clear over its whole row;
+    - C3's own pass runs once, before the sweep, and is carried to the whole reading;
+    - the sweep runs on the one shared cell recursion (`SweepDuty::Regular`), its decisions named through `k_stats`, with a union-find join.
+  - **Under the ratified order:** exact grazes refuse by name, and at 1e-6 sides lying in the plane read as coincident. That is the ratified order working, not a regression.
+  - **Re-review** (frozen at `7eed17a4`): APPROVE-WITH-FIXES, no MAJOR.
+    - Regularity holds under the levered slope: inflating the lever 10⁶× moves no loop row.
+    - The sweep alone would read a long thin in-band wall as loop-free; the guarantee lives in the hull and the pass, and an asserting row pins it.
+  - **The last pass:**
+    - the door decides clearance over every row point, through one collapsed-side reading;
+    - `Reached` cannot be empty;
+    - `CoincidentSurfaces` maps in one place;
+    - poison refuses at the hull whether or not a lane is handed in;
+    - probes are moved off the hull thresholds;
+    - `Want::Far` is pinned per ε.
+  - **Accepted, not done:** the hull's heights stay in the scalar's own arithmetic, certified at `Interval`, as every analytic pose margin is. Requiring certified bounds would ripple through the generic boolean, to `Dual`, which has none.
+  - **Filed:** `the-plane-spline-sweep-declines-a-loop-free-dome-beside-a-saddle` (P3, completeness). Krawczyk and Hessian isolation at `Declined::Floor` is SECTARMS's completion.
+  - **Found on the way:**
+    - `holds_the_ssi_lane` compared neither of two fn-pointer fields, a gap latent on main and hidden by a type alias; fixed.
+    - A first review session stalled at clone, because a short SHA as `source_revision` fails with `ref_not_found` and surfaces no error. Every dispatch now passes the full SHA.
+  - **Timings:** the classification costs 8–90 ms a pair. The whole readings it skips run 0.2 s for lily's caps, and for the blade cuts 1.7–8 s at 1e-9, 0.3–1.8 s at 1e-6 and 7–36 s at 1e-12.

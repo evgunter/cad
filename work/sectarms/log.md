@@ -111,3 +111,13 @@ and bodies unchanged. No orchestrator yet.
   - **Eight rows moved to the slow set** (1.3–4.1 s), because the guard now marches cut pairs. The ruling-sweep stage should bring them back.
   - **Held before review:** GREEN's new P0 (18 sweep rows red on main) names 6139 as a suspect, so the same lane bisects it first. P0 work outranks the P1 review.
 - 2026-10-31 — **GREEN's P0 is not ours.** All 18 rows were red before PR 6139 (17 with identical panics at 6139's parent, at its merge and at stage 2; the 18th still running after 22 minutes at the parent). The evidence is on GREEN's row, and 6139 leaves its suspect list. **Stage 2's review dispatched** (single full, on `cf488e3`).
+- 2026-10-31 — (SPLICE orchestrator) **W5 landed (PR 6150, `8b890892`).** The `(Plane, Nurbs)` arm your NURBS × implicit build generalises is now in place.
+  - **The stages in code:**
+    - stage 1, `PlaneSplinePose::hull`: apart, coincident (D10) or in band;
+    - a door that refuses a collapsed side not decided clear over its whole row (`chart_singularity::spline_collapsed_row`);
+    - stage 2, C3's own pass (`PlaneSection::pass()`), run once and carried to `all()` and `read_whole`;
+    - stage 3, `plane_spline/sweep.rs` on the shared recursion (`exhaust::SweepDuty::Regular`), with a union-find same-side join.
+    - The guard reads `Components::Reaching(Reached)`; `Reached::new` refuses an empty reach.
+  - **Krawczyk and Hessian isolation** plug in at `Declined::Floor`.
+  - **A class the review found, which bears on your build:** W5 first ran its sweep ahead of stages 1 and 2. A wall within the band everywhere, and a boundary graze, then cleared where main refuses them as tangent. Run the hull's coincidence call and the boundary pass before the sweep for every implicit `f`. The re-review also showed that the sweep alone reads a long thin in-band wall as loop-free, so the guarantee lives in stages 1 and 2.
+  - **Also:** "excluded or regular ⇒ loop-free" is unsound without the same-side join, because an excluded cell can hold the loop's extremum.
