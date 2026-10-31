@@ -2,7 +2,8 @@
 id: main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot
 kind: issue
 title: main red at ε 1e-6: five torus section and germ rows refuse (Winds(Unseparated), a zero-margin tube straddle, an indeterminate carrier straddle) since PR 6011
-status: dispatched
+status: closed
+closed: 2026-10-31
 opened: 2026-10-30
 priority: P1
 cost: M
@@ -44,3 +45,60 @@ Pinned at 1e-6 only (`pinned_red::row`, `stops_at = [1e-6]`), each at main's sto
 - `other_spins_and_steeper_tilts_refuse_at_their_germs`: all eight poses, from β 0.5 spin 0 to β 0.7 spin π/2, `GermSectionUnbuilt { … Winds(Unseparated) }`.
 
 Un-pinning owes a 1e-6 re-measure of the unrun remainders named above.
+
+## Closed
+
+2026-10-31, by `sect/torus-rows-at-1e-6` (lane `sect-onesix`).
+
+**Bisected inside PR 6011.** At ε 1e-6 and opt-level 2, the four rows
+that exist pass at `5d84e965` (the confirmation review's head) and at
+`3e79f199` (its merge of main). All five fail at `b568f3ef8c`, whose
+own commit grew the marched loop's pad from the tube radius to the
+radius plus √3 times the largest raw hull box side. At 1e-6 the widest
+rung that certifies is wide: 4.4e-2 m on the cylinder × sphere poses.
+So the pad there was 0.11 to 0.13 m. `winds` read every halved piece's
+hull padded by that much, and on the torus rows those reached the axis
+or the core circle (`Unseparated`).
+
+**What the reading owed.** The winding needs no closeness bound. Limb
+3 proves the section's points in the tube one arc, with a piece in
+every box of the chain. The component and the carrier therefore run
+through the same convex boxes in the same order, and where no box
+reaches a centre they wind alike. `winds` now reads the loop over its
+tube boxes (`ssi::certify::tube_chain`), each cleared of the centre
+with nothing added. It no longer halves, since halving a box cannot
+narrow where the section lies inside it.
+
+The pad stays the closeness bound for `reads`. It is now the farthest
+point of any tube box from the carrier, bounded slab by slab
+(`Tube::of`), and no longer the box diameter. That bound also takes in
+the box's cubic padding, which the old `radius +` term read as
+spherical. W3 had read the pad as the witness's distance from the
+component, which closeness does not give. It now reads its own number,
+`CarriedComponent::reach`: the diameter of a tube box that holds both
+the witness and a piece of the component.
+
+**Per row, at 1e-6:**
+
+- `the_germ_rows_donut_against_its_moved_drum`: passes, every
+  placement, including what `germ_row` checks after them.
+- `two_loops_keep_their_sites_and_order_near_the_node`: passes, every θ
+  of both sheets in both orders. Its pads read about 0.10 m, so there
+  is little room left. The tighter reading is filed as
+  `a-point-is-read-on-a-marched-loop-by-distance-not-by-its-tube`.
+- `a_square_rod_on_the_outer_equator_stops_at_the_join` and
+  `other_spins_and_steeper_tilts_refuse_at_their_germs`: their germ
+  sections carry. They then stop exactly where main stops them at the
+  default ε and 1e-12, which is GREEN's open
+  `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`
+  (evidence added there). The pins are gone, and the rows read alike at
+  all three ε.
+- `close_rings_carry_counted_and_marched`: still pinned red at 1e-6, now
+  citing `ssimarch/an-r3-tube-no-rung-makes-a-graph-is-never-refined`.
+  At δ 3e-4 every rung down to the floor reads graph margin 0, so the
+  stop is the march's sample spacing and not the reading.
+
+Also filed from the sweep: evidence on
+`sectrung/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin`
+(a wrong `Tangent` verdict at 1e-6, seed `0xb8c56b2ac7806cae`).
+
