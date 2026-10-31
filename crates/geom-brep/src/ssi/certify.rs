@@ -1834,10 +1834,7 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// [`tube_boxes`], each beside the carrier's parameter span it hulls.
-pub(crate) fn tube_chain<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-    radius: f64,
-) -> Vec<(Box3, (f64, f64))> {
+pub(crate) fn tube_chain(carrier: &NurbsCurve3<f64>, radius: f64) -> Vec<(Box3, (f64, f64))> {
     box_chain(carrier)
         .into_iter()
         .map(|(b, _, span)| (b.pad(radius), span))

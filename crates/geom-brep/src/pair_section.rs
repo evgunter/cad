@@ -1602,7 +1602,7 @@ impl Tube {
             .map(|&(b, _)| {
                 use geom_core::Bounds as _;
                 let w = [b.x, b.y, b.z].map(|s| s.hi() - s.lo());
-                (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt() * (1.0 + 1e-12)
+                (w[0].powi(2) + w[1].powi(2) + w[2].powi(2)).sqrt() * (1.0 + 1e-12)
             })
             .fold(f64::INFINITY, f64::min);
         if !reach.is_finite() {
@@ -1678,7 +1678,7 @@ fn farthest(b: crate::ssi::enclose::Box3, p: Point3<geom_core::Interval>) -> f64
         }
     };
     let [gx, gy, gz] = [gap(b.x, p.x), gap(b.y, p.y), gap(b.z, p.z)];
-    (gx * gx + gy * gy + gz * gz).sqrt() * (1.0 + 1e-12)
+    (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt() * (1.0 + 1e-12)
 }
 
 /// **[`PairSection::seat`] at `f64`.** `at` at either end of the
@@ -2340,7 +2340,7 @@ mod wiring {
                             && [(bx.x, w.x), (bx.y, w.y), (bx.z, w.z)]
                                 .iter()
                                 .all(|(s, v)| s.lo() <= *v && *v <= s.hi())
-                            && width.iter().map(|v| v * v).sum::<f64>().sqrt() <= br.reach
+                            && width.iter().map(|v| v.powi(2)).sum::<f64>().sqrt() <= br.reach
                     }),
                     "{what}: the witness in a box within its reach"
                 );
