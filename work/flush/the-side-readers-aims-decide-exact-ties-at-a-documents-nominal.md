@@ -2,13 +2,14 @@
 id: the-side-readers-aims-decide-exact-ties-at-a-documents-nominal
 kind: issue
 title: The side reader's aims land on exact ties at symmetric nominals
-status: review
+status: closed
 priority: P2
 opened: 2026-10-19
 cost: H
 branch: flush/aims-ties
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
 pr: 5781
+closed: 2026-10-31
 ---
 
 Since PR 5119, check 7 reads each solid with the side reader's aimed
@@ -223,3 +224,41 @@ Each has its own row on this slate:
   (P1, live on main). The ruled aim stays at its middles because of it:
   moved to its edges' golden sections, it steered one more wall aim
   onto a seam ruling.
+
+## Resolution
+
+Closed by PR 5781 (2026-10-31). The side reader's aims and the readers
+that cross them no longer decide exact ties at a document's nominal,
+except the 22 `cut_cylinder` wall roots that "What remains" leaves to a
+design question:
+- `revalue_corpus::reader_ties_at_the_nominal` reads 22, all
+  `bool_ruled_region_roots_coaxial` in `cut_cylinder`;
+- the `Sym<f64>` trimmed-sphere bodies read 0/0/0/0, against 1/1/2/5 on
+  main.
+
+No body changed side. On both reviewers' bodies, at three ε, no ray,
+point or edge ray reads wrong, and no aim moves Out↔In.
+
+- **The changes.**
+  - A planar face of lines and circle arcs aims at a point stepped in
+    from its first edge, inside the face by construction, and is
+    crossed by the turn of its loops.
+  - A cylinder wall's root is read by the turn of the wall's annulus
+    image, behind a rim guard that checks each edge lies on its ruling
+    or parallel (`bool_wall_turn_true`).
+  - A face's own seam is no boundary of its turn. `EdgeMeets::clear`,
+    not `read`, licenses a turn.
+  - Every golden-section search and golden-angle sample in the tree
+    reads `geom_core::GOLDEN_SECTION` / `GOLDEN_ANGLE`.
+- **Review.** A dual review (concurrent pair, one frozen head) found one
+  MAJOR, by one reviewer, run and confirmed by a mutant. The first
+  turn readers took a face's own seam as an edge decided clear, so a
+  root on it read outside the face: `point_in_solid` misread 352–608
+  of 7381 points in a turned tube's seam plane, against 0 on main.
+  The fix pass took the seam out of the turn and gave the turn its own
+  licence. Both delta checks approved, and a last pass took their
+  notes.
+- **The P1 moved, but no side shipped wrong.** The fix pass moves which
+  seam-split poses meet the P1: 58 of 384 against main's 65, 50 of
+  them shared. That is the P1's aim-luck mechanism, and each of those
+  poses refuses at the gate.
