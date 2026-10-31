@@ -1125,3 +1125,24 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - `holds_the_ssi_lane` compared neither of two fn-pointer fields, a gap latent on main and hidden by a type alias; fixed.
     - A first review session stalled at clone, because a short SHA as `source_revision` fails with `ref_not_found` and surfaces no error. Every dispatch now passes the full SHA.
   - **Timings:** the classification costs 8–90 ms a pair. The whole readings it skips run 0.2 s for lily's caps, and for the blade cuts 1.7–8 s at 1e-9, 0.3–1.8 s at 1e-6 and 7–36 s at 1e-12.
+- 2026-10-31 — **A pierce of a spline face mints its ring vertex** (PR 6166, closing `a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`; lily wall 8's next stop). Review tier: single FULL.
+  - **Phase 0** mapped four answers:
+    - (a) a chord-free primitive: an eleventh operator;
+    - (b) deferring the face's rows: the face goes rowless mid-pipeline, so the trim reads go blind;
+    - (d) the fitted lane: the chord is off the sheet, so it cannot certify;
+    - (a′) a door that runs `mev` then `kemr` with the chord's rows never minted.
+  - **Orchestrator's constraint on (a′):** `[topology.operators]` is a closed set of ten, so the door must be a composition of the existing `mev` and `kemr` (preconditions, deltas in order, minting order), with only the row plan done once (C4). A door with its own mutation would need Ev. It is documented "not an Euler operator", as `ring_move` is.
+  - **Review** (frozen at `bc8e8732`): APPROVE-WITH-FIXES.
+    - The door IS a composition: the Body Debug is byte-equal to `mev` then `kemr`, slot versions and free heads included.
+    - MAJOR: nothing pinned it. A mutant mutating on its own passed every PR row and the net-delta postcondition, and its returned keys were equal. The reviewer's whole-arena equivalence rows now pin it.
+  - **Class: a "composition of existing operators" claim needs a whole-arena equivalence row; a comparison of keys misses it.**
+  - **Fixed:**
+    - one `mev_fan_gate` shared by the fan `mev` and the door, where there had been a hand copy;
+    - per-step delta asserts, replacing a hand-written net literal;
+    - the door is listed in euler.rs's module header;
+    - lily wall 8's pin names both faces by identity (the class from 6136, 6152 and 6157 again).
+  - **Unified:** spline faces had gone through the door while analytic faces stayed on the chord, because `chord_join::join_lone_ring`'s keys-only `kfmrh` relied on the chord's site mint clearing an analytic face. That door now takes `kfmrh_minting`, and every chart goes through `ring_vertex`, so a curved analytic face keeps its rows as found. The P3 filed for it is closed here.
+  - **Lily wall 8's next stop:** at 1e-9 and 1e-6, `GermSectionSpiric`, plane × torus (the stem's torus wall against the leaf's lower cap), at `join::frame_refusal`. Covered by `sectsite/c5-plane-torus-cone-cylinder-arms`, with the evidence added there.
+  - **Filed:**
+    - `sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame` (P2), the lens-wall kernel row's stop;
+    - `cleave/a-fate-cut-into-a-complete-spline-face-refuses-spline-chart` (P2).

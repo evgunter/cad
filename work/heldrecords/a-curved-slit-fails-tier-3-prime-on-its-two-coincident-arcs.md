@@ -81,3 +81,23 @@ Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`, and
 ## Decided (2026-10-28, Ev on PR 5967)
 
 The slit's two coincident arcs are two cells, each with its own face pair's description, so one curve entry is not an option ([edges], tier 3 check 4). The split records them as an edge–edge pair, citing a new `SplitOn` row (the operand edge ON the plane). The census confirms the record as a curve touch. `CurvedSlitTrace` and `EdgeInFaceGap::Curved` come out once the record lands.
+
+## 2026-10-26 — rows PR 5793 moved onto this gap (CLEAVE)
+
+PR 5793 reads arcs lying in curved faces, so these rows, which built
+the one-arc rider form on main, refuse `EdgeInFace` (`Curved`) until the
+curved slit form is built; each is owed back then, with the records it
+pinned (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`):
+
+- `a_tube_through_the_domes_base_builds_every_op_undeclared`, `t ∖ d`:
+  census `(7, 12, 8, 1)`, two v-e records of the rim's ends on the
+  seam ruling;
+- `a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`,
+  `t ∖ d`: censuses `(7, 12, 8, 1)` (two walls) and `(9, 18, 12, 1)`
+  (four), records `[v-v, v-f, v-e, e-e]` = `[0, 2, 0, 2]`,
+  `[0, 2, 0, 4]` and, on the rulings, `[0, 0, 2, 2]`;
+- `a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared`,
+  `t ∖ d`: census `(7, 12, 8, 1)`, records `[0, 2, 0, 2]`;
+- `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`,
+  `d ∖ a`: census `(6, 10, 7, 1)`, two v-f records and one or two e-e
+  records at the seam meridian.
