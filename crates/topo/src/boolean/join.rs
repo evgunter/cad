@@ -8274,3 +8274,7 @@ mod face_surface_tests {
 #[cfg(test)]
 #[path = "join_carrier_site_rows.rs"]
 mod join_carrier_site_rows;
+
+#[cfg(test)]
+#[path = "join_walk_order_rows.rs"]
+mod join_walk_order_rows;
