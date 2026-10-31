@@ -2,12 +2,12 @@
 
 mod loop_volume_grid {
     //! **The loop's volume over its knots, its degree and its place.**
-    //! The same tube, lofted with two semicircles or with eighth arcs a
+    //! The same tube, swept with two semicircles or with eighth arcs a
     //! wall, at 9 or 17 stations, at v-degree 2 or 3, here or moved
     //! across the world origin: tier 3 decides each one's sign, the
     //! continuation meets the printed precision, and the bracket holds
     //! the body's own volume from an independent quadrature of its
-    //! patches ([`demo_tour::patch_quadrature`]). The lofts differ between
+    //! patches ([`demo_tour::patch_quadrature`]). The sweeps differ between
     //! cells (a coarse skin differs from A·L by up to 1 %), so each
     //! cell is held to its own body's oracle, not to A·L.
 
@@ -23,7 +23,7 @@ mod loop_volume_grid {
     fn the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place() {
         let tol = Tol::witness();
         let m = meridian();
-        let spine = loop_spine(&m);
+        let spine = exact_spine(&m);
         let ring = PI * (m.ro.powi(2) - m.ri.powi(2));
         // Across the origin: the loop's arcs straddle it.
         let across = Vec3::new(-1.2, 0.0, -1.8);
@@ -54,8 +54,8 @@ mod loop_volume_grid {
                     }
                 })
                 .collect();
-            let body = lofted_loop::<f64>(&spine, &section, stations, v_degree, tol)
-                .unwrap_or_else(|e| panic!("{cell}: the loop lofts: {e:?}"));
+            let body = swept_loop::<f64>(&spine, &section, stations, v_degree, tol)
+                .unwrap_or_else(|e| panic!("{cell}: the loop sweeps: {e:?}"));
             let body = if moved {
                 let motion = RigidMotion::translation(across).expect("a translation");
                 pncad::topo::transform_rigid(&body, &motion, tol)

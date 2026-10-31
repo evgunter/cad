@@ -1873,7 +1873,7 @@ fn plane_wall_case<T: Decide>(
 
 /// The frame of a section carrier: an ellipse's own axes, a circle's
 /// radius twice. `None` for any other kind.
-fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
+pub(crate) fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
     let (center, normal, seam, sa, sb) = match carrier {
         geom::Curve3::Ellipse {
             center,
@@ -2871,7 +2871,7 @@ fn carried_chord_spec<T: Decide>(
     let (lo, hi) = component.span;
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
-        if !component.closed {
+        if !component.closed() {
             return Ok(false);
         }
         Ok(

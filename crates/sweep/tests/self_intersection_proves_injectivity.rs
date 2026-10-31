@@ -26,9 +26,8 @@
 //! - the cylinder–cylinder tee refuses typed at a vertex its junction
 //!   shares with a cap and nothing else;
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
-//!   holds at both scalars, and the klein elbow's cavity (at a spiric
-//!   cap edge) and the cone frustum's (at its apex, by budget) refuse
-//!   typed.
+//!   and the cone frustum's cavity hold at both scalars, and the klein
+//!   elbow's cavity refuses typed at a spiric cap edge.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
@@ -731,11 +730,24 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
-/// **A long helical sweep certifies within the default budget**: a
+/// **A long helical sweep waits on the window door's halving**: a
 /// square tube two turns round a helix of pitch 0.4, its four walls
-/// sharing helical seams.
+/// sharing helical seams. Its walls are refused a window as charts that
+/// do not refine (`EngineRefusal::Unsupported`), at `f64` and at
+/// `Interval`, before the sweep is asked anything.
+///
+/// The refusal is the window door's, not the body's:
+/// `topo::clearance::refines` halves each axis only toward its lower
+/// end, and this wall's enclosure extremes all lie in one lower half
+/// (`work/clear/clearance-refines-reads-only-the-lower-halves.md`).
+/// With that door reading either half, the same body certifies
+/// `Holds` within the default budget at both scalars (measured). The
+/// sweep's carried frame put the wall there: under the frame measured
+/// from the start tangent the section spun, and this row certified.
+/// When the CLEAR row lands this goes red, and it goes back to
+/// asserting `Holds` through `holds_at_both`.
 #[test]
-fn a_long_helical_sweep_certifies_within_the_default_budget() {
+fn a_long_helical_sweep_waits_on_the_window_doors_halving() {
     fn helical<T: Scalar>() -> Body<T> {
         let path = helix(2.0, 0.4);
         let place = plane_at(&normal_start_place(&path));
@@ -749,7 +761,25 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
             .expect("the helix sweeps")
             .body
     }
-    holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
+    fn refused<T: Scalar>(what: &str, body: &Body<T>) {
+        let side = Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        match side.windows(Which::First) {
+            Err(EngineRefusal::Unsupported { carrier, .. }) => assert!(
+                carrier.contains("does not refine"),
+                "{what}: the wall is refused as a chart that does not refine, got {carrier}"
+            ),
+            Err(other) => panic!("{what}: refused otherwise: {other:?}"),
+            Ok(_) => panic!(
+                "{what}: every wall has a window now; if the CLEAR row has landed, this row \
+                 asserts Holds again (`holds_at_both`)"
+            ),
+        }
+    }
+    refused("the helical sweep", &helical::<f64>());
+    refused("the helical sweep at Interval", &helical::<Interval>());
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
@@ -1500,43 +1530,45 @@ fn frustum<T: Scalar>(r1: f64) -> Body<T> {
         .body
 }
 
-/// **The cone frustum's cavity exhausts the default budget at both
-/// scalars** (`sf2b_interval_probe`'s frustum, top radius `2/64`,
-/// shelled `1/128`). A cone face's window reaches its apex
-/// (`clearance::window_of`), where the cone's two halves meet in space
-/// and share no point of M. A cell holding the apex is never decided
-/// outside its face (`cell_region` never clears a cone's apex), and is
-/// never apart from the other half's by distance, so it splits until the
-/// budget is spent. The operand holds only because its top rim lies on
-/// its window's first `v` bisection, so its apex cells read vacuous
-/// across the seam. A frustum whose rim does not, top radius `3/64`,
-/// exhausts the budget as an operand too. Pinned, not fixed: the row
-/// `shell-cavity-gate-over-refuses-three-valid-bodies` states where the
-/// pairs go.
+/// **A cone frustum holds at both scalars, and so does its cavity**
+/// (`sf2b_interval_probe`'s frustum, top radius `2/64`, shelled `1/128`;
+/// and top radius `3/64`). A frustum's faces miss their apex, so their
+/// windows end at their rims (`clearance::window_of`): the cone's two
+/// halves meet in space only at the apex, which no cell then holds.
+/// Each holds well inside the budget.
 #[test]
-fn a_cone_frustums_cavity_exhausts_the_budget_at_its_apex() {
-    holds_at_both("the frustum", frustum(2.0 / 64.0), frustum(2.0 / 64.0));
-    fn exhausts<T: Scalar>(what: &str, body: &Body<T>, faces: Option<Vec<FaceKey>>) -> String {
-        let report = injective(body, faces, BUDGET);
+fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
+    fn within(what: &str, report: &BoundReport<Witness>) {
         assert!(
-            matches!(
-                report.verdict,
-                BoundVerdict::Refused(EngineRefusal::Budget(_))
-            ),
-            "{what} exhausts the budget: {:?} {:?}",
+            report.receipt.splits < 1024,
+            "{what} holds without splitting toward the apex: {:?}",
+            report.receipt
+        );
+    }
+    for (what, r1) in [
+        ("the 2/64 frustum", 2.0 / 64.0),
+        ("the 3/64 frustum", 3.0 / 64.0),
+    ] {
+        for report in &holds_at_both(what, frustum(r1), frustum(r1)) {
+            within(what, report);
+        }
+    }
+    fn cavity_at<T: Scalar>(what: &str) -> BoundReport<Witness> {
+        let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
+        let report = injective(&hollow, Some(faces), BUDGET);
+        println!("[selfx] {what}: {:?} {:?}", report.verdict, report.receipt);
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what} is embedded: {:?} {:?}",
             report.verdict,
             report.receipt
         );
-        class(&report.verdict)
+        within(what, &report);
+        report
     }
-    fn cavity_at<T: Scalar>() -> String {
-        let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
-        exhausts("the frustum's cavity", &hollow, Some(faces))
-    }
-    assert_eq!(
-        cavity_at::<f64>(),
-        cavity_at::<Interval>(),
-        "one class at both scalars"
+    same_class(
+        "the frustum's cavity",
+        &cavity_at::<f64>("the frustum's cavity"),
+        &cavity_at::<Interval>("the frustum's cavity at Interval"),
     );
-    exhausts("the 3/64 frustum", &frustum::<f64>(3.0 / 64.0), None);
 }

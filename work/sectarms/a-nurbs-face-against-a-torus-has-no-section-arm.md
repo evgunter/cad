@@ -41,3 +41,10 @@ the section is certified is the same open design read as the cone and
 sphere row's (`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`);
 the torus certificate and the critical gap (`pair_section::gap`) are the
 torus side's existing pieces.
+
+## Covered (2026-10-31)
+
+Ev decided the NURBS × implicit arm on PR 6121
+(`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, `## Decided`),
+and the torus is in its first roster. This row stays open as lily wall 8's
+consumer pin, closed by the unit that builds the curved partners.

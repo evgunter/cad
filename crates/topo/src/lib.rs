@@ -1156,6 +1156,34 @@ pub mod test_support {
             .collect())
     }
 
+    /// **The interior-loop guard's reading of two carriers, with no
+    /// faces**: the section certificate's classification through the
+    /// march door, over the reach `(centre, radius)`, then its per-pair
+    /// rule with no event, no face describing one sheet and no witness
+    /// placed, spelled by `Debug` as [`section_report`]'s outcomes are.
+    /// A component the rule clears without a face clears here; any other
+    /// refuses undecided.
+    #[must_use]
+    pub fn section_verdict(
+        f: &geom::Surface<f64>,
+        g: &geom::Surface<f64>,
+        (centre, radius): (geom_core::Point3<f64>, f64),
+        band: geom_core::Band,
+    ) -> String {
+        use crate::boolean::section_cert::{Reach, Sheet, certify, classify};
+        let section = classify(
+            f,
+            g,
+            Reach { centre, radius },
+            Some(geom_brep::SsiLane::marched()),
+            band,
+        );
+        format!(
+            "{:?}",
+            certify(&section, false, band, |_| Sheet::Not, |_, _| [None, None])
+        )
+    }
+
     /// Does `face` lift to one sheet for the section certificate's W2
     /// (`boolean::ops::ChartCache::describes` answers `Sheet::One`)?
     /// The verdict the certificate reads per face; a torn face, or one

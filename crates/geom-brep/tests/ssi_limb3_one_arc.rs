@@ -123,7 +123,7 @@ fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {
             .branches
             .iter()
             .map(|b| match b.end {
-                BranchEnd::Crossings { from, to } => sorted([
+                BranchEnd::Rim { from, to } => sorted([
                     (from.side.fixed, from.side.end),
                     (to.side.fixed, to.side.end),
                 ]),
@@ -495,7 +495,7 @@ fn a_branch_leaving_obliquely_through_a_rail_side_certifies() {
         .branches
         .iter()
         .map(|b| match b.end {
-            BranchEnd::Crossings { from, to } => {
+            BranchEnd::Rim { from, to } => {
                 let mut s = [from.side, to.side].map(|s| (s.fixed, s.end));
                 s.sort_by_key(|x| format!("{x:?}"));
                 s
