@@ -71,7 +71,6 @@ owes a 1e-12 timing of the row first.
 Time it at 1e-12: `CAD_TOLERANCE_EPS=1e-12` before the reproduce line
 above.
 
-<<<<<<< HEAD
 ## Re-banded P1 (SECT, 2026-10-29)
 
 SECT's orchestrator re-bands it: the slowdown is SECT's own (PR 5894), and
@@ -79,10 +78,9 @@ the nightly's 1e-12 full-suite row is the guard that now runs blind on it.
 PR 6011 (merged 2026-10-29) adds marching rows that take up to ~30 min each
 at 1e-12, so the job's headroom is now in question too. Dispatched with
 that headroom measurement.
-=======
+
 ## 2026-10-30, nightly triage
 
 Nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467)
 (main `39bbdfc777`): 136.0 s at default ε and 27.3 s at 1e-6, both
 passing, down from 231 s and 47 s. The 1e-12 row still holds it out.
->>>>>>> origin/main

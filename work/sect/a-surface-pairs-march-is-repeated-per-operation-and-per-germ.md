@@ -2,15 +2,9 @@
 id: a-surface-pairs-march-is-repeated-per-operation-and-per-germ
 kind: issue
 title: A surface pair's certified march is run again for every germ mint, operation and operand order: the torus rows march one pair about eight times
-<<<<<<< HEAD
-status: dispatched
-opened: 2026-10-29
-priority: P1
-=======
 status: open
 opened: 2026-10-29
 priority: P3
->>>>>>> origin/main
 cost: M
 ---
 
@@ -38,8 +32,6 @@ first (mint, join, certificate), then across operations and operand orders
 if the answer is a function of the pair and band alone. Where the sharing
 crosses the public API (a cache the caller holds, or one the kernel keeps),
 that is a design choice to put to the designers, not to make in the build.
-<<<<<<< HEAD
-=======
 
 ## Measured (2026-10-29, `sect/march-once`)
 
@@ -116,4 +108,3 @@ is not put to the designers while that is all it buys. The cost the nightly
 feels is the per-op certification of fitted chord edges, pcurves and the
 result gate (SECTRUNG's `torus-germ-rows-march-for-an-hour-at-a-fine-band`,
 "Where the time goes").
->>>>>>> origin/main
