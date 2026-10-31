@@ -83,7 +83,7 @@ Two designers weighed it over three reconciliation rounds. Both measured in scra
 
 - **Decision 1:** the loft cuts at every section at v-degree 1, and the finishing join merges the slabs whose carriers coincide. The slab names key on the sections' input identity. This is built on PR 5923, which closes this row.
 - **Decision 2 (S):** no face chart or edge carrier carries a C⁰ knot inside its cell. The rest of this row, the integral arm's crease at every degree, is carried by these rows:
-  - `work/carve/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`;
+  - `work/carvetail/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`;
   - `work/foreign/import-splits-a-foreign-face-or-edge-at-each-c0-knot`;
   - `work/measuredoor/tier-3-refuses-a-carrier-with-an-interior-c0-knot`;
   - `work/tesslattice/the-crease-arms-retire-once-no-carrier-carries-a-c0-knot`.

@@ -350,6 +350,69 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "boss",
     );
+    // A footprint drawn in a cylinder's base, running onto its wall's
+    // trace and along it.
+    let disc = run(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.1, 0.0, 0.01).expect("a disc")],
+        },
+        "disc",
+    );
+    let cylinder = run(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: disc,
+            distance: len(0.02),
+        },
+        "cylinder",
+    );
+    session.pump();
+    let wall = {
+        let ev = session.evaluation().expect("landed");
+        pncad::select::all_faces(ev, cylinder)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(ev, cylinder, name)
+                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
+            })
+            .expect("a wall")
+    };
+    let pick = |name| FaceSelection {
+        name,
+        node: cylinder,
+        body: 0,
+    };
+    run(
+        &mut session,
+        SessionOp::AddDrawnProfile {
+            plane: pick(pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: cylinder,
+                path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::Start)],
+            }),
+            traced: vec![pick(wall)],
+            chains: vec![
+                pncad::trace::Chain::at(len(0.0), len(-0.005))
+                    .toward(
+                        Formula::scalar(0.0).expect("finite"),
+                        Formula::scalar(1.0).expect("finite"),
+                    )
+                    .onto_trace(
+                        0,
+                        pncad::document::TraceCrossing::first(pncad::document::TracePassage::Leave),
+                        pncad::document::TraceSense::Against,
+                    )
+                    .line(len(0.02))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.02),
+                        len(-0.005),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+        "traced",
+    );
     let row = || PatternRuleSpec::Linear {
         direction: scl3([1.0, 0.0, 0.0]),
         spacing: len(0.05),
@@ -819,7 +882,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let rows = viewer::frame::check_rows(report, landed);
     let row = rows
         .iter()
-        .find(|row| row.node == big)
+        .find(|row| row.select == viewer::Selection::Node(big))
         .expect("the two overlapping boxes are an interference finding about the big one");
     let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
@@ -838,5 +901,55 @@ fn the_checks_window_speaks_from_the_landed_document() {
     assert!(
         !row.sentence.contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
+    );
+}
+
+/// **An unused variable's row selects the variable**: a named parameter
+/// nothing reads has no node, so its button selects it in the property
+/// panel, said by its name as the sentence says it; an unplaced
+/// construction's row selects its node.
+#[test]
+fn an_unused_variables_row_selects_the_variable() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("checks-window-unused", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::DeclareVar {
+            name: pncad::document::VarName::from_static("spare"),
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::continuous(
+                Dimension::Length,
+                0.01,
+            )),
+        },
+        tol,
+    );
+    let spare = doc.var_named("spare").expect("declared");
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let report =
+        pncad::document::run_checks(&doc, &ev, &pncad::document::ChecksConfig::default(), tol)
+            .expect("the checks run");
+    let rows = viewer::frame::check_rows(&report, &doc);
+    let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
+    assert_eq!(
+        selects,
+        [
+            viewer::Selection::Node(extrude),
+            viewer::Selection::Variable(spare)
+        ],
+        "{rows:?}"
+    );
+    assert_eq!(rows[1].button, "spare");
+    assert!(
+        rows[1]
+            .sentence
+            .contains("check unused: spare: used by nothing"),
+        "{}",
+        rows[1].sentence
     );
 }

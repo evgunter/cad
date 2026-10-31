@@ -69,3 +69,9 @@ PR 4820 retired `Descendants::holder`. A vertex-on-face rest on a
 divided face is now placed by `boolean::ops::place_found` (a found
 row) or `boolean::ops::carried` (a carried row), both over
 `records::landings`.
+
+## 2026-10-29: the waisted body against its copy reaches the first pose (SPLITDOOR)
+
+With the carrier ladder's cone arm (`splitdoor/curved-copy`), the glue door settles a cone face with its copy, so `sweep::test_support::waisted` against an identical copy (or one turned about its axis) gets past the glue door to the crossing sweep. Every op, both orders, at ε 1e-6, 1e-9 and 1e-12, refuses `CurvedPierceUnsupported { operand: A, face: FaceKey(4v1), edge: EdgeKey(2v1) }`: a ruling of the upper cone, `(1, 1, 0)` to `(0.5, 0.5, 0)`, against the lower cone's face (apex `(0, 1, 0)`, axis `+y`, `α = π/4`). The ruling runs parallel to the lower double cone's upper-nappe generator and meets it only at the waist end, so `bool_line_cone_lead` decides Zero (`Unsettled::Degenerate`), `carrier_touch::off_face` does not settle it, and the `(Zero, Positive)` endpoint arm keeps the frontier. Pinned as a refusal by `crates/sweep/tests/curved_copy_against_itself.rs` `the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane`.
+
+The same branch moves the 2026-10-09 sector row: `cone_operand_rows::a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifies` now builds `∩` and the cone less the sector at their closed forms, and refuses `∪` and the sector less the cone `FallbackExtentUnsupported` at the section pass.

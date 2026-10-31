@@ -543,9 +543,8 @@ fn two_coplanar_ellipses_apart_meet_nowhere() {
 /// outside at `(0, 1)`, a double root of the level. The two stay within
 /// the band of each other over about `10⁻⁴` of arc about it, wider than
 /// the band, so the subdivision finds no definite sign to split it at:
-/// the pair refuses typed (`Unsettled::SignInBand`, or `Tangency` where a
-/// piece narrows to the band first), never a decided miss, in either
-/// order.
+/// the pair escalates on the band's reading there, never a decided miss,
+/// in either order.
 /// Pulled `10⁻³` apart they are decided apart; pushed `10⁻³` together
 /// they cross twice, near `(±0.09, 1)`. Red where the touch is cleared.
 #[test]
@@ -573,7 +572,7 @@ fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
                 got,
                 Err(ref r) if matches!(
                     r.fault,
-                    MeetFault::Unsettled(Unsettled::Tangency | Unsettled::SignInBand)
+                    MeetFault::Touch(_)
                 )
             ),
             "{order}: the touch refuses typed: {got:?}"

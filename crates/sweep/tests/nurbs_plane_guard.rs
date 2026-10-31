@@ -95,7 +95,7 @@ fn lilys_four_cap_pairs_clear_through_the_whole_reading() {
         ("sheath, blade", &sheath, &leaf),
     ] {
         let t = std::time::Instant::now();
-        let caps: Vec<String> = topo::test_support::no_crossings_section_report(a, b, tol)
+        let caps: Vec<String> = topo::test_support::no_event_section_report(a, b, tol)
             .expect("the section pass reads every pair")
             .into_iter()
             .filter_map(|(fa, fb, v)| match (kind(a, fa), kind(b, fb)) {
@@ -278,7 +278,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
                     if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12
             )
         };
-        let got: Vec<String> = topo::test_support::no_crossings_section_report(&blade, &block, tol)
+        let got: Vec<String> = topo::test_support::no_event_section_report(&blade, &block, tol)
             .expect("the section pass reads every pair")
             .into_iter()
             .filter(|&(fa, fb, _)| fa == ridge_face && bottom(fb))

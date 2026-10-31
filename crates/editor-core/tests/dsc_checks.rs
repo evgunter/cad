@@ -660,15 +660,13 @@ fn the_registry_order_is_every_check() {
     for check in CheckId::ALL {
         let position = match check {
             CheckId::Connectedness => 0,
-            // Second, not last, and the reason is the registry's
-            // refusal order rather than taste: a resident that reads
-            // no subject must answer BEFORE `run_checks_on` can refuse
-            // `ChecksError::Product` on one that does. Moved after
-            // `UnprovenCoincidence`, this resident would lose every
-            // finding on exactly the documents that do not gather.
+            // Before the residents that read a subject, so a refusal
+            // of one that reads none is reported ahead of a product
+            // refusal; either refusal discards the whole report.
             CheckId::ChartCoherence => 1,
-            CheckId::UnprovenCoincidence => 2,
-            CheckId::AtRest => 3,
+            CheckId::Unused => 2,
+            CheckId::UnprovenCoincidence => 3,
+            CheckId::AtRest => 4,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -678,7 +676,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        4,
+        5,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );

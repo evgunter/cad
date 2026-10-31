@@ -204,8 +204,9 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 /// **A node on an operand's edge is not this lane's** (U2): where a cap
 /// stands at the axes' meeting point, its rim circle passes through
 /// both nodes, tangent there to the partner wall. With one operand
-/// capped there the crossing layer refuses that tangency at its own
-/// door; with both, the rims meet at the nodes, which lie on both
+/// capped there that touch reads in the band's gap and the circle ×
+/// wall roots escalate, at the rim and the wall; with both, the rims
+/// meet at the nodes, which lie on both
 /// walls' boundaries, and the node pass refuses them. Every operation,
 /// both poses.
 #[test]
@@ -241,8 +242,14 @@ fn a_rim_through_the_nodes_refuses_typed() {
                     );
                 } else {
                     assert!(
-                        matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
-                        "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                        matches!(
+                            r,
+                            Err(topo::BooleanError::CurvedPierceEscalated {
+                                decision: topo::BooleanDecision::ArcCylinderRoots,
+                                ..
+                            })
+                        ),
+                        "{what}, {pose}, {op}: the rim's touch of the wall escalates, got {r:?}"
                     );
                 }
             }
@@ -266,7 +273,9 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 /// planes:
 ///
 /// - `δ` in the zero band: the two crossings are one, a node on the
-///   edge, which keeps the quadric's door;
+///   edge, which keeps the quadric's door where the roots decide it a
+///   tangency, and escalates on their decision, at the edge and the
+///   wall, where they read it in the band's gap;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
 /// - `δ` beyond the band and short of `√band`: each pierce reads the
@@ -341,9 +350,14 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                             Want::Door => assert!(
                                 matches!(
                                     r,
-                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. })
+                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. }
+                                        | topo::BooleanError::CurvedPierceEscalated {
+                                            decision: topo::BooleanDecision::ArcCylinderRoots,
+                                            ..
+                                        })
                                 ),
-                                "{cut}: one crossing, the quadric's door, got {r:?}"
+                                "{cut}: one crossing, the quadric's door or a touch on its roots, \
+                                 got {r:?}"
                             ),
                             Want::Escalates => assert!(
                                 matches!(

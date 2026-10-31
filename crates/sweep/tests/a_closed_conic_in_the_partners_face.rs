@@ -33,10 +33,9 @@
 //! each run is read through `differential::outcome` (tiers 2 and 3′, the
 //! certificate, the legal operand, the closed-form volume) and meshed;
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
-//! The ∩ of two solids meeting only in a face is empty. Two rows pin
+//! The ∩ of two solids meeting only in a face is empty. One row pins
 //! what is not built yet, refused typed: the union of a boss over a hole
-//! whose rim is tangent inside the boss's (a crescent), and a closed edge
-//! in a cylinder or a cone face. The coaxial
+//! whose rim is tangent inside the boss's (a crescent). The coaxial
 //! stack and the puck run their unions alone: their ∩ and differences
 //! refuse `FallbackExtentUnsupported` at the coincident walls, as the
 //! two-arc forms do
@@ -883,7 +882,10 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 /// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
 /// `A ∪ B` and `B ∩ A` refuse typed
 /// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
-/// At rest and turned.
+/// Where `A`'s seam ruling lies on the tangent line, a difference carries
+/// it as one edge lying in `B`'s wall, where the crescent's two cusps owe
+/// two (`crates/topo/README.md` tier 3), and refuses
+/// `EdgeInFaceGap::CurvedFace` rather than ship it. At rest and turned.
 #[test]
 fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
     let va = 0.09 * PI;
@@ -918,7 +920,8 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
                 } else {
                     let line = outcome(r, want, tol());
                     assert!(
-                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" }),
+                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" })
+                            || line.contains("gap: CurvedFace"),
                         "{row}: {line}"
                     );
                 }
@@ -1023,6 +1026,9 @@ enum Tip {
     Unprofiled,
     /// `Escalated { decision: Crossing(OnEdge) }`.
     OnEdge,
+    /// `CurvedPierceEscalated { decision: BoundaryMeeting }`: the rim's
+    /// meeting with the other rim, read in band, off the other's wall.
+    Meeting,
     /// `Escalated { decision: Coincidence(Sectors, _) }`.
     Sectors,
     /// `CurvedPierceUnsupported`.
@@ -1040,6 +1046,10 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             decision: Crossing(topo::CrossingDecision::OnEdge),
             ..
         } => Tip::OnEdge,
+        BooleanError::CurvedPierceEscalated {
+            decision: topo::BooleanDecision::BoundaryMeeting,
+            ..
+        } => Tip::Meeting,
         BooleanError::Escalated {
             decision: Coincidence(topo::Coincide::Sectors, _),
             ..
@@ -1122,8 +1132,10 @@ fn united_at_the_run(
 /// can. The union is one shell (`boolean::sectors` `coincident_run`).
 /// Where only one side of the tip is cut, the other side is a true
 /// crescent at the tip and the union refuses
-/// `TangentCrescentUnsupported`; where only one rim is cut, the crossing
-/// layer escalates on the cut vertex against the other rim's arc.
+/// `TangentCrescentUnsupported`; where only one rim is cut, the cut rim
+/// meets the other rim in band, off that rim's wall, and the crossing
+/// layer escalates that meeting at the cut rim and the wall
+/// (`BoundaryMeeting`, [`Tip::Meeting`]).
 ///
 /// Each rim cut at `±s` alone has a reflex long arc between its two
 /// cuts; its profile escalates at every ε, so a reflex arc never reaches
@@ -1136,7 +1148,7 @@ fn united_at_the_run(
 /// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, OnEdge, Pierce, Sectors, Unprofiled};
+    use Tip::{Backstop, Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1200,13 +1212,13 @@ fn short_arcs_at_a_crescents_tip() {
             "the boss's only",
             tip(1e-5),
             [0.0, p, f64::NAN, f64::NAN],
-            [[OnEdge; 2], [Unprofiled; 2], [Unprofiled; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Unprofiled; 2]],
         ),
         (
             "the hole's only",
             [0.0, p, f64::NAN, f64::NAN],
             tip(3e-5),
-            [[OnEdge; 2], [Unprofiled; 2], [Pierce; 2]],
+            [[Meeting; 2], [Unprofiled; 2], [Pierce; 2]],
         ),
     ];
     let row_at = match tol().eps() {
@@ -1274,12 +1286,15 @@ fn short_arcs_at_a_crescents_tip() {
 
 /// **A closed edge lying in a cylinder or a cone face**: a triangle
 /// revolved about the axis straddling the wall, its vertex on the wall
-/// sweeping a circle in the wall's face. The one-site join has no arm
-/// for such a face (`chord_join`'s `RimSide`): a plane can cut it in more
-/// than the conic. Every op refuses before the join, at the crossing
-/// layer (`work/sect/a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm.md`).
+/// sweeping a circle in the wall's face. The carrier ladder decides the
+/// straddle's cones distinct from the wall, so the crossing layer reads
+/// the circle as an edge lying on the wall's carrier, and every op holds
+/// its closed form. The straddle is `π/2`; the cylinder (`r = 1` over
+/// `y ∈ [−1, 1]`) is `2π` and holds `5π/24` of it, the cone frustum
+/// (radius `1.5` to `0.5` over the same height) `13π/6` and holds
+/// `3π/32`.
 #[test]
-fn a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed() {
+fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
     let revolved = |what: &str, verts: &[(f64, f64)]| {
         fin(
             what,
@@ -1302,20 +1317,11 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed() {
         "the cone",
         &[(0.0, -1.0), (1.5, -1.0), (0.5, 1.0), (0.0, 1.0)],
     );
-    for (what, wall) in [("cylinder", &cylinder), ("cone", &cone)] {
-        for (op, r) in [
-            ("A ∪ B", topo::union(wall, &straddle, tol())),
-            ("B ∪ A", topo::union(&straddle, wall, tol())),
-            ("A ∩ B", topo::intersect(wall, &straddle, tol())),
-            ("B ∩ A", topo::intersect(&straddle, wall, tol())),
-            ("A ∖ B", topo::subtract(wall, &straddle, tol())),
-            ("B ∖ A", topo::subtract(&straddle, wall, tol())),
-        ] {
-            assert!(
-                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{what}, {op}: {r:?}"
-            );
-        }
+    for (what, wall, v_wall, v_in) in [
+        ("cylinder", &cylinder, 2.0 * PI, 5.0 * PI / 24.0),
+        ("cone", &cone, 13.0 * PI / 6.0, 3.0 * PI / 32.0),
+    ] {
+        every_op(what, wall, &straddle, (v_wall, PI / 2.0, v_in));
     }
 }
 
@@ -1563,4 +1569,40 @@ fn a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip() {
             }
         }
     }
+}
+
+/// **Review 3 (PR 5993): the meeting's text does not put the edge on
+/// the face's carrier when it is not.** [`short_arcs_at_a_crescents_tip`]'s
+/// "the boss's only" pose at the default ε escalates
+/// `CurvedPierceEscalated { CurveMeeting }` at the boss's `r = 0.3` rim
+/// against the hole's `r = 0.1` wall about `(0.2, 0)`: the rim touches
+/// that cylinder at one point and does not lie on it, yet the text's
+/// subject reads "where an edge on a curved face's carrier meets a
+/// curve of that face's boundary", and its first lever, "make the two
+/// cuts of the curved face one construction", names no cut this pose has.
+#[test]
+fn review3_a_meeting_off_the_carrier_says_so() {
+    // The pose's profile validates at the default ε only.
+    if tol().eps() != 1e-9 {
+        return;
+    }
+    let boss_rim = arcs_at(0.0, 0.3, &[-1e-5, 0.0, 1e-5, PI]);
+    let hole_rim = arcs_at(0.2, 0.1, &[0.0, PI]);
+    let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+    let holed = fin(
+        "the holed plate",
+        extruded(vec![square(), hole_rim], -0.5, 0.5),
+    );
+    let got = topo::union(&boss, &holed, tol());
+    let Err(e @ BooleanError::CurvedPierceEscalated { .. }) = &got else {
+        panic!(
+            "the meeting escalates, located: {:?}",
+            got.map(|_| "a body")
+        );
+    };
+    let text = e.to_string();
+    assert!(
+        !text.contains("an edge on a curved face's carrier"),
+        "the rim is not on the hole's wall: {text}"
+    );
 }

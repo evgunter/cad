@@ -206,6 +206,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             radius: plen("outer_r"),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let disc = r.insert(Node::Extrude {
         profile: disc_profile.into(),
@@ -219,6 +220,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             phase: Formula::zero(Dimension::Angle),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),

@@ -217,7 +217,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
     "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/boolean/mod.rs"),
-    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # `BooleanError::Escalated`'s and `ContactContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
     # does not reach.
@@ -265,6 +265,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `CensusUnsupportedCause`'s shape: the argument sits beside the
     # declaration, and the carry is the façade crate's row.
+    # `ValidationError::ChartSingularityNotAVertex`'s `lies`: where the
+    # point lies, argued beside the declaration as `WedgeCheck` is.
+    "SingularityLies": ("argued", "non-carriage with its falsifier, beside the declaration "
+                        "in crates/topo/src/validate.rs"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),

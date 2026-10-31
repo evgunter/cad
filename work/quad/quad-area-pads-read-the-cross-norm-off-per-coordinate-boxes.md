@@ -14,7 +14,7 @@ cost: M
 `crates/geom-brep/src/props/quad/` reads a vector norm as the root of
 the sum of per-coordinate squares of a BOX in several certified places:
 `rational_patch_face`'s area cell (`g_hull: (ch[0].sqr() + ch[1].sqr() +
-ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num(&w, over…)`),
+ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num_at(&w, column, over…)`),
 `trimmed_patch_face_rounds`' `sup_g` over the trim box
 (`(cross[0].sqr() + …).sqrt()`), the helper `norm_hi`, `area_at` and
 `area_cell` (their `‖S_u × S_v‖` and pad readings), and the corresponding
@@ -34,7 +34,7 @@ folded into a norm (`geom_core::spline::compose::tensor`'s
 `coefficient_norm_bound` / `coefficient_norm_sup`, and
 `PatchSpans::cell_norm_sup` for a tensor-product cell).
 
-**Inferred from the code, not reproduced.** Whether `cross_num` over a
+**Inferred from the code, not reproduced.** Whether `cross_num_at` over a
 cell is available in coefficient form (it is a hull evaluation here),
 and which of these sites are upper bounds the sentence covers rather
 than midpoint estimates (`g_mid` is a point reading and is not), is

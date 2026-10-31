@@ -2,12 +2,14 @@
 id: import-splits-a-foreign-face-or-edge-at-each-c0-knot
 kind: issue
 title: STEP import splits a foreign face or edge at each interior C⁰ knot at its door, so nothing imported carries a crease inside a cell
-status: parked
+status: closed
 opened: 2026-10-28
-priority: P1
+priority: P0
 cost: M
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
-blocked_on: [the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch]
+pr: 6013
+branch: foreign/c0-knot-split
+closed: 2026-10-30
 ---
 
 
@@ -32,3 +34,22 @@ Ruled (Ev, `[ev]` PR 6014, fork row 216, option (i)): the split stands as built,
 Parked on the quadrature row: this lands once a split rational conic costs what the whole one did, so the nightly does not take the 30-minute debug import.
 
 Separately, the at-rest quadrature's round-zero schedules are per face (`AREA_CELLS_PER_AXIS`, `AXIS_INIT_PIECES`, `HULL_BLOCKS_PER_AXIS`, `REFINED_SPANS_PER_AXIS`), so a tile gets a whole patch's grid; they become per knot span (`work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md`).
+
+## Landing (Ev, 2026-10-29)
+
+Built and held as **draft PR 6013** (branch `foreign/c0-knot-split`), which stays open while this row is parked. Ev: it stays open "as long as it's clear what it's waiting on … and whose responsibility it is to merge", and it is addressed soon, so this row and its blocker are P0.
+- **Waits on** `work/quad/the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch.md` (P0): until the quadrature reads per knot span, a split rational conic costs about 25× its whole patch at the at-rest gate.
+- **Who lands it: QUAD's orchestrator** (Ev, in chat, 2026-10-30: FOREIGN has no live orchestrator, and the remaining steps sit on QUAD's ground: the re-time is QUAD's acceptance, the conflict is in the conic test QUAD's unit re-baselines, and `rectangle_winding` is in `quad_lane.rs`). The row stays FOREIGN's. QUAD:
+  1. dispatches the single FULL review now, on the frozen head `8e3c6dab`, since the split's correctness does not depend on the per-span schedules;
+  2. once the QUAD row closes, merges main into the branch and resolves the conic test;
+  3. re-times the conic quarter torus, in release and debug;
+  4. runs the fix pass on the review's findings, un-drafts, and merges, closing this row with `pr: 6013`.
+- **Alongside:** EXCH's `step-import-promotes-torus-sphere-and-cone-nets` (P0) takes the common conics out of the split's reach, but the split does not wait on it.
+
+## Closed
+
+PR 6013, landed by QUAD's orchestrator (Landing, above). The import door splits a foreign chart or edge carrier at every interior knot of multiplicity at least its degree. The split is exact; samples only choose which side to test, and every side left out is certified clear by enclosures, so a crossing is never missed silently. The join keeps the carrier that runs through the vertex, so a line beside a straight spline joins as on main. Two spline halves at a C⁰ knot never join.
+
+**Conic quarter torus, release:** 162 one-span walls; import 5.54 s (the unsplit patch on main took 5.3 s); measure `Met` in 6.92 s at pad 4.12e-4, holding Pappus. Debug: the whole test takes 72.8 s.
+
+**Reviews:** a FULL review, a fix pass, then a delta FULL review and its fixes (`work/quad/log.md`, 2026-10-30). What the split still refuses is on `the-c0-knot-split-refuses-what-it-cannot-place`.

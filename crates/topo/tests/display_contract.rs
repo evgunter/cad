@@ -34,7 +34,7 @@ test_utils::f6_variants! {
     /// what it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const CONTACT_REFUSAL: ContactRefusal =
-        [Contradicted, Escalated, Undeclared, NotCertifiable];
+        [Contradicted, Escalated, NotCertifiable];
 }
 
 /// Every `Debug` field name `ContactRefusal`'s payloads carry, as the
@@ -84,14 +84,10 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
             vec!["escalated", topo::CONTACT_RECOURSE],
         ),
         (
-            ContactRefusal::Undeclared { diag: in_band() },
-            vec!["touch", "declaration", topo::CONTACT_RECOURSE],
-        ),
-        (
             ContactRefusal::NotCertifiable {
                 what: "the supports meet at no definite angle",
             },
-            vec!["certifiable set", "the supports meet at no definite angle"],
+            vec!["certified", "the supports meet at no definite angle"],
         ),
     ];
     assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
@@ -100,7 +96,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
     // a contact site. Composing the payload instead is what keeps it
     // out.
     assert!(
-        !ContactRefusal::Undeclared { diag: in_band() }
+        !ContactRefusal::Escalated { diag: in_band() }
             .to_string()
             .contains("lower the tolerance")
     );

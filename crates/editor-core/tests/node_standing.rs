@@ -481,14 +481,15 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        29,
+        33,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
          mate fault a FAILED placement carries, a standing and not a value (a node's space is \
          the recipe's, `Doc::node_space`, and no value is read for it); it hands the result \
          map to the per-member schedule (`eval/members.rs`) and writes the family's refusal it \
-         returns",
+         returns; a profile lane hands its result map whole as the nominal document's \
+         (`ProfileLane::nominal_results`)",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",

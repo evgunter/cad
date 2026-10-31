@@ -1812,6 +1812,29 @@ pub fn charted_nurbs_mints() -> usize {
     CHART_MINTS.with(core::cell::Cell::get)
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static MARCHES: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+/// Test-only: how many times this thread has run the ℝ³ implicit-pair
+/// march (the general rung of cylinder × sphere and the torus pairs,
+/// through any door). An operation that marches each surface pair once
+/// is pinned by the count, which timing alone would otherwise carry.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn implicit_pair_marches() -> usize {
+    MARCHES.with(core::cell::Cell::get)
+}
+
+/// Counts one march toward [`implicit_pair_marches`]; nothing outside
+/// test builds.
+fn count_march() {
+    #[cfg(any(test, feature = "test-support"))]
+    MARCHES.with(|n| n.set(n.get() + 1));
+}
+
 /// Counts one mint toward [`charted_nurbs_mints`]; nothing outside test builds.
 fn count_mint() {
     #[cfg(any(test, feature = "test-support"))]
@@ -3140,6 +3163,7 @@ fn implicit_pair_r3(
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
+    count_march();
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     // Both floors and the march's tolerance are minted over the slab

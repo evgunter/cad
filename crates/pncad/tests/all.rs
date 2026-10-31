@@ -445,14 +445,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         // and the difference is that the answer is now readable.
         CensusContact::ConformalPatch { finding } => {
             named::<ContactFinding>(finding);
-            named::<DeclaredContact>(finding.pair);
-            let _bridgeable = match finding.verdict {
-                // A finding is only minted on definite evidence, so
-                // this is the arm that arrives; the other is the
-                // shape of the verdict type and not of this payload.
-                ContactVerdict::Definite => false,
-                ContactVerdict::Bridged => true,
-            };
+            named::<ContactPair>(finding.pair);
             false
         }
     }
@@ -1515,9 +1508,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a new
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these five words.
+/// under one of these words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1532,6 +1525,8 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -1838,7 +1833,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 13] = [
+const FACADE_SOURCES: [(&str, &str); 14] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1851,6 +1846,7 @@ const FACADE_SOURCES: [(&str, &str); 13] = [
     ("pattern.rs", include_str!("../src/pattern.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
     ("topo.rs", include_str!("../src/topo.rs")),
+    ("trace.rs", include_str!("../src/trace.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
 ];
 
@@ -2158,6 +2154,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2438,6 +2435,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Profile(ProfileProgram {
             loops: vec![lifted],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = insert(
@@ -2595,6 +2593,7 @@ fn square_at(s: f64, x: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2836,6 +2835,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Profile(ProfileProgram {
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, plate) = insert(
@@ -2853,6 +2853,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                     .expect("finite tab corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, tab) = insert(
@@ -5104,7 +5105,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5204,6 +5205,16 @@ const NOT_CARRIED: [&str; 97] = [
     "to_value",
     "verdict_summary",
     "vertex_name",
+    // The traces a drawn profile reads, which the evaluation builds
+    // from the faces it read and hands the program's resolution. A
+    // modeller writes `DrawnOn` and the trace steps (carried) and
+    // reads the refusal (`TraceRefusal`, carried), never the traces.
+    "TracedFace",
+    "Traces",
+    // The same read and its display sampling, which `trace::sketch_trace`
+    // runs for a caller drawing a face's trace in a frame's plane.
+    "traced_faces",
+    "trace_marks",
 ];
 
 /// Every name a `pub use` statement of `src` introduces, restricted
@@ -5650,14 +5661,23 @@ fn the_root_readers_read_statements_not_lines() {
 ///   not run: what the evaluator's `f64` lane logs in the second pass's
 ///   place is read off it. A fact between the profile layer and the
 ///   evaluator, which a modeller never asks.
+/// - `pen` and its `Pen`, where a program's prefix leaves the tip:
+///   the document layer's trace resolution
+///   (`editor_core::trace`) runs a traced step from it. A modeller
+///   writes the traced step, and the document resolves it.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 3] =
-    ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
+const PROFILE_NOT_CARRIED: [&str; 5] = [
+    "PINNED_UNDER_GUIDANCE",
+    "Pen",
+    "decision_subject",
+    "is_full_turn",
+    "pen",
+];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -6885,6 +6905,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Profile(ProfileProgram {
                 loops: vec![square],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, blank) = super::insert(

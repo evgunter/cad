@@ -11,7 +11,7 @@ crates/geom-brep 220
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9
-crates/step-import 45
+crates/step-import 44
 crates/sweep 139
 crates/topo 36
 demos/tour 2

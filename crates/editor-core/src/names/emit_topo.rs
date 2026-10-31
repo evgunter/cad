@@ -6619,6 +6619,7 @@ mod split_carries_candidates {
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         ins(
@@ -6931,6 +6932,7 @@ mod wavy_loft {
                 Node::Profile(ProfileProgram {
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             doc = d;
@@ -7029,6 +7031,7 @@ mod wavy_loft {
                         .expect("finite"),
                 ],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, block) = ins(
@@ -7191,6 +7194,7 @@ mod edge_pieces_of_one_line_tie {
             Node::Profile(ProfileProgram {
                 loops: vec![loop_],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         ins(

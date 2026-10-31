@@ -37,6 +37,7 @@
 use geom_brep::LeverBounds;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
+use super::sectors::reading_lever;
 use super::{BooleanError, BooleanReduction, NullCopies, Operand};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -525,23 +526,28 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 /// says whether the face wraps round it, the corner then the whole
 /// turn but the ray itself, or holds no direction.
 ///
-/// Every sign acts on its verdict, so each is levered at the corner's
-/// own arm, the lesser of its bounds' reaches; where that is known only
-/// from both sides every sign is read at both and acted on only where
-/// they agree ([`sign_at`]).
+/// Every sign acts on its verdict, so each is levered at the shorter of
+/// the two directions' own reaches ([`reading_lever`]): `d`'s side of
+/// each bound at that bound's reach and `d`'s own, `d_len` (the kept
+/// edge's, or `None` for a bisector, which has none), and the bounds'
+/// turn against each other at the lesser of theirs. Where a reach is
+/// known only from both sides its signs are read at both and acted on
+/// only where they agree ([`sign_at`]).
 fn corner_holds<T: Decide>(
-    d: Vec3<T>,
+    (d, d_len): (Vec3<T>, Option<LeverBounds<T>>),
     (out, back): (Vec3<T>, Vec3<T>),
     wraps: impl FnOnce() -> Result<bool, BooleanError>,
     n: Vec3<T>,
-    arm: LeverBounds<T>,
+    (out_len, back_len): (LeverBounds<T>, LeverBounds<T>),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let s1 = sign_at(n.dot(out.cross(d)), arm, band)?;
-    if s1 == Sign::Zero && sign_at(out.dot(d), arm, band)? == Sign::Positive {
+    let at_out = reading_lever(out_len, d_len);
+    let s1 = sign_at(n.dot(out.cross(d)), at_out, band)?;
+    if s1 == Sign::Zero && sign_at(out.dot(d), at_out, band)? == Sign::Positive {
         return Ok(None);
     }
-    let s2 = sign_at(n.dot(d.cross(back)), arm, band)?;
+    let s2 = sign_at(n.dot(d.cross(back)), reading_lever(back_len, d_len), band)?;
+    let arm = reading_lever(back_len, Some(out_len));
     let turn = sign_at(n.dot(out.cross(back)), arm, band)?;
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
@@ -564,7 +570,7 @@ fn places<T: Decide>(
     at: &[VertexKey],
     root: FaceKey,
     divisions: &FaceDivisions,
-    (d, secant): (Vec3<T>, bool),
+    (d, d_len, secant): (Vec3<T>, Option<LeverBounds<T>>, bool),
     band: Band,
 ) -> Result<Option<Vec<Place>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -637,7 +643,7 @@ fn places<T: Decide>(
                 }
                 Ok(None) | Err(_) => return Err(no_normal),
             };
-            let arm = out_len.min(back.1);
+            let reaches = (out_len, back.1);
             let wraps = || {
                 let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
                 if bounds[0] == bounds[1] {
@@ -651,7 +657,14 @@ fn places<T: Decide>(
                 }
                 tip_wraps((body, operand), (f, h), band)
             };
-            match corner_holds(d, (out, back.0), wraps, normal.vec(), arm, band)? {
+            match corner_holds(
+                (d, d_len),
+                (out, back.0),
+                wraps,
+                normal.vec(),
+                reaches,
+                band,
+            )? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}
@@ -720,7 +733,7 @@ fn tip_wraps<T: Decide>(
     for (k, &(b, b_len)) in runs.iter().enumerate() {
         let (a, a_len) = runs[(k + runs.len() - 1) % runs.len()];
         let (across, ahead) = (n.dot(a.cross(b)), a.dot(b));
-        let arm = a_len.min(b_len);
+        let arm = reading_lever(b_len, Some(a_len));
         if sign_at(across, arm, band)? == Sign::Zero && sign_at(ahead, arm, band)? == Sign::Negative
         {
             halves = halves + T::one();
@@ -756,6 +769,9 @@ struct Leaving<T: geom_core::Real> {
     /// boundary lies in the corner its chord does. A direction with no
     /// edge behind it (a sector's bisector) is its own.
     secant: Vec3<T>,
+    /// How far the leaving edge reaches from the vertex; `None` for a
+    /// direction with no edge behind it.
+    reach: Option<LeverBounds<T>>,
 }
 
 impl<T: geom_core::Real> Leaving<T> {
@@ -764,6 +780,7 @@ impl<T: geom_core::Real> Leaving<T> {
         Self {
             tangent: d,
             secant: d,
+            reach: None,
         }
     }
 }
@@ -786,7 +803,8 @@ fn place<T: Decide>(
     let mut corners = Vec::new();
     let readings = [(leaving.tangent, false), (leaving.secant, true)];
     for (k, (d, secant)) in readings.into_iter().enumerate() {
-        let Some(found) = places((body, operand), at, root, divisions, (d, secant), band)? else {
+        let leaving_d = (d, leaving.reach, secant);
+        let Some(found) = places((body, operand), at, root, divisions, leaving_d, band)? else {
             return Ok(None);
         };
         if k == 0
@@ -1659,7 +1677,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .map(|h| h.start)
                 .zip(departure(kept_body, he))
         });
-        let [Some((x0, (d0, _))), Some((x1, (d1, _)))] = ends else {
+        let [Some((x0, (d0, l0))), Some((x1, (d1, l1)))] = ends else {
             return Err(desync("a fate edge has no direction").into());
         };
         // Each end's chord to the kept edge's midpoint.
@@ -1708,6 +1726,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Leaving {
                     tangent: d0,
                     secant: s0,
+                    reach: Some(l0),
                 },
                 band,
             )?,
@@ -1719,6 +1738,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Leaving {
                     tangent: d1,
                     secant: s1,
+                    reach: Some(l1),
                 },
                 band,
             )?,
@@ -1958,7 +1978,7 @@ mod corner_bounds_rows {
         let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let n = Vec3::new(0.0, 0.0, 1.0);
-        let at = |arm| super::corner_holds(d, bounds, || Ok(false), n, arm, band);
+        let at = |arm| super::corner_holds((d, None), bounds, || Ok(false), n, (arm, arm), band);
         // Each bound alone places the cut, and they differ.
         assert!(matches!(at(LeverBounds::Exact(above)), Ok(Some(true))));
         assert!(matches!(at(LeverBounds::Exact(below)), Ok(None)));
@@ -1970,6 +1990,38 @@ mod corner_bounds_rows {
             }) => assert_eq!(diag.predicate, Some("bool_fate_corner_straddle")),
             other => panic!("the corner refuses with the straddle, got {other:?}"),
         }
+    }
+
+    /// **A cut `θ` inside a corner beside its long bound**, the short
+    /// bound setting the corner's arm: `θ` times the short bound reads
+    /// Zero, `θ` times the long one definite. Read at the long bound's
+    /// reach, a cut with no reach of its own or a long one lies in the
+    /// corner, where the arm would read it along the bound; a cut no
+    /// longer than the short bound lies along it.
+    #[test]
+    fn a_cut_beside_a_long_bound_is_read_at_the_shorter_of_their_reaches() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (long, short) = (LeverBounds::Exact(1.0), LeverBounds::Exact(1e-6));
+        let theta = 1e-4_f64;
+        let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let at = |d_len, reaches| {
+            super::corner_holds((d, d_len), bounds, || Ok(false), n, reaches, band)
+        };
+        assert!(
+            matches!(at(None, (long, short)), Ok(Some(true))),
+            "no reach of its own"
+        );
+        assert!(
+            matches!(at(Some(long), (long, short)), Ok(Some(true))),
+            "a long cut"
+        );
+        assert!(
+            matches!(at(Some(short), (long, short)), Ok(None)),
+            "a short cut"
+        );
+        assert!(matches!(at(None, (short, short)), Ok(None)), "at the arm");
     }
 }
 

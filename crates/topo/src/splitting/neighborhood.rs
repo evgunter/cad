@@ -62,7 +62,7 @@
 //! such a sector twice at any width and the convex argument above does
 //! not hold. The plane's side along the rulings is monotone between its
 //! two extremal rulings, so the sector is subdivided at each extremal
-//! ruling strictly inside it instead ([`crate::sector_shape::apex_shape`]):
+//! ruling strictly inside it instead ([`crate::sector_shape::apex_corner_shape`]):
 //! between consecutive entries the side then changes at most once, which
 //! is what the run scan reads. Those entries are the walk's
 //! `WideBisector` duplicates, up to two in one sector (a window over a
@@ -86,7 +86,7 @@ use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
 use crate::sector_shape::{
     ApexShape, CornerBounds, CornerShape, SectorFault, SectorShape, SlitTips, TurnOrder,
-    apex_shape, corner_shape,
+    apex_corner_shape, corner_shape,
 };
 use crate::validate::decide;
 
@@ -278,7 +278,7 @@ pub(crate) fn entry_side<T: Decide, E>(
 /// `at_vertex` there, its bounds as `bounds` says. With a tangent plane,
 /// [`corner_shape`] reads it: a wide sector gets one entry at its
 /// subdivision direction, and a slit tip's full turn three, at its
-/// quarters. At a cone's apex, [`apex_shape`] reads it against the
+/// quarters. At a cone's apex, [`apex_corner_shape`] reads it against the
 /// plane, and it gets one at each extremal ruling inside it (module
 /// docs). Each entry is its direction, the sector's arm, and the side of
 /// the plane along `normal` that direction points to, levered at the arm
@@ -315,15 +315,8 @@ pub(crate) fn wide_entries<T: Decide>(
             }
         }
         VertexFace::Apex(apex) => {
-            let ApexShape { arm, rulings } = apex_shape(
-                dir_a,
-                dir_b,
-                &apex,
-                bounds == CornerBounds::OneEdge,
-                normal,
-                band,
-            )
-            .map_err(fault)?;
+            let ApexShape { arm, rulings } =
+                apex_corner_shape((dir_a, dir_b), &apex, bounds, normal, band).map_err(fault)?;
             (arm, rulings)
         }
     };

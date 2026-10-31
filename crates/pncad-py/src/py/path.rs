@@ -155,7 +155,7 @@ pub(crate) enum ArcSweep {
 }
 
 impl ArcSweep {
-    fn to_kernel(self) -> pf::ArcSweep {
+    pub(crate) fn to_kernel(self) -> pf::ArcSweep {
         match self {
             Self::Ccw => pf::ArcSweep::Ccw,
             Self::Cw => pf::ArcSweep::Cw,
