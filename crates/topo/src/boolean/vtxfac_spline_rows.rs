@@ -363,14 +363,12 @@ fn a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense() {
     rings_as_found(reverted, top, p, "sense false");
 }
 
-/// **The analytic arm mints the ring by a chord strut, through the
-/// strut's site mint**: on a minted cylinder wall the line chord does
-/// not certify against the chart, so the face leaves rowless, never
-/// half-minted. The join's keys-only re-parenting doors read that face
-/// as one they owe no row; one that kept its rows here refuses
-/// `KeysOnly` there (`sweep`'s `a_rim_inside_a_ball_face`).
+/// **The analytic arm: a ring vertex struck into a minted cylinder wall
+/// leaves its rows as found**, as on a spline chart. A chord strut put
+/// in by `mev` does not certify against the cylinder, so its site mint
+/// clears the wall, which this row reads as rows moved.
 #[test]
-fn a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint() {
+fn a_ring_vertex_in_a_cylinder_wall_leaves_its_rows_as_found() {
     let mut body = crate::test_support_fixtures::fresh_keyed_body::<f64>();
     let face = crate::test_support_fixtures::cyl_wall_sheet(
         &mut body,
@@ -379,17 +377,11 @@ fn a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint() {
         (0.0, 1.0),
         Tol::witness(),
     );
-    assert!(
-        crate::pcurves::stored_rows(&body, face).complete(),
-        "the fixture's wall is minted"
-    );
-    let p = Point3::new(0.5f64.cos(), 0.5f64.sin(), 0.5);
-    let body = ring_at(body, face, p, "cylinder");
-    let rows = crate::pcurves::stored_rows(&body, face);
-    assert!(
-        !rows.stores,
-        "the cylinder wall keeps rows the chord's site mint clears: {:?}",
-        rows_of(&body, face)
+    rings_as_found(
+        body,
+        face,
+        Point3::new(0.5f64.cos(), 0.5f64.sin(), 0.5),
+        "cylinder",
     );
 }
 

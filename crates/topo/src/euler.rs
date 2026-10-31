@@ -3,7 +3,8 @@
 //! This module implements the make-direction operators [`Body::mvfs`](crate::construction::Construct::mvfs),
 //! [`Body::mev`](crate::construction::Construct::mev), and [`Body::mef`](crate::construction::Construct::mef) (Mäntylä ch. 9 semantics, ch. 11
 //! surgeries re-derived under our orientation convention), plus the
-//! addressing helper [`Body::find_half_edge`]. The ring/genus operators
+//! addressing helper [`Body::find_half_edge`] and `Body::ring_vertex`,
+//! which is not an operator but `mev` then `kemr`. The ring/genus operators
 //! ([`Body::kemr`](crate::construction::Construct::kemr), [`Body::mekr`](crate::construction::Construct::mekr), [`Body::kfmrh`](crate::construction::Construct::kfmrh)) and the `ring_move`
 //! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3),
 //! the kill-direction duals ([`Body::kvfs`](crate::construction::Construct::kvfs), [`Body::kev`](crate::construction::Construct::kev),
@@ -76,7 +77,8 @@
 //!   ([`Body::ring_move`](crate::construction::Construct::ring_move), [`Body::split_edge`](crate::construction::Construct::split_edge), [`Body::movefac`](crate::construction::Construct::movefac),
 //!   [`Body::merge_coplanar_faces`]) declare the same debug
 //!   postcondition, or open a surgery scope and close it with the
-//!   sweep, or are composed of doors that do; the
+//!   sweep, or are composed of doors that do (`Body::ring_vertex`,
+//!   `mev` then `kemr`, each asserting its own); the
 //!   attach/metadata setters re-certify under the same tier-1
 //!   assertion ([`Body::set_face_surface`](crate::construction::Construct::set_face_surface), [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve))
 //!   or write fields tier 1 does not constrain. **The closure property
@@ -2304,20 +2306,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let plan = self.mev_fan_plan(anchor, anchor)?;
-        let p_old = self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(anchor), "start"));
-        let faces =
-            [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
-        let certified = self.certify_edge_spec(
-            Origin::Callers,
-            None,
-            EdgeCurveSpec::line_between(p_old, point),
-            p_old,
-            point,
-            faces,
-            tol,
-        )?;
-        self.certify_rebased_run(&plan.run, point, tol)?;
+        let (plan, certified) = self.mev_fan_gate(anchor, anchor, point, NewCurve::Chord, tol)?;
         let element = self.joint(anchor);
         // ---- Mutation (infallible from here on). ----
         let point_key = self.add_point(point);
@@ -2448,25 +2437,24 @@ impl<T: Decide> Body<T> {
     // mev implementation
     // ------------------------------------------------------------------
 
-    /// [`MevSite::Fan`] — precondition block, then the fan surgery.
-    fn mev_fan(
-        &mut self,
-        site: MevSite,
+    /// [`Body::mev`](crate::construction::Construct::mev)'s fan
+    /// preconditions and geometry gate, with no mutation: the site's plan
+    /// ([`Body::mev_fan_plan`]), then the spec certified from the fan
+    /// vertex's point to `point` (D4 ¶2 at attachment), then the moved
+    /// run's own carriers against the endpoints the move gives them. Read
+    /// by the fan `mev` and by [`Body::ring_vertex`].
+    fn mev_fan_gate(
+        &self,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
         point: Point3<T>,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MevCreated, EulerOpError>
+    ) -> Result<(MevFanPlan, EdgeCurve<T>), EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
-        // ---- Preconditions: no mutation until every check passes. ----
         let plan = self.mev_fan_plan(he1, he2)?;
-        // ---- Geometry gate (still no mutation): certify the spec
-        // against old point → new point (D4 ¶2 at attachment), then
-        // the moved run's own carriers against the endpoints the move
-        // gives them.
         let p_old =
             self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(plan.he1.key()), "start"));
         let faces =
@@ -2481,6 +2469,24 @@ impl<T: Decide> Body<T> {
             tol,
         )?;
         self.certify_rebased_run(&plan.run, point, tol)?;
+        Ok((plan, certified))
+    }
+
+    /// [`MevSite::Fan`] — precondition block, then the fan surgery.
+    fn mev_fan(
+        &mut self,
+        site: MevSite,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        point: Point3<T>,
+        curve: NewCurve<T>,
+        tol: Tol,
+    ) -> Result<MevCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        // ---- Preconditions and geometry gate: no mutation yet. ----
+        let (plan, certified) = self.mev_fan_gate(he1, he2, point, curve, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
             &[plan.he1_loop, plan.he2_loop],
