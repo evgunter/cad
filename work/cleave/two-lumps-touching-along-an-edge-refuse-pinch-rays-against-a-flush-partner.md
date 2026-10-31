@@ -2,11 +2,12 @@
 id: two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner
 kind: issue
 title: Two lumps touching along an edge against a partner flush with a face of each refuse PinchRaysInAFace in some orders
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: H
 refs: [a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece]
+branch: cleave/two-lumps-pinch-rays
 ---
 
 Found by the flush-partners-at-a-slit lane (`cleave/flush-partners-at-a-slit-build`),
