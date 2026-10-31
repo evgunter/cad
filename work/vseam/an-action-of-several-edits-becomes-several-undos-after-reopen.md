@@ -5,7 +5,8 @@ title: History::replayed commits each logged edit as its own state, so a several
 status: open
 opened: 2026-09-24
 priority: P1
-cost: D
+design: true
+cost: M
 ---
 
 
@@ -68,3 +69,12 @@ one logged edit and one state after replay, whatever the edit changed.
 `record_action`, cited above, is now folded into
 `DocSession::commit_run`, which calls `History::commit_group` directly.
 The two instances listed above stand.
+
+## 2026-10-31 — band confirmed P1, re-priced D → M, design open
+
+Kept at P1 because the persisted log is architecture that entrenches.
+Every file saved without action boundaries is a file whose reopened
+history can never be grouped, and every new several-edit action adds a
+way to meet this. The fork named under "What deciding it needs" (put
+the boundary in `LoggedEdit`/persist, which is EDIT's ground, or let the
+two histories differ and say so) is open, so `design` is set.
