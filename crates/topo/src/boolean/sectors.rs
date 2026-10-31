@@ -1960,6 +1960,34 @@ pub(super) fn faces_at<T: Decide>(
     Ok(out)
 }
 
+/// **How far a curve leaving a vertex stands past another it leaves
+/// tangent to, one order down**, at arc length `l` along their shared
+/// tangent `d̂`: with `û` the unit in-plane direction square to `d̂`
+/// toward the side read, a curve with curvature vector `κ` stands
+/// `κ·û·l²/2 + O(l³)` off the tangent line toward `û`, so the curve with
+/// `κ` stands past the one with `κ_b` toward `û` by `(κ − κ_b)·û·l²/2`.
+/// Its sign is the second-order term's at the vertex and does not depend
+/// on `l`, which sets only the size it is decided at; near enough the
+/// vertex the term dominates whatever the curves do further out. Equal
+/// curvatures (one circle, or two lines) read zero, a third-order tie
+/// this reading cannot part.
+///
+/// The one home of the reading: [`runs_into`] (an edge against a
+/// sector's bound), [`crescent`] (two sectors' bounds) and the fate
+/// cut's corner (`fate::corner_holds`, an edge against a dropped face's
+/// corner bound) each decide it at their own lever under their own
+/// name, since each is a different decision with its own lever: the
+/// two sector passes' reaches are exact, the fate corner's are known
+/// from both sides and straddle under a row of their own, and a refusal's
+/// diagnosis and `k_stats` name the site that read it.
+pub(super) fn bend_parting<T: geom_core::Real>(
+    (k, kb): (Vec3<T>, Vec3<T>),
+    u: Vec3<T>,
+    l: T,
+) -> Margin<T> {
+    Margin::of((k - kb).dot(u) * l.powi(2) / (T::one() + T::one()))
+}
+
 /// **Whether an edge leaving the vertex along `dir`, coplanar with `s`,
 /// runs into its face**: within the sector and along neither of its
 /// bounds that is an edge of the face, or, along one of them, bending
@@ -1967,7 +1995,7 @@ pub(super) fn faces_at<T: Decide>(
 /// the unit in-plane direction square to it into `s`, the edge stands
 /// `κ·û·l²/2` off the tangent line at arc length `l` and the bound
 /// `κ_b·û·l²/2`, so the edge enters the face iff `(κ − κ_b)·û > 0`
-/// ([`crescent`]'s reading, decided at the shorter reach). A bound or an
+/// ([`bend_parting`], decided at the shorter reach). A bound or an
 /// edge with no bend to read (a fitted edge, a bisector) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
@@ -2001,10 +2029,9 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let l = l.min(lb);
-        let entered = (k - kb).dot(u) * l.powi(2) / (T::one() + T::one());
+        let entered = bend_parting((k, kb), u, l.min(lb));
         return Ok(
-            decide("bool_sector_runs_into_bend", Margin::of(entered), band).map_err(|diag| {
+            decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
             })? == Sign::Positive,
         );
@@ -2164,7 +2191,8 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// At arc length `s` along `d̂`, `a`'s bound stands `κ_a·û·s²/2 + O(s³)`
 /// off the tangent line toward `û`, with `a` on the `û` side of it, and
 /// `b`'s bound `κ_b·û·s²/2 + O(s³)`, with `b` on the other side; so the
-/// two overlap from the vertex iff `(κ_b − κ_a)·û > 0`. A line edge
+/// two overlap from the vertex iff `(κ_b − κ_a)·û > 0`
+/// ([`bend_parting`]). A line edge
 /// bends by zero, so two line edges read none; a fitted edge or a
 /// bisector reads no bend, and a pair holding one reads no crescent.
 /// Equal bends (one circle bounding both) read none.
@@ -2245,10 +2273,8 @@ fn crescent<T: Decide>(
             {
                 continue;
             }
-            let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
-            if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
-                == Sign::Positive
-            {
+            let opened = bend_parting((kb, ka), u, l);
+            if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
                 return Ok(true);
             }
         }

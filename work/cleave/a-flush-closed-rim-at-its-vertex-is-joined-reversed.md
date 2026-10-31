@@ -13,7 +13,7 @@ Split from
 `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit`,
 whose fate-cut cells build. Pinned by
 `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
-`a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds`.
+`a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit`.
 
 ## The refusal
 

@@ -431,3 +431,18 @@ along a line, the union is two lumps and fails tier 3′ on
 reach), on main as on that PR's head, at `θ = −0.1` too. PR 6053 makes
 more of these unions build where main refused (`θ = ±10⁻²`), so the
 finding now shows at more poses; the census reading is unchanged.
+
+## Also measured: two rods tangent outside along a ruling (CLEAVE, PR 5852, 2026-10-31)
+
+PR 5852's probe (`rev5808r`'s `S7 rods out`): `A` the cylinder
+`r = 0.3` about the origin, `z ∈ [0, 1]`, its vertex at azimuth 0 on
+the tangent line through `(0.3, 0)`; `B` the cylinder `r = 0.1` about
+`(0.4, 0)` over `z ∈ [0, 1]`, `[0.5, 1.5]` or `[−0.5, 1.5]`, its vertex
+at azimuth 0 or π; the one-segment and two-arc forms, at rest and
+turned. `A ∪ B` and `B ∪ A` return `Ok`, two solids touching along the
+ruling, the closed-form volume, tiers 1 and 3 and the certificate
+passing, and tier 3′ refuses with `CensusUndecidable` ("a curved face
+of one is within reach of the other"): 44 cells at the default ε, on
+PR 5852's head and on `main` (`45f6be756b`) alike, and at ε 1e-6 and
+1e-12 the same 44. With `A`'s vertex off the line every cell refuses
+typed, `CurvedPierceUnsupported`.

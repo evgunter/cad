@@ -69,11 +69,15 @@ Measured, the cells had two causes.
   read above: the kept rim leaves the end along the dropped face's
   boundary edge at first order. `corner_holds` now
   reads a kept edge leaving along a bound one order down, `(κ − κ_b)·û`
-  (`fate.rs` `bend_at`, `bool_fate_corner_bend`, metres, `runs_into`'s
-  reading). The result is into the corner past the bound, out of it, or
-  along it where the bends tie, at the shorter reach, from below where a
-  reach is bounded from both sides. The secant reading stays for a bound
-  with no certified bend (a spline, a spiric).
+  (`fate.rs` `leaving`'s bend, `sectors::bend_parting`, the reading
+  `runs_into` and `crescent` share, `bool_fate_corner_bend`, metres).
+  The result is into the corner past the bound, out of it, or tied with
+  it where the bends are equal, at the lever the bound's first-order
+  side is read at, at both of its bounds where a reach is known only
+  from both sides (`bool_fate_corner_bend_straddle` where they
+  disagree). The secant reading stays for a bound with no certified bend
+  (a spline, a spiric); a tie that does not run along its bound to the
+  cut's other end refuses rather than read the secant.
 
 Against `main` at `45f6be756b`, probe `rev5808r` (S0, S7, S10) at ε
 default, `1e-6` and `1e-12`: the only cells that move are the

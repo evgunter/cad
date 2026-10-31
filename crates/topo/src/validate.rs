@@ -546,7 +546,7 @@ pub(crate) fn decide_agreed<T: Decide>(
 }
 
 /// `x`, a dimensionless reading, levered at `lever`: decided once where
-/// the lever is exact, else at both its bounds ([`decide_agreed`]).
+/// the lever is exact, else at both its bounds ([`decide_at_lever`]).
 ///
 /// # Errors
 ///
@@ -557,14 +557,28 @@ pub(crate) fn decide_levered<T: Decide>(
     lever: geom_brep::LeverBounds<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    decide_at_lever(names, lever, |arm| Margin::levered(x, arm), band)
+}
+
+/// The reading `margin` gives at a length `lever` sets: decided once
+/// under `names.0` where the lever is exact, else at both its bounds
+/// ([`decide_agreed`]), so a margin that grows with the length (a
+/// second-order departure's `l²`) is never read from one end alone.
+///
+/// # Errors
+///
+/// As [`decide_agreed`].
+pub(crate) fn decide_at_lever<T: Decide>(
+    names: (&'static str, &'static str),
+    lever: geom_brep::LeverBounds<T>,
+    margin: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
     match lever {
-        geom_brep::LeverBounds::Exact(arm) => decide(names.0, Margin::levered(x, arm), band),
-        geom_brep::LeverBounds::Between { below, above } => decide_agreed(
-            names,
-            Margin::levered(x, below),
-            Margin::levered(x, above),
-            band,
-        ),
+        geom_brep::LeverBounds::Exact(arm) => decide(names.0, margin(arm), band),
+        geom_brep::LeverBounds::Between { below, above } => {
+            decide_agreed(names, margin(below), margin(above), band)
+        }
     }
 }
 
