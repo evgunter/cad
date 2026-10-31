@@ -888,6 +888,15 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
+A plane × spline pair is classified before `all()` is read, in the
+order above: the hull decides it apart or coincident, or escalates, at
+every scalar; a collapsed side not decided clear refuses at the door;
+the boundary pass, run once and handed on to `all()`, refuses a graze
+by name and finds where the section ends; and the regularity sweep's
+loop-free verdict, every component open with its ends on those sides
+(`Components::Reaching`), is the value's, with no `all()`. The guard
+clears it where each of those sides bounds the face, and otherwise
+reads it whole. Where the sweep declines, the value is `all()`'s.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -1034,7 +1043,14 @@ end of the span is the end vertex's meeting: the walk reads past it as
 far as the carrier runs, and a box holding the end's state on which
 every solution lies within the band of the end, by the mean value
 theorem, is accounted for by it, so an end at the carrier's domain end
-or on the chart's edge is read without reading past either. A spiric
+or on the chart's edge is read without reading past either. An end on
+the chart's domain edge, the face's rim, is first read by its sector:
+where the span's departure, enclosed over a window leaving the end,
+leaves on the far side of the rim from the face's inward departure,
+enclosed by the chart's partials over a window inside the edge, every
+solution in that box of the state lies within the band of the end, a
+tangent touch and an end on a crease included, and the walk does not
+read past that end. A spiric
 span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,

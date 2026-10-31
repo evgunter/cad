@@ -2,10 +2,12 @@
 id: aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots
 kind: issue
 title: The side reader's aimed rays start at a conic carrier's reach, up to 4e5 m out on a sliver, where the ray × quadric roots carry 1e-5 m of unmetered error and a ray reads the side at infinity as In
-status: open
+status: closed
 priority: P1
 cost: M
 opened: 2026-10-24
+closed: 2026-10-31
+refs: [an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side]
 ---
 
 
@@ -64,3 +66,25 @@ face near another, from a start this far out, can misorder them.
   exact `t0`.
 - Then meter what is left: the roots' error at the start's distance,
   and the order decision between two crossings at that advance.
+
+## Resolution
+
+Closed as a duplicate (FLUSH orchestrator, 2026-10-31), and claimed
+from INSIDE to close it. One defect, filed twice:
+- CHART filed it here on 2026-10-24;
+- FLUSH's lane filed `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`
+  on 2026-10-26, without seeing this row.
+
+Both rows describe the same failure: an aimed ray started at a conic
+carrier's reach, about `1/sin ψ` out on a seam split near tangency,
+where `line_wall_roots`' `c2 = |w0⊥|² − r²` loses the wall's roots.
+Both propose the same two remedies: a reach bound by the arcs rather
+than their carriers, and a root solve that keeps `c2` at the body's
+own scale.
+
+That row stays open, since it is the fuller record: both dual
+reviewers' censuses, a pose-family pin
+(`sweep an_aimed_ray_from_far_reads_a_split_side_inside_out`), and the
+wider-reach argument. This row's executed pose (ψ 1e-5, φ 0, L 0,
+turned about `[1, 0, 0]` by 0.7, with the aim at the boundary middles'
+mean height) is carried there as a witness.

@@ -343,7 +343,7 @@ fn samples(x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> Vec<Point3<
     let mut dirs: Vec<Vec3<f64>> = (0..32)
         .map(|k| {
             let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 32.0;
-            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let (s, c) = (geom_core::GOLDEN_ANGLE * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             Vec3::new(r * c, r * s, z)
         })

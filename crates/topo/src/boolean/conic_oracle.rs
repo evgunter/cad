@@ -106,7 +106,7 @@ const SAMPLES: u32 = 20_000;
 
 /// `f`'s extremum in `[a, b]` by golden section, a minimum when `low`.
 fn golden(f: &impl Fn(f64) -> f64, (mut a, mut b): (f64, f64), low: bool) -> f64 {
-    let g = (5f64.sqrt() - 1.0) / 2.0;
+    let g = geom_core::GOLDEN_SECTION;
     for _ in 0..100 {
         let (x1, x2) = (b - g * (b - a), a + g * (b - a));
         if (f(x1) < f(x2)) == low {

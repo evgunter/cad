@@ -139,18 +139,14 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Ev's #213 layering ruling).** A consistency
-backstop — an inequality between integral RESULTS (a wrong-component
-detector, never an accuracy gate) — is outside the length seam by
-design: it decides on bare `T` through `k_stats::decide_invariant`
-(no `Margin` minted — not a door, not debt), and a certified
-violation is a Corrupt-class kernel-invariant error, separated in type
-and voice from every validity refusal. The kernel runs none today: the
-boolean's volume backstop, the lane's one member, left the operation
-path when Ev made its relations a test oracle the suites run on their
-own results (`[ev]` PR 5780, PR 5842;
-`topo::test_support::VolumeOracle`), so the lane has no caller and its
-three predicates (`volume_backstop`, `volume_backstop_operand`,
+**The invariant lane (retired).** A consistency backstop between
+integral results once decided on bare `T` through
+`k_stats::decide_invariant` (Ev's #213 layering ruling). Its one member,
+the boolean's volume backstop, left the operation path when Ev made its
+relations a test oracle (`[ev]` PR 5780, PR 5842;
+`topo::test_support::VolumeOracle`), and `[ev]` PR 6161 retired the
+lane's DESIGN sentence; `decide_invariant` is deleted. Its three
+predicates (`volume_backstop`, `volume_backstop_operand`,
 `volume_backstop_violation`) are no longer decided. The former
 `per_boundary` door is renamed `over_lever` and re-scoped to the
 genuine geometric decisions (mean-width 2A/P, mean-thickness V/A
@@ -177,8 +173,8 @@ and rewrote `split.rs`. Every figure reproduced at all three.)*
 
 **What is in scope.** K-REPORT's restated rule: a name is in scope if
 it reaches the `geom_core::k_stats` funnel *however it is spelled at
-the call site*. In these two crates that is ten spellings — `decide`,
-`decide_flagged`, `decide_invariant`, and the `check_residual` /
+the call site*. In these two crates that is nine spellings — `decide`,
+`decide_flagged`, and the `check_residual` /
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
@@ -260,7 +256,7 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # The `_reported` doors and `check_unlogged` (the F18–F25 door, the
 # one-margin case of `unlogged`, F28's) are the same decisions keeping
 # their verdict or leaving the log.
-grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
@@ -681,7 +677,8 @@ which is what actually moves the number.
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_wall_seam | a seam's carrier points at both ends and a quarter span in, against the chart's point at a candidate image's own parameter there: the largest of the three 3-D distances, for a seam stated as an iso line in another chart. The label decides every candidate the wall-seam arm hands the boundary-iso schedule: the stated columns (each chart boundary and the column the start's foot names), the closed-form columns and rows, and the measured maps | m | OK (as `pcurve_iso_line_rim`: `Margin::of` a distance, only a decided `Zero` selects, an escalation is deferred and answered only when no candidate holds, and the full iso certification follows the selection) |
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_seam_column | as `pcurve_iso_line_rim`, for an `Intersection` or `OnPair` seam on a spline chart: the largest of the carrier's 3-D distances from the chart at a candidate column's or row's own parameter, at both ends and a quarter span in, over the closed-form columns and rows and the measured maps | m | OK (as `pcurve_iso_line_rim`) |
 | pcurves.rs (`net_closes`, for `chart_u_period` and `chart_v_period`; the name rides a `(name, pairs)` tuple) | pcurve_chart_u_closed / pcurve_chart_v_closed | `‖P_first − P_last‖`, each control point of the net's first boundary column (row) against the matching one of its last, bare | m | OK (only a decided `Zero` at every pair closes the channel; the weights the test does not compare, and the in-band fold, are `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s, neither a dimension question) |
-| pcurves.rs (`chart_side_bounds`, `section_cert`'s W1′) | pcurve_chart_side_spans | `‖P_first − P_k‖`, the first control point of the net's row along a chart side against each other one, bare | m | OK (`Margin::of` a distance; only a decided `Positive` at some pair reads the side as spanning, and spanning is the side's condition to clear: a decided `Zero` or an escalation keeps it collapsed, the refusing side) |
+| chart_singularity.rs (`spline_collapsed_row`, read by `spline_side_spans`; the one reading of a collapsed side: `pcurves::chart_side_bounds`, `section_cert`'s W1′, and the plane × spline door) | pcurve_chart_side_spans | `‖P_first − P_k‖`, the first control point of the net's row along a chart side against each other one, bare | m | OK (`Margin::of` a distance; only a decided `Positive` at some pair reads the side as spanning, and spanning is the side's condition to clear: a decided `Zero` or an escalation keeps it collapsed, the refusing side) |
+| pair_section/plane_spline.rs (`PlaneSplinePose::hull` and `door`) and plane_spline/sweep.rs (the regularity sweep, C5 stage 3) | section_nurbs_plane_coincident / section_nurbs_plane_pole / plane_spline_sweep_excluded / plane_spline_sweep_regular | the net's largest control-point height over the plane (`decide_magnitude`); each point of a collapsed side's row, its height over the plane; the plane's height over a cell on the accounting's first-order box, over the normal's length; the wall's slope off the plane along `u` or `v` over a cell, `n·S_d / (‖n‖·sup‖S_d‖)`, levered by the feature extent | m | OK (heights are lengths; the slope is a sine levered by the extent, as `ssi_transversality` is) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
@@ -796,8 +793,8 @@ which is what actually moves the number.
 | cell_region.rs (CHART) | cell_region_ball_gap | the distance from the station to the ball a spiric or spline edge's arc lies in (`splitting::containment::carrier_ball`), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_singular_gap | the distance from the station to the carrier's singular set: a cone's apex, a torus's axis, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | injective.rs (SELFX, `by_kind`) | self_intersection_ring_torus | `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only a definite `Positive` discharges the face by kind; anything else refuses `TorusNotRing` |
-| injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below), in its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
-| injective.rs (SELFX, `present_chart`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
+| injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below), in its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece; on a spiric's wall image (SPIRIC), the linear separator's value along the torus's image of the chart curve in `{1, f(t), cos t, sin t}` coefficients, the torus's drift from the carrier's radii carried as a closed-form term over `ρ = R + r·cos t` | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
+| injective.rs (SELFX, `present_chart`; SPIRIC, `present_line_corner`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
 | injective.rs (SELFX, `sign_on`) | self_intersection_departure | the separator `ψ`, a signed distance in metres (`n̂·(p − q)` with `n̂` a unit normal; a cylinder's `ρ − r`; a sphere's `\|p − c\| − r`; a cone's `ρ·cos α − h·sin α`; the graph arm's `h − γ̃(s)`), as its centred form over the rectangle, or its derivative across a shared side (m per chart unit) times the rectangle's extent across it (chart units) | m | OK (new in SELFX). Only a definite `Positive`/`Negative` certifies; `Zero`, in-band and poison fail the arm and the pair splits |
 | injective.rs (CURVEDEP, `present_curved`) | self_intersection_column | a curved edge's chart curve read as a graph over a chart axis: its advance along that axis over one piece of its parameters (chart units), times `sup \|S_axis\|` over the cell (`rect_jet`'s enclosure, m per chart unit) | m | OK (new in CURVEDEP). Only a definite sign, the same over every piece of the run, reads the curve as a graph over that axis; anything else leaves the cell unpresented and the pair splits |
 | injective.rs (CORNER, `leaves_graph`, `leaves_line`) | self_intersection_corner_departs | a curved corner's other edge leaving the edge read through the vertex, toward that edge's face side: off a curve read as a graph, the edge's height over the graph's rate along it, `(d_b·τ_a − d_a·τ_b)·sign τ_a` (chart units per parameter, `d` the edge's chart direction scaled to unit length), times the columns' parameter span and `max sup \|S_axis\|` over the rectangle (`rect_jet`'s enclosure, m per chart unit); off a coordinate line, the other curve's rate on the held axis over one of its pieces, times the piece's width and `sup \|S_held\|` | m | OK (new in CORNER). Only a definite `Positive` reads the corner convex; a definite `Negative` at the vertex is a reflex corner, which no presentation reads (`Structural`); anything else leaves the cell unpresented and the pair splits |
