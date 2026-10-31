@@ -268,6 +268,10 @@ mod offset_doors_end_with_the_join;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
+#[path = "review_diff.rs"]
+mod review_diff;
+#[path = "review_probe.rs"]
+mod review_probe;
 #[path = "one_region_rows.rs"]
 mod one_region_rows;
 #[path = "one_segment_loop.rs"]

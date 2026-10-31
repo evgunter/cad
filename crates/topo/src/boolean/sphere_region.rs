@@ -210,6 +210,21 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// [`RegionRefusal`]: `p` in the band of an arc, or no ray decided
     /// ([`ray_walk::walk`]), or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
+        let r = self.contains_inner(p, band);
+        if std::env::var_os("ORDER_CHECK").is_some() {
+            let mut rev = self.clone();
+            rev.edges.reverse();
+            let r2 = rev.contains_inner(p, band);
+            match (&r, &r2) {
+                (Ok(Some(a)), Ok(Some(b))) if a != b => panic!("ORDERCHECK definite answers differ {a} vs {b} in {}", file!()),
+                (Ok(x), Ok(y)) if x != y => eprintln!("ORDERCHECK on-boundary differs {x:?} {y:?}"),
+                (Ok(_), Err(_)) | (Err(_), Ok(_)) => eprintln!("ORDERCHECK decided-vs-refused {:?} {:?}", r.as_ref().ok(), r2.as_ref().ok()),
+                _ => {}
+            }
+        }
+        r
+    }
+    fn contains_inner(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }

@@ -73,6 +73,10 @@ pub(crate) fn region_errors<T: Decide>(body: &Body<T>, band: Band) -> Vec<Valida
         'face: for (i, cycle) in cycles.iter().enumerate() {
             for unit in units.iter().filter(|u| !u.contains(&i)) {
                 let read = read_cycle(body, face, cycle, unit, band);
+                if std::env::var_os("ARM_TRACE").is_some() {
+                    let tag = match &read { Read::Face => "face", Read::Exempt => "exempt", Read::NoDoor => "nodoor", Read::Off(_) => "off", Read::InBand(..) => "inband" };
+                    eprintln!("ARMTRACE scalar={} kind={} cycles={} read={tag}", core::any::type_name::<T>(), match surface { geom::Surface::Sphere{..}=>"sphere", geom::Surface::Cylinder{..}=>"cyl", geom::Surface::Cone{..}=>"cone", _=>"torus" }, cycles.len());
+                }
                 let other = || first_edge(body, &cycles[unit[0]]);
                 match read {
                     Read::Face | Read::Exempt => {}

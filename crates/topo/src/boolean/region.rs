@@ -301,6 +301,20 @@ pub(crate) fn boundary<T: Decide>(
         }
     }
     let cycles = crate::surface_boundary::surface_cycles(body, face).map_err(|_| corrupt())?;
+    if std::env::var_os("SET_CHECK").is_some() {
+        let mut oldset = Vec::new();
+        for &lk in core::iter::once(&f.outer).chain(&f.rings) {
+            if let Some(LoopBoundary::Cycle { first }) = body.get_loop(lk).map(|l| l.boundary) {
+                for he in body.loop_cycle(first).unwrap_or_default() {
+                    let e = body.get_half_edge(he).unwrap().edge;
+                    if !null.contains(&e) && body.both_sides_face(e).unwrap().is_none() { oldset.push(he); }
+                }
+            }
+        }
+        let mut newset: Vec<_> = cycles.iter().flatten().copied().filter(|h| !null.contains(&body.get_half_edge(*h).unwrap().edge)).collect();
+        oldset.sort(); newset.sort();
+        if oldset != newset { panic!("SETCHECK differs: {} vs {}", oldset.len(), newset.len()); }
+    }
     let mut edges = Vec::new();
     for (cycle, members) in cycles.iter().enumerate() {
         for &he in members {
