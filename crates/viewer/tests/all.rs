@@ -198,5 +198,7 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "whole_rim_pick.rs"]
+mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();
