@@ -459,6 +459,13 @@ fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
 }
 
 impl<T: Decide> RuledFaceRegion<T> {
+    /// The region its surface cycles `keep` bound alone
+    /// ([`region::keep_cycles`]).
+    pub(crate) fn keep_cycles(mut self, keep: &[usize]) -> Self {
+        region::keep_cycles(&mut self.edges, keep);
+        self
+    }
+
     /// Is `p`, a point on the cylinder or cone, in the face: `Some(true)`
     /// inside, `Some(false)` outside, `None` on its boundary (module docs).
     ///

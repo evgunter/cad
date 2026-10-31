@@ -299,6 +299,13 @@ pub(crate) fn torus_face_region<T: Decide>(
 }
 
 impl<T: Decide> TorusFaceRegion<T> {
+    /// The region its surface cycles `keep` bound alone
+    /// ([`region::keep_cycles`]).
+    pub(crate) fn keep_cycles(mut self, keep: &[usize]) -> Self {
+        region::keep_cycles(&mut self.edges, keep);
+        self
+    }
+
     /// Is `p`, a point on the torus, in the face: `Some(true)` inside,
     /// `Some(false)` outside, `None` on its boundary (module docs).
     ///
@@ -759,6 +766,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::new(0.0, 0.0, MINOR * v.sin()),
                 axis: Vec3::new(0.0, 0.0, 1.0),
@@ -835,6 +843,7 @@ mod tests {
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin() + turned(phi, c0),
                 axis: turned(phi, n0),
@@ -974,6 +983,7 @@ mod tests {
             let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
+                cycle: 0,
                 carrier: geom::Curve3::Circle {
                     center: Point3::origin() + rot(phi, c0),
                     axis: rot(phi, n0),
@@ -1077,6 +1087,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center,
                 axis,
@@ -1148,6 +1159,7 @@ mod tests {
         let oval = RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Spiric {
                 center: Point3::origin(),
                 axis: Vec3::new(0.0, 0.0, 1.0),

@@ -353,3 +353,31 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
     want.sort_by_key(key);
     assert_eq!(undecided, want, "{errors:?}");
 }
+
+/// **A cap whose rim is tilted against its sphere's axis holds a pole
+/// by its region** (DESIGN `[topology.tiers]`, a chart singularity in a
+/// face's closure is a vertex of it, read off the face's region rather
+/// than off a meridian). The cut stays at `z = 0.5` and the
+/// sphere's axis tilts by `tilt` about `y`, so the rim is no parallel of
+/// the chart: at `0.3` the north pole stands at `z = cos 0.3 > 0.5`, in the
+/// cap, and is refused; at `1.2` it stands at `z = cos 1.2 < 0.5`, the
+/// south pole below the cut too, and the cap holds neither.
+#[test]
+fn a_tilted_cap_holds_a_pole_by_its_region() {
+    let z = 0.5;
+    for (tilt, poles) in [(0.3_f64, &[Singularity::North][..]), (1.2, &[][..])] {
+        let tilted = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        };
+        let body = cut_ball(z, tilted, Some(cut_plane(z, false)));
+        let got = tier_checked_volume(&format!("cap tilted {tilt}"), &body, poles);
+        let want = cap_volume(1.0 - z);
+        assert!(
+            (got - want).abs() <= 1e-12 * want,
+            "cap tilted {tilt}: volume {got} vs closed form {want}"
+        );
+    }
+}

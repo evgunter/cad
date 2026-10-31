@@ -270,6 +270,8 @@ mod offset_doors_end_with_the_join;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
+#[path = "one_region_rows.rs"]
+mod one_region_rows;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "onpair_rim_pcurves.rs"]

@@ -1103,6 +1103,51 @@ fn ruled_face_containment<T: Decide>(
     region_placement(face, region.contains(q, band))
 }
 
+/// **Whether `q` lies on `face`'s side of its surface cycles `keep`**:
+/// the face's region reading ([`curved_face_containment`]'s door for its
+/// kind) with its boundary cut to those cycles' edges
+/// ([`super::region::keep_cycles`]), so a cycle is read alone, or a
+/// torus's essential pair together. `q` is a point of the face's surface,
+/// which the caller certifies (no carrier decision is read here).
+/// `Some(Some(side))`, `Some(None)` where `q` is on one of the cycles,
+/// and `None` where no door reads the face: a plane, a spline chart, or
+/// an edge of a kind its door does not admit (`admits`, each door's).
+///
+/// # Errors
+///
+/// The door's refusal ([`RegionRefusal`]): `q` in the band of an edge
+/// kept, no path decided, or an arc wound past a turn.
+pub(crate) fn cycle_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    keep: &[usize],
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<Option<bool>>, RegionRefusal> {
+    let face_data = proven(&body.faces, face, EntityId::Face);
+    match *body.face_surface_linked(face, face_data) {
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
+            match super::ruled_region::ruled_face_region(body, face) {
+                Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
+                Ok(None) | Err(_) => Ok(None),
+            }
+        }
+        geom::Surface::Sphere { center, radius, .. } => {
+            match super::sphere_region::sphere_face_region(body, face, center, radius) {
+                Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
+                Ok(None) | Err(_) => Ok(None),
+            }
+        }
+        geom::Surface::Torus { .. } => match super::torus_region::torus_face_region(body, face) {
+            Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
+            Ok(None) | Err(_) => Ok(None),
+        },
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            Ok(None)
+        }
+    }
+}
+
 pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
     match e {
         super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
