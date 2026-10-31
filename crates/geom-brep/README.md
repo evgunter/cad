@@ -865,12 +865,25 @@ operand's axis and core circle, read off the loop in ℝ³, say
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. Each torus pair's pose
+its one reading. The value is read over one region per operation, as
+at one band: the ball about the overlap of the two operands' boxes,
+padded, which holds every section point the operation can use. No
+face's or site's extent enters it, so two faces on one carrier read one
+value. A pair's domain is its own ball where its pose proves one, cut by
+that region. A component is closed, or open with both ends on the
+domain's boundary, or ends at a node (Edge descriptions): a node is
+decided on the pose as a Zero tangency whose section still has
+carriers, placed in closed form, and a site at it reads as the node.
+Two cylinders decide their pose on closed-form margins: parallelism as
+`sin θ · L` at the region's radius `L`; then the gap `e` along the
+common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
+distance where parallel. A cone pair's critical gap is the sweep of the
+discriminant along one carrier's rulings, its double root decided on
+the pose and its apex a closed-form margin. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
-(which holds the whole section, so no face's extent enters a value
-keyed by surface pair; the smaller ball for two tori), and decides the
+(which holds the whole section; the smaller ball for two tori), and decides the
 **critical gap**, the one place a torus pair's tangency is decided. Two
 tori are decided one surface or not before any of it
 (`pair_section::torus_coincidence`): one where the bound on their
