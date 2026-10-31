@@ -784,9 +784,21 @@ and every reader (the pair's SSI door, the section value, the section
 certificate) reads that one decision: a closed-form margin where the
 pose has one, and otherwise the pair's **critical gap**, a certified
 sweep of a one-parameter distance between the two surfaces' spines,
-never a root formula; in band, it escalates. A pair with a NURBS or
-`Approx` side has no such pose and is outside this rule: its tangency
-is its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
+never a root formula; in band, it escalates. A pair of a NURBS face and a
+surface with an implicit residual `f` (plane, cylinder, sphere, torus;
+the cone once its residual is enclosed) decides its tangency and
+coincidence once, in its classification, on the composite `φ = f∘S`
+over the NURBS face's knot rectangle, before any march, and every
+reader reads that verdict: the hull of `φ` decides apart and
+coincident; the boundary pass decides each side (a side the boolean's
+records declare is read from them); one regularity sweep of the
+rectangle decides the interior, where an isolated critical point of `φ`
+with a definite Hessian and its value in the zero band is a point
+tangency decided Zero, and a node, a tangency along an interior curve,
+or anything in band escalates. The interior-loop guard's loop-free
+stage is that sweep's verdict. A pair of two spline sides (NURBS, or
+`Approx` read as its fit) has no such classification: its tangency is
+its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
