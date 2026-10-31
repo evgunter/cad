@@ -146,15 +146,12 @@ const TILTS: [f64; 6] = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6];
 
 /// The cells of [`a_crossing_at_a_shallow_angle_builds_or_refuses_typed`]
 /// that refuse, as `(ε, θ, refusal kind)`; every other builds. At 1e-6
-/// the side tilted 1e-4 or 1e-5 reads in band against the wall where the
+/// the side tilted 1e-5 reads in band against the wall where the
 /// diamond's edge meets it (whether the face holds a point), and at 1e-6
 /// it lies within the band of the edge's line, which the result gate
 /// refuses as two edges on one line bounding overlapping material.
-const SHALLOW_REFUSALS: &[(f64, f64, &str)] = &[
-    (1e-6, 1e-4, "Escalated"),
-    (1e-6, 1e-5, "Escalated"),
-    (1e-6, 1e-6, "LineWedges"),
-];
+const SHALLOW_REFUSALS: &[(f64, f64, &str)] =
+    &[(1e-6, 1e-5, "Escalated"), (1e-6, 1e-6, "LineWedges")];
 
 /// **A crossing at a shallow angle builds sound or refuses typed** at
 /// every tilt (module docs).
