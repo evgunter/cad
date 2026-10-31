@@ -15,7 +15,7 @@ use std::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, SplitFinishError, SplitPart, split};
-use topo::{AtRestBody, mass_properties, validate_geometric};
+use topo::{AtRestBody, ValidationError, mass_properties, validate_geometric};
 
 use crate::split_seam_vanishing_tilt::carrier_resolution;
 
@@ -35,20 +35,36 @@ fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
 
 /// How a split of the census reads: both sides built and holding the
 /// cylinder's `π`, a side refused at its at-rest gate on the ellipse's
-/// own rounding, or the split refused before it had sides.
+/// own rounding, a side whose side the reader could not read and whose
+/// volume does not sign it, the split refused before it had sides, or a
+/// side refused at rest inside out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Read {
     Built,
     CarrierRefused,
+    Unread,
     Refused,
+    InsideOut,
+}
+
+impl Read {
+    /// One letter per reading, for the census's line.
+    const fn letter(self) -> char {
+        match self {
+            Self::Built => 'B',
+            Self::CarrierRefused => 'C',
+            Self::Unread => 'U',
+            Self::Refused => 'R',
+            Self::InsideOut => 'X',
+        }
+    }
 }
 
 /// What the split through the seam vertex at `phi`, tilted `psi` off the
 /// wall's tangent plane, its origin `l` along the rim's tangent, reads
 /// ([`Read`]). A side returned that tier 3 refuses, sides that miss `π`,
-/// a side refused at rest on anything but the ellipse's rounding (an
-/// inside-out one among them), or a refusal the at-rest gate should
-/// have made, panics.
+/// a side refused at rest on anything but the ellipse's rounding or
+/// inside out, or a refusal the at-rest gate should have made, panics.
 fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
     let pose = format!("φ {phi} ψ {psi:e} L {l} sign {sign}");
     let cyl = cylinder(phi, tol);
@@ -73,6 +89,20 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
                 "{pose}: the sides hold the cylinder's π, not {volume}"
             );
             Read::Built
+        }
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. }))
+            if errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::NegativeVolume { .. })) =>
+        {
+            Read::InsideOut
+        }
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. }))
+            if errors
+                .iter()
+                .all(|e| matches!(e, ValidationError::VolumeSignUnresolved { .. })) =>
+        {
+            Read::Unread
         }
         Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. })) => {
             assert!(
@@ -122,6 +152,7 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
     {
         println!("SEAM-FAMILY eps={:e}: {reads:?}", tol.eps());
     }
+    assert!(!reads.contains(&Read::InsideOut), "no pose reads a side inside out: {reads:?}");
 }
 
 /// The census: 24 seam azimuths, four tilts, two offsets, both normals.
@@ -129,12 +160,19 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
 #[test]
 fn the_seam_split_census_reads_no_side_inside_out() {
     let tol = Tol::witness();
-    let mut reads = [0; 3];
+    let mut reads = [0; 5];
+    let mut line = String::new();
+    let mut inside_out = Vec::new();
     for i in 0..24 {
         for psi in [1e-7_f64, 2e-7, 5e-7, 1e-6] {
             for l in [0.0, 0.1] {
                 for sign in [1.0, -1.0] {
-                    reads[read(azimuth(i), psi, l, sign, tol) as usize] += 1;
+                    let got = read(azimuth(i), psi, l, sign, tol);
+                    reads[got as usize] += 1;
+                    line.push(got.letter());
+                    if got == Read::InsideOut {
+                        inside_out.push((azimuth(i), psi, l, sign));
+                    }
                 }
             }
         }
@@ -143,13 +181,18 @@ fn the_seam_split_census_reads_no_side_inside_out() {
     {
         println!(
             "SEAM-CENSUS eps={:e}: of 384, {} build, {} refuse a side on the ellipse's \
-             rounding, {} refuse the split",
+             rounding, {} refuse a side unread, {} refuse the split, {} read a side inside \
+             out: {inside_out:?}\nSEAM-LINE eps={:e}: {line}",
             tol.eps(),
             reads[0],
             reads[1],
-            reads[2]
+            reads[2],
+            reads[3],
+            reads[4],
+            tol.eps()
         );
     }
+    assert!(inside_out.is_empty(), "no side reads inside out");
 }
 
 /// **A rod 1 km long and 1 mm across reads its side.** Its aimed rays

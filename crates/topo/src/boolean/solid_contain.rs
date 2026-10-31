@@ -4495,14 +4495,18 @@ pub(crate) fn ray_crossings<T: Decide>(
                 // ball holding the face blocks the ray; a `Zero` on any
                 // of these rows grazes, as on the trimmable arm, since a
                 // tighter tolerance could decide it either way.
-                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
-                if decide("bool_ray_cone_lead", Margin::levered(a2, reach), band)
-                    .map_err(escalate)?
+                let centred = line_cone_centred(q, d, apex, axis, half_angle);
+                if decide(
+                    "bool_ray_cone_lead",
+                    Margin::levered(centred.coeffs[0], reach),
+                    band,
+                )
+                .map_err(escalate)?
                     == Sign::Zero
                 {
                     return Err(RayFault::Graze); // generator-parallel
                 }
-                let disc = b2.powi(2) - a2 * c2;
+                let disc = centred.disc();
                 match decide("bool_ray_cone_disc", Margin::over_lever(disc, reach), band)
                     .map_err(escalate)?
                 {
@@ -4510,7 +4514,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     Sign::Zero => return Err(RayFault::Graze), // tangent ray
                     Sign::Positive => {}
                 }
-                for t in quadratic_roots(a2, b2, c2, disc) {
+                for t in centred.roots(disc).0 {
                     let ahead = ray_walk::advance(rows.advance, Margin::of(t), band)
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
@@ -5445,7 +5449,7 @@ mod wall_root_rows {
     /// the error that is left.
     #[test]
     fn a_ray_from_far_keeps_a_walls_roots() {
-        for (big, r, x0) in [(4e5, 1.0, 0.6), (2e3, 1e-3, 6e-4)] {
+        for (big, r, x0) in [(4e5, 1.0_f64, 0.6), (2e3, 1e-3, 6e-4)] {
             let half = (r * r - x0 * x0).sqrt();
             let got = roots(Point3::new(x0, -big, 0.3), Vec3::new(0.0, 1.0, 0.0), r, 4.0 * big);
             let WallRoots::Two([t0, t1], slack) = got else {
@@ -5466,7 +5470,7 @@ mod wall_root_rows {
     #[test]
     fn a_ray_from_far_keeps_a_spheres_and_a_cones_roots() {
         let d = Vec3::new(0.0, 1.0, 0.0);
-        let (big, r, x0) = (2e3, 1e-3, 6e-4);
+        let (big, r, x0) = (2e3, 1e-3_f64, 6e-4);
         let half = (r * r - x0 * x0).sqrt();
         let got = line_sphere_roots(
             Point3::new(x0, -big, 0.0),
