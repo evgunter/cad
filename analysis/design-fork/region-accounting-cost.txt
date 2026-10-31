@@ -1,0 +1,5 @@
+fork: region-accounting-cost (SECTARMS, a-near-parallel-pairs-accounting-grows-with-the-operation-region)
+drawn: 2026-10-31T07:02:44Z, od -An -tu1 -N1 /dev/urandom
+byte: 127
+mapping: A = Fable designer, B = Opus designer
+protocol: ad15b16de2
