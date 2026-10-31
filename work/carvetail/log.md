@@ -32,3 +32,13 @@ slab on the same assembly; read it before speccing. To stay inside 30,
 CARVEREST, beside its other skin-rounding residue.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the half-turn P0 moved to CARVE
+
+`a-half-turn-spine-sweeps-only-off-its-exact-tangents` moved to CARVE
+to ride with `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`.
+Its designer pair found the half-turn is the start-tangent law's one
+singular point on a planar path, so the frame unit (`carve/sweep-frame`)
+closes both.
+
+Signed: (CARVE orchestrator)
