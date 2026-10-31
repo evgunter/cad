@@ -482,7 +482,13 @@ zero by enclosure, the boundary pass's mean-value enclosure of a strip
 or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+`SsiError::ExhaustivenessInconclusive`. A pair with a ruled side (a
+cylinder or cone against a plane, cylinder, cone or sphere) subdivides
+its ruling angle instead of ℝ³: each ruling meets the partner at the
+roots of a quadratic, in closed form, cut by the domain the march ends
+at; a cell of the angle is excluded, accounted (its meetings inside a
+found branch's tube) or refined to the floor, and its surviving cells
+are the seeds. The cell sweep runs for the rest. Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
 one that is not a positive finite width, or one narrower than the
@@ -882,8 +888,9 @@ carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
 at `f64`, and lists the components: a counted section's, the march a
-cross-check of the count (as many distinct branches, each listed
-witness on one branch, each claimed winding held, else a desync), and
+cross-check of the count, matched one to one (each boundary crossing
+the end of exactly one branch, each listed witness on exactly one
+branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
 operand's axis and core circle, read off the loop in ℝ³, say
@@ -903,9 +910,11 @@ carriers, placed in closed form, and a site at it reads as the node.
 Two cylinders decide their pose on closed-form margins: parallelism as
 `sin θ · L` at the region's radius `L`; then the gap `e` along the
 common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
-distance where parallel. A cone pair's critical gap is the sweep of the
-discriminant along one carrier's rulings, its double root decided on
-the pose and its apex a closed-form margin. Each torus pair's pose
+distance where parallel. A pair with a ruled side reads its pose on the
+sweep of the discriminant along that side's rulings: its double root
+the tangency, decided on the pose, the arcs where it is positive the
+components, a cone's apex a closed-form margin, and for two cylinders
+the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
