@@ -963,16 +963,13 @@ fn the_instrument_and_the_door_replay_in_one_session() {
 /// **The side reader's exact ties at a document's nominal**
 /// (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
 /// every decision taken under the reader's family whose margin is
-/// exactly 0 in a build at the nominal, for `die_chamfer` and
-/// `cut_cylinder`. Evidence, not a gate: run with
+/// exactly 0 in a build at the nominal, for every corpus document.
+/// Evidence, not a gate: run with
 /// `cargo nextest run -p editor-core --run-ignored only -E 'test(reader_ties_at_the_nominal)' --no-capture`.
 #[test]
 #[ignore = "evidence: the side reader's exact ties at a nominal"]
 fn reader_ties_at_the_nominal() {
     for cd in corpus::documents() {
-        if !["die_chamfer", "cut_cylinder"].contains(&cd.name) {
-            continue;
-        }
         let (decisions, _) = replayed(&BTreeMap::new(), |opts| build(&cd.doc, opts));
         let family: Vec<(usize, &Decision)> = decisions
             .iter()
@@ -984,11 +981,16 @@ fn reader_ties_at_the_nominal() {
             .filter(|(_, d)| d.value == Some(0.0))
             .map(|&(k, d)| (k + 1, d.predicate))
             .collect();
+        let mut by_predicate: BTreeMap<&'static str, usize> = BTreeMap::new();
+        for &(_, p) in &ties {
+            *by_predicate.entry(p).or_default() += 1;
+        }
         println!(
-            "TIES {}: {} decisions, {} the reader's, exact ties {ties:?}",
+            "TIES {}: {} decisions, {} the reader's, {} exact ties {by_predicate:?} {ties:?}",
             cd.name,
             decisions.len(),
-            family.len()
+            family.len(),
+            ties.len()
         );
     }
 }

@@ -13,7 +13,7 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! Every classifying door — [`decide`], [`decide_reported`],
-//! [`decide_flagged`], [`decide_invariant`], [`decide_magnitude`] and the
+//! [`decide_flagged`], [`decide_magnitude`] and the
 //! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]) —
 //! delegates to one private `classify`. The name write and the verdict
 //! push therefore happen in exactly one place, so no door can carry one
@@ -125,8 +125,8 @@
 //! decision.
 //!
 //! **What the escalation channel carries is every escalation the
-//! CERTIFICATION doors produce** — [`decide`], [`decide_flagged`],
-//! [`decide_invariant`] and the gate doors below. [`unlogged`] and its
+//! CERTIFICATION doors produce** — [`decide`], [`decide_flagged`]
+//! and the gate doors below. [`unlogged`] and its
 //! one-margin case [`check_unlogged`] are the deliberate exception: what
 //! they decide reaches neither channel of the caller's frame (their own
 //! docs say why), so "every escalation this funnel produces" would be
@@ -761,40 +761,6 @@ pub fn decide_flagged_reported<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     let _ = ledger_row;
     classify(name, margin, band)
-}
-
-/// The classify seam's **invariant lane** — [`decide`] for a
-/// **consistency backstop**: an inequality between integral RESULTS (a
-/// wrong-component detector), which is **outside the length seam by
-/// design — not a door, not debt** (Ev's #213 layering ruling). The
-/// kernel runs no consistency backstop: since the boolean's volume
-/// relations became a test oracle (`[ev]` PR 5780, PR 5842), this lane
-/// has no caller but its own rows. A consistency backstop is
-/// never an accuracy gate: pointwise-ε accuracy is owned upstream, and
-/// a body whose geometry is ε-right everywhere is never refused for
-/// its integral differing at tiny-wiggle scale. Mean displacement is
-/// only the honest UNIT of the check's near-zero (indeterminate) zone,
-/// so the margin stays **bare `T`** — no [`Margin`] is minted, keeping
-/// the lane visibly distinct from every geometric decision.
-///
-/// Classification and recording are [`decide`]'s: same recorder, same
-/// names, same values, the K stream unchanged.
-///
-/// A certified violation on this lane is a **kernel invariant** failure:
-/// a caller surfaces it as its Corrupt-class typed error ("this is a
-/// bug", with a report affordance), never as a validity refusal and
-/// never as a panic (the `clippy::panic` denial; the Corrupt
-/// precedent).
-///
-/// # Errors
-///
-/// As [`decide`].
-pub fn decide_invariant<T: Decide>(
-    name: &'static str,
-    margin: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    classify(name, margin, band).map(|d| d.sign)
 }
 
 /// **The collapsed-arm gate**: [`decide`] for a predicate whose

@@ -561,11 +561,12 @@ fn bump() -> Surface<f64> {
 /// **NURBS × plane with no march door: W0 on the control net, else
 /// R-lane**, in both orders. A plane clear of every control point, on
 /// either side and either orientation, is apart before any reading; a
-/// plane that cuts the net, one that touches its top row, and a
-/// placeholder's poison net are read whole (`section_cert_spline_rows`),
-/// which a scalar with no march door does not. Red against W0 reading
-/// any one point clear rather than all (the cut and touching planes),
-/// and against W0 dropped (the clear ones).
+/// plane that cuts the net and one that touches its top row are read
+/// whole (`section_cert_spline_rows`), which a scalar with no march door
+/// does not; a placeholder's poison net is refused at the hull, with or
+/// without a door (R-reach). Red against W0 reading any one point clear
+/// rather than all (the cut and touching planes), against W0 dropped
+/// (the clear ones), and against the poison read past the hull (R-lane).
 #[test]
 fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
@@ -592,10 +593,7 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(
-        unmarched(&placeholder, &pl),
-        Section::NoLane("f64")
-    ));
+    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
     assert!(matches!(unmarched(&bump(), &bump()), Section::Intractable));
 }
 
