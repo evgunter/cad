@@ -1178,7 +1178,8 @@ mod tests {
             if ds[k] >= ds[below] && ds[k] >= ds[above] {
                 let (mut lo, mut hi) = (ts[below], ts[above]);
                 for _ in 0..80 {
-                    let (m1, m2) = (lo + (hi - lo) * 0.381_966, lo + (hi - lo) * 0.618_034);
+                    let g = geom_core::GOLDEN_SECTION;
+                    let (m1, m2) = (lo + (hi - lo) * (1.0 - g), lo + (hi - lo) * g);
                     if d(m1) < d(m2) {
                         lo = m1;
                     } else {
