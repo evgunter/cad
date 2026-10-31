@@ -142,7 +142,7 @@ fn critical_values_1d(f: impl Fn(f64) -> f64) -> Vec<f64> {
         }
         let sign = if max { -1.0 } else { 1.0 };
         let (mut lo, mut hi) = ((k as f64 - 1.0) * h, (k as f64 + 1.0) * h);
-        let phi = (5f64.sqrt() - 1.0) / 2.0;
+        let phi = geom_core::GOLDEN_SECTION;
         for _ in 0..120 {
             let x1 = hi - phi * (hi - lo);
             let x2 = lo + phi * (hi - lo);

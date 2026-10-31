@@ -2506,7 +2506,7 @@ pub struct NurbsLane<T: Real> {
     )
         -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
     /// [`NurbsLane::chart_arm`] at `T`.
-    chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+    chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Result<f64, crate::ChartArmRefusal>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
@@ -2531,7 +2531,11 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     /// reach are each one point at `T`. A wider value is a set of charts or
     /// points, whose cells this door does not enclose, so it reads as
     /// poison and no arm is read.
-    fn certified_chart_arm(chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+    fn certified_chart_arm(
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
         let point = |x: T| match x.certified_bracket() {
             Some((lo, hi)) if lo == hi => lo,
             _ => f64::NAN,
@@ -2639,11 +2643,18 @@ impl<T: Real> NurbsLane<T> {
     /// two, so the slack, which has no bound, costs an escalation and never
     /// a class.
     ///
-    /// `None` where no bound is read: a chart the patch bound refuses, a
-    /// C⁰ crease within `reach`, an unbounded curvature at `p` (a pole),
-    /// or data wider than a point at `T`.
-    #[must_use]
-    pub fn chart_arm(self, chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+    /// # Errors
+    ///
+    /// [`crate::ChartArmRefusal`] where no bound is read: a chart the
+    /// patch bound refuses, a C⁰ crease within `reach`, an unbounded
+    /// curvature at `p` (a pole), or data wider than a point at `T`
+    /// (`Poisoned`).
+    pub fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
         (self.chart_arm)(chart, p, reach)
     }
 

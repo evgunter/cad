@@ -126,9 +126,8 @@ pub(super) fn read<T: Decide>(
                 continue;
             }
             // A seam inside the face bounds nothing: no reading of it is
-            // owed.
+            // owed, and none is taken, so it is not one of `read`.
             if other == face {
-                meets.read.insert(e);
                 continue;
             }
             let (Some(ca), Some(cb)) = (crossings(face), crossings(other)) else {
@@ -138,6 +137,7 @@ pub(super) fn read<T: Decide>(
             // edge within the band of the ray.
             if missed.contains(&face) || missed.contains(&other) {
                 meets.read.insert(e);
+                meets.clear.insert(e);
                 continue;
             }
             if ca.is_empty() || cb.is_empty() {
@@ -153,17 +153,23 @@ pub(super) fn read<T: Decide>(
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
-            let mut decided = true;
+            let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
                 match passes(&span, q, d, q + d * t, band) {
                     Passes::Met(s, gap) => found.push((s, gap)),
-                    Passes::End(s) => meets.marks.push(RayHit::marked(faces, s, Mark::Graze)),
+                    Passes::End(s) => {
+                        clear = false;
+                        meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
+                    }
                     Passes::Clear => {}
                     Passes::Undecided => decided = false,
                 }
             }
             if decided {
                 meets.read.insert(e);
+                if clear && found.is_empty() {
+                    meets.clear.insert(e);
+                }
             }
             let Some(&(first, _)) = found.first() else {
                 continue;

@@ -327,11 +327,15 @@ fn a_built_spur_is_out_of_the_chart_image() {
     // half the cycle ends on its way out, which only the pass across the
     // cycle's start takes out.
     let (_, cycle) = topo::props::loop_edges(&body, body.get_face(lune).unwrap().outer).unwrap();
-    let want = topo::surface_boundary::chart_image(&body, &cycle).unwrap();
+    let want = topo::surface_boundary::chart_image(&body, &cycle)
+        .unwrap()
+        .half_edges;
     for k in 0..cycle.len() {
         let mut rotated = cycle.clone();
         rotated.rotate_left(k);
-        let mut got = topo::surface_boundary::chart_image(&body, &rotated).unwrap();
+        let mut got = topo::surface_boundary::chart_image(&body, &rotated)
+            .unwrap()
+            .half_edges;
         assert_eq!(got.len(), 2, "from {k}: the two meridians");
         let at = got.iter().position(|h| *h == want[0]).unwrap();
         got.rotate_left(at);

@@ -33,3 +33,19 @@ settle.
 
 The row pins this refusal as the tee's known divergence: the Interval
 injectivity verdict has no body to run on until the union builds.
+
+## The refusal moves with ε
+
+Found by EPSROWS (CLEAR). At `CAD_TOLERANCE_EPS=1e-12` the same union
+refuses earlier, at a different site:
+
+```
+CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(11v1),
+  band: Band { zero: 1e-12, escalate: 1e-11 } }
+```
+
+At the default ε and at `1e-6` it is still the poison
+`bool_ruled_region_span` above. So a fix for the poison span alone may
+leave the union refusing at `1e-12`. The tee row now pins only that the
+union refuses typed (`topo::test_support::offer_key`'s defect flag clear),
+so it goes red when the union builds at any ε.

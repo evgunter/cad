@@ -102,13 +102,16 @@ pub enum MaterialSign {
     ///   neither pole is read, though the face may hold neither
     ///   (`props_sphere_pole_side.rs`,
     ///   `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`);
-    /// * one whose loop has a pole off it on EACH side (a rim-only cap
-    ///   or a tilted cap holding a pole). Under either sense such a
-    ///   face holds a pole, which breaks the rule that a chart
-    ///   singularity inside a face is a vertex of it; the reading
-    ///   carries nothing about the bit, and tier 3's chart-singularity
-    ///   check, not the side reader, is what refuses the face
-    ///   ([`crate::chart_singularity`]).
+    /// * one whose loop has a pole off it on EACH side, neither at a tip
+    ///   the face holds (a rim-only cap or a tilted cap holding a pole).
+    ///   Under either sense such a face holds a pole that is not its
+    ///   vertex, which breaks the rule that a chart singularity inside a
+    ///   face is a vertex of it; the reading carries nothing about the
+    ///   bit, and tier 3's chart-singularity check, not the side reader,
+    ///   is what refuses the face ([`crate::chart_singularity`]). A
+    ///   wrap-tip cap, whose loop's chart image drops the tip at its
+    ///   pole, is read: it holds that pole and not the other
+    ///   ([`boundary_material_sign_holding`]).
     Unencoded,
 }
 
@@ -149,7 +152,9 @@ pub fn boundary_material_sign<T: Decide>(
 ///   one-loop face.
 ///
 /// None rests on an iso-rectangle premise: a notched or ringed face
-/// encodes its side as a rectangle does.
+/// encodes its side as a rectangle does. A face whose loops' chart
+/// images dropped tips reads its side with them
+/// ([`boundary_material_sign_holding`]).
 ///
 /// # Errors
 ///
@@ -157,6 +162,30 @@ pub fn boundary_material_sign<T: Decide>(
 pub fn boundary_material_sign_loops<T: Decide>(
     surface: &Surface<T>,
     loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    boundary_material_sign_holding(surface, loops, &[], band)
+}
+
+/// [`boundary_material_sign_loops`] of a face that holds the points
+/// `held`: the stored points of the tips its loops' chart images drop
+/// (`topo::surface_boundary::tips`), each a wrap edge's tip and so, on a
+/// valid body, a chart singularity of the face. A tip bounds nothing, so
+/// its spur leaves the image, but the face holds it, and it is the datum
+/// of the face's side (DESIGN `[topology.tiers]`, one region per face).
+/// A one-loop sphere face lies on the side of its loop that holds its
+/// own singular vertices and not the others ([`pole_free_side`]). A cone
+/// face's reading already holds its apex wherever its loops wind it, and
+/// a cylinder or torus has no singular point, so `held` enters no other
+/// kind's reading.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign`].
+pub fn boundary_material_sign_holding<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
@@ -190,7 +219,7 @@ pub fn boundary_material_sign_loops<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere_loop_side(center, radius, axis, loops, band),
+        } => sphere_loop_side(center, radius, axis, loops, held, band),
         Surface::Torus {
             center,
             axis,
@@ -1607,6 +1636,24 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    curved_face_holding(surface, loops, &[], sense, band)
+}
+
+/// [`curved_face_loops`] of a face that holds the points `held`, the
+/// tips its loops' chart images drop: the sphere arm's cross-check of
+/// the bit reads its side with them, as
+/// [`boundary_material_sign_holding`] does.
+///
+/// # Errors
+///
+/// As [`curved_face`].
+pub fn curved_face_holding<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
     // The empty rule's one dispatch: no loop bounds area.
     if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
         return whole_surface(surface, sense);
@@ -1632,7 +1679,7 @@ pub fn curved_face_loops<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere_face(center, radius, axis, loops, sense, band),
+        } => sphere_face(center, radius, axis, loops, held, sense, band),
         Surface::Torus {
             center,
             axis,
@@ -3179,6 +3226,7 @@ fn sphere_face<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
@@ -3188,7 +3236,8 @@ fn sphere_face<T: Decide>(
             what: "sphere face with an empty boundary",
         });
     };
-    if let MaterialSign::Encoded(side) = side_of_sphere_loops(center, radius, axis, &gauss, band)?
+    if let MaterialSign::Encoded(side) =
+        side_of_sphere_loops(center, radius, axis, &gauss, held, band)?
         && (side == Sign::Positive) != sense
     {
         // A holed face's side is its area's sign, which no pole enters.
@@ -3692,25 +3741,28 @@ fn sphere_loop_side<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let gauss = sphere_loops(center, radius, loops, band)?;
-    side_of_sphere_loops(center, radius, axis, &gauss, band)
+    side_of_sphere_loops(center, radius, axis, &gauss, held, band)
 }
 
-/// [`sphere_loop_side`] over loops already read.
+/// [`sphere_loop_side`] over loops already read, the face holding the
+/// points `held` ([`boundary_material_sign_holding`]).
 fn side_of_sphere_loops<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     gauss: &[SphereLoop<T>],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     match gauss {
         [] => Err(PropsError::SphereLoop {
             what: "sphere face with an empty boundary",
         }),
-        [one] => pole_free_side(center, radius, axis, one, band),
+        [one] => pole_free_side(center, radius, axis, one, held, band),
         [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
@@ -3749,26 +3801,45 @@ fn claimed_area<T: Decide>(center: Point3<T>, loops: &[SphereLoop<T>], left: boo
         })
 }
 
-/// **The side of a one-loop sphere face's loop that holds no chart
-/// pole.** A chart singularity inside a face is a vertex of it, so a
-/// face lies on the side of its loop that holds neither pole; each
-/// pole off the loop says which side that is ([`pole_side`]).
+/// **The side of a one-loop sphere face's loop that holds its own
+/// singular vertices and no other chart pole.** A chart singularity
+/// inside a face is a vertex of it, so a face lies on the side of its
+/// loop that holds no pole but those it holds as vertices. Its loop is
+/// its chart image, so a vertex it keeps is on the loop and reads no
+/// side; a vertex the image dropped, a wrap edge's tip, is one of
+/// `held`, the face's own and off the loop. Each pole off the loop says
+/// which side the face is on ([`pole_side`]): the side that holds it
+/// where it is at one of `held`, by the one reading of that incidence
+/// ([`crate::chart_singularity::vertex_at_singular_point`], a distance
+/// in band leaving the pole unread), and the other side where not.
 ///
-/// The answer is `Encoded` when the poles off the loop that read agree
-/// on a side, and `Unencoded` when both poles lie on the loop (a lune,
-/// a hemisphere split at its poles: the loop alone does not say), when
-/// neither reading is decided, or when the poles off the loop read on
-/// OPPOSITE sides. That last loop has a pole on each side, so whichever
-/// side is material holds a pole and the reading says nothing about
-/// the bit; it is not this reader's to refuse ([`MaterialSign`]).
+/// The answer is `Encoded` when the poles that read agree on a side,
+/// and `Unencoded` when both poles lie on the loop (a lune, a hemisphere
+/// split at its poles: the loop alone does not say), when neither
+/// reading is decided, or when the poles read on OPPOSITE sides. That
+/// last face holds a pole that is not its vertex under either sense,
+/// so the reading says nothing about the bit; it is not this reader's
+/// to refuse ([`MaterialSign`]).
 fn pole_free_side<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     lp: &SphereLoop<T>,
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    agreed_side(axis, |pole| pole_side(center, radius, pole, lp, band))
+    agreed_side(axis, |pole| {
+        let p = center + pole * radius;
+        let mut own = false;
+        for &tip in held {
+            match crate::chart_singularity::vertex_at_singular_point(tip, p, band) {
+                Ok(at) => own |= at,
+                Err(_) => return Ok(None),
+            }
+        }
+        let side = pole_side(center, radius, pole, lp, band)?;
+        Ok(if own { side.map(Sign::flip) } else { side })
+    })
 }
 
 /// **The side the poles' readings agree on.** `read` reads the side at
@@ -3888,7 +3959,7 @@ pub fn sphere_region_material_sign<T: Decide>(
         return if region.boundary.is_empty() {
             Ok(MaterialSign::Unencoded)
         } else {
-            side_of_sphere_loops(center, radius, axis, &region.boundary, band)
+            side_of_sphere_loops(center, radius, axis, &region.boundary, &[], band)
         };
     };
     agreed_side(axis, |pole| {

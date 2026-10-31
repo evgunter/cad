@@ -21,11 +21,15 @@
 //! reads an operand the same way, so the ladder is consistent end to
 //! end). A pair a Boolean glued one carrier is read through its record
 //! ([`GluedSurfaces`], which only the Boolean builds): one carrier, and
-//! no ladder measures it again; only which way its faces face is read. Where two faces on distinct keys
-//! glue, the survivor keeps its own description
-//! ([`MergedGroup::kept`]): the group's arena-first face that lies in no
-//! other member's hole — in a Boolean's result ordinarily operand A's,
-//! and B's where A's face plugs a hole of B's. A face on the `mvfs` seed's placeholder
+//! no ladder measures it again; only which way its faces face is read.
+//! Where two faces on distinct keys glue, the merged face keeps one
+//! member's description: in a Boolean's result the first-written
+//! operand's, A's, as the glue decides and records each pair kept side
+//! first (`docs/DESIGN.md` [coincidence.booleans]); where no glued pair
+//! orders a group, its arena-first member's, a fixed rule that reads no
+//! values. Which face survives the surgery does not enter: a plug in
+//! another member's hole is read like any other member
+//! ([`MergedGroup::kept`]). A face on the `mvfs` seed's placeholder
 //! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
 //! takes a census of them ([`MergeCoplanarOutcome::placeholders`]) and
 //! glues none.
@@ -33,7 +37,7 @@
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
@@ -60,7 +64,8 @@ pub struct MergedGroup {
     /// The surviving face: the group's first face in face-arena order
     /// that lies in no other member's hole (`outermost_survivor`) —
     /// the arena-first face, unless that face plugs a hole of another
-    /// member.
+    /// member. It wears the group's kept description
+    /// (`kept_description`), whichever member's that is.
     pub kept: FaceKey,
     /// The absorbed faces (dead keys), in kill order.
     pub absorbed: Vec<FaceKey>,
@@ -1694,13 +1699,13 @@ impl GluedSurfaceEq {
     /// Joins the classes of the glued pair `p`, or refuses it where the
     /// two already share a class whose charts it reads facing otherwise.
     fn union(&mut self, p: GluedSurfacePair) -> Result<(), MergeCoplanarError> {
-        let ((ra, xa), (rb, xb)) = (self.find(p.a), self.find(p.b));
+        let ((ra, xa), (rb, xb)) = (self.find(p.kept), self.find(p.other));
         if ra == rb {
             return if (xa == xb) == p.charts_agree {
                 Ok(())
             } else {
                 Err(MergeCoplanarError::GlueRecordBroken {
-                    surfaces: (p.a, p.b),
+                    surfaces: (p.kept, p.other),
                 })
             };
         }
@@ -1747,6 +1752,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// face's whole outline is one closed edge (a disc in a hole of its
     /// survivor), `kef` leaves the edge's vertex as a lone-vertex ring of
     /// the survivor, which `mekr` then `kev` delete.
+    ///
+    /// **The merged face keeps one member's description**: its
+    /// arena-first member's, a fixed rule that reads no values, where no
+    /// glued pair orders the group ([`Body::merge_coplanar_faces_unjoined`]).
+    /// The face arena reuses freed slots, so arena-first is not
+    /// first-written. The survivor wears the description from before the
+    /// surgery, whether or not it is that member's face.
     ///
     /// **The kept faces' boundaries are re-described.** An absorbed
     /// face's boundary edges end on its survivor still described
@@ -1906,6 +1918,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// same way. Every other pair is read by its margins exactly as
     /// [`Body::merge_coplanar_faces`] reads it (`Body::faces_continue`).
     /// A glued pair whose surfaces never meet at an edge is a no-op.
+    ///
+    /// **A glued pair is recorded kept side first**: a group holding
+    /// faces on both its surfaces keeps the first's description
+    /// (`docs/DESIGN.md` [coincidence.booleans]; the glue decides it,
+    /// operand A's). The group keeps its first member in face-arena
+    /// order that no glued pair names second against another member's
+    /// surface.
     pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
         glued: &GluedSurfaces,
@@ -2067,13 +2086,18 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let mut work = self.clone();
         let mut surgery = work.begin_surgery();
         for (seed, members) in groups {
+            let group: BTreeSet<FaceKey> = core::iter::once(seed)
+                .chain(members.iter().copied())
+                .collect();
             let (rep, rest) = surgery.outermost_survivor(seed, members);
             let (regime, kind) = match Self::group_contract(rep, &rest, &kinds)? {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
             };
+            let description = surgery.kept_description(&group, glued);
             match regime {
                 GroupRegime::RefusesTheCall => {
+                    surgery.rechart_survivor(rep, description);
                     outcome
                         .groups
                         .push(surgery.merge_group(rep, &rest, kind, tol)?);
@@ -2089,6 +2113,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     let mut trial = (*surgery).clone();
                     let staged = {
                         let mut scope = trial.begin_surgery();
+                        scope.rechart_survivor(rep, description);
                         scope.merge_group(rep, &rest, kind, tol).and_then(|group| {
                             scope
                                 .close_gated("merge_coplanar_faces")
@@ -2255,7 +2280,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     }
 
     /// The group's survivor: its first member in face-arena order that
-    /// lies in no other member's HOLE, with the rest of the members.
+    /// lies in no other member's HOLE, with the rest of the members. It
+    /// decides which face holds the merged region, not the description
+    /// it wears ([`Body::kept_description`]).
     ///
     /// A member lies in another's hole when that member's ring borders
     /// it — a coplanar face plugging a hole of a group face. The
@@ -2279,9 +2306,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// edge does not claim: the staged body is tier-1-valid, since every operator
     /// the earlier groups ran keeps it so.
     fn outermost_survivor(&self, seed: FaceKey, members: Vec<FaceKey>) -> (FaceKey, Vec<FaceKey>) {
-        let in_group = |f: FaceKey| f == seed || members.contains(&f);
-        let mut nested: std::collections::BTreeSet<FaceKey> = std::collections::BTreeSet::new();
-        for f in core::iter::once(seed).chain(members.iter().copied()) {
+        let group: BTreeSet<FaceKey> = core::iter::once(seed)
+            .chain(members.iter().copied())
+            .collect();
+        let mut nested: BTreeSet<FaceKey> = BTreeSet::new();
+        for &f in &group {
             let face = proven(&self.faces, f, EntityId::Face);
             for &lk in &face.rings {
                 let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
@@ -2304,7 +2333,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     };
                     let facts =
                         self.half_edge_facts(claim.mate, EntityId::Edge(edge), claim.mate_field());
-                    if facts.face != f && in_group(facts.face) {
+                    if facts.face != f && group.contains(&facts.face) {
                         nested.insert(facts.face);
                     }
                 }
@@ -2313,11 +2342,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         if !nested.contains(&seed) {
             return (seed, members);
         }
-        let survivor = self
-            .faces()
-            .map(|(k, _)| k)
-            .find(|&k| in_group(k) && !nested.contains(&k));
-        match survivor {
+        match self.first_in_arena(&group, |k| !nested.contains(&k)) {
             Some(kept) => {
                 let rest = core::iter::once(seed)
                     .chain(members)
@@ -2327,6 +2352,71 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
             None => (seed, members),
         }
+    }
+
+    /// The first face of `group` in face-arena order that `admits`: the
+    /// one scan both the survivor ([`Body::outermost_survivor`]) and the
+    /// description it wears ([`Body::kept_description`]) are read by.
+    fn first_in_arena(
+        &self,
+        group: &BTreeSet<FaceKey>,
+        admits: impl Fn(FaceKey) -> bool,
+    ) -> Option<FaceKey> {
+        self.faces()
+            .map(|(k, _)| k)
+            .find(|&k| group.contains(&k) && admits(k))
+    }
+
+    /// **The description a group's merged face keeps**, `(surface,
+    /// sense)`: the first member in face-arena order whose surface no
+    /// glued pair names second against another member's surface
+    /// ([`Body::merge_coplanar_faces_unjoined`]: a pair is recorded kept
+    /// side first). Where the glue orders nothing, the arena-first
+    /// member's: a fixed rule that reads no values.
+    ///
+    /// # Panics
+    ///
+    /// Where no member is live: every member is, on the staged body
+    /// the earlier groups left tier-1-valid.
+    fn kept_description(
+        &self,
+        group: &BTreeSet<FaceKey>,
+        glued: &GluedSurfaces,
+    ) -> (SurfaceKey, bool) {
+        let surface = |f: FaceKey| proven(&self.faces, f, EntityId::Face).surface;
+        let held: BTreeSet<SurfaceKey> = group.iter().map(|&f| surface(f)).collect();
+        let second: BTreeSet<SurfaceKey> = glued
+            .pairs()
+            .iter()
+            .filter(|p| p.kept != p.other && held.contains(&p.kept))
+            .map(|p| p.other)
+            .collect();
+        let Some(face) = self
+            .first_in_arena(group, |f| !second.contains(&surface(f)))
+            .or_else(|| self.first_in_arena(group, |_| true))
+        else {
+            unreachable!("kept_description: the group {group:?} holds a live face")
+        };
+        let face = proven(&self.faces, face, EntityId::Face);
+        (face.surface, face.sense)
+    }
+
+    /// **Re-charts the survivor `rep` onto the group's kept description**
+    /// ([`Body::kept_description`]) before the surgery, so the surface
+    /// stays named while the faces that held it die: its rows go where
+    /// the chart changes ([`Body::drop_rows_on_chart_change`]), and the
+    /// re-chart is [`Body::rechart_in_place`]'s. Its boundary edges
+    /// still name the surface it leaves, as an absorbed face's do, and
+    /// are described again after the gate, so no vouching is asked.
+    ///
+    /// # Panics
+    ///
+    /// Where `rep` does not resolve, or a loop of it is not whole: the
+    /// group was read off the staged body, tier-1-valid.
+    fn rechart_survivor(&mut self, rep: FaceKey, description: (SurfaceKey, bool)) {
+        let old = proven(&self.faces, rep, EntityId::Face).surface;
+        self.drop_rows_on_chart_change(self.face_cycles(rep), old, description.0);
+        self.rechart_in_place(rep, description);
     }
 
     /// One group's [`GroupContract`]: whether it runs, and under which
@@ -3852,49 +3942,63 @@ mod tests {
     }
 
     /// **A face plugging a hole of a coplanar neighbour merges into
-    /// it, whichever of the two is arena-first.** The nested fixture
-    /// with the inner face (the membrane) arena-FIRST, licensed by
-    /// declared pairs alone. Kept as the survivor, the membrane would
-    /// receive the top face's ring in the absorption's drain and leave
-    /// `kef` one face on both sides (`SameFace`,
+    /// it, and the merged face wears the description the glued pair
+    /// records first, whichever of the two that is.** The nested fixture
+    /// with the inner face (the membrane) arena-FIRST, licensed by glued
+    /// pairs alone. Kept as the survivor, the membrane would receive the
+    /// top face's ring in the absorption's drain and leave `kef` one
+    /// face on both sides (`SameFace`,
     /// `kef_reports_same_face_on_an_untorn_nested_group`); the door
     /// keeps the OUTER face instead, absorbs the membrane across its
     /// rim, and the hole's rim — a doubled cycle — is cut off as a ring
-    /// and pruned away. One face, no ring, tier 2 green.
+    /// and pruned away. One face, no ring, tier 2 green, on the
+    /// membrane's surface where the pair records it first and on the
+    /// host's own where the pair records the host first.
     #[test]
     fn a_face_plugging_a_neighbours_hole_merges_into_it() {
         let tol = Tol::witness();
-        let (mut body, membrane) = cube_with_arena_first_membrane(tol);
-        let first = body.faces().map(|(k, _)| k).next().expect("faces");
-        assert_eq!(first, membrane, "the plug is arena-first");
-        // Every face on its own plane key; ONE pair declared: the plug
-        // against the face whose ring it fills.
-        let host = body
-            .faces()
-            .find(|(_, f)| !f.rings.is_empty())
-            .map(|(k, _)| k)
-            .expect("a face carries the ring");
-        let mut declared = declare_planes_pairwise(&mut body);
-        let host_key = surface_of(&body, host);
-        declared.retain(|&(_, k)| k == host_key);
-        assert_eq!(declared.len(), 1);
-        separate_undeclared(&mut body, &declared);
-        assert_eq!(validate_closed(&body), Ok(()));
-        let outcome = body
-            .merge_coplanar_faces_glued(&declared, tol)
-            .expect("the plug merges into the face it plugs");
-        let [group] = &outcome.groups[..] else {
-            panic!("one group: {:?}", outcome.groups)
-        };
-        assert_eq!(group.kept, host, "the outer face survives");
-        assert_eq!(group.absorbed, vec![membrane]);
-        assert!(group.absorbed.contains(&membrane), "{group:?}");
-        assert!(outcome.skipped.is_empty(), "{:?}", outcome.skipped);
-        assert!(
-            body.get_face(group.kept).expect("live").rings.is_empty(),
-            "the hole is gone"
-        );
-        assert_eq!(validate_closed(&body), Ok(()));
+        for membrane_first in [true, false] {
+            let (mut body, membrane) = cube_with_arena_first_membrane(tol);
+            let first = body.faces().map(|(k, _)| k).next().expect("faces");
+            assert_eq!(first, membrane, "the plug is arena-first");
+            // Every face on its own plane key; ONE pair glued: the plug
+            // against the face whose ring it fills.
+            let host = body
+                .faces()
+                .find(|(_, f)| !f.rings.is_empty())
+                .map(|(k, _)| k)
+                .expect("a face carries the ring");
+            let mut glued = declare_planes_pairwise(&mut body);
+            let host_key = surface_of(&body, host);
+            let membrane_key = surface_of(&body, membrane);
+            glued.retain(|&(_, k)| k == host_key);
+            assert_eq!(glued, vec![(membrane_key, host_key)]);
+            separate_undeclared(&mut body, &glued);
+            if !membrane_first {
+                glued = vec![(host_key, membrane_key)];
+            }
+            assert_eq!(validate_closed(&body), Ok(()));
+            let outcome = body
+                .merge_coplanar_faces_glued(&glued, tol)
+                .expect("the plug merges into the face it plugs");
+            let [group] = &outcome.groups[..] else {
+                panic!("one group: {:?}", outcome.groups)
+            };
+            assert_eq!(group.kept, host, "the outer face survives");
+            assert_eq!(group.absorbed, vec![membrane]);
+            assert!(outcome.skipped.is_empty(), "{:?}", outcome.skipped);
+            assert!(
+                body.get_face(group.kept).expect("live").rings.is_empty(),
+                "the hole is gone"
+            );
+            assert_eq!(
+                surface_of(&body, group.kept),
+                glued[0].0,
+                "membrane first {membrane_first}: the merged face wears the description \
+                 its glued pair records first"
+            );
+            assert_eq!(validate_closed(&body), Ok(()));
+        }
     }
 
     /// The membrane fixture with the inner face arena-first: a `kef`

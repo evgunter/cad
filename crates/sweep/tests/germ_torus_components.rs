@@ -110,17 +110,6 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
             decision: topo::BooleanDecision::PierceCurvature,
             ..
         }) => "pierce curvature".to_owned(),
-        Err(BooleanError::Join(join))
-            if matches!(
-                join.error(),
-                topo::SplitJoinError::RunImageNotYet {
-                    kind: geom::SurfaceKind::Cylinder,
-                    ..
-                }
-            ) =>
-        {
-            "wall run image".to_owned()
-        }
         Err(BooleanError::JoinCarrierUnsupported {
             carrier: geom::CurveKind::Nurbs,
             ..
@@ -184,9 +173,9 @@ fn row(
 /// stops past the mint at a door's own refusal: the result gate's volume
 /// on a face its fitted chords bound
 /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`)
-/// or a conic trim on the torus chart, the cap plane's spiric
-/// (`GermSectionSpiric`), or a run's image on the drum's wall chart that
-/// the ring lane does not yet read (`RunImageNotYet`).
+/// or a conic trim on the torus chart, or the cap plane's spiric
+/// (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
+/// ring, by a spline chord, and re-homes the ring by the path.
 #[test]
 fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
     row(
@@ -198,7 +187,7 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             ["projected", "conic trim"],
             ["spiric", "spiric"],
             ["conic trim", "conic trim"],
-            ["wall run image", "wall run image"],
+            ["projected", "conic trim"],
         ],
         &[
             (1e-6, 2, ["tube straddles"; 2]),
