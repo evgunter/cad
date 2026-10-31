@@ -392,3 +392,128 @@ fn a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint() {
         rows_of(&body, face)
     );
 }
+
+// ---- review 6166 rows: the door is `mev` then `kemr` (keys, slot
+// versions, provenance, next mint), and a refusal consumes no slot ----
+
+fn all_halves(body: &Body<f64>) -> Vec<crate::HalfEdgeKey> {
+    body.half_edges.iter().map(|(k, _)| k).collect()
+}
+
+fn keys_only(mut body: Body<f64>) -> String {
+    let hs = all_halves(&body);
+    body.drop_rows(hs);
+    format!("{body:?}")
+}
+
+fn outer_anchor(body: &Body<f64>, face: FaceKey) -> crate::HalfEdgeKey {
+    let outer = body.get_face(face).unwrap().outer;
+    let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+    else {
+        unreachable!()
+    };
+    first
+}
+
+/// The door against `mev` then `kemr` run in turn on the same face with
+/// its rows dropped (so `mev`'s site mint is a no-op): same returned
+/// keys, same arenas, slot versions and provenance, and the same keys
+/// minted by the next operator.
+fn door_equals_mev_then_kemr(body: Body<f64>, face: FaceKey, p: Point3<f64>, what: &str) {
+    let tol = Tol::witness();
+    let anchor = outer_anchor(&body, face);
+    let mut a = body.clone();
+    let (va, la) = a.ring_vertex(anchor, p, tol).unwrap();
+    let mut b = body;
+    let hs = all_halves(&b);
+    b.drop_rows(hs);
+    let u = b.get_half_edge(anchor).unwrap().start;
+    let pu = *b.get_point(b.get_vertex(u).unwrap().point).unwrap();
+    let chord = b
+        .mev(
+            crate::construction::MevSite::Fan { he1: anchor, he2: anchor },
+            p,
+            geom_brep::EdgeCurveSpec::line_between(pu, p),
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what}: mev on the rowless face: {e:?}"));
+    let k = b.kemr(chord.he_plus, chord.he_minus).unwrap();
+    assert_eq!((va, la), (chord.vertex, k.ring), "{what}: returned keys");
+    assert_eq!(
+        keys_only(a.clone()),
+        keys_only(b.clone()),
+        "{what}: arenas differ"
+    );
+    // The next mint reuses the freed slots alike.
+    let q = Point3::new(p.x + 0.01, p.y, p.z);
+    let next = |body: &mut Body<f64>, ring| {
+        body.mev(
+            crate::construction::MevSite::Lone { r#loop: ring },
+            q,
+            geom_brep::EdgeCurveSpec::line_between(p, q),
+            tol,
+        )
+        .map(|m| format!("{m:?}"))
+        .unwrap_or_else(|e| format!("{e:?}"))
+    };
+    let ha = all_halves(&a);
+    a.drop_rows(ha);
+    let (na, nb) = (next(&mut a, la), next(&mut b, k.ring));
+    assert!(na.starts_with("MevCreated"), "{what}: {na}");
+    assert_eq!(na, nb, "{what}: the next mint differs");
+}
+
+#[test]
+fn review6166_ring_vertex_mints_what_mev_then_kemr_mint() {
+    let (cube, top) = domed_cube();
+    door_equals_mev_then_kemr(cube.clone(), top, dome().eval(UV.0, UV.1), "dome");
+    let reverted = cube.revert().unwrap();
+    door_equals_mev_then_kemr(reverted, top, dome().eval(UV.0, UV.1), "dome reverted");
+    let flat = crate::test_support_fixtures::prism::<f64>(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        1.0,
+        Tol::witness(),
+    );
+    door_equals_mev_then_kemr(flat.body, flat.top_face, Point3::new(0.3, 0.6, 1.0), "plane");
+}
+
+#[test]
+fn review6166_a_refused_ring_vertex_consumes_no_slot() {
+    let (cube, top) = domed_cube();
+    let anchor = outer_anchor(&cube, top);
+    let u = cube.get_half_edge(anchor).unwrap().start;
+    let pu = *cube.get_point(cube.get_vertex(u).unwrap().point).unwrap();
+    for (what, at) in [
+        ("degenerate chord", pu),
+        ("nan", Point3::new(f64::NAN, 0.5, 1.0)),
+    ] {
+        let mut body = cube.clone();
+        let got = body.ring_vertex(anchor, at, Tol::witness());
+        assert!(got.is_err(), "{what}: {got:?}");
+        assert_eq!(format!("{body:?}"), format!("{cube:?}"), "{what}: body moved");
+        let p = dome().eval(UV.0, UV.1);
+        let mut fresh = cube.clone();
+        assert_eq!(
+            format!("{:?}", body.ring_vertex(anchor, p, Tol::witness())),
+            format!("{:?}", fresh.ring_vertex(anchor, p, Tol::witness())),
+            "{what}: the next mint differs"
+        );
+    }
+}
+
+#[test]
+fn review6166_tiers_after_the_door_and_revert() {
+    let (cube, top) = domed_cube();
+    let p = dome().eval(UV.0, UV.1);
+    for (what, body) in [("as built", cube.clone()), ("reverted", cube.revert().unwrap())] {
+        let mut body = body;
+        let anchor = outer_anchor(&body, top);
+        body.ring_vertex(anchor, p, Tol::witness()).unwrap();
+        crate::validate::validate(&body).unwrap_or_else(|e| panic!("{what}: tier 1 {e:?}"));
+        let back = body.revert().unwrap();
+        crate::validate::validate(&back).unwrap_or_else(|e| panic!("{what} back: tier 1 {e:?}"));
+        assert!(crate::pcurves::validate_pcurves(&back, band()).is_empty(), "{what} back");
+        assert!(crate::pcurves::stored_rows(&back, top).complete(), "{what} back");
+    }
+}
+
