@@ -2699,20 +2699,24 @@ impl DocSession {
         rebinds
     }
 
-    /// Replace the session with a fresh empty document — the
-    /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
-    /// the identity ruling and what is cleared).
+    /// Replace the session with a fresh empty document under a fresh
+    /// random id — the [`SessionOp::NewDocument`] semantics (that arm's
+    /// docs say what is cleared). Both refusals, a blank name and
+    /// unavailable randomness, come before anything is replaced.
     ///
     /// The same two doors as [`DocSession::open`] — a new history and
     /// [`DocSession::clear_for_new_document`] — with the file-shaped
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        let name = match Refusal::new_document_name(name) {
-            Ok(name) => name,
-            Err(refusal) => return OpOutcome::refused(refusal),
+        if let Err(refusal) = Refusal::new_document_name(name) {
+            return OpOutcome::refused(refusal);
+        }
+        let id = match pncad::workspace::random_document_id() {
+            Ok(id) => id,
+            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
         };
-        self.history = History::new(Doc::empty_derived(name, self.tol));
+        self.history = History::new(Doc::empty(id, self.tol));
         self.path = None;
         self.resolver = None;
         self.clear_for_new_document();

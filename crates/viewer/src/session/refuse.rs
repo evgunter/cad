@@ -283,10 +283,7 @@ pub enum Refusal {
         /// The evaluator's refusal, in its own words.
         source: EvalError,
     },
-    /// The New door was asked for a blank name. The document id is
-    /// derived from the name (`DocumentId::derive` — the identity
-    /// rule GAUTH's orchestrator decided at the program's opening), so a nameless document
-    /// would carry an identity nobody could ever re-derive.
+    /// The New door was asked for a blank name.
     EmptyName,
     /// A creation op named a node that is not the kind its seat
     /// requires — absent, or of another kind. Refusing here keeps
@@ -850,12 +847,7 @@ impl core::fmt::Display for Refusal {
                 "{var} already has a name, and the slot shares it by that name — accept \
                  the offer without giving it another"
             ),
-            Self::EmptyName => {
-                write!(
-                    f,
-                    "a new document needs a name; its identity is derived from it"
-                )
-            }
+            Self::EmptyName => write!(f, "a new document needs a name"),
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }

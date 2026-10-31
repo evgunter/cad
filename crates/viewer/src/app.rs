@@ -1604,9 +1604,7 @@ impl ViewerApp {
             // they cannot see in their own title bar.
             ui.add(egui::Label::new(document_name(self.session.path())).truncate());
             ui.separator();
-            // The New… control: one name field, because
-            // the document id is derived from the name — see
-            // `SessionOp::NewDocument`. The field is a draft; the
+            // The New… control: one name field. The field is a draft; the
             // op is emitted only by Create, and only with the name
             // `Refusal::new_document_name` hands back — the door's own
             // rule, trim included, so the button cannot offer a click
