@@ -79,15 +79,17 @@ Ev's standing instructions for implementation work:
   such as a follow-up to a change you just landed. Do those before
   handing back; a row a successor could pick up just as cheaply is the
   successor's.
-- **Before a design fork goes to Ev, two designers weigh it** (Ev,
-  2026-09-24): one Opus and one Fable, dispatched concurrently, each
+- **Before a design fork goes to Ev, designers weigh it** (Ev,
+  2026-09-24): one Opus and one Fable — and on the third of forks
+  the protocol draws, a second Opus as a full participant (Ev,
+  2026-10-31) — dispatched concurrently, each
   pointed at `docs/prompts/designer.md` BY PATH (read it in full
   yourself — it binds how you frame the problem too). Hand both the
   same statement of the PROBLEM — what needs deciding and why, and
   where to look — never candidate solutions: the options are theirs.
-  Neither sees the other's report until both are in. If they
-  disagree, hand each the other's report and/or dispatch further
-  designers to weigh both, until there are clear recommendations — or
+  None sees another's report until all are in. If they
+  disagree, hand each the others' reports and/or dispatch further
+  designers to weigh them, until there are clear recommendations — or
   a split stated so Ev can rule on it. **A crossover is not a
   split** (Ev, 2026-09-30): when, on comparison, the two cross —
   each moves to the other's previous position — run another round,
@@ -96,7 +98,7 @@ Ev's standing instructions for implementation work:
   each argument is still live, and often that the question beneath
   both has not been asked yet. Only then open the `[ev]` PR:
   its body carries each designer's `For Ev` section verbatim, labelled
-  A and B, **never saying which model wrote which** (Ev, 2026-09-25:
+  A, B (and C), **never saying which model wrote which** (Ev, 2026-09-25:
   so Ev's judgement is not biased). Act on the `For the orchestrator`
   sections yourself. Every such fork is a row in the design-fork
   experiment ([[experiments]]), recorded per
