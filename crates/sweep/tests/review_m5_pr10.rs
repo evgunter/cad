@@ -281,46 +281,35 @@ fn review_skin_on_refuses_unclamped_params() {
     ));
 }
 
-/// **F3: a half-turn path refuses at the turn's decision.** At an
-/// EXACTLY half-turn path the tangents are anti-parallel in ℝ — and
-/// in `f64` `t₀ × t₂` evaluates to a few ulps rather than zero, so no
-/// exact test separates the case. The station turn decides
-/// `1 + t₀·tᵢ` under the band (`sweep_path_turn`), which is
-/// rounding-sized here and decides zero: no minimal rotation is THE
-/// one, and the sweep refuses at the station where the path doubles
-/// back on its start tangent instead of building from an
-/// ill-conditioned axis.
-#[test]
-fn review_half_turn_path_refuses_at_the_turns_decision() {
-    use sweep::skin::sweep_geometry;
-    // Half-turn arc: bulge = tan(pi/4) = 1.
-    let path = segment_curve(
-        0,
-        bulge_arc(Point2::new(0.0, 0.0), Point2::new(0.0, 2.0), 1.0),
-        Affine3::identity(),
+/// The frame `path_start_frame` mints at `path`'s start.
+fn start_plane(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
+    let (lo, _) = path.domain();
+    let (p, d) = path.ders1(lo);
+    SketchPlane::from_frame(
+        geom_core::linalg::frame::path_start_frame(p, d, Tol::witness()).expect("a start frame"),
     )
-    .expect("path");
-    let profile: sweep::Section = vec![profile::ProfileLoop::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(0.3, 0.0),
-        Point2::new(0.3, 0.2),
-        Point2::new(0.0, 0.2),
-    ])];
-    match sweep_geometry(&profile, SketchPlane::xy(), &path, 3, 2, Tol::witness()) {
-        Err(SkinError::PathTangentReversal { station: 2 }) => {}
-        other => panic!("the half turn must refuse at its last station, got {other:?}"),
-    }
 }
 
-/// **A planar hairpin refuses, and says to loft it.** A semicircular
-/// U-bend in a coordinate plane has an exact turn axis (`ẑ`), and the
-/// sweep built it before the turn decided `1 + t₀·tᵢ`; now its last
-/// station doubles back on the start tangent within the band and the
-/// sweep refuses there. Smoothing cannot help a path that doubles
-/// back, so the refusal's recourse names the loft through stated
-/// planes, not the vanishing tangent's "smooth the path there".
+fn small_rectangle() -> sweep::Section {
+    vec![profile::ProfileLoop::polygon([
+        Point2::new(-0.15, -0.1),
+        Point2::new(0.15, -0.1),
+        Point2::new(0.15, 0.1),
+        Point2::new(-0.15, 0.1),
+    ])]
+}
+
+/// **A half-turn arc sweeps, its end frame the start frame turned a
+/// half turn about the arc's axis.** The semicircle's end tangent is
+/// its start tangent reversed, exactly. The frame is carried station
+/// to station, so no station reads the start tangent against a distant
+/// one, and on a planar path the carried frame turns about the plane's
+/// normal by the tangent's own turn: at the last station `u` and `v`
+/// are the start's negated in x and y, and the normal is unmoved. At
+/// two stations the chord is normal to both tangents, the case where
+/// the first reflection leaves the tangent where it was.
 #[test]
-fn a_planar_hairpin_refuses_with_the_loft_recourse() {
+fn a_half_turn_arc_sweeps_its_exact_tangents() {
     use sweep::skin::sweep_geometry;
     let path = segment_curve(
         0,
@@ -328,24 +317,75 @@ fn a_planar_hairpin_refuses_with_the_loft_recourse() {
         Affine3::identity(),
     )
     .expect("path");
-    let profile: sweep::Section = vec![profile::ProfileLoop::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(0.3, 0.0),
-        Point2::new(0.3, 0.2),
-        Point2::new(0.0, 0.2),
-    ])];
-    let err = sweep_geometry(&profile, SketchPlane::xy(), &path, 5, 2, Tol::witness())
-        .expect_err("the hairpin doubles back at its last station");
-    assert_eq!(err, SkinError::PathTangentReversal { station: 4 });
+    let plane = start_plane(&path);
+    let turned = |v: geom_core::Vec3<f64>| geom_core::Vec3::new(-v.x, -v.y, v.z);
+    for stations in [2, 3, 5] {
+        let places = sweep::sweep_places(plane, &path, stations, Tol::witness())
+            .unwrap_or_else(|e| panic!("{stations} stations: the half turn carries: {e}"));
+        let (start, end) = (plane.frame(), places[stations - 1].frame());
+        for (axis, want, got) in [
+            ("u", turned(start.u().get()), end.u().get()),
+            ("v", turned(start.v().get()), end.v().get()),
+            ("w", turned(start.w().get()), end.w().get()),
+        ] {
+            let off = (got - want).norm();
+            assert!(
+                off < 1e-14,
+                "{stations} stations: the end frame's {axis} is the start's turned a half \
+                 turn about z, off by {off:e}"
+            );
+        }
+        let o = end.origin();
+        assert!(
+            o.x.abs() < 1e-15 && (o.y - 2.0).abs() < 1e-15 && o.z == 0.0,
+            "{stations} stations: the end frame sits on the path's end point, at {o:?}"
+        );
+    }
+    sweep_geometry(&small_rectangle(), plane, &path, 5, 2, Tol::witness())
+        .expect("the half turn skins");
+    sweep::sweep_body::<f64>(&small_rectangle(), plane, &path, 5, 2, Tol::witness())
+        .expect("the half turn sweeps a body");
+}
+
+/// **A path that turns a half turn between two stations refuses there,
+/// and more stations sweep it.** The U-turn is a 270° arc over the top
+/// and a 90° arc back down onto the line it left, as four rational
+/// quarter arcs, so its start tangent is exactly `+z`, its end tangent
+/// exactly `−z`, and its chord exactly along `−z`. At two stations the
+/// start tangent mirrored in that chord is `−z`, the arrival itself,
+/// so the step's second reflection has no plane. Sampled at nine
+/// stations no step turns that far.
+#[test]
+fn a_half_turn_between_two_stations_refuses_and_more_stations_sweep_it() {
+    let r = 1.0;
+    let on = [(0.0, 0.0), (r, r), (2.0 * r, 0.0), (r, -r), (0.0, -2.0 * r)];
+    let centres = [(r, 0.0), (r, 0.0), (r, 0.0), (r, -2.0 * r)];
+    let mut ctrl = vec![on[0]];
+    for k in 0..4 {
+        let (a, b, c) = (on[k], on[k + 1], centres[k]);
+        ctrl.push((a.0 + b.0 - c.0, a.1 + b.1 - c.1));
+        ctrl.push(b);
+    }
+    let w = core::f64::consts::FRAC_1_SQRT_2;
+    let path = NurbsCurve3::new(
+        KnotVector::clamped(vec![0., 0., 0., 1., 1., 2., 2., 3., 3., 4., 4., 4.], 2).unwrap(),
+        ctrl.into_iter()
+            .map(|(x, z)| Point3::new(x, 0.0, z))
+            .collect(),
+        vec![1., w, 1., w, 1., w, 1., w, 1.],
+    )
+    .unwrap();
+    let plane = start_plane(&path);
+    let err = sweep::sweep_places(plane, &path, 2, Tol::witness())
+        .expect_err("the step turns a half turn");
+    assert_eq!(err, SkinError::PathHalfTurn { station: 1 });
     let text = err.to_string();
     assert!(
-        text.contains("loft the section through planes stated at the stations"),
-        "the reversal names the loft: {text}"
+        text.contains("between stations 0 and 1") && text.contains("Recourse: add stations"),
+        "the half turn names its stations and its recourse: {text}"
     );
-    assert!(
-        !text.contains("smooth the path"),
-        "the reversal does not offer smoothing: {text}"
-    );
+    sweep::sweep_body::<f64>(&small_rectangle(), plane, &path, 9, 2, Tol::witness())
+        .expect("at nine stations no step turns a half turn");
 }
 
 /// A VANISHING tangent is the case the arm genuinely catches: a path

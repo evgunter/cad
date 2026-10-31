@@ -1288,7 +1288,9 @@ Flagged, NOT fixed here (dispositions):
 - **F22** (added by PATHS' sketch-plane frame unit)
   `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
   under the caller's site name (`sweep`'s `sweep_path_turn`, a path
-  sweep's turn from the start tangent onto a station's): `1 + a·b`,
+  sweep's step turn from station `i`'s tangent mirrored in the chord
+  onto station `i + 1`'s, the second reflection of the double
+  reflection, `crates/sweep/README.md` `[sweep.frame]`): `1 + a·b`,
   the scalar part of the quaternion `(1 + a·b, a × b)` whose matrix
   the turn is, for `a`, `b` direction witnesses, evaluated as
   `|a + b|²/2`. Dimensionless — a defect of the pair, zero exactly when
@@ -1297,7 +1299,7 @@ Flagged, NOT fixed here (dispositions):
   own (it acts on the section, whose extent is the caller's). The
   margin is where the turn stops being THE minimal rotation, so the
   decision sits on that rather than on an axis `a × b`, which would
-  escalate on a nearly straight path where any axis serves. It is not
+  escalate on a nearly straight step where any axis serves. It is not
   also a conditioning threshold: the quaternion matrix is orthogonal to
   rounding at every angle, and with both parts evaluated through
   `a + b` it carries `a` onto `b` to a few ulps at every margin the
