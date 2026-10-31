@@ -860,7 +860,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 },
             )?;
             let arm = T::spline_chart_arm(chart, p, reach).ok_or_else(unbuilt)?;
-            PierceLever::Within(T::from_f64(arm))
+            PierceLever::Within(T::from_computed(arm))
         }
     };
 

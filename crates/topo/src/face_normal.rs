@@ -423,7 +423,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     if surface.is_placeholder_chart() {
         return Ok(None);
     }
-    let uv = (T::from_f64(u), T::from_f64(v));
+    let uv = (T::from_computed(u), T::from_computed(v));
     let reach = geom_brep::control_net_reach(chart.control(), p);
     let at = chart.eval(uv.0, uv.1);
     match decide(

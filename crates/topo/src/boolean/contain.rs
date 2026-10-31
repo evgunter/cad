@@ -882,6 +882,10 @@ pub(crate) fn curved_face_placement_decided<T: Decide>(
     curved_face_placement_charted(body, face, q, band).map(|(at, margin, _)| (at, margin))
 }
 
+/// A placement, the margin that decided a boundary verdict, and a
+/// spline face's in-trim foot ([`curved_face_placement_charted`]).
+pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<(f64, f64)>);
+
 /// [`curved_face_placement_decided`], with the chart point a spline
 /// face's `In` placement was decided at: the in-trim foot of `q` on the
 /// face's own sheet ([`super::spline_region::spline_face_placement`]).
@@ -895,7 +899,7 @@ pub(crate) fn curved_face_placement_charted<T: Decide>(
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<(CurvedPlacement, Option<MarginDiag>, Option<(f64, f64)>), ContainError> {
+) -> Result<ChartedPlacement, ContainError> {
     if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
         return Ok((CurvedPlacement::Trim(Some(v)), Some(margin), None));
     }
