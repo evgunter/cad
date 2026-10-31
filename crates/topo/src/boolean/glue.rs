@@ -182,34 +182,6 @@ pub(super) fn overlap_ball<T: geom_core::Real>(
     )
 }
 
-/// **The operation's region** (C5): the ball about the overlap of the
-/// two operands' boxes, each the hull of its faces' boxes at the sweep's
-/// pad, which holds every section point the operation can use. `None`
-/// where the operands' boxes do not overlap, so that no face pair does.
-///
-/// # Errors
-///
-/// A face box's own refusal.
-pub(crate) fn operation_region<T: Decide + Bounds>(
-    a: &Body<T>,
-    b: &Body<T>,
-    band: Band,
-) -> Result<Option<geom_brep::ExtentBall<T>>, BooleanError> {
-    let pad = boxes::sweep_pad(band);
-    let hull = |body: &Body<T>| -> Result<Option<bvh::Aabb>, BooleanError> {
-        let mut out: Option<bvh::Aabb> = None;
-        for (f, _) in body.faces() {
-            let b = boxes::face_box(body, f, pad, band)?;
-            out = Some(out.map_or(b, |h| h.hull(&b)));
-        }
-        Ok(out)
-    };
-    Ok(match (hull(a)?, hull(b)?) {
-        (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
-        _ => None,
-    })
-}
-
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
 /// each face of `b` that `keep` admits, in `a`'s face order and `b`'s
 /// within each — the candidates both of this door's scans read.
@@ -256,7 +228,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
 /// ([`geom_brep::pair_section::serves`]) at the operation's band and
-/// region ([`operation_region`]), and the coincidences the join reads,
+/// region, and the coincidences the join reads,
 /// per face pair of the two operands: each coincidence decided `Zero`
 /// that the pair's section stands on one row, read from the table, at
 /// the coincidence's own site. A sphere's centre on a cylinder's or a
@@ -300,7 +272,24 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    let mut table = SectionTable::reader(lane, operation_region(a, b, band)?, band);
+    // The operation's region (C5): the ball about the overlap of the two
+    // operands' boxes, each the hull of its faces' boxes at the sweep's
+    // pad, which holds every section point the operation can use; none
+    // where the boxes do not overlap, so that no face pair does.
+    let pad = boxes::sweep_pad(band);
+    let hull = |body: &Body<T>| -> Result<Option<bvh::Aabb>, BooleanError> {
+        let mut out: Option<bvh::Aabb> = None;
+        for (f, _) in body.faces() {
+            let b = boxes::face_box(body, f, pad, band)?;
+            out = Some(out.map_or(b, |h| h.hull(&b)));
+        }
+        Ok(out)
+    };
+    let region = match (hull(a)?, hull(b)?) {
+        (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
+        _ => None,
+    };
+    let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, read, band)? {
         let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
@@ -412,19 +401,26 @@ mod region_rows {
     fn the_region_is_the_ball_about_the_operands_box_overlap() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let b = brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let region = super::operation_region(&a, &b, band)
-            .unwrap()
+        let plane = geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: geom_core::Vec3::unit_z(),
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let region = |b: &crate::body::Body<f64>| {
+            let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let (table, _) = super::section_door(&a, b, &super::Glue::none(), None, band).unwrap();
+            table.region_for(&plane, &plane)
+        };
+        let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
         let centre = Point3::new(0.75, 0.5, 0.5);
-        assert!((region.center() - centre).norm() < 1e-6, "{region:?}");
+        assert!((got.center() - centre).norm() < 1e-6, "{got:?}");
         let half_diagonal = (0.25f64 * 0.25 + 0.5 * 0.5 + 0.5 * 0.5).sqrt();
         assert!(
-            region.radius() >= half_diagonal && region.radius() < half_diagonal + 1e-3,
-            "{region:?}"
+            got.radius() >= half_diagonal && got.radius() < half_diagonal + 1e-3,
+            "{got:?}"
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
-        assert!(super::operation_region(&a, &far, band).unwrap().is_none());
+        assert!(region(&far).is_none(), "apart: no region");
     }
 }
