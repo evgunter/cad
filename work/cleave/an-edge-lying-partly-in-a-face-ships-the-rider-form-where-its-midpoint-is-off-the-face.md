@@ -2,12 +2,13 @@
 id: an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face
 kind: issue
 title: A Boolean edge lying in a face along part of its length ships the rider form where the face holds no edge-on-face record with its midpoint in it
-status: review
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: M
 branch: cleave/riders-read-every-edge-in-a-face
 pr: 5793
+closed: 2026-10-31
 ---
 
 
@@ -109,3 +110,21 @@ an arc of the loops crossed is its `CrossedCurve` gap.
   ships one edge there. Filed as
   `work/cleave/the-parting-reads-no-edge-lying-in-a-torus-or-spline-face.md`
   and `work/cleave/the-parting-reads-no-edge-lying-in-a-face-no-record-names.md`.
+
+## Closed (2026-10-31)
+
+PR 5793. `slit::riders` asks a face of an edge where the edge's ends
+lie on it (by structure, a vertex-vertex partner, a vertex-on-face
+record, or a vertex-on-edge record on its loops), where an edge-on-face
+record names the pair, or where a record names a crossing of the edge
+with the face's loops. `slit::holding` reads the edge as lying in the
+face where its carrier lies on the face's surface and the face holds
+the midpoint of a piece the recorded crossings cut it into; the edge's
+own midpoint decides nothing. `slit::divide` divides the edge at each
+crossing, line or arc of the loops (`curve_pair::meet`), against every
+face holding a piece of it at once, and the parting builds two
+coincident edges over each piece. Witness:
+`sweep/tests/edges_lying_in_a_face_part_wherever_they_lie.rs`, every op
+in both orders at 1e-6, 1e-9 and 1e-12 at its closed form with tiers 3
+and 3′. Residue is filed: the closed edge, the torus or spline face, and
+an edge no record names (`work/cleave/`).

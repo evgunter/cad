@@ -340,6 +340,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "cone_off_axis" => "whether a point of a cone face stands clear of the cone's axis",
         "cone_at_apex" => "whether a point of a cone face near its axis is the cone's apex",
+        "foot_off_locus" => {
+            "whether a point stands clear of the locus where a face's carrier has no one \
+             nearest point: a cylinder's axis, a sphere's centre, or a cone's apex plane"
+        }
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),

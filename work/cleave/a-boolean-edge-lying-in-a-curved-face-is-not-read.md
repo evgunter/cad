@@ -2,12 +2,13 @@
 id: a-boolean-edge-lying-in-a-curved-face-is-not-read
 kind: issue
 title: The Boolean's parting reads edges lying in plane faces only; an edge lying in a curved face keeps the rider form
-status: review
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: H
 branch: cleave/riders-read-every-edge-in-a-face
 pr: 5793
+closed: 2026-10-31
 ---
 
 
@@ -106,3 +107,20 @@ the edge's midpoint, so it carries over.
   (`work/cleave/the-parting-reads-no-edge-lying-in-a-torus-or-spline-face.md`),
   and a closed edge
   (`work/cleave/a-closed-edge-lying-in-a-face-is-never-read-by-the-parting.md`).
+
+## Closed (2026-10-31)
+
+PR 5793. The parting reads an edge lying in a curved face: a line on a
+cylinder or cone (`census::line_on_quadric_carrier`) and a conic on a
+sphere, cylinder or cone, every sample read first
+(`census::points_on_surface`). Its side is read at the carrier's foot
+(`face_normal::face_outward_normal_at_foot`), and a tangent wall's at
+second order, one reading for a plane face and a curved one. Where the
+material parts the edge in a curved face, the Boolean refuses typed
+(`EdgeInFace`: `CurvedFace` for a line, as main's keel lane set,
+`Curved` for an arc) rather than ship the one-edge form. The parted form
+on a curved face is owed on
+`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
+and `work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`,
+which list the re-pinned rows. A torus or spline face, and the census's
+first-order reading of a tangent wall, are filed rows.

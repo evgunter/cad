@@ -413,7 +413,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 /// cone's axis is ([`cone_axis_clearance`]): a cylinder's axis, a
 /// sphere's centre, a cone's axis, and the plane through a cone's apex
 /// square to its axis, where the two nappes are equally near
-/// (`bool_foot_off_locus`).
+/// (`foot_off_locus`).
 ///
 /// # Errors
 ///
@@ -430,7 +430,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     let Some(f) = body.get_face(face) else {
         return Ok(None);
     };
-    let clear = |margin: Margin<T>| match decide("bool_foot_off_locus", margin, band) {
+    let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
