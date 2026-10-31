@@ -391,6 +391,16 @@ pub enum LoftError {
 
 /// **Where a pinned corner is**, within its loop: a corner alone, or the
 /// segment between two adjacent pinned corners (a hinge).
+///
+/// **Not carried to the façade's curated list, by decision**
+/// (`scripts/payload-rung-sweep.py` names this rung, and its disposition
+/// table cites this paragraph). A Rust caller names and matches it
+/// through `pncad::sweep`; what the prelude would add is the CUR3
+/// matchability row over a new payload and a Python word for which
+/// site refused, both the façade crate's to write. The falsifier is a
+/// Python caller that must branch on a corner against a hinge rather
+/// than read it off the sentence; when the façade carries it, delete
+/// this paragraph and the disposition row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PinnedSite {
     /// The corner that starts segment `j`.
