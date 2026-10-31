@@ -475,3 +475,4 @@ PR 5568's fix pass.
   - A cloud session given a short sha fails to start (`ref_not_found`); pass a full sha or a branch.
   - A fix pass on a dual-reviewed unit that restructures code on the flux path earned a delta review, which found a MAJOR (set-up at 10–16× main): keep doing it.
 - Status `active` → `ready`.
+- 2026-10-31 — **`[ev]` PR 6102 merged.** The kernel's own questions pay a fixed constant per question (Ev: "fixed constant for now because it's easy and we can change it later"). Fork row 220 is completed, and the ruling `the-measurement-work-bound-attaches-to-the-question` is closed. Filed: `the-measurement-spends-a-question-budget-widest-first` (P1, H, the build) and `kernel-resolution-call-sites-may-decide-on-a-sized-bracket` (P3). The track stays `ready` for a successor.

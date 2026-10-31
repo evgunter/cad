@@ -573,10 +573,16 @@ certified export promise.
 `[tolerance.measure]`
 A certified measurement (volume, area, moments) is an enclosure, never a
 number alone, and its width is part of the value. There is one door. It
-refines a face until a predicate over the enclosure resolves, until
-refinement stops paying (a floor no round removes), or until the per-face
-work bound (one bound, in one unit, for every lane). It returns the
-narrowest enclosure reached and why it stopped.
+refines the measured surface where its enclosure is widest, until a
+predicate over the enclosure resolves, until refinement stops paying (a
+floor no round removes), or until the work budget the caller states with
+its predicate, in one unit for every lane, as a multiple of reading the
+measured surface once. The kernel's own questions (the validity gate, a
+boolean's decisions, a document's assertions) state a fixed constant per
+question. What a measurement spends
+depends on what it asks and on the geometry, never on how its surface is
+cut into faces. It returns the narrowest enclosure reached and why it
+stopped.
 
 A consumer that decides something passes its predicate: a sign, a
 relation against a bound as an assertion states it, or a containment. At
@@ -587,14 +593,20 @@ enclosure lies wholly in the band, and is recorded at every round it is
 asked.
 
 A consumer that hands the number on passes a resolution, the width
-predicate: the mean boundary displacement it needs. That is a sizing,
-decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+predicate: the mean boundary displacement it needs over the measured
+surface as a whole. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded. It
+is for a consumer that wants the number and nothing else: one that would
+compare the result against anything passes that comparison as its
+predicate instead, so a decision is never made on a bracket sized by a
+guess.
 The model defines its measures only to ε of boundary displacement, so no
 finer resolution is offered. There is no default: every caller states
-its predicate, a resolution included, at the call, so the precision a
-measurement buys is always the one its consumer asked for.
+its predicate, a resolution included, and its budget at the call, so the
+precision a measurement buys, and what it may spend buying it, are always
+the ones its consumer asked for.
 
-A deciding predicate still undecided at the work bound is the one
+A deciding predicate still undecided at the budget is the one
 quadrature refusal, and it carries the enclosure. A resolution unmet
 there is the bracket, with the resolution it reached.
 
