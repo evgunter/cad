@@ -791,7 +791,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                     ..ComponentEnds::nodes(from, to)
                                 },
                             },
-                            [false, false],
+                            // The two ellipses joined at their nodes,
+                            // each a plane section round both axes.
+                            [true, true],
                             Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),

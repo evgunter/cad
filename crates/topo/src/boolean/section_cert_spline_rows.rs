@@ -25,6 +25,7 @@ fn read(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
             centre: p(0.0, 0.0, 0.0),
             radius: 1.0,
         },
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     )
@@ -368,6 +369,7 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
             centre: p(0.0, 0.0, 0.0),
             radius: 1.0,
         },
+        None,
         None,
         band(),
     );

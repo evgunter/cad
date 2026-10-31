@@ -3463,7 +3463,7 @@ pub(super) fn germ_branch<T: Decide>(
     if locus_a.edge().is_some() || locus_b.edge().is_some() {
         return Ok(super::Branch::Only);
     }
-    if let Some(carried) = sections.carried((body_a, face_a), (body_b, face_b)) {
+    if let Some(carried) = sections.carried_at_the_join((body_a, face_a), (body_b, face_b)) {
         return carried
             .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?
             .foot(site, band)
@@ -3508,7 +3508,7 @@ fn germ_section<'r, T: Decide>(
         return Ok(None);
     }
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-    match red.sections.carried(faces.0, faces.1) {
+    match red.sections.carried_at_the_join(faces.0, faces.1) {
         None => Ok(None),
         Some(Ok(section)) => Ok(Some(section)),
         Some(Err(why)) => Err(faces_section_unbuilt(why, faces.0, faces.1)),
@@ -4218,12 +4218,10 @@ fn pt_germ_frame<T: Decide>(
 const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **An equal cylinder pair with meeting axes, as its section table
-/// classifies it**: the two Zero margins its two bisector-plane
-/// ellipses are decided from and the nodes where they cross
-/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the two
-/// walls' axes, A's first.
+/// classifies it**: the nodes where its two bisector-plane ellipses
+/// cross ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the
+/// two walls' axes, A's first.
 pub(super) struct CrossingSection<T: geom_core::Real> {
-    pub(super) margins: [geom_core::MarginDiag; 2],
     pub(super) nodes: [Point3<T>; 2],
     pub(super) axes: [Vec3<T>; 2],
     /// Each ellipse's plane, its centre (the axes' meeting point) and
@@ -4275,12 +4273,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Err(e) => return Err(refused(e)),
     };
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
-        Ok(geom_brep::EqualCylinderSection::TwoEllipses {
-            e1,
-            e2,
-            margins,
-            nodes,
-        }) => {
+        Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, nodes, .. }) => {
             let plane = |e: &geom::Curve3<T>| match *e {
                 geom::Curve3::Ellipse { center, axis, .. } => Ok((center, axis)),
                 _ => Err(BooleanError::JoinDesync {
@@ -4288,7 +4281,6 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
                 }),
             };
             Ok(Some(CrossingSection {
-                margins,
                 nodes,
                 axes: [a1, a2],
                 planes: [plane(&e1)?, plane(&e2)?],
@@ -4340,29 +4332,6 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             what: "two cylinder walls read apart refused as no cylinder pair can",
         }),
     }
-}
-
-/// [`crossing_cylinder_reading`], a refused reading taken as no crossing
-/// pair: for the coincidence rows (`glue::section_door`), which record no
-/// row where a reading refuses, a later decision refusing where the
-/// faces meet (the node's mint, [`crossing_germs_have_their_reading`]).
-pub(super) fn crossing_cylinder_section<T: Decide>(
-    a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
-    band: Band,
-) -> Option<CrossingSection<T>> {
-    crossing_cylinder_reading(a, b, band).ok().flatten()
-}
-
-/// **The two coincidences an equal cylinder pair with meeting axes is
-/// decided from** ([`crossing_cylinder_section`]): the radii equal and
-/// the axes meeting, each margin decided Zero by the section table.
-pub(super) fn crossing_cylinder_margins<T: Decide>(
-    a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
-    band: Band,
-) -> Option<[geom_core::MarginDiag; 2]> {
-    crossing_cylinder_section(a, b, band).map(|s| s.margins)
 }
 
 /// **The intersecting-axes cylinder pair, routed by the pose's node

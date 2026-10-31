@@ -386,7 +386,6 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::contain::FaceContainment;
 use crate::validate::decide;
-use geom_brep::intersect::decide_across;
 use geom_brep::pair_section::{Pinch, signs, signs_across};
 use geom_brep::{AxisPose, ExtentBall, Turn, axis_pose};
 
@@ -721,27 +720,31 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 }
 
 /// **The classifier: two carriers in, the section's components out.**
-/// Pure: surfaces, the pair's reach (module docs) and the band.
+/// Pure: surfaces, the pair's reach (module docs), the operation's
+/// region, which the section value reads a pair with no bounded side
+/// over (two cylinders), and the band.
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: Reach<T>,
+    region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
+    let kinds = (f.kind(), g.kind());
     match (f, g) {
         (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
-        | (S::Sphere { .. }, S::Cylinder { .. })
+        | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
         | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, None, None, band) {
+            match geom_brep::pair_section(f, g, region, None, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
-                    of_pair_section(&Ok(section), band, marched)
+                    of_pair_section(&Ok(section), kinds, band, marched)
                 }
                 Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-                Err(e) => of_pair_section(&Err(e), band, marched),
+                Err(e) => of_pair_section(&Err(e), kinds, band, marched),
             }
         }
         (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
@@ -755,20 +758,6 @@ pub(crate) fn classify<T: Decide>(
         (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
             swapped(cone_pair(g, f, reach, band))
         }
-        (
-            &S::Cylinder {
-                origin: o1,
-                axis: d1,
-                radius: r1,
-                ..
-            },
-            &S::Cylinder {
-                origin: o2,
-                axis: d2,
-                radius: r2,
-                ..
-            },
-        ) => cylinder_cylinder(o1, unit(d1), r1, o2, unit(d2), r2, reach, band),
         (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
         (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
         (&S::Sphere { center, radius, .. }, &S::Plane { origin, normal, .. }) => {
@@ -834,11 +823,14 @@ fn spline_plane<T: Decide>(
         return none();
     }
     let no_march = |_: &geom_brep::PairSection<T>| Section::Unmarched;
+    let kinds = (f.kind(), g.kind());
     match geom_brep::pair_section(f, g, None, lane, band) {
-        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, no_march),
+        Ok(geom_brep::SectionRead::Built(section)) => {
+            of_pair_section(&Ok(section), kinds, band, no_march)
+        }
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
         Err(geom_brep::SectionError::NoMarch { scalar }) => Section::NoLane(scalar),
-        Err(e) => of_pair_section(&Err(e), band, no_march),
+        Err(e) => of_pair_section(&Err(e), kinds, band, no_march),
     }
 }
 
@@ -1607,163 +1599,6 @@ fn cone_parallel_cylinder<T: Decide>(
     }
 }
 
-/// **Cylinder × cylinder.**
-#[allow(clippy::too_many_arguments)]
-fn cylinder_cylinder<T: Decide>(
-    o1: Point3<T>,
-    d1: Vec3<T>,
-    r1: T,
-    o2: Point3<T>,
-    d2: Vec3<T>,
-    r2: T,
-    reach: Reach<T>,
-    band: Band,
-) -> Section<T> {
-    let cross = d1.cross(d2);
-    let sin = cross.norm();
-    match sign(
-        "section_cylinder_axes_tilt",
-        Margin::levered(sin, reach.radius + reach.radius),
-        band,
-    ) {
-        // Parallel axes: common rulings, or nothing — unless the two
-        // walls are ONE carrier, where the section is the surface itself
-        // rather than a curve. L1 is an argument about curves, so a
-        // coincident pair refuses as the torus analog does (R-tan),
-        // read across the reach. The second wall is read as its image
-        // turned about the pivot `at` onto the first's direction. A point
-        // of the wall in the reach stands at a station `s` along its axis
-        // from `at`, `|s|` at most the reach's radius (`at` is the
-        // centre's foot), and off the image's axis by `|s|·sin` plus its
-        // radius times between `cos` and one: radial motion slides along
-        // the wall, so the swing is `sin·radius + r₂·sin²`.
-        Some(Sign::Zero) => {
-            const COINCIDENT: &str = "section_cylinder_pair_coincident";
-            let at = reach.ball().foot_on(o2, d2);
-            let (_, offset) = perp_to(at - o1, d1);
-            return match decide_across(
-                [COINCIDENT, "section_cylinder_pair_coincident_floor"],
-                offset + (r1 - r2).abs(),
-                sin * reach.radius + r2 * sin.powi(2),
-                band,
-            ) {
-                Ok(Sign::Positive) => Section::Components {
-                    parts: vec![Component::closed_form(true, [false, false], None)],
-                    single: false,
-                },
-                Ok(Sign::Zero) => Section::Tangent(COINCIDENT),
-                Ok(Sign::Negative) => unreachable!(
-                    "`{COINCIDENT}` read a sum of a norm and an `abs` Negative on its floor, \
-                     which is shrunk toward zero, never past it"
-                ),
-                Err(diag) => Section::Tangent(diag.predicate.unwrap_or(COINCIDENT)),
-            };
-        }
-        Some(Sign::Positive) => {}
-        // A near-parallel pair can carry a long null saddle loop.
-        Some(Sign::Negative) | None => return Section::Tangent("section_cylinder_axes_tilt"),
-    }
-    let m = cross / sin;
-    let delta = (o2 - o1).dot(m);
-    const REACH: &str = "section_cylinder_pair_reach";
-    let [reach, nest] = match signs(
-        [
-            (REACH, r1 + r2 - delta.abs()),
-            ("section_cylinder_pair_nest", delta.abs() - (r1 - r2).abs()),
-        ],
-        band,
-    ) {
-        Ok(x) => x,
-        // Touching outside, on the common perpendicular from axis 1's
-        // foot, `r₁ / (r₁ + r₂)` of the way to axis 2: the walls' deepest
-        // point when they cross, which the half-turn about that line (it
-        // maps each wall to itself) fixes inside the loop. Touching
-        // inside (the nest margin) is a pinch: the thinner wall leaves
-        // the fatter one on both sides of the touch — unless the radii
-        // are equal and the axes meet ([`equal_crossing_axes`]).
-        Err(tan) if tan.name == "section_cylinder_pair_nest" && tan.undecided.is_none() => {
-            return equal_crossing_axes((o1, d1, r1), (o2, d2, r2), (m, delta), band)
-                .unwrap_or_else(|| tan.into());
-        }
-        Err(tan) => {
-            return touch(tan, &[REACH], || {
-                axis_foot((o1, d1), (o2, d2), sin.powi(2)) + m * (delta * r1 / (r1 + r2))
-            });
-        }
-    };
-    match (reach, nest) {
-        (false, _) => none(),
-        // Two loops, each encircling the thinner wall's axis.
-        (true, false) => match signs([("section_cylinder_pair_thin", r1 - r2)], band) {
-            Ok([true]) => essential_pair(false, true),
-            Ok([false]) => essential_pair(true, false),
-            Err(tan) => tan.into(),
-        },
-        // The single null saddle loop, witnessed on the arc's middle
-        // ruling of cylinder 2: the one on cylinder 1's side of it,
-        // `cos(θ − φ) = −sign(δ₀)`. `nest` puts `δ₀` off zero, so its
-        // sign decides; a `Zero` or undecided one refuses R-tan all
-        // the same.
-        (true, true) => {
-            let q = match signs([("section_cylinder_pair_side", delta)], band) {
-                Ok([true]) => o2 - m * r2,
-                Ok([false]) => o2 + m * r2,
-                Err(tan) => return tan.into(),
-            };
-            let (av, bv) = (d2.cross(d1), (q - o1).cross(d1));
-            let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
-            let t = (-qb + (qb.powi(2) - qa * qc).sqrt()) / qa;
-            lone(q + d2 * t)
-        }
-    }
-}
-
-/// **Two equal cylinders whose axes meet**: the nest margin
-/// `|δ₀| − |r₁ − r₂|` decided `Zero` because both terms are, the radii
-/// equal (`section_cylinder_pair_equal`) and the axes coplanar
-/// (`section_cylinder_pair_meet`, `δ₀` itself). The section is the two
-/// bisector-plane ellipses, crossing at the nodes `p ± r·n̂` (`p` the
-/// axes' meeting point, `n̂` along `m`, the common perpendicular): ONE
-/// connected component, essential on both walls, since each ellipse is
-/// a plane section encircling each axis. Witnessed at a node. `None`
-/// where either margin is not `Zero`: a nest pinch at unequal radii
-/// (the thinner wall inside the fatter, touching), refused R-tan by the
-/// caller.
-fn equal_crossing_axes<T: Decide>(
-    (o1, d1, r1): (Point3<T>, Vec3<T>, T),
-    (o2, d2, r2): (Point3<T>, Vec3<T>, T),
-    (m, delta): (Vec3<T>, T),
-    band: Band,
-) -> Option<Section<T>> {
-    let zero = |name, m| sign(name, Margin::of(m), band) == Some(Sign::Zero);
-    if !(zero("section_cylinder_pair_equal", r1 - r2) && zero("section_cylinder_pair_meet", delta))
-    {
-        return None;
-    }
-    let p = axis_foot((o1, d1), (o2, d2), d1.cross(d2).norm_squared());
-    Some(Section::Components {
-        parts: vec![Component::closed_form(
-            false,
-            [true, true],
-            Some(p + m * r1.abs()),
-        )],
-        single: true,
-    })
-}
-
-/// The foot on axis 1 `(o1, d1)` of its common perpendicular with the
-/// non-parallel axis 2 `(o2, d2)`, both directions unit and `sin2` the
-/// squared sine between them: where the axes meet, when they do.
-fn axis_foot<T: geom_core::Real>(
-    (o1, d1): (Point3<T>, Vec3<T>),
-    (o2, d2): (Point3<T>, Vec3<T>),
-    sin2: T,
-) -> Point3<T> {
-    let w = o1 - o2;
-    let b = d1.dot(d2);
-    o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin2)
-}
-
 /// **Cylinder × plane**: an ellipse encircling the wall, or rulings.
 /// Neither lies inside a wall that describes, and the count is not
 /// certified, so W4 is never read.
@@ -1848,14 +1683,30 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// (W1′, `pcurves::chart_side_bounds`), read at `band` as the loop walk
 /// reads it; one no closed form counts is the march's, read by
 /// `marched` ([`of_carried`]).
+///
+/// A component is a connected set of the section: arcs that end at a
+/// shared node are one component (D2: a branch may end at a node), which
+/// winds as its arcs claim; a component the region cuts is unbounded,
+/// since a cut end lies past every face the operation holds (W1).
 pub(super) fn of_pair_section<T: Decide>(
     read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
+    kinds: (geom::SurfaceKind, geom::SurfaceKind),
     band: Band,
     marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
 ) -> Section<T> {
-    use geom_brep::{ComponentShape, Components, SectionError};
+    use geom_brep::{ClassCarrier, ComponentShape, Components, SectionError};
     let section = match read {
         Ok(section) => section,
+        // Two parallel walls whose gap or nest reads in band meet in
+        // rulings, a tangent ruling or nothing: every component is a line,
+        // which W1 clears whatever the count. Whether the faces touch
+        // along the ruling is the tangent locus's question (C7).
+        Err(SectionError::Escalated(diag)) if parallel_walls_undecided(diag) => {
+            return Section::Components {
+                parts: vec![Component::closed_form(true, [false, false], None)],
+                single: false,
+            };
+        }
         // Every row the value decides goes through `k_stats`, which names
         // the predicate it escalates; one with no name is the value's
         // door itself.
@@ -1866,9 +1717,17 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
         // is certified, as at a tangency. Of the pairs the value builds,
-        // only two tori are decided one, on `tt_coincident`
-        // (`geom_brep::TorusTorusPose`).
-        Err(SectionError::CoincidentSurfaces) => return Section::Tangent("tt_coincident"),
+        // two tori are decided one on `tt_coincident`
+        // (`geom_brep::TorusTorusPose`) and two cylinders on
+        // `cc_coaxial` (`geom_brep::CylinderCylinderPose`).
+        Err(SectionError::CoincidentSurfaces) => {
+            return Section::Tangent(match kinds {
+                (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cylinder) => {
+                    geom_brep::CcDecision::Coaxial.name()
+                }
+                _ => "tt_coincident",
+            });
+        }
         // A kind pair the value serves refuses these on no arm of its
         // own: an operand's size (decided or not), a torus off its ring,
         // and the refusals of the arms it does not build.
@@ -1890,7 +1749,22 @@ pub(super) fn of_pair_section<T: Decide>(
         Components::Counted(components) => components,
         Components::Marched => return marched(section),
     };
-    if let Some(zero) = section.tangency() {
+    let ends = |c: &geom_brep::SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends,
+        ComponentShape::Loop | ComponentShape::Point => geom_brep::ComponentEnds::default(),
+    };
+    // A tangency the section still crosses is read through its
+    // components: a node whose arcs all have carriers, and a tangent
+    // ruling the region cuts, an unbounded component W1 clears however it
+    // touches. Any other tangency is R-tan, or a touch at one point.
+    let crossed = !section.nodes().is_empty()
+        && components
+            .iter()
+            .all(|c| !matches!(c.carrier, ClassCarrier::Unminted(_)));
+    let unbounded = section.nodes().is_empty()
+        && !components.is_empty()
+        && components.iter().all(|c| ends(c).cut);
+    if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {
         return match components.as_slice() {
             [c] if c.shape == ComponentShape::Point => match c.witness {
                 Some(at) => Section::Touch(Touch {
@@ -1908,39 +1782,74 @@ pub(super) fn of_pair_section<T: Decide>(
             .sides()
             .any(|side| crate::pcurves::chart_side_bounds(surface, side, band))
     };
-    Section::Components {
-        parts: components
-            .iter()
-            .map(|c| Component {
-                unbounded: false,
-                essential_f: c.winds[0],
-                essential_g: c.winds[1],
-                witness: c.witness,
-                reaches: match c.shape {
-                    // Only rim ends reach a chart side; a cut end or a
-                    // node end clears nothing here, so such a component
-                    // is read as a loop is, by its witness.
-                    ComponentShape::Open {
-                        ends:
-                            geom_brep::ComponentEnds {
-                                rims: [on_f, on_g], ..
-                            },
-                    } => {
-                        if bounds(on_f, f) {
-                            Some(Side::F)
-                        } else if bounds(on_g, g) {
-                            Some(Side::G)
-                        } else {
-                            None
-                        }
-                    }
-                    ComponentShape::Loop | ComponentShape::Point => None,
-                },
-                pad: c.pad,
-            })
-            .collect(),
-        single: components.len() == 1,
+    // Each component's set: the least node any arc of its node-joined set
+    // ends at, found by joining arcs that share a node.
+    let mut root: Vec<usize> = (0..section.nodes().len()).collect();
+    fn find(root: &mut [usize], k: usize) -> usize {
+        let mut k = k;
+        while root[k] != k {
+            k = root[k];
+        }
+        k
     }
+    for c in components {
+        if let [Some(a), Some(b)] = ends(c).nodes {
+            let (ra, rb) = (find(&mut root, a), find(&mut root, b));
+            root[ra.max(rb)] = ra.min(rb);
+        }
+    }
+    let mut parts: Vec<(Option<usize>, Component<T>)> = Vec::new();
+    for c in components {
+        let ends = ends(c);
+        let [on_f, on_g] = ends.rims;
+        let part = Component {
+            unbounded: ends.cut,
+            essential_f: c.winds[0],
+            essential_g: c.winds[1],
+            witness: c.witness,
+            // Only rim ends reach a chart side; a cut end or a node end
+            // clears nothing here.
+            reaches: if bounds(on_f, f) {
+                Some(Side::F)
+            } else if bounds(on_g, g) {
+                Some(Side::G)
+            } else {
+                None
+            },
+            pad: c.pad,
+        };
+        let set = ends
+            .nodes
+            .iter()
+            .flatten()
+            .next()
+            .map(|&k| find(&mut root, k));
+        match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
+            Some((_, joined)) => {
+                joined.unbounded |= part.unbounded;
+                joined.essential_f |= part.essential_f;
+                joined.essential_g |= part.essential_g;
+                joined.reaches = joined.reaches.or(part.reaches);
+            }
+            None => parts.push((set, part)),
+        }
+    }
+    Section::Components {
+        single: parts.len() == 1,
+        parts: parts.into_iter().map(|(_, c)| c).collect(),
+    }
+}
+
+/// Whether `diag` is two parallel walls' gap or nest read in band
+/// ([`geom_brep::CcDecision::ParallelGap`],
+/// [`geom_brep::CcDecision::ParallelNest`]).
+fn parallel_walls_undecided(diag: &geom_core::Indeterminate) -> bool {
+    use geom_brep::CcDecision::{ParallelGap, ParallelNest};
+    diag.predicate.is_some_and(|p| {
+        [ParallelGap, ParallelNest]
+            .into_iter()
+            .any(|d| p == d.name() || p == d.floor())
+    })
 }
 
 /// **A section no closed form counts, read from its march** (W0 to W4
@@ -1975,7 +1884,7 @@ pub(super) fn of_carried<T: Decide>(
         parts: components
             .iter()
             .map(|c| Component {
-                unbounded: false,
+                unbounded: !c.closed(),
                 essential_f: c.winds[0],
                 essential_g: c.winds[1],
                 witness: Some(c.witness),
