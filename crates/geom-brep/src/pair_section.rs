@@ -1939,6 +1939,18 @@ mod wiring {
         if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
             return Err("seat is not `seat_at`");
         }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().spline,
+            super::plane_spline::section as fn(_, _) -> _,
+        ) {
+            return Err("spline is not `plane_spline::section`");
+        }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().whole,
+            super::plane_spline::whole as fn(_, _) -> _,
+        ) {
+            return Err("whole is not `plane_spline::whole`");
+        }
         Ok(())
     }
 
