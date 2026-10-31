@@ -195,9 +195,12 @@ fn raised_leaf(tol: Tol) -> topo::AtRestBody<f64> {
 /// **A spline witness by a face's edge is placed on the band widened by
 /// its pad, through the boolean's own placement.** The plane a little
 /// below the raised leaf's ridge peak meets its ridge wall in one oval,
-/// read as one loop with a witness within its pad `r` of it. A box whose bottom face lies in
-/// that plane, its edge `d` from the witness on the side the oval runs
-/// on, is read against the wall by the section pass on real faces:
+/// read as one loop with a witness within its pad `r` of it. A box whose
+/// bottom face lies in that plane, its edge `d` from the witness on the
+/// side the oval runs on, is read against the wall by the section pass
+/// on real faces. The witness and its pad are those of the wall's
+/// reading against the box's own floor, the plane as the box stores it,
+/// which is what the pass reads:
 /// - `d` = the band's escalation plus `1.5·r`: past the band and past
 ///   it padded by `r`, inside the band the rule pads by `2r`, so the
 ///   placement does not read the witness out of the box and the pair is
@@ -256,40 +259,71 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     };
     assert_eq!(c.shape, geom_brep::ComponentShape::Loop, "{c:?}");
     let w = c.witness.expect("the oval carries a witness");
-    let d = band.escalate() + 1.5 * c.pad;
-    assert!(
-        band.escalate() + c.pad < d && d < band.escalate() + 2.0 * c.pad,
-        "the edge {d:e} stands between one pad and two past the band: {:e}",
-        c.pad
-    );
-    for (d, want) in [
-        (d, "Err(Undecided)"),
-        (10.0 * band.escalate(), "Ok([Out(G)])"),
-    ] {
-        // The box's edge stands `d` from the witness toward the ridge's
-        // peak, the oval's middle, so the box holds part of the oval and
-        // not the witness.
-        let x = if w.x < peak.x {
-            (w.x + d, peak.x + 0.3)
+    // The box's edge stands `d` past the witness `wx` toward the ridge's
+    // peak, the oval's middle, so the box holds part of the oval and not
+    // the witness.
+    let block_at = |wx: f64, d: f64| {
+        let x = if wx < peak.x {
+            (wx + d, peak.x + 0.3)
         } else {
-            (peak.x - 0.3, w.x - d)
+            (peak.x - 0.3, wx - d)
         };
         let block = topo::test_support::finished(
             "a box on the plane",
             sweep::test_support::brick::<f64>(x, (-1.0, 1.0), (h, h + 0.5), tol),
             tol,
         );
-        let bottom = |f: topo::FaceKey| {
-            matches!(
-                block.get_face(f).and_then(|fd| block.get_surface(fd.surface)),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12
-            )
+        (block, if wx < peak.x { x.0 } else { x.1 })
+    };
+    let floor = |block: &Body<f64>| {
+        block
+            .faces()
+            .find_map(|(k, f)| match block.get_surface(f.surface) {
+                Some(s @ Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12 =>
+                {
+                    Some((k, s.clone()))
+                }
+                _ => None,
+            })
+            .expect("the box has a floor in the plane")
+    };
+    // The boolean reads the ridge against the box's floor, a plane stored
+    // as the box stores it, so the witness and pad the edge is set by are
+    // that reading's.
+    let loop_on = |floor: &Surface<f64>| {
+        let Ok(geom_brep::SectionRead::Built(section)) =
+            geom_brep::pair_section_with(&ridge, floor, Some(geom_brep::SsiLane::marched()), band)
+        else {
+            panic!("the ridge's section with the floor is read")
         };
+        let geom_brep::Components::Counted(components) = section.components() else {
+            panic!("a spline section is counted: {section:?}")
+        };
+        let [c] = components.as_slice() else {
+            panic!("one oval: {section:?}")
+        };
+        (c.witness.expect("the oval carries a witness"), c.pad)
+    };
+    let (first, _) = block_at(w.x, band.escalate() + 1.5 * c.pad);
+    let (w0, pad0) = loop_on(&floor(&first).1);
+    let (near, edge) = block_at(w0.x, band.escalate() + 1.5 * pad0);
+    let (wn, pad) = loop_on(&floor(&near).1);
+    let gap = (edge - wn.x).abs();
+    assert!(
+        band.escalate() + pad < gap && gap < band.escalate() + 2.0 * pad,
+        "the edge {gap:e} from the witness stands between one pad and two past the band: {pad:e}"
+    );
+    let (far, _) = block_at(w.x, 10.0 * band.escalate());
+    for (block, d, want) in [
+        (near, gap, "Err(Undecided)"),
+        (far, 10.0 * band.escalate(), "Ok([Out(G)])"),
+    ] {
+        let bottom = floor(&block).0;
         let got: Vec<String> = topo::test_support::no_event_section_report(&blade, &block, tol)
             .expect("the section pass reads every pair")
             .into_iter()
-            .filter(|&(fa, fb, _)| fa == ridge_face && bottom(fb))
+            .filter(|&(fa, fb, _)| fa == ridge_face && fb == bottom)
             .map(|(_, _, v)| v)
             .collect();
         assert_eq!(

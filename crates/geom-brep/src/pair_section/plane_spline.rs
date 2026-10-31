@@ -172,7 +172,7 @@ impl PlaneSplinePose<f64> {
             normal.map(Interval::from_certified),
         );
         let lift = (a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z;
-        let norm = (m.x * m.x + m.y * m.y + m.z * m.z).sqrt();
+        let norm = (m.x.powi(2) + m.y.powi(2) + m.z.powi(2)).sqrt();
         Pivot {
             plane: Surface::Plane {
                 origin: foot,
