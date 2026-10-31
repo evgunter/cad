@@ -8,6 +8,7 @@ closed: 2026-10-31
 priority: P1
 cost: E
 refs: [session-save-is-two-acts]
+pr: 6145
 branch: vseam/a-new-document-mints-a-random-id
 ---
 
