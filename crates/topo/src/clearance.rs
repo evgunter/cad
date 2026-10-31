@@ -3094,9 +3094,8 @@ enum Row {
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
-/// harmonic image by its enclosure over its whole span, and a spiric
-/// wall image by that on `u` and its ends on `v`; `None` for any other
-/// image.
+/// harmonic or spiric wall image by its enclosure over its whole span;
+/// `None` for any other image.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (T, T),
@@ -3107,13 +3106,8 @@ fn row_of<T: CertifiedBounds>(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        // A wall's `v` is linear in `t`, so its ends bound it; only its
-        // `u` bulges.
         if let Some(w) = wall_of(pcurve) {
-            let [u, _] = w.at(t);
-            let [[_, v0], [_, v1]] = ends;
-            let v = Interval::from_bounds(v0.lo().min(v1.lo()), v0.hi().max(v1.hi()));
-            return Some(Row::Bulging([u, v]));
+            return Some(Row::Bulging(w.at(t)));
         }
         return Some(Row::Bulging(harmonic_of(pcurve)?.at(t)));
     }
@@ -3923,6 +3917,66 @@ mod extent_rows {
         assert!(
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
+        );
+    }
+
+    /// A spiric's wall image: `R = 2`, `r = 0.5`, `d = 0.3`, on the
+    /// carrier's own torus or its mirror, wound with `sense`.
+    fn wall(sense: f64, torus: geom_brep::WallTorus) -> Pcurve<f64> {
+        Pcurve::Spiric {
+            major: 2.0,
+            minor: 0.5,
+            offset: 0.3,
+            image: geom_brep::SpiricImage::Wall {
+                u0: 0.4,
+                v0: TAU,
+                sense,
+                torus,
+            },
+        }
+    }
+
+    /// **A wall row's lift is the pcurve's own image**
+    /// ([`super::wall_of`]): its chart point encloses the pcurve's at
+    /// each parameter, wound either way on either torus, and a sense
+    /// that is no unit sign is not lifted. Red if the azimuth's sign
+    /// forgets the torus's.
+    #[test]
+    fn a_wall_rows_lift_is_its_pcurves_image() {
+        use geom_brep::WallTorus::{Mirror, Own};
+        for (sense, torus) in [(1.0, Own), (-1.0, Own), (1.0, Mirror), (-1.0, Mirror)] {
+            let p = wall(sense, torus);
+            let w = super::wall_of(&p).expect("a wall image");
+            for k in 0..8 {
+                let t = -2.0 + 0.6 * f64::from(k);
+                let q = p.eval(t);
+                let [u, v] = w.at(geom_core::interval::Interval::from_bounds(t, t));
+                assert!(
+                    u.lo() <= q.x && q.x <= u.hi() && v.lo() <= q.y && q.y <= v.hi(),
+                    "{sense} {torus:?} at {t}: {q:?} outside {u:?} × {v:?}"
+                );
+            }
+        }
+        assert!(super::wall_of(&wall(0.5, Own)).is_none(), "no unit sign");
+    }
+
+    /// **A wall row's extent holds its bulge**: over `t ∈ [−1, 1]` its
+    /// azimuth `atan2(f, d)` is greatest at `t = 0`, between its ends.
+    /// Red if a wall row is read by its ends.
+    #[test]
+    fn a_wall_rows_extent_holds_its_bulge() {
+        let p = wall(1.0, geom_brep::WallTorus::Own);
+        let end = |t: f64| {
+            let q = p.eval(t);
+            [q.x, q.y].map(|x| geom_core::interval::Interval::from_bounds(x, x))
+        };
+        let Some(Row::Bulging([u, _])) = row_of(&p, (-1.0, 1.0), [end(-1.0), end(1.0)]) else {
+            panic!("the wall is read by its enclosure");
+        };
+        let top = p.eval(0.0).x;
+        assert!(
+            top > p.eval(1.0).x && u.hi() >= top,
+            "the enclosure holds the bulge {top}: {u:?}"
         );
     }
 }

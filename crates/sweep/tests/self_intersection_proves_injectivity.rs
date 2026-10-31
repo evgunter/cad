@@ -1502,6 +1502,61 @@ fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     );
 }
 
+/// **The ring torus `(2, 0.5)` about `y`, less the half-space `x < 0.3`**:
+/// a plane parallel to the axis, `0.3` off it, cuts the tube in two
+/// spiric ovals, each a planar cap of the arc of torus left. The
+/// profile's two vertices stand `0.3` rad round the tube from its
+/// equator, so the parallels splitting the torus lie off the window's
+/// bisections (`spiric-extent-overshoots-the-sheet-slack-at-interval`
+/// has the body whose parallels lie on them).
+fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    let (c, s) = (0.5 * 0.3f64.cos(), 0.5 * 0.3f64.sin());
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(2.0 + c, s).map(T::from_f64), T::one()),
+        (Point2::new(2.0 - c, -s).map(T::from_f64), T::one()),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let ring = finished("the torus", ring, tol());
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
+}
+
+/// **A torus cut off its axis holds across its spiric caps at both
+/// scalars** ([`torus_cut_off_its_axis`]): each cap meets the torus on
+/// two spiric arcs, which the torus halves present by their wall images,
+/// the cap's own plane separating, and read through the corners where
+/// the arcs meet the parallels. Holds, every face pair sharing a vertex
+/// certified across, some of them through a corner. Red if the wall
+/// presentation, or either torus corner reading, is withdrawn.
+#[test]
+fn a_torus_cut_off_its_axis_holds_across_its_spiric_caps() {
+    let cut = torus_cut_off_its_axis::<f64>();
+    let spirics = cut
+        .edges()
+        .filter(|(_, e)| {
+            cut.get_curve_geom(e.curve)
+                .and_then(|c| c.certified())
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        })
+        .count();
+    assert_eq!(spirics, 4, "two spiric arcs on each cap");
+    for report in holds_at_both(
+        "the torus cut off its axis",
+        cut.into_body(),
+        torus_cut_off_its_axis::<Interval>().into_body(),
+    ) {
+        assert!(report.cornered > 0, "a corner of the torus is read through");
+    }
+}
+
 /// **A frustum** of base radius `4/64`, top radius `r1` and height
 /// `8/64`, revolved a full turn.
 fn frustum<T: Scalar>(r1: f64) -> Body<T> {
