@@ -6048,8 +6048,7 @@ mod undeclared_rule_rows {
     //! hold the rule for both. The row a public fixture cannot reach is
     //! the `Undecided` one: an end on a face whose trim the chart door
     //! declines (a ringed face, a non-rectangular outline) is minted by
-    //! no public door that does not refuse first (a notched three-face
-    //! wall stops at the volume backstop), so it is held here.
+    //! no public fixture, so it is held here.
     #![allow(clippy::panic)]
 
     use super::{CurvedEvent, Placement};

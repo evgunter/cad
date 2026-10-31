@@ -121,3 +121,7 @@ k-eps-1e-9.csv: 5177 flagged — rule 1 (undecided/invalid): 1512, rule 2 (near 
 ```
 
 9,678 in all, down from 52,769; rule 1 is 3,396, down from 24,045.
+
+## The volume backstop left the operation path (2026-10-31)
+
+PR 5842, under `[ev]` PR 5780, deleted the volume backstop: `demo/table:volume_backstop`'s four flags cannot recur, and their row (`tally/table-union-backstop-margin-sits-under-the-k-lint-floor`) is closed. The floor those margins sat under is `k-lints-definite-floor-is-read-off-a-retired-predicate`.

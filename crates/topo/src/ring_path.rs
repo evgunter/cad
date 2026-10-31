@@ -2701,7 +2701,7 @@ mod tests {
             (lo + step * (f64::from(k) - 1.0)).max(lo),
             (lo + step * (f64::from(k) + 1.0)).min(hi),
         );
-        let g = 0.5 * (5f64.sqrt() - 1.0);
+        let g = geom_core::GOLDEN_SECTION;
         for _ in 0..200 {
             let (c, e) = (b - g * (b - a), a + g * (b - a));
             if to_segment(c) < to_segment(e) {

@@ -80,10 +80,8 @@ mod insert;
 pub(crate) mod join;
 mod neighborhood;
 pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
-// `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
-// a shared DEVICE (audit note N6), and the boolean backstop's
-// sign-certainty arm decides against the same one rather than minting
-// a second copy of the constants.
+// `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
+// `chord_join` reads rather than minting a second copy.
 pub(crate) mod order;
 pub(crate) mod pieced_arc;
 #[cfg(test)]

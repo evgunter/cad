@@ -51,3 +51,7 @@ tilted frame.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to TANG (`work/tang/`) by `git mv`, id and body unchanged: which filed it: a seam's rejoin is TANG's ground (`edge_join`'s loci and the must-carry rule). CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The `ResultVolumeImplausible` cells of the table (ε 1e-9 s = 1 and ε 1e-6, `offset∘tilted`, normal −z) no longer refuse there; they were not re-measured, and whether the body they now return is the piece is this row's to check with the other three refusals, which stand.
