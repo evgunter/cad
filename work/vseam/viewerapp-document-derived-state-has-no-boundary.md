@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-07
 refs: [2103]
 priority: P1
-cost: D
+cost: M
 ---
 
 
@@ -69,3 +69,10 @@ declaration rather than only at the door (the door's comment,
 The real fix is the `Derived` one, and it is entangled with
 `new-document-owes-the-reframe-open-gets` and `the-picture-key-never-became-a-type`,
 which are open on neighbouring halves of the same state.
+
+## 2026-10-31 — band confirmed P1, re-priced D → M
+
+The fix is written above: the `Derived` move, one layer up. It is
+best built together with `new-document-owes-the-reframe-open-gets`,
+whose three fields are the population this row's boundary would
+collect.

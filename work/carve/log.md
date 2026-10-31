@@ -605,5 +605,8 @@ row; CARVE is at 33 points with it, a passenger rather than new work.
 Dispatched as `carve/sweep-frame`. Review: **single FULL**. The law is
 decided, and the risk is in the discretization and the re-baselines,
 which one reviewer can falsify.
+## 2026-10-31 — `a-reflected-loft-placement-evades-both-normal-checks` closed (PR 6120)
+
+The defect had already gone from main: the 2026-10-14 `SketchPlane`-is-a-`RigidMotion` change makes a mirrored section frame refuse at `check_rigid`, where it is minted. The unit pins that with tests, corrects `loft_body`'s doc, and records the sweep across every door that takes an `Affine3` documented as rigid. It filed one off-ground doc row in `work/issues/`. Review dropped to the orchestrator's read, because no kernel logic changed (the row has the detail).
 
 Signed: (CARVE orchestrator)

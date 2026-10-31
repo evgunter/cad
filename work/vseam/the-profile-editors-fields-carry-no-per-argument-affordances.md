@@ -5,7 +5,7 @@ title: The profile editor's number fields carry no per-argument affordances (exp
 status: open
 opened: 2026-09-19
 priority: P1
-cost: D
+cost: H
 ---
 
 
@@ -51,3 +51,12 @@ that the program does not hold unmoved refuses `DrivenByExpression`
 (`profile_edit::a_kept_driven_argument_is_not_written_over`). The held
 state still has no expression beside a number, so this row's work is
 unchanged.
+
+## 2026-10-31 — band confirmed P1, re-priced D → H
+
+P1 as two doors to one argument: the editor's field, and the folded
+slot row that holds the expression, the unit and the range. The shape
+is written above, so no design question is open. The cost is in
+holding an expression beside each number through `sketch::held_loops`,
+the pane and `carry_unmoved`. `dragging-a-profile-argument-freezes-its-outline`
+is a symptom of the second door, and this row would retire it.
