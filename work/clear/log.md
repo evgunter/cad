@@ -263,3 +263,9 @@ Signed: (CARVE orchestrator)
   - All 21 self-intersection rows pass at default, 1e-6 and 1e-12.
   - **The class grep:** 1590 rows at 1e-12. 5 red, all already filed; 18 ran past 300 s and were appended to the sectrung fine-band row.
   - **Filed:** a fresh 1e-6 main red on QUAD (`lofted-concave-prism-pad-pin-moved-at-1e-6`, P1). It is not CLEAR's code.
+- 2026-10-31 — **SPIRIC merges (#6159)** with its dual row last. Departure now certifies a plane cap against a torus across a spiric edge. The torus face is presented by the edge's own wall pcurve, read as a graph over the minor angle (σ = ±1 exactly). The cap's plane is the separator. Torus corners are read through **parallels only**. The klein elbow's cavity and an off-axis torus cut hold at both scalars. A grafted fold reads `Violated` off its spiric edges. Every existing self-intersection receipt is byte-identical.
+  - **The dual (H, concurrent, frozen at `b65b2fe19d`).** Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the blind coding (byte 92) tallies 0. A single fix pass (`080781ffab`) covered the 11-item union. Each item has a mutant that reds its own row. The orchestrator read it and accepted it.
+  - **Class, recorded:** the mutant table mutated each step only at the + signs and at canonical representatives (σ = κ = +1, a parallel, a ψ nearly constant along the curve). That is why `rising`, κ, the `u`-rate and a ψ read at one point all survived. A per-step table should mutate each step at every sign and representative its guard admits.
+  - **Class, recorded:** `reading` admitted a shape (meridian corners) beyond the one argued, and only reviewers asking what each step NEEDS found it. This is the third arm in a row (CURVEDEP, CORNER, SPIRIC) where an admission outran its argument.
+  - **Filed:** `one-face-torus-cut-refuses-across-its-meridian` (P3).
+  - **SHELL-4 is unparked** (`blocked_on: []`).
