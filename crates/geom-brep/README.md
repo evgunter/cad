@@ -482,13 +482,16 @@ zero by enclosure, the boundary pass's mean-value enclosure of a strip
 or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. A pair with a ruled side (a
-cylinder or cone against a plane, cylinder, cone or sphere) subdivides
-its ruling angle instead of ℝ³: each ruling meets the partner at the
-roots of a quadratic, in closed form, cut by the domain the march ends
-at; a cell of the angle is excluded, accounted (its meetings inside a
-found branch's tube) or refined to the floor, and its surviving cells
-are the seeds. The cell sweep runs for the rest. Each floor is minted once over
+`SsiError::ExhaustivenessInconclusive`. Where the pose counts the
+section's components (C5), exhaustiveness closes by that count: the
+march, seeded from the counted cut ends and witnesses, returns
+certified branches matched one to one to them, else a desync; the cell
+sweep runs where no pose counts. For a pair with a ruled side (a
+cylinder or cone against a plane, cylinder, cone or sphere) the count
+is the ruling sweep's, and a `debug_assert` re-derives it: each cell of
+the ruling angle has its rulings' meetings with the partner (the roots
+of a quadratic, in closed form) outside the domain the march ends at or
+inside a found branch's tube (DESIGN's error taxonomy, row 5). Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
 one that is not a positive finite width, or one narrower than the
@@ -887,8 +890,8 @@ pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
-at `f64`, and lists the components: a counted section's, the march a
-cross-check of the count, matched one to one (each boundary crossing
+at `f64`, and lists the components: a counted section's, the count the
+proof and the march matched to it one to one (each boundary crossing
 the end of exactly one branch, each listed witness on exactly one
 branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
