@@ -1457,9 +1457,16 @@ pub(super) fn ring_groups<T: Decide>(
 }
 
 /// **A lone ring vertex at `p` inside `face`** (Delta 3's first two
-/// steps), struck from the outer loop's anchor ([`Body::ring_vertex`]):
-/// the face's rows stand as found on every chart. Returns the vertex
-/// and its ring.
+/// steps), struck from the outer loop's anchor. Returns the vertex and
+/// its ring.
+///
+/// On a spline chart, [`Body::ring_vertex`] mints it with the face's
+/// rows standing as found. On any other chart, a chord strut `mev`, a
+/// certified line edge, then `kemr`. The strut's site mint leaves the
+/// face complete, or rowless where the chord does not certify against
+/// a curved chart, and the keys-only re-parenting doors the join runs
+/// later read a rowless face as one they owe nothing
+/// (`work/splice/a-ring-vertex-in-a-curved-analytic-face-clears-its-rows`).
 ///
 /// # Errors
 ///
@@ -1485,7 +1492,33 @@ pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
             what: "a face a ring vertex is minted in has no outer cycle",
         });
     };
-    Ok(body.ring_vertex(anchor, p, tol)?)
+    if body
+        .face_surface_linked(face, face_data)
+        .spline_chart()
+        .is_some()
+    {
+        return Ok(body.ring_vertex(anchor, p, tol)?);
+    }
+    let u = linked(
+        &body.half_edges,
+        anchor,
+        EntityId::HalfEdge,
+        EntityId::Loop(face_data.outer),
+        "first",
+    )
+    .start;
+    let p_u = body.linked_vertex_point(u, EntityId::HalfEdge(anchor), "start");
+    let chord = body.mev(
+        MevSite::Fan {
+            he1: anchor,
+            he2: anchor,
+        },
+        p,
+        geom_brep::EdgeCurveSpec::line_between(p_u, p),
+        tol,
+    )?;
+    let kemr = body.kemr(chord.he_plus, chord.he_minus)?;
+    Ok((chord.vertex, kemr.ring))
 }
 
 /// **Delta 3, the ring** (module docs): one ring vertex in the pierced

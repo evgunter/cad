@@ -54,15 +54,18 @@ it.
 
 ## Closed
 
-- 2026-10-31 — Review tier: single FULL. `boolean::vtxfac::ring_vertex_in`
-  mints the ring through `Body::ring_vertex`, which fuses the chord
-  strut's `mev` with its `kemr`. The pair's net delta adds no half-edge
-  to any loop, so no row is owed: the face's rows stand as found on
-  every chart, and the joint into the anchor keeps its element. The
-  same door serves the fate pass's touch ring
-  (`boolean::fate`). Witnessed by `vtxfac_spline_rows`'
+- 2026-10-31 — Review tier: single FULL. On a spline chart,
+  `boolean::vtxfac::ring_vertex_in` mints the ring through
+  `Body::ring_vertex`, which fuses the chord strut's `mev` with its
+  `kemr`. The pair's net delta adds no half-edge to any loop, so no row
+  is owed: the face's rows stand as found, and the joint into the anchor
+  keeps its element. The same path serves the fate pass's touch ring
+  (`boolean::fate`). Every other chart keeps the chord strut, whose
+  clear of a curved analytic face the join's keys-only doors rely on
+  (`a-ring-vertex-in-a-curved-analytic-face-clears-its-rows`). Witnessed
+  by `vtxfac_spline_rows`'
   `a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense` and
-  `a_ring_vertex_in_a_cylinder_wall_leaves_its_rows_as_found`.
+  `a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint`.
   The kernel row for the pipeline is `sweep`'s
   `a_vertex_piercing_a_lens_wall`, which refused this row's
   `PcurveMint { SplineChart }` before and now stops at the plane × NURBS
