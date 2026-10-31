@@ -1555,7 +1555,7 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     // The ring's struts ([`crate::null::ring_tree`]), read before any
     // write.
-    let (ring, tied) = ring_struts(&runs, first.normal, (piercing, face), band)?;
+    let (ring, ties) = ring_struts(&runs, first.normal, (piercing, face), band)?;
     let pierced = piercing.other();
     let (w, ring_loop) = ring_vertex_in(pierced_body, face, p, tol)?;
     let mut out = RingOut {
@@ -1566,7 +1566,7 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             face,
             ring_vertex: w,
             pierces: plans.iter().map(|plan| plan.contact.vertex).collect(),
-            tied,
+            ties: Vec::new(),
         },
     };
     // (3) one ring null-edge strut per piercing-side run, hung at the
@@ -1582,6 +1582,8 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
     // Per run: its strut's far end, and the half leaving it towards
     // the root.
     let mut nodes: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
+    // Per run: its strut's halves facing its start and end germs.
+    let mut halves: BTreeMap<usize, [HalfEdgeKey; 2]> = BTreeMap::new();
     for strut in &ring {
         let (i, leaving_faces_start) = (strut.run, strut.plus_faces_start);
         let (_, plan, run) = runs[i];
@@ -1619,6 +1621,7 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             root_anchor.get_or_insert(created.he_plus);
         }
         nodes.insert(i, (created.vertex, created.he_minus));
+        halves.insert(i, [start_he, end_he]);
         out.edges.push(BoolNullEdgeRecord {
             operand: pierced,
             at_vertex: at,
@@ -1645,22 +1648,32 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             site,
         });
     }
+    // A run's two germs stand at `2r` and `2r + 1` in the ring's order.
+    for tie in ties {
+        let [first, second] = tie.map(|g| halves.get(&(g / 2)).map(|h| h[g % 2]));
+        let (Some(first), Some(second)) = (first, second) else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a tied germ's run has no strut",
+            });
+        };
+        out.ring.ties.push([first, second]);
+    }
     Ok(out)
 }
 
 /// **A pierce ring's struts** ([`crate::null::ring_tree`]) over its
 /// runs, each with its pierce's index in its ring's plans, ordered about
-/// the pierced face's outward `normal`, and whether two germs tied
-/// ([`germ_order`]). One run has nothing to order, and either half may
-/// face either germ, so no germ is read; its strut faces its end germ
-/// first.
-#[allow(clippy::type_complexity)] // (struts, tied)
+/// the pierced face's outward `normal`, and the ties of germs of
+/// different pierces ([`germ_order`]). One run has nothing to order, and
+/// either half may face either germ, so no germ is read; its strut faces
+/// its end germ first.
+#[allow(clippy::type_complexity)] // (struts, ties)
 fn ring_struts<T: Decide>(
     runs: &[(usize, &RingPlan<T>, &PlannedRun<T>)],
     normal: Vec3<T>,
     site: (Operand, crate::entity::FaceKey),
     band: Band,
-) -> Result<(Vec<crate::null::RingStrut>, bool), BooleanError> {
+) -> Result<(Vec<crate::null::RingStrut>, Vec<[usize; 2]>), BooleanError> {
     if runs.len() == 1 {
         return Ok((
             vec![crate::null::RingStrut {
@@ -1668,7 +1681,7 @@ fn ring_struts<T: Decide>(
                 parent: None,
                 plus_faces_start: false,
             }],
-            false,
+            Vec::new(),
         ));
     }
     let germs: Vec<_> = runs.iter().flat_map(|(.., run)| run.order).collect();
@@ -1696,13 +1709,13 @@ fn ring_struts<T: Decide>(
             )),
         }
     };
-    let (order, tied) = germ_order(&germs, &member, normal, site, curving, band)?;
+    let (order, ties) = germ_order(&germs, &member, normal, site, curving, band)?;
     let struts = crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
         BooleanError::ClassificationInvariant {
             what: "a pierce's runs read as crossing chords about the pierced face's normal",
         },
     )?;
-    Ok((struts, tied))
+    Ok((struts, ties))
 }
 
 /// **A node of an equal cylinder pair's section, built** (the sibling of
@@ -2495,7 +2508,8 @@ fn one_carrier<T: Decide>(
 ///
 /// Any other reading that does not decide refuses; nothing orders the
 /// germs otherwise. Every reading is levered at the shortest arm among
-/// the directions it reads.
+/// the directions it reads. Beside the order it returns each tie of
+/// different pierces, the germ first clockwise first.
 fn germ_order<T: Decide>(
     germs: &[(Vec3<T>, T)],
     member: &[usize],
@@ -2503,7 +2517,7 @@ fn germ_order<T: Decide>(
     site: (Operand, crate::entity::FaceKey),
     curving: impl Fn(Turn, T) -> Result<Option<Sign>, BooleanError>,
     band: Band,
-) -> Result<(Vec<usize>, bool), BooleanError> {
+) -> Result<(Vec<usize>, Vec<[usize; 2]>), BooleanError> {
     let (from, from_arm) = germs[0];
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let side = |i: usize, j: usize, arm: T| -> Result<GermSide, BooleanError> {
@@ -2527,21 +2541,20 @@ fn germ_order<T: Decide>(
             GermSide::Apart(_) | GermSide::Opposite => None,
         })
     };
-    // Each germ already tied with another of a different pierce: a
-    // second such tie puts three on one ray.
-    let mut on_a_tie = vec![false; germs.len()];
+    // The ties of different pierces: a germ in a second one puts three
+    // on one ray.
+    let mut ties: Vec<[usize; 2]> = Vec::new();
     // Of germs `i` and `j` along one direction, whether `i` comes after
     // `j` clockwise.
     let mut after = |i: usize, j: usize, diag| -> Result<bool, BooleanError> {
         if member[i] != member[j] {
-            if on_a_tie[i] || on_a_tie[j] {
+            if ties.iter().flatten().any(|&k| k == i || k == j) {
                 return Err(BooleanError::PinchRaysInAFace {
                     operand: site.0,
                     face: site.1,
                 });
             }
-            on_a_tie[i] = true;
-            on_a_tie[j] = true;
+            ties.push([i, j]);
             return tie_breaks_after(germs, (i, j), normal, band);
         }
         match curving(Turn { from: j, to: i }, germs[i].1.min(germs[j].1))? {
@@ -2617,8 +2630,23 @@ fn germ_order<T: Decide>(
         }
         order.insert(at, i);
     }
-    let tied = on_a_tie.iter().any(|&t| t);
-    Ok(([&order[..1], &head, &order[1..], &tail].concat(), tied))
+    let order = [&order[..1], &head, &order[1..], &tail].concat();
+    // A tie's two germs stand next to each other round the vertex.
+    let mut at = vec![0; order.len()];
+    for (p, &g) in order.iter().enumerate() {
+        at[g] = p;
+    }
+    let ties = ties
+        .into_iter()
+        .map(|[i, j]| {
+            if (at[i] + 1) % order.len() == at[j] {
+                [i, j]
+            } else {
+                [j, i]
+            }
+        })
+        .collect();
+    Ok((order, ties))
 }
 
 /// Where germ `j` lies from germ `i` about the pierced face's normal
@@ -4127,7 +4155,8 @@ mod tests {
     /// refuses.** Pierce 0's run spans 0° to 60° clockwise, pierce 1's
     /// 300° to 0°, both from the ray at 0°. Pierce 1's germ on the ray
     /// goes last, a full turn round, so the two chords nest, and the
-    /// order reports the tie. Red if the tie keeps insertion order
+    /// order reports the tie, that germ first clockwise, just before
+    /// pierce 0's. Red if the tie keeps insertion order
     /// (`[0, 2, 1, 3]` crosses the chords). A third pierce with a germ on
     /// that ray refuses `PinchRaysInAFace`. Red if it is ordered by
     /// insertion instead.
@@ -4139,8 +4168,8 @@ mod tests {
         let two = [germ_at(0.0), germ_at(60.0), germ_at(0.0), germ_at(300.0)];
         assert_eq!(
             germ_order(&two, &[0, 0, 1, 1], n, site, |_, _| Ok(None), band).ok(),
-            Some((vec![0, 1, 3, 2], true)),
-            "the tie nests the chords"
+            Some((vec![0, 1, 3, 2], vec![[2, 0]])),
+            "the tie nests the chords, pierce 1's germ first clockwise"
         );
         let three = [
             germ_at(0.0),
