@@ -30,10 +30,10 @@ face is exempt, silently, as validate's not-yet-checked list says
   or ellipse (`ruled_region::ruled_face_region`); a sphere edge other than
   a circle, or one with no certified curve (`sphere_region::sphere_face_region`,
   `Scaffolding::Refused`); a torus edge other than a circle or a spiric
-  (`torus_region::torus_face_region`). The same faces are the
-  chart-singularity arm's residue now that it reads the side through the
-  doors, where `walk_loop` used to read a cone loop or a sphere loop with
-  a non-circle edge.
+  (`torus_region::torus_face_region`). When tier 3's pole side moves onto
+  the doors (`work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`),
+  the same faces become that arm's residue too, where `walk_loop` reads a
+  cone loop or a sphere loop with a non-circle edge today.
 - **A torus cycle with no stored joint element**: `cycle_winding`
   (`crates/topo/src/surface_boundary.rs`) answers `None`, and
   `one_region::torus_units` exempts the face, since a contractible cycle

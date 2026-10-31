@@ -571,10 +571,10 @@ fn a_cycle_read_in_band_escalates_with_its_margin() {
 }
 
 /// **A sliver beside a pole passes** (PR 6054's near-pole false refusal,
-/// read now through the doors): a window face 10 µm tall, 1 cm from the
-/// ball's south pole, holds neither pole and lies in its lune, and the
-/// body validates. The pole's side of the sliver is the sphere door's
-/// reading at the pole, which no chart polygon approximates.
+/// on a body): a window face 10 µm tall, 1 cm from the ball's south pole,
+/// holds neither pole and lies in its lune, its plug and the lune both
+/// read by the region arm and the chart-singularity arm, and the body
+/// validates.
 #[test]
 fn a_sliver_beside_a_pole_passes() {
     let (height, eps) = (1e-5, tol().eps());
