@@ -42,3 +42,4 @@
 - 2026-10-31 — **PR 6097 merged** (the wrap-tip tier rules; closes this row and the riding incidence row).
   - Review: single FULL, then one fix pass. F1: a tip is any valence-1 end, so the one-face ball passes. F3: `SizedPass::Zero` gives the undecided tip an ending that offers no tolerance. F4: a cylinder tip gets its own variant, and the dead plane arm is gone.
   - Filed: F2 on TESSWALK; F5 on SPLITDOOR, a tip defect rather than a seam defect, per the probe; the not-owed gap here.
+- 2026-10-31 — Dispatched `a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip` (P1 M; single FULL review; branch `restcurve/tip-side-datum`). It is the precondition for any door that mints a tip.
