@@ -1,0 +1,5 @@
+fork: nurbs-curved-section (SECTARMS, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm)
+drawn: 2026-10-31T04:30:33Z, od -An -tu1 -N1 /dev/urandom
+byte: 189
+mapping: A = Fable designer, B = Opus designer
+protocol: ad15b16d
