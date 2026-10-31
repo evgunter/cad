@@ -71,7 +71,7 @@ section's fitted loop), and SPLICE's operand edge gate is deleted
 this row's own open design read, the certification of a NURBS face's
 section against a sphere or a cone.
 
-## Decided (2026-10-31, Ev on `[ev]` PR 6121; fork rows 223 and 225)
+## Decided (2026-10-31, Ev on `[ev]` PR 6121; fork rows 225 and 226)
 
 The section of a NURBS face against any surface with an implicit residual
 is one arm, `φ = f∘S` on the face's knot rectangle. The rectangle is the
