@@ -1675,17 +1675,13 @@ impl ViewerApp {
                 _ => ui.button("Save"),
             };
             if save.clicked() {
-                match self.session.path() {
-                    Some(path) => ops.push(SessionOp::Save(path.to_path_buf())),
-                    // Unreachable on wasm, for the reason the Open…
-                    // arm above states.
-                    None =>
-                    {
-                        #[cfg(not(target_family = "wasm"))]
-                        if let Some(path) = self.file_dialog(FileDialog::SaveAs) {
-                            ops.push(SessionOp::Save(path));
-                        }
-                    }
+                let path = self.session.path().map(std::path::Path::to_path_buf);
+                // The dialog is unreachable on wasm, for the reason the
+                // Open… arm above states.
+                #[cfg(not(target_family = "wasm"))]
+                let path = path.or_else(|| self.file_dialog(FileDialog::SaveAs));
+                if let Some(path) = path {
+                    ops.push(SessionOp::Save(path));
                 }
             }
             let save_as = match no_chooser {
