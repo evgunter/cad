@@ -517,6 +517,12 @@ fn startup_error_forwards_every_payload_arm() {
         "{doc}"
     );
 
+    let entropy = || pncad::workspace::WorkspaceError::RandomnessUnavailable {
+        message: "the entropy source is closed".to_owned(),
+    };
+    let id = StartupError::Identity(entropy()).to_string();
+    assert!(id.contains(&entropy().to_string()), "{id}");
+
     prose(
         &StartupError::NoWgpuRenderState.to_string(),
         "NoWgpuRenderState",

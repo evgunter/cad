@@ -510,26 +510,24 @@ pub enum SessionOp {
     /// session-state replacement rather than an `InsertNode`, because
     /// before it runs there is no document to insert into.
     ///
-    /// The identity ruling (logged in `docs/GAUTH-LOG.md`): the id is
-    /// authored at creation from the typed name —
-    /// `DocumentId::derive(&name)`, the deterministic spelling the
-    /// demo corpus uses — and never re-minted at save. Two documents
-    /// derived from one name collide at WORKSPACE resolution, where
-    /// the store's duplicate-id refusal is the fail-loud recourse.
+    /// The id is a fresh random one
+    /// ([`pncad::workspace::random_document_id`]), never derived from
+    /// the name, so two documents created under one name are two parts
+    /// to every store. A blank name refuses [`Refusal::EmptyName`];
+    /// an OS entropy source that refuses answers
+    /// [`Refusal::Workspace`] carrying
+    /// `WorkspaceError::RandomnessUnavailable`. Either refusal leaves
+    /// the session as it was.
     ///
     /// Everything session-scoped is cleared: path, history, selection,
     /// hover, display state and the resolver (a fresh document has no
     /// backing file, so its instantiate nodes refuse with the shipped
     /// no-resolver semantics until it is saved). Refused mid-gesture
-    /// by the table ([`SessionOp::permitted_during_value_gesture`]);
-    /// a blank name refuses [`Refusal::EmptyName`].
-    ///
-    /// The name is TRIMMED before the id is derived, so `" ring "` and
-    /// `"ring"` are one document by design — surrounding whitespace is
-    /// a typing accident, not an identity a user could re-derive on
-    /// purpose.
+    /// by the table ([`SessionOp::permitted_during_value_gesture`]).
     NewDocument {
-        /// The document's name; the id is derived from its trim.
+        /// The name typed at the New form. It decides no identity, and
+        /// nothing past this door keeps it yet
+        /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
         name: String,
     },
     /// Insert one profile node from template loops, drawn on its own
