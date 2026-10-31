@@ -83,3 +83,11 @@ and on SECT's `sect/torus-rows-at-1e-6`. This fits the shape this row names: a p
 rounding charge, read from the origin, covers a gap of a few bands. It
 has not been traced to the charge, though. Pin the seed as a
 deterministic row beside the fix.
+
+A second seed, from PR 6153's review (2026-10-31): `topo`
+`boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+fails at ε 1e-12 with `CAD_FUZZ_SEED=0x37bda209ae183db3 CAD_FUZZ_EFFORT=1`.
+The pose is a pipe along the core's tangent, R 81.4, and it reads
+`Tangent("ct_critical_gap")`. It fails identically on the PR's
+merge-base, so the PR did not cause it. It is a large pose read as a
+tangency, the same shape as above. Not traced.

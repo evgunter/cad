@@ -870,3 +870,50 @@ fn one_loop_keeps_its_order_near_the_node() {
         }
     }
 }
+
+/// **Near the node, no site reads on the other sheet's loop**: the two
+/// loops of the sphere at `d 0.2` whose radius `R` runs across
+/// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
+/// whose foot is read lies on its own sheet's component, and the two
+/// sheets' components differ; a refusal, of the carry or of a foot, is
+/// allowed. Marches: in the slow set.
+#[test]
+fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
+    let (r, d) = (0.5, 0.2);
+    let (mut read, mut refused) = (0usize, 0usize);
+    for k in 0..8 {
+        let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let Ok(c) = built(x, y).carry(Some(SsiLane::marched()), band()) else {
+                refused += 1;
+                continue;
+            };
+            let mut owner: [Option<usize>; 2] = [None, None];
+            for (s, sheet) in [1.0, -1.0].into_iter().enumerate() {
+                for i in 0..97 {
+                    let u = f64::from(i) / 97.0;
+                    let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
+                    let Some(p) = wall_point(r, d, big, theta, sheet) else {
+                        continue;
+                    };
+                    let Ok(f) = c.foot(p, band()) else {
+                        refused += 1;
+                        continue;
+                    };
+                    read += 1;
+                    let at = format!("R {big}, sheet {sheet}, θ {theta}");
+                    assert_eq!(
+                        *owner[s].get_or_insert(f.component),
+                        f.component,
+                        "{at}: a site on its sheet's own loop"
+                    );
+                }
+            }
+            if let [Some(a), Some(b)] = owner {
+                assert_ne!(a, b, "R {big}: each sheet its own loop");
+            }
+        }
+    }
+    eprintln!("near the node: {read} sites read, {refused} refusals");
+}

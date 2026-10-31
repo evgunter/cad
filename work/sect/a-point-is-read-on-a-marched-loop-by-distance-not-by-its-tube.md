@@ -4,7 +4,7 @@ kind: issue
 title: A point is read on a marched loop by its distance within the pad, where membership in the loop's tube is what limb 3 proves
 status: open
 opened: 2026-10-31
-priority: P3
+priority: P4
 cost: M
 ---
 
@@ -26,14 +26,19 @@ looser stand-in for it. It reads a point of another loop as within the
 pad wherever a slab's far corner sits at that distance, inside the
 tube's hull but outside its boxes.
 
-At ε 1e-6 the tube radius is 4.4e-2 m for the cylinder × sphere poses of
-`two_loops_keep_their_sites_and_order_near_the_node`
-(`crates/geom-brep/tests/pair_section.rs`). Their pads read about
-0.10 m by slabs, against 0.11 to 0.13 m by the hull-diameter bound the
-pad had before. Under that bound the row escalated
-(`curve_carrier_straddle`, band 0.1098 m). The near node's other sheet stands
-0.10 m to 0.21 m from the carrier, so the row now passes with little
-room to spare.
+At ε 1e-6 on `two_loops_keep_their_sites_and_order_near_the_node`
+(`crates/geom-brep/tests/pair_section.rs`), the pose the row escalated
+at under the hull-diameter bound is `d 0.2, R 0.701`. There the
+escalation band was 0.1098 m (`curve_carrier_straddle`). That pose now
+reads a tube radius of 5.5e-3 m, pads of 0.044 and 0.048 m, and
+reaches of 0.035 and 0.036 m. The other sheet stands at least 0.100 m
+from the carrier, so there is room of about 2×. The widest pads in the
+row are at `d 0.1, R 0.7`: a tube radius of 4.4e-2 m and pads of 0.099
+and 0.103 m. That pose passed under the old bound as well.
+
+So no measured row needs this reading today. It is a tightening of
+the same claim, worth having where two loops come within a pad of each
+other.
 
 ## What closing it takes
 

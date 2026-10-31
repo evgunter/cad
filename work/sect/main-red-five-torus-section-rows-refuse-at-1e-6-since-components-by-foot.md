@@ -54,11 +54,12 @@ Un-pinning owes a 1e-6 re-measure of the unrun remainders named above.
 that exist pass at `5d84e965` (the confirmation review's head) and at
 `3e79f199` (its merge of main). All five fail at `b568f3ef8c`, whose
 own commit grew the marched loop's pad from the tube radius to the
-radius plus √3 times the largest raw hull box side. At 1e-6 the widest
-rung that certifies is wide: 4.4e-2 m on the cylinder × sphere poses.
-So the pad there was 0.11 to 0.13 m. `winds` read every halved piece's
-hull padded by that much, and on the torus rows those reached the axis
-or the core circle (`Unseparated`).
+radius plus √3 times the largest raw hull box side. At 1e-6 the
+march's samples are coarse, and that side term dominates. On
+`two_loops…`'s escalating pose (`d 0.2, R 0.701`, tube radius 5.5e-3 m)
+the pad was 0.1098 m. `winds` read every halved piece's hull padded by
+the pad, and on the torus rows those reached the axis or the core
+circle (`Unseparated`).
 
 **What the reading owed.** The winding needs no closeness bound. Limb
 3 proves the section's points in the tube one arc, with a piece in
@@ -67,25 +68,34 @@ through the same convex boxes in the same order, and where no box
 reaches a centre they wind alike. `winds` now reads the loop over its
 tube boxes (`ssi::certify::tube_chain`), each cleared of the centre
 with nothing added. It no longer halves, since halving a box cannot
-narrow where the section lies inside it.
+narrow where the section lies inside it. Limb 3 does not say that the
+walk through the pieces goes round the component once. That is checked
+(`once_round`): runs of consecutive boxes, at least four of them,
+whose non-neighbouring runs' boxes are certainly apart. Where the
+check fails, the reading refuses `Unordered`.
 
 The pad stays the closeness bound for `reads`. It is now the farthest
-point of any tube box from the carrier, bounded slab by slab
-(`Tube::of`), and no longer the box diameter. That bound also takes in
+point of any tube box from the carrier, bounded over each box's
+eight `Box3::split` parts against nine carrier points (`Tube::of`),
+and no longer the box diameter. That bound also takes in
 the box's cubic padding, which the old `radius +` term read as
 spherical. W3 had read the pad as the witness's distance from the
 component, which closeness does not give. It now reads its own number,
-`CarriedComponent::reach`: the diameter of a tube box that holds both
-the witness and a piece of the component.
+`CarriedComponent::reach`: how far a tube box that holds both the
+witness and a piece of the component reaches from the witness. An
+empty chain or a refused box refuses `TubeUnread`.
 
 **Per row, at 1e-6:**
 
 - `the_germ_rows_donut_against_its_moved_drum`: passes, every
   placement, including what `germ_row` checks after them.
 - `two_loops_keep_their_sites_and_order_near_the_node`: passes, every θ
-  of both sheets in both orders. Its pads read about 0.10 m, so there
-  is little room left. The tighter reading is filed as
-  `a-point-is-read-on-a-marched-loop-by-distance-not-by-its-tube`.
+  of both sheets in both orders. At `d 0.2, R 0.701` it reads pads of
+  0.044 and 0.048 m against the other sheet's 0.100 m or more. A
+  tighter reading, by tube membership, is filed as
+  `a-point-is-read-on-a-marched-loop-by-distance-not-by-its-tube`
+  (P4). It is no longer needed here. `near_the_node_no_site_reads_on_the_other_sheets_loop`
+  runs the row's neighbouring poses.
 - `a_square_rod_on_the_outer_equator_stops_at_the_join` and
   `other_spins_and_steeper_tilts_refuse_at_their_germs`: their germ
   sections carry. They then stop exactly where main stops them at the
