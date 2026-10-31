@@ -111,6 +111,7 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
     centre: Point3<Interval>,
@@ -133,6 +134,16 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
                 .collect()
         })
         .collect();
+    let held: Vec<Point3<Interval>> = held
+        .iter()
+        .map(|p| {
+            Point3::new(
+                Interval::from_certified(p.x),
+                Interval::from_certified(p.y),
+                Interval::from_certified(p.z),
+            )
+        })
+        .collect();
     // A flux about `from` carried to `centre`: less `(centre − from)·A⃗`,
     // which keeps the width of `A⃗` times that lever.
     let about_centre = |flux: Interval, area, from: Point3<Interval>| -> Result<_, PropsError> {
@@ -153,12 +164,16 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         return Ok((planar_face_about(&loops, normal, centre)?, true));
     }
     match moved_by(&surface, &loops, centre) {
-        Some((surface, moved_loops)) => Ok((
-            super::closed_form_of(&surface, &moved_loops, sense, band)?,
-            true,
-        )),
+        Some((surface, moved_loops)) => {
+            let moved_held: Vec<Point3<Interval>> =
+                held.iter().map(|&p| moved_point(p, centre)).collect();
+            Ok((
+                super::closed_form_of(&surface, &moved_loops, &moved_held, sense, band)?,
+                true,
+            ))
+        }
         None => {
-            let about_origin = super::closed_form_of(&surface, &loops, sense, band)?;
+            let about_origin = super::closed_form_of(&surface, &loops, &held, sense, band)?;
             about_centre(about_origin.flux, about_origin.area, Point3::origin())
         }
     }
@@ -212,6 +227,11 @@ fn loops_vector_area(
     Ok(va)
 }
 
+/// A point carried by `−by`, as [`moved_by`] carries a face's geometry.
+pub(super) fn moved_point<U: geom_core::Real>(p: Point3<U>, by: Point3<U>) -> Point3<U> {
+    Point3::origin() + (p - by)
+}
+
 /// `surface` carried by `−by`: every point-valued datum moved, every
 /// direction and length kept. `None` for a kind with no analytic datum
 /// to move (a spline or fitted surface).
@@ -219,7 +239,7 @@ pub(super) fn translated_surface<T: Decide>(
     surface: &Surface<T>,
     by: Point3<T>,
 ) -> Option<Surface<T>> {
-    let shift = |p: Point3<T>| Point3::origin() + (p - by);
+    let shift = |p: Point3<T>| moved_point(p, by);
     Some(match surface.clone() {
         Surface::Plane {
             origin,
@@ -2154,9 +2174,16 @@ mod tests {
                 let centre = corner_of(lane, run);
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
-                let (c, _) =
-                    super::super::closed_form(surface, &loops, face.sense, band, centre, None)
-                        .unwrap();
+                let (c, _) = super::super::closed_form(
+                    surface,
+                    &loops,
+                    &crate::props::face_tips(&body, face).unwrap(),
+                    face.sense,
+                    band,
+                    centre,
+                    None,
+                )
+                .unwrap();
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon

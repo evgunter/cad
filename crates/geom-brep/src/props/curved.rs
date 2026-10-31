@@ -1636,6 +1636,24 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    curved_face_holding(surface, loops, &[], sense, band)
+}
+
+/// [`curved_face_loops`] of a face that holds the points `held`, the
+/// tips its loops' chart images drop: the sphere arm's cross-check of
+/// the bit reads its side with them, as
+/// [`boundary_material_sign_holding`] does.
+///
+/// # Errors
+///
+/// As [`curved_face`].
+pub fn curved_face_holding<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
     // The empty rule's one dispatch: no loop bounds area.
     if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
         return whole_surface(surface, sense);
@@ -1661,7 +1679,7 @@ pub fn curved_face_loops<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere_face(center, radius, axis, loops, sense, band),
+        } => sphere_face(center, radius, axis, loops, held, sense, band),
         Surface::Torus {
             center,
             axis,
@@ -3208,6 +3226,7 @@ fn sphere_face<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
@@ -3218,7 +3237,7 @@ fn sphere_face<T: Decide>(
         });
     };
     if let MaterialSign::Encoded(side) =
-        side_of_sphere_loops(center, radius, axis, &gauss, &[], band)?
+        side_of_sphere_loops(center, radius, axis, &gauss, held, band)?
         && (side == Sign::Positive) != sense
     {
         // A holed face's side is its area's sign, which no pole enters.
