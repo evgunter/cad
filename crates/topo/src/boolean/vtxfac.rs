@@ -1457,14 +1457,14 @@ pub(super) fn ring_groups<T: Decide>(
 }
 
 /// **A lone ring vertex at `p` inside `face`** (Delta 3's first two
-/// steps): a chord strut from the outer loop's anchor to `p`, a
-/// certified line edge, then `kemr`, which detaches it as an empty-loop
-/// ring holding the new vertex alone. Returns the vertex and its ring.
+/// steps), struck from the outer loop's anchor ([`Body::ring_vertex`]):
+/// the face's rows stand as found on every chart. Returns the vertex
+/// and its ring.
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] where the face's outer loop
-/// is no cycle; the Euler operators' refusals.
+/// is no cycle; [`Body::ring_vertex`]'s refusals.
 pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: crate::entity::FaceKey,
@@ -1485,26 +1485,7 @@ pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
             what: "a face a ring vertex is minted in has no outer cycle",
         });
     };
-    let u = linked(
-        &body.half_edges,
-        anchor,
-        EntityId::HalfEdge,
-        EntityId::Loop(face_data.outer),
-        "first",
-    )
-    .start;
-    let p_u = body.linked_vertex_point(u, EntityId::HalfEdge(anchor), "start");
-    let chord = body.mev(
-        MevSite::Fan {
-            he1: anchor,
-            he2: anchor,
-        },
-        p,
-        geom_brep::EdgeCurveSpec::line_between(p_u, p),
-        tol,
-    )?;
-    let kemr = body.kemr(chord.he_plus, chord.he_minus)?;
-    Ok((chord.vertex, kemr.ring))
+    Ok(body.ring_vertex(anchor, p, tol)?)
 }
 
 /// **Delta 3, the ring** (module docs): one ring vertex in the pierced

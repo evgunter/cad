@@ -2,10 +2,12 @@
 id: a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex
 kind: issue
 title: A pierce of a spline face refuses PcurveMint SplineChart at Delta 3: ring_vertex_in mints its chord strut into the complete spline face with mev, which writes no spline row
-status: open
+status: closed
 opened: 2026-10-31
+closed: 2026-10-31
 priority: P1
 cost: M
+branch: splice/spline-ring-vertex-mint
 ---
 
 
@@ -48,3 +50,15 @@ Then comes whatever the ring and its struts read next on a spline face.
 The NURBS × torus section (SECTARMS
 `a-nurbs-face-against-a-torus-has-no-section-arm`) still stands behind
 it.
+
+## Closed
+
+- 2026-10-31 — Review tier: single FULL. `boolean::vtxfac::ring_vertex_in`
+  mints the ring through `Body::ring_vertex`, which fuses the chord
+  strut's `mev` with its `kemr`. The pair's net delta adds no half-edge
+  to any loop, so no row is owed: the face's rows stand as found on
+  every chart, and the joint into the anchor keeps its element. The
+  same door serves the fate pass's touch ring
+  (`boolean::fate`). Witnessed by `vtxfac_spline_rows`'
+  `a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense` and
+  `a_ring_vertex_in_a_cylinder_wall_leaves_its_rows_as_found`.

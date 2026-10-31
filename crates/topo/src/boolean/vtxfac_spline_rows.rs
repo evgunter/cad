@@ -10,6 +10,10 @@
 //! run toward `−x` or `+x`, where the bump falls away below or rises
 //! above them, and its third edge is vertical. Against `+z`, the bump's
 //! corners' plane, both horizontal edges would read `On`.
+//!
+//! The ring the pierce mints ([`super::ring_vertex_in`]) is read on a
+//! minted solid: the unit cube with its top on [`dome`], whose edges lie
+//! on the net, so the wall stores its rows.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -199,5 +203,176 @@ fn a_pierce_on_a_crease_of_the_pierced_chart_refuses_by_name() {
             Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, .. }) if face == top
         ),
         "{got:?}"
+    );
+}
+
+/// The biquadratic net over the unit square (`x = u`, `y = v`) with its
+/// boundary rows flat at `z = 1` and its centre control point raised to
+/// `1.4`, so the cube's top edges lie on it.
+fn dome() -> geom::NurbsSurface<f64> {
+    use geom_core::spline::KnotVector;
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let control: Vec<_> = [0.0, 0.5, 1.0]
+        .iter()
+        .flat_map(|&x| {
+            [0.0, 0.5, 1.0].map(move |y| {
+                let z = if x == 0.5 && y == 0.5 { 1.4 } else { 1.0 };
+                Point3::new(x, y, z)
+            })
+        })
+        .collect();
+    geom::NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
+}
+
+/// The unit cube with its top on [`dome`], minted, and the top face.
+fn domed_cube() -> (Body<f64>, FaceKey) {
+    let cube = crate::test_support_fixtures::prism::<f64>(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        1.0,
+        Tol::witness(),
+    );
+    let mut body = cube.body;
+    // Each top edge, re-described on the side plane it keeps.
+    let outer = body.get_face(cube.top_face).unwrap().outer;
+    let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+    else {
+        unreachable!("the cube's top is a cycle")
+    };
+    let redescriptions: Vec<_> = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|he| {
+            let h = body.get_half_edge(he).unwrap();
+            let edge = body.get_edge(h.edge).unwrap();
+            let mate = if edge.he_plus == he {
+                edge.he_minus
+            } else {
+                edge.he_plus
+            };
+            let side = body
+                .get_loop(body.get_half_edge(mate).unwrap().parent_loop)
+                .unwrap()
+                .face;
+            let point = |he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            };
+            let mut spec =
+                geom_brep::EdgeCurveSpec::line_between(point(edge.he_plus), point(edge.he_minus));
+            spec.description =
+                geom_brep::EdgeDescriptionSpec::chart(body.get_face(side).unwrap().surface);
+            (h.edge, spec)
+        })
+        .collect();
+    body.lifting_rechart_refusals_for_tests(|b| {
+        b.set_face_surfaces_describing(
+            vec![crate::construction::Rechart::new(
+                geom::Surface::Nurbs(std::sync::Arc::new(dome())),
+                cube.top_face,
+                true,
+            )],
+            &redescriptions,
+            Tol::witness(),
+        )
+    })
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+    (body, cube.top_face)
+}
+
+/// Every row `face` stores, image and joint element by half-edge, in
+/// loop and cycle order, as text: the byte-level record a door leaves.
+fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+    let data = body.get_face(face).unwrap();
+    core::iter::once(data.outer)
+        .chain(data.rings.iter().copied())
+        .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+            crate::entity::LoopBoundary::Cycle { first } => Some(first),
+            crate::entity::LoopBoundary::Empty { .. } => None,
+        })
+        .flat_map(|first| body.loop_cycle(first).unwrap())
+        .map(|he| format!("{he:?} {:?} {:?}", body.pcurve(he), body.joint(he)))
+        .collect()
+}
+
+/// [`super::ring_vertex_in`] at `p` in `face`, and what it must leave:
+/// the face's rows exactly as found and complete, the pcurve pass
+/// finding nothing on the body, and the vertex alone in a new `Empty`
+/// ring of the face at `p`.
+fn rings_as_found(mut body: Body<f64>, face: FaceKey, p: Point3<f64>, what: &str) {
+    let before = rows_of(&body, face);
+    assert!(
+        crate::pcurves::stored_rows(&body, face).complete(),
+        "{what}: the fixture's face is minted"
+    );
+    let (vertex, ring) = super::ring_vertex_in(&mut body, face, p, Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    assert_eq!(
+        rows_of(&body, face),
+        before,
+        "{what}: the face's rows moved"
+    );
+    assert!(
+        crate::pcurves::stored_rows(&body, face).complete(),
+        "{what}: the face leaves half-minted"
+    );
+    let findings = crate::pcurves::validate_pcurves(&body, band());
+    assert!(
+        findings.is_empty(),
+        "{what}: the pcurve pass finds {findings:?}"
+    );
+    let data = body.get_face(face).unwrap();
+    assert!(
+        data.rings.contains(&ring)
+            && body.get_loop(ring).unwrap().boundary
+                == crate::entity::LoopBoundary::Empty { vertex },
+        "{what}: {ring:?} is no empty ring of the face holding {vertex:?}"
+    );
+    let at = *body
+        .get_point(body.get_vertex(vertex).unwrap().point)
+        .unwrap();
+    assert!(
+        [at.x, at.y, at.z] == [p.x, p.y, p.z],
+        "{what}: the ring vertex sits at {at:?}, not {p:?}"
+    );
+}
+
+/// **A ring vertex struck into a minted NURBS wall leaves the wall
+/// minted, in either sense**: its rows stand as found, complete, the
+/// joint into the strut's anchor included, and the vertex is the
+/// chart's point at the sweep's chart point. A strut put in by a bare
+/// `mev` refuses `SplineChart` on the complete wall; one whose kill
+/// leaves the anchor's joint as `kemr` sums it leaves a gap there.
+#[test]
+fn a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense() {
+    let (cube, top) = domed_cube();
+    let p = dome().eval(UV.0, UV.1);
+    let reverted = cube.revert().unwrap();
+    assert!(
+        !reverted.get_face(top).unwrap().sense,
+        "the reverted wall is the sense-false one"
+    );
+    rings_as_found(cube, top, p, "sense true");
+    rings_as_found(reverted, top, p, "sense false");
+}
+
+/// **The analytic arm: a ring vertex struck into a minted cylinder wall
+/// leaves its rows as found**, as on a spline chart.
+#[test]
+fn a_ring_vertex_in_a_cylinder_wall_leaves_its_rows_as_found() {
+    let mut body = crate::test_support_fixtures::fresh_keyed_body::<f64>();
+    let face = crate::test_support_fixtures::cyl_wall_sheet(
+        &mut body,
+        crate::test_support_fixtures::CylFrame::canonical(1.0),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        Tol::witness(),
+    );
+    rings_as_found(
+        body,
+        face,
+        Point3::new(0.5f64.cos(), 0.5f64.sin(), 0.5),
+        "cylinder",
     );
 }
