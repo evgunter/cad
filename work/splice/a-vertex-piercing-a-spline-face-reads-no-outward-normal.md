@@ -54,25 +54,36 @@ A spline face gives its outward normal at the chart point the sweep
 placed a point at, through a new door,
 `face_normal::spline_outward_normal_at`. That chart point is either a
 span's meeting with the chart (`reduce::spline_interior`) or the
-placement read's in-trim foot (`contain::curved_face_placement_charted`).
+placement read's in-trim foot (`contain::curved_face_placement_decided`).
 `reduce::ContactAcc::charts` carries it to the pass, as
 `ContactAcc::branches` carries a branch. No projection foot is read.
 
-The door works in three steps.
-- It certifies `S(uv)` within the band of the point.
-- It reads the normal only where the chart has one:
-  `geom_brep::regular_jet`, then `geom_brep::chart_normal_at`, the
-  sector walk's pattern.
-- It hands the face's bit to `chart_normal_at`, which folds it through
-  `OutwardNormal::from_chart`.
+The door reads the chart point through `geom_brep::chart_point_normal`,
+the one reading of a chart point, which `geom_brep::dihedral_side` also
+reads at its projection foot. It works in three steps.
+- It reads the jet where the chart is regular (`regular_jet`).
+- It decides `S(uv)` onto the point.
+- It reads the normal where the chart's normal is continuous
+  (`chart_normal_at`), handing the face's bit to it, which folds it
+  through `OutwardNormal::from_chart`.
 
-A crease (`crease_runs`, a closed seam) or a vanishing `S_u × S_v` at
-that point refuses by name: `NormalAtError::SplineCrease` or
-`SplineIrregular`, which the boolean reports as `NormalAtSplineCrease`.
-`Approx` is read as its fit (C5). The pierce's curvature lever on a
-spline face is the chart's certified arm (`T::spline_chart_arm`) over
-the sectors' reach. A pierce placed at no chart point refuses
-`CurvedBooleanUnsupported`, as before.
+A vanishing `S_u × S_v` or a crease (`crease_runs`, a closed seam) at
+that point refuses by name, each carrying its reading:
+`NormalAtError::SplineIrregular` or `SplineCrease`. The boolean reports
+both as `NormalAtSplineCrease`, as the sector walk does. A stale key, a
+non-spline carrier and a placeholder chart each have their own name
+(`SplineNormalError`).
+
+The pierce's curvature lever on a spline face is the chart's certified
+arm (`T::spline_chart_arm`) over the sectors' reach. Where no arm is
+read, the pierce refuses `PierceLeverUnread`, naming why
+(`geom_brep::ChartArmRefusal`). An integral chart with a crease
+anywhere is refused whole there; that over-refusal is filed as
+`encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`.
+A pierce placed at no chart point refuses `CurvedBooleanUnsupported`,
+as before. An `Approx` face's chart is its fit, but the boolean admits
+no `Approx` operand (`reduce::boolean_arm_exists`), so no pierce reads
+one.
 
 Whether the point has a second foot on another in-trim sheet within the
 band is the placement's claim. It is filed as

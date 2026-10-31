@@ -1494,6 +1494,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
+        BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
         BooleanErrorKind::SplineCrossingUnsettled => "spline_crossing_unsettled",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",

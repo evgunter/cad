@@ -864,37 +864,24 @@ pub(crate) fn curved_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    curved_face_placement_decided(body, face, q, band).map(|(at, _)| at)
+    curved_face_placement_decided(body, face, q, band).map(|(at, _, _)| at)
 }
 
+/// A placement, the margin that decided a boundary verdict, and a
+/// spline face's in-trim foot ([`curved_face_placement_decided`]).
+pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<(f64, f64)>);
+
 /// [`curved_face_placement`], with the margin that decided a boundary
-/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it.
+/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it, and
+/// the chart point a spline face's `In` placement was decided at: the
+/// in-trim foot of `q` on the face's own sheet
+/// ([`super::spline_region::spline_face_placement`]), `None` for every
+/// other placement and every other kind.
 ///
 /// # Errors
 ///
 /// As [`curved_face_containment`].
 pub(crate) fn curved_face_placement_decided<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    q: Point3<T>,
-    band: Band,
-) -> Result<(CurvedPlacement, Option<MarginDiag>), ContainError> {
-    curved_face_placement_charted(body, face, q, band).map(|(at, margin, _)| (at, margin))
-}
-
-/// A placement, the margin that decided a boundary verdict, and a
-/// spline face's in-trim foot ([`curved_face_placement_charted`]).
-pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<(f64, f64)>);
-
-/// [`curved_face_placement_decided`], with the chart point a spline
-/// face's `In` placement was decided at: the in-trim foot of `q` on the
-/// face's own sheet ([`super::spline_region::spline_face_placement`]).
-/// `None` for every other placement and every other kind.
-///
-/// # Errors
-///
-/// As [`curved_face_containment`].
-pub(crate) fn curved_face_placement_charted<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -907,7 +894,7 @@ pub(crate) fn curved_face_placement_charted<T: Decide>(
 }
 
 /// [`curved_face_placement`] past the boundary pre-pass, with a spline
-/// face's in-trim foot ([`curved_face_placement_charted`]).
+/// face's in-trim foot ([`curved_face_placement_decided`]).
 fn curved_interior_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,

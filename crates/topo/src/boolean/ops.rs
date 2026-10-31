@@ -3852,7 +3852,13 @@ fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
-    geom_brep::classify_seam(faces, witness, reach, T::spline_chart_arm, band)
+    geom_brep::classify_seam(
+        faces,
+        witness,
+        reach,
+        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
+        band,
+    )
 }
 
 /// **A face of a seam edge, as its dihedral reads it** at the edge's

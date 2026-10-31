@@ -2978,6 +2978,22 @@ pub enum BooleanError {
         /// against.
         band: Band,
     },
+    /// A pierce of a spline face of `operand` read no bound on how
+    /// sharply the face bends round the pierce point: the chart's
+    /// certified arm ([`geom_brep::NurbsLane::chart_arm`]) refused, for
+    /// the reason `cause` names. The side each sector bound reads is
+    /// charged for the face's bend over that arm, so with no arm no side
+    /// is read. A patch bound that refuses a whole integral chart with a
+    /// C⁰ crease anywhere refuses here too, however far the crease lies
+    /// (`work/encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`).
+    PierceLeverUnread {
+        /// The operand the spline face belongs to.
+        operand: Operand,
+        /// The spline face.
+        face: FaceKey,
+        /// Why no arm was read.
+        cause: geom_brep::ChartArmRefusal,
+    },
     /// A lane met an edge whose carrier is a spiric or a spline, and has
     /// no row for either kind; `site` names the lane. At a crossing lane
     /// the edge's endpoints' sides neither find its crossings (it can
@@ -4218,6 +4234,8 @@ pub enum BooleanErrorKind {
     NormalAtConeApex,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
+    /// [`BooleanError::PierceLeverUnread`].
+    PierceLeverUnread,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
     /// [`BooleanError::SplineCrossingUnsettled`].
@@ -4484,13 +4502,14 @@ impl BooleanError {
                 face,
                 band,
             },
-            NormalAtError::SplineCrease { band } | NormalAtError::SplineIrregular { band } => {
-                Self::NormalAtSplineCrease {
-                    operand,
-                    face,
-                    band,
-                }
-            }
+            // Decided and in band alike, as the sector walk's crease
+            // refuses: the arm has no escalating half.
+            NormalAtError::SplineCrease { band, .. }
+            | NormalAtError::SplineIrregular { band, .. } => Self::NormalAtSplineCrease {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -4512,6 +4531,7 @@ impl BooleanError {
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
+            Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -4756,6 +4776,25 @@ impl core::fmt::Display for BooleanError {
                  other part's side by. Recourse: move the parts so the corner lies \
                  clear of the crease",
                 operand_word(*operand),
+            ),
+            Self::PierceLeverUnread { operand, cause, .. } => write!(
+                f,
+                "a corner of one part sits on a curved face of the {} operand whose bend \
+                 near the corner could not be bounded ({}), so the other part's side of \
+                 it is not read. Recourse: move the parts so the corner lies clear of \
+                 the face's creases and pinches",
+                operand_word(*operand),
+                match cause {
+                    geom_brep::ChartArmRefusal::PatchBound =>
+                        "the face's curvature bound refuses its whole surface",
+                    geom_brep::ChartArmRefusal::CreaseWithinReach => "a crease lies nearby",
+                    geom_brep::ChartArmRefusal::Unbounded =>
+                        "the face's bend at the corner has no bound",
+                    geom_brep::ChartArmRefusal::Poisoned =>
+                        "the corner's position is not one point",
+                    geom_brep::ChartArmRefusal::NoLane =>
+                        "this number type reads no curvature bound",
+                },
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -8976,6 +9015,11 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::PierceLeverUnread {
+                operand: Operand::B,
+                face,
+                cause: geom_brep::ChartArmRefusal::PatchBound,
+            },
             BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
@@ -9320,6 +9364,7 @@ mod tests {
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
+                BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",

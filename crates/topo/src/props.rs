@@ -6924,17 +6924,18 @@ pub trait AtRestPolicy: Decide {
     >;
 
     /// **A certified lower bound on a spline chart's arm at `p` over
-    /// `reach`, at this scalar, or `None` where none is read here** — the
-    /// lower end of the bracket the boolean's seam reading levers a spline
-    /// face's normal over ([`geom_brep::NurbsLane::chart_arm`],
-    /// [`geom_brep::classify_seam`]). It is read from certified curvature
-    /// bounds, at the certifying scalars alone; a dual answers `None`, and
-    /// the seam reads smooth or escalates, never transverse.
+    /// `reach`, at this scalar, or why none is read here** — the lower end
+    /// of the bracket the boolean's seam reading levers a spline face's
+    /// normal over ([`geom_brep::NurbsLane::chart_arm`],
+    /// [`geom_brep::classify_seam`]), and a spline pierced face's lever. It
+    /// is read from certified curvature bounds, at the certifying scalars
+    /// alone; a dual answers [`geom_brep::ChartArmRefusal::NoLane`], and the
+    /// seam reads smooth or escalates, never transverse.
     fn spline_chart_arm(
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64>;
+    ) -> Result<f64, geom_brep::ChartArmRefusal>;
 
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
@@ -7153,7 +7154,7 @@ impl AtRestPolicy for f64 {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7300,7 +7301,7 @@ impl AtRestPolicy for geom_core::Probe {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7445,7 +7446,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7600,7 +7601,7 @@ where
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7775,8 +7776,8 @@ where
         _chart: &geom::NurbsSurface<Self>,
         _p: geom_core::Point3<Self>,
         _reach: Self,
-    ) -> Option<f64> {
-        None
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
+        Err(geom_brep::ChartArmRefusal::NoLane)
     }
 
     /// The march is written at `f64` alone.

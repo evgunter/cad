@@ -824,6 +824,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // on another in-trim sheet within the band is the placement's
             // claim (`work/spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
+                use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
                 crate::face_normal::spline_outward_normal_at(
                     pierced_body,
@@ -832,25 +833,32 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     p,
                     band,
                 )
-                .map_err(refused)?
-                .ok_or_else(unbuilt)?
+                .map_err(|e| match e {
+                    SplineNormalError::At(refusal) => refused(refusal),
+                    // A placeholder chart has no locus: the kind has no arm.
+                    SplineNormalError::PlaceholderChart => unbuilt(),
+                    SplineNormalError::StaleFace | SplineNormalError::NotSpline => {
+                        BooleanError::ClassificationInvariant {
+                            what: "a pierced face the point door read no arm for is not a \
+                                   live spline face",
+                        }
+                    }
+                })?
             }
             Err(refusal) => return Err(refused(refusal)),
         };
+    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
+    let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
+    let n = sectors.len();
     // The pierced face's smallest radius of curvature within each
     // bound's reach — the lever the sector side verdicts charge their
     // sagitta against (`pierce_side`'s argument), so it must bound the
     // tightest bend, not the chart's scale: on a fat torus those differ,
     // and on a cone the bend tightens toward the axis. A plane reports
     // `f64::MAX`, so its charge is vacuous and the planar lane's
-    // verdicts are unmoved.
-    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
-    let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
-    let n = sectors.len();
-    // A spline face's lever is its chart's certified arm over the
-    // sectors' farthest reach: where none is read (a cell the patch
-    // bound refuses, a crease within the reach, a dual), the face has no
-    // bend to charge and refuses as a kind with no arm.
+    // verdicts are unmoved. A spline face's is its chart's certified arm
+    // over the sectors' farthest reach, which rests on the placement's
+    // single sheet as the normal does; where none is read, no side is.
     let pierced_lever = match pierced_surface.spline_chart() {
         None => PierceLever::of(pierced_surface, p),
         Some(chart) => {
@@ -859,7 +867,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     what: "a pierce has no sector",
                 },
             )?;
-            let arm = T::spline_chart_arm(chart, p, reach).ok_or_else(unbuilt)?;
+            let arm = T::spline_chart_arm(chart, p, reach).map_err(|cause| {
+                BooleanError::PierceLeverUnread {
+                    operand: pierced_op,
+                    face: contact.face,
+                    cause,
+                }
+            })?;
             PierceLever::Within(T::from_computed(arm))
         }
     };
@@ -2190,7 +2204,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 {
                     return Ok(None);
                 }
-                let (placement, _) =
+                let (placement, _, _) =
                     super::contain::curved_face_placement_decided(piercing_body, face, p, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);

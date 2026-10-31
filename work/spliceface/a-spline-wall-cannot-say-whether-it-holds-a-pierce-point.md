@@ -103,7 +103,7 @@ this row's site as it stands. `held_reads` still reads its spline wall
 through `contain::curved_face_placement_decided` and still refuses
 `placed: true` for a wall read `In`. What that lane added is the door
 the second half needs:
-- `contain::curved_face_placement_charted` returns the in-trim foot an
+- `contain::curved_face_placement_decided` returns the in-trim foot an
   `In` placement was decided at;
 - `face_normal::spline_outward_normal_at` reads the wall's outward
   normal at that chart point.

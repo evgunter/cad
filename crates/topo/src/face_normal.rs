@@ -186,6 +186,8 @@ pub(crate) enum NormalAtError {
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
+        /// That distance, as decided: zero, or in band.
+        reading: geom_brep::CreaseReading,
     },
     /// A spline face's chart point lies within the band of a point where
     /// `S_u × S_v` vanishes (a pole, coincident control rows): the face
@@ -193,7 +195,23 @@ pub(crate) enum NormalAtError {
     SplineIrregular {
         /// The band the distance from the point was classified against.
         band: Band,
+        /// That distance, as decided: zero, or in band.
+        reading: geom_brep::CreaseReading,
     },
+}
+
+/// Why [`spline_outward_normal_at`] could not answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum SplineNormalError {
+    /// The face key no longer resolves.
+    StaleFace,
+    /// The face's carrier is not a spline chart: the point door
+    /// ([`face_outward_normal_at`]) answers for it.
+    NotSpline,
+    /// The face's chart is the placeholder, which has no locus.
+    PlaceholderChart,
+    /// The chart point read no normal ([`NormalAtError`]).
+    At(NormalAtError),
 }
 
 /// Which decision [`face_outward_normal_at`] escalated on.
@@ -382,26 +400,26 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 /// second foot on another in-trim sheet within the band is that
 /// placement's claim, not this door's.
 ///
-/// `Approx` is read as its fit ([`geom::Surface::spline_chart`]), as
-/// it is everywhere it is an intersection operand (C5).
+/// An `Approx` face's chart is its fit ([`geom::Surface::spline_chart`]),
+/// so this door would read the fit; the boolean admits no `Approx`
+/// operand (`boolean::reduce::boolean_arm_exists`), so no pierce reaches
+/// it with one.
 ///
-/// `S(uv)` is certified within the band of `p` first; the normal is then
-/// read only where the chart has one ([`geom_brep::regular_jet`],
-/// [`geom_brep::chart_normal_at`]), over the carrier's farthest reach
-/// from `p`, its control net's. The bit is handed to
-/// [`geom_brep::chart_normal_at`], which folds it through
-/// [`OutwardNormal::from_chart`].
-///
-/// `Ok(None)` for a face key that no longer resolves, a face whose
-/// carrier is not a spline chart, and a placeholder chart.
+/// The chart point is read by [`geom_brep::chart_point_normal`], the one
+/// reading of a chart point, over the carrier's farthest reach from `p`,
+/// its control net's: regular, then `S(uv)` decided onto `p`, then the
+/// normal where it is continuous. The bit is handed to it, and it folds
+/// the bit through [`OutwardNormal::from_chart`].
 ///
 /// # Errors
 ///
+/// [`SplineNormalError::StaleFace`], [`SplineNormalError::NotSpline`]
+/// and [`SplineNormalError::PlaceholderChart`] for a face this door has
+/// no chart point to read on; otherwise [`SplineNormalError::At`]:
 /// [`NormalAtError::OffSurface`] or an [`NormalDecision::OnSurface`]
-/// escalation where `S(uv)` is not decided onto `p`;
-/// [`NormalAtError::SplineIrregular`] and
-/// [`NormalAtError::SplineCrease`] where the chart has no one normal at
-/// `uv`.
+/// escalation where `S(uv)` is not decided onto `p`, and
+/// [`NormalAtError::SplineIrregular`] and [`NormalAtError::SplineCrease`]
+/// where the chart has no one normal at `uv`.
 ///
 /// # Panics
 ///
@@ -412,39 +430,39 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     (u, v): (f64, f64),
     p: Point3<T>,
     band: Band,
-) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.get_face(face) else {
-        return Ok(None);
-    };
+) -> Result<OutwardNormal<T>, SplineNormalError> {
+    use geom_brep::ChartPointRefusal;
+    let f = body.get_face(face).ok_or(SplineNormalError::StaleFace)?;
     let surface = body.face_surface_linked(face, f);
-    let Some(chart) = surface.spline_chart() else {
-        return Ok(None);
-    };
+    let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {
-        return Ok(None);
+        return Err(SplineNormalError::PlaceholderChart);
     }
     let uv = (T::from_computed(u), T::from_computed(v));
     let reach = geom_brep::control_net_reach(chart.control(), p);
-    let at = chart.eval(uv.0, uv.1);
-    match decide(
+    geom_brep::chart_point_normal(
+        chart,
+        f.sense,
+        uv,
+        p,
+        reach,
         "bool_pierce_normal_on_spline",
-        Margin::of((at - p).norm()),
         band,
-    ) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Err(NormalAtError::OffSurface),
-        Err(diag) => {
-            return Err(NormalAtError::Escalated {
+    )
+    .map(|(normal, _)| normal)
+    .map_err(|refusal| {
+        SplineNormalError::At(match refusal {
+            ChartPointRefusal::Irregular(reading) => {
+                NormalAtError::SplineIrregular { band, reading }
+            }
+            ChartPointRefusal::Apart(_) => NormalAtError::OffSurface,
+            ChartPointRefusal::Undecided(diag) => NormalAtError::Escalated {
                 decision: NormalDecision::OnSurface,
                 diag,
-            });
-        }
-    }
-    let jet = geom_brep::regular_jet(chart, uv, reach, band)
-        .map_err(|_| NormalAtError::SplineIrregular { band })?;
-    geom_brep::chart_normal_at(chart, f.sense, &jet, uv, reach, band)
-        .map(|(normal, _)| Some(normal))
-        .map_err(|_| NormalAtError::SplineCrease { band })
+            },
+            ChartPointRefusal::Crease(reading) => NormalAtError::SplineCrease { band, reading },
+        })
+    })
 }
 
 /// The nappe a cone face's points are certified on: the face's own
@@ -973,9 +991,10 @@ mod tests {
     /// belongs at a door or a scalar that is added here in the open
     /// with its reason. The vector class's expected count is zero.
     ///
-    /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`)
-    /// and this file (the planar door's flip row spells the
-    /// expectation by hand on purpose).
+    /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`),
+    /// and this file's test module, whose rows spell the expected flip by
+    /// hand on purpose. This file's doors are read like any other file's,
+    /// so a fold in one of them is a hit.
     ///
     /// **What it cannot match**: a bit renamed at a boundary before it
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
@@ -988,10 +1007,7 @@ mod tests {
     #[test]
     fn no_source_file_folds_the_bit_by_hand() {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        let exempt = [
-            "crates/geom-brep/src/enters.rs",
-            "crates/topo/src/face_normal.rs",
-        ];
+        let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
         // as D6 spells it: a jet curvature measured along the plus
         // face's outward normal, the sphere's radial flux term
@@ -1047,7 +1063,13 @@ mod tests {
                 }
                 walked += 1;
                 let text = std::fs::read_to_string(&path).expect("a readable source file");
-                let code = test_utils::source::code_only(&text);
+                let mut code = test_utils::source::code_only(&text);
+                if rel == "crates/topo/src/face_normal.rs" {
+                    let tests = code
+                        .find("mod tests {")
+                        .expect("face_normal.rs has its test module");
+                    code.truncate(tests);
+                }
                 for negated in hand_folds_of_sense(&code) {
                     hits.push((rel.clone(), negated));
                 }
@@ -1273,7 +1295,6 @@ mod tests {
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
             let n = super::spline_outward_normal_at(&body, face, uv, p, band())
-                .unwrap()
                 .expect("a spline face reads at its chart point")
                 .vec();
             let want = if sense { lean } else { -lean };
@@ -1286,7 +1307,7 @@ mod tests {
         assert!(
             matches!(
                 super::spline_outward_normal_at(&body, face, uv, off, band()),
-                Err(NormalAtError::OffSurface)
+                Err(super::SplineNormalError::At(NormalAtError::OffSurface))
             ),
             "a point off the chart point is refused"
         );
@@ -1323,14 +1344,17 @@ mod tests {
                 let got = super::spline_outward_normal_at(&body, face, (u, 0.5), p, band());
                 if crease && u == 0.5 {
                     assert!(
-                        matches!(got, Err(NormalAtError::SplineCrease { .. })),
+                        matches!(
+                            got,
+                            Err(super::SplineNormalError::At(NormalAtError::SplineCrease {
+                                reading: Ok(_),
+                                ..
+                            }))
+                        ),
                         "on the crease: {got:?}"
                     );
                 } else {
-                    assert!(
-                        matches!(got, Ok(Some(_))),
-                        "crease {crease}, u {u}: {got:?}"
-                    );
+                    assert!(got.is_ok(), "crease {crease}, u {u}: {got:?}");
                 }
             }
         }
@@ -1363,10 +1387,50 @@ mod tests {
         };
         let corner = at((1.0, 1.0));
         assert!(
-            matches!(corner, Err(NormalAtError::SplineIrregular { .. })),
+            matches!(
+                corner,
+                Err(super::SplineNormalError::At(
+                    NormalAtError::SplineIrregular { reading: Ok(_), .. }
+                ))
+            ),
             "at the degenerate corner: {corner:?}"
         );
-        let n = at((0.25, 0.25)).unwrap().unwrap().vec();
+        let n = at((0.25, 0.25)).unwrap().vec();
         assert!((n - Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12, "{n:?}");
+    }
+
+    /// **The spline door names each face it has no chart point to read
+    /// on**: a key that no longer resolves, a carrier that is not a spline
+    /// chart, a placeholder chart.
+    #[test]
+    fn the_spline_door_names_a_stale_a_non_spline_and_a_placeholder_face() {
+        use super::SplineNormalError;
+        let p = Point3::new(0.0, 0.0, 1.0);
+        let read = |body: &crate::body::Body<f64>, face| {
+            super::spline_outward_normal_at(body, face, (0.5, 0.5), p, band())
+        };
+        let (plane, face) = face_on(geom::Surface::Plane {
+            origin: p,
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(matches!(
+            read(&plane, face),
+            Err(SplineNormalError::NotSpline)
+        ));
+        let (placeholder, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::placeholder(),
+        )));
+        let got = read(&placeholder, face);
+        assert!(
+            matches!(got, Err(SplineNormalError::PlaceholderChart)),
+            "{got:?}"
+        );
+        let (mut stale, face) = face_on(smooth_bump());
+        stale.faces.remove(face);
+        assert!(matches!(
+            read(&stale, face),
+            Err(SplineNormalError::StaleFace)
+        ));
     }
 }

@@ -36,8 +36,12 @@ Readers that rely on it:
   `boolean::vtxfac::classify_vertex_on_face`: the pierce reads the
   pierced spline face's outward normal at the chart point the sweep
   placed the pierce at (`reduce::spline_interior`'s meeting, or
-  `contain::curved_face_placement_charted`'s in-trim foot), recorded
+  `contain::curved_face_placement_decided`'s in-trim foot), recorded
   in `reduce::ContactAcc::charts`.
+- the same pass's curvature lever on the pierced spline face
+  (`PierceLever::Within`, `T::spline_chart_arm` at the pierce point): it
+  bounds the bend of the sheet the normal was read on, and the side
+  verdicts charge it as that sheet's;
 - `boolean::reduce::spline_interior` and `vertex_on_curved_face_at`,
   which record a vertex-on-face contact on that placement.
 - `boolean::vtxfac::held_reads`, through

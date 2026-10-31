@@ -3255,7 +3255,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     let mut recorded = false;
     for (w, pw) in ends {
         let (placement, on, chart) =
-            super::contain::curved_face_placement_charted(y, face, pw, band)
+            super::contain::curved_face_placement_decided(y, face, pw, band)
                 .map_err(|e| esc(e, x_is.other(), face))?;
         match placement {
             CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
@@ -4754,9 +4754,11 @@ fn landing<T: Decide>(
     band: Band,
 ) -> Result<Landing, BooleanError> {
     match super::contain::curved_face_placement_decided(y, face, p, band) {
-        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => Ok(Landing::Unplaced),
-        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => Ok(Landing::Out),
-        Ok((CurvedPlacement::Trim(Some(at)), on)) => Ok(Landing::At(at, on)),
+        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _, _)) => {
+            Ok(Landing::Unplaced)
+        }
+        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _, _)) => Ok(Landing::Out),
+        Ok((CurvedPlacement::Trim(Some(at)), on, _)) => Ok(Landing::At(at, on)),
         Err(super::contain::ContainError::Escalated {
             decision,
             escalation,
@@ -5202,7 +5204,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
-    let (placement, on, chart) = super::contain::curved_face_placement_charted(y, face, px, band)
+    let (placement, on, chart) = super::contain::curved_face_placement_decided(y, face, px, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
@@ -8497,6 +8499,106 @@ mod spline_face_rows {
         assert!(
             acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
             "nothing recorded"
+        );
+    }
+
+    /// **A pierce at a spline face's meeting carries the chart point it
+    /// was found at** (`CurvedEvent::Pierce { chart }`): the line up
+    /// through `(½, ½)` meets the twisted sheet at `S(½, ½)`, and the
+    /// recorded chart point is that one, `S` there within the band of the
+    /// pierce point. The pierce pass reads the face's normal there.
+    #[test]
+    fn a_pierce_at_a_spline_meeting_carries_its_chart_point() {
+        use crate::boolean::contain::FaceContainment;
+        let (p, q) = (Point3::new(0.5, 0.5, -1.0), Point3::new(0.5, 0.5, 1.0));
+        let (mut y, face, x, ek) = twisted_and_a_line(p, q);
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                chart: Some(uv),
+                ..
+            }) => {
+                let on = (chart.eval(uv.0, uv.1) - p).norm();
+                assert!(
+                    on <= band().zero() && (uv.0 - 0.5).abs() < 1e-9 && (uv.1 - 0.5).abs() < 1e-9,
+                    "the chart point {uv:?} is the meeting's, S there {on:e} from the pierce"
+                );
+            }
+            other => panic!("the pierce carries its meeting's chart point: {other:?}"),
+        }
+    }
+
+    /// **A vertex placed inside a spline face records the chart point its
+    /// placement was decided at** (`ContactAcc::charts`): the line's upper
+    /// end is `S(½, ½)` on the twisted sheet, which the end placement reads
+    /// `In` at an in-trim foot, and that foot is recorded for the end and
+    /// the face, `S` there within the band of the end.
+    #[test]
+    fn a_vertex_placed_in_a_spline_face_records_its_chart_point() {
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let end = chart.eval(0.5, 0.5);
+        let (mut y, face, x, ek) = twisted_and_a_line(Point3::new(0.5, 0.5, -1.0), end);
+        let mut acc = ContactAcc::default();
+        let got = arm(&x, ek, &mut y, face, &mut acc);
+        assert!(matches!(got, Ok(CurvedEvent::Recorded)), "{got:?}");
+        let w = x
+            .vertices()
+            .find(|(_, v)| (*x.get_point(v.point).unwrap() - end).norm() == 0.0)
+            .map(|(k, _)| k)
+            .expect("the line's upper end");
+        let uv = *acc
+            .charts
+            .get(&(Operand::A, w, face))
+            .expect("the end's chart point is recorded");
+        let on = (chart.eval(uv.0, uv.1) - end).norm();
+        assert!(
+            on <= band().zero() && (uv.0 - 0.5).abs() < 1e-6 && (uv.1 - 0.5).abs() < 1e-6,
+            "the recorded chart point {uv:?} is the end's foot, S there {on:e} from it"
+        );
+    }
+
+    /// **A vertex the endpoint treatment places inside a spline face
+    /// records its chart point** ([`vertex_on_curved_face`], the declared
+    /// cosurface rung's door): `S(½, ½)` on the twisted sheet is placed
+    /// `In`, and the in-trim foot it was decided at is recorded for the
+    /// vertex and the face, `S` there within the band of the vertex.
+    #[test]
+    fn the_endpoint_treatment_records_a_spline_faces_chart_point() {
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let at = chart.eval(0.5, 0.5);
+        let (mut y, face, x, _) = twisted_and_a_line(at, Point3::new(0.5, 0.5, 1.0));
+        let w = x
+            .vertices()
+            .find(|(_, v)| (*x.get_point(v.point).unwrap() - at).norm() == 0.0)
+            .map(|(k, _)| k)
+            .unwrap();
+        let mut acc = ContactAcc::default();
+        let placed = super::vertex_on_curved_face(
+            Operand::A,
+            &mut y,
+            w,
+            at,
+            face,
+            geom_core::MarginDiag::value(0.0),
+            &mut acc,
+            band(),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(placed, Ok(super::Placement::Recorded)),
+            "{placed:?}"
+        );
+        let uv = *acc
+            .charts
+            .get(&(Operand::A, w, face))
+            .expect("the vertex's chart point is recorded");
+        let on = (chart.eval(uv.0, uv.1) - at).norm();
+        assert!(
+            on <= band().zero() && (uv.0 - 0.5).abs() < 1e-6 && (uv.1 - 0.5).abs() < 1e-6,
+            "the recorded chart point {uv:?} is the vertex's foot, S there {on:e} from it"
         );
     }
 

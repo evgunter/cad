@@ -96,27 +96,45 @@ fn rv_a_pierce_within_the_band_of_a_crease_refuses_by_name() {
     }
 }
 
-/// RED on f2681f2: a crease 1e-6 from the pierce, outside the band and
-/// inside every sector's reach, is refused as a kind with no arm
-/// (`CurvedBooleanUnsupported { kind: Nurbs }`, from the lever's
-/// `spline_chart_arm` returning `None`), not by name.
+/// A crease 1e-6 from the pierce, outside the band and inside every
+/// sector's reach, refuses by name: the normal reads, and the lever does
+/// not (`PierceLeverUnread`), naming why. The ridge is an integral chart,
+/// which the patch bound refuses whole (`PatchBound`).
 #[test]
 fn rv_a_pierce_a_micron_from_a_crease_refuses_by_name() {
     let got = pierce_at(1e-6);
     assert!(
-        matches!(got, Err(BooleanError::NormalAtSplineCrease { .. })),
+        matches!(
+            got,
+            Err(BooleanError::PierceLeverUnread {
+                operand: Operand::B,
+                cause: geom_brep::ChartArmRefusal::PatchBound,
+                ..
+            })
+        ),
         "{got:?}"
     );
 }
 
-/// RED on f2681f2: a smooth chart point 0.25 from the crease, beyond
-/// every sector's reach (about 0.21), is refused as a kind with no arm:
-/// the patch bound refuses an integral chart with a C0 crease anywhere,
-/// so no pierce of a creased integral chart reads.
+/// A smooth chart point 0.25 from the crease, beyond every sector's
+/// reach (about 0.21), refuses the lever too: the patch bound refuses an
+/// integral chart with a C0 crease anywhere, so no pierce of a creased
+/// integral chart reads. Pinned until
+/// `work/encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`
+/// lands, when this row reads the sides and goes red.
 #[test]
-fn rv_a_pierce_far_from_a_crease_reads_its_sides() {
+fn rv_a_pierce_far_from_a_crease_refuses_the_lever_on_the_patch_bound() {
     let got = pierce_at(0.25);
-    assert!(got.is_ok(), "{got:?}");
+    assert!(
+        matches!(
+            got,
+            Err(BooleanError::PierceLeverUnread {
+                cause: geom_brep::ChartArmRefusal::PatchBound,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
 }
 
 /// A chart point that is not the vertex's (a stale or loosely keyed
