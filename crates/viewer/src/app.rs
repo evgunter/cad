@@ -1989,6 +1989,8 @@ impl eframe::App for ViewerApp {
         // is of the draft the pane is about to show, not last frame's.
         self.drafts.sync_profile_edit(
             self.session.committed_doc(),
+            self.session.doc(),
+            self.session.tol(),
             self.session.selection().node(),
         );
         let held = self.drafts.door_loops();
@@ -2014,10 +2016,6 @@ impl eframe::App for ViewerApp {
                 .as_ref()
                 .and_then(|shown| shown.read.as_ref().ok())
                 .map(|marks| Ok(sketch::trace_preview(marks)));
-        }
-        let scratch = !core::ptr::eq(self.session.doc(), self.session.committed_doc());
-        if !self.drafts.edit_previewed(scratch) {
-            profile_previews.edit = None;
         }
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
@@ -7070,9 +7068,7 @@ mod properties_pane_tests {
         /// `ViewerApp::update` derives it: the draft's number while the
         /// edit door previews, else the landed document's reading.
         fn drawn_x(driven: &Driven, step: usize) -> f64 {
-            let session = &driven.app.session;
-            let scratch = !core::ptr::eq(session.doc(), session.committed_doc());
-            if driven.app.drafts.edit_previewed(scratch) {
+            if driven.app.drafts.profile_edit.is_some() {
                 held_point(driven, step).x
             } else {
                 driven
@@ -7908,6 +7904,38 @@ mod properties_pane_tests {
                     "no gesture holds a scratch document"
                 );
             });
+        }
+
+        /// **The naming door waits on held edits**, as the expression
+        /// door does: naming an argument's variable reloads the draft.
+        /// Untouched, the anchor's row offers `name`; with another
+        /// corner moved in the draft, no row does.
+        #[test]
+        fn the_naming_door_waits_on_held_edits() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            // The pane says `name` once outside the editor (the
+            // new-variable form), so what is counted is the rows' doors.
+            let named = |painted: &[(String, egui::Rect)]| {
+                painted.iter().filter(|(run, _)| run == "name").count()
+            };
+            let untouched = named(&driven.quiet());
+            assert!(
+                untouched > 1,
+                "an untouched draft offers naming: {untouched}"
+            );
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .steps_mut(0)[3] =
+                Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, 0.05)));
+            assert_eq!(
+                named(&driven.quiet()),
+                1,
+                "held edits hold every row's naming door"
+            );
         }
 
         /// **A unit change and a range probe made at the editor's field

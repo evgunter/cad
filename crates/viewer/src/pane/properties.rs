@@ -666,18 +666,13 @@ impl ViewerBehavior<'_> {
                 for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
                 }
-                ui.horizontal(|ui| {
-                    ui.weak("range");
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
-                        self.range_button(ui, node, row, axis.label());
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.weak("name");
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
-                        self.name_button(ui, node, row, axis.label());
-                    }
-                });
+                let tagged: Vec<(&SlotRow, &str)> = rows
+                    .iter()
+                    .zip(Axis3::ALL)
+                    .map(|(row, axis)| (row, axis.label()))
+                    .collect();
+                ui.horizontal(|ui| self.tagged_doors(ui, node, &tagged, SlotDoor::Range));
+                ui.horizontal(|ui| self.tagged_doors(ui, node, &tagged, SlotDoor::Name));
             }
         }
     }
@@ -818,34 +813,70 @@ impl ViewerBehavior<'_> {
 
     /// **The doors under a row of held slot fields**
     /// ([`Self::held_slot_field_ui`]), each tagged by its field's name:
-    /// one line of range probes ([`Self::range_button`]) and naming
-    /// buttons ([`Self::name_button`]) — the line a vector's slot group
-    /// draws for its components — then each slot's notes
-    /// ([`Self::slot_notes_ui`]): its expression, its range reading, its
-    /// offer and its naming field.
+    /// one line of range probes and naming buttons
+    /// ([`Self::tagged_doors`], the vector group's), then each slot's
+    /// notes ([`Self::slot_notes_ui`]): its expression, its range
+    /// reading, its offer and its naming field.
+    ///
+    /// **Naming and offers wait on held edits**, as an expression does
+    /// ([`HELD_EDITS_FIRST`]): naming an argument's variable, or taking
+    /// an offer, makes the slot read a named variable, which moves the
+    /// program the draft was loaded from, and the draft would reload
+    /// over what it holds. While the draft is not `untouched` the name
+    /// buttons are not drawn and the notes leave out the offer.
     pub(crate) fn held_slot_doors_ui(
         &mut self,
         ui: &mut egui::Ui,
         node: RecipeNodeId,
         rows: &[(SlotRow, String)],
+        untouched: bool,
     ) {
+        let tagged: Vec<(&SlotRow, &str)> = rows
+            .iter()
+            .map(|(row, name)| (row, name.as_str()))
+            .collect();
         ui.horizontal(|ui| {
-            ui.weak("range");
-            for (row, name) in rows {
-                self.range_button(ui, node, row, name);
-            }
-            if rows
-                .iter()
-                .any(|(row, _)| self.unnamed(node, row).is_some())
+            self.tagged_doors(ui, node, &tagged, SlotDoor::Range);
+            if untouched
+                && rows
+                    .iter()
+                    .any(|(row, _)| self.unnamed(node, row).is_some())
             {
-                ui.weak("name");
-                for (row, name) in rows {
-                    self.name_button(ui, node, row, name);
-                }
+                self.tagged_doors(ui, node, &tagged, SlotDoor::Name);
             }
         });
         for (row, _) in rows {
-            self.slot_notes_ui(ui, node, row);
+            if untouched {
+                self.slot_notes_ui(ui, node, row);
+            } else {
+                self.slot_readings_ui(ui, node, row);
+            }
+        }
+    }
+
+    /// **One door per component, tagged**: `range` or `name`, then a
+    /// small button per row labelled by its tag — the line a vector's
+    /// group and a row of held fields both draw.
+    fn tagged_doors(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        rows: &[(&SlotRow, &str)],
+        door: SlotDoor,
+    ) {
+        match door {
+            SlotDoor::Range => {
+                ui.weak("range");
+                for (row, tag) in rows {
+                    self.range_button(ui, node, row, tag);
+                }
+            }
+            SlotDoor::Name => {
+                ui.weak("name");
+                for (row, tag) in rows {
+                    self.name_button(ui, node, row, tag);
+                }
+            }
         }
     }
 
@@ -1020,9 +1051,17 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// What a slot has to SAY, under its row ([`slot_notes`]), with the
-    /// session's range reading when one has been taken for this field.
+    /// What a slot has to SAY, under its row ([`Self::slot_readings_ui`]),
+    /// then its offer and its naming field.
     pub(crate) fn slot_notes_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        self.slot_readings_ui(ui, node, row);
+        self.offer_ui(ui, node, row.slot);
+        self.name_field_ui(ui, node, row.slot);
+    }
+
+    /// The notes a slot says under its row ([`slot_notes`]), with the
+    /// session's range reading when one has been taken for this field.
+    fn slot_readings_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
         let target = BoundsTarget::Slot {
             node,
             slot: row.slot,
@@ -1031,8 +1070,6 @@ impl ViewerBehavior<'_> {
         if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
             self.ops.push(SessionOp::Select(Selection::Variable(var)));
         }
-        self.offer_ui(ui, node, row.slot);
-        self.name_field_ui(ui, node, row.slot);
     }
 
     /// **The offer a typed value earns** (D10), under its row: each
@@ -1298,6 +1335,15 @@ impl ViewerBehavior<'_> {
 /// edits ([`ViewerBehavior::held_slot_field_ui`]).
 pub(crate) const HELD_EDITS_FIRST: &str = "an expression lands in the document at once, and the \
      editor reloads over the steps and numbers not yet applied — apply or revert them first";
+
+/// Which tagged door a line of them offers ([`ViewerBehavior::tagged_doors`]).
+#[derive(Clone, Copy, Debug)]
+enum SlotDoor {
+    /// The range probe.
+    Range,
+    /// The naming button.
+    Name,
+}
 
 /// What one gesture or keyboard edit of a held slot field does
 /// ([`ViewerBehavior::held_slot_field_ui`]).

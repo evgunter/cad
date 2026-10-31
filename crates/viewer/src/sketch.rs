@@ -47,7 +47,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
+    Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
     ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
     SlotId, SpokenNode, StepArg, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
     WrittenLoopFault, resolve_loops, resolve_written_loops,
@@ -396,9 +396,8 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
 pub struct HeldLoops {
     /// The loops, in description order.
     pub loops: Vec<Vec<Step<f64>>>,
-    /// Every argument an expression drives, with its source text, in
-    /// slot order.
-    pub driven: Vec<(SlotId, String)>,
+    /// Every argument an expression drives, in slot order.
+    pub driven: Vec<SlotId>,
 }
 
 /// **The loops of a committed profile as the editor holds them**
@@ -450,10 +449,7 @@ pub fn held_program(
     for slot in held.slots() {
         match held.expr(slot) {
             Some(&var) if doc.is_typed_value(var) => {}
-            Some(&var) => driven.push((
-                slot,
-                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
-            )),
+            Some(_) => driven.push(slot),
             None => unwritten.push(slot),
         }
     }
@@ -469,6 +465,34 @@ pub fn held_program(
             ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
         })?;
     Ok(HeldLoops { loops, driven })
+}
+
+/// **`step` with each of `readings` written at its role** — one
+/// held step's arguments set by role, through the document layer's own
+/// role table: the step lifted alone, each role's argument replaced by
+/// a literal of its reading, and resolved back. Every other argument
+/// is the literal it was, so it comes back bit for bit. `None` where
+/// the step does not lift alone or a role is not the step's.
+#[must_use]
+pub fn with_readings(step: Step<f64>, readings: &[(StepArg, f64)], tol: Tol) -> Option<Step<f64>> {
+    let mut lifted = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::from_recorded(&[step]).ok()?],
+        ids: Vec::new(),
+        on: None,
+    });
+    for &(arg, reading) in readings {
+        let slot = SlotId::Profile {
+            loop_: 0,
+            step: 0,
+            arg,
+        };
+        *lifted.expr_mut(slot)? = Formula::literal(reading, arg.dimension()).ok()?;
+    }
+    let Node::Profile(ProfileProgram { loops, .. }) = lifted else {
+        unreachable!("lifted as a profile node")
+    };
+    let resolved = resolve_written_loops(&loops, tol).ok()?;
+    resolved.into_iter().next()?.into_iter().next()
 }
 
 /// **`program` as it was written** ([`Node::written`]): each argument

@@ -19,7 +19,7 @@ use pncad::document::{
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepArg, StepId,
     VarId, VarName,
 };
-use pncad::geom_core::Point2;
+use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
 use pncad::quantity::UnitDef;
 use pncad::trace::TraceMarks;
@@ -28,7 +28,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
-use crate::props::Notation;
+use crate::props::{self, Notation};
 use crate::seats::SeatError;
 use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldLoops, HeldRefusal};
@@ -393,7 +393,7 @@ impl ProfileEdit {
             .collect();
         let written = Node::Profile(program.clone());
         let mut by_step: BTreeMap<StepId, Vec<(StepArg, Formula)>> = BTreeMap::new();
-        for (slot, _) in driven {
+        for slot in driven {
             let SlotId::Profile { loop_, step, arg } = slot else {
                 unreachable!(
                     "a profile lists only profile slots, and {} is not one",
@@ -502,22 +502,14 @@ impl ProfileEdit {
         sketch::path_shapes(&self.loops)
     }
 
-    /// **The committed slot each held row's arguments are**, for held
-    /// loop `loop_`: per row, the committed `(loop, step)` it is kept
-    /// as ([`Self::ids`]), `None` for a row that is no committed step.
-    /// An argument's slot is that position with its role, where the
-    /// committed step has that role.
-    pub(crate) fn kept_at(&self, loop_: usize) -> Vec<Option<(u32, u32)>> {
-        let position = self.positions();
-        self.ids()[loop_]
-            .iter()
-            .map(|id| position.get(&(*id)?).copied())
-            .collect()
-    }
-
-    /// Where each step of the base program stands in it, by id.
-    fn positions(&self) -> BTreeMap<StepId, (u32, u32)> {
-        self.base
+    /// **Which committed step each held row is, and where it stands**:
+    /// per loop, per row, the id it is kept as ([`Self::ids`]) and that
+    /// step's committed `(loop, step)`; `None` for a row that is no
+    /// committed step. An argument's committed slot is that position
+    /// with its role, where the committed step has that role.
+    fn kept(&self) -> Vec<Vec<Kept>> {
+        let position: BTreeMap<StepId, (u32, u32)> = self
+            .base
             .ids
             .iter()
             .enumerate()
@@ -525,6 +517,139 @@ impl ProfileEdit {
                 ids.iter()
                     .enumerate()
                     .map(move |(step, id)| (*id, (program_index(loop_), program_index(step))))
+            })
+            .collect();
+        self.ids()
+            .iter()
+            .map(|ids| {
+                ids.iter()
+                    .map(|id| {
+                        let id = (*id)?;
+                        Some((id, *position.get(&id)?))
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// [`Self::kept`]'s positions, for held loop `loop_`.
+    pub(crate) fn kept_at(&self, loop_: usize) -> Vec<Option<(u32, u32)>> {
+        self.kept()[loop_]
+            .iter()
+            .map(|kept| kept.map(|(_, at)| at))
+            .collect()
+    }
+
+    /// **Every driven argument of a kept step that the held step no
+    /// longer has** — a re-moded arc dropping the role an expression
+    /// drives — as the committed slot. The edit door cannot write the
+    /// program without writing over that expression, and its field is
+    /// locked, so it says what to do instead.
+    pub(crate) fn dropped_drivers(&self) -> Vec<SlotId> {
+        let Ok(loops) = self.programs(Notation::CANONICAL) else {
+            return Vec::new();
+        };
+        let held = Node::Profile(ProfileProgram {
+            loops,
+            ids: Vec::new(),
+            on: None,
+        });
+        let mut dropped = Vec::new();
+        for (loop_, rows) in self.kept().iter().enumerate() {
+            for (row, kept) in rows.iter().enumerate() {
+                let Some((id, (at_loop, at_step))) = *kept else {
+                    continue;
+                };
+                for (arg, _) in self.driven.get(&id).into_iter().flatten() {
+                    let here = SlotId::Profile {
+                        loop_: program_index(loop_),
+                        step: program_index(row),
+                        arg: *arg,
+                    };
+                    if held.expr(here).is_none() {
+                        dropped.push(SlotId::Profile {
+                            loop_: at_loop,
+                            step: at_step,
+                            arg: *arg,
+                        });
+                    }
+                }
+            }
+        }
+        dropped
+    }
+
+    /// **Read every driven argument off `landed`** — the document on
+    /// screen, a gesture's scratch included — into the held number
+    /// beside its expression. A driven field is locked, so the draft
+    /// never holds a person's number there: its number is the
+    /// expression's reading, and it moves when what the expression
+    /// reads moves (a variable set, dragged, undone), which is what the
+    /// preview draws. A reading that does not evaluate leaves the
+    /// number as it was; the door says why it waits
+    /// ([`Self::unread_drivers`]).
+    pub(crate) fn read_drivers(&mut self, landed: &Doc<ProfileProgram>, tol: Tol) {
+        let rows = props::slot_rows(landed, self.node);
+        let reading = |slot: SlotId| {
+            let row = rows.iter().find(|row| row.slot == slot)?;
+            row.driver.is_driven().then_some(())?;
+            row.value.as_ref().ok().map(|value| value.as_f64())
+        };
+        let kept = self.kept();
+        for (loop_, rows) in kept.iter().enumerate() {
+            for (row, kept) in rows.iter().enumerate() {
+                let Some((id, (at_loop, at_step))) = *kept else {
+                    continue;
+                };
+                let readings: Vec<(StepArg, f64)> = self
+                    .driven
+                    .get(&id)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|(arg, _)| {
+                        let slot = SlotId::Profile {
+                            loop_: at_loop,
+                            step: at_step,
+                            arg: *arg,
+                        };
+                        Some((*arg, reading(slot)?))
+                    })
+                    .collect();
+                if readings.is_empty() {
+                    continue;
+                }
+                if let Some(step) = sketch::with_readings(self.loops[loop_][row], &readings, tol) {
+                    self.loops[loop_][row] = step;
+                }
+            }
+        }
+    }
+
+    /// **Every driven argument of a kept step whose expression does not
+    /// evaluate in `landed`**, with the fault: Apply waits on them (a
+    /// variable they read deleted, say), since the number beside them
+    /// reads nothing.
+    pub(crate) fn unread_drivers(&self, landed: &Doc<ProfileProgram>) -> Vec<(SlotId, String)> {
+        let rows = props::slot_rows(landed, self.node);
+        self.kept()
+            .iter()
+            .flatten()
+            .flatten()
+            .flat_map(|(id, (loop_, step))| {
+                self.driven
+                    .get(id)
+                    .into_iter()
+                    .flatten()
+                    .map(move |(arg, _)| SlotId::Profile {
+                        loop_: *loop_,
+                        step: *step,
+                        arg: *arg,
+                    })
+            })
+            .filter_map(|slot| {
+                let row = rows.iter().find(|row| row.slot == slot)?;
+                let fault = row.value.as_ref().err()?;
+                Some((slot, fault.to_string()))
             })
             .collect()
     }
@@ -551,9 +676,8 @@ impl ProfileEdit {
     /// The expression is written wherever the kept step still has the
     /// role: a driven field holds its number locked, so there is no
     /// moved value it could be standing over. A step whose arc mode
-    /// dropped the role holds no such argument, and the edit door
-    /// refuses the program for the driven argument it would write
-    /// over.
+    /// dropped the role holds no such argument
+    /// ([`Self::dropped_drivers`]).
     ///
     /// # Errors
     ///
@@ -563,19 +687,14 @@ impl ProfileEdit {
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
-        let ids = self.ids();
-        let position = self.positions();
+        let kept = self.kept();
         let loops = self
             .loops
             .iter()
-            .zip(&ids)
-            .map(|(steps, ids)| {
-                let kept = |step: u32| {
-                    let id = (*ids.get(usize::try_from(step).ok()?)?)?;
-                    position.get(&id).copied()
-                };
+            .zip(&kept)
+            .map(|(steps, kept)| {
                 sketch::path_program(steps, notation, &|step, arg| {
-                    let (loop_, step) = kept(step)?;
+                    let (_, (loop_, step)) = (*kept.get(usize::try_from(step).ok()?)?)?;
                     noted(SlotId::Profile { loop_, step, arg })
                 })
             })
@@ -585,9 +704,9 @@ impl ProfileEdit {
             ids: Vec::new(),
             on: None,
         });
-        for (loop_, ids) in ids.iter().enumerate() {
-            for (step, id) in ids.iter().enumerate() {
-                let Some(driven) = id.and_then(|id| self.driven.get(&id)) else {
+        for (loop_, rows) in kept.iter().enumerate() {
+            for (step, kept) in rows.iter().enumerate() {
+                let Some(driven) = kept.and_then(|(id, _)| self.driven.get(&id)) else {
                     continue;
                 };
                 for (arg, expr) in driven {
@@ -635,10 +754,18 @@ impl ProfileEdit {
     }
 }
 
+/// A held row as a committed step: its id, and its committed
+/// `(loop, step)` ([`ProfileEdit::kept`]); `None` for a row that is no
+/// committed step.
+type Kept = Option<(StepId, (u32, u32))>;
+
 /// A position in a profile program as the slot vocabulary spells it.
 fn program_index(i: usize) -> u32 {
     let Ok(narrowed) = u32::try_from(i) else {
-        unreachable!("a collection of {i} elements does not fit in memory")
+        unreachable!(
+            "position {i}: a profile program is addressed by `SlotId`'s u32 positions, and a held \
+             program is one loaded from the document and edited a row per click"
+        )
     };
     narrowed
 }
@@ -961,10 +1088,14 @@ impl Drafts {
     /// document no longer holds the program it was loaded from (an
     /// undo, a redo, an apply), dropped when that reload refuses. It
     /// never LOADS a draft that is not held — opening one is the
-    /// pane's act ([`Self::profile_edit`]).
+    /// pane's act ([`Self::profile_edit`]). Then every driven argument
+    /// reads the `landed` document ([`ProfileEdit::read_drivers`]), so
+    /// what the expression reads moving moves the held outline.
     pub(crate) fn sync_profile_edit(
         &mut self,
         doc: &Doc<ProfileProgram>,
+        landed: &Doc<ProfileProgram>,
+        tol: Tol,
         selected: Option<RecipeNodeId>,
     ) {
         self.abandon_profile_edit_off(selected);
@@ -972,6 +1103,9 @@ impl Drafts {
             // A refusal drops the draft (`profile_edit`'s contract) and
             // is said by the pane when it next draws.
             let _refused = self.profile_edit(doc, node).is_err();
+        }
+        if let Some(edit) = self.profile_edit.as_mut() {
+            edit.read_drivers(landed, tol);
         }
     }
 
@@ -987,22 +1121,6 @@ impl Drafts {
                 loops: edit.shapes(),
             }),
         }
-    }
-
-    /// **Whether the edit door previews its draft** this frame, a
-    /// gesture's scratch document on screen or not (`scratch`).
-    ///
-    /// A scratch document moves what an untouched draft reads — a
-    /// variable dragged in its row moves every argument an expression
-    /// over it drives — and the draft is loaded from the committed
-    /// document. So over a scratch an untouched draft takes no preview,
-    /// and the committed pass draws the node as the scratch holds it,
-    /// following the drag. A draft holding edits keeps its preview:
-    /// those edits are what the person is looking at.
-    pub(crate) fn edit_previewed(&self, scratch: bool) -> bool {
-        self.profile_edit
-            .as_ref()
-            .is_some_and(|edit| !scratch || edit.differs_from_base())
     }
 
     /// **The committed profile the edit door is drawing in place of
@@ -1639,33 +1757,6 @@ mod tests {
         });
         let (doc, profile) = try_inserted(&doc, node, tol).expect("a profile");
         (doc, Drafts::default(), profile)
-    }
-
-    /// **An untouched edit draft gives way to a gesture's scratch
-    /// document, and a touched one does not.** Over the committed
-    /// document the edit door previews its draft; over a scratch (a
-    /// variable dragged, moving what the draft's arguments read) only a
-    /// draft holding edits does, so the node is otherwise drawn as the
-    /// scratch holds it. With no draft held there is nothing to preview.
-    #[test]
-    fn an_untouched_edit_draft_gives_way_to_a_gestures_scratch() {
-        let (doc, mut drafts, profile) = authored_by_the_form();
-        assert!(!drafts.edit_previewed(false), "no draft, no preview");
-        let edit = drafts.profile_edit(&doc, profile).expect("held");
-        assert!(!edit.differs_from_base());
-        assert!(
-            drafts.edit_previewed(false),
-            "the committed document under it"
-        );
-        assert!(
-            !drafts.edit_previewed(true),
-            "an untouched draft over a scratch"
-        );
-        drafts
-            .profile_edit(&doc, profile)
-            .expect("held")
-            .steps_mut(0)[1] = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
-        assert!(drafts.edit_previewed(true), "held edits keep their preview");
     }
 
     /// **A held step is its committed step through every row edit

@@ -77,8 +77,10 @@ impl ViewerBehavior<'_> {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
         let untouched = !edit.differs_from_base();
+        // The rows the panel reads: the landed document's, so a driven
+        // field's reading follows a drag of what it reads.
         let mut slots = PaneSlots {
-            rows: props::slot_rows(doc, node),
+            rows: props::slot_rows(session.doc(), node),
             pane: self,
             node,
             untouched,
@@ -146,7 +148,8 @@ impl SlotDoors for PaneSlots<'_, '_> {
             .iter()
             .filter_map(|(slot, name)| Some((self.rows_of(&[*slot]).pop()?, name.clone())))
             .collect();
-        self.pane.held_slot_doors_ui(ui, self.node, &named);
+        self.pane
+            .held_slot_doors_ui(ui, self.node, &named, self.untouched);
     }
 }
 
@@ -287,6 +290,11 @@ pub(crate) fn edit_door_ui(
         edit.edit_row(index, row);
     }
     let refused = preview_verdict(ui, theme, preview);
+    let held_up = drivers_hold(edit, session.doc());
+    if let Some(sentence) = &held_up {
+        crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
+    }
+    let refused = refused || held_up.is_some();
     let differs = edit.differs_from_base();
     let stranded = if differs {
         let base = edit.base().clone();
@@ -324,6 +332,48 @@ pub(crate) fn edit_door_ui(
         return Err(frame::tool_news(&FormKind::RevertProfile.refuses(&error)));
     }
     Ok(None)
+}
+
+/// **Why a driven argument holds Apply**, if one does — said under the
+/// step list, and Apply waits on it.
+///
+/// - A kept step that no longer has the role an expression drives (an
+///   arc re-moded) would write over the expression, and the field is
+///   locked: the way through is to un-drive it first, by writing a
+///   number over its expression in the step as it was.
+/// - An expression that does not evaluate on `landed` (a variable it
+///   reads deleted) leaves the number beside it reading nothing.
+fn drivers_hold(
+    edit: &ProfileEdit,
+    landed: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> Option<String> {
+    let labels = |slots: &[SlotId]| {
+        slots
+            .iter()
+            .map(|slot| slot.label())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let dropped = edit.dropped_drivers();
+    if !dropped.is_empty() {
+        return Some(format!(
+            "{} is driven by an expression, and the step no longer has that argument — revert, \
+             write a number over the expression, then change the step",
+            labels(&dropped)
+        ));
+    }
+    let unread = edit.unread_drivers(landed);
+    if unread.is_empty() {
+        return None;
+    }
+    let said: Vec<String> = unread
+        .iter()
+        .map(|(slot, fault)| format!("{}: {fault}", slot.label()))
+        .collect();
+    Some(format!(
+        "an expression driving this profile does not evaluate, so Apply waits for it — {}",
+        said.join("; ")
+    ))
 }
 
 /// **What the editor's preview says about its loops**, said under the
@@ -1795,5 +1845,283 @@ mod tests {
                 "{step:?}: the fields' roles are the walk's"
             );
         }
+    }
+
+    /// The far corner's x of the outline the edit door previews — what
+    /// the viewport draws in place of the committed profile — once the
+    /// draft is brought up to `session` as a frame brings it.
+    fn drawn_corner_x(
+        session: &crate::session::DocSession,
+        drafts: &mut Drafts,
+        profile: pncad::document::RecipeNodeId,
+    ) -> f64 {
+        drafts.sync_profile_edit(
+            session.committed_doc(),
+            session.doc(),
+            session.tol(),
+            Some(profile),
+        );
+        let held = drafts.door_loops().edit.expect("the edit door holds loops");
+        let ProfileShape::Path { steps } = &held.loops[0] else {
+            panic!("a held loop is a path")
+        };
+        match steps[2] {
+            Step::LineTo(Target::Point(corner)) => corner.x,
+            other => panic!("the far corner is a point leg: {other:?}"),
+        }
+    }
+
+    /// **The drawn outline follows what a driven argument reads**, set,
+    /// undone, dragged and released, over an untouched draft and over
+    /// one holding edits. The far corner's x reads `w`: a committed
+    /// value of `w` and its undo move the previewed corner; a drag of
+    /// `w` moves it while the pointer is down and it stays where the
+    /// release left it; and a draft holding another edit follows the
+    /// same drag, its edit kept.
+    #[test]
+    fn the_drawn_outline_follows_what_a_driven_argument_reads() {
+        use crate::props::SlotValue;
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+
+        let (mut session, profile) = square_session();
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.013),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot: corner(2, StepArg::TargetX),
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let var = session.committed_doc().var_named("w").expect("w declared");
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert_eq!(drawn_corner_x(&session, &mut drafts, profile), 0.013);
+        let perform = |session: &mut crate::session::DocSession, op| {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        };
+        perform(
+            &mut session,
+            SessionOp::SetVariable {
+                var,
+                value: SlotValue::Continuous(0.02),
+            },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.02,
+            "a committed value of w moves the drawn corner"
+        );
+        perform(&mut session, SessionOp::Undo);
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.013,
+            "and its undo moves it back"
+        );
+        perform(&mut session, SessionOp::BeginVariableGesture { var });
+        perform(
+            &mut session,
+            SessionOp::PreviewVariableGesture { var, value: 0.03 },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.03,
+            "mid-drag the drawn corner follows the scratch"
+        );
+        perform(&mut session, SessionOp::CommitVariableGesture { var });
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.03,
+            "after the release it stays where the drag left it"
+        );
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, 0.02)));
+        perform(&mut session, SessionOp::BeginVariableGesture { var });
+        perform(
+            &mut session,
+            SessionOp::PreviewVariableGesture { var, value: 0.04 },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.04,
+            "a draft holding edits follows the drag too"
+        );
+        perform(&mut session, SessionOp::CommitVariableGesture { var });
+        assert_eq!(drawn_corner_x(&session, &mut drafts, profile), 0.04);
+        let edit = drafts.profile_edit.as_ref().expect("still held");
+        assert!(
+            matches!(edit.loops()[0][3], Step::LineTo(Target::Point(p)) if p.y == 0.02),
+            "the held edit is kept"
+        );
+    }
+
+    /// The edit door painted over the draft `drafts` holds of
+    /// `profile`, and whether its Apply formed an op when clicked.
+    fn door_says(
+        session: &crate::session::DocSession,
+        drafts: &mut Drafts,
+        profile: pncad::document::RecipeNodeId,
+    ) -> (String, bool) {
+        drafts.sync_profile_edit(
+            session.committed_doc(),
+            session.doc(),
+            session.tol(),
+            Some(profile),
+        );
+        let painted = crate::pane::headless::painted_text(|ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let _read_only = super::edit_door_ui(
+                ui,
+                session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
+                None,
+            );
+        });
+        let (_, formed) = click_door(session, drafts, profile, "Apply", 0);
+        (painted, formed.is_some())
+    }
+
+    /// **An arc re-moded off the argument an expression drives says
+    /// what to do, and Apply waits.** The first leg is an arc to a
+    /// point whose x reads `w`; re-moded to a radius arc, which has no
+    /// target, the door says the argument is driven and how through,
+    /// and Apply forms nothing. The way it names lands: reverted, the
+    /// expression written over by a number, the same re-mode applies.
+    #[test]
+    fn an_arc_re_moded_off_its_driven_argument_says_what_to_do() {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+        use pncad::profile::{ArcData, ArcMode};
+
+        let tol = Tol::witness();
+        let mut steps = Drafts::default().profile_path;
+        steps[1] = Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 0.3,
+        });
+        let loops = vec![
+            sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
+                .expect("lowers"),
+        ];
+        let (doc, profile) = inserted(
+            &Doc::empty_derived("remode", tol),
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+                on: None,
+            }),
+            tol,
+        );
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        let slot = corner(1, StepArg::TargetX);
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.01),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let remode = |drafts: &mut Drafts, session: &crate::session::DocSession| {
+            drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held")
+                .steps_mut(0)[1] = Step::ArcTo(sketch::fresh_arc(ArcMode::Radius));
+        };
+        let mut drafts = Drafts::default();
+        remode(&mut drafts, &session);
+        let (painted, formed) = door_says(&session, &mut drafts, profile);
+        assert!(
+            painted.contains(&format!(
+                "{} is driven by an expression, and the step no longer has that argument",
+                slot.label()
+            )),
+            "{painted}"
+        );
+        assert!(!formed, "Apply waits on the driven argument");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
+        assert!(formed.is_none());
+        let out = session.perform(SessionOp::SetSlotExpression {
+            node: profile,
+            slot,
+            text: "0.01 m".to_owned(),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            !row_of(&session, profile, slot).driver.is_driven(),
+            "a number written over the expression un-drives it"
+        );
+        remode(&mut drafts, &session);
+        let (_, formed) = door_says(&session, &mut drafts, profile);
+        assert!(formed, "the re-mode now applies");
+    }
+
+    /// **A driving variable deleted under held edits holds Apply, and
+    /// says why.** The far corner's x reads `w`; with another corner
+    /// moved in the draft, `w` is deleted: the door says the
+    /// expression does not evaluate, naming the argument, and Apply
+    /// forms nothing rather than writing a reader of nothing.
+    #[test]
+    fn a_deleted_driving_variable_holds_apply_and_says_why() {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+
+        let (mut session, profile) = square_session();
+        let slot = corner(2, StepArg::TargetX);
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.013),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let var = session.committed_doc().var_named("w").expect("w declared");
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, 0.02)));
+        let out = session.perform(SessionOp::DeleteVar { var });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let (painted, formed) = door_says(&session, &mut drafts, profile);
+        assert!(
+            painted.contains("does not evaluate, so Apply waits for it")
+                && painted.contains(slot.label().as_str()),
+            "{painted}"
+        );
+        assert!(!formed, "Apply forms nothing over an unread expression");
+        assert!(
+            drafts.profile_edit.is_some(),
+            "the held edits are kept for the person to revert or repair"
+        );
     }
 }

@@ -522,8 +522,8 @@ fn a_kept_driven_argument_is_not_written_over() {
 /// **A driven argument loads, its expression held beside its
 /// number.** The step holds what the expression reads under the
 /// document — which is what the preview draws — and the load names the
-/// argument with its source, so a commit can write the expression back
-/// rather than the number. A node that is no profile still refuses.
+/// argument, so a commit can write the expression back rather than the
+/// number. A node that is no profile still refuses.
 #[test]
 fn a_driven_argument_loads_beside_its_expression() {
     let loops = [ProfileShape::Path {
@@ -548,11 +548,7 @@ fn a_driven_argument_loads_beside_its_expression() {
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let held =
         sketch::held_loops(session.committed_doc(), profile).expect("a driven program loads");
-    assert_eq!(
-        held.driven,
-        vec![(slot, "side".to_owned())],
-        "the driven argument is named with its source"
-    );
+    assert_eq!(held.driven, vec![slot], "the driven argument is named");
     match held.loops[0][2] {
         Step::LineTo(Target::Point(point)) => assert_eq!(
             (point.x, point.y),
