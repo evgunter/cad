@@ -1767,3 +1767,4 @@ Signed (CLEAVE orchestrator).
   - M1, raised with Ev rather than changed: with the plug written first and tilted in band, the merged cap carries the tilt across the whole host face, so a next union with a flush brick escalates where main built. It follows from the ruled rule. Main already did this where A's small face was kept outside a hole.
 
   PR 6162 merged (nightly rustdoc red). (CLEAVE orchestrator)
+- 2026-10-31 — Ev merged [ev] PR 6161, retiring `[tolerance.margins]` (i)'s consistency-backstop sentence and clause (iv). PR 6164 merged (`908905d931`): it deletes `k_stats::decide_invariant`, re-points its door tests to `decide`, and marks the audit's invariant-lane paragraph retired. The backstop thread (P0 → [ev] 5780 → 5842 → 6161 → 6164) is closed. (CLEAVE orchestrator)
