@@ -198,7 +198,8 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
         for (authored_in, other) in [(Notation::CANONICAL, MM), (MM, Notation::CANONICAL)] {
             let (mut session, profile) = with_profile(&loops, authored_in);
             let held = sketch::held_loops(session.committed_doc(), profile)
-                .unwrap_or_else(|refusal| panic!("{name}: the editor refused it: {refusal}"));
+                .unwrap_or_else(|refusal| panic!("{name}: the editor refused it: {refusal}"))
+                .loops;
             assert_eq!(held.len(), loops.len(), "{name}: one held list per loop");
             for notation in [authored_in, other] {
                 let committed =
@@ -260,7 +261,8 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
             },
         );
         let held = sketch::held_program(pncad::document::SpokenNode::absent(node), &program, &doc)
-            .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
+            .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"))
+            .loops;
         let back = lowered(&held, MM);
         let written = sketch::written_program(&doc, &program);
         assert!(
@@ -307,7 +309,9 @@ fn a_moved_number_is_one_edit_and_undoes() {
         Some("mm"),
         "the premise: the program was not authored in the editor's notation"
     );
-    let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    let mut held = sketch::held_loops(session.committed_doc(), profile)
+        .expect("held")
+        .loops;
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(edit_of(&session, profile, lowered(&held, MM)));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
@@ -333,7 +337,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
         "what did not move keeps the notation it was authored in"
     );
     let edited = session.committed_doc().clone();
-    let reloaded = sketch::held_loops(&edited, profile).expect("held");
+    let reloaded = sketch::held_loops(&edited, profile).expect("held").loops;
     assert!(
         sketch::authors_same_loops(&sketch::path_shapes(&reloaded), &sketch::path_shapes(&held)),
         "the editor reloads what it applied"
@@ -371,7 +375,9 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     let before = session.committed_doc().clone();
     let base = sketch::written_program(session.committed_doc(), program(&session, profile));
     let kept = base.kept_in_place();
-    let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    let held = sketch::held_loops(session.committed_doc(), profile)
+        .expect("held")
+        .loops;
     let mut longer = (held.clone(), kept.clone());
     longer.0[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
     longer.1[0].insert(4, None);
@@ -437,10 +443,10 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
 }
 
 /// **A kept argument an expression drives is not written over.** The
-/// editor cannot hold such a program, but the op is the API's too: a
-/// program that moves the driven argument refuses with the slot
-/// field's affordance, naming the slot; one that leaves it as it was
-/// lands, and the expression is still what drives it.
+/// editor writes such an argument back as its expression, but the op
+/// is the API's too: a program that moves the driven argument refuses
+/// with the slot field's affordance, naming the slot; one that leaves
+/// it as it was lands, and the expression is still what drives it.
 #[test]
 fn a_kept_driven_argument_is_not_written_over() {
     let loops = [ProfileShape::Path {
@@ -513,20 +519,20 @@ fn a_kept_driven_argument_is_not_written_over() {
     );
 }
 
-/// **A program the editor cannot hold refuses to load, naming why.**
-/// An argument an expression drives has no plain number a `Step` could
-/// hold, and writing the number it evaluates to back over it would
-/// rewrite the computation — so the load refuses, naming the driven
-/// argument and its source, rather than dropping or flattening it.
+/// **A driven argument loads, its expression held beside its
+/// number.** The step holds what the expression reads under the
+/// document — which is what the preview draws — and the load names the
+/// argument with its source, so a commit can write the expression back
+/// rather than the number. A node that is no profile still refuses.
 #[test]
-fn a_driven_argument_refuses_to_load() {
+fn a_driven_argument_loads_beside_its_expression() {
     let loops = [ProfileShape::Path {
         steps: square(0.0, 0.01),
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::DeclareVar {
         name: VarName::from_static("side"),
-        value: FreeVar::continuous(Dimension::Length, 0.01),
+        value: FreeVar::continuous(Dimension::Length, 0.013),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let slot = SlotId::Profile {
@@ -540,26 +546,20 @@ fn a_driven_argument_refuses_to_load() {
         text: "side".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    session.perform(SessionOp::SetLabel {
-        node: profile,
-        label: Some(pncad::document::Label::new("outline").expect("a label")),
-    });
-    match sketch::held_loops(session.committed_doc(), profile) {
-        Err(refusal @ HeldRefusal::Driven { .. }) => {
-            assert!(
-                refusal.to_string().starts_with("Profile \"outline\" ("),
-                "it names the profile as labelled: {refusal}"
-            );
-            let HeldRefusal::Driven { node, slots } = &refusal else {
-                unreachable!("matched above")
-            };
-            assert_eq!(node.id(), profile);
-            assert_eq!(slots.as_slice(), &[(slot, "side".to_owned())]);
-            let said = refusal.to_string();
-            assert!(said.contains("side"), "{said}");
-            assert!(said.contains(slot.label().as_str()), "{said}");
-        }
-        other => panic!("a driven argument loaded: {other:?}"),
+    let held =
+        sketch::held_loops(session.committed_doc(), profile).expect("a driven program loads");
+    assert_eq!(
+        held.driven,
+        vec![(slot, "side".to_owned())],
+        "the driven argument is named with its source"
+    );
+    match held.loops[0][2] {
+        Step::LineTo(Target::Point(point)) => assert_eq!(
+            (point.x, point.y),
+            (0.013, 0.01),
+            "the step holds what the expression reads"
+        ),
+        other => panic!("the corner step loaded as {other:?}"),
     }
     assert!(matches!(
         sketch::held_loops(session.committed_doc(), RecipeNodeId::new(0, 0)),
@@ -577,7 +577,9 @@ fn an_invalid_program_refuses_as_itself() {
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
-    let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    let mut held = sketch::held_loops(session.committed_doc(), profile)
+        .expect("held")
+        .loops;
     // Swap the two far corners: the loop crosses itself.
     held[0][2] = Step::LineTo(Target::Point(Point2::new(0.0, 0.01)));
     held[0][3] = Step::LineTo(Target::Point(Point2::new(0.01, 0.01)));
@@ -639,7 +641,9 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
         "one whole-program edit: {:?}",
         out.committed
     );
-    let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    let held = sketch::held_loops(session.committed_doc(), profile)
+        .expect("held")
+        .loops;
     assert!(sketch::authors_same_loops(
         &sketch::path_shapes(&held),
         &sketch::path_shapes(&[moved])
@@ -688,7 +692,9 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         label: Some(pncad::document::Label::new("outline").expect("a label")),
     });
     let loaded = sketch::written_program(session.committed_doc(), program(&session, profile));
-    let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    let mut held = sketch::held_loops(session.committed_doc(), profile)
+        .expect("held")
+        .loops;
     // Something else moves corner 2 first.
     let out = session.perform(SessionOp::SetSlot {
         node: profile,

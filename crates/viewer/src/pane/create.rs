@@ -792,7 +792,7 @@ impl ViewerBehavior<'_> {
                     ui,
                     "path",
                     self.session.tol(),
-                    (self.notation.length.def(), self.notation.angle.def()),
+                    &mut crate::widgets::WrittenIn::of(*self.notation),
                     &mut self.drafts.profile_path,
                 ) {
                     row.apply(&mut self.drafts.profile_path);

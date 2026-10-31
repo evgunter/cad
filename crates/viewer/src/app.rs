@@ -2015,6 +2015,10 @@ impl eframe::App for ViewerApp {
                 .and_then(|shown| shown.read.as_ref().ok())
                 .map(|marks| Ok(sketch::trace_preview(marks)));
         }
+        let scratch = !core::ptr::eq(self.session.doc(), self.session.committed_doc());
+        if !self.drafts.edit_previewed(scratch) {
+            profile_previews.edit = None;
+        }
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
@@ -6978,6 +6982,238 @@ mod properties_pane_tests {
                 session.sketch_trace(&bottom, &wall),
                 Err(SketchTraceFault::Unevaluated)
             ));
+        }
+    }
+
+    /// **The profile editor's fields are the profile's slots**: the
+    /// startup plate's profile, opened in the editor from the Properties
+    /// pane, offers each argument's expression, unit and range at the
+    /// argument's own field.
+    mod profile_editor_fields {
+        use eframe::egui;
+        use pncad::document::{RecipeNodeId, SlotId, StepArg};
+        use pncad::profile::{Step, Target};
+
+        use super::{Driven, startup_node};
+        use crate::session::{BoundsTarget, Selection, SessionOp};
+
+        /// The startup plate's profile.
+        fn profile() -> RecipeNodeId {
+            startup_node(0)
+        }
+
+        /// Argument `arg` of the outline's step `step`.
+        fn outline(step: u32, arg: StepArg) -> SlotId {
+            SlotId::Profile {
+                loop_: 0,
+                step,
+                arg,
+            }
+        }
+
+        /// Where the `nth` run `wanted` accepts was painted.
+        fn nth(
+            painted: &[(String, egui::Rect)],
+            wanted: impl Fn(&str) -> bool,
+            n: usize,
+        ) -> egui::Pos2 {
+            let hits: Vec<egui::Pos2> = painted
+                .iter()
+                .filter(|(run, _)| wanted(run))
+                .map(|(_, rect)| rect.center())
+                .collect();
+            *hits
+                .get(n)
+                .unwrap_or_else(|| panic!("no run number {n} of {hits:?} in {painted:?}"))
+        }
+
+        /// A press at `at`, a pointer held down and moved `steps`
+        /// frames rightward, `check` read while it is still down, then
+        /// the release.
+        fn drag(driven: &mut Driven, at: egui::Pos2, steps: usize, check: impl FnOnce(&Driven)) {
+            let button = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![button(at, true)]);
+            let mut to = at;
+            for _ in 0..steps {
+                to += egui::vec2(12.0, 0.0);
+                driven.frame(vec![egui::Event::PointerMoved(to)]);
+            }
+            check(driven);
+            driven.frame(vec![button(to, false)]);
+            driven.frame(Vec::new());
+        }
+
+        /// The held draft's outline, step `step`.
+        fn held_step(driven: &Driven, step: usize) -> Step<f64> {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("the editor holds the profile")
+                .loops()[0][step]
+        }
+
+        /// **A driven argument opens in the editor, shows its
+        /// expression, and its number is locked.** The outline's far
+        /// corner's x read from a variable: the editor holds the
+        /// profile rather than refusing it, says the expression at that
+        /// argument, and a drag over its field moves neither the draft
+        /// nor the document.
+        #[test]
+        fn a_driven_argument_opens_in_the_editor_with_its_number_locked() {
+            let slot = outline(2, StepArg::TargetX);
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: pncad::document::VarName::from_static("w"),
+                    value: pncad::document::FreeVar::continuous(
+                        pncad::document::Dimension::Length,
+                        0.07,
+                    ),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot,
+                    text: "w".to_owned(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            let painted = driven.quiet();
+            let runs: Vec<&str> = painted.iter().map(|(run, _)| run.as_str()).collect();
+            assert!(
+                !runs.iter().any(|run| run.contains("cannot hold")),
+                "the editor holds a driven profile: {runs:?}"
+            );
+            assert!(
+                runs.iter().any(|run| run.contains("= w")),
+                "the driven argument says its expression: {runs:?}"
+            );
+            let before = held_step(&driven, 2);
+            let Step::LineTo(Target::Point(corner)) = before else {
+                panic!("the far corner is a point leg: {before:?}")
+            };
+            assert_eq!(
+                corner.x, 0.07,
+                "the held number is the expression's reading"
+            );
+            let committed = driven.app.session.committed_doc().clone();
+            // The driven field is the one whose text is the driven
+            // marker and its reading.
+            let marker = format!("{} ", crate::props::DRIVEN);
+            let at = nth(&painted, |run| run.starts_with(&marker), 0);
+            drag(&mut driven, at, 6, |_| {});
+            driven.settle();
+            let Step::LineTo(Target::Point(after)) = held_step(&driven, 2) else {
+                panic!("still a point leg")
+            };
+            assert_eq!(after.x, 0.07, "a drag over the driven field moves nothing");
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&committed),
+                "nor does it reach the document"
+            );
+        }
+
+        /// **A live drag in the editor's field moves the drawn outline,
+        /// and only the draft.** While the pointer is still down, the
+        /// held anchor has moved, the loops the edit door previews are
+        /// the moved ones, and the session holds no gesture: the
+        /// document on screen is the committed one.
+        #[test]
+        fn a_drag_in_the_editor_moves_the_outline_live() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            let painted = driven.quiet();
+            let before = held_step(&driven, 0);
+            let Step::At(start) = before else {
+                panic!("the outline opens with its anchor: {before:?}")
+            };
+            // A field's name is painted as its own run.
+            let at = nth(&painted, |run| run == "x ", 0);
+            drag(&mut driven, at, 6, |driven| {
+                let Step::At(moved) = held_step(driven, 0) else {
+                    panic!("still the anchor")
+                };
+                assert!(
+                    moved.x > start.x,
+                    "the held anchor follows the drag: {moved:?}"
+                );
+                let held = driven
+                    .app
+                    .drafts
+                    .door_loops()
+                    .edit
+                    .expect("the edit door's loops");
+                let crate::session::ProfileShape::Path { steps } = &held.loops[0] else {
+                    panic!("a held loop is a path")
+                };
+                assert!(
+                    matches!(steps[0], Step::At(p) if p.x == moved.x),
+                    "what the viewport previews is the moved anchor"
+                );
+                assert!(
+                    driven
+                        .app
+                        .session
+                        .doc()
+                        .bit_eq(driven.app.session.committed_doc()),
+                    "no gesture holds a scratch document"
+                );
+            });
+        }
+
+        /// **A unit change and a range probe made at the editor's field
+        /// are the slot row's own operations.** The anchor's x is
+        /// re-noted in millimetres first, so its point's one picker
+        /// reads `mixed`; picking centimetres there writes both
+        /// coordinates (`SetSlotUnit`), and the row's x range button
+        /// asks the probe for that slot (`ProbeBounds`).
+        #[test]
+        fn a_unit_change_and_a_range_probe_at_the_field_reach_the_slot_ops() {
+            let x = outline(0, StepArg::PointX);
+            let y = outline(0, StepArg::PointY);
+            let mut driven = Driven::with(vec![
+                SessionOp::SetSlotUnit {
+                    node: profile(),
+                    slot: x,
+                    unit: pncad::quantity::MM.def(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            driven.click("mixed");
+            driven.click("cm");
+            driven.settle();
+            for slot in [x, y] {
+                assert_eq!(
+                    driven.row(profile(), slot).unit,
+                    Some(pncad::quantity::CM.def()),
+                    "{} is written in the unit picked",
+                    slot.label()
+                );
+            }
+            let painted = driven.quiet();
+            // The row's range buttons are tagged by field: the first
+            // `x` run that is a button alone is the anchor's.
+            let at = nth(&painted, |run| run == "x", 0);
+            driven.click_at(at);
+            driven.settle();
+            assert_eq!(
+                driven
+                    .app
+                    .session
+                    .bounds()
+                    .map(|reading| reading.target.clone()),
+                Some(BoundsTarget::Slot {
+                    node: profile(),
+                    slot: x,
+                }),
+                "the probe ran for the anchor's x"
+            );
         }
     }
 }
