@@ -1020,3 +1020,90 @@ fn an_unused_variables_row_selects_the_variable() {
         rows[1].sentence
     );
 }
+
+/// **A labelled creation's label is saved and reopened with its node**:
+/// the file carries the one `SetLabel`, and the reopened document's row
+/// leads with the label. (How many undos the reopened action costs is
+/// `an-action-of-several-edits-becomes-several-undos-after-reopen`'s
+/// subject, and is not pinned here.)
+#[test]
+fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-reopen", tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
+    let mut session = DocSession::inline(doc, tol);
+    let creation = Creation::of(SessionOp::AddExtrude {
+        profile,
+        distance: common::len(0.01),
+    })
+    .unwrap_or_else(|op| panic!("{op:?} creates a node"));
+    let text = "base plate — 板";
+    let outcome = session.perform(SessionOp::CreateLabelled {
+        creation,
+        label: label(text),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let node = viewer::world::made(session.committed_doc(), &outcome.minted).expect("made a node");
+
+    let dir = common::tempdir("node-labels-reopen");
+    let path = dir.join("plate.pncad");
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+
+    let mut reopened = DocSession::inline(Doc::empty_derived("viewer-node-labels-other", tol), tol);
+    let opened = reopened.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert_eq!(reopened.committed_doc().label(node), Some(&label(text)));
+    assert_eq!(
+        headline(&reopened.committed_doc().spoken(node), None).lead,
+        text,
+        "the reopened row leads with the label"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A degenerate creation still mints the node its label lands on**: a
+/// pattern of one and a body less itself (the typed empty body) are
+/// accepted, so `commit_creation`'s "an accepted run mints" holds on
+/// them and each is labelled in its one action.
+#[test]
+fn a_degenerate_creation_still_mints_the_node_it_labels() {
+    use viewer::session::PatternRuleSpec;
+    let tol = Tol::witness();
+    let (doc, block) = extruded("viewer-node-labels-degenerate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let degenerate = [
+        SessionOp::AddPattern {
+            input: block.into(),
+            count: 1,
+            rule: PatternRuleSpec::Linear {
+                direction: common::scl3([1.0, 0.0, 0.0]),
+                spacing: common::len(0.05),
+            },
+        },
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Subtract {
+                from: block.into(),
+                tool: block.into(),
+            },
+        },
+    ];
+    for op in degenerate {
+        let what = format!("{op:?}");
+        let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+        let outcome = session.perform(SessionOp::CreateLabelled {
+            creation,
+            label: label("degenerate"),
+        });
+        assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+        let node = viewer::world::made(session.committed_doc(), &outcome.minted)
+            .unwrap_or_else(|| panic!("{what} made a node"));
+        assert_eq!(
+            session.committed_doc().label(node),
+            Some(&label("degenerate")),
+            "{what}"
+        );
+        session.perform(SessionOp::Undo);
+    }
+}
