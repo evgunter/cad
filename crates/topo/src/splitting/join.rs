@@ -783,6 +783,36 @@ fn conic_pairs<T: Decide>(
         .collect())
 }
 
+/// [`conic_pairs`] over bare sites, each its point, whether it starts at
+/// an above end, and the section's direction into the face there; the
+/// pairs come back as site indices. The boolean's turn order is held
+/// against this walk (`boolean/join_walk_order_rows.rs`).
+#[cfg(test)]
+pub(crate) fn conic_pairs_of_sites<T: Decide>(
+    wall: &geom::Surface<T>,
+    conic: &SectionConic<T>,
+    sites: &[(Point3<T>, bool, geom_core::Vec3<T>)],
+    band: Band,
+) -> Result<Vec<(usize, usize)>, SplitJoinError> {
+    let mut halves = slotmap::SlotMap::<HalfEdgeKey, usize>::with_key();
+    let crossings: Vec<_> = sites
+        .iter()
+        .enumerate()
+        .map(|(i, &(point, down, leave))| Crossing {
+            half: halves.insert(i),
+            point,
+            down,
+            leave,
+            germ: None,
+        })
+        .collect();
+    let pairs = conic_pairs(FaceKey::default(), wall, conic, &crossings, band)?;
+    Ok(pairs
+        .into_iter()
+        .map(|(a, b)| (halves[a], halves[b]))
+        .collect())
+}
+
 /// A cycle of crossings along a section, from its `runs` at one point
 /// each, with each run of two or more put in the order its context
 /// fixes. A run is where the section touches the face's boundary: from
