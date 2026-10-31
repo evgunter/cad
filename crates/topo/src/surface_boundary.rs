@@ -294,4 +294,55 @@ mod tests {
             assert_eq!(ends, want, "from {k}: the free ends");
         }
     }
+
+    #[test]
+    fn review_probe_y_spur() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let a = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let b = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: a.he_minus,
+                    he2: a.he_minus,
+                },
+                Point3::new(2.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let c = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: a.he_minus,
+                    he2: a.he_minus,
+                },
+                Point3::new(1.0, 1.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let cycle = body.loop_cycle(a.he_plus).unwrap();
+        assert_eq!(cycle.len(), 6);
+        let mut want = vec![seed.vertex, b.vertex, c.vertex];
+        want.sort();
+        for k in 0..cycle.len() {
+            let mut r = cycle.clone();
+            r.rotate_left(k);
+            let img = chart_image(&body, &r).unwrap();
+            assert_eq!(img.half_edges, Vec::new(), "from {k}");
+            let mut t = img.tips;
+            t.sort();
+            assert_eq!(t, want, "from {k}: Y tips");
+        }
+        let mut t = surface_cycles(&body, seed.face).unwrap().tips;
+        t.sort();
+        assert_eq!(t, want);
+    }
 }

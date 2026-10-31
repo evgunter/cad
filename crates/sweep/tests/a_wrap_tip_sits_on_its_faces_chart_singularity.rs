@@ -664,3 +664,216 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
         "the cone flipped: the side reader alone"
     );
 }
+
+// ---------------------------------------------------------------- review probes (6116)
+
+fn probe_side(
+    body: &Body<f64>,
+    face: FaceKey,
+    axis: Vec3<f64>,
+    held: &[Point3<f64>],
+) -> geom_brep::props::MaterialSign {
+    let f = body.get_face(face).unwrap();
+    let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
+    let mut surface = body.get_surface(f.surface).unwrap().clone();
+    if let geom::Surface::Sphere { axis: a, .. } = &mut surface {
+        *a = axis;
+    } else {
+        panic!("sphere")
+    }
+    let band = Band::linear(tol()).unwrap();
+    geom_brep::props::boundary_material_sign_holding(&surface, &[&image], held, band).unwrap()
+}
+
+#[test]
+fn review_probe_sphere_side_rule() {
+    use geom_brep::props::MaterialSign::{Encoded, Unencoded};
+    let (body, face, tip) = small_tip_cap();
+    let sense = body.get_face(face).unwrap().sense;
+    let s = if sense {
+        geom_core::Sign::Positive
+    } else {
+        geom_core::Sign::Negative
+    };
+    let claimed = Encoded(s);
+    let other = Encoded(s.flip());
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    // the tip census of the cap's loop: exactly the pole
+    let f = body.get_face(face).unwrap();
+    let (_, cycle) = topo::props::loop_edges(&body, f.outer).unwrap();
+    let img = topo::surface_boundary::chart_image(&body, &cycle).unwrap();
+    assert_eq!(img.tips, vec![tip], "cap tips");
+    let sb = topo::surface_boundary::surface_cycles(&body, face).unwrap();
+    assert_eq!(sb.tips, vec![tip], "cap surface tips");
+    assert!((point(&body, tip) - NORTH).norm() == 0.0);
+    // tilted: the pole 20 degrees off the cap's centre, still inside
+    let t = 20f64.to_radians();
+    let a = Vec3::new(-t.sin(), t.cos(), 0.0);
+    let pa = Point3::new(-t.sin(), t.cos(), 0.0);
+    assert_eq!(
+        probe_side(&body, face, a, &[pa]),
+        claimed,
+        "tilted, held at its pole"
+    );
+    assert_eq!(probe_side(&body, face, a, &[]), Unencoded, "tilted, bare");
+    assert_eq!(
+        probe_side(&body, face, a, &[NORTH]),
+        Unencoded,
+        "tilted, held off the pole"
+    );
+    // both poles outside the cap: the cap holds none -> claimed; complement holds both
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let (px, mx) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
+    assert_eq!(probe_side(&body, face, x, &[]), claimed, "x-axis bare");
+    assert_eq!(
+        probe_side(&body, face, x, &[px, mx]),
+        other,
+        "x-axis holding both tips"
+    );
+    assert_eq!(
+        probe_side(&body, face, x, &[mx, px]),
+        other,
+        "x-axis holding both, reordered"
+    );
+    assert_eq!(
+        probe_side(&body, face, x, &[px]),
+        Unencoded,
+        "x-axis holding one"
+    );
+    // in band
+    let band = Band::linear(tol()).unwrap();
+    let d = (band.zero() * band.escalate()).sqrt();
+    let near_n = Point3::new(d, (1.0 - d * d).sqrt(), 0.0);
+    assert_eq!(
+        probe_side(&body, face, y, &[near_n]),
+        claimed,
+        "N in band: unread, S decides"
+    );
+    let off_n = Point3::new(0.01, (1.0f64 - 1e-4).sqrt(), 0.0);
+    assert_eq!(
+        probe_side(&body, face, y, &[off_n]),
+        Unencoded,
+        "N clearly off: not own"
+    );
+    let near_mx = Point3::new(-(1.0 - d * d).sqrt(), d, 0.0);
+    assert_eq!(
+        probe_side(&body, face, x, &[near_mx]),
+        claimed,
+        "-x in band: unread, +x decides"
+    );
+    assert_eq!(
+        probe_side(&body, face, x, &[px, near_mx]),
+        other,
+        "+x held, -x in band"
+    );
+    // in band of N with exact N too (two held near one pole)
+    assert_eq!(
+        probe_side(&body, face, y, &[NORTH, near_n]),
+        claimed,
+        "exact+in band"
+    );
+    eprintln!(
+        "reverse order: {:?}",
+        probe_side(&body, face, y, &[near_n, NORTH])
+    );
+}
+
+#[test]
+fn review_probe_region_reader_on_tip_cap() {
+    let (body, face, _) = small_tip_cap();
+    let f = body.get_face(face).unwrap();
+    let surface = body.get_surface(f.surface).unwrap();
+    let image = topo::props::chart_image_edges(&body, f.outer).unwrap().0;
+    let full = topo::props::loop_edges(&body, f.outer).unwrap().0;
+    let band = Band::linear(tol()).unwrap();
+    let loops = geom_brep::props::seam_loops(surface, &[&image], &[&full], band);
+    eprintln!("seam_loops: {:?}", loops.as_ref().err());
+    eprintln!(
+        "seam_loops image-only: {:?}",
+        geom_brep::props::seam_loops(surface, &[&image], &[&image], band)
+            .map(|l| geom_brep::props::sphere_region_material_sign(&l, band))
+    );
+    if let Ok(l) = loops {
+        eprintln!(
+            "region side: {:?}  sense {}",
+            geom_brep::props::sphere_region_material_sign(&l, band),
+            f.sense
+        );
+    }
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    eprintln!("flipped: {:?}", topo::validate_geometric(&flipped, tol()));
+}
+
+#[test]
+fn review_probe_one_face_ball() {
+    let (ball, face, _) = one_face_ball();
+    eprintln!("ball: {:?}", topo::validate_geometric(&ball, tol()));
+    let f = ball.get_face(face).unwrap();
+    let (_, cycle) = topo::props::loop_edges(&ball, f.outer).unwrap();
+    let img = topo::surface_boundary::chart_image(&ball, &cycle).unwrap();
+    eprintln!(
+        "ball tips {:?} image {}",
+        img.tips.len(),
+        img.half_edges.len()
+    );
+    let flipped = ball.flipped_face_sense_for_tests(face).unwrap();
+    eprintln!(
+        "ball flipped: {:?}",
+        topo::validate_geometric(&flipped, tol())
+    );
+}
+
+#[test]
+fn review_probe_no_spur_and_seam() {
+    // hemisphere: two lunes meeting at the pole, no spur
+    let body = hemisphere();
+    for (fk, f) in body.faces() {
+        let (_, cycle) = topo::props::loop_edges(&body, f.outer).unwrap();
+        let img = topo::surface_boundary::chart_image(&body, &cycle).unwrap();
+        assert!(img.tips.is_empty(), "hemisphere face {fk:?}");
+        assert!(
+            topo::surface_boundary::surface_cycles(&body, fk)
+                .unwrap()
+                .tips
+                .is_empty()
+        );
+    }
+    // a full cylinder: its seam walked both ways, not a spur
+    let cyl = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    );
+    for (fk, f) in cyl.faces() {
+        for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let (_, cycle) = topo::props::loop_edges(&cyl, lk).unwrap();
+            let img = topo::surface_boundary::chart_image(&cyl, &cycle).unwrap();
+            assert!(img.tips.is_empty(), "cylinder face {fk:?}");
+        }
+        assert!(
+            topo::surface_boundary::surface_cycles(&cyl, fk)
+                .unwrap()
+                .tips
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn review_probe_head_big_cone() {
+    let (body, face, _, _) = one_wrap_edge(cone(), true);
+    eprintln!(
+        "HEAD big cone: {:?}",
+        topo::validate_geometric(&body, tol())
+    );
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    eprintln!(
+        "HEAD big cone flipped: {:?}",
+        topo::validate_geometric(&flipped, tol())
+    );
+}
