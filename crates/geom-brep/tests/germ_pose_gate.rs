@@ -230,10 +230,8 @@ fn a_refused_pose_carries_the_arms_own_grounds() {
 }
 
 /// **Cylinder × cylinder, read one-sidedly.** Asked with the most
-/// permissive evidence: unequal radii and skew axes are refused under
-/// every evidence, so they are not served; the equal-radius crossing
-/// and the parallel pair are served given evidence, so the question
-/// does not refuse them.
+/// permissive evidence: every pose is on the section value, so none is
+/// refused, unequal radii and skew axes included.
 #[test]
 fn cylinder_pairs_are_refused_only_where_no_evidence_admits_them() {
     let x = Vec3::unit_x();
@@ -247,11 +245,11 @@ fn cylinder_pairs_are_refused_only_where_no_evidence_admits_them() {
             cyl(Point3::new(0.7, 0.0, 0.0), z, 0.5),
             true,
         ),
-        ("unequal radii, crossing axes", cyl(o, x, 0.55), false),
+        ("unequal radii, crossing axes", cyl(o, x, 0.55), true),
         (
             "equal radii, skew axes",
             cyl(Point3::new(0.3, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 0.5),
-            false,
+            true,
         ),
     ] {
         assert_eq!(served(&base, &c), want, "{what}");

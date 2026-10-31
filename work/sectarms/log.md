@@ -84,3 +84,17 @@ and bodies unchanged. No orchestrator yet.
   - **To file once the build row is written:** `ssi-domain-extent-means-three-things` (SSIEDGE P2), `a-long-ssi-arc-fails-limb-three-over-its-chain` (P2), and a faster general sweep for marched poses (P3, with the two failed steering prototypes as evidence).
 - 2026-10-31 — **Accounting fork decided** (PR 6137 merged; fork row 227). Ev chose B and placed its oracle as a `debug_assert`: cardinality with one-to-one end/witness matching closes, and the ruling-angle coverage is DESIGN's row-5 debug assertion ("in production we don't want to waste time double checking things"). The ruling sweep, one-to-one matching and sweep seeding become a new cylinder-unit stage, after stage 1 and before stage 3. My ruling (2) is retired.
 - 2026-10-31 — **Cylinder stage 1 open: PR 6139**, frozen at `b61ee71`, CI green. **Dual concurrent review dispatched** (arm: concurrent, unit difficulty H), R1 and R2 on the same head with identical briefs and eight claims to falsify. Also cleared the finished lanes' clones and the cylinder lane's target for disk (90% → 32%).
+- 2026-10-31 — **Cylinder stage 1 (PR 6139) reviewed and fixed.**
+  - **Dual concurrent review** on `b61ee71`: both reviewers APPROVE-WITH-FIXES, and the one MAJOR is bilateral. Coaxial cylinders of unequal radii refused `CoincidentSurfaces` because the reorder dropped main's premise that the radii were already decided equal.
+  - **Fix pass `a865b8f`:**
+    - coincidence needs both coaxial Zero and radii Zero;
+    - closed forms obey the domain through one `placement()`;
+    - rows added for the unequal chord, the off-centre region, coplanar unequal radii, pipes and bosses;
+    - the parallel ladder lives in one place;
+    - docs say the march domain is the cube of one ball.
+  - **Two calls I accepted:**
+    - `crossing_ball`'s `|e|/2` never binds (measured), so it stays a conservative bound;
+    - the crossing `Pinched` arm stays row 1, because `Band::new` admits an escalation edge under twice the zero.
+  - **Behaviour that moved:** the replace_face neighbour gate now refuses `VertexDisagreement` (filed on SHELF, P3).
+  - **Filed** `a-one-loop-cylinder-pair-refuses-winds-unseparated-at-coarse-eps` (P2), unmeasured.
+  - **Class to watch:** reordering margin reads can drop a premise a later read relied on. That is what made this MAJOR. A unit that reorders pose decisions sweeps every later read for that premise.

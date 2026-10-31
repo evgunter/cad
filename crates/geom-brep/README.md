@@ -316,8 +316,8 @@ parametric pair in ℝ⁴ on `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD
 projections of one traced object on one shared parameter. The trace's
 **domain** is the compact part of its state space: a chart side
 contributes its knot rectangle; two residual sides have no compact set
-of their own, so the pose's ball where one is proved, else the
-operation's region, bounds them. No face's trim sizes a domain. A
+of their own, so the pose's ball where one is proved, cut by the
+operation's region, bounds them, and the region alone where none is. No face's trim sizes a domain. A
 component is closed, or ends on the domain's boundary (a rim end on a
 rectangle's side, or a cut end on the region's), or ends at a node. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
@@ -866,8 +866,10 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
-declared-equal cylinder×cylinder, axis-aligned plane×torus (its
-axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
+axis-aligned plane×torus (its axis-parallel pose off the axis the
+`Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
+rulings and its bisector ellipses closed form, every other crossing pose
+marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
