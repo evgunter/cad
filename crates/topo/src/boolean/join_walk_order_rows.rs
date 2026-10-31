@@ -89,7 +89,10 @@ fn scrambled(walk: &[usize]) -> Vec<usize> {
 /// `order` (sites by insertion slot) as a cycle read from site 0.
 fn from_germ(order: &[usize]) -> Vec<usize> {
     let mut cycle = order.to_vec();
-    let g = cycle.iter().position(|&i| i == 0).expect("the germ is a site");
+    let g = cycle
+        .iter()
+        .position(|&i| i == 0)
+        .expect("the germ is a site");
     cycle.rotate_left(g);
     cycle
 }
@@ -143,9 +146,13 @@ fn hold(
                 (p, down[i], if down[i] { ahead } else { -ahead })
             })
             .collect();
-        let pairs = crate::splitting::join::conic_pairs_of_sites(wall, &split_conic, &input, band())
-            .unwrap_or_else(|e| panic!("{name} {way}: the split's walk refused: {e:?}"));
-        let walked: Vec<usize> = pairs.iter().flat_map(|&(a, b)| [slots[a], slots[b]]).collect();
+        let pairs =
+            crate::splitting::join::conic_pairs_of_sites(wall, &split_conic, &input, band())
+                .unwrap_or_else(|e| panic!("{name} {way}: the split's walk refused: {e:?}"));
+        let walked: Vec<usize> = pairs
+            .iter()
+            .flat_map(|&(a, b)| [slots[a], slots[b]])
+            .collect();
         let split = from_germ(&walked);
 
         let (g, dir) = site(0);
