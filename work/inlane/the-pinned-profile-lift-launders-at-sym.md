@@ -78,7 +78,7 @@ The rule reads what the environment binds. An empty or all-`Fixed` box holds eve
 
 **What the guided reading turned up** (each filed, each row naming its item):
 - The revalue rows' findings: PR 5247's three items.
-- `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
+- `work/lathe/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
 
 ## After Ev's ruling A on #5068 (2026-10-14, merged 2026-10-19)
 
