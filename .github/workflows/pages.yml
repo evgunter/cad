@@ -38,7 +38,9 @@ jobs:
   build:
     name: build the browser viewer (wasm32)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A cold release build took 16 min on a 4-core box (2026-10-31); the
+    # rust cache makes later runs incremental.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: prune local-only tooling (hosted CI may not depend on it)
