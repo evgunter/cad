@@ -2,12 +2,13 @@
 id: an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side
 kind: issue
 title: An aimed ray starting far past a wall loses its roots and reads a split's side inside out, on main
-status: dispatched
+status: review
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots]
 branch: flush/aimed-ray-reach
+pr: PRNUM
 ---
 
 **Live on main: a correct split is refused at its at-rest gate.**
@@ -114,3 +115,119 @@ about `[1, 0, 0]` by 0.7, from `sweep a_rigid_turn_keeps_a_slivers_volume`.
 It names `line_sphere_roots` and `line_cone_quadratic` as built the same
 way as `line_wall_roots`. A fix covers all three, and is pinned on this
 pose too.
+
+## Measured on main (`bbc9b8e3`, 2026-10-31)
+
+The census (24 azimuths × ψ {1e-7, 2e-7, 5e-7, 1e-6} × L {0, 0.1} × ±),
+each split read one of five ways: built (both sides, summing to `π`),
+refused at rest on the ellipse's own rounding
+(`split_seam_vanishing_tilt`'s `carrier_resolution`), refused with the
+side unread (`VolumeSignUnresolved`), refused before it had sides, or
+refused inside out (`NegativeVolume`):
+
+| ε | built | carrier | unread | split refused | inside out |
+|---|---|---|---|---|---|
+| 1e-9 | 122 | 46 | 0 | 158 | **58** |
+| 1e-12 | 0 | 125 | 0 | 246 | **13** |
+| 1e-6 | 192 | 0 | 0 | 192 | 0 |
+
+**The reconciled count.** Main reads 58 at 1e-9 and 13 at 1e-12 (PR
+5781 has merged; the row's "main" column, 65 and 14, was `e9680c52`,
+before it). Each pose below is `(i, ψ: L and sign)`, with
+`φ = −3.1 + 6.2i/23`; "all four" is both offsets and both normals.
+
+At 1e-9, the 58: (4, 5e-7: all four); (5, 2e-7: all four); (7, 2e-7:
+all four); (8, 1e-7: 0+ 0.1+); (8, 2e-7: 0+ 0.1+); (9, 2e-7: 0+ 0−
+0.1−); (9, 5e-7: 0+ 0.1+); (10, 2e-7: 0+ 0.1+); (10, 5e-7: 0+ 0−
+0.1+); (11, 2e-7: all four); (12, 5e-7: all four); (13, 2e-7: all
+four); (13, 5e-7: all four); (14, 2e-7: all four); (14, 5e-7: 0−
+0.1+); (15, 1e-7: 0+ 0.1+); (15, 2e-7: 0+ 0.1+); (22, 2e-7: all
+four); (22, 5e-7: 0− 0.1−).
+
+At 1e-12, the 13: (4, 5e-7: 0+); (5, 2e-7: 0+); (8, 1e-7: 0+); (8,
+2e-7: 0+); (9, 2e-7: 0+); (9, 5e-7: 0+); (11, 2e-7: 0+); (12, 5e-7: 0+
+0.1+); (14, 2e-7: 0+); (15, 1e-7: 0+); (15, 2e-7: 0+); (22, 2e-7: 0+).
+
+R1's "6 new, 15 fixed" against `e9680c52` is not re-measured here: it
+needs a census on `e9680c52` itself, and PR 5781 has merged.
+
+**The mechanism, confirmed.** With the three changes below each
+switched off by a scratch toggle, the census reproduces main exactly
+(58 inside out, pose for pose). With any one of them on, all 58 read
+right.
+
+## Fix
+
+Three changes, each closing the defect alone, together by construction:
+
+1. **The reach bounds the arc, not its carrier**
+   (`splitting/containment.rs` `conic_arc_ball`, `ArcBalls`). Each
+   conic edge carries two balls, its carrier's and its arc's own (about
+   the arc's middle, to half its width times
+   `carrier_speed::SemiAxes::speed_over`, the speed bound over the
+   span). The loop's extent takes the nearer (`extent_from`), and
+   `ray_passes_beside` the clearer. On the census's sides the aimed
+   rays now start about 5 m out, not `8·10⁶` m.
+2. **Each ray × quadric quadratic is read about the line's closest
+   approach** (`boolean/solid_contain.rs` `Centred`): the wall
+   (`line_wall_roots`, the shift held to the caller's run), the sphere
+   (`line_sphere_roots`) and the cone (`line_cone_centred`, both the
+   trimmed and the partial cone arm). `c` is read at the body's scale.
+   The discriminant and the lead are the same quantities, so every
+   margin is unchanged in meaning.
+3. **The roots' rounding reaches the order** (`Centred::roots`,
+   `PlaneCross::slack`, `RayHit::slack`). Each root carries a
+   first-order bound, linear in the start's distance. Each plane
+   crossing carries `rounding_charge(|o − q| + |t|)/|d·n̂|`. Each hit's
+   span is widened by its slack, and `RayHit::pair` decides two hits'
+   gap less both slacks. A gap the rounding can close is in band: the
+   ray is set aside, never counted.
+
+## Measured on the branch
+
+| ε | built | carrier | unread | split refused | inside out |
+|---|---|---|---|---|---|
+| 1e-9 | 168 | 54 | 4 | 158 | 0 |
+| 1e-12 | 0 | 138 | 0 | 246 | 0 |
+| 1e-6 | 192 | 0 | 0 | 192 | 0 |
+
+Pose for pose against main:
+- at 1e-9, 50 inside-out poses build and 8 refuse on the ellipse's
+  rounding;
+- at 1e-12, all 13 refuse on the ellipse's rounding;
+- 1e-6 is identical.
+
+**Four poses move from built to unread**: `i` 1 (φ −2.830), ψ 5e-7,
+both L and signs, at 1e-9. On main these four built only through the
+defect. Face `1v1`'s aimed ray started `8·10⁶` m out and placed the
+wall's root `3·10⁻⁴` m past the cap's crossing, so the cap's `−1`
+counted first and read `Out`. From the start 5 m out, that root lands
+`2.7·10⁻⁶` m before the cap's crossing, and the wall's region cannot
+place it (sideless). The ray is set aside. Every aim on that sliver
+side grazes the same way, and its volume (`−3.6e-10 ± 8.9e-10`) cannot
+sign it, so the side refuses `VolumeSignUnresolved`. That is the bar's
+"set aside, never counted". The region's sideless reading there is
+`a-wall-root-bounded-by-an-oblique-section-still-walks-and-ties-at-the-nominal`'s
+ground.
+
+**The duplicate's witness** (ψ 1e-5, φ 0, L 0, turned about
+`[1, 0, 0]` by 0.7) reads right on main with main's aim. The defect
+there was the wall root `1.45e-5` off the cylinder from a start
+`4·10⁵` m out. The unit row `a_ray_from_far_keeps_a_walls_roots` holds
+that start against a unit wall: off by `9.2e-6` read about the start,
+exact about the closest approach.
+
+**R2's rod** (1 km × 1 mm) builds on main and on the branch: the root
+error is real (`1.1e-7` m read about the start, the same row's second
+case), but no aim of the rod's reaches it. The pin keeps the rod and
+its near-square cut at every ε.
+
+## Pins
+
+`crates/sweep/tests/an_aimed_ray_from_far_reads_a_split_side_right.rs`
+replaces the open-defect pin. Its family, the whole census and the rod
+read no side inside out at any ε. Every built side holds `π`, and every
+at-rest refusal is the ellipse's own rounding or an unread side. The
+far-start root rows in `solid_contain.rs` `wall_root_rows` hold the
+wall, sphere and cone roots exact from `2·10³` and `4·10⁵` m. The arc
+ball's row is in `splitting/containment.rs` `arc_ball_rows`.
