@@ -243,3 +243,4 @@ Signed: (CARVE orchestrator)
   - **The orchestrator's read** also fixed a doc comment that the insertion had moved onto the new function.
   - **Filed (P1):** the frustum (`cone-window-reaches-the-apex-past-a-frustums-face`, decided shape) and the elbow (`injectivity-reads-no-spiric-edge-on-a-torus`, a new arm). SHELL-4 is parked on both.
   - **Class, recorded:** a fix at the reader that copies a producer's decision should first be tried at the producer. This is the second time in two units that the review found the source fix both smaller and concession-free.
+- 2026-10-31 — **FRUSTUM dispatched** (`docs/FRUSTUM-SPEC.md`, branch `clear/frustum`, cloud lane): end a cone face's window at the face when the face does not reach the apex. Single FULL review. SPIRIC follows once FRUSTUM merges, since both touch clearance.rs.
