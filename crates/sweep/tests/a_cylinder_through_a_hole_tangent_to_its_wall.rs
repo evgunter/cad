@@ -44,7 +44,7 @@ use core::f64::consts::{PI, TAU};
 use geom_core::{Affine3, Arc2, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, Body, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::poses::torax_pose;
@@ -164,11 +164,7 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
     };
     for (op, r, want) in every_op_both_orders(&cylinder, &plate, (va, vb, vab), tol()) {
         // The op that keeps the cylinder's wall along the hole's.
-        let both_walls = match (inside, op) {
-            (false, "B ∖ A") => true,
-            (true, "A ∩ B" | "B ∩ A") => true,
-            _ => false,
-        };
+        let both_walls = matches!((inside, op), (false, "B ∖ A") | (true, "A ∩ B" | "B ∩ A"));
         let edge_in_face = both_walls && matches!(vertices, Vertices::CylindersAlone);
         holds(&format!("{what}: {op}"), r, want, edge_in_face);
     }
