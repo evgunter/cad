@@ -39,15 +39,19 @@ use crate::entity::FaceKey;
 
 /// **Which side's description a glued pair keeps** (`docs/DESIGN.md`
 /// [coincidence.booleans], its one place [one-way.places]): the
-/// first-written operand's, a fixed rule that reads no values. Given a
-/// pair's two sides as A's and B's, returns them as `(kept, other)`.
-/// The zip's fused vertices and edges and the merge's merged faces read
-/// the decision here: the boolean hands the merge each glued pair kept
-/// side first (`ops::GluedSurfaces::of_result`). An n-ary operation folds
-/// its members in list order, each step's accumulation its operand A,
-/// so the first-written member's description is the one kept.
-pub(crate) const fn kept_first<X: Copy>(a: X, b: X) -> (X, X) {
-    (a, b)
+/// first-written operand's, A's, a fixed rule that reads no values.
+/// Given `side`'s `x` and the other operand's `y`, returns them as
+/// `(kept, other)`. The zip's fused vertices and edges and the merge's
+/// merged faces read the decision here: the boolean hands the merge each
+/// glued pair kept side first (`ops::GluedSurfaces::of_result`). An
+/// n-ary operation folds its members in list order, each step's
+/// accumulation its operand A, so the first-written member's
+/// description is the one kept.
+pub(crate) const fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
+    match side {
+        Operand::A => (x, y),
+        Operand::B => (y, x),
+    }
 }
 
 /// `decls` with every undeclared pair the operation decides one carrier

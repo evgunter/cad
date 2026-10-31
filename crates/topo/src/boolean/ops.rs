@@ -5774,10 +5774,10 @@ pub(crate) type SensedSurface = (SurfaceKey, bool);
 
 /// **Two surfaces a Boolean glued one carrier**, the kept side's first
 /// ([`super::glue::kept_first`]: the description the merged face
-/// keeps), and whether their charts face the same way in the result. A face's material side is
-/// its sense applied to its surface's chart, and fragments inherit both
-/// from their parent, so which way the two charts face holds for every
-/// face either surface carries.
+/// keeps), and whether their charts face the same way in the result. A
+/// face's material side is its sense applied to its surface's chart,
+/// and fragments inherit both from their parent, so which way the two
+/// charts face holds for every face either surface carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GluedSurfacePair {
     /// The kept side's surface.
@@ -5865,8 +5865,10 @@ impl GluedSurfaces {
                     let materials_agree = (relation == super::CarrierRelation::SameOriented)
                         != (op == BooleanOp::Subtract);
                     (ka != kb).then_some(())?;
-                    let (kept, other) =
-                        super::glue::kept_first((ka, sense_on(ka)?), (kb, sense_on(kb)?));
+                    let (kept, other) = super::glue::kept_first(
+                        (Operand::A, (ka, sense_on(ka)?)),
+                        (kb, sense_on(kb)?),
+                    );
                     Some(GluedSurfacePair::of(kept, other, materials_agree))
                 })
                 .collect(),

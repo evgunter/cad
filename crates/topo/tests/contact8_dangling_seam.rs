@@ -394,3 +394,59 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         );
     }
 }
+
+/// **The merged faces wear the first-written operand's description
+/// where the other operand's face is arena-first.** `a` is built in a
+/// fresh-keyed body, so its faces sit high in the face arena and `b`'s,
+/// grafted into the slots the fixture freed, sit below them: every merge
+/// group's arena-first face, and its survivor, is `b`'s (checked). Each
+/// merged face (the two caps and the two walls flush across `x = 1`)
+/// wears the surface and sense of `a`'s face it absorbed, the glue's
+/// kept side; red if the merge keeps its arena-first member's.
+#[test]
+fn the_merged_faces_wear_the_first_operands_description_where_the_second_is_arena_first() {
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        common::brick_with_fresh_keys::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let bb = unwrap_body(union(&a, &b, tol).expect("the side-by-side union runs"));
+    let from_b: Vec<topo::FaceKey> = bb.naming.graft_faces.iter().map(|&(_, r)| r).collect();
+    assert_eq!(
+        bb.naming.merge_groups.len(),
+        4,
+        "{:?}",
+        bb.naming.merge_groups
+    );
+    for (kept, absorbed) in &bb.naming.merge_groups {
+        assert!(
+            from_b.contains(kept),
+            "b's face {kept:?} is arena-first and survives"
+        );
+        let [from_a] = absorbed[..] else {
+            panic!("one absorbed face, a's: {absorbed:?}")
+        };
+        let a_face = a.get_face(from_a).expect("the absorbed face is a's");
+        let merged = bb.body.get_face(*kept).expect("the survivor is live");
+        assert_eq!(
+            (merged.surface, merged.sense),
+            (a_face.surface, a_face.sense),
+            "the face merged into {kept:?} wears a's description"
+        );
+    }
+    assert_eq!(
+        mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        2.0
+    );
+    assert_green(&bb, "a ∪ b, b arena-first");
+}
