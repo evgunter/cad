@@ -152,8 +152,9 @@ the end of the session (the badge paragraph above).
   indicator over the shipped `CancelToken`.
 - **GQ3, persistence.** A save file holds the document's state: its
   id and its current snapshot. Undo is session state and ends at a
-  reopen; history that outlives a session is the separable sidecar
-  (GUI-6), which the document file never depends on. The format carries no schema version
+  reopen; history that outlives a session is a separate history store
+  of retrievable earlier states (GUI-6), which the document file never
+  depends on. The format carries no schema version
   before release; a file a build cannot read refuses typed with the
   regenerate recourse.
 - **GQ4, document scope.** One document is one part's recipe, which
