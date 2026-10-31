@@ -32,3 +32,9 @@
 - 2026-10-30 — PR 6097 review: NOT-MERGEABLE-AS-IS. MAJOR F1: the one-face ball is refused, because 'a lone strut has no tip' contradicts the seam clause; confirmed by the C7 claim added mid-review. Also F2–F5. Recorded on the item. The fix pass waits on the per-face sphere-chart ruling, since every finding presupposes sphere wrap tips.
 - 2026-10-30 — **Pole-form fork weighed at Ev's request (row 220).** The pair is blinded by byte 51 on `analysis/design-fork/restcurve-pole-form`. Both recommend keeping the wrap tip, with tip = any valence-1 end, and the wrap edge read as the face's seam. They reject the vertex loop, the per-face chart and the half-meridians. My brief said a seam is not an edge; one designer caught that, the other was corrected mid-run, and I corrected it on PR 6085 too. Posted as decision 3 on PR 6085. Filed `a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip` (P1, parked) from designer A.
 - 2026-10-30 — **Handed back** (status `ready`). P1s wait on Ev at `[ev]` PR 6085 (three decisions); the remainder is P3. The handoff is in `plan.md`, with what to do on each answer. PR 6097 is held.
+- 2026-10-31 — **Taken back** (status `active`) on Ev's answers to `[ev]` PR 6085. All three decisions are approved: (1) the one-region clause; (2) the point-in-face doors as instrument; (3) the wrap tip is the face's seam, tip = any valence-1 end.
+  - Fork-log rows are **221** (curved region) and **222** (pole form). Main had taken 219 and 220, so earlier entries citing those numbers mean 221 and 222.
+  - Closed the sphere-chart ruling.
+  - Unparked: the wrap-tip rows (this slate's tier row, TESSWALK, SPLITDOOR, CARVE), the side-datum row, and curved containment.
+  - Dispatched PR 6097's fix pass.
+  - My slip: a merge of main into the `[ev]` branch committed conflict markers (`b38160f`). It was resolved in `43b0347` before merge and reported on the PR.
