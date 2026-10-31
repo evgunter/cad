@@ -865,13 +865,13 @@ operand's axis and core circle, read off the loop in ℝ³, say
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. The value is read over one region per operation, as
-at one band: the ball about the overlap of the two operands' boxes,
-padded, which holds every section point the operation can use. No
-face's or site's extent enters it, so two faces on one carrier read one
-value. A pair's domain is its own ball where its pose proves one, cut by
-that region. A component is closed, or open with both ends on the
-domain's boundary, or ends at a node (Edge descriptions): a node is
+its one reading. A pair traced in ℝ³ is read over its own ball where
+its pose proves one, cut by one region per operation, as at one band:
+the ball about the overlap of the two operands' boxes, padded, which
+holds every section point the operation can use. No face's or site's
+extent enters it, so two faces on one carrier read one value. A
+component is closed, or open with both ends on the domain's boundary,
+or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
 carriers, placed in closed form, and a site at it reads as the node.
 Two cylinders decide their pose on closed-form margins: parallelism as
