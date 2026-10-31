@@ -371,6 +371,7 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
+    assert_the_old_walk_agrees(&session, &index);
     let parts: Vec<(RecipeNodeId, u32)> = index
         .parts()
         .iter()
@@ -454,6 +455,7 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
     session.pump();
     let node = common::drawn_node(session.committed_doc(), lid);
     let index = plate_index(&session);
+    assert_the_old_walk_agrees(&session, &index);
     let mut arcs: Vec<EdgeSelection> = drawn(&index, node, 0)
         .into_iter()
         .filter(|e| is_rim_arc(&e.name, false))
@@ -480,4 +482,120 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
             error.kind
         );
     }
+}
+
+/// **The pre-fix viewer-side rim walk, kept as an oracle** (delta
+/// review of PR 6129): the name → key → `rim_of` → names round trip
+/// `pickindex.rs` `Rims::push` made before the walk moved into
+/// `NodePick::boundary_rims`. Every drawn edge of every part of
+/// `index` must answer the same whole edge from both.
+fn assert_the_old_walk_agrees(session: &DocSession, index: &PickIndex) {
+    use editor_core::{EntityKey, EntityRef, Entry};
+    let (_, eval) = session.landed_pair().expect("landed");
+    let mut compared = 0;
+    for part in index.parts() {
+        let (node, body) = (part.node(), part.body());
+        let (var, at) = eval.body_read_of(node, body).expect("a read");
+        let table = eval.table(var).expect("a table");
+        let solid = eval.read_body(var, at).expect("usable").expect("a body");
+        for edge in drawn(index, node, body) {
+            let Some(Entry::Unique(EntityRef {
+                key: EntityKey::Edge(key),
+                ..
+            })) = table.lookup(&edge.name)
+            else {
+                panic!("a drawn edge's name is one edge: {edge:?}");
+            };
+            let old = pncad::topo::query::rim_of(solid.body(), *key)
+                .ok()
+                .and_then(|rim| {
+                    rim.iter()
+                        .map(|&arc| {
+                            table
+                                .name_of(&EntityRef {
+                                    body: at,
+                                    key: EntityKey::Edge(arc),
+                                })
+                                .cloned()
+                        })
+                        .collect::<Option<Vec<_>>>()
+                })
+                .filter(|arcs| arcs.len() > 1);
+            let new = index.whole_edge(&edge).expect("the index answers the rim");
+            match old {
+                // The old table kept the first polyline's walk order
+                // for every arc of a rim; compare as sets.
+                Some(mut old) => {
+                    let mut new = new;
+                    old.sort();
+                    new.sort();
+                    assert_eq!(new, old, "{edge:?}");
+                }
+                None => assert_eq!(new, vec![edge.name.clone()], "{edge:?}"),
+            }
+            compared += 1;
+        }
+    }
+    assert!(compared > 0, "the oracle compared something");
+}
+
+/// **The moved walk answers what the viewer-side walk answered**, on
+/// partial, annular and axis-touching full revolves and on both halves
+/// of a split one (the teapot lid is held the same way in its own row).
+#[test]
+fn boundary_rims_answers_what_the_viewer_side_walk_answered() {
+    let tol = Tol::witness();
+    for (x0, angle) in [
+        (0.0, core::f64::consts::TAU * 0.75),
+        (SIDE, core::f64::consts::TAU),
+        (0.0, core::f64::consts::TAU),
+    ] {
+        let mut session = session(tol);
+        revolved(&mut session, x0, SIDE * 0.5, SIDE, angle);
+        session.pump();
+        assert_the_old_walk_agrees(&session, &plate_index(&session));
+    }
+}
+
+/// **A `NodePick` held across pictures by hand reaches
+/// `RimNameFault::Stale`** (delta review of PR 6129): the admitted
+/// later-evaluation case `NodePick`'s pairing doc describes. Built on a
+/// partial revolve and asked of the evaluation after the revolve went
+/// full, some polyline's key no longer resolves; `boundary_names`
+/// answers the same slot as `Unnamed`.
+#[test]
+fn a_node_pick_held_across_an_edit_reaches_the_stale_arm() {
+    use editor_core::resolve::{NodePick, RimNameFault};
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let feature = revolved(
+        &mut session,
+        0.0,
+        SIDE * 0.5,
+        SIDE,
+        core::f64::consts::TAU * 0.75,
+    );
+    session.pump();
+    let node = common::drawn_node(session.committed_doc(), feature);
+    let pick = {
+        let (_, eval) = session.landed_pair().expect("landed");
+        NodePick::build(eval, node, 0, common::plate_delta().get(), tol).expect("builds")
+    };
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: feature,
+        slot: SlotId::RevolveAngle,
+        value: SlotValue::Continuous(core::f64::consts::TAU),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let (_, eval) = session.landed_pair().expect("landed");
+    let rims = pick.boundary_rims(eval).expect("the pairing admits it");
+    let names = pick.boundary_names(eval).expect("the pairing admits it");
+    let stale = rims
+        .iter()
+        .position(|rim| matches!(rim, Err(RimNameFault::Stale { .. })))
+        .unwrap_or_else(|| panic!("a stale key: {rims:?}"));
+    assert!(names[stale].is_err(), "the name door reads it unnamed");
+    let said = rims[stale].clone().expect_err("stale").to_string();
+    assert!(said.starts_with("rim names: "), "{said}");
 }
