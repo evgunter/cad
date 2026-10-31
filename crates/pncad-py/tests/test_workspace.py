@@ -407,9 +407,9 @@ class TestASaveIsTwoActs(StoreCase):
         inbound = DocRef(doc.id, content_pin(doc))
         self.assertEqual(len(ws), 1)
 
-        new_id, new_path = ws.save_as_new_document(doc)
+        new_id, new_path = ws.save_as_new_document(doc, "copy.pncad")
         self.assertNotEqual(new_id, doc.id)
-        self.assertEqual(new_path, os.path.join(self.dir, f"{new_id}.pncad"))
+        self.assertEqual(new_path, os.path.join(self.dir, "copy.pncad"))
         # `doc` itself is untouched: the fresh identity is answered,
         # never assigned to the caller's value.
         self.assertEqual(doc.id, inbound.id)
@@ -438,7 +438,7 @@ class TestASaveIsTwoActs(StoreCase):
         # Both coexist in one scan, and the store grew by one.
         self.assertEqual(len(ws), 2)
         self.assertEqual(self.listing(),
-                         sorted(["original.pncad", f"{new_id}.pncad"]))
+                         sorted(["copy.pncad", "original.pncad"]))
         self.assertEqual(self.store().documents(), ws.documents())
 
 
@@ -524,6 +524,10 @@ class TestTheStoreRefusesLoudly(StoreCase):
         doors = (
             ("unknown_id", lambda: ws.current_pin(random_document_id())),
             ("save_would_duplicate_id", lambda: ws.save_at(doc, "copy.pncad")),
+            (
+                "save_would_replace_document",
+                lambda: ws.save_at(Doc(), "held.pncad"),
+            ),
             ("save_target_not_in_store", lambda: ws.save_at(doc, "notes.txt")),
         )
         for variant, door in doors:

@@ -1204,7 +1204,7 @@ pub enum ProbeStop {
 ///
 /// **A default, not a clamp.** The caller applies this once per
 /// document that arrives
-/// ([`crate::app::ViewerApp::fit_delta_on_scene`]); from there δ is
+/// ([`crate::app::DocumentDerived::fit_delta`]); from there δ is
 /// whatever the user types in the View pane, however fine, and nothing
 /// re-reads it. A budget that bound every rebuild would disable that
 /// field on exactly the documents someone would want it for.

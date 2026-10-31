@@ -3,7 +3,9 @@ id: new-document-owes-the-reframe-open-gets
 kind: issue
 title: app.rs re-frames and drops the delta budget for Open only, though NewDocument replaces the document too
 refs: [1885]
-status: open
+status: closed
+closed: 2026-10-31
+pr: 6125
 opened: 2026-09-05
 priority: P1
 cost: E
@@ -79,3 +81,17 @@ and `NewDocument` goes to `None if replaced => self.document_replaced()`.
 The fix is to take all three under `replaced`, along with a row that
 pins it. It is best built together with
 `viewerapp-document-derived-state-has-no-boundary` (P1).
+
+## Closed 2026-10-31
+
+`perform_batch` asks the op whether it replaces the document
+(`SessionOp::replaces_the_document`, now the one predicate, which
+`frame::batch_refusal` and `tests/gesture_table.rs` read too), and every
+replacement goes to `ViewerApp::document_replaced`, which installs
+`DocumentDerived::owed()`: the camera fit, the δ fit and the dropped
+budget verdict, for `NewDocument` exactly as for `Open`.
+`a_replaced_document_is_owed_both_fits_and_drops_the_verdict` pins both
+doors (red on the old arm for `NewDocument`). The sweep list's sites
+are disposed of in the PR body; `pickcache.rs` keys on the session's
+monotone generation and needs nothing, and the part chooser's site in
+`pane/create.rs` is `the-part-chooser-keeps-its-snapshot-across-a-document-swap`.

@@ -324,8 +324,9 @@ pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
 /// local XY plane is the plane the profile is drawn in, and the roll
 /// comes from the door's reference ladder (world +Z, then world +X)
 /// under the tolerance band. `sweep::sweep_places` carries this frame
-/// along the path by minimal rotation, so a section placed here stays
-/// normal to the path.
+/// along the path by the rotation-minimizing frame
+/// (`crates/sweep/README.md` `[sweep.frame]`), so a section placed here
+/// stays normal to the path.
 ///
 /// The door returns a typed refusal for a path whose start tangent
 /// fixes no frame; a fixture whose path is that degenerate is a fixture

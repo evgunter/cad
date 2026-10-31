@@ -111,7 +111,7 @@ use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
 
 use crate::skin::{
-    Section, SectionLoop, SkinError, check_counts, check_shapes, skin_validated, sweep_places,
+    PathCarry, Section, SectionLoop, SkinError, check_counts, check_shapes, skin_validated,
     validate_at_t, validate_guided, validate_loft,
 };
 use crate::swept::{
@@ -167,9 +167,10 @@ pub struct Lofted<T: Real> {
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
-    /// residual pad accompanies it. It is [`crate::loft_parameters`]'
-    /// answer for the body's sections, askable BEFORE the body is built
-    /// (a [`sweep_body`]'s sections are its stations'). Each is held in
+    /// residual pad accompanies it. A [`loft_body`]'s is
+    /// [`crate::loft_parameters`]' answer for its sections, askable
+    /// BEFORE the body is built; a [`sweep_body`]'s is each station's
+    /// normalised path parameter, `i / (stations − 1)`. Each is held in
     /// `T`, so at an enclosure scalar an interior parameter over a box
     /// reads as its bracket.
     pub section_params: Vec<T>,
@@ -610,6 +611,7 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     sections: SectionsAtT<'_, T, L>,
     places: &[SketchPlane<T>],
     channel_places: Option<&[SketchPlane<f64>]>,
+    params: Option<&[f64]>,
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
@@ -627,6 +629,7 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
         sections,
         places,
         channel_places,
+        params,
         v_degree,
         tol,
     })
@@ -725,6 +728,9 @@ struct LoftBuild<'a, T: Real, L> {
     sections: SectionsAtT<'a, T, L>,
     places: &'a [SketchPlane<T>],
     channel_places: Option<&'a [SketchPlane<f64>]>,
+    /// The v each section sits at where the caller states it (a path
+    /// sweep's path parameters); otherwise the loft's chord-length rule.
+    params: Option<&'a [f64]>,
     v_degree: usize,
     tol: Tol,
 }
@@ -740,8 +746,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         stacking_fold(self.places, &canonical, band)?;
-        let geometry =
-            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, self.places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         assemble(
             &placements(self.places),
             &geometry.walls,
@@ -830,8 +836,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             })
             .collect();
         stacking_fold(places, &lifted, band)?;
-        let geometry =
-            skin_validated(canonical, channel_places, self.v_degree).map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, channel_places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
@@ -1468,7 +1474,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// [`loft_geometry`](crate::loft_geometry) and assembles the closed solid around it.
 ///
 /// `sections[i][l][j]` is section `i`, loop `l`, segment `j` in sketch
-/// coordinates; `places[i]` its rigid placement; `v_degree` the
+/// coordinates; `places[i]` its placement, rigid and right-handed by
+/// its type ([`SketchPlane`] is a [`geom_core::RigidMotion`], so a
+/// mirrored frame refuses where it is minted); `v_degree` the
 /// skinning degree in the section direction, all in `T`. Structure is
 /// selected at `f64` on their value channel (C6), and the body is
 /// computed in `T` (module docs, "Scalar posture").
@@ -1517,6 +1525,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
         SectionsAtT::Loops(sections),
         places,
         channel.as_deref(),
+        None,
         v_degree,
         tol,
     )
@@ -1554,6 +1563,7 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
         SectionsAtT::<T, profile::ProfileLoop<T>>::Validated(sections),
         &places,
         channel_places.as_deref(),
+        None,
         v_degree,
         tol,
     )
@@ -1604,9 +1614,11 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
 /// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
-/// path frame ([`sweep_places`]), not from the sections. The stations
-/// sit at the loft's chord-length parameters ([`crate::loft_parameters`]),
-/// which neither the spelling nor the roll of the start frame moves.
+/// path's carry of the start frame ([`crate::sweep_places`];
+/// `crates/sweep/README.md` `[sweep.frame]`), not from the sections.
+/// Station `i` sits at `v = i / (stations − 1)`, its share of the
+/// path's parameter, which neither the spelling nor the roll of the
+/// start frame moves.
 ///
 /// # The starting frame
 ///
@@ -1621,11 +1633,8 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 ///
 /// # Errors
 ///
-/// [`LoftError`] — every door named on the enum, with
-/// [`SkinError::PathTangentVanishes`],
-/// [`SkinError::PathTangentReversal`] and
-/// [`SkinError::PathTangentUndecided`] arriving through
-/// [`LoftError::Skin`].
+/// [`LoftError`] — every door named on the enum, with every refusal
+/// [`crate::sweep_places`] makes arriving through [`LoftError::Skin`].
 ///
 /// # Panics
 ///
@@ -1640,20 +1649,21 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    // The stations' structure is selected on the start frame's point
-    // value carried along the path in `f64`, where it has one; the
-    // stations in `T` carry the caller's frame along the same path.
+    // One carry, composed onto the start frame in `T` and onto its
+    // point value in `f64`, where the stations' structure is selected.
+    let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;
     let channel = plane
         .point_value()
-        .map(|start| sweep_places(start, path, stations, tol))
+        .map(|start| carry.place(start))
         .transpose()
         .map_err(LoftError::Skin)?;
-    let places = sweep_places(plane, path, stations, tol).map_err(LoftError::Skin)?;
+    let places = carry.place(plane).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     build(
         SectionsAtT::Loops(&sections),
         &places,
         channel.as_deref(),
+        Some(&carry.params()),
         v_degree,
         tol,
     )

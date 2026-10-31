@@ -781,8 +781,8 @@ fn swept_at<T: geom_core::Decide + topo::AtRestPolicy>(h: T) -> Lofted<T> {
 /// loft whose top section's height is a parameter gives walls that
 /// re-value with it to the `f64` build's bits. At `Dual`, a sweep whose
 /// start frame's height is the variable carries it into every station:
-/// each wall pole's height moves one for one with it, and nothing else
-/// moves. (At `Sym` the sweep's path frames are computed in `f64` and
+/// each wall value's derivative is what the `f64` builds a unit apart
+/// differ by. (At `Sym` the sweep's path frames are computed in `f64` and
 /// enter as unknowns, so its walls re-value to nothing.)
 #[test]
 fn a_placement_in_t_stays_a_function_of_its_parameter() {
@@ -804,37 +804,44 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
         got, want,
         "the loft's walls re-value with its top placement"
     );
+    // The sweep's stations turn about the path's start point, so a
+    // start frame raised by `dh` raises station `i` by `Cᵢ·ẑ·dh` for its
+    // carried rotation `Cᵢ`: every wall value is affine in the height,
+    // and its derivative is the f64 builds' unit difference.
     let swept = swept_at(Dual64::variable(h0));
-    let moved: Vec<[f64; 4]> = swept
-        .side_faces
-        .iter()
-        .flatten()
-        .flatten()
-        .flat_map(|f| {
-            let face = swept.body.get_face(*f).expect("a built face");
-            match swept
-                .body
-                .get_surface(face.surface)
-                .expect("a described face")
-            {
-                Surface::Nurbs(n) => n
-                    .control()
-                    .iter()
-                    .zip(n.weights())
-                    .map(|(p, w)| [p.x.deriv, p.y.deriv, p.z.deriv, w.deriv])
-                    .collect::<Vec<_>>(),
-                other => panic!("a swept wall is a NURBS surface, got {other:?}"),
-            }
-        })
-        .collect();
-    assert!(!moved.is_empty());
-    for d in &moved {
+    let got = wall_values(&swept, |x| x.deriv);
+    // The height moves the poles and nothing of the weights: a weight
+    // that carried any derivative at all would make the walls rational
+    // in the height.
+    for face in swept.side_faces.iter().flatten().flatten() {
+        let face = swept.body.get_face(*face).expect("a built face");
+        let Surface::Nurbs(n) = swept
+            .body
+            .get_surface(face.surface)
+            .expect("a described face")
+        else {
+            panic!("a swept wall is a NURBS surface");
+        };
         assert!(
-            d[0].abs() <= 1e-12
-                && d[1].abs() <= 1e-12
-                && (d[2] - 1.0).abs() <= 1e-12
-                && d[3] == 0.0,
-            "every swept pole moves one for one with the start frame's height: {d:?}"
+            n.weights().iter().all(|w| w.deriv == 0.0),
+            "no swept weight moves with the start frame's height"
+        );
+    }
+    let step: Vec<f64> = wall_values(&swept_at(h0 + 1.0), |x: f64| x)
+        .iter()
+        .zip(wall_values(&swept_at(h0), |x: f64| x))
+        .map(|(hi, lo)| hi - lo)
+        .collect();
+    assert_eq!(got.len(), step.len(), "the same walls at every height");
+    assert!(
+        step.iter().any(|d| d.abs() > 0.5),
+        "the start frame's height reaches the swept walls"
+    );
+    for (k, (d, want)) in got.iter().zip(&step).enumerate() {
+        assert!(
+            (d - want).abs() <= 1e-12,
+            "wall value {k} moves with the start frame's height as the f64 builds do: \
+             {d} against {want}"
         );
     }
 }

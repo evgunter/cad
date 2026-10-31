@@ -92,6 +92,8 @@ mod a_lofted_lens_blade_certifies_its_sign;
 mod a_long_bound_beside_a_short_arm;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
 mod a_minted_vertex_on_a_curved_face;
+#[path = "a_mirrored_loft_placement_is_no_sketch_plane.rs"]
+mod a_mirrored_loft_placement_is_no_sketch_plane;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
@@ -1003,6 +1005,8 @@ mod mate7a_torus_rest;
 mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
+#[path = "nurbs_plane_guard.rs"]
+mod nurbs_plane_guard;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]

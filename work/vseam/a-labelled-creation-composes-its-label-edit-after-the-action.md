@@ -2,10 +2,13 @@
 id: a-labelled-creation-composes-its-label-edit-after-the-action
 kind: issue
 title: A labelled creation appends its SetLabel to the recorded action by hand instead of recording it in the action's run
-status: open
+status: closed
 opened: 2026-10-03
+closed: 2026-10-31
 priority: P1
 cost: M
+pr: 6128
+branch: vseam/a-labelled-creation-is-one-recording
 ---
 
 Found by RECIPE's sweep for
@@ -39,3 +42,18 @@ Record the label inside the creation's own run, so the action is one
 door that stages its run, with the `SetLabel` applied after the run's
 last insert. `History::extend_current` then loses its one caller.
 
+
+## Closed 2026-10-31
+
+Landed by PR 6128. Each creating door now reads the session, writes
+nothing, and answers a `Creating` run. `DocSession::perform_op`'s one
+exhaustive dispatch hands that run to `DocSession::create`, which stages
+it, ends it with the `SetLabel` on `crate::world::made`'s node where a
+label is given, and records it. A labelled creation is therefore one
+`Recording`: its edits, minted ids and netted maintenance come from one
+`Recorded`, and it makes one evaluation request instead of the two the
+graft cost. The label is carried by the dispatch alone and reaches no
+door. `History::extend_current` is deleted. The sweep for other
+history-level compositions in `crates/viewer/src` found none (the hit
+list is in the PR body). Filed from the review:
+`a-pattern-of-zero-is-refused-by-the-form-and-accepted-by-the-door`.
