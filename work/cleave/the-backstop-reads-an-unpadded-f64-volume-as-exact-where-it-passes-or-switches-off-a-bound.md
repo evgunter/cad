@@ -106,4 +106,4 @@ quadrature bracket", not "exact" (R1, style).
 
 ## Closed (2026-10-27)
 
-The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Its three readers (the Bound arm's held read, the `bounded` operand gate, the +V posture) went with it. The far-anchored closed form's rounding the row leans on is FLUXTAIL's (`a-planar-face-sums-its-area-about-a-far-carrier-origin`), and the oracle's docs name it as a flag's possible cause.
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Its three readers (the Bound arm's held read, the `bounded` operand gate, the +V posture) went with it. The far-anchored closed form's rounding the row leans on is NEARPOINT's (`a-planar-face-sums-its-area-about-a-far-carrier-origin`), and the oracle's docs name it as a flag's possible cause.

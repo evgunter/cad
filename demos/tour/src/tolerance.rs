@@ -106,8 +106,8 @@
 //! reads the web off the hole extrudes and never subtracts them
 //! ([`crate::plate`]); [`crate::plate::cut_plate`] cuts them and reads
 //! the cut part's bore walls, and the drive certifies no box of it
-//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
-//! which holds what refuses).
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`;
+//! what refuses is not yet measured).
 //! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
 //! document certifies whole. The Monte-Carlo lane answers on the cut
 //! plate; only the certified lane, and the stackup over it, refuse.

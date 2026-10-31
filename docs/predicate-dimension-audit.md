@@ -139,24 +139,22 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Ev's #213 layering ruling).** The consistency
-backstops — `volume_backstop` / `volume_backstop_operand` /
-`volume_backstop_violation`, inequalities between integral RESULTS
-(wrong-component detectors, never accuracy gates) — are outside the
-length seam by design: they decide on bare `T` through
-`k_stats::decide_invariant` (no `Margin` minted — not a door, not
-debt), keeping their predicate names and margin values byte-identical
-in the K stream, and a certified violation surfaces as the
-Corrupt-class `ResultVolumeImplausible` (which ends in the shared
-kernel-defect ending), separated in type and voice
-from every validity refusal. The former `per_boundary` door is renamed
-`over_lever` and re-scoped to the genuine geometric decisions
-(mean-width 2A/P, mean-thickness V/A containment, chart-orientation
-areas, the crossing advance). The boolean's volume backstop, the
-lane's one member, has since left the operation path: Ev made its
-relations a test oracle the suites run on their own results
-(`[ev]` PR 5780; `topo::test_support::volume_relations`), so the lane
-has no caller and its three predicates are no longer decided.
+**The invariant lane (Ev's #213 layering ruling).** A consistency
+backstop — an inequality between integral RESULTS (a wrong-component
+detector, never an accuracy gate) — is outside the length seam by
+design: it decides on bare `T` through `k_stats::decide_invariant`
+(no `Margin` minted — not a door, not debt), and a certified
+violation is a Corrupt-class kernel-invariant error, separated in type
+and voice from every validity refusal. The kernel runs none today: the
+boolean's volume backstop, the lane's one member, left the operation
+path when Ev made its relations a test oracle the suites run on their
+own results (`[ev]` PR 5780, PR 5842;
+`topo::test_support::VolumeOracle`), so the lane has no caller and its
+three predicates (`volume_backstop`, `volume_backstop_operand`,
+`volume_backstop_violation`) are no longer decided. The former
+`per_boundary` door is renamed `over_lever` and re-scoped to the
+genuine geometric decisions (mean-width 2A/P, mean-thickness V/A
+containment, chart-orientation areas, the crossing advance).
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -220,7 +218,7 @@ roster"*) has a second edge here: **about thirty helpers in these two
 crates fix a name internally and have more than one caller** —
 `require_extent`, `require_rim_incidence`, `du_of_rims`,
 `classify_dihedral`, `enters_material`, `point_in_loop`,
-`volume_backstop`, `tangent_locus_relation` and the rest — so *"where a
+`tangent_locus_relation` and the rest — so *"where a
 decision is posed"* and *"where the funnel is called"* differ by a wide,
 convention-dependent margin. The roster is unharmed (every one of those
 names is a literal at the wrapper's own funnel call, so all are in the
@@ -868,8 +866,9 @@ which is what actually moves the number.
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
-now route through `k_stats::decide` under `volume_backstop_operand`,
-`volume_backstop` and `volume_backstop_violation`). **This audit's
+routed through `k_stats::decide` under `volume_backstop_operand`,
+`volume_backstop` and `volume_backstop_violation`, and have since left
+the operation path with the backstop). **This audit's
 scope — geom-brep and topo — has no funnel bypass left:** every
 shipped decision in the two crates goes through `k_stats::decide`, so
 every margin the recorder sees is attributed to the predicate that
@@ -986,9 +985,11 @@ speculative — each row below states what it measured):
   `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
   (verified red with the sign arm removed) and at band level by the
   adopted `tests/probe_f34_review.rs`. The backstop has since left the
-  operation path (`[ev]` PR 5780), and those pins with it; the plate
-  is a row of the test oracle that replaced it
-  (`test_support_volume::tests::a_wrong_component_on_a_large_plate_is_flagged`).
+  operation path (`[ev]` PR 5780), and those pins with it. The test
+  oracle that replaced it forgives any wrong volume up to ε·(area A +
+  area B), so it flags the plate's 3 mm cube at 1e-9 and 1e-12 and not
+  at 1e-6 (`test_support_volume`'s module docs; its
+  `the_slack_is_eps_over_the_operands_boundary` pins the slack).
 - **F4** `bool_ring_run_winding` (one predicate, three sites — the
   boolean join's ring lane, the merge's role assigner, tier 3's check
   6 — and one arithmetic home, `crate::loop_winding`, which all three

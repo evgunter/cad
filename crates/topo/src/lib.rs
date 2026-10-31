@@ -769,7 +769,7 @@ pub mod test_support {
             .map_err(|refusal| format!("{refusal:?}"))
     }
 
-    pub use crate::test_support_volume::{assert_volume_relations, volume_relations};
+    pub use crate::test_support_volume::{VolumeOracle, assert_volume_relations, volume_relations};
 
     /// The two operand clones as the boolean's join leaves them, and
     /// the interior-loop guard's verdict on them.

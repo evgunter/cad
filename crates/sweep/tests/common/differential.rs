@@ -438,7 +438,7 @@ pub fn assert_sound_and_meshed(
 /// `b`-first, each with its closed-form volume, named `"A ∪ B"`,
 /// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`. Each
 /// result that builds holds the volume relations
-/// (`topo::test_support::assert_volume_relations`).
+/// (`topo::test_support::VolumeOracle`).
 #[allow(clippy::type_complexity)] // (op, result, closed form) per run
 pub fn every_op_both_orders(
     a: &AtRestBody<f64>,
@@ -447,6 +447,7 @@ pub fn every_op_both_orders(
     tol: Tol,
 ) -> Vec<(&'static str, Result<BooleanResult<f64>, BooleanError>, f64)> {
     use topo::BooleanOp::{Intersect, Subtract, Union};
+    let oracle = topo::test_support::VolumeOracle::new(a, b, tol);
     [
         ("A ∪ B", Union, a, b, va + vb - vab),
         ("B ∪ A", Union, b, a, va + vb - vab),
@@ -463,14 +464,7 @@ pub fn every_op_both_orders(
             Subtract => topo::subtract(x, y, tol),
         };
         if let Ok(built) = &r {
-            topo::test_support::assert_volume_relations(
-                name,
-                op,
-                x,
-                y,
-                built.body().map(|bb| &*bb.body),
-                tol,
-            );
+            oracle.assert(name, op, x, y, built.body().map(|bb| &*bb.body));
         }
         (name, r, want)
     })

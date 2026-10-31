@@ -4,32 +4,40 @@
 //! vol A + vol B, vol(A ∩ B) between 0 and min(vol A, vol B), and
 //! vol(A ∖ B) between max(0, vol A − vol B) and vol A. The kernel does
 //! not check them on its own results; the suites check them on theirs,
-//! through [`volume_relations`].
+//! through [`VolumeOracle`] (or [`volume_relations`] for one op).
 //!
-//! **What counts as broken.** The relations hold exactly for the true
-//! set operation, and a correct result is the true one to within ε of
-//! boundary displacement ([tolerance.measure]: the model defines its
-//! measures only to that). The true result's boundary lies on the
-//! operands' boundaries, so a correct result's volume is the true one
-//! to within ε·(area A + area B), and a relation is broken only where
-//! the certified volumes miss it by more than that: no ε-correct body
-//! measures so. A glue that closes a Zero-band gap moves a correct
-//! result's volume by the gap times the glued area, which that slack
-//! holds.
+//! **What it is for.** Gross wrong components: a piece wrongly kept or
+//! dropped, a result that is the wrong side of a cut, an inside-out
+//! shell. It is not an accuracy check, and a closed form is the
+//! stronger oracle wherever a row has one.
 //!
-//! **Certified volumes.** Each body is measured through the
-//! certified measurement door ([`crate::test_support::measure_to`]),
-//! first at [`crate::test_support::pinned_resolution`], and again at
-//! ε where that leaves a relation or an operand's sign open. A relation
-//! is broken where it fails at its enclosures' least favourable ends;
-//! one the finest enclosures leave open passes, since nothing here
-//! certifies it broken. A relation over an operand applies only where
-//! that operand's volume is certified positive: against a complement
-//! (a negative volume) the bound says nothing. A closed-form face's
-//! enclosure is its value alone, its rounding unstated
-//! (`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+//! **What it forgives.** The relations hold exactly for the true set
+//! operation, and a correct result is the true one to within about ε
+//! of boundary displacement ([tolerance.measure]). The true result's
+//! boundary lies on the operands' boundaries, so to first order a
+//! correct result's volume is the true one to within ε·(area A + area
+//! B); a Zero-band glue moves it by the gap times the glued area, which
+//! that slack holds. A relation is flagged only where the certified
+//! volumes miss it by more than that slack, so any wrong volume up to
+//! ε·(area A + area B) passes: at ε = 1e-9, a stray 2.5 mm cube beside
+//! two 2 m × 2 m × 0.1 m plates (17.6 m² of boundary, 1.76e-8 m³ of
+//! slack) passes, and at ε = 1e-6 a 2.5 cm one does.
+//!
+//! **Certified volumes.** Each body is measured through the certified
+//! measurement door ([`crate::test_support::measure_to`]), first at
+//! [`crate::test_support::pinned_resolution`], and again at ε where
+//! that leaves a relation open. A relation is broken where it fails at
+//! its enclosures' least favourable ends, and held where it holds at
+//! their most. Both operands must measure certified positive, as every
+//! operand a boolean admits does. Nothing passes vacuously: an operand
+//! not certified positive, a relation the finest enclosures leave open,
+//! or a body the door cannot measure panics, naming it. A closed-form
+//! face's enclosure is its value alone, its rounding unstated
+//! (`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
 //! so on a body far from its carriers' origins a flag may be that
 //! rounding's.
+
+use std::cell::RefCell;
 
 use geom_core::Tol;
 
@@ -50,16 +58,6 @@ impl Measured {
         hi: 0.0,
         area: 0.0,
     };
-
-    /// Certified positive: a bounded solid.
-    fn bounded(self) -> bool {
-        self.lo > 0.0
-    }
-
-    /// The sign still open.
-    fn open(self) -> bool {
-        self.lo <= 0.0 && self.hi > 0.0
-    }
 }
 
 /// Which body a relation's term reads.
@@ -81,54 +79,34 @@ struct Relation {
 enum Reading {
     Held,
     Broken(String),
-    Open,
+    Open(String),
 }
 
-/// The relations `op` holds over `[a, b, result]`'s measures, those
-/// whose operands are certified bounded.
-fn relations(op: BooleanOp, a: Measured, b: Measured) -> Vec<Relation> {
+/// The relations `op` holds over two bounded operands and its result.
+fn relations(op: BooleanOp) -> [Relation; 3] {
     use Term::{A, B, Result as R};
     let rel = |which, small, large| Relation {
         which,
         small,
         large,
     };
-    let (pa, pb) = (a.bounded(), b.bounded());
-    let mut out = Vec::new();
     match op {
-        BooleanOp::Union => {
-            if pa {
-                out.push(rel("vol(A ∪ B) ≥ vol(A)", &[A], &[R]));
-            }
-            if pb {
-                out.push(rel("vol(A ∪ B) ≥ vol(B)", &[B], &[R]));
-            }
-            if pa && pb {
-                out.push(rel("vol(A ∪ B) ≤ vol(A) + vol(B)", &[R], &[A, B]));
-            }
-        }
-        BooleanOp::Intersect => {
-            if pa {
-                out.push(rel("vol(A ∩ B) ≤ vol(A)", &[R], &[A]));
-            }
-            if pb {
-                out.push(rel("vol(A ∩ B) ≤ vol(B)", &[R], &[B]));
-            }
-            if pa || pb {
-                out.push(rel("vol(A ∩ B) ≥ 0", &[], &[R]));
-            }
-        }
-        BooleanOp::Subtract => {
-            if pa {
-                out.push(rel("vol(A ∖ B) ≤ vol(A)", &[R], &[A]));
-                out.push(rel("vol(A ∖ B) ≥ 0", &[], &[R]));
-            }
-            if pa && pb {
-                out.push(rel("vol(A ∖ B) ≥ vol(A) − vol(B)", &[A], &[R, B]));
-            }
-        }
+        BooleanOp::Union => [
+            rel("vol(A ∪ B) ≥ vol(A)", &[A], &[R]),
+            rel("vol(A ∪ B) ≥ vol(B)", &[B], &[R]),
+            rel("vol(A ∪ B) ≤ vol(A) + vol(B)", &[R], &[A, B]),
+        ],
+        BooleanOp::Intersect => [
+            rel("vol(A ∩ B) ≤ vol(A)", &[R], &[A]),
+            rel("vol(A ∩ B) ≤ vol(B)", &[R], &[B]),
+            rel("vol(A ∩ B) ≥ 0", &[], &[R]),
+        ],
+        BooleanOp::Subtract => [
+            rel("vol(A ∖ B) ≤ vol(A)", &[R], &[A]),
+            rel("vol(A ∖ B) ≥ 0", &[], &[R]),
+            rel("vol(A ∖ B) ≥ vol(A) − vol(B)", &[A], &[R, B]),
+        ],
     }
-    out
 }
 
 /// `relation` at the enclosures `[a, b, result]`, against `slack`.
@@ -143,22 +121,24 @@ fn read(relation: &Relation, at: [Measured; 3], slack: f64) -> Reading {
         (sum(relation.large, |m| m.lo), sum(relation.large, |m| m.hi));
     let (small_lo, small_hi): (f64, f64) =
         (sum(relation.small, |m| m.lo), sum(relation.small, |m| m.hi));
+    let text = format!(
+        "{}: the larger side measures [{large_lo:e}, {large_hi:e}] and the smaller \
+         [{small_lo:e}, {small_hi:e}], against ε·(area A + area B) = {slack:e}, about the \
+         most a correct result's volume moves",
+        relation.which
+    );
     if large_hi - small_lo < -slack {
-        Reading::Broken(format!(
-            "{}: the larger side measures at most {large_hi:e} and the smaller at least \
-             {small_lo:e}, short by more than ε·(area A + area B) = {slack:e}, the most a \
-             correct result's volume can move",
-            relation.which
-        ))
+        Reading::Broken(text)
     } else if large_lo - small_hi >= -slack {
         Reading::Held
     } else {
-        Reading::Open
+        Reading::Open(text)
     }
 }
 
 /// `body` measured at a resolution of `len` metres of mean boundary
-/// displacement.
+/// displacement; whatever the door's stop, its enclosure is certified,
+/// and an open one leaves the relation open.
 #[allow(clippy::panic)]
 fn measured(what: &str, body: &Body<f64>, len: f64, tol: Tol) -> Measured {
     let settle = crate::Settle::Resolution(quantity::Length::from_meters(len));
@@ -172,10 +152,135 @@ fn measured(what: &str, body: &Body<f64>, len: f64, tol: Tol) -> Measured {
     }
 }
 
-/// **The boolean's volume relations over `op`'s operands `a`, `b` and
-/// its `result`** (`None` an empty one), read as the module docs say:
-/// the first relation the certified volumes break, as text naming it
-/// and its measures, or `Ok`.
+/// **The volume relations over a pair of operands**, each operand
+/// measured once at each resolution however many ops and orders the
+/// pair is checked under.
+pub struct VolumeOracle<'b> {
+    bodies: [&'b Body<f64>; 2],
+    tol: Tol,
+    /// Each body's measure at the pinned resolution and at ε.
+    cache: RefCell<[[Option<Measured>; 2]; 2]>,
+}
+
+impl<'b> VolumeOracle<'b> {
+    /// The oracle over `x` and `y`, either of which may be either
+    /// operand of an op it checks.
+    #[must_use]
+    pub fn new(x: &'b Body<f64>, y: &'b Body<f64>, tol: Tol) -> Self {
+        Self {
+            bodies: [x, y],
+            tol,
+            cache: RefCell::new([[None; 2]; 2]),
+        }
+    }
+
+    /// The resolutions the oracle measures at, coarse first.
+    fn resolutions(&self) -> [f64; 2] {
+        [crate::test_support::pinned_len(self.tol), self.tol.eps()]
+    }
+
+    /// Which of the pair `operand` is.
+    #[allow(clippy::panic)]
+    fn index(&self, operand: &Body<f64>) -> usize {
+        self.bodies
+            .iter()
+            .position(|&b| core::ptr::eq(b, operand))
+            .unwrap_or_else(|| panic!("the volume oracle holds no such operand"))
+    }
+
+    /// Operand `i` at resolution `r`, measured on first ask.
+    #[allow(clippy::panic)]
+    fn operand(&self, i: usize, r: usize) -> Measured {
+        if let Some(m) = self.cache.borrow()[i][r] {
+            return m;
+        }
+        let what = ["the first operand", "the second operand"][i];
+        let m = measured(what, self.bodies[i], self.resolutions()[r], self.tol);
+        if m.lo <= 0.0 {
+            panic!(
+                "the volume oracle holds {what} to bounded solids, and its volume measures \
+                 [{:e}, {:e}]",
+                m.lo, m.hi
+            );
+        }
+        self.cache.borrow_mut()[i][r] = Some(m);
+        m
+    }
+
+    /// **`op` on `a` and `b`** (each one of the pair) **built `result`**
+    /// (`None` an empty one): the first relation the certified volumes
+    /// break, as text naming it and its measures, or `Ok`.
+    ///
+    /// # Errors
+    ///
+    /// The relation broken.
+    ///
+    /// # Panics
+    ///
+    /// Where `a` or `b` is not one of the pair or not certified
+    /// positive, a body cannot be measured, or a relation is still open
+    /// at the finest enclosures: the oracle then says nothing, and a row
+    /// that asked it must hear so.
+    #[allow(clippy::panic)]
+    pub fn relations(
+        &self,
+        op: BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        result: Option<&Body<f64>>,
+    ) -> Result<(), String> {
+        let (ia, ib) = (self.index(a), self.index(b));
+        let mut open = Vec::new();
+        for (r, len) in self.resolutions().into_iter().enumerate() {
+            let at = [
+                self.operand(ia, r),
+                self.operand(ib, r),
+                result.map_or(Measured::EMPTY, |body| {
+                    measured("the result", body, len, self.tol)
+                }),
+            ];
+            let slack = self.tol.eps() * (at[0].area + at[1].area);
+            open.clear();
+            for relation in relations(op) {
+                match read(&relation, at, slack) {
+                    Reading::Broken(why) => return Err(format!("{op:?}: {why}")),
+                    Reading::Open(why) => open.push(why),
+                    Reading::Held => {}
+                }
+            }
+            if open.is_empty() {
+                return Ok(());
+            }
+        }
+        panic!(
+            "{op:?}: the volume oracle's finest enclosures leave {} open, so it can say \
+             nothing of this result",
+            open.join("; ")
+        );
+    }
+
+    /// [`Self::relations`], panicking on a broken relation with `what`
+    /// naming the case.
+    ///
+    /// # Panics
+    ///
+    /// Where a relation is broken, and as [`Self::relations`].
+    #[allow(clippy::panic)]
+    pub fn assert(
+        &self,
+        what: &str,
+        op: BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        result: Option<&Body<f64>>,
+    ) {
+        if let Err(why) = self.relations(op, a, b, result) {
+            panic!("{what}: the result breaks a volume relation: {why}");
+        }
+    }
+}
+
+/// [`VolumeOracle::relations`] for one op.
 ///
 /// # Errors
 ///
@@ -183,8 +288,7 @@ fn measured(what: &str, body: &Body<f64>, len: f64, tol: Tol) -> Measured {
 ///
 /// # Panics
 ///
-/// Where a body cannot be measured: the oracle then says nothing about
-/// it, and a row that asked it must hear so.
+/// As [`VolumeOracle::relations`].
 pub fn volume_relations(
     op: BooleanOp,
     a: &Body<f64>,
@@ -192,35 +296,14 @@ pub fn volume_relations(
     result: Option<&Body<f64>>,
     tol: Tol,
 ) -> Result<(), String> {
-    for len in [crate::test_support::pinned_len(tol), tol.eps()] {
-        let at = [
-            measured("the first operand", a, len, tol),
-            measured("the second operand", b, len, tol),
-            result.map_or(Measured::EMPTY, |r| measured("the result", r, len, tol)),
-        ];
-        let slack = tol.eps() * (at[0].area + at[1].area);
-        let mut open = at[0].open() || at[1].open();
-        for relation in relations(op, at[0], at[1]) {
-            match read(&relation, at, slack) {
-                Reading::Broken(why) => return Err(format!("{op:?}: {why}")),
-                Reading::Open => open = true,
-                Reading::Held => {}
-            }
-        }
-        if !open {
-            break;
-        }
-    }
-    Ok(())
+    VolumeOracle::new(a, b, tol).relations(op, a, b, result)
 }
 
-/// [`volume_relations`], panicking on a broken relation with `what`
-/// naming the case.
+/// [`VolumeOracle::assert`] for one op.
 ///
 /// # Panics
 ///
-/// Where a relation is broken, or a body cannot be measured.
-#[allow(clippy::panic)]
+/// As [`VolumeOracle::assert`].
 pub fn assert_volume_relations(
     what: &str,
     op: BooleanOp,
@@ -229,9 +312,7 @@ pub fn assert_volume_relations(
     result: Option<&Body<f64>>,
     tol: Tol,
 ) {
-    if let Err(why) = volume_relations(op, a, b, result, tol) {
-        panic!("{what}: the result breaks a volume relation: {why}");
-    }
+    VolumeOracle::new(a, b, tol).assert(what, op, a, b, result);
 }
 
 #[cfg(test)]
@@ -329,65 +410,47 @@ mod tests {
         );
     }
 
-    /// **Equal volumes hold every relation**, each being non-strict, and
-    /// a complement operand bounds nothing: `A ∩ revert(B)` may exceed
-    /// `vol(revert B)`, while the bound by `A` still applies.
+    /// **The slack is ε·(area A + area B), pinned at the run's ε.** Two
+    /// unit cubes (12 m² of boundary) and `A ∖ B` planted as the cube
+    /// lifted by `h`, which breaks `vol(A ∖ B) ≤ vol(A)` by `h` m³:
+    /// 0.9 of the slack passes, 1.1 of it is flagged, and equal volumes
+    /// hold every relation.
     #[test]
-    fn equal_volumes_and_a_complement_operand_hold() {
-        let (cube, half) = (unit_footprint(1.0), unit_footprint(0.5));
+    fn the_slack_is_eps_over_the_operands_boundary() {
+        let tol = Tol::witness();
+        let slack = 12.0 * tol.eps();
+        let cube = unit_footprint(1.0);
+        let under = unit_footprint(1.0 + 0.9 * slack);
+        let got = volume_relations(BooleanOp::Subtract, &cube, &cube, Some(&under), tol);
+        assert!(got.is_ok(), "0.9 of the slack passes: {got:?}");
+        let over = unit_footprint(1.0 + 1.1 * slack);
+        breaks(
+            BooleanOp::Subtract,
+            &cube,
+            &cube,
+            Some(&over),
+            "vol(A ∖ B) ≤ vol(A)",
+        );
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let got = volume_relations(op, &cube, &cube, Some(&cube), Tol::witness());
-            assert!(got.is_ok(), "{op:?}: {got:?}");
+            let got = volume_relations(op, &cube, &cube, Some(&cube), tol);
+            assert!(got.is_ok(), "{op:?}: equal volumes hold: {got:?}");
         }
-        let complement = half.revert().unwrap();
-        let got = volume_relations(
+    }
+
+    /// **An operand that is not a bounded solid is no question the
+    /// oracle answers**: a complement operand panics rather than drop
+    /// its relations.
+    #[test]
+    #[should_panic(expected = "the volume oracle holds the second operand to bounded solids")]
+    fn a_complement_operand_panics() {
+        let cube = unit_footprint(1.0);
+        let complement = unit_footprint(0.5).revert().unwrap();
+        let _ = volume_relations(
             BooleanOp::Intersect,
             &cube,
             &complement,
             Some(&cube),
             Tol::witness(),
-        );
-        assert!(got.is_ok(), "the complement bounds nothing: {got:?}");
-        breaks(
-            BooleanOp::Intersect,
-            &half,
-            &complement,
-            Some(&cube),
-            "vol(A ∩ B) ≤ vol(A)",
-        );
-    }
-
-    /// **A wrong component hidden by a large area is flagged**: a
-    /// 2 m × 2 m × 0.1 m plate's `plate ∖ plate`
-    /// "result" that wrongly kept `3·ε·(area A + area B)` of material,
-    /// about 17.6 m² of boundary over which it is a mean displacement of
-    /// `3ε` (a 3.75 mm cube at the default ε), as a lift of the whole
-    /// top. A lift inside ε of one face, a correct result's own freedom,
-    /// passes.
-    #[test]
-    fn a_wrong_component_on_a_large_plate_is_flagged() {
-        let tol = Tol::witness();
-        let plate = |z: f64| brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, z), tol);
-        let kept = 3.0 * tol.eps() * 2.0 * (8.0 + 0.8);
-        let wrong = plate(0.1 + kept / 4.0);
-        breaks(
-            BooleanOp::Subtract,
-            &plate(0.1),
-            &plate(0.1),
-            Some(&wrong),
-            "vol(A ∖ B) ≤ vol(A)",
-        );
-        let within = plate(0.1 + 0.5 * tol.eps());
-        let got = volume_relations(
-            BooleanOp::Subtract,
-            &plate(0.1),
-            &plate(0.1),
-            Some(&within),
-            tol,
-        );
-        assert!(
-            got.is_ok(),
-            "a lift inside ε is a correct result's: {got:?}"
         );
     }
 }

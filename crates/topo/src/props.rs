@@ -1297,7 +1297,7 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     }
 }
 
-/// What [`read_role`] read.
+/// What [`read_sign`] read.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum RoleRead {
     /// An end decided the role.

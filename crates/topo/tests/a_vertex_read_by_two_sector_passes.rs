@@ -68,7 +68,7 @@ use common::meeting::{
     poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::test_support::assert_volume_relations;
+use topo::test_support::VolumeOracle;
 use topo::{
     AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanOp, BooleanResult, CensusContact,
     EntityId, Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect,
@@ -489,6 +489,7 @@ fn builds_where(
     let y_less: fn(bool, bool) -> bool = |x, y| y && !x;
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
+    let oracle = VolumeOracle::new(x, y, t());
     for (k, (what, keep, a, b, (kind, r))) in [
         (
             "x − y",
@@ -533,13 +534,13 @@ fn builds_where(
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
                 held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
-                assert_volume_relations(&what, kind, a, b, Some(&r.body), t());
+                oracle.assert(&what, kind, a, b, Some(&r.body));
                 Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
                 not_pinned(label, op);
                 material_holds(&what, keep, None, &probes);
-                assert_volume_relations(&what, kind, a, b, None, t());
+                oracle.assert(&what, kind, a, b, None);
                 Some(0.0)
             }
             Err(e) if pinned(label, op, &e) => None,
@@ -1643,6 +1644,7 @@ fn builds_or_refuses(
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
     let mut v = [None; 6];
+    let oracle = VolumeOracle::new(x, y, t());
     for (k, (what, keep, a, b, (kind, r))) in [
         (
             "x − y",
@@ -1689,7 +1691,7 @@ fn builds_or_refuses(
                 for &(q, inx, iny) in &probes {
                     assert!(!keep(inx, iny), "{what}: empty, but holds {q:?}");
                 }
-                assert_volume_relations(&what, kind, a, b, None, t());
+                oracle.assert(&what, kind, a, b, None);
                 v[k] = Some(0.0);
                 continue;
             }
@@ -1733,7 +1735,7 @@ fn builds_or_refuses(
             };
             assert_eq!(row.class, want, "{what}: {row:?} against the other operand");
         }
-        assert_volume_relations(&what, kind, a, b, Some(&r.body), t());
+        oracle.assert(&what, kind, a, b, Some(&r.body));
         v[k] = Some(volume(&r.body));
     }
     if let [Some(xy), Some(yx), Some(u), Some(u2), Some(i), Some(i2)] = v {

@@ -3617,10 +3617,9 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-/// **What a mass-properties refusal says about the body** — tier 3's
-/// check 7's reading:
-/// why the volume is missing, and what the user can do, or that it is a
-/// defect in the body. Only structure that does not resolve is one; a
+/// **What a mass-properties refusal says about the body**, as tier 3's
+/// check 7 reads it: why the volume is missing, and what the user can
+/// do, or that it is a defect in the body. Only structure that does not resolve is one; a
 /// face the property layer has no measurement for, a decision too close
 /// to call, a quadrature that ran out are measurements the kernel does
 /// not have, however the face came to need them.

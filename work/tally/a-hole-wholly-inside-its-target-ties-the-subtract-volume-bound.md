@@ -1,7 +1,7 @@
 ---
 id: a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound
 kind: issue
-title: A subtract whose tool lies wholly inside its target ties vol(A ∖ B) ≥ vol(A) − vol(B) exactly, and the certified lane decides that tie on no box
+title: The tour's cut plate, its holes subtracted wholly inside the blank, certifies no box even at 1e-9 of the study, though the subtract volume tie that first refused it no longer decides anything
 status: open
 opened: 2026-10-03
 priority: P2

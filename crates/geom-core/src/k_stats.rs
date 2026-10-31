@@ -763,11 +763,13 @@ pub fn decide_flagged_reported<T: Decide>(
     classify(name, margin, band)
 }
 
-/// The classify seam's **invariant lane** — [`decide`] for the
-/// kernel's **consistency backstops**: inequalities between integral
-/// RESULTS (wrong-component detectors),
-/// which are **outside the length seam by design — not a door, not
-/// debt** (Ev's #213 layering ruling). A consistency backstop is
+/// The classify seam's **invariant lane** — [`decide`] for a
+/// **consistency backstop**: an inequality between integral RESULTS (a
+/// wrong-component detector), which is **outside the length seam by
+/// design — not a door, not debt** (Ev's #213 layering ruling). The
+/// kernel runs no consistency backstop: since the boolean's volume
+/// relations became a test oracle (`[ev]` PR 5780, PR 5842), this lane
+/// has no caller but its own rows. A consistency backstop is
 /// never an accuracy gate: pointwise-ε accuracy is owned upstream, and
 /// a body whose geometry is ε-right everywhere is never refused for
 /// its integral differing at tiny-wiggle scale. Mean displacement is
@@ -779,7 +781,7 @@ pub fn decide_flagged_reported<T: Decide>(
 /// names, same values, the K stream unchanged.
 ///
 /// A certified violation on this lane is a **kernel invariant** failure:
-/// callers surface it as their Corrupt-class typed error ("this is a
+/// a caller surfaces it as its Corrupt-class typed error ("this is a
 /// bug", with a report affordance), never as a validity refusal and
 /// never as a panic (the `clippy::panic` denial; the Corrupt
 /// precedent).

@@ -723,19 +723,15 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
 /// floor to `1.5w` at the ceiling, 30ε across, so the cavity's cross
 /// section is a trapezoid. Its rim lies on the cavity's walls as the
 /// upright face's does, and its germ there reads it. Both poses build
-/// every op, but for the turned bar `slab ∖ fill` at ε 1e-6, which
-/// refuses on the backstop as the upright channel's does.
+/// every op.
 #[test]
 fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
     }
-    let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
     for pose in [Pose::Aligned, Pose::Turned] {
-        channel_rows(pose, 30.0, 0.5, tol, |_| match pose {
-            _ => Want::Builds,
-        });
+        channel_rows(pose, 30.0, 0.5, tol, |_| Want::Builds);
     }
 }
 

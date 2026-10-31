@@ -462,15 +462,9 @@ fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
 /// volume relations, and `revert(B)` refused at the at-rest gate with
 /// `NegativeVolume` alone.
 pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
+    let oracle = topo::test_support::VolumeOracle::new(a, b, Tol::witness());
     let volume = |op: topo::BooleanOp, r: BooleanResult<f64>| {
-        topo::test_support::assert_volume_relations(
-            name,
-            op,
-            a,
-            b,
-            r.body().map(|bb| &*bb.body),
-            Tol::witness(),
-        );
+        oracle.assert(name, op, a, b, r.body().map(|bb| &*bb.body));
         r.body().map_or(0.0, |bb| {
             mass_properties(
                 &bb.body,

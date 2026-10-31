@@ -5882,8 +5882,8 @@ impl GluedSurfaces {
 }
 
 /// **The result gate every [`BooleanBody`] passes**, at the site that
-/// built it: the body is
-/// sorted one solid per piece of material ([`crate::pieces`]), then
+/// built it: the body is sorted one solid per piece of material
+/// ([`crate::pieces`]), then
 /// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
