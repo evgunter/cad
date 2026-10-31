@@ -2,10 +2,11 @@
 id: sphere-faces-take-a-per-face-chart-or-pole-vertices
 kind: ruling
 title: Does a sphere face read a per-face singularity-free chart (stereographic from a point off the face) instead of pole vertices and wrap edges, and what does a cone apex then need?
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 refs: [6085, 6014, 6097, validity-refuses-an-interior-chart-singularity]
+closed: 2026-10-31
 ---
 
 Raised by Ev on `[ev]` PR 6085 (2026-10-30, in the comments). A sphere face that is not the whole sphere is a disc, possibly with holes, so it has a singularity-free chart: stereographic projection from a point outside its closure. Only the whole sphere needs a singular point.
@@ -39,7 +40,7 @@ Ev asked whether a pole vertex must lie on a loop, so that the seam has to becom
    - import would keep `VERTEX_LOOP` rather than split it.
 4. **A per-face stereographic chart from a point off the face.** No pole exists at all, except on the whole sphere. The cone apex stays a real singularity.
 
-## Weighed (pole-form fork, fork-log row 220, 2026-10-30)
+## Weighed (pole-form fork, fork-log row 222, 2026-10-30)
 
 The Opus/Fable pair converged on its first reports:
 - **Keep the wrap tip**, one form for both sphere and cone.
@@ -48,3 +49,13 @@ The Opus/Fable pair converged on its first reports:
 - **The rejected forms:** the one-vertex loop (about 9 special cases against about 6, spread wider, and the cap would be the one seamless closed face), the per-face chart, and two half-meridians.
 
 The recommendation is posted on `[ev]` PR 6085 as decision 3, with the DESIGN diff on that branch. This ruling closes on Ev's answer there.
+
+## Closed (Ev, `[ev]` PR 6085, 2026-10-31)
+
+Ev approved decision 3 ("ok sounds good!"). The ruling is:
+- The wrap tip is kept, in one form for the sphere pole and the cone apex.
+- The wrap edge is the face's D1 seam, kept to its end. The kernel mints one only where a file states none (a sentence added to the seam clause).
+- A tip is any valence-1 end of a wrap edge, so the one-face ball passes.
+- A chart reader reads a tip as the seam, through the lift's reset. A chart-free reader drops it, keeping the pole vertex as the datum for the face's side.
+
+The vertex loop, the per-face chart and the two half-meridians are rejected. Fork-log row 222.

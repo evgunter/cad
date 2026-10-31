@@ -2,12 +2,11 @@
 id: tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity
 kind: issue
 title: Tier 2 admits a valence-1 vertex only at a wrap edge's tip, and tier 3 refuses a wrap tip off its face's chart singularity
-status: parked
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity, import-mints-the-wrap-tip-at-a-chart-singularity, 6014]
-blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 branch: restcurve/wrap-tip-tiers
 ---
 
@@ -79,3 +78,7 @@ The review was a single FULL review on `fcb3aa32`, cloud session `session_018u3g
 - The not-owed gap has no row.
 
 **Waiting:** all of it presupposes sphere pole vertices and wrap tips, which `sphere-faces-take-a-per-face-chart-or-pole-vertices` may retire. Once that ruling lands, either dispatch this fix pass (the cone apex keeps a tip in any case) or re-scope the unit.
+
+## Released (2026-10-31)
+
+Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)
