@@ -3191,14 +3191,8 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     per_span: usize,
     cuts: &[f64],
 ) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
-    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    use projected::SpanHull;
+    use geom_core::spline::compose::CanonicalSurface;
     let cross = geom_core::Interval::from_certified;
-    let refuse = |why| PcurveCertifyError::ImageMismatch {
-        image: PcurveKind::Projected,
-        why,
-    };
-    let (lower, upper, uncertified) = (certified_lower, certified_upper, uncertified_over);
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -3230,6 +3224,44 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     let Some(meters) = projected::Meters::of(twin, chart, cross) else {
         unreachable!("the form above is analytic")
     };
+    // The parts read the controls through their brackets, as the
+    // composite does (`certified_coords`), and the knots and weights on
+    // their value channel: crossing the net first and reading the
+    // channel here makes the memo's input all that they read.
+    let twin_net = twin_net.map_scalar(geom_core::Interval::from_certified::<geom_core::Interval>);
+    let (knots, weights) = (twin_net.knots_f64_interim(), twin_net.weights_f64_interim());
+    let input = span_memo::Input {
+        twin_net: &twin_net,
+        form: &form,
+        meters,
+        per_span,
+        cuts,
+    };
+    span_memo::read(&input, (knots, weights), || {
+        spans_of(&input, (knots, weights))
+    })
+}
+
+/// [`twin_span_hulls`]' parts, from the twin's canonical form and metre
+/// conversion in certification arithmetic.
+fn spans_of(
+    input: &span_memo::Input<'_>,
+    (knots, weights): (&KnotVector, &[f64]),
+) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
+    let span_memo::Input {
+        twin_net,
+        form,
+        meters,
+        per_span,
+        cuts,
+    } = *input;
+    use geom_core::spline::compose::{CurveCertData, canonical_composite};
+    use projected::SpanHull;
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let (lower, upper, uncertified) = (certified_lower, certified_upper, uncertified_over);
     // The composite of the net, and the same composite with each knot
     // span cut into equal parts, and at `cuts`: the Bernstein hull over a
     // part is tighter than over the whole span (its excess falls as the
@@ -3245,23 +3277,15 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         .iter()
         .all(|c| c.x.is_certified() && c.y.is_certified() && c.z.is_certified());
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(
-        twin_net.knots_f64_interim(),
-        twin_net.weights_f64_interim(),
-        &coords,
-    )
-    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(knots, weights, &coords)
+        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
-        canonical_composite(data, &form)
+        canonical_composite(data, form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = twin_net
-        .knots_f64_interim()
-        .knot_runs()
-        .map(|(k, _)| k)
-        .collect();
+    let runs: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
@@ -3365,6 +3389,127 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         })
         .collect();
     Ok(spans)
+}
+
+/// **The span hulls' memo**: [`spans_of`] keyed by exactly what it
+/// reads, for the projected rows' door and limb 2's rounds alike.
+///
+/// [`spans_of`] is certification arithmetic over the twin net, the
+/// twin's canonical form and its metre conversion, all in `Interval`,
+/// and the cuts. It takes no decision, so a hit skips no verdict, no
+/// escalation and no decision count. [`twin_span_hulls`] crosses the
+/// twin's scalars into the form and the conversion, and the net's
+/// controls through their brackets, on every call before the memo is
+/// read, so every `Interval` the parts read is `Def` where it certifies
+/// and `Trv` where it does not ([`geom_core::Interval::from_certified`]):
+/// its decoration is its certified bracket's presence, and a certified
+/// one is keyed by that bracket's two ends. An uncertified control is
+/// keyed as NaN, which is all the parts read of it: every part its
+/// support reaches reads NaN (`uncertified_over`), and no other part
+/// reads it. The knots and weights enter on the value channel the
+/// composite reads, each `f64` as its bits. The key is compared whole:
+/// no hash stands for it, so a hit returns exactly what a miss computes
+/// (D9). It is a bounded thread-local memo ([`crate::memo`]), so an entry
+/// left from another operation is still that key's value, never stale.
+///
+/// Limb 2's round memo keys the scalar's witness kind beside its
+/// brackets because its round forms the twin in the scalar inside the
+/// memo; here the twin is crossed before it, so the witness kind is
+/// already in the brackets.
+mod span_memo {
+    use super::{PcurveCertifyError, projected};
+    use geom::NurbsCurve3;
+    use geom_core::Interval;
+    use geom_core::spline::KnotVector;
+    use geom_core::spline::compose::CanonicalSurface;
+
+    pub(super) type Spans = Result<Vec<projected::SpanHull>, PcurveCertifyError>;
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<crate::memo::Memo<Vec<u64>, Spans>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
+    }
+
+    /// What [`super::spans_of`] reads besides its knots' and weights'
+    /// value channel: the net crossed through its brackets, the twin's
+    /// form and metre conversion, the parts per span and the cuts.
+    #[derive(Clone, Copy)]
+    pub(super) struct Input<'a> {
+        pub(super) twin_net: &'a NurbsCurve3<Interval>,
+        pub(super) form: &'a CanonicalSurface,
+        pub(super) meters: projected::Meters<Interval>,
+        pub(super) per_span: usize,
+        pub(super) cuts: &'a [f64],
+    }
+
+    /// The parts at `input`: the memo's, or `compute`'s, which is then
+    /// kept.
+    pub(super) fn read(
+        input: &Input<'_>,
+        channel: (&KnotVector, &[f64]),
+        compute: impl FnOnce() -> Spans,
+    ) -> Spans {
+        crate::memo::read(&MEMO, key(input, channel), compute)
+    }
+
+    /// The input whole, each list behind its length and each variant
+    /// behind its tag: an `f64` as its bits, a crossed `Interval` as its
+    /// certified bracket's two ends' bits, NaN where it does not certify.
+    fn key(input: &Input<'_>, (knots, weights): (&KnotVector, &[f64])) -> Vec<u64> {
+        use geom_core::CertifiedEnclosure as _;
+        use projected::Meters;
+        let len = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+        let mut k = Vec::new();
+        let floats = |k: &mut Vec<u64>, tag: u64, xs: &[f64]| {
+            k.extend([tag, len(xs.len())]);
+            k.extend(xs.iter().map(|x| x.to_bits()));
+        };
+        let scalars = |k: &mut Vec<u64>, tag: u64, xs: &[Interval]| {
+            k.extend([tag, len(xs.len())]);
+            for x in xs {
+                let (lo, hi) = x.certified_bracket().unwrap_or((f64::NAN, f64::NAN));
+                k.extend([lo.to_bits(), hi.to_bits()]);
+            }
+        };
+        match *input.form {
+            CanonicalSurface::Plane => scalars(&mut k, 0, &[]),
+            CanonicalSurface::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            CanonicalSurface::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            CanonicalSurface::Cone { cos2, sin2 } => scalars(&mut k, 3, &[cos2, sin2]),
+            CanonicalSurface::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        match input.meters {
+            Meters::Plane => scalars(&mut k, 0, &[]),
+            Meters::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            Meters::Cone { sin, cos, nappe } => scalars(
+                &mut k,
+                if nappe == crate::offset::Nappe::Opening {
+                    3
+                } else {
+                    5
+                },
+                &[sin, cos],
+            ),
+            Meters::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        k.extend([len(input.per_span), len(knots.degree())]);
+        floats(&mut k, 6, knots.knots());
+        floats(&mut k, 7, weights);
+        k.push(len(input.twin_net.control().len()));
+        for c in input.twin_net.control() {
+            scalars(&mut k, 8, &[c.x, c.y, c.z]);
+        }
+        floats(&mut k, 9, input.cuts);
+        k
+    }
+
+    /// This thread's memo hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        crate::memo::counts(&MEMO)
+    }
 }
 
 /// **Limb 2's reader: an `Intersection` carrier's distance from an
@@ -13703,7 +13848,7 @@ mod check_4_class_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_memo_rows {
-    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup};
+    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -13725,6 +13870,216 @@ mod limb2_memo_rows {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (rim, wall)
+    }
+
+    /// **The span memo serves a repeated read with the fresh parts, and
+    /// every input its key holds misses when it changes alone.** Limb 2's
+    /// round read again after its own memo is emptied takes its parts
+    /// from the span memo alone, the same bits; a twin net read twice
+    /// hits; a net whose certified controls carry another decoration
+    /// (`Com` against the crossed `Def`) is the same input once crossed,
+    /// and reads the same bits. Asked of the memo directly, each input
+    /// changed alone misses: the form, the metre conversion, the knots,
+    /// the weights, the degree (with the knot list it implies), the parts
+    /// per span, the cuts, a control a ulp away, and a control with the
+    /// same ends that does not certify. Red under a key that leaves out
+    /// an input the parts read, or a memo that returns a neighbour's
+    /// parts.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn the_span_memo_serves_a_repeated_read_and_a_changed_input_misses() {
+        use super::twin_span_hulls;
+        use crate::pcurve_cache::projected::{Meters, ProjectedChart};
+        use geom::NurbsCurve3;
+        use geom_core::CertifiedEnclosure as _;
+        use geom_core::Interval;
+        use geom_core::spline::compose::CanonicalSurface;
+        use geom_core::spline::{KnotVector, SpanLocate as _};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (c, s) = rim(1.25);
+        let round = || format!("{:?}", limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        limb2_memo::clear();
+        let cold = round();
+        limb2_memo::clear();
+        let (h0, m0) = span_memo::counts();
+        let warm = round();
+        let (h1, m1) = span_memo::counts();
+        assert!(
+            h1 > h0 && m1 == m0,
+            "a repeated round's parts hit: {:?}",
+            (h1 - h0, m1 - m0)
+        );
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        // A net of four controls, degree 2 unless `cubic`, one control's
+        // x lifted by `lift`.
+        let net = |interior: f64, w1: f64, cubic: bool, x: f64, lift: &dyn Fn(f64) -> Interval| {
+            let knots = if cubic {
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+            } else {
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, interior, 1.0, 1.0, 1.0], 2)
+            }
+            .unwrap();
+            let control = vec![
+                Point3::new(1.2, 0.0, 0.1),
+                Point3::new(x, 1.3, 0.2),
+                Point3::new(-0.1, 1.2, 0.3),
+                Point3::new(-1.1, 0.2, 0.4),
+            ];
+            NurbsCurve3::new(knots, control, vec![1.0, w1, 1.0, 1.0])
+                .unwrap()
+                .map_scalar(|v| {
+                    if v == x {
+                        lift(v)
+                    } else {
+                        Interval::from_f64(v)
+                    }
+                })
+        };
+        let base = |lift: &dyn Fn(f64) -> Interval| net(0.5, 1.0, false, 1.3, lift);
+        let (_, wall) = rim(1.25);
+        let parts = |n: &NurbsCurve3<Interval>| {
+            format!(
+                "{:?}",
+                twin_span_hulls(n, &wall, &ProjectedChart::Cylinder, 4, &[0.5])
+            )
+        };
+        let first = parts(&base(&Interval::from_f64));
+        let (h2, m2) = span_memo::counts();
+        assert_eq!(
+            parts(&base(&Interval::from_f64)),
+            first,
+            "a hit is the miss's bits"
+        );
+        let (h3, m3) = span_memo::counts();
+        assert_eq!((h3 - h2, m3 - m2), (1, 0), "the same input hits");
+        let def = |v: f64| Interval::from_certified(Interval::from_f64(v));
+        assert_eq!(
+            parts(&base(&def)),
+            first,
+            "a certified control's decoration is crossed away, and reads the same bits"
+        );
+        // Each input changed alone, asked of the memo directly.
+        let cross = |n: NurbsCurve3<Interval>| n.map_scalar(Interval::from_certified);
+        let radius = def(1.25);
+        let form = CanonicalSurface::Cylinder { radius };
+        let meters = Meters::Cylinder { radius };
+        let base_net = cross(base(&Interval::from_f64));
+        let ask = |n: &NurbsCurve3<Interval>,
+                   form: &CanonicalSurface,
+                   meters: Meters<Interval>,
+                   per_span: usize,
+                   cuts: &[f64]| {
+            let input = span_memo::Input {
+                twin_net: n,
+                form,
+                meters,
+                per_span,
+                cuts,
+            };
+            let knots = n.knot_values().runs().flat_map(|(k, m)| {
+                core::iter::repeat_n(k.certified_bracket().map_or(f64::NAN, |(lo, _)| lo), m)
+            });
+            let knots = KnotVector::clamped(knots.collect(), n.knot_values().degree()).unwrap();
+            let weights: Vec<f64> = n
+                .weights()
+                .iter()
+                .map(|w| w.certified_bracket().map_or(f64::NAN, |(lo, _)| lo))
+                .collect();
+            let channel = (&knots, &weights[..]);
+            let computed = core::cell::Cell::new(false);
+            let _ = span_memo::read(&input, channel, || {
+                computed.set(true);
+                Ok(Vec::new())
+            });
+            computed.get()
+        };
+        assert!(
+            ask(&base_net, &form, meters, 4, &[0.5]),
+            "the base misses first"
+        );
+        assert!(!ask(&base_net, &form, meters, 4, &[0.5]), "and then hits");
+        let wider = def(1.25f64.next_up());
+        let uncertified = |x: f64| {
+            let y = Interval::from_bounds(-1.0, x * x).sqrt().clip_to(x, x);
+            assert!(!y.is_certified());
+            y
+        };
+        for (what, missed) in [
+            (
+                "form",
+                ask(
+                    &base_net,
+                    &CanonicalSurface::Cylinder { radius: wider },
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "conversion",
+                ask(
+                    &base_net,
+                    &form,
+                    Meters::Cylinder { radius: wider },
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "knots",
+                ask(
+                    &cross(net(0.6, 1.0, false, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "weights",
+                ask(
+                    &cross(net(0.5, 2.0, false, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "degree",
+                ask(
+                    &cross(net(0.5, 1.0, true, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            ("parts per span", ask(&base_net, &form, meters, 3, &[0.5])),
+            ("cuts", ask(&base_net, &form, meters, 4, &[0.6])),
+            (
+                "control",
+                ask(
+                    &cross(net(0.5, 1.0, false, 1.3f64.next_up(), &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "certification",
+                ask(
+                    &cross(net(0.5, 1.0, false, 1.3, &uncertified)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+        ] {
+            assert!(missed, "a changed {what} misses");
+        }
     }
 
     /// **A memo hit is the fresh compute, bit for bit, and every input
