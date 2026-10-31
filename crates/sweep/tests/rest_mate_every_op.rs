@@ -419,3 +419,70 @@ fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
         }
     }
 }
+
+/// **A shaft a tenth of ε under its bore mates in every op**: the
+/// arc-split collar (bore 0.5, outer 1.5, `z ∈ [1, 2]`) and a shaft of
+/// radius `0.5 − 0.1ε` through both rims, in both orders. The pair is a
+/// `Rest` inside the band, so `∪` is one shell at the two volumes
+/// summed, `∩` is empty, and each difference is its minuend whole; a
+/// glued result may move by the gap over the bore (`2π·0.5·0.1ε` m³),
+/// so each volume is held to ε over the operands' boundary, and to the
+/// volume relations.
+#[test]
+fn a_shaft_a_tenth_of_eps_under_its_bore_mates_in_every_op() {
+    let tol = Tol::witness();
+    let r = 0.5 - 0.1 * tol.eps();
+    let (c, s) = (
+        fin("the collar", &collar_of(0.5, 1.5, 0.0, 1.0, 1.0)),
+        fin("the shaft", &peg_of(r, 0.0, 0.5, 2.0)),
+    );
+    let (vc, vs) = (2.0 * PI, PI * r * r * 2.0);
+    let oracle = topo::test_support::VolumeOracle::new(&c, &s, tol);
+    let slack = tol.eps() * (volume_area(&c) + volume_area(&s));
+    let body = |tag: &str, out: Result<BooleanResult<f64>, topo::BooleanError>, want: f64| {
+        let bb = match out {
+            Ok(BooleanResult::Body(bb)) => bb,
+            other => panic!("{tag}: wanted a body, got {other:?}"),
+        };
+        let got = volume(&bb.body);
+        assert!(
+            (got - want).abs() <= slack,
+            "{tag}: volume {got} vs {want}, past ε over the boundary {slack:e}"
+        );
+        assert_eq!(bb.body.shells().count(), 1, "{tag}: one shell");
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol),
+            Ok(()),
+            "{tag}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            Ok(()),
+            "{tag}: the census"
+        );
+        bb
+    };
+    for (order, x, y) in [("collar", &c, &s), ("shaft", &s, &c)] {
+        let tag = format!("{order} first");
+        let u = body(&format!("{tag}, ∪"), topo::union(x, y, tol), vc + vs);
+        oracle.assert(&tag, BooleanOp::Union, x, y, Some(&u.body));
+        let meet = topo::intersect(x, y, tol);
+        assert!(
+            matches!(meet, Ok(BooleanResult::Empty)),
+            "{tag}, ∩ is empty: {meet:?}"
+        );
+        oracle.assert(&tag, BooleanOp::Intersect, x, y, None);
+    }
+    for (tag, x, y, want) in [
+        ("collar ∖ shaft", &c, &s, vc),
+        ("shaft ∖ collar", &s, &c, vs),
+    ] {
+        let d = body(tag, topo::subtract(x, y, tol), want);
+        oracle.assert(tag, BooleanOp::Subtract, x, y, Some(&d.body));
+    }
+}
+
+/// A body's surface area, at the suites' pinned resolution.
+fn volume_area(b: &AtRestBody<f64>) -> f64 {
+    topo::test_support::pinned_volume("an operand", b, Tol::witness()).surface_area
+}

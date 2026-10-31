@@ -2,10 +2,11 @@
 id: a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab
 kind: issue
 title: Since PR 5368 the fate cut refuses ClassificationInvariant on a slit or ring floor flush with an aligned slab inside it, in ∪ and ∩: main built both
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
+closed: 2026-10-31
 ---
 
 
@@ -90,3 +91,19 @@ outline crosses or meets the slit also build in both orders of ∩:
 `[0,2] × [0,4] × [0,½]` against the closed and the one-end slit, and
 `[1,5] × [1,3] × [0,½]` against the one-end slit
 (`a_flush_partner_crossing_the_slit_intersects_it_in_either_order`).
+
+## Resolution
+
+Closed by CLEAVE's PR 5545 (merged), on the FLUSH orchestrator's read,
+2026-10-31. Every cell this row owed builds again at ε default, 1e-6
+and 1e-12 in both slit operands and five poses, and the row "the slab
+inside ∪ slit" is back in CLEAVE's pin. The pins on main are in
+`crates/topo/tests/a_keel_on_the_floor_subtracts_as_a_slit.rs`:
+- `a_face_glued_to_the_slit_floor_merges_its_two_edges`;
+- `a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel`;
+- `a_box_flush_under_a_ringed_top_builds_in_every_op`;
+- `a_flush_partner_crossing_the_slit_intersects_it_in_either_order`.
+
+The cause, a slit's or ring's tip corner read as a cusp and both slit
+edges kept as fate edges, is on CLEAVE's
+`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`.

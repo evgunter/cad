@@ -18,7 +18,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Tol};
 
 use crate::boolean::solid_contain::trim_window_short;
 use crate::chart_region::{ChartRegionError, cyl_wrap_whole, seam_span_over};
-use crate::chord_join::run_window_over;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness band")
@@ -61,24 +60,6 @@ fn margin(cause: Indeterminate) -> Option<f64> {
 
 fn hull(lo: f64, hi: f64) -> Extent<f64> {
     Extent::between(lo, hi)
-}
-
-/// **`split_ring_chart_window` agrees with its old spelling, bit for
-/// bit**: the headroom `(τ − (hi − lo))·r` definitely negative.
-#[test]
-fn the_ring_chart_window_agrees_with_the_old_headroom() {
-    fn old<T: Decide>(lo: T, hi: T, radius: T, band: Band) -> Result<bool, Option<f64>> {
-        let headroom = Margin::levered(T::tau() - (hi - lo), radius);
-        decide("split_ring_chart_window", headroom, band)
-            .map(|sign| sign == Sign::Negative)
-            .map_err(margin)
-    }
-    let band = band();
-    let radius = 1.75;
-    for (k, (lo, hi)) in windows(band, radius, -0.4) {
-        let new = run_window_over(lo, hi, radius, band).map_err(margin);
-        assert_eq!(new, old(lo, hi, radius, band), "k = {k}, [{lo}, {hi}]");
-    }
 }
 
 /// **`bool_sphere_trim_period` agrees with its old spelling, bit for

@@ -68,11 +68,12 @@ use common::meeting::{
     poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::test_support::VolumeOracle;
 use topo::{
-    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanResult, CensusContact, EntityId,
-    Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
-    point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanOp, BooleanResult, CensusContact,
+    EntityId, Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect,
+    mass_properties, point_in_solid, point_in_solid_of, readback, subtract, union,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const THIRD: f64 = 1.0 / 3.0;
@@ -488,13 +489,38 @@ fn builds_where(
     let y_less: fn(bool, bool) -> bool = |x, y| y && !x;
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
-    for (k, (what, keep, a, b, r)) in [
-        ("x − y", x_less, x, y, subtract(x, y, t())),
-        ("y − x", y_less, y, x, subtract(y, x, t())),
-        ("x ∪ y", or, x, y, union(x, y, t())),
-        ("y ∪ x", or, y, x, union(y, x, t())),
-        ("x ∩ y", and, x, y, intersect(x, y, t())),
-        ("y ∩ x", and, y, x, intersect(y, x, t())),
+    let oracle = VolumeOracle::new(x, y, t());
+    for (k, (what, keep, a, b, (kind, r))) in [
+        (
+            "x − y",
+            x_less,
+            x,
+            y,
+            (BooleanOp::Subtract, subtract(x, y, t())),
+        ),
+        (
+            "y − x",
+            y_less,
+            y,
+            x,
+            (BooleanOp::Subtract, subtract(y, x, t())),
+        ),
+        ("x ∪ y", or, x, y, (BooleanOp::Union, union(x, y, t()))),
+        ("y ∪ x", or, y, x, (BooleanOp::Union, union(y, x, t()))),
+        (
+            "x ∩ y",
+            and,
+            x,
+            y,
+            (BooleanOp::Intersect, intersect(x, y, t())),
+        ),
+        (
+            "y ∩ x",
+            and,
+            y,
+            x,
+            (BooleanOp::Intersect, intersect(y, x, t())),
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -508,11 +534,13 @@ fn builds_where(
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
                 held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
+                oracle.assert(&what, kind, a, b, Some(&r.body));
                 Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
                 not_pinned(label, op);
                 material_holds(&what, keep, None, &probes);
+                oracle.assert(&what, kind, a, b, None);
                 Some(0.0)
             }
             Err(e) if pinned(label, op, &e) => None,
@@ -1616,13 +1644,38 @@ fn builds_or_refuses(
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
     let mut v = [None; 6];
-    for (k, (what, keep, a, b, r)) in [
-        ("x − y", x_less, x, y, subtract(x, y, t())),
-        ("y − x", y_less, y, x, subtract(y, x, t())),
-        ("x ∪ y", or, x, y, union(x, y, t())),
-        ("y ∪ x", or, y, x, union(y, x, t())),
-        ("x ∩ y", and, x, y, intersect(x, y, t())),
-        ("y ∩ x", and, y, x, intersect(y, x, t())),
+    let oracle = VolumeOracle::new(x, y, t());
+    for (k, (what, keep, a, b, (kind, r))) in [
+        (
+            "x − y",
+            x_less,
+            x,
+            y,
+            (BooleanOp::Subtract, subtract(x, y, t())),
+        ),
+        (
+            "y − x",
+            y_less,
+            y,
+            x,
+            (BooleanOp::Subtract, subtract(y, x, t())),
+        ),
+        ("x ∪ y", or, x, y, (BooleanOp::Union, union(x, y, t()))),
+        ("y ∪ x", or, y, x, (BooleanOp::Union, union(y, x, t()))),
+        (
+            "x ∩ y",
+            and,
+            x,
+            y,
+            (BooleanOp::Intersect, intersect(x, y, t())),
+        ),
+        (
+            "y ∩ x",
+            and,
+            y,
+            x,
+            (BooleanOp::Intersect, intersect(y, x, t())),
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -1638,6 +1691,7 @@ fn builds_or_refuses(
                 for &(q, inx, iny) in &probes {
                     assert!(!keep(inx, iny), "{what}: empty, but holds {q:?}");
                 }
+                oracle.assert(&what, kind, a, b, None);
                 v[k] = Some(0.0);
                 continue;
             }
@@ -1681,6 +1735,7 @@ fn builds_or_refuses(
             };
             assert_eq!(row.class, want, "{what}: {row:?} against the other operand");
         }
+        oracle.assert(&what, kind, a, b, Some(&r.body));
         v[k] = Some(volume(&r.body));
     }
     if let [Some(xy), Some(yx), Some(u), Some(u2), Some(i), Some(i2)] = v {
@@ -1759,31 +1814,9 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
-                // Pinned: at ε 1e-12 the turned pose's `x ∩ y`, which is
-                // `x`, stores its result a sub-ulp outside `x`, and the
-                // volume backstop's exact band refuses it
-                // (`work/cleave/a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band.md`).
-                // The refusal is asserted, so this goes red when it is fixed.
-                let pinned = eps == 1e-12
-                    && k == 100.0
-                    && pose.label == "turned"
-                    && label == "inside the lying pyramid";
-                let excess = |e: &BooleanError| {
-                    matches!(e, BooleanError::ResultVolumeImplausible { which, .. }
-                        if *which == "vol(A ∩ B) ≤ vol(A)")
-                };
-                if pinned {
-                    let got = intersect(x, &y, t());
-                    assert!(
-                        got.as_ref().is_err_and(excess),
-                        "the pinned sub-ulp backstop refusal: got {:?}",
-                        got.map(|_| ())
-                    );
-                }
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses(&label, x, &y, &pose, &|e| {
-                    (pinned && excess(e))
-                        || matches!(e, BooleanError::Escalated { .. })
+                    matches!(e, BooleanError::Escalated { .. })
                         || (faced
                             && matches!(
                                 e,

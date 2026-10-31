@@ -2,11 +2,13 @@
 id: the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it
 kind: issue
 title: The volume backstop's magnitude arm meters the f64 margin after the interval re-derivation has cleared it, so a correct boolean refuses ResultVolumeImplausible on its closed forms' rounding
-status: open
+status: closed
 opened: 2026-10-21
 priority: P1
 cost: E
 refs: [the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound, a-planar-face-sums-its-area-about-a-far-carrier-origin, a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band, a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -135,3 +137,7 @@ unpadded sum as exact, so this fix stands on its own.
   `SignReading::exact()` and `is_exact()` mean "one value, no quadrature
   bracket", not "exact" (R1, style). The sibling row carries the case
   for one fix over all four readers.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The magnitude arm went with it, and the witness's correct bodies are returned.

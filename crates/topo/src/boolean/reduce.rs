@@ -160,6 +160,12 @@ pub(super) struct ContactAcc {
     /// cylinder pair's partner wall lies on ([`factored_crossing`]), by
     /// its operand: the pierce reads that wall through it.
     pub(super) branches: std::collections::BTreeMap<(Operand, VertexKey), super::Branch>,
+    /// The chart point each vertex the sweep placed inside a spline face
+    /// was placed at, on the face's own sheet, by the vertex's operand and
+    /// the face: the pierce reads the face's normal there
+    /// ([`crate::face_normal::spline_outward_normal_at`]). The first
+    /// placement of a pair is kept.
+    pub(super) charts: std::collections::BTreeMap<(Operand, VertexKey, FaceKey), (f64, f64)>,
 }
 
 /// **A vertex identity the reduction decided**: one with a margin is a
@@ -248,6 +254,25 @@ impl ContactAcc {
             }
         }
     }
+    /// Records the chart point `uv` of `face` that `vertex` of `x_is`
+    /// was placed inside the face at ([`Self::charts`]).
+    pub(super) fn chart_point(
+        &mut self,
+        x_is: Operand,
+        vertex: VertexKey,
+        face: FaceKey,
+        uv: (f64, f64),
+    ) {
+        self.charts.entry((x_is, vertex, face)).or_insert(uv);
+    }
+
+    /// The chart points the sweep recorded ([`Self::charts`]), taken out.
+    pub(super) fn take_charts(
+        &mut self,
+    ) -> std::collections::BTreeMap<(Operand, VertexKey, FaceKey), (f64, f64)> {
+        core::mem::take(&mut self.charts)
+    }
+
     /// The branches the sweep recorded ([`Self::branches`]), taken out.
     pub(super) fn take_branches(
         &mut self,
@@ -1051,14 +1076,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the piercing side, and the remainder fragment
                 // is re-queued so the second root of the same span is
                 // found on the next pass.
-                let (t, p, at, on, branch) = match event {
+                let (t, p, at, on, branch, chart) = match event {
                     CurvedEvent::Pierce {
                         t,
                         p,
                         at,
                         on,
                         branch,
-                    } => (t, p, at, on, branch),
+                        chart,
+                    } => (t, p, at, on, branch, chart),
                     CurvedEvent::Deferred => {
                         deferred.push(DeferredTouch {
                             x_is,
@@ -1096,6 +1122,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         push_vf(contacts, x_is, w, face, on);
                         if let Some(branch) = branch {
                             contacts.branches.insert((x_is, w), branch);
+                        }
+                        if let Some(uv) = chart {
+                            contacts.chart_point(x_is, w, face, uv);
                         }
                         read_then_requeue(
                             &mut worklist,
@@ -2569,6 +2598,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     at,
                     on,
                     branch: None,
+                    chart: None,
                 }),
                 // A constant residual cannot be zero at one end and
                 // definite at the other, and a definite miss cannot
@@ -2703,6 +2733,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     at,
                     on,
                     branch: None,
+                    chart: None,
                 }),
                 // The straddle's crossing, found and certified OFF this
                 // face: every root inside the span is on the carrier
@@ -2749,6 +2780,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     at,
                     on,
                     branch: None,
+                    chart: None,
                 }),
                 SpanVerdict::NoInterior
                 | SpanVerdict::Elsewhere
@@ -2868,6 +2900,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             at,
                             on,
                             branch: None,
+                            chart: None,
                         }),
                         // No interior root, or no root at all:
                         // definitely clear, and exactly so — the bound
@@ -3057,6 +3090,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
                     at,
                     on: Some(margin),
                     branch: None,
+                    chart: None,
                 }),
                 None => Err(disagree()),
             }
@@ -3195,6 +3229,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 at,
                 on: Some(margin),
                 branch: None,
+                chart: None,
             });
         }
         match super::spline_region::spline_chart_placement(y, face, m.uv, band).map_err(esc_y)? {
@@ -3205,6 +3240,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     at: FaceContainment::In,
                     on: None,
                     branch: None,
+                    chart: Some(m.uv),
                 });
             }
             Some(FaceContainment::Out) => {}
@@ -3218,8 +3254,9 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     }
     let mut recorded = false;
     for (w, pw) in ends {
-        let (placement, on) = super::contain::curved_face_placement_decided(y, face, pw, band)
-            .map_err(|e| esc(e, x_is.other(), face))?;
+        let (placement, on, chart) =
+            super::contain::curved_face_placement_decided(y, face, pw, band)
+                .map_err(|e| esc(e, x_is.other(), face))?;
         match placement {
             CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
                 push_vv(contacts, x_is, w, vy, on);
@@ -3239,6 +3276,9 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
             }
             CurvedPlacement::Trim(Some(FaceContainment::In)) => {
                 push_vf(contacts, x_is, w, face, on);
+                if let Some(uv) = chart {
+                    contacts.chart_point(x_is, w, face, uv);
+                }
             }
             CurvedPlacement::Trim(Some(FaceContainment::Out)) | CurvedPlacement::OffCarrier => {
                 continue;
@@ -3450,6 +3490,7 @@ fn interior<T: Decide>(
             at,
             on: Some(margin),
             branch: None,
+            chart: None,
         })
     };
     let read = boundary_crossing(
@@ -3771,6 +3812,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
                 at,
                 on: Some(margin),
                 branch: None,
+                chart: None,
             }),
             BoundaryCrossing::Clear => interior_clear(),
             BoundaryCrossing::Unread => None,
@@ -4320,6 +4362,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         at,
                         on,
                         branch: None,
+                        chart: None,
                     });
                 }
             }
@@ -4711,9 +4754,11 @@ fn landing<T: Decide>(
     band: Band,
 ) -> Result<Landing, BooleanError> {
     match super::contain::curved_face_placement_decided(y, face, p, band) {
-        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => Ok(Landing::Unplaced),
-        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => Ok(Landing::Out),
-        Ok((CurvedPlacement::Trim(Some(at)), on)) => Ok(Landing::At(at, on)),
+        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _, _)) => {
+            Ok(Landing::Unplaced)
+        }
+        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _, _)) => Ok(Landing::Out),
+        Ok((CurvedPlacement::Trim(Some(at)), on, _)) => Ok(Landing::At(at, on)),
         Err(super::contain::ContainError::Escalated {
             decision,
             escalation,
@@ -4983,6 +5028,10 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
         /// ([`factored_crossing`]); the pierce reads the partner wall
         /// through it.
         branch: Option<super::Branch>,
+        /// The chart point a spline face's interior meeting was found and
+        /// placed in the trim at: the pierce reads the face's normal there
+        /// ([`ContactAcc::charts`]).
+        chart: Option<(f64, f64)>,
     },
 }
 
@@ -5155,7 +5204,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
-    let (placement, on) = super::contain::curved_face_placement_decided(y, face, px, band)
+    let (placement, on, chart) = super::contain::curved_face_placement_decided(y, face, px, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
@@ -5184,6 +5233,9 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
         // planar sweep writes ([`vertex_on_face`]).
         Some(FaceContainment::In) => {
             push_vf(contacts, x_is, vx, face, on_carrier);
+            if let Some(uv) = chart {
+                contacts.chart_point(x_is, vx, face, uv);
+            }
             return Ok((Placement::Recorded, None));
         }
         // Definitely outside this face, or no verdict at all:
@@ -5996,8 +6048,7 @@ mod undeclared_rule_rows {
     //! hold the rule for both. The row a public fixture cannot reach is
     //! the `Undecided` one: an end on a face whose trim the chart door
     //! declines (a ringed face, a non-rectangular outline) is minted by
-    //! no public door that does not refuse first (a notched three-face
-    //! wall stops at the volume backstop), so it is held here.
+    //! no public fixture, so it is held here.
     #![allow(clippy::panic)]
 
     use super::{CurvedEvent, Placement};
@@ -8447,6 +8498,106 @@ mod spline_face_rows {
         assert!(
             acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
             "nothing recorded"
+        );
+    }
+
+    /// **A pierce at a spline face's meeting carries the chart point it
+    /// was found at** (`CurvedEvent::Pierce { chart }`): the line up
+    /// through `(½, ½)` meets the twisted sheet at `S(½, ½)`, and the
+    /// recorded chart point is that one, `S` there within the band of the
+    /// pierce point. The pierce pass reads the face's normal there.
+    #[test]
+    fn a_pierce_at_a_spline_meeting_carries_its_chart_point() {
+        use crate::boolean::contain::FaceContainment;
+        let (p, q) = (Point3::new(0.5, 0.5, -1.0), Point3::new(0.5, 0.5, 1.0));
+        let (mut y, face, x, ek) = twisted_and_a_line(p, q);
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                chart: Some(uv),
+                ..
+            }) => {
+                let on = (chart.eval(uv.0, uv.1) - p).norm();
+                assert!(
+                    on <= band().zero() && (uv.0 - 0.5).abs() < 1e-9 && (uv.1 - 0.5).abs() < 1e-9,
+                    "the chart point {uv:?} is the meeting's, S there {on:e} from the pierce"
+                );
+            }
+            other => panic!("the pierce carries its meeting's chart point: {other:?}"),
+        }
+    }
+
+    /// **A vertex placed inside a spline face records the chart point its
+    /// placement was decided at** (`ContactAcc::charts`): the line's upper
+    /// end is `S(½, ½)` on the twisted sheet, which the end placement reads
+    /// `In` at an in-trim foot, and that foot is recorded for the end and
+    /// the face, `S` there within the band of the end.
+    #[test]
+    fn a_vertex_placed_in_a_spline_face_records_its_chart_point() {
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let end = chart.eval(0.5, 0.5);
+        let (mut y, face, x, ek) = twisted_and_a_line(Point3::new(0.5, 0.5, -1.0), end);
+        let mut acc = ContactAcc::default();
+        let got = arm(&x, ek, &mut y, face, &mut acc);
+        assert!(matches!(got, Ok(CurvedEvent::Recorded)), "{got:?}");
+        let w = x
+            .vertices()
+            .find(|(_, v)| (*x.get_point(v.point).unwrap() - end).norm() == 0.0)
+            .map(|(k, _)| k)
+            .expect("the line's upper end");
+        let uv = *acc
+            .charts
+            .get(&(Operand::A, w, face))
+            .expect("the end's chart point is recorded");
+        let on = (chart.eval(uv.0, uv.1) - end).norm();
+        assert!(
+            on <= band().zero() && (uv.0 - 0.5).abs() < 1e-6 && (uv.1 - 0.5).abs() < 1e-6,
+            "the recorded chart point {uv:?} is the end's foot, S there {on:e} from it"
+        );
+    }
+
+    /// **A vertex the endpoint treatment places inside a spline face
+    /// records its chart point** ([`vertex_on_curved_face`], the declared
+    /// cosurface rung's door): `S(½, ½)` on the twisted sheet is placed
+    /// `In`, and the in-trim foot it was decided at is recorded for the
+    /// vertex and the face, `S` there within the band of the vertex.
+    #[test]
+    fn the_endpoint_treatment_records_a_spline_faces_chart_point() {
+        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let at = chart.eval(0.5, 0.5);
+        let (mut y, face, x, _) = twisted_and_a_line(at, Point3::new(0.5, 0.5, 1.0));
+        let w = x
+            .vertices()
+            .find(|(_, v)| (*x.get_point(v.point).unwrap() - at).norm() == 0.0)
+            .map(|(k, _)| k)
+            .unwrap();
+        let mut acc = ContactAcc::default();
+        let placed = super::vertex_on_curved_face(
+            Operand::A,
+            &mut y,
+            w,
+            at,
+            face,
+            geom_core::MarginDiag::value(0.0),
+            &mut acc,
+            band(),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(placed, Ok(super::Placement::Recorded)),
+            "{placed:?}"
+        );
+        let uv = *acc
+            .charts
+            .get(&(Operand::A, w, face))
+            .expect("the vertex's chart point is recorded");
+        let on = (chart.eval(uv.0, uv.1) - at).norm();
+        assert!(
+            on <= band().zero() && (uv.0 - 0.5).abs() < 1e-6 && (uv.1 - 0.5).abs() < 1e-6,
+            "the recorded chart point {uv:?} is the vertex's foot, S there {on:e} from it"
         );
     }
 

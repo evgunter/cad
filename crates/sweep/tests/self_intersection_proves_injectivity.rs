@@ -1254,12 +1254,15 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
     }
     // The known divergence `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span`
     // (CLEAVE): at `Interval` the union does not build, so there is no
-    // body to ask.
+    // body to ask. Which decision refuses first moves with ε; that the
+    // union refuses, naming its cause rather than a kernel defect, does
+    // not.
     match tee_at::<Interval>() {
-        Err(topo::BooleanError::Escalated { diag, .. })
-            if diag.predicate == Some("bool_ruled_region_span") && diag.margin.is_invalid() => {}
+        Err(e) if !topo::test_support::offer_key(&e).1 => {
+            println!("[corner] tee at Interval refuses {e:?}");
+        }
         other => panic!(
-            "the tee's known divergence at Interval is the union's poison span: {:?}",
+            "the tee's known divergence at Interval is a typed refusal of the union: {:?}",
             other.map(|_| ())
         ),
     }

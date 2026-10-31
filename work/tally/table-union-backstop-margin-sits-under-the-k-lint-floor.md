@@ -2,10 +2,12 @@
 id: table-union-backstop-margin-sits-under-the-k-lint-floor
 kind: issue
 title: k-lint (dev-probe) flags demo/table's volume_backstop margin 1.5039e-5 under the 4e-5 floor at every eps row
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -31,3 +33,7 @@ an eps-independent backstop margin (`topo::boolean::ops`, `decide_invariant("vol
 on the tour's `table` scene, 2.7x under the floor. Unmeasured: which op
 of the table it is and whether the margin is a real thin feature (then the
 K-REPORT runbook's recourse) or a lever that reads small.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. No `volume_backstop` margin is recorded any more, so the flag cannot fire.

@@ -1337,7 +1337,13 @@ reading takes a pole's side from this lane's own stereographic turning
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A face whose loop holds both poles is read through
+(`sphere_loop_side`). A wrap tip's spur bounds nothing and leaves the
+loop's chart image, taking the pole at its tip off the loop, but the
+face holds that pole: tier 3 hands each tip the image drops to the
+reader as a point the face holds (`boundary_material_sign_holding`), so
+the face lies on the side that holds its own singular vertices and no
+other pole. The closed-form lane's cross-check of the bit takes the
+same datum (`curved_face_holding`). A face whose loop holds both poles is read through
 its seam region, the faces of its surface it reaches across shared
 edges: a pole on an edge interior to the region lies inside it, so the
 region is the side of its boundary that holds such a pole
