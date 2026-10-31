@@ -15,7 +15,7 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are eleven — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are twelve — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
@@ -24,7 +24,8 @@
 //! [`number_text`] and
 //! [`number_field`], which render and build rather than draw;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
-//! which mints a value; [`value_gesture`] and [`free_move_gesture`],
+//! which mints a value; `twin`, which picks a fused step's arrival
+//! role; [`value_gesture`] and [`free_move_gesture`],
 //! which mint a gesture's operations from its name; and [`drag_ops`]
 //! with [`drag_gesture_ops`], which read a `Response`.
 //!
@@ -36,7 +37,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Dimension, Frame, RecipeNodeId};
+use pncad::document::{Dimension, Frame, RecipeNodeId, StepArg};
 use pncad::geom_core::Point2;
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
@@ -479,17 +480,35 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// emits carries the WHOLE frame ([`vec3_row_ops`]). The type is
 /// therefore the caller's, and the bound that says so lives on
 /// [`drag_ops`] and [`drag_gesture_ops`] where the value is applied.
-pub(crate) struct GestureVocabulary<Preview> {
+pub(crate) struct GestureVocabulary<Preview, Op = SessionOp> {
     /// Open the gesture: emitted on the press.
-    begin: SessionOp,
+    begin: Op,
     /// Move it: emitted on every frame the value changes under the
     /// pointer, carrying that value. Nothing it emits is committed.
     preview: Preview,
     /// Land it: emitted when a pointer release ends the drag.
-    commit: SessionOp,
+    commit: Op,
     /// Abandon it: emitted when Escape ends the drag instead
     /// ([`drag_gesture_ops`]).
-    cancel: SessionOp,
+    cancel: Op,
+}
+
+impl<Preview, Op> GestureVocabulary<Preview, Op> {
+    /// **A gesture over a HELD value** — one a draft holds rather than
+    /// the session: every frame the value moves is `preview` of it, and
+    /// the press, the release and Escape are `rest`, since nothing is
+    /// opened to land or abandon.
+    pub(crate) fn held(preview: Preview, rest: Op) -> Self
+    where
+        Op: Clone,
+    {
+        Self {
+            begin: rest.clone(),
+            preview,
+            commit: rest.clone(),
+            cancel: rest,
+        }
+    }
 }
 
 /// **The four operations of a VALUE drag**, minted from the one slot
@@ -650,11 +669,11 @@ pub(crate) fn drag_ops<Value: Copy>(
 /// `Option`: `gesture_table.rs`'s
 /// `every_gesture_cancel_has_a_chrome_door` names every [`SessionOp`],
 /// and is where a gesture with no cancel reds.
-pub(crate) fn drag_gesture_ops<Value>(
+pub(crate) fn drag_gesture_ops<Value, Op>(
     widget: &egui::Response,
     value: Value,
-    gesture: GestureVocabulary<impl Fn(Value) -> SessionOp>,
-    ops: &mut Vec<SessionOp>,
+    gesture: GestureVocabulary<impl Fn(Value) -> Op, Op>,
+    ops: &mut Vec<Op>,
 ) -> bool {
     let GestureVocabulary {
         begin,
@@ -706,6 +725,9 @@ pub(crate) struct FieldVocabulary<Number, Text> {
 /// a number read out of it becomes.
 #[derive(Clone, Debug)]
 pub(crate) struct FieldShowing {
+    /// The quantity's name, written into the field ahead of its number
+    /// ([`named_field`]'s rule); `None` for a field whose row names it.
+    pub(crate) name: Option<String>,
     /// The notation the field shows and authors in, and its tick.
     pub(crate) writing: crate::forms::FieldWriting,
     /// What the value IS — [`crate::props::SlotValue::of`]'s argument,
@@ -841,15 +863,16 @@ struct OpenEdit {
 /// [`crate::props::no_reading`] and no field. A field showing FIXED
 /// TEXT is not showing its number and keeps its text door, which is
 /// how a driven slot and a slot mid-expression stay editable.
-pub(crate) fn value_field_ops(
+pub(crate) fn value_field_ops<Op>(
     ui: &mut egui::Ui,
     showing: FieldShowing,
-    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
-    doors: FieldVocabulary<impl Fn(props::SlotValue) -> SessionOp, impl Fn(String) -> SessionOp>,
-    ops: &mut Vec<SessionOp>,
+    gesture: GestureVocabulary<impl Fn(f64) -> Op, Op>,
+    doors: FieldVocabulary<impl Fn(props::SlotValue) -> Op, impl Fn(String) -> Op>,
+    ops: &mut Vec<Op>,
     notices: &mut Vec<crate::frame::Message>,
 ) {
     let FieldShowing {
+        name,
         writing,
         dimension,
         number,
@@ -866,7 +889,11 @@ pub(crate) fn value_field_ops(
         // stand-in — `0.0` — is a small literal landing over an
         // expression nobody typed.
         Err(unit) => {
-            ui.weak(props::no_reading(unit));
+            let marker = props::no_reading(unit);
+            ui.weak(match name {
+                Some(name) => format!("{name} {marker}"),
+                None => marker,
+            });
             return;
         }
     };
@@ -895,8 +922,12 @@ pub(crate) fn value_field_ops(
                 )
             })
         });
+    let mut field = number_field(&mut number, writing.tick);
+    if let Some(name) = name {
+        field = field.prefix(format!("{name} "));
+    }
     let widget = ui.add(
-        number_field(&mut number, writing.tick)
+        field
             .update_while_editing(false)
             // `number_field`'s own formatter, plus the two things this
             // field needs from it: the fixed text a row shows instead
@@ -1236,6 +1267,96 @@ pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<
     named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
 }
 
+/// **What a step row's fields draw for each argument** — the seam
+/// between the step list, which knows WHICH argument each number is
+/// (its row and its [`StepArg`], the role the document's slot walk
+/// gives it), and the door the list is drawn for, which knows what
+/// that argument is: a number in the form's notation at the create
+/// door ([`WrittenIn`]), and at the edit door the field over the
+/// committed slot it is (`pane::profile`'s `HeldArgs`).
+pub(crate) trait ArgDoors {
+    /// Argument `arg` of row `row`, named `name` in its field, its
+    /// number `value` held canonical.
+    fn field(&mut self, ui: &mut egui::Ui, row: usize, arg: StepArg, name: &str, value: &mut f64);
+    /// The written-unit picker for `args` of row `row` — one
+    /// quantity, a point's two coordinates or one number — drawn
+    /// after their fields.
+    fn unit(&mut self, ui: &mut egui::Ui, row: usize, args: &[StepArg]);
+    /// What row `row`'s arguments say and offer under the row, once
+    /// it is drawn.
+    fn under(&mut self, ui: &mut egui::Ui, row: usize);
+}
+
+/// **Plain numbers in one notation**: the create door's arguments, and
+/// the edit door's where a field is no committed slot. Each field is
+/// written in the unit its role's dimension is noted in, and the form's
+/// own pickers say the units ([`length_picker`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WrittenIn {
+    /// Every length field's unit.
+    pub(crate) length: UnitDef,
+    /// Every angle field's unit.
+    pub(crate) angle: UnitDef,
+}
+
+impl WrittenIn {
+    /// The units `notation` writes lengths and angles in.
+    pub(crate) fn of(notation: props::Notation) -> Self {
+        Self {
+            length: notation.length.def(),
+            angle: notation.angle.def(),
+        }
+    }
+}
+
+impl ArgDoors for WrittenIn {
+    fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
+        match arg.dimension() {
+            Dimension::Length => named_field(ui, name, self.length, FIELD_DRAG_SPEED, value),
+            Dimension::Angle => named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value),
+            Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
+        }
+    }
+
+    fn unit(&mut self, _: &mut egui::Ui, _: usize, _: &[StepArg]) {}
+
+    fn under(&mut self, _: &mut egui::Ui, _: usize) {}
+}
+
+/// A point's two coordinates as arguments `x` and `y` of row `row`,
+/// then the one picker they are written in.
+fn point_args(
+    ui: &mut egui::Ui,
+    args: &mut dyn ArgDoors,
+    row: usize,
+    (x, y): (StepArg, StepArg),
+    point: &mut Point2<f64>,
+) {
+    args.field(ui, row, x, "x", &mut point.x);
+    args.field(ui, row, y, "y", &mut point.y);
+    args.unit(ui, row, &[x, y]);
+}
+
+/// One number as argument `arg` of row `row`, then its picker.
+fn number_arg(
+    ui: &mut egui::Ui,
+    args: &mut dyn ArgDoors,
+    row: usize,
+    arg: StepArg,
+    name: &str,
+    value: &mut f64,
+) {
+    args.field(ui, row, arg, name, value);
+    args.unit(ui, row, &[arg]);
+}
+
+/// The incoming spec's role, or the arrival spec's twin of it — a
+/// fused step's second spec carries roles of its own
+/// ([`StepArg::Target2X`]).
+fn twin(second: bool, incoming: StepArg, arrival: StepArg) -> StepArg {
+    if second { arrival } else { incoming }
+}
+
 /// **A path verb's target**: an authored point, the entry vertex
 /// (which CLOSES the loop), or the entry vertex with the seam's
 /// tangent joint declared.
@@ -1252,7 +1373,7 @@ pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<
 pub(crate) fn target_fields(
     ui: &mut egui::Ui,
     salt: &str,
-    unit: UnitDef,
+    (args, row, second): (&mut dyn ArgDoors, usize, bool),
     admitted: Option<&Admitted<'_, TargetKind>>,
     target: &mut Target<f64>,
 ) {
@@ -1270,7 +1391,16 @@ pub(crate) fn target_fields(
         *target = sketch::fresh_target(kind);
     }
     match target {
-        Target::Point(point) => point_fields(ui, unit, point),
+        Target::Point(point) => point_args(
+            ui,
+            args,
+            row,
+            (
+                twin(second, StepArg::TargetX, StepArg::Target2X),
+                twin(second, StepArg::TargetY, StepArg::Target2Y),
+            ),
+            point,
+        ),
         Target::Start | Target::StartArriving => {}
     }
 }
@@ -1350,8 +1480,7 @@ pub(crate) fn arc_fields(
     ui: &mut egui::Ui,
     salt: &str,
     role: &str,
-    length_unit: UnitDef,
-    angle_unit: UnitDef,
+    (args, row, second): (&mut dyn ArgDoors, usize, bool),
     at: Option<(TipState, &SpecForms)>,
     spec: &mut ArcData<f64>,
 ) {
@@ -1401,35 +1530,47 @@ pub(crate) fn arc_fields(
         };
     }
     let targets = targets.as_ref();
+    let carrier = twin(second, StepArg::CarrierRadius, StepArg::CarrierRadius2);
     match spec {
         ArcData::Radius { r, side } => {
-            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
+            number_arg(ui, args, row, carrier, &radius, r);
             side_picker(ui, salt, side);
         }
         ArcData::Bulge { target, b } => {
-            target_fields(ui, salt, length_unit, targets, target);
-            named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
+            target_fields(ui, salt, (&mut *args, row, second), targets, target);
+            let bulge = twin(second, StepArg::Bulge, StepArg::Bulge2);
+            number_arg(ui, args, row, bulge, "bulge", b);
         }
         ArcData::Via { q, target } => {
             ui.label("via");
-            point_fields(ui, length_unit, q);
-            target_fields(ui, salt, length_unit, targets, target);
+            let via = (
+                twin(second, StepArg::ViaX, StepArg::Via2X),
+                twin(second, StepArg::ViaY, StepArg::Via2Y),
+            );
+            point_args(ui, args, row, via, q);
+            target_fields(ui, salt, (args, row, second), targets, target);
         }
         ArcData::Center { c, winding, target } => {
             ui.label("centre");
-            point_fields(ui, length_unit, c);
+            let centre = (
+                twin(second, StepArg::CenterX, StepArg::Center2X),
+                twin(second, StepArg::CenterY, StepArg::Center2Y),
+            );
+            point_args(ui, args, row, centre, c);
             winding_picker(ui, salt, winding);
-            target_fields(ui, salt, length_unit, targets, target);
+            target_fields(ui, salt, (args, row, second), targets, target);
         }
         ArcData::Sweep { r, side, angle } => {
-            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
+            number_arg(ui, args, row, carrier, &radius, r);
             side_picker(ui, salt, side);
-            named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
+            let sweep = twin(second, StepArg::SweepVal, StepArg::SweepVal2);
+            number_arg(ui, args, row, sweep, "sweep", angle);
         }
         ArcData::ArcLen { r, side, len } => {
-            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
+            number_arg(ui, args, row, carrier, &radius, r);
             side_picker(ui, salt, side);
-            named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
+            let len_arg = twin(second, StepArg::ArcLenVal, StepArg::ArcLenVal2);
+            number_arg(ui, args, row, len_arg, "arc length", len);
         }
     }
 }
@@ -1453,8 +1594,7 @@ pub(crate) fn new_row_step(at: usize) -> Step<f64> {
 pub(crate) fn path_step_fields(
     ui: &mut egui::Ui,
     salt: &str,
-    length_unit: UnitDef,
-    angle_unit: UnitDef,
+    (args, row): (&mut dyn ArgDoors, usize),
     state: Option<TipState>,
     step: &mut Step<f64>,
 ) {
@@ -1462,80 +1602,70 @@ pub(crate) fn path_step_fields(
     // step's field order; empty when the tip is not known.
     let forms = state.map_or(&[][..], |state| arc_specs_at(step.verb(), state));
     let at = |i: usize| Some((state?, *forms.get(i)?));
-    // **Every field says which quantity it is.** The arms below are
-    // split further than the step's shapes would need — `line` and
-    // `fillet` both carry one Length — because what a number MEANS is
-    // the thing a row has to say, and a shared arm can only give two
-    // different quantities one name.
+    // **Every field says which quantity it is**, and which argument
+    // it is: its role, the document's own name for it (the slot walk's
+    // order, `Node::slots`). The arms below are split further than the
+    // step's shapes would need — `line` and `fillet` both carry one
+    // Length — because what a number MEANS is the thing a row has to
+    // say, and a shared arm can only give two different quantities one
+    // name.
+    const POINT: (StepArg, StepArg) = (StepArg::PointX, StepArg::PointY);
+    const CENTRE: (StepArg, StepArg) = (StepArg::CenterX, StepArg::CenterY);
     match step {
-        Step::At(point) => point_fields(ui, length_unit, point),
+        Step::At(point) => point_args(ui, args, row, POINT, point),
         Step::FarEndTo(point) => {
             ui.label("far end");
-            point_fields(ui, length_unit, point);
+            point_args(ui, args, row, POINT, point);
         }
-        Step::Angle(angle) => {
-            named_field(ui, "angle", angle_unit, ANGLE_DRAG_SPEED, angle);
-        }
-        Step::Turn(angle) => {
-            named_field(ui, "turn", angle_unit, ANGLE_DRAG_SPEED, angle);
-        }
+        Step::Angle(angle) => number_arg(ui, args, row, StepArg::AngleVal, "angle", angle),
+        Step::Turn(angle) => number_arg(ui, args, row, StepArg::TurnVal, "turn", angle),
         Step::Toward { dx, dy } => {
-            named_scalar(ui, "dx", UNIT_DRAG_SPEED, dx);
-            named_scalar(ui, "dy", UNIT_DRAG_SPEED, dy);
+            number_arg(ui, args, row, StepArg::DirX, "dx", dx);
+            number_arg(ui, args, row, StepArg::DirY, "dy", dy);
         }
-        Step::Line(length) => {
-            named_field(ui, "length", length_unit, FIELD_DRAG_SPEED, length);
-        }
-        Step::Fillet { radius } => {
-            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-        }
+        Step::Line(length) => number_arg(ui, args, row, StepArg::Length, "length", length),
+        Step::Fillet { radius } => number_arg(ui, args, row, StepArg::Radius, "fillet r", radius),
         Step::LineTo(target)
         | Step::ContinueTo(target)
         | Step::TangentArcTo(target)
         | Step::ArcOnto(target) => {
-            target_fields(ui, salt, length_unit, None, target);
+            target_fields(ui, salt, (args, row, false), None, target);
         }
-        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), spec),
+        Step::ArcTo(spec) => arc_fields(ui, salt, "", (args, row, false), at(0), spec),
         // The two mixed verbs read in the order their names do, so the
-        // row is the step spelled left to right.
+        // row is the step spelled left to right. A fillet-then-arc's
+        // arc is the step's ARRIVAL spec, and carries its roles.
         Step::FilletArc { radius, spec } => {
-            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
+            number_arg(ui, args, row, StepArg::Radius, "fillet r", radius);
+            arc_fields(ui, salt, "arc", (args, row, true), at(0), spec);
         }
         Step::ArcFillet { spec, radius } => {
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
-            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(ui, salt, "arc", (&mut *args, row, false), at(0), spec);
+            number_arg(ui, args, row, StepArg::Radius, "fillet r", radius);
         }
         Step::ArcFilletArc {
             spec,
             radius,
             spec2,
         } => {
+            let incoming = format!("{salt}_in");
             arc_fields(
                 ui,
-                &format!("{salt}_in"),
+                &incoming,
                 "in arc",
-                length_unit,
-                angle_unit,
+                (&mut *args, row, false),
                 at(0),
                 spec,
             );
-            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(
-                ui,
-                &format!("{salt}_out"),
-                "out arc",
-                length_unit,
-                angle_unit,
-                at(1),
-                spec2,
-            );
+            number_arg(ui, args, row, StepArg::Radius, "fillet r", radius);
+            let arrival = format!("{salt}_out");
+            arc_fields(ui, &arrival, "out arc", (args, row, true), at(1), spec2);
         }
         // The complete-loop verbs: the whole loop in one step.
         Step::Circle { centre, radius } => {
             ui.label("centre");
-            point_fields(ui, length_unit, centre);
-            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+            point_args(ui, args, row, CENTRE, centre);
+            number_arg(ui, args, row, StepArg::Radius, "radius", radius);
         }
         Step::CircleSplit {
             centre,
@@ -1544,8 +1674,8 @@ pub(crate) fn path_step_fields(
             phase,
         } => {
             ui.label("centre");
-            point_fields(ui, length_unit, centre);
-            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+            point_args(ui, args, row, CENTRE, centre);
+            number_arg(ui, args, row, StepArg::Radius, "radius", radius);
             // Bounded both ways. Below two the lattice refuses, and
             // the form does not offer that; above the cap the preview
             // would build the whole subdivision every frame, and a
@@ -1556,13 +1686,16 @@ pub(crate) fn path_step_fields(
             // count, which the document admits above the cap, and a
             // drawn widget must not rewrite a document value. egui
             // clamps an existing value into the range by default.
+            //
+            // The count is the step's shape, not an argument: no slot
+            // addresses it.
             ui.add(
                 number_field(n, COUNT_DRAG_SPEED)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
                     .clamp_existing_to_range(false)
                     .prefix("n "),
             );
-            named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);
+            number_arg(ui, args, row, StepArg::Phase, "phase", phase);
         }
         // Structural verbs: the verb IS the whole step.
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
@@ -1732,6 +1865,7 @@ mod roster_tests {
             "number_field",
             "install_number_formatter",
             "new_row_step",
+            "twin",
             "value_gesture",
             "free_move_gesture",
             "drag_ops",

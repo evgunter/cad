@@ -2,10 +2,13 @@
 id: a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite
 kind: issue
 title: The curved crossing lane refuses a spline span (EdgeCarrierUnsupported CurvedCrossing) though the ring-composite arm reads cylinders, cones, spheres and tori
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
+closed: 2026-10-29
+pr: 6136
+branch: splice/spline-span-curved-crossing
 ---
 
 
@@ -74,3 +77,51 @@ against the stem's torus wall.
 with the edge a NURBS carrier of `lily_leaf_a` and the face the
 `lily_stem` torus, at ε 1e-9 and 1e-6 (at 1e-12 the stem's declared
 frontier stands the lily walls down first).
+
+## Closed (2026-10-29)
+
+`curve_face::route` builds `(Nurbs, Cylinder | Cone | Sphere | Torus)`,
+and the curved lane reads a spline span through `reduce.rs`'s
+`spline_wall_event`. The composite counts every crossing strictly
+inside the span. Each crossing is told off a cone's far nappe and placed
+against the trim, and the first one the face holds pierces. With no
+pierce, the ends are read through `vertex_on_curved_face`. A count the
+arm cannot settle is localized by `carrier_touch::off_face`, which
+passes a touch that lies off the face. Otherwise the arm refuses
+`SplineCrossingUnsettled`, a span lying on the carrier among them. Under
+a one-sided cover, a touch with no end on the carrier is deferred to
+the span's fragments. The rows are in
+`crates/topo/src/boolean/curved_lane_spline_rows.rs`.
+
+The three owed items:
+- **The frame's rounding.** `composite_rows` now forms the chart frame
+  in certification arithmetic. The axis is normalized, and the
+  reference direction is made orthogonal to it and normalized. Row:
+  `a_frame_off_orthonormal_reads_the_surface_it_names`.
+- **An unsettled count.** Both the planar lane and the curved lane route
+  an unsettled count through `carrier_touch::off_face`. `off_face` now
+  reads a plane: its distance and foot are closed-form, its reach is
+  unbounded, and the foot is placed by the planar door. Rows:
+  `an_arc_touching_a_plane_outside_the_face_is_no_event` and
+  `a_spline_touching_a_wall_below_the_face_is_no_event`.
+- **The metering divisor's region: no change, because the premise does
+  not hold.** `Meters::divisor` is not a bound on the gradient along a
+  path to the surface. It is a factor of the form at each point:
+  `|f(p)| ≤ d(p) · divisor(p)` at `p` itself. On the cylinder and the
+  sphere this is exact. On the cone, `|f|` is the product of the
+  distances from the two generator lines of the meridian plane, and the
+  smaller of them is the distance. On the torus,
+  `|f| = |m − r| (m + r) |M² − r²|`. Each point of the span lies in the
+  net's hull, so the hull is the right region, and a path to the foot
+  that leaves the hull charges nothing. Row:
+  `the_divisor_is_a_pointwise_factor_of_the_form`, which pins the
+  pointwise factor against the closed-form distances.
+
+The composite also no longer refuses a divisor whose lower end reaches
+zero, for a net whose hull holds a cone's apex: the meter divides by
+the divisor's upper end alone.
+
+Lily wall 8 now refuses one pass later, at 1e-9 and 1e-6: a stem vertex
+pierces a leaf NURBS wall, and the vertex-on-face pass reads no outward
+normal for a spline face
+(`a-vertex-piercing-a-spline-face-reads-no-outward-normal`).

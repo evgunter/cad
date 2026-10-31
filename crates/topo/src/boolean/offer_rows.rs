@@ -2923,7 +2923,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "reduce.rs",
-        "wall_crossing",
+        "cone_nappe",
         "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
@@ -2949,6 +2949,30 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "spline_plane_crossings",
         "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCoveredFace",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCurvedFace",
         1,
     ),
     (
