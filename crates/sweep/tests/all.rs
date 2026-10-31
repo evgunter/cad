@@ -158,6 +158,8 @@ mod a_torus_off_its_ring_reads_as_at_rest;
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
 mod a_vertex_on_a_grazing_plane;
+#[path = "a_vertex_piercing_a_lens_wall.rs"]
+mod a_vertex_piercing_a_lens_wall;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]

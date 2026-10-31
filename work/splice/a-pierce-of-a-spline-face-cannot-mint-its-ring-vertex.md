@@ -62,3 +62,10 @@ it.
   (`boolean::fate`). Witnessed by `vtxfac_spline_rows`'
   `a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense` and
   `a_ring_vertex_in_a_cylinder_wall_leaves_its_rows_as_found`.
+  The kernel row for the pipeline is `sweep`'s
+  `a_vertex_piercing_a_lens_wall`, which refused this row's
+  `PcurveMint { SplineChart }` before and now stops at the plane × NURBS
+  germ frame (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`).
+  Lily wall 8 moves on, at 1e-9 and 1e-6 alike, to the plane × torus
+  spiric germ section of the stem's torus wall against the leaf's
+  lower cap (`work/sectsite/c5-plane-torus-cone-cylinder-arms`).
