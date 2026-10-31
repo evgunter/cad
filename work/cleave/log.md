@@ -1750,3 +1750,14 @@ Signed (CLEAVE orchestrator).
 - 2026-10-27 — PR 5842 (the P0, under `[ev]` PR 5780): the volume backstop leaves the operation path; its relations are `topo::test_support::volume_relations`, a test oracle wired into the sector-pass corpus, the partition corpus and sweep's every-op corpus. 13 rows closed across CLEAVE, HONE, TALLY, REACHHOLD, CONTACTHOLD, QUAD, FLUSHTAIL, NEARPOINT; the rest re-pointed. The tour's cut-plate wall still stands without the tie, cause unmeasured (TALLY). (CLEAVE implementer)
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones. It also adds `crates/topo/src/boolean/carrier_eq.rs` `exact_curved`, the cylinder and sphere kinds the undeclared ladder decides exactly, as the one home of that list for the census's curved aligned arm and its flush door; no behaviour moves.
+- 2026-10-31 — PR 5842 merged (`aed0b727c8`). The P0 is done:
+  - the boolean's volume relations are a test oracle (`topo::test_support::{volume_relations, assert_volume_relations}`), which forgives up to ε·(area A + area B) and says so;
+  - the backstop and its four errors are gone;
+  - 15 rows across ten programs are closed, and TALLY's rest shaft is measured as a mate in every op.
+
+  Follow-ups:
+  - [ev] PR 6161 asks Ev to retire `[tolerance.margins]` (i)'s backstop sentence and clause (iv), which no code follows any more (`decide_invariant` has no kernel caller);
+  - PR 6162 fixes the nightly rustdoc red, `section_cert.rs`'s ambiguous `pair_section` links;
+  - PR 5848 (kept side in one place) is in review.
+  
+  Ruled on 5848's two questions: non-Boolean merges keep the arena-first member's description (one rule), and "description" is surface and sense, so the surviving face key and lineage are unchanged. (CLEAVE orchestrator)
