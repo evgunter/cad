@@ -1114,14 +1114,18 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         let unit = self.notation.length.def();
+        // Whether a field below was edited: the viewport may already
+        // have drawn this frame's axis from the old values, so an edit
+        // asks for the next frame.
+        let mut edited = false;
         ui.horizontal(|ui| {
             ui.label("axis through");
-            point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
+            edited |= point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
             length_picker(ui, "revolve_axis_through", &mut self.notation.length);
         });
         ui.horizontal(|ui| {
             ui.label("axis heading");
-            unit_field(
+            edited |= unit_field(
                 ui,
                 self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
@@ -1133,9 +1137,16 @@ impl ViewerBehavior<'_> {
             ui,
             "x, y and the heading from x are the profile's own; the axis lies in its plane",
         );
+        // The two conventions the viewport's drawing shows
+        // (`pane::viewport::push_revolve_axis`), said in words beside it.
+        crate::widgets::message(
+            ui,
+            "the profile lies to the right of the axis arrow, seen from its plane's front; \
+             a positive angle turns it right-handed about the arrow",
+        );
         ui.horizontal(|ui| {
             ui.label("angle");
-            unit_field(
+            edited |= unit_field(
                 ui,
                 self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
@@ -1143,6 +1154,9 @@ impl ViewerBehavior<'_> {
             );
             angle_picker(ui, "revolve_angle", &mut self.notation.angle);
         });
+        if edited {
+            ui.ctx().request_repaint();
+        }
         self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
             Ok(tool.op(
                 notation.point_literals(drafts.revolve_axis_through.to_array())?,

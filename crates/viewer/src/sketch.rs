@@ -1634,41 +1634,71 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for node in doc.ids() {
-        if Some(node) == except || !admits(doc, node, NodeKindWanted::Profile) {
+        if Some(node) == except {
             continue;
         }
-        let Some(value) = evaluation.value(node) else {
-            continue;
-        };
-        let ValuePayload::Profile(profile) = &value.payload else {
-            continue;
-        };
-        let loops = profile
-            .validated
-            .loops()
-            .iter()
-            .map(|lp| {
-                let arcs = lp.segments().iter().map(|s| match s.kind {
-                    pncad::profile::SegmentKind::Line => None,
-                    pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
-                });
-                flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
-                    points,
-                    vertices,
-                    end: LoopEnd::Closed,
-                })
-            })
-            .collect::<Result<Vec<_>, usize>>();
-        match loops {
-            Ok(loops) => out.drawn.push(CommittedProfile {
-                node,
-                plane: *profile.validated.plane(),
-                loops,
-            }),
-            Err(_) => out.undrawn.push(node),
+        match drawing(doc, evaluation, chord, node) {
+            Some(Ok(drawn)) => out.drawn.push(drawn),
+            Some(Err(())) => out.undrawn.push(node),
+            None => {}
         }
     }
     out
+}
+
+/// **One committed profile's drawing** — [`committed`]'s answer for
+/// `node` alone, `None` where that pass would leave it out of both
+/// lists or could not flatten it. What a tool drawing over one held
+/// profile reads (the revolve tool's axis, `pane::viewport`), so it
+/// sees the loops and the plane the picture already draws.
+pub fn committed_profile(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    node: RecipeNodeId,
+) -> Option<CommittedProfile> {
+    drawing(doc, evaluation, chord, node)?.ok()
+}
+
+/// `node`'s drawing: `None` for a node that is no profile or has no
+/// validated value, `Err` for one whose loops cannot be flattened.
+fn drawing(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    node: RecipeNodeId,
+) -> Option<Result<CommittedProfile, ()>> {
+    if !admits(doc, node, NodeKindWanted::Profile) {
+        return None;
+    }
+    let ValuePayload::Profile(profile) = &evaluation.value(node)?.payload else {
+        return None;
+    };
+    let loops = profile
+        .validated
+        .loops()
+        .iter()
+        .map(|lp| {
+            let arcs = lp.segments().iter().map(|s| match s.kind {
+                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
+            });
+            flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
+                points,
+                vertices,
+                end: LoopEnd::Closed,
+            })
+        })
+        .collect::<Result<Vec<_>, usize>>();
+    Some(
+        loops
+            .map(|loops| CommittedProfile {
+                node,
+                plane: *profile.validated.plane(),
+                loops,
+            })
+            .map_err(|_| ()),
+    )
 }
 
 /// **A lattice tip state in words.**
