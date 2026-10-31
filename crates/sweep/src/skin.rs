@@ -55,14 +55,17 @@
 //! Every value is formed in the scalar the sections are held in, under
 //! those decisions: an arc's weight `cos(Δ/2)` and its poles
 //! ([`segment_curve`]), the compatible nets through the knot algebra
-//! ([`make_compatible`]), the chord-length parameters
+//! ([`make_compatible`]), a loft's chord-length parameters
 //! ([`skin_parameters`]), the averaged knots and the banded collocation
 //! solve ([`skin_on`], `geom::curves::fit::interpolate_columns_in`). So
 //! a section whose arc sweep is a function of a document's variables
 //! gives a wall whose weights, knots and poles are functions of them
 //! too, and at an enclosure scalar a section over a box gives walls
 //! that enclose the box's family. The sines and cosines are `Real`'s,
-//! the pure-Rust `libm` D9 prescribes.
+//! the pure-Rust `libm` D9 prescribes. A path sweep is the exception on
+//! its path's side: the path is `f64`, so its stations' parameters
+//! (`v = i/(n − 1)`) and its carried rotations are computed in `f64`
+//! and enter the sections' scalar as the points they are (`PathCarry`).
 //!
 //! A carrier's weights and knots are points at every scalar for now, so
 //! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
@@ -75,9 +78,11 @@
 //! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
 //! that makes sections compatible runs homogeneous at an enclosure
 //! scalar ([`make_compatible`], C6 S4), and its result enters through
-//! the same door. No topology decision is
-//! made here, so nothing routes through `k_stats`; the raw `f64`
-//! comparisons below are structure selection under C6.
+//! the same door. No topology decision is made here. A path sweep's
+//! three decisions read their margins against the band through
+//! `k_stats`, under `sweep_path_tangent`, `sweep_path_chord` and
+//! `sweep_path_turn` ([`sweep_places`]); the raw `f64` comparisons
+//! below are structure selection under C6.
 
 use core::num::NonZeroUsize;
 use std::sync::Arc;
@@ -152,17 +157,17 @@ pub enum PathDecision {
     Tangent,
     /// Whether the station coincides with the one before it.
     Chord,
-    /// Whether the path turns a half turn between the station and the
-    /// one before it.
-    HalfTurn,
+    /// Whether the path folds back across the chord between the station
+    /// and the one before it.
+    FoldBack,
 }
 
 impl core::fmt::Display for PathDecision {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Tangent => "whether the path's tangent vanishes at station",
-            Self::Chord => "whether the path stands still into station",
-            Self::HalfTurn => "whether the path turns a half turn into station",
+            Self::Chord => "whether the path's stations coincide at station",
+            Self::FoldBack => "whether the path folds back across its chord into station",
         })
     }
 }
@@ -175,9 +180,9 @@ impl core::fmt::Display for PathDecision {
 /// those has an in-band twin; [`SkinError::DegenerateSection`]
 /// documents where the banded half of its user situation actually
 /// lives and carries that door's recourse. The path sweep decides its
-/// station tangents, chords and half turns under the band
+/// station tangents, chords and fold-backs under the band
 /// ([`sweep_places`]), so [`SkinError::PathTangentVanishes`],
-/// [`SkinError::PathStationsCoincide`] and [`SkinError::PathHalfTurn`]
+/// [`SkinError::PathStationsCoincide`] and [`SkinError::PathFoldsBack`]
 /// have their in-band twin, [`SkinError::PathUndecided`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum SkinError {
@@ -279,11 +284,14 @@ pub enum SkinError {
         /// The later station of the pair.
         station: usize,
     },
-    /// The path turns a half turn between a station and the one before
-    /// it: the earlier tangent mirrored in their chord is decided
-    /// opposed to the later one, so the step's second reflection has no
-    /// plane ([`sweep_places`]).
-    PathHalfTurn {
+    /// The path folds back across the chord between a station and the
+    /// one before it: the later tangent is decided to be the earlier
+    /// one mirrored in the plane normal to their chord, so it leaves
+    /// along the chord and arrives back against it, and the step's
+    /// second reflection has no plane ([`sweep_places`]). A smooth
+    /// half turn spread over the step (a semicircle) is not this case;
+    /// a hairpin is.
+    PathFoldsBack {
         /// The later station of the pair.
         station: usize,
     },
@@ -346,9 +354,10 @@ pub enum SkinError {
 /// The recourse a path sweep's vanishing tangent ends with.
 const PATH_RECOURSE: &str = "smooth the path there";
 
-/// The recourse a path sweep's half turn between two stations ends
-/// with: closer stations turn less between them.
-const HALF_TURN_RECOURSE: &str = "add stations";
+/// The recourse a path sweep's fold-back between two stations ends
+/// with: closer stations cure a smooth fold, and only smoothing cures a
+/// kink that doubles back on itself.
+const FOLD_BACK_RECOURSE: &str = "smooth the path's kink there, or add stations";
 
 /// The recourse a path sweep's coincident stations end with.
 const COINCIDENT_STATIONS_RECOURSE: &str = "change the station count so consecutive stations \
@@ -413,11 +422,11 @@ impl core::fmt::Display for SkinError {
                  between them. Recourse: {COINCIDENT_STATIONS_RECOURSE}",
                 station.saturating_sub(1),
             ),
-            Self::PathHalfTurn { station } => write!(
+            Self::PathFoldsBack { station } => write!(
                 f,
-                "the path turns a half turn between stations {} and {station}, so no \
-                 rotation-minimizing step carries the frame across it. Recourse: \
-                 {HALF_TURN_RECOURSE}",
+                "the path folds back across its chord between stations {} and {station}, so \
+                 no rotation-minimizing step carries the frame across it. Recourse: \
+                 {FOLD_BACK_RECOURSE}",
                 station.saturating_sub(1),
             ),
             Self::PathUndecided {
@@ -1728,9 +1737,11 @@ impl PathCarry {
     /// - **the chord** into each station after the first
     ///   (`sweep_path_chord`): coincident stations have no chord to
     ///   reflect in;
-    /// - **the half turn** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
-    ///   Where the path turns a half turn between two stations, `m` is
-    ///   opposed to `tᵢ₊₁` and the second reflection has no plane.
+    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
+    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
+    ///   chord (the path leaves along the chord and comes back against
+    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
+    ///   plane.
     pub(crate) fn of(
         path: &NurbsCurve3<f64>,
         stations: usize,
@@ -1752,7 +1763,7 @@ impl PathCarry {
                 let (p, d) = path.ders1((hi - lo).mul_add(*s, lo));
                 UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
                     .map(|t| (p, t))
-                    .map_err(|e| direction_refusal(e, station, PathDecision::Tangent))
+                    .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let not_finite = |station| move |_| SkinError::StationNotFinite { station };
@@ -1764,7 +1775,7 @@ impl PathCarry {
             let station = i + 1;
             let ((p, t), (q, next)) = (pair[0], pair[1]);
             let chord = UnitVec3::new(q - p, SWEEP_PATH_CHORD, band)
-                .map_err(|e| direction_refusal(e, station, PathDecision::Chord))?;
+                .map_err(|e| direction_refusal(e, station, PathDirection::Chord))?;
             let (a, b) = (t.get(), next.get());
             let same = [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
                 .iter()
@@ -1776,10 +1787,10 @@ impl PathCarry {
                 let step =
                     RigidMotion::turned_between(mirror.turn(t), next, o, SWEEP_PATH_TURN, band)
                         .map_err(|e| match e {
-                            TurnError::Opposed => SkinError::PathHalfTurn { station },
+                            TurnError::Opposed => SkinError::PathFoldsBack { station },
                             TurnError::Undecided(source) => SkinError::PathUndecided {
                                 station,
-                                which: PathDecision::HalfTurn,
+                                which: PathDecision::FoldBack,
                                 source,
                             },
                             TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
@@ -1849,23 +1860,28 @@ fn station_shares(stations: usize) -> Vec<f64> {
     (0..stations).map(|i| i as f64 / last).collect()
 }
 
+/// The two path decisions that normalize a vector: the fold-back is
+/// a turn's margin, not a direction, so it has no arm here.
+#[derive(Clone, Copy)]
+enum PathDirection {
+    Tangent,
+    Chord,
+}
+
 /// A path direction's refusal at `station`: a vector with no direction
 /// refuses as its decision's own arm, and an undecided one names it.
-fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDecision) -> SkinError {
-    match e {
-        UnitVec3Error::Escalated(source) => SkinError::PathUndecided {
+fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> SkinError {
+    match (e, which) {
+        (UnitVec3Error::Escalated(source), _) => SkinError::PathUndecided {
             station,
-            which,
+            which: match which {
+                PathDirection::Tangent => PathDecision::Tangent,
+                PathDirection::Chord => PathDecision::Chord,
+            },
             source,
         },
-        UnitVec3Error::Degenerate
-        | UnitVec3Error::NonFiniteLength
-        | UnitVec3Error::UnderflowedLength => match which {
-            PathDecision::Chord => SkinError::PathStationsCoincide { station },
-            PathDecision::Tangent | PathDecision::HalfTurn => {
-                SkinError::PathTangentVanishes { station }
-            }
-        },
+        (_, PathDirection::Chord) => SkinError::PathStationsCoincide { station },
+        (_, PathDirection::Tangent) => SkinError::PathTangentVanishes { station },
     }
 }
 
@@ -1881,8 +1897,8 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDecision) -> S
 /// [`SkinError::Band`] for a tolerance with no band,
 /// [`SkinError::PathTangentVanishes`] naming the station whose
 /// tangent vanishes, [`SkinError::PathStationsCoincide`] the station
-/// that coincides with the one before it, [`SkinError::PathHalfTurn`]
-/// the station the path turns a half turn into,
+/// that coincides with the one before it, [`SkinError::PathFoldsBack`]
+/// the station the path folds back into,
 /// [`SkinError::PathUndecided`] naming the station and decision that
 /// could not be taken, and [`SkinError::StationNotFinite`] for a
 /// station whose placement overflows.

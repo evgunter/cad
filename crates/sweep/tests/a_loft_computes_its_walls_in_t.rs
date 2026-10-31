@@ -808,7 +808,25 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     // start frame raised by `dh` raises station `i` by `Cᵢ·ẑ·dh` for its
     // carried rotation `Cᵢ`: every wall value is affine in the height,
     // and its derivative is the f64 builds' unit difference.
-    let got = wall_values(&swept_at(Dual64::variable(h0)), |x| x.deriv);
+    let swept = swept_at(Dual64::variable(h0));
+    let got = wall_values(&swept, |x| x.deriv);
+    // The height moves the poles and nothing of the weights: a weight
+    // that carried any derivative at all would make the walls rational
+    // in the height.
+    for face in swept.side_faces.iter().flatten().flatten() {
+        let face = swept.body.get_face(*face).expect("a built face");
+        let Surface::Nurbs(n) = swept
+            .body
+            .get_surface(face.surface)
+            .expect("a described face")
+        else {
+            panic!("a swept wall is a NURBS surface");
+        };
+        assert!(
+            n.weights().iter().all(|w| w.deriv == 0.0),
+            "no swept weight moves with the start frame's height"
+        );
+    }
     let step: Vec<f64> = wall_values(&swept_at(h0 + 1.0), |x: f64| x)
         .iter()
         .zip(wall_values(&swept_at(h0), |x: f64| x))

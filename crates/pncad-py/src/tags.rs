@@ -1612,7 +1612,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
         SkinError::PathStationsCoincide { .. } => "path_stations_coincide",
-        SkinError::PathHalfTurn { .. } => "path_half_turn",
+        SkinError::PathFoldsBack { .. } => "path_folds_back",
         SkinError::PathUndecided { .. } => "path_undecided",
         SkinError::StationNotFinite { .. } => "station_not_finite",
         SkinError::Band(_) => "band",

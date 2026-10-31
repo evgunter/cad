@@ -866,7 +866,7 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathStationsCoincide, PathHalfTurn, PathUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
         ];
     }
@@ -3400,7 +3400,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 sections: 2,
             },
         ),
-        ("PathHalfTurn", E::PathHalfTurn { station: 4 }),
+        ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
         (
             "PathStationsCoincide",
             E::PathStationsCoincide { station: 4 },
@@ -3428,7 +3428,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             "PathUndecided",
             E::PathUndecided {
                 station: 2,
-                which: sweep::PathDecision::HalfTurn,
+                which: sweep::PathDecision::FoldBack,
                 source: payloads::diag(),
             },
         ),

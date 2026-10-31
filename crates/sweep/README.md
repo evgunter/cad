@@ -294,16 +294,25 @@ and a fixed reference direction would read the world axes.
   change the body.
 - **A step refuses where it has no reflection.** Coincident stations
   have no chord (`SkinError::PathStationsCoincide`). Where the path
-  turns about a half turn between two stations, the reflected tangent
-  is opposed to the next one and the second reflection has no plane
-  (`SkinError::PathHalfTurn`, recourse: add stations). Each is decided
-  under the band, with its in-band twin `SkinError::PathUndecided`.
-  A path whose end tangent is its start tangent reversed is not one of
-  these: a planar U-turn sweeps, its end frame the start frame turned
-  a half turn about the plane's normal.
+  folds back across the chord between two stations — the arrival
+  tangent is the departure tangent mirrored in the plane normal to the
+  chord, so the path leaves along the chord and comes back against it
+  — the reflected tangent is opposed to the next one and the second
+  reflection has no plane (`SkinError::PathFoldsBack`). A smooth fold
+  sweeps with more stations; a kink that doubles back on itself (a
+  hairpin corner) refuses at every station count, and only smoothing
+  it cures it. Each is decided under the band, with its in-band twin
+  `SkinError::PathUndecided`. A path whose end tangent is its start
+  tangent reversed is not one of these: a planar U-turn sweeps, its
+  end frame the start frame turned a half turn about the plane's
+  normal, and so does a semicircle between two stations.
 - **A section sits at its station's path parameter**: station `i` at
   `v = i / (n − 1)`, which no spelling of the profile and no roll of
-  the start frame enters.
+  the start frame enters. The path parameter is not arc length on a
+  rational path, and the skin's fit pays for it: the quarter-arc elbow
+  (`sweep::test_support`, a rational quarter circle, 9 stations) falls
+  1.03e-5 short of its Pappus volume, where stations at its chord
+  lengths fell 3.8e-6 short.
 
 What the law makes of a path is physics, not a choice per path: on a
 planar path the frame turns only about the plane's normal, and closes
