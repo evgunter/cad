@@ -375,16 +375,16 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
 
 /// **A plane stored far off is read at its pivot and charged the
 /// shift.** The dome cut by a tilted plane through `(½, ½, −0.1)`, its
-/// origin stored ten kilometres off along it: the foot the reading
-/// moves the origin to is found in `f64`, some picometres off the stored
-/// plane. The witness stands within its pad of the stored plane's
-/// section, so at least within it of the stored plane. Red against the
-/// shift left uncharged (the reading's band unpadded and the bracket
-/// reading the foot's plane).
+/// origin stored some 36 km off along it: the foot the reading moves the
+/// origin to is found in `f64`, `9·10⁻¹³` m off the stored plane. The
+/// witness stands within its pad of the stored plane's section, so at
+/// least within it of the stored plane. Red at ε 1e-9 against the shift
+/// left uncharged (the reading's band unpadded and the bracket reading
+/// the foot's plane: the witness `1.6·10⁻¹²` off, its pad `1.1·10⁻¹²`).
 #[test]
 fn a_plane_stored_far_off_is_charged_its_pivots_shift() {
-    let (through, normal) = (p(0.5, 0.5, -0.1), v(1.0, 2.0, 8.0));
-    let stored = plane(p(20_000.5, -9_999.5, -0.1), normal);
+    let (through, normal) = (p(0.5, 0.5, -0.1), v(2.0, 3.0, 9.0));
+    let stored = plane(p(30_000.5, -19_999.5, -0.1), normal);
     let c = lone(&read(&stored, &dome()));
     let w = c.witness.expect("a loop carries a witness");
     let off = ((w - through).dot(normal) / normal.norm()).abs();
