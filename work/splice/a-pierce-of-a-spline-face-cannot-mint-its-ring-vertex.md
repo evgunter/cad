@@ -7,6 +7,7 @@ opened: 2026-10-31
 closed: 2026-10-31
 priority: P1
 cost: M
+pr: 6166
 branch: splice/spline-ring-vertex-mint
 ---
 
