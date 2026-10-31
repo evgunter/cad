@@ -3401,7 +3401,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathHalfTurn", E::PathHalfTurn { station: 4 }),
-        ("PathStationsCoincide", E::PathStationsCoincide { station: 4 }),
+        (
+            "PathStationsCoincide",
+            E::PathStationsCoincide { station: 4 },
+        ),
         ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (

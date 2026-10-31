@@ -351,9 +351,8 @@ const PATH_RECOURSE: &str = "smooth the path there";
 const HALF_TURN_RECOURSE: &str = "add stations";
 
 /// The recourse a path sweep's coincident stations end with.
-const COINCIDENT_STATIONS_RECOURSE: &str =
-    "sample the path at stations that are apart: change the station count, or smooth the path \
-     there";
+const COINCIDENT_STATIONS_RECOURSE: &str = "change the station count so consecutive stations \
+                                            are apart, or smooth the path there";
 
 /// The recourse a path sweep's undecided decision ends with.
 const PATH_UNDECIDED_RECOURSE: &str = "add stations, or smooth the path there";

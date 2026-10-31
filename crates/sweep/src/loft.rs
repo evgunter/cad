@@ -741,9 +741,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         stacking_fold(self.places, &canonical, band)?;
-        let geometry =
-            skin_validated(canonical, self.places, self.v_degree, self.params)
-                .map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, self.places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         assemble(
             self.places,
             &geometry.walls,
@@ -829,9 +828,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             })
             .collect();
         stacking_fold(places, &lifted, band)?;
-        let geometry =
-            skin_validated(canonical, channel_places, self.v_degree, self.params)
-                .map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, channel_places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
