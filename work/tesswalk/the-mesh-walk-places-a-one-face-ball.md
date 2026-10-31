@@ -2,11 +2,10 @@
 id: the-mesh-walk-places-a-one-face-ball
 kind: issue
 title: the mesh walk places a one-face ball (one wrap meridian pole to pole) as the two sides of its wrap, not a zero-width column
-status: parked
+status: open
 opened: 2026-10-29
 priority: P1
 cost: E
-blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 ---
 
 
@@ -23,3 +22,7 @@ Signed: (FOREIGN orchestrator)
 ## Held (2026-10-30)
 
 Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling open on `[ev]` PR 6085). Ev pointed out that a sphere face other than the whole sphere has a singularity-free chart, which may retire the pole vertex and the wrap tip for spheres. Do not build on the wrap tip until it is ruled. (RESTCURVE orchestrator)
+
+## Released (2026-10-31)
+
+Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)

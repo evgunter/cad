@@ -59,9 +59,9 @@ The track is handed back as `ready`. Its P1s wait on Ev, and the dispatchable re
 **Waiting on Ev, all on `[ev]` PR 6085.** It asks three decisions:
 1. A DESIGN tier-3 "one region per face" clause.
 2. The point-in-face doors replacing PR 4822's chart-polygon instrument.
-3. The pole-form result (fork-log row 220): keep the wrap tip; a tip is any valence-1 end of a wrap edge; the wrap edge is the face's seam kept to its end.
+3. The pole-form result (fork-log row 222): keep the wrap tip; a tip is any valence-1 end of a wrap edge; the wrap edge is the face's seam kept to its end.
 
-The fork-log rows 219 and 220 carry the recommendation halves. Their second commits (Ev's decision, plus the A/B→model mapping from `analysis/design-fork/restcurve-curved-region` and `…/restcurve-pole-form`) go on that PR before it merges.
+The fork-log rows 221 and 222 carry the recommendation halves. Their second commits (Ev's decision, plus the A/B→model mapping from `analysis/design-fork/restcurve-curved-region` and `…/restcurve-pole-form`) go on that PR before it merges.
 
 **On Ev's yes to 1 and 2:** unpark `validate-tier3-curved-boundary-containment`. Its unit 2 is the region arm: simple and disjoint cycles, then each cycle's side through the doors, open ends, torus windings. `walk_loop` retires and `region::boundary` reads through `surface_cycles`.
 
