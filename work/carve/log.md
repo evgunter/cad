@@ -647,3 +647,25 @@ a final state that can be weighed without it. The blinding byte is on
 `analysis/design-fork/carve-pinned-wall`.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the pinned wall weighed (two rounds, converged); dispatched
+
+The designer pair split in round 1. One classified pinned corners and
+built the wedge, like revolve's on-axis class. The other refused every
+contact, by the minimum distance between the loops. In round 2 each
+took the other's point: the classes stand, and the clearance is read
+beyond the pinned corners. That is one design, not a crossover, so it
+did not go to Ev. Two residual details were settled here: clearance
+over every segment pair (it catches crossing sections, which
+same-index rims miss), and vertex rows in the skin read the door's
+verdict. The row's "Weighed" section has the detail.
+
+Dispatched as `carve/pinned-corners`. Phase 1 measures two things
+before building: whether a NURBS wall with a collapsed column can be
+minted and certified today, and the lens about its chord, which is
+believed to refuse `DegenerateStacking`. Review: **single FULL**.
+The design is decided, and the door logic is checkable by one
+falsifier. Dual is held back because nothing here is hard to reverse:
+class 1's build arrives only with its own lane.
+
+Signed: (CARVE orchestrator)
