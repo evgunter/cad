@@ -1433,46 +1433,66 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
     revolve(&profile, axis, quarter, tol()).unwrap().body
 }
 
-/// **The klein elbow's cavity refuses typed at both scalars, unsplit**,
-/// shelled `0.05`. The cavity's caps are the operand's moved `0.05`
-/// along their normals, off the torus's axis, so each meets the
+/// **The klein elbow's cavity holds across its spiric caps at both
+/// scalars**, shelled `0.05`. The cavity's caps are the operand's moved
+/// `0.05` along their normals, off the torus's axis, so each meets the
 /// cavity's torus in a spiric section: no conic of the cap's plane and
-/// no harmonic row of the torus's chart. Neither face is presented
-/// beside it, and the pair refuses `Uncertified { Departure }` at the
-/// shared edge at the root. The operand holds. Pinned, not fixed: the
-/// row `shell-cavity-gate-over-refuses-three-valid-bodies` states what a
-/// presentation across that edge would have to argue.
+/// no harmonic row of the torus's chart. The torus is presented beside
+/// it by the edge's wall image, a graph over the minor angle, and the
+/// cap's own plane separates; where a spiric arc meets the parallel
+/// splitting the torus, each torus half is read through the corner, by
+/// the arc continued past it against a cap and by the parallel against
+/// the other half. Holds, every face pair sharing a vertex certified
+/// across, each spiric edge's cap and torus among them, and some
+/// certificates read a corner. Red if the wall presentation is
+/// withdrawn (the pair refuses `Uncertified { Departure }` at the root),
+/// or either torus corner reading is.
 #[test]
-fn the_klein_elbows_cavity_refuses_at_its_spiric_caps() {
+fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
     fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
+        let spiric: Vec<(FaceKey, FaceKey)> = hollow
+            .edges()
+            .filter(|(_, e)| {
+                hollow
+                    .get_curve_geom(e.curve)
+                    .and_then(|c| c.certified())
+                    .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+            })
+            .map(|(_, e)| {
+                let face = |he| {
+                    let l = hollow.get_half_edge(he).unwrap().parent_loop;
+                    hollow.get_loop(l).unwrap().face
+                };
+                let (a, b) = (face(e.he_plus), face(e.he_minus));
+                (a.min(b), a.max(b))
+            })
+            .filter(|(a, b)| faces.contains(a) && faces.contains(b))
+            .collect();
+        assert_eq!(spiric.len(), 4, "two spiric arcs on each cap");
+        for &(a, b) in &spiric {
+            let mut kinds = [kind(&hollow, a), kind(&hollow, b)];
+            kinds.sort_unstable();
+            assert_eq!(kinds, ["plane", "torus"], "a cap and a torus half");
+        }
         let report = injective(&hollow, Some(faces), BUDGET);
-        let BoundVerdict::Refused(EngineRefusal::Uncertified {
-            a,
-            b,
-            shared: SharedCell::Edge(e),
-            arm: CertificateArm::Departure,
-        }) = report.verdict
-        else {
-            panic!(
-                "the elbow's cavity refuses at a cap's edge: {:?}",
-                report.verdict
-            )
-        };
-        let mut kinds = [kind(&hollow, a), kind(&hollow, b)];
-        kinds.sort_unstable();
-        assert_eq!(kinds, ["plane", "torus"], "a cap and the torus");
-        let carrier = hollow
-            .get_curve_geom(hollow.get_edge(e).unwrap().curve)
-            .and_then(|c| c.certified())
-            .map(|c| c.carrier().kind());
-        assert_eq!(
-            carrier,
-            Some(geom::CurveKind::Spiric),
-            "the shared edge is a spiric section"
+        println!(
+            "[spiric] the elbow's cavity: {:?} {:?} cornered = {} across = {:?}",
+            report.verdict, report.receipt, report.cornered, report.across
         );
-        assert_eq!(report.receipt.splits, 0, "refused at the root");
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the elbow's cavity holds: {:?}",
+            report.verdict
+        );
+        for p in &spiric {
+            assert!(
+                report.across.get(p).is_some_and(|&n| n > 0),
+                "a cap and its torus half certified across their spiric arc: {p:?}"
+            );
+        }
+        assert!(report.cornered > 0, "a corner of the torus is read through");
         report
     }
     same_class(
