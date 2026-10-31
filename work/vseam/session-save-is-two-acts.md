@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-08
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 ## The hand-off
