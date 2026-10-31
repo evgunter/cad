@@ -120,16 +120,21 @@ fn one_at(got: &Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal>) -> Option<f64
 /// the face (`w·c < 0`), but the rim (`κ > 0`) bends round under it and
 /// the sheet rises to meet it at `s* = 0.03 / κ` from the end, inside the
 /// face (`v* = 0.01 s*`). Every such crossing is found, swept across the
-/// sector's reaches (so a crossing just inside and just past each).
+/// sector's reaches (so a crossing just inside and just past each). A
+/// crossing nearer the rim than the walk's floor scale over the span,
+/// `√(0.4·escalate)`, may refuse instead (a meeting on the chart's edge),
+/// but is never dropped.
 #[test]
 fn review_6157_a_rim_bending_under_a_departing_line_keeps_its_crossing() {
     let dir = Vec3::new(1.0, -0.02, 0.01);
+    let floor = (0.4 * band().escalate()).sqrt();
     for s in [0.01, 0.03, 0.05, 0.1, 0.2, 0.3] {
         let kappa = 0.03 / s;
         for (fu, fv, toward) in ORIENTATIONS {
             let got = read(&parabola(kappa, fu, fv), dir, toward);
+            let found = one_at(&got).is_some_and(|d| (d - s * dir.norm()).abs() < 1e-6);
             assert!(
-                one_at(&got).is_some_and(|d| (d - s * dir.norm()).abs() < 1e-6),
+                found || 0.01 * s <= floor && matches!(got, Err(SplineFaceRefusal::Unsettled(_))),
                 "s* = {s}, flips ({fu}, {fv}), toward {toward}: found at s*, got {got:?}"
             );
         }

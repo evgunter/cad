@@ -606,14 +606,16 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the bulb's cone seam, a line in the plane
-/// `y = 0` slanting off the axis (the neck's seam, which ends on the
-/// loop's rim, is cleared there by its departure), meets a NURBS wall of the loop on the joint of the wall's two
-/// rational arcs, which lies in that plane. The joint is a knot run of
-/// multiplicity the degree, a crease by its knots: the wall is tangent
-/// continuous across it, but its parametric derivative jumps there, and
-/// the spline-face arm reads no Jacobian across such a knot. Shared with
-/// `verbs_gate_r1_probes`, so the two cannot drift.
+/// Wall 3's pinned refusal: the bulb's cone seam, the line in the plane
+/// `y = 0` from `(0.312, 0, 2.443)` to `(1.764, 0, −0.073)`, crosses the
+/// loop's half-tube wall whose arc joint runs in that plane from the
+/// rim point `(0.275, 0, 3)` down to `(−0.275, 0, 0.6)`, on that joint.
+/// The joint is a knot run of multiplicity the degree, a crease by its
+/// knots: the wall is tangent continuous across it, but its parametric
+/// derivative jumps there, and the spline-face arm refuses a meeting on
+/// a crease. The neck's seam, which ends on that rim, is cleared there
+/// by its departure. The refusal names the edge and the face, not the
+/// site. Shared with `verbs_gate_r1_probes`, so the two cannot drift.
 pub fn wall3_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
@@ -629,28 +631,43 @@ pub fn wall3_pinned<S: Scalar>(
     else {
         return false;
     };
-    let in_the_seam_plane = bulb
-        .get_edge(*edge)
-        .and_then(|e| bulb.get_curve_geom(e.curve))
-        .is_some_and(|g| match g {
-            pncad::topo::CurveGeom::Certified(c) => matches!(
-                c.carrier(),
-                pncad::geom::Curve3::Line { origin, dir }
-                    if [origin.y, dir.y].iter().all(|&c| {
-                        let (lo, hi) = (pncad::geom_core::Bounds::lo(c), pncad::geom_core::Bounds::hi(c));
-                        lo.abs() < 1e-12 && hi.abs() < 1e-12
-                    }) && pncad::geom_core::Bounds::lo(dir.x).abs() > 0.1
-            ),
-            _ => false,
-        });
-    let on_an_arc_joint = top
+    let near = |p: Point3<S>, q: [f64; 3]| {
+        [(p.x, q[0]), (p.y, q[1]), (p.z, q[2])]
+            .iter()
+            .all(|&(c, k)| {
+                let (lo, hi) = (
+                    pncad::geom_core::Bounds::lo(c),
+                    pncad::geom_core::Bounds::hi(c),
+                );
+                (lo - k).abs() < 1e-3 && (hi - k).abs() < 1e-3
+            })
+    };
+    let the_cone_seam = bulb.get_edge(*edge).is_some_and(|e| {
+        let ends = [e.he_plus, e.he_minus].map(|he| bulb.half_edge_start_point(he));
+        let straight = matches!(
+            bulb.get_curve_geom(e.curve),
+            Some(pncad::topo::CurveGeom::Certified(c))
+                if matches!(c.carrier(), pncad::geom::Curve3::Line { .. })
+        );
+        straight
+            && matches!(ends, [Some(p), Some(q)]
+                if near(p, [0.312, 0.0, 2.443]) && near(q, [1.764, 0.0, -0.073]))
+    });
+    let the_half_tube = top
         .get_face(*face)
         .and_then(|f| top.get_surface(f.surface))
         .is_some_and(|s| match s {
-            pncad::geom::Surface::Nurbs(n) => !n.knot_values_u().crease_values().is_empty(),
+            pncad::geom::Surface::Nurbs(n) => {
+                let joint = n.knot_values_u().crease_values();
+                let at = |v: f64| n.eval(S::from_f64(0.5), S::from_f64(v));
+                joint.len() == 1
+                    && (pncad::geom_core::Bounds::lo(joint[0]) - 0.5).abs() < 1e-12
+                    && near(at(0.0), [0.275, 0.0, 3.0])
+                    && near(at(1.0), [-0.275, 0.0, 0.6])
+            }
             _ => false,
         });
-    in_the_seam_plane && on_an_arc_joint
+    the_cone_seam && the_half_tube
 }
 
 /// Wall 4's pinned refusal: one of the loop's rational NURBS walls

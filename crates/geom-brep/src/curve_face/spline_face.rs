@@ -46,22 +46,22 @@
 //!   the reach its test was read over; the label says where the refusal
 //!   stands, not how far.
 //! - **The span's ends are the end vertices'.** The walk reads the
-//!   carrier a little past each end ([`END_REACH`]), as far as it runs
-//!   smoothly (to its domain's end or the nearest crease beyond the end),
-//!   so a meeting at an end is isolated like any other; one within the
-//!   band of an end, or past it, is not reported. At every end, of every
-//!   kind of span, the walk also tries an **end's box**: a box it reads,
-//!   or one of the floor growths it tries a proof on, that holds the end's
-//!   state (the end's parameter and its foot on the chart) and on which
-//!   every solution lies within the band of the end, by the mean value
-//!   theorem over the box ([`crate::krawczyk::solution_reach`]). It claims
-//!   no solution, so it needs no reading past either domain: it is what
-//!   reads an end the walk cannot read past (a NURBS span ending at its
-//!   domain's end or on a crease of its own) and an end on the chart's
-//!   domain edge. Any other meeting on the chart's domain edge is isolated
-//!   by no box inside the domain, so it refuses like any other
-//!   unaccounted box, an open chart's edge and a closed chart's seam
-//!   alike.
+//!   carrier a little past each end that no sector holds (below,
+//!   [`END_REACH`]), as far as it runs smoothly (to its domain's end or
+//!   the nearest crease beyond the end), so a meeting at an end is
+//!   isolated like any other; one within the band of an end, or past it,
+//!   is not reported. At every end, of every kind of span, the walk also
+//!   tries an **end's box**: a box it reads, or one of the floor growths
+//!   it tries a proof on, that holds the end's state (the end's parameter
+//!   and its foot on the chart) and on which every solution lies within
+//!   the band of the end, by the mean value theorem over the box
+//!   ([`crate::krawczyk::solution_reach`]). It claims no solution, so
+//!   it needs no reading past either domain: it is what reads an end
+//!   the walk cannot read past (a NURBS span ending at its domain's end
+//!   or on a crease of its own) and an end on the chart's domain edge.
+//!   Any other meeting on the chart's domain edge is isolated by no box
+//!   inside the domain, so it refuses like any other unaccounted box,
+//!   an open chart's edge and a closed chart's seam alike.
 //! - **The sector at an end.** An end whose foot lies on an edge of the
 //!   chart's domain, the face's rim, is read first by its departure
 //!   ([`Pair::sector`]): the span's tangent over a window leaving the
@@ -82,6 +82,7 @@ use core::num::NonZeroUsize;
 
 use geom::{Curve3, NurbsSurface};
 use geom_core::bisect::{Step, bisect};
+use geom_core::interval::dot;
 use geom_core::k_stats::decide;
 use geom_core::spline::Knots;
 use geom_core::{
@@ -89,7 +90,9 @@ use geom_core::{
     Vec3,
 };
 
-use crate::krawczyk::{det3, image, inverse3, meet3, midpoints, norm, solution_reach};
+use crate::krawczyk::{
+    det3, image, inverse3, mag, meet3, midpoint, midpoints, norm, solution_reach,
+};
 use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
@@ -145,10 +148,10 @@ const PAST_THE_BAND: &str = "spline_face_past_the_band";
 /// against the band.
 const AT_THE_END: &str = "spline_face_at_the_end";
 
-/// How far past each end of the span the walk reads the carrier, in
-/// escalation lengths at the span's pace (a lower bound on its mean
-/// speed). A meeting at an end is a split point decided ON within the
-/// band's zero, so its solution lies within `zero / sin θ` of the end, `θ`
+/// How far past each end of the span that no sector holds the walk reads
+/// the carrier, in escalation lengths at the span's pace (a lower bound
+/// on its mean speed). A meeting at an end is a split point decided ON
+/// within the band's zero, so its solution lies within `zero / sin θ` of the end, `θ`
 /// the crossing's angle: where the carrier runs no faster near the end
 /// than its pace, the reach covers every crossing steeper than
 /// `zero / (1024·escalate) < 1/1024` rad, and any other is the end's box's
@@ -156,8 +159,10 @@ const AT_THE_END: &str = "spline_face_at_the_end";
 const END_REACH: f64 = 1024.0;
 
 /// The reaches a sector at an end is tried at ([`Pair::sector`]), as
-/// fractions of the walk's `rho`, largest first: each is certified before
-/// it is used, so the ladder bounds work, never a decision.
+/// fractions of the walk's `rho`, largest first. Each box is certified
+/// before it is used, and the rung that holds sets where the walk starts
+/// at that end: so the ladder can turn a refusal into an answer, never
+/// into a wrong one.
 const SECTOR_REACHES: [f64; 4] = [1.0 / 8.0, 1.0 / 64.0, 1.0 / 512.0, 1.0 / 4096.0];
 
 /// The growth an isolating box is tried at, largest first, in
@@ -542,7 +547,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// middle is taken. `None` where the foot is not found.
     fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
         let c = self.path.at(exact(end));
-        let [x, y, z] = c.map(|k| T::from_computed(k.lo() + (k.hi() - k.lo()) * 0.5));
+        let [x, y, z] = midpoint(&c).map(T::from_computed);
         let foot = chart.project(Point3::new(x, y, z)).ok()?;
         let at = [end, foot.u, foot.v];
         Some(End {
@@ -568,10 +573,11 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     }
 
     /// **The sector at an end** (module docs): the box of the state
-    /// `[end, end + τ]` (into the span, `into` its sign) by a window of
-    /// the chart on the inner side of the domain edge nearest the end's
-    /// foot, if every solution in it is certified within the band of the
-    /// end, tried at each of [`SECTOR_REACHES`] of `rho`, largest first.
+    /// `[t, t + τ]` (into the span, `into` its sign) by a window of the
+    /// chart on the inner side of the domain edge nearest the end's foot,
+    /// if every solution in it is certified within the band of the end,
+    /// tried at each of [`SECTOR_REACHES`] of `rho`, largest first.
+    /// `domain` is the span by the chart's domain.
     ///
     /// The base is the end's parameter and its foot moved onto that edge,
     /// `g = F` there. Over the box, `F − g = c·Δt − r·Δr − q·Δq` by the
@@ -585,20 +591,13 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// leaves against `w` (`w·c ≤ −α`) while the face enters along it
     /// (`w·q ≥ β`), the `w` row bounds `Δt` and `Δq` by `g` alone. A
     /// departure into the face's side, or one along the rim, certifies
-    /// nothing.
+    /// nothing, and neither does an end whose foot on the edge lies past
+    /// the band of it.
     // `!(a > 0)` is deliberate: a NaN bound certifies nothing.
-    #[allow(clippy::too_many_arguments, clippy::neg_cmp_op_on_partial_ord)]
-    fn sector(
-        &self,
-        end: f64,
-        into: f64,
-        span: (f64, f64),
-        chart: &NurbsSurface<T>,
-        domain: Cell,
-        rho: f64,
-        band: Band,
-    ) -> Option<Cell> {
-        let foot = self.end_state(end, chart)?.at.0;
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    fn sector(&self, end: &End, into: f64, domain: Cell, rho: f64, band: Band) -> Option<Cell> {
+        let foot = end.at.0;
+        let t0 = foot[0].0;
         // The domain edge nearest the foot, in metres: its coordinate (1
         // for `u`, 2 for `v`), its value, and the inward sign.
         let (k, edge, inward) = [(1, 0), (1, 1), (2, 0), (2, 1)]
@@ -615,25 +614,27 @@ impl<T: CertifiedBounds> Pair<'_, T> {
             .min_by(|p, q| p.0.total_cmp(&q.0))
             .map(|(_, k, e, s)| (k, e, s))?;
         let j = 3 - k;
-        let mut base = [end, foot[1].0, foot[2].0];
+        let mut base = [t0, foot[1].0, foot[2].0];
         base[k] = edge;
         let g = self.at(base);
-        let dot = |a: [f64; 3], b: [Interval; 3]| {
-            (0..3).fold(exact(0.0), |acc, i| acc + exact(a[i]) * b[i])
-        };
-        let mag = |v: Interval| v.lo().abs().max(v.hi().abs());
-        let mid = |b: [Interval; 3]| b.map(|c| c.lo() + (c.hi() - c.lo()) * 0.5);
-        let unit = |v: [f64; 3]| {
-            let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-            (n > 0.0 && n.is_finite()).then(|| v.map(|c| c / n))
+        // An end off its rim reads no sector: `|g|` past the band, or
+        // not certified.
+        if !(norm(g).lo() <= band.escalate()) {
+            return None;
+        }
+        let pt = |v: Vec3<f64>| [exact(v.x), exact(v.y), exact(v.z)];
+        let v3 = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
+        let unit = |v: Vec3<f64>| {
+            let n = v.norm();
+            (n > 0.0 && n.is_finite()).then(|| v / n)
         };
         for reach in SECTOR_REACHES {
             let r = rho * reach;
-            let dt = (r / self.speeds[0]).min(span.1 - span.0);
+            let dt = (r / self.speeds[0]).min(domain.0[0].1 - domain.0[0].0);
             let t = if into > 0.0 {
-                (end, end + dt)
+                (t0, t0 + dt)
             } else {
-                (end - dt, end)
+                (t0 - dt, t0)
             };
             let mut x = Cell([t, (0.0, 0.0), (0.0, 0.0)]);
             let along = r / self.speeds[j];
@@ -647,7 +648,9 @@ impl<T: CertifiedBounds> Pair<'_, T> {
             } else {
                 ((edge - across).max(domain.0[k].0), edge)
             };
-            let w = window(x.0[1], x.0[2])?;
+            let Some(w) = window(x.0[1], x.0[2]) else {
+                continue;
+            };
             let part = |along_u: bool| {
                 let b = self.boxes.deriv_box(w, along_u);
                 [b.x, b.y, b.z]
@@ -655,15 +658,17 @@ impl<T: CertifiedBounds> Pair<'_, T> {
             let c = self.path.tangent(x.interval(0)).map(|v| exact(into) * v);
             let rr = part(j == 1);
             let q = part(k == 1).map(|v| exact(inward) * v);
-            let Some(z) = unit(mid(rr)) else { continue };
-            let qm = mid(q);
-            let along_z = qm[0] * z[0] + qm[1] * z[1] + qm[2] * z[2];
-            let Some(wd) = unit(core::array::from_fn(|i| qm[i] - along_z * z[i])) else {
+            let Some(z) = unit(v3(midpoint(&rr))) else {
                 continue;
             };
-            let (wc, wq, wr) = (dot(wd, c), dot(wd, q), dot(wd, rr));
-            let (zc, zq, zr) = (dot(z, c), dot(z, q), dot(z, rr));
-            let (wg, zg) = (dot(wd, g), dot(z, g));
+            let qm = v3(midpoint(&q));
+            let Some(wd) = unit(qm - z * qm.dot(z)) else {
+                continue;
+            };
+            let (z, wd) = (pt(z), pt(wd));
+            let (wc, wq, wr) = (dot(&wd, &c), dot(&wd, &q), dot(&wd, &rr));
+            let (zc, zq, zr) = (dot(&z, &c), dot(&z, &q), dot(&z, &rr));
+            let (wg, zg) = (dot(&wd, &g), dot(&z, &g));
             if ![wc, wq, wr, zc, zq, zr, wg, zg]
                 .iter()
                 .all(|v| v.is_certified())
@@ -841,12 +846,16 @@ pub fn isolate<T: CertifiedBounds>(
     let reach_of = |(lo, hi): (f64, f64), speed: f64| (hi - lo) * speed;
     let rho = reach_of((a, b), pace).min(reach_of(du, speeds[1]) + reach_of(dv, speeds[2]));
     let floor = (rho * band.escalate()).sqrt() / 8.0;
-    // The sector at each end (module docs): where it holds, the end's
-    // solutions are accounted for on the span's side and the walk does
-    // not read past it.
+    // The span's ends, each at its foot on the chart (module docs), and
+    // the sector at each: where it holds, the end's solutions are
+    // accounted for on the span's side and the walk does not read past it.
+    let feet = [a, b].map(|end| pair.end_state(end, chart));
     let whole = Cell([(a, b), du, dv]);
-    let sectors = [(a, 1.0), (b, -1.0)]
-        .map(|(end, into)| pair.sector(end, into, (a, b), chart, whole, rho, band));
+    let sectors = [(0, 1.0), (1, -1.0)].map(|(i, into)| {
+        feet[i]
+            .as_ref()
+            .and_then(|end| pair.sector(end, into, whole, rho, band))
+    });
     // Past each other end of the span, as far as the carrier runs
     // smoothly: to its domain's end or its nearest crease beyond the end,
     // whichever comes first. A crease at an end is then a side of the
@@ -892,11 +901,7 @@ pub fn isolate<T: CertifiedBounds>(
             &vs[1..vs.len() - 1],
         ],
     };
-    // The span's ends, each at its foot on the chart (module docs).
-    let end_states: Vec<End> = [a, b]
-        .into_iter()
-        .filter_map(|end| pair.end_state(end, chart))
-        .collect();
+    let end_states: Vec<End> = feet.into_iter().flatten().collect();
     let mut ends: Vec<Cell> = sectors.into_iter().flatten().collect();
     let mut found: Vec<Found> = Vec::new();
     let pieces = blocks.iter().map(|&x| (x, x));

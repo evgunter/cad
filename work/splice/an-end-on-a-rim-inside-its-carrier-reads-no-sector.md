@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P2
 cost: M
-refs: [a-span-ending-on-a-faces-rim-has-no-sector-clearance]
+refs: [a-span-ending-on-a-faces-rim-has-no-sector-clearance, a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary]
 ---
 
 Filed from `splice/rim-sector-clearance` (closing `a-span-ending-on-a-faces-rim-has-no-sector-clearance`), as the blind spot of its sector.
@@ -19,3 +19,6 @@ The spline-face arm's sector at an end (`geom_brep::curve_face::spline_face`, `P
 - **An analytic face's rim** (`curve_face::composite` for a spline span; the sweep's analytic root doors for an analytic one). Both read the span against the face's **carrier**, which runs on past the rim, so the same tangent departure stays in band beside the end and refuses.
 
 The face's inward departure here is the trim's: the carrier's partials across the trim curve's pcurve, one-sided by the trim. No witness yet. Klein's rims are domain edges. The sweep `grep -rn "END_REACH\|read past\|past each end" crates/geom-brep/src crates/topo/src/boolean` turns up only the spline-face arm, the composite's end rule (`composite.rs` module docs: an end within the band is the end's; a piece in band that no cut parts refuses) and the curve-pair span rows.
+
+A differently shaped sweep (the end readings by box walk, not by reach past) found the same gap in the surface-pair arm. `ssi/four.rs` reads an end on two or more domain sides (`Shortfall::EndOnSides`, `one_arc_pair`) with no departure clearance. It is already filed as `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`, where the sector is noted as a candidate.
+
