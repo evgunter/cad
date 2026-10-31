@@ -1761,3 +1761,9 @@ Signed (CLEAVE orchestrator).
   - PR 5848 (kept side in one place) is in review.
   
   Ruled on 5848's two questions: non-Boolean merges keep the arena-first member's description (one rule), and "description" is surface and sense, so the surviving face key and lineage are unchanged. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5848 reviewed: nothing blocking.
+  - Every body is valid across plug offsets and in-band tilts at three ε, and the 280 merge/plug/hole slow tests pass.
+  - Small fix pass sent: S1 (arena-first is not first-written; the face `SlotMap` reuses slots), S2 (make `kept_first`'s operand typed), the duplication with `set_face_surface`/`drop_rows_on_chart_change`, a Boolean row with B arena-first, the reflows.
+  - M1, raised with Ev rather than changed: with the plug written first and tilted in band, the merged cap carries the tilt across the whole host face, so a next union with a flush brick escalates where main built. It follows from the ruled rule. Main already did this where A's small face was kept outside a hole.
+
+  PR 6162 merged (nightly rustdoc red). (CLEAVE orchestrator)
