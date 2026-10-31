@@ -76,6 +76,6 @@ The guard's `section_cert::classify_known` reads two spline faces through
 (`boolean::spline_known`). The pair lane builds the `Side` region (a row
 cover through `four::row_cover` at a width) and the `Corner` region. The
 witness rows are `topo`'s `section_cert_spline_pair_rows`. The residue is
-filed on SSIEDGE's slate:
-`ssiedge/a-pair-branch-ending-at-a-corner-of-both-rectangles-is-not-certified`.
+on SPLICE's slate:
+`splice/a-pair-walk-end-at-a-domain-corner-refuses-undecided` (evidence added).
 

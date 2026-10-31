@@ -247,7 +247,7 @@ fn flat() -> Surface<f64> {
 /// runs into both rectangles from it: the corner is a crossing, the
 /// branch's end, which limb 3 does not yet certify on four domain faces
 /// at once
-/// (`work/ssiedge/a-pair-branch-ending-at-a-corner-of-both-rectangles-is-not-certified.md`),
+/// (`work/splice/a-pair-walk-end-at-a-domain-corner-refuses-undecided.md`),
 /// so the pair refuses rather than clearing. Red against a `Corner`
 /// region read as a loop (R-undec), and against the corner's signs read
 /// as leaving where a branch starts (a region that clears).

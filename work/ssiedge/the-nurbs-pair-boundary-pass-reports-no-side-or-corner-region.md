@@ -30,3 +30,13 @@ Owed: the side and corner regions on this lane, as the plane pass
 reads them (a side of one chart within the band of the other surface,
 its cover, and the corner classification), so the accounting banks them
 and a section along a shared row is answered rather than refused.
+
+2026-10-31 (SPLICE, `splice/nurbs-nurbs-guard-arm`): the lane now reports
+`Side` and `Corner` regions built from a row or corner the caller hands in
+as known (`ssi::pair::PairRow`, `PairCorner`, `Section::with_known`;
+ratified C3 text, `[ev]` PR 5990). The interior-loop guard hands in the
+rims and corners two spline faces share (`topo` `boolean::spline_known`).
+A section along a side that no caller hands in still refuses
+`PairBoundaryUnresolved`, as before. That covers this row's measured
+instance: a moved fit's side, where no row is shared. That is what stays
+open here.
