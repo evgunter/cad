@@ -1785,3 +1785,12 @@ Signed (CLEAVE orchestrator).
   - It closes `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit` and files a P1: a seam ruling on the crescent's tangent line ships a `B ∖ A` that tier 3′ refuses (main's behaviour).
   - The union-across-a-crescent row goes back to open with `design: true`. It needs a second-order vertex classifier, which is larger than one lane.
   - The PR conflicts with main, so it went back to the lane for a merge before review. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5852 reviewed (claims and style): nothing blocking.
+  - On the final head against current main, 16/8/20 cells move from `ClassificationInvariant` to built bodies that pass every check, with the closed-form volume. The BAD sets are identical, and the bend is load-bearing.
+  - The fix pass sent to the lane covers:
+    - the second-order reading straddled through `decide_agreed` (a two-sided ellipse reach read Along where it should refuse);
+    - one home for the `(κ − κ_b)·û·l²/2` margin that `fate`, `runs_into` and `crescent` each spell;
+    - `bend_at` folded into `leaving`;
+    - the filed seam-ruling row's footprint corrected, with its S7 `CensusUndecidable` sibling split out;
+    - merge leftovers in the closed-conic test;
+    - a P2 row for `NoCorner` speaking as a kernel invariant. (CLEAVE orchestrator)
