@@ -3903,7 +3903,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: an edge pick whose rim the index could not answer declined",
             ToolNotice::Blend(BlendEvent::RimUnanswered {
-                fault: editor_core::RimNameFault::Stale {
+                fault: editor_core::resolve::RimNameFault::Stale {
                     node: target.node,
                     body: 0,
                 },

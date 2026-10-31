@@ -72,7 +72,7 @@ use pncad::document::{
 };
 use pncad::prelude::StableName;
 
-use editor_core::RimNameFault;
+use editor_core::resolve::RimNameFault;
 
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};

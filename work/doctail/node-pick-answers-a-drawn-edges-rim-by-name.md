@@ -19,7 +19,8 @@ polyline order, the names of every arc of the closed rim that
 polyline's edge is on (`topo::query::rim_of`, keys mapped back through
 the node's table), or `None` when the edge is on no rim of two or more.
 Its loud arms are the new closed enum `RimNameFault` (`Unnamed`,
-`NoBody`, `Stale`), re-exported at `editor_core::RimNameFault`. It
+`NoBody`, `Stale`), with the alias `BoundaryRim`, both exported from `editor_core::resolve` and
+not from the crate root (so `pncad`'s root-export census is unchanged). It
 exists so the viewer's pick index can treat a seam-split circle as one
 drawn edge without an arena key crossing G1
 (`crates/viewer/GUI-DESIGN.md`). Nothing else in editor-core changed.

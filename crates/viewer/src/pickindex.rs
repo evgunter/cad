@@ -70,7 +70,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use editor_core::RimNameFault;
+use editor_core::resolve::RimNameFault;
 use pncad::document::{
     Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
