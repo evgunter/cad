@@ -215,3 +215,147 @@ fn review_print_edge_dome() {
         eprintln!("split dome {d:e}: {:?}", swept(&level(-d), &split_dome()));
     }
 }
+
+/// Re-review 6150: a long, thin wall (1 m across `u`, 100 m along `v`)
+/// tilted across its short side by `rise` in all, its middle row of
+/// controls raised `lift` with weight `w` so that the net's hull reaches
+/// past the escalation while the wall itself stays inside the zero band.
+fn thin_wall(rise: f64, lift: f64, w: f64) -> Surface<f64> {
+    let kv = vec![0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0];
+    let rows = kv.len() - 3;
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for i in 0..2 {
+        for j in 0..rows {
+            #[allow(clippy::cast_precision_loss)]
+            let y = 100.0 * j as f64 / (rows - 1) as f64;
+            #[allow(clippy::cast_precision_loss)]
+            let x = i as f64;
+            let mid = j == rows / 2;
+            control.push(Point3::new(
+                x,
+                y,
+                rise * (x - 0.5) + if mid { lift } else { 0.0 },
+            ));
+            weights.push(if mid { w } else { 1.0 });
+        }
+    }
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(kv, 2).unwrap();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(ku, kv, control, weights).unwrap(),
+    ))
+}
+
+/// The largest height of `w` over `z = 0`, sampled.
+fn sampled_reach(w: &Surface<f64>) -> f64 {
+    let Surface::Nurbs(n) = w else { unreachable!() };
+    let mut m: f64 = 0.0;
+    for a in 0..=200 {
+        for b in 0..=2000 {
+            #[allow(clippy::cast_precision_loss)]
+            let p = n.eval(f64::from(a) / 200.0, f64::from(b) / 2000.0);
+            m = m.max(p.z.abs());
+        }
+    }
+    m
+}
+
+/// Prints, for thin walls inside the zero band everywhere whose hull is
+/// not: the wall's sampled reach, the sweep, the classification through
+/// the march door, and the whole reading. Run with `cargo nextest run -p
+/// geom-brep --run-ignored only rereview_thin --no-capture`.
+#[test]
+#[ignore = "a print for re-review"]
+fn rereview_thin_wall_inside_the_band() {
+    let b = band();
+    for (rise, lift, w) in [
+        (0.4, 0.0, 1.0),
+        (0.4, 12.0, 1e-3),
+        (0.4, 12.0, 1e-2),
+        (0.6, 20.0, 1e-3),
+        (1.2, 12.0, 1e-3),
+    ] {
+        let wall = thin_wall(rise * b.zero(), lift * b.zero(), w);
+        let p = level(0.0);
+        let pose = super::super::PlaneSplinePose::of(&p, &wall).unwrap();
+        eprintln!(
+            "rise {rise} lift {lift} w {w:e}: reach/zero {:.3}; sweep {:?}",
+            sampled_reach(&wall) / b.zero(),
+            swept(&p, &wall),
+        );
+        eprintln!(
+            "   classified {:?}",
+            crate::pair_section::pair_section(
+                &p,
+                &wall,
+                None,
+                Some(crate::pair_section::SsiLane::marched()),
+                b
+            )
+            .map(|r| match r {
+                crate::pair_section::SectionRead::Built(s) => format!("{:?}", s.components()),
+                other => format!("{other:?}"),
+            })
+        );
+        eprintln!(
+            "   whole {:?}",
+            super::super::whole(&pose, b).map(|s| format!("{:?}", s.components()))
+        );
+    }
+}
+
+/// **A thin wall within the zero band everywhere is never cleared**
+/// (re-review 6150). The sweep alone reads each of these walls
+/// loop-free: across their 1 m side the slope, levered by the 100 m
+/// extent, is decided off zero, though no point of the wall stands a
+/// zero band off the plane. So `review_a_wall_within_the_band_everywhere_is_not_loop_free`,
+/// on a unit square where the lever is short, is green on the sweep's
+/// lever and not on C5's order. The classification must refuse every
+/// one: the hull (coincident) where the net lies in the band, the
+/// boundary pass where a lifted, light row carries the net past it.
+/// Red against the hull's coincidence dropped.
+#[test]
+fn rereview_a_thin_wall_within_the_band_is_never_cleared() {
+    let b = band();
+    for (rise, lift, w) in [(0.4, 0.0, 1.0), (0.4, 12.0, 1e-3), (1.2, 12.0, 1e-3)] {
+        let wall = thin_wall(rise * b.zero(), lift * b.zero(), w);
+        assert!(
+            sampled_reach(&wall) <= b.zero(),
+            "the wall stands within the band"
+        );
+        let p = level(0.0);
+        for (order, got) in [
+            (
+                "plane first",
+                crate::pair_section::pair_section(
+                    &p,
+                    &wall,
+                    None,
+                    Some(crate::pair_section::SsiLane::marched()),
+                    b,
+                ),
+            ),
+            (
+                "wall first",
+                crate::pair_section::pair_section(
+                    &wall,
+                    &p,
+                    None,
+                    Some(crate::pair_section::SsiLane::marched()),
+                    b,
+                ),
+            ),
+        ] {
+            assert!(
+                got.is_err(),
+                "rise {rise} lift {lift} w {w:e}, {order}: a wall within the band is \
+                 classified {:?}",
+                got.map(|r| match r {
+                    crate::pair_section::SectionRead::Built(s) => format!("{:?}", s.components()),
+                    other => format!("{other:?}"),
+                })
+            );
+        }
+    }
+}
