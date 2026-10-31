@@ -2,7 +2,7 @@
 id: sectarms
 kind: program
 title: SECTARMS — the section object's remaining arms, led by NURBS against a curved face
-status: ready
+status: active
 opened: 2026-10-28
 group: kernel/boolean/join
 prefix: sectarms/
