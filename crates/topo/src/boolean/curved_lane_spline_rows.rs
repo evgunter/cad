@@ -405,24 +405,23 @@ fn tangent_wall() -> (Body<f64>, FaceKey) {
     wall(1.0, 1.0, 1.2, (-0.3, 1.0))
 }
 
-/// **A spline touching the wall inside the face refuses as a tangency**
-/// when no declaration covers it: the arm cannot tell the touch from two
-/// crossings within the band.
+/// **A spline touching the wall inside the face escalates** when no
+/// declaration covers it: the arm reads the touch in the band's gap, where
+/// it cannot tell it from two crossings, and the face holds it.
 #[test]
-fn an_uncovered_spline_touching_a_wall_refuses() {
+fn an_uncovered_spline_touching_a_wall_escalates() {
     assert!(
         bernstein(TANGENT, 0.5).z.abs() < 1e-15,
         "the oracle touches at (0, 1, 0)"
     );
-    let (a, _, edge) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
+    let (a, _, _) = spline_sheet(TANGENT, [1.0; 3], -Vec3::unit_y());
     let (b, _) = tangent_wall();
     match sweep_a(&a, &b) {
-        Err(BooleanError::SplineCrossingUnsettled {
-            operand: Operand::A,
-            edge: e,
-            why: Unsettled::Tangency,
-            ..
-        }) => assert_eq!(e, edge, "the refusal names the spline"),
+        Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
+            diag.predicate,
+            Some("spline_composite_past_the_band"),
+            "the composite's reading escalates"
+        ),
         other => panic!("the spline touches the wall: {other:?}"),
     }
 }
@@ -431,8 +430,8 @@ fn an_uncovered_spline_touching_a_wall_refuses() {
 /// spline `(t − ½, 1, …)` in the tangent plane `y = 1`, from
 /// `(−½, 1, −½)` through `(0, 1, −0.4)` to `(½, 1, ½)`, meets the ruling
 /// `x = 0` at height `−0.2`, below the wall's window `[0.1, 1]`, which its
-/// box reaches. The composite cannot tell the touch from two crossings;
-/// localized, the touch is certified off the face. The chord back touches
+/// box reaches. The composite reads the touch in the band's gap;
+/// localized, it is certified off the face. The chord back touches
 /// the ruling at height 0, below the window too.
 #[test]
 fn a_spline_touching_a_wall_below_the_face_is_no_event() {
@@ -487,7 +486,7 @@ fn sweep_declared(
     let mut acc = super::ContactAcc::default();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     super::sweep_direction(
-        &mut x,
+        (&mut x, &crate::sector_shape::SlitTips::of(a)),
         &mut y,
         Operand::A,
         declared,

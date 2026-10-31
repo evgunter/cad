@@ -4101,11 +4101,12 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// [`BooleanError::EdgeCarrierUnsupported`] where there is no arm,
+/// [`BooleanError::EdgeCarrierUnsupported`] where there is no arm, and,
+/// where the span's meetings with the plane are not certified off the face
+/// ([`super::carrier_touch::off_face`]),
 /// [`BooleanError::SplineCrossingUnsettled`] where the arm cannot count
-/// the crossings and the span's meetings with the plane are not
-/// certified off the face ([`super::carrier_touch::off_face`]), and
-/// [`BooleanError::Escalated`] where it cannot place one.
+/// the crossings and [`BooleanError::Escalated`] where it reads a touch in
+/// the band's gap or cannot place a crossing.
 fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
     curve: &geom_brep::EdgeCurve<T>,
@@ -4140,34 +4141,27 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
             site: super::EdgeCarrierSite::PlanarCrossing,
         });
     };
+    // Where the span may meet the plane is localized and read against the
+    // face: certified off it, a touch the arm could not settle or decide is
+    // no crossing of this face.
+    let off_face =
+        || super::carrier_touch::off_face(y, face, surface, curve.carrier(), curve.params(), band);
     match crossings {
         Ok(ts) => Ok(ts),
+        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_)) if off_face()? => {
+            Ok(Vec::new())
+        }
         Err(CompositeRefusal::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
             diag,
         }),
-        // Where the span may meet the plane is localized and read against
-        // the face: certified off it, the span crosses this face nowhere.
-        Err(CompositeRefusal::Unsettled(why)) => {
-            if super::carrier_touch::off_face(
-                y,
-                face,
-                surface,
-                curve.carrier(),
-                curve.params(),
-                band,
-            )? {
-                Ok(Vec::new())
-            } else {
-                Err(BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: root()?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                })
-            }
-        }
+        Err(CompositeRefusal::Unsettled(why)) => Err(BooleanError::SplineCrossingUnsettled {
+            operand: x_is,
+            edge: root()?,
+            face,
+            face_of: x_is.other(),
+            why,
+        }),
         Err(CompositeRefusal::Unread(_)) => Err(BooleanError::ClassificationInvariant {
             what: "planar lane: a built spline carrier's composite against a plane \
                    did not form",
@@ -4192,12 +4186,14 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
 ///   ([`Placement::undeclared_no_interior`]). Ends definitely off on
 ///   opposite sides with an even count, or on one side with an odd one,
 ///   contradict the count, and keep the door.
-/// - **Unsettled**: where the span may meet the carrier is localized and
-///   read against the face ([`super::carrier_touch::off_face`]); certified
-///   off it, the span's interior meets this face nowhere, and the ends
-///   decide as above. Otherwise the arm's refusal stands
-///   ([`BooleanError::SplineCrossingUnsettled`]), a span lying on the
-///   carrier among them, save under a cover with no end on the carrier.
+/// - **A touch the arm cannot settle, or reads in the band's gap**: where
+///   the span may meet the carrier is localized and read against the face
+///   ([`super::carrier_touch::off_face`]); certified off it, the span's
+///   interior meets this face nowhere, and the ends decide as above.
+///   Otherwise the arm's refusal stands
+///   ([`BooleanError::SplineCrossingUnsettled`], a span lying on the
+///   carrier among them, or [`BooleanError::Escalated`]), save under a
+///   cover with no end on the carrier.
 /// - **The one-sided cover** ([`edge_covers`]): the span lies in one
 ///   closed side of the carrier, so a crossing contradicts it, as does an
 ///   end off on the side no cover admits; both keep the door. Its ends
@@ -4252,37 +4248,32 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     };
     // The crossings (`None` where the span's meetings were placed off the
-    // face uncounted), or why the arm could not count them.
+    // face uncounted), or the arm's refusal to count them: a touch it
+    // could not settle, or one it read in the band's gap.
     let crossings = match found {
         Ok(ts) => Ok(Some(ts)),
-        Err(CompositeRefusal::Escalated(diag)) => {
-            return Err(BooleanError::Escalated {
-                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                diag,
-            });
+        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
+            if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? =>
+        {
+            Ok(None)
         }
-        Err(CompositeRefusal::Unsettled(why)) => {
-            if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
-                Ok(None)
-            } else {
-                Err(why)
-            }
-        }
+        Err(CompositeRefusal::Escalated(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+            diag,
+        }),
+        Err(CompositeRefusal::Unsettled(why)) => Err(BooleanError::SplineCrossingUnsettled {
+            operand: x_is,
+            edge: root()?,
+            face,
+            face_of: x_is.other(),
+            why,
+        }),
         Err(CompositeRefusal::Unread(_)) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "curved lane: a built spline carrier's composite against an analytic \
                        face did not form",
             });
         }
-    };
-    let unsettled = |why| -> Result<CurvedEvent<T>, BooleanError> {
-        Err(BooleanError::SplineCrossingUnsettled {
-            operand: x_is,
-            edge: root()?,
-            face,
-            face_of: x_is.other(),
-            why,
-        })
     };
     if covered
         && crossings
@@ -4362,7 +4353,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let counted = match crossings {
         Ok(counted) => counted,
         Err(_) if covered && !on_carrier => return Ok(CurvedEvent::Deferred),
-        Err(why) => return unsettled(why),
+        Err(refusal) => return Err(refusal),
     };
     if covered {
         return Placement::declared(ends, true).ok_or_else(frontier);

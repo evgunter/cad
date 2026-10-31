@@ -438,8 +438,8 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
 /// event there.** The arc (`mx = 1`, `h = 1`) peaks at `(1, 1)`, where it
 /// touches the plane `y = 1` from below. The brick's face on that plane
 /// spans `x ∈ [1.5, 3]`, which the arc's box reaches but the touch does
-/// not: the composite cannot tell the touch from two crossings, and the
-/// touch, localized, is certified off the face.
+/// not: the composite reads the touch in the band's gap, and the touch,
+/// localized, is certified off the face.
 #[test]
 fn an_arc_touching_a_plane_outside_the_face_is_no_event() {
     let (mx, h) = (1.0, 1.0);
@@ -450,20 +450,19 @@ fn an_arc_touching_a_plane_outside_the_face_is_no_event() {
     assert!(got.is_empty(), "nothing on the face: {got:?}");
 }
 
-/// **The same touch inside the face refuses.** The face spans
+/// **The same touch inside the face escalates.** The face spans
 /// `x ∈ [0.5, 3]`, which holds the peak.
 #[test]
-fn an_arc_touching_a_plane_inside_the_face_refuses() {
+fn an_arc_touching_a_plane_inside_the_face_escalates() {
     let (mx, h) = (1.0, 1.0);
     let (b, _) = brick_face((0.5, 3.0), (1.0, 4.0), Vec3::new(0.0, -1.0, 0.0));
-    let (a, e) = arc_sheet(mx, h);
+    let (a, _) = arc_sheet(mx, h);
     match sweep_a(&a, &b) {
-        Err(BooleanError::SplineCrossingUnsettled {
-            operand: crate::boolean::Operand::A,
-            edge,
-            why: geom_brep::roots::Unsettled::Tangency,
-            ..
-        }) => assert_eq!(edge, e, "the refusal names the arc"),
+        Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
+            diag.predicate,
+            Some("spline_composite_past_the_band"),
+            "the composite's reading escalates"
+        ),
         other => panic!("the arc touches the face: {other:?}"),
     }
 }

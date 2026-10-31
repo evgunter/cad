@@ -401,7 +401,10 @@ fn the_divisor_is_a_pointwise_factor_of_the_form() {
     use crate::pcurve_cache::projected::Meters;
     let (r_cyl, r_ball, (big, small), alpha) = (1.0f64, 1.5f64, (2.0f64, 0.5f64), 0.6f64);
     let (sin, cos) = alpha.sin_cos();
-    let kinds: [(&str, Meters<f64>, &dyn Fn(f64, f64) -> (f64, f64)); 4] = [
+    // The form `f` and the distance `d` at a point `(ρ, z)` of a meridian
+    // plane.
+    type Reading<'a> = &'a dyn Fn(f64, f64) -> (f64, f64);
+    let kinds: [(&str, Meters<f64>, Reading); 4] = [
         ("cylinder", Meters::Cylinder { radius: r_cyl }, &|rho, _| {
             (rho * rho - r_cyl * r_cyl, (rho - r_cyl).abs())
         }),
