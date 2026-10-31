@@ -21,15 +21,15 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, MateFault,
-    MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Formula,
+    MateFault, MateRef, MateSide, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
-    constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, rest, run,
-    scl, solve, step,
+    constrain_at, could_look, head, head_at, in_member, insert, insert_pinned, len, on_frame, rest,
+    run, solve, step,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -161,20 +161,13 @@ struct Scene {
     mate: MateRef,
 }
 
-/// **The world the product is** (A10): each of `bodies` that is not
-/// already a placement placed, then each `(pattern, copies)`'s copies
-/// placed through a `Part` per copy. An instance or a `Place` is a
-/// placement already in the product, so it is never placed a second
-/// time — and a pattern's copy 0 standing where such a placement does
-/// is left out of `copies`. Each copy is pinned at the identity over
-/// its geometry, which `o` reaches.
-fn world(
-    doc: ProfileDoc,
-    o: &EvalOptions,
-    bodies: &[RecipeNodeId],
-    patterns: &[(RecipeNodeId, std::ops::Range<i64>)],
-) -> ProfileDoc {
-    let doc = bodies
+/// **The world the product is**: each of `bodies` that is not already
+/// a placement placed. An instance or a `Place` is a placement already
+/// in the product, so it is never placed a second time — and a family
+/// placed in the world is in it already, member by member. Each copy is
+/// pinned at the identity over its geometry, which `o` reaches.
+fn world(doc: ProfileDoc, o: &EvalOptions, bodies: &[RecipeNodeId]) -> ProfileDoc {
+    bodies
         .iter()
         .copied()
         .filter(|&b| {
@@ -185,20 +178,42 @@ fn world(
         })
         .collect::<Vec<_>>()
         .into_iter()
-        .fold(doc, |doc, body| place(doc, o, body));
-    patterns.iter().fold(doc, |doc, (pattern, copies)| {
-        let pattern = *pattern;
-        copies.clone().fold(doc, |doc, i| {
-            let (doc, copy) = insert(
-                doc,
-                Node::Part {
-                    of: pattern.into(),
-                    select: editor_core::PartSelect::Instance(editor_core::Formula::count(i)),
-                },
-            );
-            place(doc, o, copy)
+        .fold(doc, |doc, body| place(doc, o, body))
+}
+
+/// **A row of `count` copies of `input` along `dir`, the first one
+/// `spacing` on** (D10 `[repetition]`), in `input`'s space under a fresh
+/// index, `within` another or none: member `k` slid
+/// `(scalar(k) + 1)·spacing`, so no member stands where `input` does —
+/// a family placed in the world is in the product, beside its source.
+/// The document, the index and the placement.
+fn row_on(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (dir, spacing): ([f64; 3], f64),
+    count: i64,
+    within: Option<VarId>,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    use editor_core::{Coord, Dimension, TargetAxis};
+    let name = fixture::fresh_index_name(&doc);
+    let (doc, k) = fixture::index_of(doc, &name, Formula::count(count), within);
+    let next = Formula::count_to_scalar(
+        Formula::add(Formula::var(k, Dimension::Count), Formula::count(1)).unwrap(),
+    )
+    .unwrap();
+    let values = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+        .into_iter()
+        .zip(dir)
+        .filter(|&(_, d)| d != 0.0)
+        .map(|(axis, d)| {
+            (
+                Coord::Slide(axis),
+                Formula::mul(next.clone(), len(d * spacing)).unwrap(),
+            )
         })
-    })
+        .collect();
+    let (doc, row) = fixture::family_of(doc, input, values);
+    (doc, k, row)
 }
 
 /// **One copy of `body` in the world**, pinned at the identity over
@@ -388,9 +403,9 @@ impl Scene {
             what,
         );
         assert!(
-            gate(&self.doc, &ev).is_ok(),
-            "{what}: the at-rest gate refused a seat the solve placed: {:?}",
-            gate(&self.doc, &ev).err()
+            could_look(&self.doc, &ev).is_ok(),
+            "{what}: the at-rest check could not look at a seat the solve placed: {:?}",
+            could_look(&self.doc, &ev).err()
         );
     }
 }
@@ -488,16 +503,17 @@ fn a2_a_rotated_target_seats_and_keeps_the_whole_frame() {
 // ---- A3: patterns over placed copies, and placed copies of patterns ----
 
 /// The copy of the base's pattern the seat reads.
-const COPY: u32 = 1;
+/// The member the seat reads: the row's first, one spacing on.
+const COPY: u32 = 0;
 
-/// **A3(a).** A PATTERN over a PLACED COPY of the target, the seat
-/// read at the pattern: it solves, and the top seats on the named copy
+/// **A3(a).** A FAMILY over a PLACED COPY of the target, the seat
+/// read at the family: it solves, and the top seats on the named member
 /// in the product, which stands at `M(1) ∘ T`. The seat is a constant
 /// of the mates and the two part documents, so the plain control's
 /// relative frame is the one a pattern copy must give too.
 ///
-/// *Breaks if* a pattern copy's face is read at the master's pose, or
-/// the placement's motion and the pattern's compose in the wrong order.
+/// *Breaks if* a member's face is read at the master's pose, or the
+/// placement's motion and the family's compose in the wrong order.
 #[test]
 fn a3a_a_pattern_of_a_placed_copy_seats() {
     let seat_frame = control_seat("msolve1-a3a");
@@ -511,53 +527,33 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
         );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: xf.into(),
-                count: editor_core::Formula::count(3),
-                // Spaced wide enough that copies 0 and 2 stand clear of
-                // the top: the row is about the copy the seat names, and
-                // a sibling touching the top uninvited is an UNRECORDED
-                // contact the gate is right to refuse.
-                kind: PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(5.0),
-                },
-            },
-        );
-        // The placed copy is in the product already, standing where
-        // the pattern's copy 0 does.
-        let doc = world(doc, &opts, &[], &[(pattern, 1..3)]);
-        let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
+        // Spaced wide enough that the members stand clear of the top:
+        // the row is about the member the seat names, and a sibling
+        // touching the top uninvited is an UNRECORDED contact the gate
+        // is right to refuse.
+        let (doc, k, pattern) = row_on(doc, xf, ([1.0, 0.0, 0.0], 5.0), 2, None);
+        let a = in_member(pattern, vec![(k, COPY)], base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| fixture::read_minted(in_copy(pattern, COPY, n)),
+            &|n| fixture::read_minted(in_member(pattern, vec![(k, COPY)], n)),
             &base_part,
             base,
         );
         let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(top).is_none(),
-            "A3 pattern of a placed copy refused: {:?}",
+            "A3 family of a placed copy refused: {:?}",
             poses.fault(top)
         );
         let ev = run(&doc, &opts);
-        assert_seated(
-            &doc,
-            &ev,
-            &a,
-            &b,
-            &seat_frame,
-            "A3 pattern of a placed copy",
-        );
+        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 family of a placed copy");
         assert!(
-            gate(&doc, &ev).is_ok(),
-            "A3 pattern of a placed copy: the gate refused: {:?}",
-            gate(&doc, &ev).err()
+            could_look(&doc, &ev).is_ok(),
+            "A3 family of a placed copy: the gate refused: {:?}",
+            could_look(&doc, &ev).err()
         );
     }
 }
@@ -829,24 +825,8 @@ fn a8c_the_content_key_separates_two_operands() {
             &opts,
         );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: base.into(),
-                count: editor_core::Formula::count(2),
-                kind: PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(5.0),
-                },
-            },
-        );
-        let (doc, part) = insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: editor_core::PartSelect::Instance(editor_core::Formula::count(1)),
-            },
-        );
+        let (doc, k, pattern) = row_on(doc, base, ([1.0, 0.0, 0.0], 5.0), 2, None);
+        let (doc, part) = fixture::member(doc, pattern, 1);
         let (doc, mate) = constrain_at(
             doc,
             top,
@@ -854,7 +834,7 @@ fn a8c_the_content_key_separates_two_operands() {
                 head(top_part.cap(top, CapEnd::Start)),
                 head_at(
                     if at_part { part } else { pattern },
-                    in_copy(pattern, 1, base_part.cap(base, CapEnd::End)),
+                    in_member(pattern, vec![(k, 1)], base_part.cap(base, CapEnd::End)),
                 ),
             ),
         );
@@ -864,8 +844,8 @@ fn a8c_the_content_key_separates_two_operands() {
             .content_key
     };
     assert_ne!(
-        key_of("msolve1-a8c-at-pattern", false),
-        key_of("msolve1-a8c-at-part", true),
+        key_of("msolve1-a8c-at-family", false),
+        key_of("msolve1-a8c-at-member", true),
         "the operand is part of what a mate says"
     );
 }
@@ -921,24 +901,23 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
 
 // ---- A10: a nested copy ----
 
-/// **A10.** A nested pattern's copy is read through both `Instance(i)`
-/// qualifiers, the seat places the top on it, and the document GATHERS
-/// — a pattern over an `Instances` value places every instance, so the
-/// outer pattern's value is the `2 × 3` copies laid out
-/// placement-major (output body `j·M + i`).
+/// **A10.** A family of families' member is read through its one
+/// `Member { (i, j) }` qualifier, the seat places the top on it, and the document
+/// GATHERS — a placement over a family is a member per `(i, j)`, `i`
+/// outer (D10 `[repetition]`), every member in the world.
 ///
-/// **The name's numbering and the flat index coincide**, asserted on
-/// the evaluated document: the name of copies `(j, i) = (1, 1)`
-/// resolves in the outer pattern's table to flat body `1·3 + 1`, and
-/// that body's cap sits in the product exactly where the outer map at
-/// 1 over the inner map at 1, LEFT of the base's own placement, puts
-/// the part's own cap. The seat itself is measured against the
-/// placer-free control, as every row here is.
+/// **The name's indices and the member's place coincide**, asserted on
+/// the evaluated document: the name of member `(i, j) = (1, 1)`
+/// resolves in the outer family's table to body `1·2 + 1`, and that
+/// body's cap sits in the product exactly where the outer map at 1
+/// over the inner map at 1, LEFT of the base's own placement, puts the
+/// part's own cap. The seat itself is measured against the placer-free
+/// control, as every row here is.
 ///
-/// *Breaks if* the nested name resolves to another flat body, or the
-/// copy's offset is composed off the base's placement.
+/// *Breaks if* the nested name resolves to another member, or the
+/// member's offset is composed off the base's placement.
 #[test]
-fn a10_a_nested_pattern_head_is_read_at_its_copy() {
+fn a10_a_nested_family_head_is_read_at_its_member() {
     let (base_part, top_part, opts) = parts("msolve1-a10");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert_pinned(
@@ -947,43 +926,12 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         &opts,
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    // Spaced so that every copy clears the others — inner along x,
+    // Spaced so that every member clears the others — inner along x,
     // outer along y.
     const SPACING: f64 = 5.0;
-    let rule = |dir: [f64; 3]| PatternKind::Linear {
-        direction: dir.map(scl),
-        spacing: len(SPACING),
-    };
-    let (doc, inner) = insert(
-        doc,
-        Node::Pattern {
-            input: base.into(),
-            count: editor_core::Formula::count(3),
-            kind: rule([1.0, 0.0, 0.0]),
-        },
-    );
-    let (doc, outer) = insert(
-        doc,
-        Node::Pattern {
-            input: inner.into(),
-            count: editor_core::Formula::count(2),
-            kind: rule([0.0, 1.0, 0.0]),
-        },
-    );
-    // The base is a placement, so its own copy stands where copy
-    // (0, 0) of the outer pattern does: the world takes the other five
-    // copies, and the instance stands for the first.
-    let doc = (1..6).fold(doc, |doc, i| {
-        let (doc, copy) = insert(
-            doc,
-            Node::Part {
-                of: outer.into(),
-                select: editor_core::PartSelect::Instance(editor_core::Formula::count(i)),
-            },
-        );
-        place(doc, &opts, copy)
-    });
-    let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
+    let (doc, i, inner) = row_on(doc, base, ([1.0, 0.0, 0.0], SPACING), 3, None);
+    let (doc, j, outer) = row_on(doc, inner, ([0.0, 1.0, 0.0], SPACING), 2, Some(i));
+    let nest = |n: StableName| in_member(outer, vec![(i, 1), (j, 1)], n);
     let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
@@ -997,39 +945,39 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     let poses = solve(&doc, &opts, Tol::witness());
     assert!(
         poses.fault(top).is_none(),
-        "a nested-pattern head resolves through both levels: {:?}",
+        "a nested-family head resolves through its member: {:?}",
         poses.fault(top)
     );
     assert_eq!(
         poses.space(top),
         Some(VarId::WORLD),
-        "the nested copy's faces place the top"
+        "the nested member's faces place the top"
     );
 
     // The document gathers, and the top seats on the named copy.
     let ev = run(&doc, &opts);
     assert!(
         ev.value(outer).is_some(),
-        "the pattern of the pattern evaluates: {:?}",
+        "the family of the family evaluates: {:?}",
         ev.node_error(outer)
     );
     assert_seated(&doc, &ev, &a, &b, &control_seat("msolve1-a10"), "A10");
     assert!(
-        gate(&doc, &ev).is_ok(),
+        could_look(&doc, &ev).is_ok(),
         "A10: the gate refused: {:?}",
-        gate(&doc, &ev).err()
+        could_look(&doc, &ev).err()
     );
 
-    // The numbering: (j, i) = (1, 1) is flat body 1·3 + 1.
+    // The numbering: (i, j) = (1, 1) is body 1·2 + 1.
     let table = ev.table_at(outer).expect("the outer");
     let Some(editor_core::Entry::Unique(row)) = table.lookup(&a) else {
         panic!("the nested name resolves uniquely: {:?}", table.lookup(&a));
     };
-    assert_eq!(row.body, 3 + 1, "copy (1, 1) is output body j·M + i");
+    assert_eq!(row.body, 2 + 1, "member (1, 1) is body i·N + j");
 
-    // The pose: the copy's cap in the product is the offset (outer map
-    // at 1 over inner map at 1: the authored spacing along both
-    // authored directions) left of the base's placement, over the
+    // The pose: the member's cap in the product is the offset (outer
+    // map at 1 over inner map at 1: twice the authored spacing along
+    // both authored directions) left of the base's placement, over the
     // part's own cap frame — read off a document that pins the part
     // alone at the identity.
     let placement = poses
@@ -1047,13 +995,13 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         &run(&alone, &opts),
         &base_part.cap(base_alone, CapEnd::End),
     );
-    let offset = Affine3::translation(geom_core::Vec3::new(SPACING, SPACING, 0.0));
+    let offset = Affine3::translation(geom_core::Vec3::new(2.0 * SPACING, 2.0 * SPACING, 0.0));
     let expected = offset * placement * local;
     let found = product_face_frame(&doc, &ev, &a);
     let gap = map_gap(&found, &expected);
     assert!(
         gap <= 1e-12,
-        "the copy's cap sits {gap} from the offset over the base's placement"
+        "the member's cap sits {gap} from the offset over the base's placement"
     );
 }
 
@@ -1133,7 +1081,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
     let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End).name);
     let (doc, _) = constrain_at(doc, top, rest(head(top_part.cap(top, CapEnd::Start)), to));
-    let doc = world(doc, &o, &[local, xf], &[]);
+    let doc = world(doc, &o, &[local, xf]);
     // Cut the LOCAL block out into its own part, with the world
     // placement of what it moves: nothing it holds is read by a
     // constraint, so the cut is accepted.
@@ -1305,14 +1253,15 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
     (doc, mate, base, xf)
 }
 
-// ---- A11: a placement BETWEEN two patterns ----
+// ---- A11: a placement BETWEEN two families ----
 
-/// **A11.** A placed copy `T` of the inner pattern, patterned again:
-/// the copy's chain is `[outer(j), T, inner(i)]` and the evaluator's
-/// body is `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a
-/// ROTATION, so the other order is a different map and the row can
-/// tell them apart. `T` lifts as well as turns, so no copy touches the
-/// base instance the patterns start from.
+/// **A11.** A placed copy `T` of the inner family, a family of its own
+/// over `i`, placed again over `j` within `i`: the member's chain is
+/// `[outer(i, j), T(i), inner(i)]` and the evaluator's body is
+/// `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a ROTATION, so
+/// the other order is a different map and the row can tell them apart.
+/// `T` lifts as well as turns, so no member touches the base instance
+/// the families start from.
 ///
 /// *Breaks if* the three maps compose in another order.
 #[test]
@@ -1325,32 +1274,11 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
         &opts,
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
-        direction: dir.map(scl),
-        spacing: len(s),
-    };
-    let (doc, inner) = insert(
-        doc,
-        Node::Pattern {
-            input: base.into(),
-            count: editor_core::Formula::count(3),
-            kind: rule([1.0, 0.0, 0.0], 5.0),
-        },
-    );
+    let (doc, i, inner) = row_on(doc, base, ([1.0, 0.0, 0.0], 5.0), 3, None);
     let spin = std::f64::consts::FRAC_PI_2;
     let (doc, t) = place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
-    let (doc, outer) = insert(
-        doc,
-        Node::Pattern {
-            input: t.into(),
-            count: editor_core::Formula::count(2),
-            kind: rule([0.0, 1.0, 0.0], 20.0),
-        },
-    );
-    // `T` is in the product already, standing where the outer
-    // pattern's copies `(0, i)` do.
-    let doc = world(doc, &opts, &[], &[(outer, 3..6)]);
-    let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
+    let (doc, j, outer) = row_on(doc, t, ([0.0, 1.0, 0.0], 20.0), 2, Some(i));
+    let nest = |n: StableName| in_member(outer, vec![(i, 1), (j, 1)], n);
     let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
@@ -1366,12 +1294,16 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     let ev = run(&doc, &opts);
     assert!(ev.value(outer).is_some(), "{:?}", ev.node_error(outer));
     assert_seated(&doc, &ev, &a, &b, &control_seat("msolve1-a11"), "A11");
-    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    assert!(
+        could_look(&doc, &ev).is_ok(),
+        "{:?}",
+        could_look(&doc, &ev).err()
+    );
     let table = ev.table_at(outer).unwrap();
     let Some(editor_core::Entry::Unique(row)) = table.lookup(&a) else {
         panic!("{:?}", table.lookup(&a))
     };
-    assert_eq!(row.body, 3 + 1, "copy (1, 1) is flat body j·M + i");
+    assert_eq!(row.body, 2 + 1, "member (1, 1) is body i·N + j");
     let placement = poses.placement(&doc, base).unwrap().affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
     let (alone, base_alone) = insert_pinned(
@@ -1384,14 +1316,14 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
         &run(&alone, &opts),
         &base_part.cap(base_alone, CapEnd::End),
     );
-    let m_o = Affine3::translation(geom_core::Vec3::new(0.0, 20.0, 0.0));
+    let m_o = Affine3::translation(geom_core::Vec3::new(0.0, 40.0, 0.0));
     let t_map = Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 10.0))
         * Affine3::rotation_about_axis(
             geom_core::Point3::origin(),
             geom_core::Vec3::new(0.0, 0.0, 1.0),
             spin,
         );
-    let m_i = Affine3::translation(geom_core::Vec3::new(5.0, 0.0, 0.0));
+    let m_i = Affine3::translation(geom_core::Vec3::new(10.0, 0.0, 0.0));
     let expected = m_o * t_map * m_i * placement * local;
     let found = product_face_frame(&doc, &ev, &a);
     let gap = map_gap(&found, &expected);
@@ -1401,148 +1333,4 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
         map_gap(&found, &wrong) > 1.0,
         "the two orders are distinguishable here"
     );
-}
-
-// ---- A12: a Part over a nested pattern, and the seat read AT it ----
-
-/// What a `Part(k)` row expects: the seat places the top (the `Part`'s
-/// `k` IS the flat body the name's chain says), or the name is no face
-/// of the body the `Part` selects and the placement refuses where it
-/// evaluates.
-#[derive(Clone, Copy)]
-enum PartCase {
-    Seats,
-    Refuses,
-}
-
-/// The nested document of A10 with a `Part(k)` over the outer pattern
-/// — over a placed copy of it when `via_placed` — and the seat read AT
-/// that part, naming copy `(j, i)`.
-fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) {
-    let label = format!("msolve1-a12-{k}-{j}-{i}-{via_placed}");
-    let (base_part, top_part, opts) = parts(&label);
-    let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
-    let (doc, base) = insert_pinned(
-        doc,
-        crate::fixture::mated_instance(base_part.doc_ref),
-        &opts,
-    );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let rule = |dir: [f64; 3]| PatternKind::Linear {
-        direction: dir.map(scl),
-        spacing: len(5.0),
-    };
-    let (doc, inner) = insert(
-        doc,
-        Node::Pattern {
-            input: base.into(),
-            count: editor_core::Formula::count(3),
-            kind: rule([1.0, 0.0, 0.0]),
-        },
-    );
-    let (doc, outer) = insert(
-        doc,
-        Node::Pattern {
-            input: inner.into(),
-            count: editor_core::Formula::count(2),
-            kind: rule([0.0, 1.0, 0.0]),
-        },
-    );
-    let (doc, of) = if via_placed {
-        place_moved(doc, outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
-    } else {
-        (doc, outer)
-    };
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: of.into(),
-            select: editor_core::PartSelect::Instance(editor_core::Formula::count(k)),
-        },
-    );
-    let nest = |n: StableName| in_copy(outer, j, in_copy(inner, i, n));
-    // The name the `Part` carries, a placed copy carrying its source's.
-    let carried = nest;
-    // Read where the `Part` is copied into the world.
-    let a = (part, nest(base_part.cap(base, CapEnd::End).name));
-    let b = top_part.cap(top, CapEnd::Start);
-    let what = format!("Part({k}) naming ({j}, {i}), via a placed copy: {via_placed}");
-    // The door decides structure alone, so either seat enters.
-    let (doc, mate) = seat(
-        doc,
-        top,
-        &top_part,
-        &|n| fixture::read_at(part, carried(n)),
-        &base_part,
-        base,
-    );
-    match expect {
-        PartCase::Seats => {
-            // The `Part` is placed in the world here, whatever it reads.
-            let doc = world(doc, &opts, &[part], &[]);
-            let poses = solve(&doc, &opts, Tol::witness());
-            let ev = run(&doc, &opts);
-            assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));
-            assert_eq!(poses.space(top), Some(VarId::WORLD), "{what}");
-            assert!(
-                ev.node_error(top).is_none(),
-                "{what}: {:?}",
-                ev.node_error(top)
-            );
-            assert!(
-                ev.value(part).is_some(),
-                "{what}: {:?}",
-                ev.node_error(part)
-            );
-            assert_seated(&doc, &ev, &a, &b, &control_seat(&label), &what);
-            assert!(
-                gate(&doc, &ev).is_ok(),
-                "{what}: {:?}",
-                gate(&doc, &ev).err()
-            );
-        }
-        PartCase::Refuses => {
-            let fault = solve(&doc, &opts, Tol::witness())
-                .fault(top)
-                .cloned()
-                .unwrap_or_else(|| panic!("{what}: a disagreeing Part placed the top"));
-            assert!(
-                matches!(
-                    fault,
-                    MateFault::SideUnevaluated { mate: m, side: MateSide::To, .. } if m == mate
-                ),
-                "{what}: expected the `to` pose unevaluated, got {fault:?}"
-            );
-        }
-    }
-}
-
-/// **A12.** A `Part(k)` over a nested pattern selects FLAT body `k`,
-/// and a face read at it names a copy `(j, i)` whose flat index is
-/// `j·3 + i`: the name is a face of the `Part`'s body only where the
-/// two agree, so `k == j` with `i ≠ 0` is a disagreement (the `Part`
-/// gathers copy `(0, k)`, five units from the copy the name reads), not
-/// an agreement — and the same through a placed copy of the outer
-/// pattern, which preserves the value's indices.
-///
-/// *Breaks if* a `Part`'s index is read as the outer copy's rather
-/// than the flat one, or a disagreeing name resolves to some face.
-#[test]
-fn a12_a_part_over_a_nested_pattern_agrees_in_the_flat_index() {
-    for (k, j, i, via) in [
-        (4, 1, 1, false),
-        (1, 0, 1, false),
-        (4, 1, 1, true),
-        (0, 0, 0, true),
-    ] {
-        part_over_nested(k, j, i, via, PartCase::Seats);
-    }
-    for (k, j, i, via) in [
-        (1, 1, 1, false),
-        (0, 0, 1, false),
-        (4, 0, 1, false),
-        (1, 1, 1, true),
-    ] {
-        part_over_nested(k, j, i, via, PartCase::Refuses);
-    }
 }

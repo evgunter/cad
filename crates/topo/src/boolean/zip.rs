@@ -24,9 +24,9 @@
 //! ([`BooleanError::SeamOrientation`]) rather than zipped.
 //!
 //! Scaffolding carriers use the canonical full-period self-loop spec
-//! ([`EdgeCurveSpec::self_loop_circle_at`]), whose endpoint-pin
-//! certification *requires* the zipped vertex pairs to be bitwise
-//! coincident — the pipeline's coincidences are (crossing points are
+//! ([`EdgeCurveSpec::self_loop_circle_at`](geom_brep::EdgeCurveSpec::self_loop_circle_at)),
+//! whose endpoint-pin certification *requires* the zipped vertex
+//! pairs to be bitwise coincident — the pipeline's coincidences are (crossing points are
 //! computed once and inserted into both bodies; ring vertices copy the
 //! pierce point bitwise); anything less refuses loudly at
 //! certification, never zips approximately.
@@ -52,11 +52,9 @@ use geom_core::Decide;
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{FaceSurface, MefSite, MevSite};
-use crate::euler_ring::MekrSite;
+use crate::euler::{FaceSurface, MevSite};
 use crate::geometry::PointKey;
 use crate::live::proven;
-use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 
 /// The seam vertex correspondence: each A-side vertex → its B-side
@@ -68,90 +66,18 @@ pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
 pub use crate::lineage::Fusions;
 
-/// Where a zero-length joint runs between two vertices of one face.
-pub(super) enum Joint {
-    /// Across two of its loops (`mekr`, which joins them): `target`'s
-    /// loop absorbs `ring`'s.
-    Loops {
-        target: HalfEdgeKey,
-        ring: HalfEdgeKey,
-    },
-    /// Across one loop (`mef`, which divides the face).
-    Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
-}
+pub(super) use crate::fuse::Joint;
 
-impl Joint {
-    /// **The joint from `he1`'s start to `he2`'s**, two half-edges of one
-    /// face: across their one loop, or across their two, the face's
-    /// outline absorbing the other where `he2` lies on it (`mekr`
-    /// absorbs a ring into the other loop; the joint reads the same
-    /// either way round). `None` where a half-edge resolves no loop or
-    /// face.
-    pub(super) fn between<T: geom_core::Real>(
-        body: &Body<T>,
-        he1: HalfEdgeKey,
-        he2: HalfEdgeKey,
-    ) -> Option<Self> {
-        let loop_of = |h: HalfEdgeKey| body.get_half_edge(h).map(|d| d.parent_loop);
-        let (l1, l2) = (loop_of(he1)?, loop_of(he2)?);
-        if l1 == l2 {
-            return Some(Self::Chord { he1, he2 });
-        }
-        let outer = body.get_face(body.face_of_half_edge(he2)?)?.outer;
-        Some(if outer == l2 {
-            Self::Loops {
-                target: he2,
-                ring: he1,
-            }
-        } else {
-            Self::Loops {
-                target: he1,
-                ring: he2,
-            }
-        })
-    }
-}
-
-/// **Fuses two coincident vertices**: a zero-length edge between them at
-/// `p` (the canonical self-loop carrier, whose certification requires
-/// the pair bitwise coincident), collapsed onto `keep`, one of its ends,
-/// by a `kev` that keeps the merged fan's carriers, each re-certified at
-/// the kept vertex under the run's band. Returns the fusion
-/// `(dead, kept)`; `desync` names a joint that no longer resolves.
+/// [`crate::fuse::fuse`] for the zips and the partings: the fusion
+/// `(dead, kept)`.
 pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     joint: Joint,
-    (p, keep): (geom_core::Point3<T>, VertexKey),
+    at: (geom_core::Point3<T>, VertexKey),
     desync: fn(&'static str) -> BooleanError,
     tol: Tol,
 ) -> Result<(VertexKey, VertexKey), BooleanError> {
-    let carrier = EdgeCurveSpec::self_loop_circle_at(p);
-    let (plus, minus) = match joint {
-        Joint::Loops { target, ring } => {
-            let made = body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?;
-            (made.he_plus, made.he_minus)
-        }
-        Joint::Chord { he1, he2 } => {
-            let made = body.mef(
-                MefSite::Chords { he1, he2 },
-                carrier,
-                FaceSurface::Inherit,
-                tol,
-            )?;
-            (made.he_plus, made.he_minus)
-        }
-    };
-    let start = |he: HalfEdgeKey| {
-        body.get_half_edge(he)
-            .map(|h| h.start)
-            .ok_or_else(|| desync("a joint half-edge no longer resolves"))
-    };
-    let he = if start(plus)? == keep { plus } else { minus };
-    let dead = body
-        .half_edge_end(he)
-        .ok_or_else(|| desync("a joint half-edge has no end"))?;
-    body.kev_describing(he, &[], tol)?;
-    Ok((dead, keep))
+    crate::fuse::fuse(body, joint, at, desync, tol).map(|f| (f.dead, f.kept))
 }
 
 /// What one seam zip did to the arena — the F9-style record the op
@@ -628,7 +554,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                     he1: he_of(from),
                     he2: he_of(to),
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )?;
             let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
             splits.push((made.vertex, split))?;

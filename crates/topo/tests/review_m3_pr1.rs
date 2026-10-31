@@ -9,11 +9,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite, NewVertexSide};
 use topo::readback::euler_counts;
-use topo::{
-    Body, EulerOpError, FaceSurface, MefSite, MevSite, NewVertexSide, ValidationError, validate,
-    validate_closed, validate_geometric,
-};
+use topo::{Body, EulerOpError, ValidationError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 use common::{describe_as_intersections, geometric_cube, line, plane};
@@ -185,7 +184,7 @@ fn plant_detached_box(
 /// [`common::declined_cube`] at `f64`, reduced to the two things this
 /// suite's rows take: the body, and the seed whose face survives as the
 /// top cap. Chord lines and one placeholder surface, so tiers 1-2 only.
-fn declined_cube_and_seed() -> (Body<f64>, topo::MvfsCreated) {
+fn declined_cube_and_seed() -> (Body<f64>, topo::construction::MvfsCreated) {
     let c = common::declined_cube::<f64>(Tol::witness());
     (c.body, c.seed)
 }
@@ -568,7 +567,11 @@ fn split_edge_intersection_witness_bitwise_remint() {
             .unwrap()
             .certified()
             .unwrap();
-        let topo::EdgeDescription::Intersection { witness, pair } = *child.description() else {
+        let topo::EdgeDescription::Intersection {
+            pair,
+            selector: geom_brep::CurveSelector::Witness(witness),
+        } = *child.description()
+        else {
             panic!("child lost its Intersection description");
         };
         // Independent derivation of the mid-parameter: (t_a + t_b) / 2,

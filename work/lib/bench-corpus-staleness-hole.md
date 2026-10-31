@@ -6,7 +6,6 @@ status: closed
 opened: 2026-08-29
 closed: 2026-09-08
 parent: LIB-CORPUS
-github: 1186
 refs: [1176]
 ---
 

@@ -46,9 +46,14 @@
 //! and a face that is not convex is read where it is near `p`, not where
 //! it reaches back far from it.
 //!
-//! A link holds planar faces bounded by line edges only: a curved face
-//! or edge at the point refuses ([`TouchUnread::Unreadable`]); a
-//! sphere or cylinder face is read by its carrier instead, as above.
+//! A link holds planar faces only. One with an edge that is not a line
+//! is not read through a piece: held inside it or inside a line edge, it
+//! is read as the disc about `p` its other edges clear, the face's own
+//! out to that radius, which bounds the link's ball, and carried past
+//! the face's reach so that its readings are taken where the face's
+//! would be ([`Sector::cleared`]). A curved face, or such a face held at
+//! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
+//! cylinder face is read by its carrier instead, as above.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -259,7 +264,10 @@ pub enum TouchUnread {
     /// it was in band, or its readings contradicted each other within
     /// ε. The smallest piece of all, which refuses.
     PieceInBand,
-    /// A curved face or edge takes part. (A tied edge whose key does not
+    /// A curved face or edge takes part: a face off a plane, or a planar
+    /// face with an edge that is not a line where [`Sector::cleared`]
+    /// does not read it — held at a corner, or bounded by a curve no
+    /// clearance reads. (A tied edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
@@ -297,11 +305,13 @@ pub(crate) enum Hold {
     Inside,
 }
 
-/// **One face's sector at the touch point `p`**: the face's piece there
-/// ([`face_piece`]) as a fan of wedges about `p`, each a triangle
-/// `(p, a, b)` of real points of the face under half a turn, in turn
+/// **One face's sector at the touch point `p`**: a fan of wedges about
+/// `p`, each a triangle `(p, a, b)` under half a turn, in turn
 /// counterclockwise about the outward normal, consecutive wedges on one
-/// ray. The fan spans the face's whole sector at `p`.
+/// ray, spanning the face's whole sector at `p`. Either the face's piece
+/// there ([`face_piece`]), whose wedges are real points of the face, or
+/// the disc its edges clear ([`Sector::cleared`]), the face's own inside
+/// [`Sector::clear`] and carried past the face beyond it.
 pub(crate) struct Sector<T: Real> {
     pub(crate) surface: geom::Surface<T>,
     /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
@@ -317,6 +327,10 @@ pub(crate) struct Sector<T: Real> {
     /// Otherwise its first ray and its last are the face's edges through
     /// `p`, the sector's bounds.
     pub(crate) closed: bool,
+    /// Where the wedges run past the face (a cleared disc): the radius
+    /// about `p` inside which they are the face's own. `None` where every
+    /// wedge is real points of the face.
+    pub(crate) clear: Option<T>,
 }
 
 /// Where a point on a sector's plane lies against the sector.
@@ -339,7 +353,8 @@ pub struct Link<T: Real> {
     /// The farthest wedge point from `p`.
     pub(crate) reach: T,
     /// The radius of the ball about `p` the link's wedges fill: the
-    /// least distance from `p` to a wedge's far side. Inside it each of
+    /// least distance from `p` to a wedge's far side, or to a cleared
+    /// sector's edge of the face ([`Sector::clear`]). Inside it each of
     /// the link's faces covers its whole sector; a face of the solid
     /// that reaches into the ball without being tied to the point is
     /// not in the link, and is the backstop's to answer for (its
@@ -826,6 +841,7 @@ impl<T: Decide> Sector<T> {
                 apex: at,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: matches!(place, PieceAt::Inside),
+                clear: None,
             })
         };
         let named_corners = holds
@@ -940,6 +956,7 @@ impl<T: Decide> Link<T> {
             .fold(T::zero(), |r, l| r.max(l));
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
+            .chain(sectors.iter().filter_map(|s| s.clear))
             .fold(reach, |r, l| r.min(l));
         let tie = sectors
             .iter()
@@ -1283,8 +1300,9 @@ fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnr
 
 impl<T: Decide> Sector<T> {
     /// Face `f` of a live `body` as its sectors at `p`, held there as
-    /// `holds` say ([`Sector::of_face`]): a face off a plane, or one with
-    /// an edge that is not a line, is [`TouchUnread::Unreadable`].
+    /// `holds` say ([`Sector::of_face`]), or as the disc its edges clear
+    /// where one of them is not a line ([`Sector::cleared`]): a face off
+    /// a plane is [`TouchUnread::Unreadable`].
     fn of_body_face(
         body: &Body<T>,
         f: FaceKey,
@@ -1312,7 +1330,7 @@ impl<T: Decide> Sector<T> {
             for he in cycle {
                 let he = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 if !crate::census::edge_is_line(body, he.edge) {
-                    return Err(TouchUnread::Unreadable);
+                    return Self::cleared(body, f, outward, p, holds);
                 }
                 keys.push(he.start);
                 ring.push(position(body, he.start)?);
@@ -1329,6 +1347,185 @@ impl<T: Decide> Sector<T> {
         };
         Self::of_face(&face, p, holds, band)
     }
+
+    /// **A planar face with an edge that is not a line, as its sectors
+    /// at `p`**, held inside the face or inside one of its line edges:
+    /// the disc about `p` that every other edge of the face clears
+    /// ([`clearance`]) — whole for a point inside the face, and inside an
+    /// edge, the half of it left of each pass of the face's loops along
+    /// the edge about the outward normal (the face's side, [`face_piece`]'s
+    /// orientation) — carried out past the face's reach.
+    ///
+    /// Inside the disc the sector is the face's own: every edge but the
+    /// held one stands at least the radius off `p`, and so do the held
+    /// edge's ends, so inside the disc the face's boundary is the held
+    /// edge alone, a diameter, or nothing. The open disc, or its open
+    /// half on the face's side, is connected, meets no boundary, and
+    /// holds points of the face as near `p` as any, so it lies inside the
+    /// face, and the sector spans the face's whole sector at `p`. The
+    /// radius is the sector's [`Sector::clear`], which bounds the link's
+    /// ball.
+    ///
+    /// The fan itself runs further, past the face ([`fan`]): its every
+    /// chord stands past the farthest the face's boundary stands from `p`
+    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)),
+    /// so every point of the rim lies past every point of the face, and a
+    /// coincidence read there holds over the whole face.
+    ///
+    /// A corner hold, a curved edge held, two edges held at once, a face
+    /// off a plane, or an edge no clearance reads is
+    /// [`TouchUnread::Unreadable`]; a radius or a reach that is not a
+    /// positive number, [`TouchUnread::ChordScale`].
+    pub(crate) fn cleared(
+        body: &Body<T>,
+        f: FaceKey,
+        outward: Vec3<T>,
+        p: Point3<T>,
+        holds: &[Hold],
+    ) -> Result<Vec<Self>, TouchUnread> {
+        let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+        let surface = body
+            .get_surface(face.surface)
+            .cloned()
+            .ok_or(TouchUnread::Corrupt)?;
+        let geom::Surface::Plane { u_ref, .. } = surface else {
+            return Err(TouchUnread::Unreadable);
+        };
+        if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
+            return Err(TouchUnread::Unreadable);
+        }
+        let mut held = holds.iter().filter_map(|h| match *h {
+            Hold::Edge(a, b) => Some((a, b)),
+            Hold::Corner(_) | Hold::Inside => None,
+        });
+        let edge = held.next();
+        if held.next().is_some() {
+            return Err(TouchUnread::Unreadable);
+        }
+        // The held edge's ends bound the radius too: a spur's tip is the
+        // end of no other edge.
+        let mut radius: Option<T> = match edge {
+            Some((a, b)) => {
+                let (a, b) = (position(body, a)?, position(body, b)?);
+                Some((a - p).norm().min((b - p).norm()))
+            }
+            None => None,
+        };
+        let mut passes = Vec::new();
+        for cycle in crate::census::face_cycles(body, face) {
+            for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+                let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+                let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+                if let Some((a, b)) = edge
+                    && ((half.start, end) == (a, b) || (half.start, end) == (b, a))
+                    && crate::census::edge_is_line(body, half.edge)
+                {
+                    passes.push((position(body, end)? - position(body, half.start)?).normalize());
+                    continue;
+                }
+                let c = clearance(body, he, p)?;
+                radius = Some(radius.map_or(c, |r| r.min(c)));
+            }
+        }
+        let radius = radius.ok_or(TouchUnread::Corrupt)?;
+        let far = crate::splitting::rules::face_reach_from(body, f, p)
+            .map_err(|_| TouchUnread::Corrupt)?;
+        for length in [radius, far] {
+            if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
+                return Err(TouchUnread::ChordScale);
+            }
+        }
+        let along: Vec<(Vec3<T>, bool)> = match edge {
+            None => vec![((u_ref - outward * outward.dot(u_ref)).normalize(), false)],
+            // No line edge between the held ends: a curved edge held.
+            Some(_) if passes.is_empty() => return Err(TouchUnread::Unreadable),
+            Some(_) => passes.into_iter().map(|d| (d, true)).collect(),
+        };
+        Ok(along
+            .into_iter()
+            .map(|(a, half)| Self {
+                surface: surface.clone(),
+                sense: face.sense,
+                outward,
+                apex: p,
+                wedges: fan(p, outward, a, far, half),
+                closed: !half,
+                clear: Some(radius),
+            })
+            .collect())
+    }
+}
+
+/// The fan about `p` normal to `outward` whose every chord stands past
+/// `reach`: eight wedges of an eighth of a turn counterclockwise about it
+/// from the in-plane unit `a`, or, for a `half`, the four left of `a`.
+/// A chord of a wedge of half-angle `θ` stands `cos θ` of the rim's
+/// radius off `p`, so the rim is `reach / cos θ`, with a hundredth to
+/// spare for the rounding of `reach` and of the turns.
+fn fan<T: Real>(
+    p: Point3<T>,
+    outward: Vec3<T>,
+    a: Vec3<T>,
+    reach: T,
+    half: bool,
+) -> Vec<Segment<T>> {
+    let b = outward.cross(a);
+    let s = T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
+    let back = T::from_f64(-1.0);
+    // Eight turns, so each wedge's half-angle is π/8: the array's type
+    // and the rim's factor change together.
+    let turns: [Vec3<T>; 8] = [
+        a,
+        (a + b) * s,
+        b,
+        (b - a) * s,
+        a * back,
+        (a + b) * (s * back),
+        b * back,
+        (a - b) * s,
+    ];
+    let radius = reach * T::from_f64(1.01) / T::from_f64(core::f64::consts::FRAC_PI_8).cos();
+    let rim: Vec<Point3<T>> = turns
+        .iter()
+        .take(if half {
+            turns.len() / 2 + 1
+        } else {
+            turns.len()
+        })
+        .map(|&t| p + t * radius)
+        .collect();
+    let mut wedges: Vec<Segment<T>> = rim.windows(2).map(|w| (w[0], w[1])).collect();
+    if !half {
+        wedges.push((rim[rim.len() - 1], rim[0]));
+    }
+    wedges
+}
+
+/// **How far `p` stands from the edge of half-edge `he`, at least**, in
+/// metres: a line's distance from its segment, another curve's from its
+/// whole carrier ([`geom::Curve3::clearance`]). [`TouchUnread::Unreadable`]
+/// for a spline, which has no closed-form bound, or an edge with no
+/// certified curve; [`TouchUnread::Corrupt`] where it does not read.
+pub(crate) fn clearance<T: Decide>(
+    body: &Body<T>,
+    he: crate::entity::HalfEdgeKey,
+    p: Point3<T>,
+) -> Result<T, TouchUnread> {
+    let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+    let curve = body
+        .edges
+        .get(half.edge)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(TouchUnread::Unreadable)?;
+    if let geom::Curve3::Line { .. } = curve.carrier() {
+        let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+        return Ok(to_segment(
+            p,
+            (position(body, half.start)?, position(body, end)?),
+        ));
+    }
+    curve.carrier().clearance(p).ok_or(TouchUnread::Unreadable)
 }
 
 impl<T: Decide> Link<T> {
@@ -1943,6 +2140,12 @@ impl<T: Decide> Round<T> {
         self.radius
     }
 
+    /// Whether the material lies on the centre's side: a ball's or a
+    /// pin's, not a socket's or a bore's.
+    pub fn convex(&self) -> bool {
+        self.convex
+    }
+
     /// `v`'s part off the axis: all of it about a centre, its part
     /// normal to the axis about a line.
     fn across(&self, v: Vec3<T>) -> Vec3<T> {
@@ -2055,6 +2258,7 @@ pub(crate) fn bare_cone_reads(
             apex: p,
             wedges: vec![(a, b)],
             closed: false,
+            clear: None,
         })
         .collect();
     let rd = Reading {
@@ -2139,12 +2343,14 @@ pub(crate) mod rest {
     /// other material (2).
     ///
     /// **Each verdict at its own scale.** The readings run at the
-    /// pieces' real points, each link's as far out as its faces reach.
-    /// A rest needs every one decided there: a Zero read at a far point
-    /// is a Zero at every nearer one, so that is where the fewest
-    /// coincidences are taken. A crossing is confirmed inside the BALL
-    /// where both links are their solids — out to the nearest far side
-    /// of any wedge of either ([`Link::ball`]) — with the piece's points
+    /// pieces' real points, each link's as far out as its faces reach,
+    /// or, on a cleared sector, past every point of its face
+    /// ([`super::Sector::cleared`]). A rest needs every one decided there: a
+    /// Zero read at a far point is a Zero at every nearer one, so that is
+    /// where the fewest coincidences are taken. A crossing is confirmed
+    /// inside the BALL where both links are their solids — out to the
+    /// nearest far side of any wedge of either, or a cleared sector's
+    /// radius ([`Link::ball`]) — with the piece's points
     /// drawn in along their rays ([`within`]), still real points of its
     /// face: an overlap read there is one of the two bodies, not of one
     /// link's planes carried past the other's faces. A crossing read
@@ -2294,8 +2500,9 @@ pub(crate) mod rest {
     /// other, which is its carrier's side within `reach` of `p` (the
     /// face's own reach about `p`, as [`Link::ball`] is a link's). `near`
     /// is the lesser of the two. With `n` the face's outward normal at
-    /// `p`, each ray of `a` — every wedge's two ends, real points of its
-    /// face — reads:
+    /// `p`, each ray of `a` — every wedge's two ends, read as directions
+    /// of the cone, its points beyond `near` real points of a face or
+    /// not (a cleared sector's rim runs past its face) — reads:
     ///
     /// - against a ball or a pin: Zero or above against the tangent plane
     ///   through `p`, so its wedges keep out; below it, a crossing where
@@ -2676,6 +2883,9 @@ mod oracle_rows;
 mod round_rows;
 
 #[cfg(test)]
+mod cleared_rows;
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
@@ -2720,6 +2930,7 @@ mod tests {
                     apex: p,
                     wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
                     closed: false,
+                    clear: None,
                 }
             })
             .collect();

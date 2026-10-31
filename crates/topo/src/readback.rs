@@ -266,7 +266,8 @@ pub(crate) fn carrier_surface<T: Real>(
 /// ```
 /// use geom_core::{Point3, Vec3};
 /// use topo::readback::{ReadbackError, face_pose};
-/// use topo::{Body, FaceSurface, Surface};
+/// use topo::{Body, Surface};
+/// use topo::construction::{Construct, FaceSurface};
 ///
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
@@ -348,6 +349,23 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
     }
 }
 
+/// **A face's carrier and sense** — the stored surface the face is a
+/// region of, copied out whole, beside the face's orientation sense
+/// (`geom_brep::implicit_outward_normal` folds the two). A definitional
+/// re-read, as [`face_pose`] is: what a reader that cuts the carrier in
+/// closed form (a trace, `crate::boolean::trace`) needs.
+///
+/// # Errors
+///
+/// [`ReadbackError::Dangling`] for a stale face or surface key.
+pub fn face_carrier<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<(Surface<T>, bool), ReadbackError> {
+    let (_, surface, sense) = carrier_surface(body, face)?;
+    Ok((surface.clone(), sense))
+}
+
 /// **A face's carrier kind** — the [`SurfaceKind`] tag of the surface
 /// the face is a region of, copied out.
 ///
@@ -373,7 +391,8 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// use geom::SurfaceKind;
 /// use geom_core::{Point3, Vec3};
 /// use topo::readback::face_carrier_kind;
-/// use topo::{Body, FaceSurface, Surface};
+/// use topo::{Body, Surface};
+/// use topo::construction::{Construct, FaceSurface};
 ///
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
@@ -415,6 +434,7 @@ pub fn face_carrier_kind<T: Real>(
 /// ```
 /// use geom_core::Point3;
 /// use topo::Body;
+/// use topo::construction::Construct;
 /// use topo::readback::vertex_point;
 ///
 /// let mut body = Body::<f64>::new();
@@ -488,7 +508,8 @@ pub fn edge_carrier_ref<T: Real>(
 /// use geom_core::{Point3, Tol};
 /// use topo::CurveKind;
 /// use topo::readback::edge_carrier_kind;
-/// use topo::{Body, MevSite};
+/// use topo::Body;
+/// use topo::construction::{Construct, MevSite};
 ///
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
@@ -639,7 +660,8 @@ impl EdgeSides {
 /// ```
 /// use geom_core::{Point3, Tol};
 /// use topo::readback::edge_sides;
-/// use topo::{Body, MevSite};
+/// use topo::Body;
+/// use topo::construction::{Construct, MevSite};
 ///
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
@@ -777,6 +799,7 @@ impl EulerCounts {
     /// ```
     /// use geom_core::Point3;
     /// use topo::Body;
+    /// use topo::construction::Construct;
     /// use topo::readback::euler_counts;
     ///
     /// let mut body = Body::<f64>::new();
@@ -849,6 +872,7 @@ impl std::error::Error for EulerParityError {}
 /// ```
 /// use geom_core::Point3;
 /// use topo::Body;
+/// use topo::construction::Construct;
 /// use topo::readback::euler_counts;
 ///
 /// let mut body = Body::<f64>::new();

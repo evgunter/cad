@@ -36,9 +36,9 @@ fn every_document_evaluates_green_at_interval() {
         assert_eq!(ev.order.len(), d.len(), "{}: evaluation order", d.name);
         if let Some(result) = d.result {
             let body = body_of(&ev, result);
-            assert_eq!(validate(body), Ok(()), "{}: tier 1 (Interval)", d.name);
+            assert_eq!(validate(&body), Ok(()), "{}: tier 1 (Interval)", d.name);
             assert_eq!(
-                validate_closed(body),
+                validate_closed(&body),
                 Ok(()),
                 "{}: closed (Interval)",
                 d.name

@@ -171,10 +171,10 @@ fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
 /// number and settles its `1e-8` sign.
 /// The family's disposition is a function of `delta/s` alone, which is
 /// why two thicknesses pin the same two arms at every ε row rather than
-/// going vacuous at one of them. Both traversal
-/// senses are built: the reversed strip is the inside-out twin, and
-/// an undecided sign cannot tell it from the upright one, which is
-/// the whole reason an undecided sign may not pass.
+/// going vacuous at one of them. Both traversal senses are built; the
+/// profile canonicalizes traversal (`profile`'s "winding is invisible"),
+/// so both are the one positive body and each must land as the other
+/// does.
 ///
 /// A body that settles at a LATER round and passes is the roster row
 /// below, whose `strictly_early` requirement is exactly that.
@@ -199,8 +199,10 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 let errors = plain.expect_err("the doors agree");
                 // The refusal carries the enclosure the walk stopped on,
                 // and it holds the strip's closed form: the two bulges
-                // cancel, so V = ±2·s·delta·s (the loft is `s` tall).
-                let truth = if reversed { -1.0 } else { 1.0 } * 2.0 * s * (rel * s) * s;
+                // cancel, so V = 2·s·delta·s (the loft is `s` tall). The
+                // profile canonicalizes traversal, so both senses build
+                // this one body.
+                let truth = 2.0 * s * (rel * s) * s;
                 let bracket = errors.iter().find_map(|e| match e {
                     topo::ValidationError::VolumeSignUnresolved {
                         limit: topo::SignLimit::Quadrature,

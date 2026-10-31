@@ -106,7 +106,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
     ];
     want.sort_unstable();
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         want,
         "at non-dyadic radii the stored inner radius must be exactly \
          (0.3f64 - 0.1f64).to_bits() = {:#x}, not the decimal 0.2 ({:#x}) \

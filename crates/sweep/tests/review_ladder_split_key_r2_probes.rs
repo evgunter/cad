@@ -26,6 +26,7 @@ use sweep::test_support::{
     assert_naming_totality, ball_poled_z, boss, cube, realized, revolved_about_y, rim_arcs_at,
 };
 use topo::boolean::BooleanOp;
+use topo::construction::Construct;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey, VertexKey, validate_geometric};
 

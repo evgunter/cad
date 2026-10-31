@@ -868,12 +868,12 @@ fn a_report_rendered_from_another_document_fails_loud() {
 }
 
 /// **A checks report holds ids and speaks them from the document the
-/// checks ran over**: a separation finding names both placements, and
+/// checks ran over**: a connectedness finding names its placement, and
 /// the refusal `enforce_checks` raises names its placement, each as the
 /// document holds it, while the report's own `Display` (no document at
 /// hand) says each by its tag.
 #[test]
-fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
+fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
@@ -890,38 +890,36 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         &EvalOptions::default(),
         tol,
     );
-    let (b, o) = (tag(base.0.digest()), tag(boss.0.digest()));
+    let b = tag(base.0.digest());
     let strict = ChecksConfig {
         connectedness: Severity::Error,
         expected_components: [((base, 0), 2)].into_iter().collect(),
         ..ChecksConfig::default()
     };
     let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
-    assert!(
-        report.findings.iter().any(|finding| matches!(
-            finding.evidence,
-            CheckEvidence::NotSeparated { other_root, .. }
-                if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
-        )),
-        "the two overlapping placements are a separation finding: {report}"
-    );
+    let (base_out, boss_out) = (doc.output(base, 0), doc.output(boss, 0));
+    let interference = report
+        .findings
+        .iter()
+        .find(|finding| {
+            matches!(
+                &finding.evidence,
+                CheckEvidence::Interference { finding: overlap }
+                    if (Some(overlap.a.var), Some(overlap.b.var)) == (base_out, boss_out)
+            )
+        })
+        .unwrap_or_else(|| {
+            panic!("the two overlapping copies are an interference finding: {report}")
+        });
+    assert!(interference.quiet.is_none(), "{interference:?}");
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.contains(&format!(
-            "check separation: Place \"base\" ({b}) output 0: not certifiably \
-             disjoint from Place \"boss\" ({o}) output 0"
-        )),
-        "the separation finding speaks both placements from the document: {spoken}"
-    );
-    assert!(
-        !spoken.contains(&format!("placement {b}")) && !spoken.contains(&format!("placement {o}")),
+        spoken.contains("Place \"base\"") && !spoken.contains(&format!("placement {b}")),
         "no placement is left at its bare tag: {spoken}"
     );
     let bare = report.to_string();
     assert!(
-        bare.contains(&format!("placement {b} output 0"))
-            && bare.contains(&format!("placement {o} output 0"))
-            && !bare.contains("\"base\""),
+        bare.contains(&format!("placement {b} output 0")) && !bare.contains("\"base\""),
         "with no document at hand each placement is its tag: {bare}"
     );
 
@@ -970,12 +968,18 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
         tol,
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    let read = doc.output(base, 0);
+    assert_eq!(
+        read,
+        other.output(same, 0),
+        "the two documents hold one read too"
+    );
     assert!(
         report.findings.iter().any(|finding| matches!(
-            finding.subject,
-            editor_core::FindingSubject::Output { root, .. } if root == base
+            &finding.evidence,
+            editor_core::CheckEvidence::Interference { finding } if Some(finding.a.var) == read
         )),
-        "a finding names the placement the other document also holds: {report}"
+        "a finding names the read the other document also holds: {report}"
     );
     let _ = report.spoken(&other);
 }
@@ -1088,20 +1092,20 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         format!("{plate} failed, so it has no value — fix the node's own failure")
     );
     assert_eq!(
-        ChecksError::Root(failed).spoken(&doc),
+        ChecksError::Placement(failed).spoken(&doc),
         format!(
             "checks: placement {plate} failed, so it has no value — fix the node's own failure"
         )
     );
     let changed = Diagnosis::StructuralParam {
         node: extrude,
-        param: SlotId::Count,
+        param: SlotId::Stations,
     };
     assert_eq!(
         changed.spoken(&doc),
         format!(
             "a structural parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )
     );
     let vanished = ResolveError::Vanished {
@@ -1113,7 +1117,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         vanished.spoken(&doc, &ev).starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )),
         "{}",
         vanished.spoken(&doc, &ev)
@@ -1150,7 +1154,6 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 /// the tag, and a node the line already names reads `this …`.
 #[test]
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
-    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
         MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
@@ -1159,28 +1162,6 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     let doc = set_label(doc, body, Some("base plate"));
     let t = tag(body.0.digest());
     let spoken = format!("Extrude \"base plate\" ({t})");
-
-    // A clearance refusal inside a measure's failure speaks its node
-    // through the frame (`said_payload`).
-    let measured = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
-        SelectionRefusal::NoSuchBody {
-            node: body,
-            index: 3,
-        },
-    ));
-    assert_eq!(
-        spoken_by(&measured, &doc),
-        format!(
-            "the clearance engine refused `selection` ({spoken}'s value carries no body at \
-             index 3)"
-        )
-    );
-    assert!(
-        measured
-            .to_string()
-            .contains(&format!("(node {t}'s value carries no body at index 3)")),
-        "{measured}"
-    );
 
     // A pose refusal names the placement it is about once.
     let placement = PoseRefusal::OtherSpace {
@@ -1229,8 +1210,8 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 
 /// **An edit refusal spoken again from a later version of its document
 /// says each node as that version holds it** (`EditError::respoken`): a
-/// rename since the refusal is the label it says, in a node arm, a root
-/// arm and a name arm. A node the later version does not hold is said as
+/// rename since the refusal is the label it says, in a node arm and a name
+/// arm. A node the later version does not hold is said as
 /// the door said it — a node deleted since keeps its label — and
 /// `LabelUnchanged`,
 /// whose sentence is about the label the node held at the refusal, stays

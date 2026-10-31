@@ -2,9 +2,11 @@
 id: a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it
 kind: issue
 title: A boolean's Meet row on a vertex it minted on an edge names the edge and not the cell whose crossing minted it, so one point spells two ways across a union's member orders
-status: open
+status: closed
 opened: 2026-10-19
 priority: P1
+cost: M
+closed: 2026-10-27
 ---
 
 
@@ -123,3 +125,5 @@ Still open after 5798:
   `work/cleave/a-vertex-minted-inside-a-face-reads-as-that-face-alone.md`;
 - the minting cell is read one level deep: a minting cell that is
   itself a minted vertex reads as its edge.
+
+Closed by PR 5798 (2026-10-27). `EdgeSplit.by` keeps the minting cell, `spell` widens to it, and `Coincidence` carries up to 5 cells (`more`). The witness is `through_glued_faces` in `a_vertex_read_by_two_sector_passes`: red on main (`OnCarrier {B corner, A edge}`, confirmed by the orchestrator) and green after. Still open: the in-face sibling (`cleave/a-vertex-minted-inside-a-face-reads-as-that-face-alone`), and the minting cell is read one level deep only.

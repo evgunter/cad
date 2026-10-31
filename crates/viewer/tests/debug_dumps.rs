@@ -47,7 +47,7 @@ fn a_summarised_presence_renders_as_an_elision_naming_what_is_there() {
     for elision in [
         "gesture: Some(<Gesture>)",
         "scratch: Some(<Doc>)",
-        "body: Some(<Body>)",
+        "body: <Body>",
     ] {
         assert!(dump.contains(elision), "{elision} not in {dump}");
     }

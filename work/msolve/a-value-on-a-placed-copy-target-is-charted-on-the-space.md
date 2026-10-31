@@ -2,12 +2,12 @@
 id: a-value-on-a-placed-copy-target-is-charted-on-the-space
 kind: issue
 title: A value whose mate targets a Pattern or Transform copy is charted on the space's frame, not the copy's
-status: open
+status: closed
+closed: 2026-10-28
 opened: 2026-10-17
 priority: P2
 cost: M
-refs: [a-mate-relates-two-poses, transform-retires-into-a-placement, patterns-are-index-variables]
-parent: patterns-are-index-variables
+refs: [5506, 5954]
 ---
 
 
@@ -36,3 +36,7 @@ D (`transform-retires-into-a-placement`) and G
 (`patterns-are-index-variables`) make every such copy a placement's,
 which ends this. If either lands without that, the chart must read the
 copy's motion from the placer.
+
+## Closed by G (`patterns-are-index-variables`)
+
+A pattern is a placement over an index, so a target read off a member is read off a placement's copy, and `chart_body` reads that placement's motion as for any copy (D's `Transform` retirement ended the other half).

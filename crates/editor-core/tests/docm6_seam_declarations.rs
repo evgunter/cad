@@ -14,12 +14,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef,
-    Node, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis, assemble, product_recorded,
+    CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef, Node, Operand,
+    ProfileDoc, RecipeNodeId, StableName, TargetAxis, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -118,8 +119,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         mate,
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -360,7 +364,7 @@ fn union_with_far_cube(
     match ev.value(union).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
             body, ..
-        })) => Ok(body.solids().count()),
+        })) => Ok(body.body().solids().count()),
         other => panic!("a union of bodies is a body: {other:?}"),
     }
 }
@@ -408,31 +412,27 @@ fn a_placed_product_keeps_its_parts() {
     );
 }
 
-/// **A placed union of a product places it whole**: its prototype is
-/// the instance's one body, both cubes, placed at each frame.
+/// **A union of a family of a product places it whole**: each member
+/// is the instance's one body, both cubes, placed at its values.
 #[test]
-fn a_placed_union_of_a_product_places_both_parts() {
+fn a_union_of_a_family_of_a_product_places_both_parts() {
     let (store, inner_ref, _) = product_and_cube("placed", 0.0);
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-placed-outer"),
         Tol::witness(),
     );
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
+    let (doc, _, row) = fixture::linear(doc, instance, [1.0, 0.0, 0.0], 20.0, 2);
     let (doc, group) = insert(
         doc,
-        Node::PlacedUnion {
-            input: instance.into(),
-            count: None,
-            kind: editor_core::PatternKind::Explicit(vec![
-                Frame::IDENTITY,
-                Frame::translation([20.0, 0.0, 0.0]),
-            ]),
+        Node::Union {
+            members: editor_core::Bodies::Family(row.into()),
         },
     );
     let ev = run(&doc, &with_resolver(store));
     assert!(
         ev.node_error(group).is_none(),
-        "the placed union evaluates over a product: {:?}",
+        "the union of the family evaluates over a product: {:?}",
         ev.node_error(group)
     );
 }
@@ -460,7 +460,7 @@ fn a_measure_on_a_product_evaluates() {
     );
     let ev = run(&doc, &with_resolver(store));
     assert_eq!(
-        ev.value(instance).map(|v| v.parts),
+        ev.value(instance).map(|v| v.carry.parts),
         Some(2),
         "the stand is a product"
     );
@@ -713,10 +713,10 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let (fault, _) = part_fault(error);
     // The part's product is its placement's copy, and the placement
     // reads a body that is gone: its root failed.
-    let editor_core::PartFault::PartRootFailed { node, .. } = fault else {
-        panic!("the part's root fails: {fault:?}");
+    let editor_core::PartFault::PartProductFailed { node, .. } = fault else {
+        panic!("the part's piece fails: {fault:?}");
     };
-    assert_eq!(*node, block, "the failed root is the stranded placement");
+    assert_eq!(*node, block, "the failed piece is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!("Place \"inner block\" ({t})"))
@@ -781,16 +781,16 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     );
 }
 
-/// **A part's own at-rest refusal crosses whole.** A sub-assembly holds
+/// **What a part could not look at crosses whole.** A sub-assembly holds
 /// a stand and a block of its own three ε off the stand's lower cube, in
-/// the sliver band, where its census escalates. Its own gate refuses. A
-/// top document instantiating it refuses `CarriedAtRest` with that
-/// refusal whole, verbatim, by the instance
-/// (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`).
+/// the sliver band, where its census escalates: its own at-rest check
+/// reports could-not-look findings. A top document instantiating it
+/// reports each of them, verbatim, carried by the instance, and refuses
+/// nothing (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`).
 ///
-/// *Breaks if* the carried refusal drops or re-says a finding.
+/// *Breaks if* a carried finding is dropped or re-said.
 #[test]
-fn a_parts_own_refusal_crosses_whole() {
+fn what_a_part_could_not_look_at_crosses_whole() {
     let mut store = PartStore::default();
     let (gapped, ..) = stand(&mut store, "docm6-whole-stand", 0.0, 3.0);
     let mid = ProfileDoc::empty(DocumentId::derive("docm6-whole-mid"), Tol::witness());
@@ -819,38 +819,41 @@ fn a_parts_own_refusal_crosses_whole() {
         block,
         &editor_core::Frame::translation([0.0, 0.0, 0.25]),
     );
-    let Err(AssemblyError::AtRest { findings: own }) = assemble(
-        &mid,
-        &run(&mid, &with_resolver(store.clone())),
-        Tol::witness(),
-    ) else {
-        panic!("the premise: the sub-assembly refuses at rest")
-    };
+    let own = fixture::could_not_look(
+        &fixture::at_rest(&mid, &run(&mid, &with_resolver(store.clone())))
+            .expect("the sub-assembly gathers"),
+    );
+    assert!(
+        !own.is_empty(),
+        "the premise: the sub-assembly's census could not look"
+    );
     let mid_id = mid.id();
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, instances) = row_of(&store, "docm6-whole-top", mid_ref, 1, 4.0);
-    let result = assemble(&top, &run(&top, &with_resolver(store)), Tol::witness());
-    let Err(AssemblyError::CarriedAtRest { findings }) = &result else {
-        panic!("the sub-assembly's refusal, carried: {result:?}")
-    };
+    let reported = fixture::could_not_look(
+        &fixture::at_rest(&top, &run(&top, &with_resolver(store))).expect("the top gathers"),
+    );
+    let findings: Vec<_> = reported
+        .iter()
+        .filter_map(|evidence| match evidence {
+            editor_core::AtRestEvidence::Carried(row) => Some(row),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        findings.len(),
+        reported.len(),
+        "every finding is the sub-assembly's, carried: {reported:?}"
+    );
     assert_eq!(
         findings.iter().map(|row| &row.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
-        "the refusal whole, verbatim"
+        "the findings whole, verbatim"
     );
     assert!(
         findings
             .iter()
             .all(|row| (row.route.through, row.route.of) == (instances[0], mid_id)),
         "every row is the sub-assembly's, by the instance"
-    );
-    // ONE recourse for the list, in the header: the repair is to open
-    // the document below.
-    let line = result.expect_err("refused").spoken(&top);
-    assert_eq!(
-        line.matches("open those documents and repair them there")
-            .count(),
-        1,
-        "{line}"
     );
 }

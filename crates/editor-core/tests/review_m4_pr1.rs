@@ -23,12 +23,17 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
     fn authored_with(
         &self,
         _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+        _: &mut dyn FnMut(editor_core::VarId) -> editor_core::Operand,
     ) -> Self {
         *self
     }
@@ -795,13 +800,18 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
 /// (`SetDeclare` — pure intent metadata — flags structural) but no
-/// FALSE NEGATIVE is constructible: a Count slot expression CANNOT
+/// FALSE NEGATIVE is constructible: a Count slot expression (here an
+/// indexed read's index, `xs[n]`) CANNOT
 /// reference a continuous doc param (refused), so no continuous-
 /// flagged edit can ever move a structural value. Pinned here; the
 /// wider reading is safe in the conservative direction only.
 #[test]
 fn r4_structural_flag_false_positive_but_no_false_negative() {
-    use editor_core::{Node, PatternKind};
+    use editor_core::{BodyRead, Node, Operand, OperandSlot};
+    const INDEX: SlotId = SlotId::Index {
+        seat: OperandSlot::Source,
+        k: 0,
+    };
     let cnt_param = VarName::from_static("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
@@ -814,18 +824,49 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .unwrap()
         .doc;
     let (doc, input) = body(doc);
-    let pattern = |count: Formula| Edit::InsertNode {
-        node: Box::new(Node::Pattern {
-            input: input.into(),
-            count,
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(0.005),
+    // A row of the body over `k`, and the read of one member of it.
+    let doc = doc
+        .apply(
+            &Edit::DeclareVar {
+                name: VarName::from_static("k"),
+                def: editor_core::VarDecl::Index {
+                    count: Formula::count(8),
+                    within: None,
+                },
             },
-        }),
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let k = doc.var_named("k").unwrap();
+    let space = doc.node_space(input).unwrap();
+    let slide = Formula::mul(crate::fixture::scalar_of(k), len(0.005)).unwrap();
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), slide)],
+    );
+    let (doc, ids) = apply_all(
+        doc,
+        &[Edit::InsertNode {
+            node: Box::new(Node::place(
+                BodyRead::plain(Operand::Node(input)),
+                Operand::Var(space),
+                placed.bundle(),
+            )),
+            fresh: Vec::new(),
+        }],
+    );
+    let family = ids[0];
+    let pattern = |at: Formula| Edit::InsertNode {
+        node: Box::new(Node::place(
+            BodyRead::indexed(family, vec![at]),
+            Operand::Var(space),
+            editor_core::stand().bundle(),
+        )),
         fresh: Vec::new(),
     };
-    // Count slot referencing the Count doc param: accepted.
+    // An index referencing the Count doc param: accepted.
     let a = doc
         .apply(
             &pattern(Formula::named(cnt_param.clone(), Dimension::Count)),
@@ -843,7 +884,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,
-            slot: SlotId::Count,
+            slot: INDEX,
             expr: smuggle,
             fresh: Vec::new(),
         },
@@ -854,9 +895,9 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         "got {res:?}"
     );
     // Declaring a continuous variable is flagged non-structural AND provably
-    // cannot move the pattern count: value before == after.
+    // cannot move the index: value before == after.
     let n_before = eval_count(
-        &doc.slot_expansion(pat_id, SlotId::Count).unwrap(),
+        &doc.slot_expansion(pat_id, INDEX).unwrap(),
         &doc.var_env::<f64>(),
     )
     .unwrap();
@@ -871,7 +912,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .unwrap();
     assert!(!a2.record.structural);
     let n_after = eval_count(
-        &a2.doc.slot_expansion(pat_id, SlotId::Count).unwrap(),
+        &a2.doc.slot_expansion(pat_id, INDEX).unwrap(),
         &a2.doc.var_env::<f64>(),
     )
     .unwrap();

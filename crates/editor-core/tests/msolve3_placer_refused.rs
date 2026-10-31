@@ -1,15 +1,15 @@
 //! **A placement whose mate reads a failing placer's copy points at
 //! the placer, and the placer states the cause.**
 //!
-//! A mate whose target is read off a pattern copy reads that node's
+//! A mate whose target is read off a family's member reads that node's
 //! value: the placer is upstream of the placement, so when the placer
-//! refuses — a slot that does not evaluate, a direction of no definite
-//! length, a degenerate step — the placement is poisoned through it,
+//! refuses — a value that does not evaluate at a member — the placement
+//! is poisoned through it,
 //! and the placer's own row states its refusal in its own words,
 //! exactly as its evaluation raises it on the TWIN document (the same
 //! recipe with the mate left out). The nearest failed node is named.
 //!
-//! A target that stops resolving after the mate is in — a copy past a
+//! A target that stops resolving after the mate is in — a member past a
 //! shrunk count, a placer deleted — is the placement's own refusal
 //! where it evaluates: the pose does not evaluate
 //! (`MateFault::SideUnevaluated`), or its read is unresolved.
@@ -24,12 +24,12 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault, MateRef,
-    MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
-    ProfileDoc, RecipeNodeId, SlotId, StableName,
+    CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault, MateRef,
+    MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, ProfileDoc,
+    RecipeNodeId, StableName, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step};
+use fixture::{in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -131,22 +131,27 @@ fn options(store: &Arc<PartStore>) -> EvalOptions {
     }
 }
 
-/// A scene whose placer is a PATTERN of `kind` at `count`, mated onto
-/// copy `i` — the name carries the `Instance(i)` qualifier.
-fn patterned(label: &str, kind: PatternKind<Formula>, count: i64, i: u32) -> Scene {
+/// A scene whose placer is a FAMILY of `count` members over a fresh
+/// index `k`, placed by the values `values(k)` names, mated onto member
+/// `i` — the name carries the `Member { (k, i) }` qualifier.
+fn patterned(
+    label: &str,
+    values: impl FnOnce(VarId) -> Vec<(Coord, Formula)>,
+    count: i64,
+    i: u32,
+) -> Scene {
     build(label, |doc, legs, leg_body| {
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(count),
-                kind,
-            },
-        );
-        let name = in_copy(pattern, i, in_part(legs, leg_body, CapEnd::End));
+        let (doc, k) = fixture::index(doc, "k", count);
+        let (doc, pattern) = fixture::family_of(doc, legs, values(k));
+        let name = in_copy(pattern, k, i, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, Vec::new())
     })
     .0
+}
+
+/// A row's values: member `k` slid `scalar(k)·2` along x.
+fn row(k: VarId) -> Vec<(Coord, Formula)> {
+    fixture::slides_along(k, [1.0, 0.0, 0.0], 2.0)
 }
 
 /// The scene builder both shapes share: two part documents, the
@@ -191,279 +196,51 @@ where
 
 // ---- A1: the cause, in the placer's own words ----
 
-/// **The finding's own document.** A pattern direction of `1e200` has
-/// a LENGTH that overflows to infinity. The mate reads copy 1; the
-/// placement is poisoned through the pattern, and the pattern's own
-/// row states `NonFiniteDirection { role: "pattern direction" }` — the
-/// SAME kind its own evaluation raises on the unpoisoned twin: the
-/// mate is a constraint of the capping instance, downstream of the
-/// pattern, so it changes nothing the pattern reads.
+/// **A value that does not evaluate refuses `Expr { slot, source }`
+/// at the member it refuses at, and the SLOT is named** — so a reader
+/// is pointed at the value rather than at the family. The value here
+/// overflows to infinity at every member, which is the expression
+/// evaluator's own ruled refusal; the family (a row along x, so its
+/// values read its index) refuses naming member 0.
 #[test]
-fn a1_a_non_finite_pattern_direction_names_the_direction() {
-    let scene = patterned(
-        "msolve3-nonfinite",
-        PatternKind::Linear {
-            direction: [scl(1e200), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-        4,
-        1,
-    );
-    let (kind, class) = scene.points_at(scene.placer, "nonfinite");
-    assert!(
-        class == NodeErrorClass::NonFiniteDirection && kind.contains("pattern direction"),
-        "and it is the direction door's own: {kind}"
-    );
-}
-
-/// A DECIDED-ZERO direction is the other half of the same door.
-#[test]
-fn a1_a_degenerate_pattern_direction_names_the_direction() {
-    let scene = patterned(
-        "msolve3-degenerate",
-        PatternKind::Linear {
-            direction: [scl(0.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-        4,
-        1,
-    );
-    let (kind, class) = scene.points_at(scene.placer, "degenerate");
-    assert!(
-        class == NodeErrorClass::DegenerateDirection && kind.contains("pattern direction"),
-        "{kind}"
-    );
-}
-
-/// **A slot that does not evaluate refuses `Expr { slot, source }`,
-/// and the SLOT is named** — so a reader is pointed at the spacing
-/// rather than at the pattern. The spacing here overflows to
-/// infinity, which is the expression evaluator's own ruled refusal.
-#[test]
-fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
+fn a1_a_value_that_does_not_evaluate_names_the_slot() {
     let scene = patterned(
         "msolve3-slot",
-        PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: Formula::mul(len(1e200), scl(1e200)).expect("length times scalar is a length"),
+        |k| {
+            let mut values = row(k);
+            values.push((
+                Coord::Slide(TargetAxis::Y),
+                Formula::mul(len(1e200), scl(1e200)).expect("length times scalar is a length"),
+            ));
+            values
         },
         4,
         1,
     );
     let (kind, class) = scene.points_at(scene.placer, "slot");
     assert!(
-        class == NodeErrorClass::Expr && kind.contains(&format!("{:?}", SlotId::Spacing)),
-        "the refusal names the slot it read: {kind}"
+        class == NodeErrorClass::MemberRefused
+            && kind.contains("Expr {")
+            && kind.contains("ValueSlide"),
+        "the refusal names the member and the slot it read: {kind}"
     );
-}
-
-/// **A circular rule whose `axis` reads no axis is refused at the
-/// door.** The axis slot reads an `Axis` variable, so a plane, a body
-/// or a pattern is refused by kind before any evaluation or solve runs: no mate can reach a placer so
-/// wired, and the evaluation's operand refusal is a defence behind the
-/// door.
-#[test]
-fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
-    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
-    let (doc, body) = block("msolve3-circular");
-    let plane = fixture::plane(editor_core::Operand::select(
-        body,
-        vec![fixture::fname(
-            body,
-            editor_core::RoleSeg::Cap(CapEnd::Start),
-        )],
-    ));
-    let (doc, array) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    for (axis, found) in [
-        (plane, VarKind::Plane),
-        (editor_core::Operand::Node(body), VarKind::Body),
-        (editor_core::Operand::Node(array), VarKind::Bodies),
-    ] {
-        let refusal = fixture::insert_refused(
-            &doc,
-            Node::Pattern {
-                input: body.into(),
-                count: Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: axis.into(),
-                    step: ang(0.5),
-                },
-            },
-        );
-        assert!(
-            matches!(
-                &refusal,
-                EditError::SlotVarKind {
-                    slot: editor_core::SlotId::Operand(OperandSlot::Axis),
-                    found: f,
-                    expected: SlotKind::Is(VarKind::Axis),
-                    ..
-                } if *f == found
-            ),
-            "{found:?}: {refusal:?}"
-        );
-    }
-}
-
-/// **A spacing or a step the pattern refuses is the pattern's refusal.**
-/// A negative or zero spacing, and a zero step or one past a full turn:
-/// the placement reading a copy is poisoned through the pattern, whose
-/// own row carries the kind its evaluation raises on the twin.
-#[test]
-fn a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal() {
-    let linear = |spacing: f64| PatternKind::Linear {
-        direction: [scl(1.0), scl(0.0), scl(0.0)],
-        spacing: len(spacing),
-    };
-    for (label, kind, class) in [
-        (
-            "msolve3-negative-spacing",
-            Rule::Plain(linear(-2.0)),
-            NodeErrorClass::NegativeSpacing,
-        ),
-        (
-            "msolve3-zero-spacing",
-            Rule::Plain(linear(0.0)),
-            NodeErrorClass::DegenerateSpacing,
-        ),
-        (
-            "msolve3-zero-step",
-            Rule::Turning(0.0),
-            NodeErrorClass::DegenerateStep,
-        ),
-        (
-            "msolve3-step-past-a-turn",
-            Rule::Turning(7.0),
-            NodeErrorClass::FullRangeStep,
-        ),
-    ] {
-        let scene = kind.scene(label, 1);
-        let (refused, got) = scene.points_at(scene.placer, label);
-        assert_eq!(got, class, "{label}: {refused}");
-    }
-}
-
-/// A stepped rule [`a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal`]
-/// mates through: a linear rule as written, or a circular one at a
-/// step about a lateral edge of the placed copy.
-#[derive(Clone)]
-enum Rule {
-    Plain(PatternKind<Formula>),
-    Turning(f64),
-}
-
-impl Rule {
-    /// The rule's scene at four copies, mated onto copy `i`.
-    fn scene(&self, label: &str, i: u32) -> Scene {
-        match self {
-            Self::Plain(kind) => patterned(label, kind.clone(), 4, i),
-            Self::Turning(step) => {
-                build(label, |doc, legs, leg_body| {
-                    // The leg's lateral edge at its profile's first vertex,
-                    // as the instance wears it: the part rebuilt under its
-                    // label mints the same ids.
-                    let (part, body) = block(&format!("{label}-leg"));
-                    let edge = fixture::ename(
-                        body,
-                        editor_core::RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, 0)),
-                    );
-                    let worn = edge;
-                    let axis = fixture::axis(editor_core::SitedRef::new(legs, worn));
-                    let (doc, pattern) = insert(
-                        doc,
-                        Node::Pattern {
-                            input: legs.into(),
-                            count: Formula::count(4),
-                            kind: PatternKind::Circular {
-                                axis: axis.into(),
-                                step: ang(*step),
-                            },
-                        },
-                    );
-                    let name = in_copy(pattern, i, in_part(legs, leg_body, CapEnd::End));
-                    (doc, pattern, name, Vec::new())
-                })
-                .0
-            }
-        }
-    }
-}
-
-/// **The explicit rule, measured where it can be reached.** A
-/// `Node::Pattern` carries its count as a slot, so an explicit
-/// placement list is a second spelling of the same number and the
-/// EDIT door refuses it — no document a mate reads through can carry
-/// one. This row pins the door that keeps it unreachable.
-#[test]
-fn an_explicit_pattern_rule_never_reaches_a_mate() {
-    let mut store = PartStore::new();
-    let leg = store.insert(block("msolve3-explicit-leg").0, Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve3-explicit"), Tol::witness());
-    let (doc, legs) = insert(doc, crate::fixture::mated_instance(leg));
-    let refused = editor_core::apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(2),
-                kind: PatternKind::Explicit(vec![
-                    Frame::IDENTITY,
-                    Frame::translation([2.0, 0.0, 0.0]),
-                ]),
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect_err("a pattern spells its count once");
-    assert!(
-        matches!(refused, EditError::PlacementRuleMismatch { .. }),
-        "{refused:?}"
-    );
-    let _ = store;
 }
 
 // ---- a target that stops resolving after the mate is in ----
 
-/// A copy index at the pattern's count names a copy that does not
-/// exist. The mate reads copy 2 of a count-3 pattern that then shrinks
-/// to two copies: the pattern still evaluates, and the placement's own
+/// A member index at the family's count names a member that does not
+/// exist. The mate reads member 2 of a count-3 family that then shrinks
+/// to two members: the family still evaluates, and the placement's own
 /// evaluation refuses — its `to` pose does not evaluate
 /// (`SideUnevaluated`), carrying the read's own refusal.
 #[test]
 fn an_index_at_the_count_is_still_a_dangling_head() {
-    let mut scene = patterned(
-        "msolve3-past-count",
-        PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-        3,
-        2,
-    );
-    let (doc, _) = step(
-        scene.doc,
-        DocEdit::SetStructuralParam {
-            node: scene.placer,
-            slot: editor_core::SlotId::Count,
-            expr: Formula::count(2),
-            fresh: Vec::new(),
-        },
-    );
-    scene.doc = doc;
+    let mut scene = patterned("msolve3-past-count", row, 3, 2);
+    let k = scene.doc.var_named("k").expect("the family's index");
+    scene.doc = fixture::recount(scene.doc, k, Formula::count(2));
     assert!(
         scene.mated_refusal_of(scene.placer).is_none(),
-        "the shrunk pattern evaluates"
+        "the shrunk family evaluates"
     );
     let f = solve(&scene.doc, &scene.opts(), Tol::witness())
         .fault(scene.mate.placement)
@@ -482,15 +259,7 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
 /// placement's own `UnresolvedRead`, at the mate's `to` seat.
 #[test]
 fn a_stranded_operand_is_still_a_dangling_head() {
-    let scene = patterned(
-        "msolve3-stranded",
-        PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-        4,
-        1,
-    );
+    let scene = patterned("msolve3-stranded", row, 4, 1);
     let (doc, _) = step(scene.doc.clone(), DocEdit::DeleteNode { id: scene.placer });
     match run(&doc, &scene.opts()).result(scene.mate.placement) {
         Some(NodeResult::Failed(err)) => assert!(

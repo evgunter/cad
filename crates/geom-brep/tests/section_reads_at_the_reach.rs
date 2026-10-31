@@ -102,7 +102,7 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
             let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, along2);
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let at = format!("stored {along1} m, {along2} m along, ({label})");
-                match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
+                match cylinder_cylinder_section(a, b, &reach, band()) {
                     Ok(EqualCylinderSection::TangentLine(geom::Curve3::Line {
                         origin, ..
                     })) => {
@@ -134,7 +134,7 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), tilted(-Vec3::unit_y()), -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
+        match cylinder_cylinder_section(a, b, &reach, band()) {
             Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
                 d.predicate,
                 Some("cc_axes_parallel"),
@@ -169,7 +169,7 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
+        match cylinder_cylinder_section(a, b, &reach, band()) {
             Ok(EqualCylinderSection::TangentLine(_)) => {}
             other => panic!("({label}): from the nearer foot the tilt is Zero: {other:?}"),
         }
@@ -197,7 +197,7 @@ fn a_measured_lever_reaches_the_pivots_distance() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
     let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, &reach, band()) {
+        match cylinder_cylinder_section(a, b, &reach.ball(), band()) {
             Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
                 d.predicate,
                 Some("cc_axes_parallel"),
@@ -393,4 +393,85 @@ fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
         matches!(got, Ok(PlaneCylinderSection::TangentLine(_))),
         "the tangent ruling, got {got:?}"
     );
+}
+
+/// **Each cone × cylinder row reads the side of the extent its verdict
+/// needs.** The extent is handed from both sides (`LeverBounds`), one
+/// band-scaled lever apart: `below = 1`, `above = 4K` (`K` the band's
+/// escalation over its zero). Each pose puts one reading's datum `q` at
+/// half the band's zero, so `q·below` reads Zero and `q·above` reads past
+/// twice the escalation; the station pose puts the station between the
+/// two bounds. The rows that act on a Positive (the three convention
+/// guards, the station admission) read the bound from below and refuse;
+/// `coc_axes_parallel`, which acts on its Zero, reads the bound from
+/// above and routes the tilt to the general rung. Reading any of them at
+/// the other bound serves or routes otherwise, and the row goes red.
+#[test]
+fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
+    use geom_brep::{LeverBounds, SectionError};
+    let b = band();
+    let k = b.escalate() / b.zero();
+    let q = 0.5 * b.zero();
+    let extent = LeverBounds::Between {
+        below: 1.0,
+        above: 4.0 * k,
+    };
+    let cone = |half_angle: f64, u_ref: Vec3<f64>| Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_x(),
+        half_angle,
+        u_ref,
+    };
+    let cyl = |axis: Vec3<f64>, radius: f64| Surface::Cylinder {
+        origin: Point3::origin(),
+        axis,
+        radius,
+        u_ref: Vec3::unit_z(),
+    };
+    let coaxial = cyl(Vec3::unit_x(), 0.25);
+    let degenerate =
+        |what: &str, got: Result<ConeCylinderSection<f64>, SectionError>, says| match got {
+            Err(SectionError::DegenerateOperand { what: w }) if w.contains(says) => {}
+            other => panic!("{what}: refused as degenerate ({says}), got {other:?}"),
+        };
+    // `coc_aperture_sin`: sin α = q.
+    degenerate(
+        "a cone closing on its axis",
+        cone_cylinder_section(&cone(q.asin(), Vec3::unit_y()), &coaxial, extent, b),
+        "sin α",
+    );
+    // `coc_aperture_cos`: cos α = q.
+    degenerate(
+        "a cone opening to a plane",
+        cone_cylinder_section(
+            &cone(core::f64::consts::FRAC_PI_2 - q, Vec3::unit_y()),
+            &coaxial,
+            extent,
+            b,
+        ),
+        "cot α",
+    );
+    // `coc_seam_off_axis`: the seam leaves the axis by q.
+    let seam = Vec3::new((1.0 - q * q).sqrt(), q, 0.0);
+    degenerate(
+        "a seam along the axis",
+        cone_cylinder_section(&cone(0.5, seam), &coaxial, extent, b),
+        "seam",
+    );
+    // `coc_station_reach`: the station stands between the two bounds.
+    let station = 0.25 / 0.5_f64.tan();
+    let straddled = LeverBounds::Between {
+        below: 0.5 * station,
+        above: 2.0 * station,
+    };
+    match cone_cylinder_section(&cone(0.5, Vec3::unit_y()), &coaxial, straddled, b) {
+        Err(SectionError::BeyondOperandExtent { .. }) => {}
+        other => panic!("a station past the bound from below refuses, got {other:?}"),
+    }
+    // `coc_axes_parallel`: the cylinder tilts by q about the apex.
+    let tilted = cyl(Vec3::new((1.0 - q * q).sqrt(), q, 0.0), 0.25);
+    match cone_cylinder_section(&cone(0.5, Vec3::unit_y()), &tilted, extent, b) {
+        Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("tilted") => {}
+        other => panic!("a tilt read at the bound from above routes, got {other:?}"),
+    }
 }

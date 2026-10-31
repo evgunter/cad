@@ -342,8 +342,15 @@ fn r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal() {
     assert_eq!(exact, "proven", "cos π = −1");
     assert_eq!(three_halves, "proven", "sin(3π/2) = −1");
     assert_eq!(third, "proven", "cos(π/3) = ½, a rational value");
+    // `cos(4π/5)` is `−cos(π/5)`: rule H reads both off the first octant
+    // as one atom, so the sum is a theorem without either folding.
+    assert_eq!(fifth, "proven", "cos(4π/5) = −cos(π/5), one atom");
+    let irrational = how(|| {
+        (Sym::<Interval>::pi() / Sym::from_f64(5.0)).cos()
+            - Sym::from_f64((core::f64::consts::PI / 5.0).cos())
+    });
     assert_ne!(
-        fifth, "proven",
+        irrational, "proven",
         "cos(π/5) is irrational and folds to no constant"
     );
     assert_ne!(

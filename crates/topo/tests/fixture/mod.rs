@@ -40,6 +40,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
@@ -217,7 +218,7 @@ where
     let cyl_key = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: cylinder::<T>(),
                 sense: true,
             },
@@ -227,7 +228,7 @@ where
     let sph_key = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: sphere::<T>(),
                 sense: true,
             },
@@ -235,14 +236,14 @@ where
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body.mev(
-        topo::MevSite::Lone {
+        topo::construction::MevSite::Lone {
             r#loop: seed.r#loop,
         },
         p1,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl_key, sph_key),
-                witness: carrier.eval(mid),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(mid)),
             },
             carrier: Curve3::Nurbs(Arc::clone(&carrier)),
             param_start: t0,

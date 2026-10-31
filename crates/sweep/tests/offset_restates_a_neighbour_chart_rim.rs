@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use crate::common::approx::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
@@ -29,11 +30,11 @@ use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::construction::{FaceSurface, MefSite};
 use topo::readback::edge_sides;
 use topo::{
-    Body, ChartMove, CurveGeom, EdgeKey, FaceSurface, HalfEdgeKey, LoopBoundary, MefSite,
-    SurfaceKey, ValidationError, offset_charts_together, offset_planes_together,
-    replace_faces_offset, validate_geometric,
+    Body, ChartMove, CurveGeom, EdgeKey, HalfEdgeKey, LoopBoundary, SurfaceKey, ValidationError,
+    offset_charts_together, offset_planes_together, replace_faces_offset, validate_geometric,
 };
 
 const R: f64 = 3.0 / 64.0;

@@ -4,7 +4,6 @@ kind: issue
 title: The STEP writer still hardcodes two Part 21 header fields the standard assigns to the user
 status: closed
 opened: 2026-08-20
-github: 742
 refs: [732]
 closed: 2026-09-03
 ---

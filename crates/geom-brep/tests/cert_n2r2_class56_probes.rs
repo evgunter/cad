@@ -100,23 +100,23 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier: carrier.clone(),
             param_start: 0.0,
             param_end: 1.0,
         };
-        let r = EdgeCurve::certify_via(
+        let r = EdgeCurve::certify(
             spec,
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
             1.0,
             band(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         );
         eprintln!(
-            "[class 6 plane×NURBS {name}] certify_via(lane) -> {}",
+            "[class 6 plane×NURBS {name}] certify(lane) -> {}",
             match &r {
                 Ok(e) => format!("Ok(cert {:?})", e.certificate()),
                 Err(e) => format!("Err({e:?})"),
@@ -129,7 +129,15 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let r = EdgeCurve::certify(spec, ends.0, ends.1, |k| arena.get(k).cloned(), 1.0, band());
+        let r = EdgeCurve::certify(
+            spec,
+            ends.0,
+            ends.1,
+            |k| arena.get(k).cloned(),
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified(),
+        );
         eprintln!(
             "[class 6 chart/iso {name}] certify -> {}",
             match &r {
@@ -143,14 +151,14 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let r = EdgeCurve::certify_via(
+        let r = EdgeCurve::certify(
             spec,
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
             1.0,
             band(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         );
         eprintln!(
             "[class 6 chart/iso via nurbs lane {name}] -> {}",

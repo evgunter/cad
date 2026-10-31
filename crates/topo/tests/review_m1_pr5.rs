@@ -38,10 +38,12 @@
 
 use geom_core::Point3;
 use geom_core::Tol;
+use topo::construction::Construct;
+use topo::construction::{MefSite, MevSite};
 use topo::readback::euler_counts;
 use topo::{
-    BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite,
-    ValidationError, validate, validate_closed,
+    BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, ValidationError,
+    validate, validate_closed,
 };
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
@@ -49,7 +51,11 @@ fn pt(x: f64, y: f64) -> Point3<f64> {
 }
 
 /// Pillow: mvfs + mev + mef. Returns (body, seed loop info).
-fn pillow() -> (Body<f64>, topo::MvfsCreated, topo::MevCreated) {
+fn pillow() -> (
+    Body<f64>,
+    topo::construction::MvfsCreated,
+    topo::construction::MevCreated,
+) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0), true).unwrap();
     let seg = body
@@ -79,7 +85,7 @@ fn grow_and_promote_detached_digon(
     body: &mut Body<f64>,
     anchor_he: topo::HalfEdgeKey,
     x: f64,
-) -> topo::MfkrhCreated {
+) -> topo::construction::MfkrhCreated {
     let strut = body
         .mev_line(
             MevSite::Fan {

@@ -3,9 +3,8 @@
 //! A mate places a copy and declares nothing. The product gather's
 //! at-rest census records every touch between copies, mated or not, as
 //! a row and a record citing it (`topo::record_at_rest`), so every
-//! evaluated product — not only the one `assemble` happens to be looking
-//! at — carries its seats' records. `assemble` reads that census's
-//! verdict and records nothing of its own.
+//! evaluated product carries its seats' records. The at-rest check
+//! reads that census's verdict and records nothing of its own.
 //!
 //! What that buys is the instantiation seam: a sub-assembly's records
 //! ride into the consuming document under the graft's own descendant
@@ -14,12 +13,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::coincide::{NamedCell, NamedCoincidence, Proof, Rung};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble, product_recorded,
+    CapEnd, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, TargetAxis, product_recorded,
 };
 use editor_core::{Evaluation, Unreplayed};
 use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
@@ -100,8 +100,11 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         seat.mate,
         &[
             (Coord::Slide(seat.across[0]), len(seat.apart)),
-            (Coord::Slide(seat.across[1]), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(seat.across[1]),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, m)
@@ -184,15 +187,13 @@ fn row_of(
     (crate::fixture::assemble_world_copies(doc), ids)
 }
 
-/// Every finding the gate raised, rendered.
-fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<String> {
-    match result {
-        Ok(_) => Vec::new(),
-        Err(AssemblyError::AtRest { findings }) => {
-            findings.iter().map(|f| format!("{:?}", f.error)).collect()
-        }
-        Err(other) => panic!("expected an at-rest verdict, got {other}"),
-    }
+/// Every at-rest finding over `doc`, rendered.
+fn findings(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<String> {
+    crate::fixture::at_rest(doc, ev)
+        .unwrap_or_else(|e| panic!("expected the product to gather, got {e}"))
+        .iter()
+        .map(|f| format!("{:?}", f.evidence))
+        .collect()
 }
 
 // ---- The seam ----
@@ -226,11 +227,10 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
          the aggregate"
     );
 
-    let result = assemble(&outer, &ev, Tol::witness());
-    let raised = findings(&result);
+    let raised = findings(&outer, &ev);
     assert!(
         raised.is_empty(),
-        "the outer gate certifies a row of correctly-mated stands: {raised:?}"
+        "the outer at-rest check reports nothing of a row of correctly-mated stands: {raised:?}"
     );
     assert!(!ids.is_empty());
 }
@@ -257,10 +257,10 @@ fn the_carry_survives_a_second_nesting_level() {
         4,
         "one carried record per stand, through two seams"
     );
-    let raised = findings(&assemble(&outer, &ev, Tol::witness()));
+    let raised = findings(&outer, &ev);
     assert!(
         raised.is_empty(),
-        "and the outermost gate certifies the lot: {raised:?}"
+        "and the outermost at-rest check reports nothing: {raised:?}"
     );
 }
 
@@ -268,7 +268,7 @@ fn the_carry_survives_a_second_nesting_level() {
 
 /// INVARIANT: a mate places and declares nothing. A stand whose mate
 /// leaves the upper cube a unit of clear air beside the lower one has no
-/// touch for the census to record, and its gate refuses nothing: no
+/// touch for the census to record, and its check reports nothing: no
 /// contact is asserted that the geometry would have to refute.
 #[test]
 fn a_mate_that_leaves_clear_air_records_nothing_and_refuses_nothing() {
@@ -283,33 +283,8 @@ fn a_mate_that_leaves_clear_air_records_nothing_and_refuses_nothing() {
         "no touch, no record: {:?}",
         gathered.contacts
     );
-    let raised = findings(&assemble(&doc, &ev, Tol::witness()));
+    let raised = findings(&doc, &ev);
     assert!(raised.is_empty(), "nothing to refute: {raised:?}");
-}
-
-// ---- What `assemble` retains ----
-
-/// INVARIANT: `assemble` = product + tier-3′. The record set it gates
-/// is the GATHER's, unchanged — no second pass adds to it, so a record
-/// appears exactly once however many doors read it.
-#[test]
-fn assemble_gates_the_gathers_own_record_set_and_records_nothing() {
-    let mut store = PartStore::default();
-    let (part, body) = store.insert_part(cube_part("mate6-once-cube"), Tol::witness());
-    let (doc, _, _) = stand("mate6-once-stand", part, body, 0.0, &store);
-
-    let ev = run(&doc, &with_resolver(store));
-    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
-    assert_eq!(
-        gathered.contacts.face_face().count(),
-        1,
-        "recorded once by the gather"
-    );
-    let assembly = assemble(&doc, &ev, Tol::witness()).expect("the stand assembles");
-    assert_eq!(
-        assembly.contacts, gathered.contacts,
-        "and `assemble` gates that set verbatim"
-    );
 }
 
 /// INVARIANT: a document with no mates is untouched by any of this —
@@ -895,14 +870,14 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.contacts.rows()[0].cites,
+        value.carry.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
         })
     );
     assert_eq!(
-        value.cited_inputs.as_ref(),
+        value.carry.cited_inputs.as_ref(),
         [editor_core::CitedInput::Part(stand_ref)]
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");

@@ -268,11 +268,14 @@ impl<T: SpanLocate> Knots<T> {
             let index = self.first_wide_run().unwrap_or(0);
             return Err(SplineError::CarrierKnotNotAPoint { index });
         };
-        Ok(self
-            .runs()
-            .zip(point.knot_runs())
-            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
-            .map(|((value, _), _)| value))
+        // The runs ascend, so the one whose first knot can be `v` is the
+        // first knot at or above it; a run's value is its first knot's.
+        let knots = point.knots();
+        let at = knots.partition_point(|&k| k < v);
+        Ok(knots
+            .get(at)
+            .filter(|k| k.to_bits() == v.to_bits())
+            .map(|_| self.values[at]))
     }
 
     /// The spans the parameter `t` overlaps: the first and the last, or

@@ -8,6 +8,7 @@
 
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -196,13 +197,16 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 /// lines lying on the carrier with both endpoints at residual 0 — while
 /// its x- and y-edges are honest secant chords. Each ruling's two faces
 /// are planes decided distinct from the wall, so it is a curve where two
-/// carriers meet, not a cosurface: every op builds undeclared at its
-/// closed form, valid at tiers 3 and 3′. The union is the pipe, the
-/// intersection the box, `b ∖ p` empty, and `p ∖ b` the pipe with a
-/// box-shaped void touching the wall along the four rulings, its eight
-/// corners recorded on the wall.
+/// carriers meet, not a cosurface: the union is the pipe, the
+/// intersection the box, and `b ∖ p` empty, each built undeclared at its
+/// closed form, valid at tiers 3 and 3′. `p ∖ b` is the pipe with a
+/// box-shaped void resting on the wall along the four rulings: each
+/// ruling's material is two wedges with the wall between them, which a
+/// zero-area ring of the wall carries (`crates/topo/README.md` tier 3),
+/// and the Boolean refuses that parting on a curved face typed
+/// (`EdgeInFaceGap::CurvedFace`) rather than ship the one edge.
 #[test]
-fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
+fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_typed() {
     let tol = Tol::witness();
     let x = (1.0f64 - 0.09).sqrt();
     let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
@@ -217,11 +221,6 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     for (op, r, want) in [
         ("p ∪ b", topo::union(&p, &b, tol), whole),
         ("b ∪ p", topo::union(&b, &p, tol), whole),
-        (
-            "p ∖ b",
-            topo::subtract(&p, &b, tol),
-            Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
-        ),
         ("b ∖ p", topo::subtract(&b, &p, tol), None),
         ("p ∩ b", topo::intersect(&p, &b, tol), common),
         ("b ∩ p", topo::intersect(&b, &p, tol), common),
@@ -262,6 +261,17 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
             "{op}: no edge-face or face-face records"
         );
     }
+    let void = topo::subtract(&p, &b, tol);
+    assert!(
+        matches!(
+            void,
+            Err(topo::BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::CurvedFace,
+                ..
+            })
+        ),
+        "p ∖ b: the rulings' parting on the wall refuses typed: {void:?}"
+    );
 }
 
 /// **Claim 3, the transient chord's certification, re-measured.** The
@@ -295,7 +305,7 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
     let p = Point3::new(0.0, 1.0, 0.0);
     let chord = body
         .mev(
-            topo::MevSite::Fan {
+            topo::construction::MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },

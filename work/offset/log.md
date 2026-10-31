@@ -315,3 +315,63 @@ chained push.
 ## 2026-10-27 — seam note from QUAD's main-red triage
 
 Filed `two-door-rows-red-under-the-per-op-postcondition-scalpel` on this slate. Two topo rows go red only under `--features per-op-postcondition`: `a_join_sweeps_tier_1_once_however_many_it_joins` (from PR 5666) and `the_door_panics_on_an_out_of_scope_malformed_solid` (bisected to PR 5661). Both are green in the default build at every ε. (QUAD triage lane)
+
+## 2026-10-27 — conic unit 1 merged (PR 5728); the chord-extent row claimed (OFFSET orchestrator)
+
+PR 5728 merged (`b8974faabc`). It carries the mint/certify door split
+(5689), limb 2 for every carrier through one framed reader with the
+kernel-limit refusal (fork row 203, Ev: "this seems good"), and limb 2 over
+a parameter box through the free-`t` identity (row 204).
+
+Ev's question on the last asked whether anything beyond "within ε
+everywhere" was being decided. Nothing was: it applied E6/E12 to an
+implementation defect.
+
+Process lesson: I over-escalated. Before an `[ev]` PR, check whether the
+question is already answered by ratified text (the claim) and only the
+mechanism is new. A mechanism that applies a ratified rule is mine to rule.
+
+The concurrent dual review tallied one finding (R2): at `f64` the
+line × plane end rule measured in round-to-nearest arithmetic and passed
+an edge 1.038e-12 m off its plane at ε = 1e-12. It was fixed by measuring
+in certification arithmetic.
+
+The orchestrator then ruled the ends' verdict order:
+- an end enclosure with a floor above zero is a measured distance;
+- one reaching zero is only an upper bound, so the stall stands.
+
+Limb 2's cost went from 299 fast-set rows over their limit to 11, which
+sit in the slow set; the cost row is P1. Three container restarts killed
+the lane mid-run; pushing at safe points kept each loss to one step.
+
+SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`
+(P0, unclaimed, SELECT `ready`) is claimed into OFFSET. Our conic arc
+(PR 5692) made it reachable, and unit 3 is parked on it.
+
+## 2026-10-28 — chord extent, limb-2 cost pass 2 and the main reds merged (OFFSET orchestrator)
+
+- **PR 5875 (the chord-extent row, claimed from SELECT).** It replaces `edge_extent` with two true bounds. Two-sided consumers read both bounds and act only on agreement (`LeverBounds`, `decide_agreed`). Dual review: 0 tallied. It took two fix passes and two delta reads; the orchestrator ruled a both-bounds read rather than tightening.
+- **PR 5885 (limb 2's cost, pass 2).** A first reading over dyadic spans, passing only on a checked covering. Both reviewers raised the same MAJOR: a span dropped at depth 30 let a window go half-read. It was fixed with `halves → Option` plus `covering`, and R1's delta read approved. 10 of 11 slow-set rows are back on the fast set. The cost row drops to P2: one interval stackup row (1.43 s), nightly only.
+- **PR 5893.** It bisects the two main-red sweep rows:
+  - sym11 is PR 5728's, an honest move (a far placement at `Sym<f64>` escalating on a measured end), so it was re-baselined;
+  - germarms2 is PR 5664's (CHART), handed to CHARTTAIL.
+- **Unit 3 (the tube exemption) is dispatched.** It lands severable, and its PR is to recall Ev's reservation.
+
+Process: the box has 15 GB RAM and limited disk, so concurrent builds OOM. Lanes now build with `CARGO_BUILD_JOBS=2` and `CARGO_INCREMENTAL=0`, and finished lanes' target dirs are deleted at once.
+
+## 2026-10-28 — conic unit 3 merged; the track is handed back (OFFSET orchestrator)
+
+- **PR 5897 (conic unit 3, the tube exemption).** A classified pair's section states a certified sin θ floor `s` and a moat (the ε-overlap empty between 8ε/s and 16ε/s, a Poincaré–Miranda section point within 16ε/s); `analytic_rung3` skips limb 3 only where `section_bounds::tube_bounds` states them. The conical wedges and the three-quarter frustum now hollow, with volume and area checked against closed form. `offset-lane-has-no-conic-carrier` and SHELF's frustum row closed with it; `work/shelf/plan.md` still names the frustum row as parked, for SHELF to drop.
+- **Ev ruled on the PR** that README C2's radius reads 8ε over the sine, out to 16ε, instead of "ε over that sine" (which is not a valid tube: the overlap's own band reaches about 2ε/sin θ). Ev agreed that tying the radius to K has the wrong semantics: 8 is a proof constant, K a policy dial.
+- **Speed, for Ev.** 65 of 73 `analytic_rung3` calls across the geom-brep, topo, sweep and editor-core suites skip the tube; the waiver ran 1.3–12× faster than the tube on stated pairs (26 ms against 102 ms in total).
+- **Review.** Concurrent dual review, 0 tallied: no MAJOR in the pair. R2's delta read of the fix pass found one (contract, executed): `uncertified_arc` matched an error shape the re-chart never produces, so `TogetherConicArc` never fired, on the first head as well; both first reviews missed it. Fixed by reading `RechartFalsifies{edge, ..}`.
+- **Hand-back.** No P0 or P1 row remains; the track is `ready` with 19 P2 rows. Its dispatchable load (77 against a budget of 30) is over; a successor should cut it (Track size) before dispatching.
+
+## A note from GREEN (2026-10-28) — shared tests with #5935
+
+GREEN's `main-reds-editor-core-slow-set-and-the-k-probe-sweep`
+(`work/green/`) covers editor-core slow-set reds that include
+`m10_3_driver_interval`, `m10_9_pins_interval` and `sym11`'s
+`two_hole_plate`, which #5935 re-pins at #5728's reading. GREEN's lane
+(branch `green/slow-set-reds*`) leaves the reds #5935 attributes to
+#5728 to that PR, and names any test both PRs touch in its PR body.

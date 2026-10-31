@@ -26,15 +26,17 @@
 //! and a caller reaches these names by asking for them. A program that
 //! never says `run_checks` is a program the registry never touches.
 //!
-//! # The two knobs are two types, and that is DS6's waiver rule
+//! # The knobs are two types, and that is DS6's waiver rule
 //!
-//! `connectedness` takes a `Severity` (`Off`/`Warn`/`Error`);
-//! `separation` takes an `Advisory` (`Off`/`Warn`). DS6 lets a check
-//! offer `error` **iff** it ships a per-finding acknowledgment record
-//! with a staleness direction. Connectedness has one —
+//! `connectedness` and `at_rest` take a `Severity`
+//! (`Off`/`Warn`/`Error`); `chart_coherence` and
+//! `unproven_coincidence` take an `Advisory` (`Off`/`Warn`). DS6 lets
+//! a check offer `error` **iff** it ships a per-finding acknowledgment
+//! record with a staleness direction. Connectedness has one —
 //! `expected_components`, whose unconsumed entries come back as
-//! `stale_expectation` findings. The separation resident ships
-//! nothing analogous, so its refusing position is UNREPRESENTABLE
+//! `stale_expectation` findings — and the at-rest check has the
+//! assertion that quiets an interference. The advisory residents ship
+//! nothing analogous, so their refusing position is UNREPRESENTABLE
 //! rather than merely undocumented, in Python exactly as in Rust.
 
 use std::borrow::Cow;
@@ -51,6 +53,7 @@ use crate::tags::{check_evidence_tag, checks_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
+use super::assembly::{AtRestEvidence, CarriedInterference, InterferenceFinding};
 use super::doc::{Doc, NodeId, Var};
 use super::value::{Body, Evaluation};
 
@@ -72,9 +75,10 @@ use super::value::{Body, Evaluation};
 )]
 pub(crate) enum CheckId {
     Connectedness,
-    Separation,
     ChartCoherence,
     UnprovenCoincidence,
+    AtRest,
+    Unused,
 }
 
 /// The certified/heuristic label (DS6): honesty of language and a
@@ -122,9 +126,10 @@ pub(crate) enum Advisory {
 fn check_id(check: d::CheckId) -> CheckId {
     match check {
         d::CheckId::Connectedness => CheckId::Connectedness,
-        d::CheckId::Separation => CheckId::Separation,
         d::CheckId::ChartCoherence => CheckId::ChartCoherence,
         d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
+        d::CheckId::AtRest => CheckId::AtRest,
+        d::CheckId::Unused => CheckId::Unused,
     }
 }
 
@@ -161,9 +166,10 @@ impl CheckId {
     fn to_kernel(self) -> d::CheckId {
         match self {
             Self::Connectedness => d::CheckId::Connectedness,
-            Self::Separation => d::CheckId::Separation,
             Self::ChartCoherence => d::CheckId::ChartCoherence,
             Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
+            Self::AtRest => d::CheckId::AtRest,
+            Self::Unused => d::CheckId::Unused,
         }
     }
 }
@@ -218,9 +224,9 @@ impl ChecksConfig {
     /// of the default pass at `Warn`, the chart-coherence examination
     /// `Off`, nothing expected, nothing refused.
     ///
-    /// `expected_components` is a list of `(root, output_ix,
+    /// `expected_components` is a list of `(placement, output_ix,
     /// expected)` triples — the connectedness resident's
-    /// acknowledgment record, keyed by the same `(root, output_ix)`
+    /// acknowledgment record, keyed by the same `(placement, output_ix)`
     /// pair a finding is attributed to. It is an ordered list rather
     /// than a dict because a `NodeId` pair is not a Python key: the
     /// entries are read in order and never looked up by one id (the
@@ -230,28 +236,30 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
-        separation: Advisory,
         chart_coherence: Advisory,
         unproven_coincidence: Advisory,
+        at_rest: Severity,
+        unused: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
-        for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
-            if expected.insert((root, output_ix), count).is_some() {
+        for (NodeId(placement), output_ix, count) in expected_components.unwrap_or_default() {
+            if expected.insert((placement, output_ix), count).is_some() {
                 return Err(PyValueError::new_err(format!(
-                    "expected_components states subject (node {root}, output {output_ix}) twice"
+                    "expected_components states subject (node {placement}, output {output_ix}) twice"
                 )));
             }
         }
         Ok(Self(d::ChecksConfig {
             connectedness: connectedness.to_kernel(),
             expected_components: expected,
-            separation: separation.to_kernel(),
             chart_coherence: chart_coherence.to_kernel(),
             unproven_coincidence: unproven_coincidence.to_kernel(),
+            at_rest: at_rest.to_kernel(),
+            unused: unused.to_kernel(),
         }))
     }
 
@@ -259,13 +267,6 @@ impl ChecksConfig {
     #[getter]
     fn connectedness(&self) -> Severity {
         Severity::from_kernel(self.0.connectedness)
-    }
-
-    /// The separation resident's knob — an `Advisory`, so `Error` is
-    /// not spellable here.
-    #[getter]
-    fn separation(&self) -> Advisory {
-        Advisory::from_kernel(self.0.separation)
     }
 
     /// The chart-coherence resident's knob — an `Advisory`, so
@@ -286,13 +287,29 @@ impl ChecksConfig {
         Advisory::from_kernel(self.0.unproven_coincidence)
     }
 
+    /// The at-rest check's knob — a full `Severity`: an assertion
+    /// quiets every interference it can bound. At `Error`,
+    /// `enforce_checks` refuses a loud interference and nothing else
+    /// the check reports.
+    #[getter]
+    fn at_rest(&self) -> Severity {
+        Severity::from_kernel(self.0.at_rest)
+    }
+
+    /// The `unused` check's knob — an `Advisory`: an unused thing is
+    /// answered by using it or deleting it, so `Error` is not spellable.
+    #[getter]
+    fn unused(&self) -> Advisory {
+        Advisory::from_kernel(self.0.unused)
+    }
+
     /// The stated expectations, ascending by subject.
     #[getter]
     fn expected_components(&self) -> Vec<(NodeId, u32, u32)> {
         self.0
             .expected_components
             .iter()
-            .map(|((root, output_ix), count)| (NodeId(*root), *output_ix, *count))
+            .map(|((placement, output_ix), count)| (NodeId(*placement), *output_ix, *count))
             .collect()
     }
 
@@ -308,13 +325,14 @@ impl ChecksConfig {
 
     fn __repr__(&self) -> String {
         format!(
-            "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?}, \
-             chart_coherence={:?}, unproven_coincidence={:?})",
+            "ChecksConfig(connectedness={:?}, expected_components={}, \
+             chart_coherence={:?}, unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
-            self.0.separation,
             self.0.chart_coherence,
-            self.0.unproven_coincidence
+            self.0.unproven_coincidence,
+            self.0.at_rest,
+            self.0.unused
         )
     }
 }
@@ -323,9 +341,11 @@ impl ChecksConfig {
 /// the arm's payload as attributes.
 ///
 /// Every payload attribute is present on every arm, `None` where the
-/// arm does not carry it: `actual`, `expected`, `other_root`,
-/// `other_output`, `reason`, `inner_variant`, `boolean_variant`,
-/// `chart_variant`, `metres`, `gap`, `lever`, `eps`.
+/// arm does not carry it: `actual`, `expected`, `reason`,
+/// `inner_variant`, `at_rest_variant`, `chart_variant`, `metres`,
+/// `gap`, `lever`, `eps`, `relation`, `site`; and the values an arm
+/// carries whole, `coincidence`, `restated`, `interference`,
+/// `carried_interference` and `at_rest`.
 ///
 /// They read off ONE record, [`crate::check_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: an
@@ -362,55 +382,82 @@ impl CheckEvidence {
         self.payload().expected
     }
 
-    /// The counterpart subject's root, on `not_separated` alone. The
-    /// finding's own `root`/`output_ix` is the first subject in gather
-    /// order; this is the second.
-    #[getter]
-    fn other_root(&self) -> Option<NodeId> {
-        self.payload().other_root.map(NodeId)
-    }
-
-    /// The counterpart subject's output index, on `not_separated`.
-    #[getter]
-    fn other_output(&self) -> Option<u32> {
-        self.payload().other_output
-    }
-
     /// The underlying refusal's own prose, where the arm carries one:
-    /// the shell door's on `escalated` and `unsupported`, the box
-    /// builder's on `separation_unavailable`. Prose because it is the
-    /// kernel's own story, and `variant` is the branchable part.
+    /// the shell door's on `escalated` and `unsupported`, the
+    /// validator's on `not_at_rest`, the residual's on
+    /// `unproven_coincidence`, and on `at_rest` why the check could not
+    /// look. Prose because it is the kernel's own story, and `variant`
+    /// is the branchable part.
     #[getter]
     fn reason(&self) -> Option<String> {
         self.payload().reason.map(Cow::into_owned)
     }
 
-    /// The shell door's own refusal, as a branchable word, on
-    /// `escalated` and `unsupported`: `band`, `props`, `escalated`,
-    /// `zero_volume`, `straddles`, `ray_in_band`, `corner`, `ray` or
-    /// `sign_unresolved`. `reason` is the
-    /// same refusal's
-    /// sentence; this is the part a caller matches on.
+    /// The inner refusal's own word, where the arm carries one: the
+    /// shell door's on `escalated` and `unsupported` (`band`, `props`,
+    /// `escalated`, `zero_volume`, `straddles`, `ray_in_band`,
+    /// `corner`, `ray` or `sign_unresolved`), the validator's first
+    /// finding's on `not_at_rest`, and on `at_rest` the validator's or
+    /// the gather's (`AtRestEvidence.inner_variant`). `reason` is the
+    /// same refusal's sentence; this is the part a caller matches on.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
     }
 
-    /// Which kernel boolean refusal made separation unavailable, as a
-    /// branchable word, on `separation_unavailable` alone — the
-    /// `topo::BooleanErrorKind` vocabulary an evaluation refusal
-    /// already publishes as `EvaluationError.inner_kind`. `reason` is
-    /// that refusal's sentence; this is the part a caller matches on,
-    /// so which refusal it was is read rather than grepped out of the
-    /// prose.
-    ///
-    /// Its own word, not `inner_variant`'s: the shell and boolean
-    /// alphabets share spellings (`band`, `escalated`), so one
-    /// attribute carrying either would be a word a caller could only
-    /// read after branching on `variant`.
+    /// Why the at-rest check could not look, on `at_rest` alone:
+    /// `AtRestEvidence.variant`.
     #[getter]
-    fn boolean_variant(&self) -> Option<&'static str> {
-        self.payload().boolean_variant
+    fn at_rest_variant(&self) -> Option<&'static str> {
+        self.payload().at_rest_variant
+    }
+
+    /// The overlap, on `interference` alone: two arrivals of one `⊔`
+    /// whose material overlaps at rest, quiet or loud.
+    #[getter]
+    fn interference(&self, py: Python<'_>) -> PyResult<Option<InterferenceFinding>> {
+        match &self.0 {
+            d::CheckEvidence::Interference { finding } => {
+                InterferenceFinding::of(py, &self.1, finding).map(Some)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// A part's overlap carried up, on `carried_interference` alone:
+    /// the part's own finding, quiet or loud as the part judged it.
+    #[getter]
+    fn carried_interference(&self, py: Python<'_>) -> PyResult<Option<CarriedInterference>> {
+        match &self.0 {
+            d::CheckEvidence::CarriedInterference { finding } => {
+                CarriedInterference::read(py, finding).map(Some)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// A part's unproven coincidence carried up, on
+    /// `carried_coincidence` alone: the part's own finding, as its own
+    /// door judged it.
+    #[getter]
+    fn carried_coincidence(&self) -> Option<CarriedCoincidence> {
+        match &self.0 {
+            d::CheckEvidence::CarriedCoincidence { finding } => {
+                Some(CarriedCoincidence((**finding).clone()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Why the at-rest check could not look, whole, on `at_rest` alone.
+    #[getter]
+    fn at_rest(&self) -> Option<AtRestEvidence> {
+        match &self.0 {
+            d::CheckEvidence::AtRest { evidence } => {
+                Some(AtRestEvidence::of(evidence.clone(), &self.1))
+            }
+            _ => None,
+        }
     }
 
     /// The chart-coherence arm's own inner word: which condition was
@@ -481,7 +528,8 @@ impl CheckEvidence {
 
     /// Where that coincidence was decided, on `unproven_coincidence`
     /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
-    /// `coaxial_sphere`, `crossing_cylinders`, `split_on`, `battery_turn`,
+    /// `coaxial_sphere`, `sphere_on_torus_axis`, `coaxial_cylinder_torus`,
+    /// `coaxial_tori`, `crossing_cylinders`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
     /// `vertex_fusion` or `census_at_rest`.
     #[getter]
@@ -562,16 +610,18 @@ impl CheckEvidence {
 }
 
 /// One finding of one check on one subject: a copy a placement defines,
-/// attributed as `(root, output_ix)` with `root` the placement, or a
-/// node of the document (`node`) — the node that decided an unproven
-/// coincidence. Whichever it is not answers `None`.
+/// attributed as `(placement, output_ix)`; a node
+/// of the document (`node`) — the node that decided an unproven
+/// coincidence, or an operation nothing uses; two copies (`copies`); the
+/// body a census at rest was taken over (`census`); or a named variable
+/// nothing uses (`var`). Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each root spoken (kind, label and tag) from the document
+/// included, each placement spoken (kind, label and tag) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.
@@ -592,33 +642,57 @@ impl CheckFinding {
         check_id(self.finding.check)
     }
 
-    /// The root whose value carries the subject body; `None` for a
-    /// finding about a node or two copies.
+    /// The placement whose value carries the subject body; `None` for any
+    /// other subject.
     #[getter]
-    fn root(&self) -> Option<NodeId> {
+    fn placement(&self) -> Option<NodeId> {
         match self.finding.subject {
-            d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
-            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
+            d::FindingSubject::Output { placement, .. } => Some(NodeId(placement)),
+            d::FindingSubject::Node(_)
+            | d::FindingSubject::Copies { .. }
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
-    /// Which output body of that root — 0 for a single-body root;
-    /// `None` for a finding about a node or two copies.
+    /// Which output body of that placement's value — 0 for a single body;
+    /// `None` for any other subject.
     #[getter]
     fn output_ix(&self) -> Option<u32> {
         match self.finding.subject {
             d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
-            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
+            d::FindingSubject::Node(_)
+            | d::FindingSubject::Copies { .. }
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
-    /// The node the finding is about, root or not; `None` for a finding
-    /// about a root output or two copies.
+    /// The node the finding is about, placement or not; `None` for any
+    /// other subject.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Node(node) => Some(NodeId(node)),
-            d::FindingSubject::Output { .. } | d::FindingSubject::Copies { .. } => None,
+            d::FindingSubject::Output { .. }
+            | d::FindingSubject::Copies { .. }
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
+        }
+    }
+
+    /// The body a census at rest was taken over, by the read it is: a
+    /// `⊔`'s output, or the body the product slot reads. An at-rest
+    /// finding belongs to the census that decided it. `None` for any
+    /// other subject.
+    #[getter]
+    fn census(&self) -> Option<Var> {
+        match self.finding.subject {
+            d::FindingSubject::Census { read } => Some(Var::of(&self.doc, read)),
+            d::FindingSubject::Output { .. }
+            | d::FindingSubject::Node(_)
+            | d::FindingSubject::Copies { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
@@ -632,7 +706,23 @@ impl CheckFinding {
                 let copy = |c: d::CopyRef| (Var::of(&self.doc, c.var), c.member);
                 Some((copy(a), copy(b)))
             }
-            d::FindingSubject::Output { .. } | d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Output { .. }
+            | d::FindingSubject::Node(_)
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
+        }
+    }
+
+    /// The variable an `unused` finding is about, spoken by its name;
+    /// `None` for any other subject.
+    #[getter]
+    fn var(&self) -> Option<Var> {
+        match self.finding.subject {
+            d::FindingSubject::Var(var) => Some(Var::of(&self.doc, var)),
+            d::FindingSubject::Output { .. }
+            | d::FindingSubject::Node(_)
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Copies { .. } => None,
         }
     }
 
@@ -642,8 +732,19 @@ impl CheckFinding {
         CheckEvidence(self.finding.evidence.clone(), Arc::clone(&self.doc))
     }
 
+    /// The assertion that quiets it, or `None` when it is loud. A quiet
+    /// finding is listed, naming its assertion, so "checked and
+    /// intended" stays distinct from "not checked"; `enforce_checks`
+    /// never refuses it. A part's carried finding names the part's own
+    /// assertion, an id in the part's document
+    /// (`CarriedInterference.of`, `CarriedCoincidence.of`).
+    #[getter]
+    fn quiet(&self) -> Option<NodeId> {
+        self.finding.quiet.map(NodeId)
+    }
+
     /// The finding as the library renders one: its subject, then the
-    /// kernel's own story, each root spoken from the document the
+    /// kernel's own story, each placement spoken from the document the
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
@@ -658,10 +759,15 @@ impl CheckFinding {
 
     fn __repr__(&self) -> String {
         let subject = match self.finding.subject {
-            d::FindingSubject::Output { root, output_ix } => {
-                format!("root {}, output {output_ix}", root.full())
+            d::FindingSubject::Output {
+                placement,
+                output_ix,
+            } => {
+                format!("placement {}, output {output_ix}", placement.full())
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
+            d::FindingSubject::Census { read } => format!("census {read}"),
+            d::FindingSubject::Var(var) => format!("var {var}"),
             d::FindingSubject::Copies { a, b } => {
                 let copy = |c: d::CopyRef| match c.member {
                     0 => format!("{}", c.var),
@@ -678,13 +784,68 @@ impl CheckFinding {
     }
 }
 
+/// A coincidence a document BELOW this one leaves unproven, with the
+/// route this document reached it by: an `unproven_coincidence`
+/// finding's `CheckEvidence.carried_coincidence`, as the part's own door
+/// judged it and quiet only by the part's own assertions.
+///
+/// The finding is the part's: its ids are `of`'s, and it is spoken from
+/// the version of `of` that `pin` fixes.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedCoincidence(d::CarriedCoincidence);
+
+#[pymethods]
+impl CarriedCoincidence {
+    /// The part's own finding, over the part's document.
+    #[getter]
+    fn finding(&self) -> CheckFinding {
+        CheckFinding {
+            finding: self.0.finding.clone(),
+            doc: Arc::clone(self.0.doc.get()),
+        }
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.0.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.0.pin)
+    }
+
+    /// The document whose coincidence it is, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        super::assembly::route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        super::assembly::route_fields(py, &self.0.route).1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedCoincidence(of={}, loud={})",
+            self.0.route.of,
+            self.0.finding.quiet.is_none()
+        )
+    }
+}
+
 /// One run's report: the findings, and the checks that did not run.
 ///
 /// `skipped` is why this is a report and not a list: "checked and
 /// fine" and "not checked" are different answers, and a caller reading
 /// an empty `findings` without reading `skipped` has confused them.
 ///
-/// `str()` speaks each root from the document the checks ran over, the
+/// `str()` speaks each placement from the document the checks ran over, the
 /// one the evaluation is of, so a label set after `evaluate` shows on
 /// the next evaluation's report. Two reports are equal when they hold
 /// the same findings and skips over the same document; labels are not
@@ -694,7 +855,7 @@ impl CheckFinding {
 pub(crate) struct ChecksReport {
     report: d::ChecksReport,
     /// The document the checks ran over, the evaluation's own: the
-    /// report's root ids are spelled in it, so its human form speaks
+    /// report's placement ids are spelled in it, so its human form speaks
     /// from it and from no other.
     doc: Arc<d::ProfileDoc>,
 }
@@ -733,7 +894,7 @@ impl ChecksReport {
         self.report.findings.len()
     }
 
-    /// The report, each root spoken from the document the checks ran
+    /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
         self.report.spoken(&*self.doc)
@@ -772,7 +933,7 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
     // arrives here as a compile error rather than as a silently
     // unprojected payload.
     let node = match err {
-        d::ChecksError::Root(standing) => Py::new(py, NodeId(standing.node()))
+        d::ChecksError::Placement(standing) => Py::new(py, NodeId(standing.node()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
         // A tolerance that forms no band, a gather that yields no
@@ -808,7 +969,7 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 /// `evaluation` must be an evaluation OF `doc`, and one that ran to
 /// completion: subjects are the copies the document's placements
 /// define, so a placement that failed, was poisoned, or was cut short
-/// refuses `root_without_value` rather than reporting over a partial
+/// refuses `placement_without_value` rather than reporting over a partial
 /// evaluation.
 ///
 /// The residents:
@@ -819,10 +980,16 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 ///   `ChecksConfig.expected_components` (default 1). A shell the
 ///   orientation read cannot decide surfaces as its own `escalated` /
 ///   `unsupported` finding, never as a silent skip.
-/// * `Separation` — every pair of gathered solids the product took
-///   from DIFFERENT placements, held to the kernel's box-level disjointness
-///   certificate. What a finding denies is the CERTIFICATE, never
-///   "these two overlap": a pair that merely touches lands here too.
+/// * `UnprovenCoincidence` — each coincidence a node decided from
+///   values that the coincidence door does not prove structural, an
+///   at-rest contact between two operands of a `⊔` included; quiet
+///   under a holding `gap = 0` between its two cells.
+/// * `AtRest` — at each `⊔`, the product's first and then every other
+///   in document order, each overlap of two arrivals' material
+///   (`interference`, quiet under a holding one-sided `gap`
+///   assertion), each overlap a part carried up
+///   (`carried_interference`), and each pair the census could not
+///   look at (`at_rest`, loud and refusing at no severity).
 ///
 /// Expectations are TWO-DIRECTIONAL: an `expected_components` entry no
 /// subject consumed — a vanished body, a dead placement, a mistyped key —
@@ -879,11 +1046,13 @@ fn mispaired_checks(py: Python<'_>, m: d::Mispaired) -> PyErr {
 /// findings pass and stay in the report for the caller to render.
 ///
 /// Under the default configuration this can never refuse: no resident
-/// defaults to `Error`, and the separation resident cannot be set to
-/// it at all (its knob is `Advisory`, DS6's waiver rule as a type). A
-/// program that gates does so because it SAID `Severity.Error`.
+/// defaults to `Error`, and the advisory residents cannot be set to it
+/// at all (their knob is `Advisory`, DS6's waiver rule as a type). A
+/// finding an assertion quiets never refuses, nor does one the
+/// at-rest check could not look at. A program that gates does so
+/// because it SAID `Severity.Error`.
 ///
-/// Raises `CheckRefusal`, carrying `findings` — every `Error`-severity
+/// Raises `CheckRefusal`, carrying `findings` — every refusing
 /// finding, in report order.
 #[pyfunction]
 #[pyo3(signature = (report, config = None))]
@@ -910,12 +1079,12 @@ pub(crate) fn enforce_checks(
 }
 
 /// The door from a finding's attribution back to its subject: the body
-/// at `(root, output_ix)` in this evaluation.
+/// at `(placement, output_ix)` in this evaluation.
 ///
 /// A finding names a subject and this resolves it, against the same
 /// enumeration `run_checks` walks — so a finding's attribution always
 /// resolves in the evaluation it was produced from. `None` where the
-/// root has no value, denotes no body, or has no output at that index:
+/// placement has no value, denotes no body, or has no output at that index:
 /// exactly the attributions a `stale_expectation` finding names, which
 /// is what makes that arm's `None` an answer rather than a failure.
 ///
@@ -935,9 +1104,19 @@ pub(crate) fn enforce_checks(
 /// no Python spelling, and a door that took one could hand a body
 /// another body's declarations).
 #[pyfunction]
-pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
-    d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::recorded(body, contacts))
+pub(crate) fn subject_body(
+    py: Python<'_>,
+    evaluation: &Evaluation,
+    placement: &NodeId,
+    output_ix: u32,
+) -> PyResult<Option<Body>> {
+    d::subject_body(&evaluation.inner, placement.0, output_ix)
+        .map(|(body, contacts)| {
+            pncad::export::body_in_space(&body, Tol::witness())
+                .map(|body| Body::recorded(body, contacts))
+                .map_err(|err| crate::py::value::compose_err(py, *placement, &err))
+        })
+        .transpose()
 }
 
 /// Register the advisory-check registry on the module.
@@ -949,6 +1128,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChecksConfig>()?;
     m.add_class::<CheckEvidence>()?;
     m.add_class::<CheckFinding>()?;
+    m.add_class::<CarriedCoincidence>()?;
     m.add_class::<ChecksReport>()?;
     m.add_function(wrap_pyfunction!(run_checks, m)?)?;
     m.add_function(wrap_pyfunction!(enforce_checks, m)?)?;

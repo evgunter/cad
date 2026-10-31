@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished};
 use geom_core::Decide;
@@ -565,7 +566,11 @@ fn with_reversed_face(
         panic!("exactly one face on the plane: {picked:?}")
     };
     let mut out = body.clone();
-    let charts = vec![topo::Rechart::new(reversed.clone(), *face, *sense)];
+    let charts = vec![topo::construction::Rechart::new(
+        reversed.clone(),
+        *face,
+        *sense,
+    )];
     let specs = out.carried_redescriptions(&charts).unwrap();
     out.set_face_surfaces_describing(charts, &specs, Tol::witness())
         .unwrap();

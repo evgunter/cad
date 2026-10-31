@@ -102,8 +102,8 @@ fn the_recorded_band_trim_counts_are_executable() {
     );
     assert_eq!(
         got.len() - nonzero.len(),
-        28,
-        "twenty-eight registered documents carry no band trimline at all: {got:?}"
+        32,
+        "thirty-two registered documents carry no band trimline at all: {got:?}"
     );
 }
 
@@ -203,7 +203,7 @@ fn role_below_the_mouth(mouth: (f64, f64), top: (f64, f64)) -> RimSupport {
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((arc_height(body, edge_of(t, "a trim arc", n)), *support))
+                Some((arc_height(&body, edge_of(t, "a trim arc", n)), *support))
             }
             _ => None,
         })

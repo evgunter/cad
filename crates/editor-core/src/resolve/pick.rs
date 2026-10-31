@@ -545,6 +545,11 @@ pub struct PickTarget<'a> {
     body: u32,
     /// The body's mesh index ([`MeshPick::build_every_table`]).
     pick: &'a MeshPick,
+    /// **The frame the tessellated body stands in** (D10
+    /// `[placement.frame]`): the mesh is in the body's own coordinates,
+    /// and [`pick_face`] reads the ray into them. `None` for a body in
+    /// its space's coordinates.
+    map: Option<geom_core::RigidMotion<f64>>,
 }
 
 impl<'a> PickTarget<'a> {
@@ -586,6 +591,7 @@ impl<'a> PickTarget<'a> {
             node,
             body,
             pick,
+            map: None,
         }
     }
 }
@@ -750,6 +756,84 @@ impl NameLookupError {
 
 impl core::error::Error for NameLookupError {}
 
+/// One boundary polyline's answer from [`NodePick::boundary_rims`]:
+/// the names of its rim's arcs, `None` for an edge on no rim of two or
+/// more, or the loud arm.
+pub type BoundaryRim = Result<Option<Vec<StableName>>, RimNameFault>;
+
+/// **Why a drawn edge's rim could not be answered as names**
+/// ([`NodePick::boundary_rims`]): a naming bug, or a part read against
+/// an evaluation other than the one it was built from — never "this
+/// edge is on no rim", which is that door's `None` (closed enum, D4 ¶3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RimNameFault {
+    /// An arc of the rim evaluated but has no name in its table.
+    Unnamed(UnnamedEntity),
+    /// The evaluation holds no body where the part says it drew one:
+    /// [`NodePickError::NoSuchBody`]'s case, met by a part held across
+    /// an edit that removed it.
+    NoBody {
+        /// The part's node.
+        node: RecipeNodeId,
+        /// The part's output body.
+        body: u32,
+    },
+    /// A drawn edge is not in the body this evaluation holds: the part
+    /// was built against an earlier evaluation of the document, which
+    /// the pairing admits (a caller holding a `NodePick` across an
+    /// edit by hand). [`NodePick::boundary_names`] reads the same slot
+    /// as [`UnnamedEntity`], because a table read cannot tell a key
+    /// absent from the body from one the table did not name; the walk
+    /// can, so it says the narrower thing.
+    Stale {
+        /// The part's node.
+        node: RecipeNodeId,
+        /// The part's output body.
+        body: u32,
+    },
+}
+
+impl crate::spoken::Say for RimNameFault {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Unnamed(unnamed) => {
+                write!(f, "rim names: {}", crate::spoken::Said(unnamed, by))
+            }
+            Self::NoBody { node, body } => write!(
+                f,
+                "rim names: {}",
+                crate::spoken::Said(
+                    &NodePickError::NoSuchBody {
+                        node: *node,
+                        body: *body
+                    },
+                    by
+                )
+            ),
+            Self::Stale { node, body } => write!(
+                f,
+                "rim names: a drawn edge of {} body {body} is not in the body this evaluation \
+                 holds — the pick was built against an earlier evaluation; rebuild it against \
+                 this one",
+                by.node(*node)
+            ),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for RimNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl core::error::Error for RimNameFault {}
+
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
 /// CONSTRUCTION: [`NodePick::build`] fetches the body from the
 /// evaluation payload itself — through the same output-body indexing
@@ -790,6 +874,9 @@ pub struct NodePick {
     document: DocumentId,
     node: RecipeNodeId,
     body: u32,
+    /// The frame the mesh is in: the body's (D10 `[placement.frame]`),
+    /// composed into its space by [`crate::mate::in_space`] alone.
+    pub(crate) frame: crate::eval::Frame<f64>,
     mesh: Arc<Mesh>,
     pick: Arc<MeshPick>,
     chords: Arc<ChordFaces>,
@@ -803,6 +890,10 @@ pub struct NodePick {
 /// another.
 struct PickEntry {
     content_key: ContentKey,
+    /// The body tessellated: a value whose frame alone moved (a copy
+    /// under a value edit) holds this same `Arc`, and is served this
+    /// tessellation under its own frame.
+    body: Arc<topo::Body<f64>>,
     naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
@@ -824,7 +915,13 @@ struct PickEntry {
 /// the document's identity (node ids are minted per document) and
 /// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
 /// picture's, BVH included, because a `NodePick` is a pure function of
-/// what the key names.
+/// what the key names. The two keys may also be answered by the body
+/// itself: a value holding the entry's very `Arc` (a copy whose values
+/// moved, D10 `[placement.frame]`) holds the bits and the face keys the
+/// keys stood for — the naming key hashes the content key, so it moves
+/// with the value though the body did not — and is that tessellation
+/// under the frame it stands in now, so a value edit moves a frame, not
+/// a mesh.
 ///
 /// **The document comparison is this memo's DI3 refusal**, and it is
 /// the only half of the key that CAN refuse a prior of another
@@ -1123,12 +1220,14 @@ impl NodePick {
         else {
             return Err(NodePickError::NoSuchBody { node, body });
         };
-        let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
+        let mesh =
+            mesh::tessellate(body_arc.body(), delta, tol).map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_every_table(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&mesh)),
             mesh: Arc::new(mesh),
             pick: Arc::new(pick),
@@ -1136,8 +1235,9 @@ impl NodePick {
     }
 
     /// [`NodePick::build`] over `memo`: the previous picture's pick for
-    /// this (node, body) when the node's content and naming keys, the
-    /// document and `(delta, tol)` all match, else a build whose
+    /// this (node, body) when the node's content and naming keys (or the
+    /// body's very `Arc`), the document and `(delta, tol)` all match,
+    /// else a build whose
     /// tessellation goes through the patch memo. The answer is byte-identical to
     /// [`NodePick::build`]'s either way ([`PickMemo`]).
     ///
@@ -1165,20 +1265,28 @@ impl NodePick {
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
-            && entry.content_key == value.content_key
-            && entry.naming_key == value.naming_key
+            && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
+                || Arc::ptr_eq(&entry.body, body_arc.shared()))
             && entry.tolerances == tolerances
         {
             entry.picture = picture;
             memo.patches.keep(&entry.keys);
             let keys = entry.keys.clone();
-            let pick = entry.pick.clone();
+            // The same body under the frame it stands in now: a value
+            // edit moves a frame, not a mesh.
+            let pick = Self {
+                frame: body_arc.frame().clone(),
+                ..entry.pick.clone()
+            };
+            entry.pick = pick.clone();
+            entry.content_key = value.content_key;
+            entry.naming_key = value.naming_key;
             memo.keep_tables(&keys);
             memo.node_hits += 1;
             return Ok(pick);
         }
         memo.node_misses += 1;
-        let tessellation = tessellate_with(&body_arc, delta, tol, &mut memo.patches)
+        let tessellation = tessellate_with(body_arc.body(), delta, tol, &mut memo.patches)
             .map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
             .map_err(NodePickError::Index)?;
@@ -1186,6 +1294,7 @@ impl NodePick {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&tessellation.mesh)),
             mesh: Arc::new(tessellation.mesh),
             pick: Arc::new(pick),
@@ -1194,6 +1303,7 @@ impl NodePick {
             (node, body),
             PickEntry {
                 content_key: value.content_key,
+                body: Arc::clone(body_arc.shared()),
                 naming_key: value.naming_key,
                 tolerances,
                 pick: pick.clone(),
@@ -1214,6 +1324,7 @@ impl NodePick {
             node: self.node,
             body: self.body,
             pick: &self.pick,
+            map: self.frame.map().copied(),
         }
     }
 
@@ -1413,6 +1524,74 @@ impl NodePick {
         )
     }
 
+    /// **The rim each boundary polyline of [`NodePick::mesh`] is an arc
+    /// of, as names**, in polyline order (one entry per
+    /// [`Mesh::boundaries`] element): `Some` of every arc's name, in
+    /// [`topo::query::rim_of`]'s order, when the polyline's edge is one
+    /// arc of a closed rim of two or more; `None` when it is on no such
+    /// rim (not a circle arc, a seam between one surface and itself, a
+    /// chain that dangles or branches, or a rim of that edge alone).
+    ///
+    /// The name-level twin of `rim_of`, for the reason
+    /// [`NodePick::boundary_names`] is the name-level twin of a
+    /// polyline's key: a layer-3 consumer that draws a rim as one
+    /// circle needs to know which names the circle is, and the keys the
+    /// walk runs over never leave this crate.
+    ///
+    /// Total per polyline, with the loud arms in their own slot
+    /// ([`RimNameFault`]): an arc without a name, a body the evaluation
+    /// does not hold where the part says it drew one, or an edge that
+    /// is not in the body this evaluation holds. One should not cost a
+    /// consumer every other rim.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::boundary_names`]: the pairing arm, or a standing
+    /// arm.
+    pub fn boundary_rims(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<BoundaryRim>, NameLookupError> {
+        let value = self.admitted(eval)?;
+        let edges = self.mesh.boundaries.iter().map(|boundary| boundary.edge);
+        // The body this part was drawn from, read the way
+        // [`NodePick::build`] reads it, so the two cannot disagree
+        // about which body index means which body.
+        let drawn = sources_of(value)
+            .and_then(|sources| sources.into_iter().find(|(ix, _, _, _)| *ix == self.body));
+        let Some((_, body, _, _)) = drawn else {
+            let fault = RimNameFault::NoBody {
+                node: self.node,
+                body: self.body,
+            };
+            return Ok(edges.map(|_| Err(fault)).collect());
+        };
+        let body = body.body();
+        let named = |edge: topo::EdgeKey| {
+            self.name_in(eval, EntityKey::Edge(edge))
+                .map_err(RimNameFault::Unnamed)
+        };
+        Ok(edges
+            .map(|edge| match topo::query::rim_of(body, edge) {
+                Ok(rim) if rim.len() > 1 => rim
+                    .into_iter()
+                    .map(named)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Some),
+                Ok(_)
+                | Err(
+                    topo::query::RimError::NotAnArc { .. }
+                    | topo::query::RimError::CoSurface { .. }
+                    | topo::query::RimError::NotOneRim { .. },
+                ) => Ok(None),
+                Err(topo::query::RimError::Stale(_)) => Err(RimNameFault::Stale {
+                    node: self.node,
+                    body: self.body,
+                }),
+            })
+            .collect())
+    }
+
     /// The two name doors' one body: the pairing, then the standing,
     /// then one table read per key, in the order the keys come.
     fn names_of(
@@ -1420,23 +1599,33 @@ impl NodePick {
         eval: &Evaluation<f64>,
         keys: impl Iterator<Item = EntityKey>,
     ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        self.admitted(eval)?;
+        Ok(keys.map(|key| self.name_in(eval, key)).collect())
+    }
+
+    /// **The preamble every name door runs**: the pairing (DI3, A2a),
+    /// then the node's standing, answering its value.
+    fn admitted<'e>(
+        &self,
+        eval: &'e Evaluation<f64>,
+    ) -> Result<&'e crate::eval::NodeValue<f64>, NameLookupError> {
         if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
             return Err(m.into());
         }
-        eval.usable(self.node)?;
-        Ok(keys
-            .map(|key| {
-                lookup(
-                    eval,
-                    self.node,
-                    EntityRef {
-                        body: self.body,
-                        key,
-                    },
-                )
-                .cloned()
-            })
-            .collect())
+        Ok(eval.usable(self.node)?)
+    }
+
+    /// One entity of this part's body, named through its node's table.
+    fn name_in(&self, eval: &Evaluation<f64>, key: EntityKey) -> Result<StableName, UnnamedEntity> {
+        lookup(
+            eval,
+            self.node,
+            EntityRef {
+                body: self.body,
+                key,
+            },
+        )
+        .cloned()
     }
 
     /// The node this index answers for.
@@ -1687,6 +1876,18 @@ pub fn pick_face<T: Decide>(
     let mut lowest_hi = f64::INFINITY;
     let mut undecided: Vec<Cand> = Vec::new();
     for (target_pos, target) in targets.iter().enumerate() {
+        // The ray read into the coordinates the target's mesh is in: a
+        // rigid map keeps the ray's parameter, so every target's `t` is
+        // one parameter along the one ray, and a hit's point is read off
+        // the ray as handed.
+        let local = target.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        });
+        let ray = &local;
         for cand in target.pick.candidates(ray) {
             let Some((tri, face)) = target.pick.triangle(&cand) else {
                 // Unreachable: the trees were built over exactly the

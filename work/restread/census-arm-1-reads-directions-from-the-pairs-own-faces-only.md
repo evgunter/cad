@@ -2,11 +2,14 @@
 id: census-arm-1-reads-directions-from-the-pairs-own-faces-only
 kind: issue
 title: The census's arm 1 proposes directions from the refusing pair's own faces only, so a sliver its own flat parts from a block, or two pieces either side of a lens, refuse CurvedWithinReach
-status: open
+status: closed
+closed: 2026-10-28
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
+branch: restread/arm1-third-face-directions
+pr: 5858
 ---
 
 
@@ -68,3 +71,17 @@ a hole of radius 0.05, 5e-4 clear of the pin's wall on the diagonal.
 That row *depends* on the pair staying undecided, so the lane that
 parts it must re-fixture the row in the same PR. The row's doc says
 how.
+
+## Closed
+
+Closed by PR 5858 (merged 2026-10-28). The verifier measured cone × rod and cone × cone pairs and found no pose the removed common normal would clear that the head refuses; no committed row witnesses that, filed below.
+
+## Built
+
+On `restread/arm1-third-face-directions`, arm 1 reads two more
+families from the pair's own faces (`census::depth_gap::across`): each
+arc's chord normal, and the line between the two carriers' axes or
+centres. The sliver's arc chord is its flat's normal, so no third face
+is read; the general form's normals of other faces were not needed by
+any measured class. `j3r2_pocket_battery` goes from 12 `BAD` to 0, and
+the INTENT row is re-fixtured to a hole 1.5 box pads clear.

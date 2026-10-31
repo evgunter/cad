@@ -4,7 +4,6 @@ kind: issue
 title: M6-6 sense-gate residuals — the recorded classes outside the gate, with their flip conditions
 status: open
 opened: 2026-08-07
-github: 226
 refs: [223, 250]
 priority: P1
 cost: D
@@ -159,7 +158,7 @@ Pinned in `crates/sweep/tests/m5_s10_face_sense.rs`:
 Write-up:
 `work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`.
 The import-side consequence is
-`work/exch/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
+`work/importgate/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
 
 ## Home
 

@@ -141,7 +141,7 @@ fn an_authored_roll_loft_faces_out_at_every_level() {
             "roll {theta}: tier 2"
         );
 
-        let wall = lofted.side_faces[0][0];
+        let wall = lofted.side_faces[0][0][0];
         let roll = theta;
         let n0 = wall_outward_at(&lofted.body, wall, 0.5, 0.0).1;
         let n1 = wall_outward_at(&lofted.body, wall, 0.5, 1.0).1;
@@ -331,11 +331,11 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 /// the start frame rigidly, so every station's ring is the same set of
 /// world points in both builds; the quarter turn is the exact column
 /// permutation, so they are the same BITS, and only which edge is wall
-/// 0 differs. The sections sit at the loft's chord-length parameters,
-/// a function of the rows as a set, so the walls are bit-identical,
-/// shifted by one edge. A parameterization read off one wall moved the
-/// volume in the fifth digit with the roll, and where `v = 0.5` lands
-/// on the spine by 0.354.
+/// 0 differs. The sections sit at their stations' path parameters,
+/// which no roll enters, so the walls are bit-identical, shifted by one
+/// edge. A parameterization read off one wall moved the volume in the
+/// fifth digit with the roll, and where `v = 0.5` lands on the spine by
+/// 0.354.
 #[test]
 fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     let path = inflecting_path();
@@ -348,26 +348,20 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     ));
     let tol = Tol::witness();
     let build = |place| {
-        let params = sweep::loft_parameters(
-            &vec![profile.clone(); 13],
-            &sweep::skin::sweep_places(place, &path, 13, tol).expect("the duct's frames"),
-            3,
-            tol,
-        )
-        .expect("the duct's sections parameterize");
         let geometry = sweep_geometry(&profile, place, &path, 13, 3, tol).expect("the duct skins");
         let body = sweep_body::<f64>(&profile, place, &path, 13, 3, tol).expect("the duct sweeps");
-        (params, geometry, body)
+        (geometry, body)
     };
-    let (chord_params, base, base_body) = build(place);
-    let (_, other, other_body) = build(rolled);
+    let (base, base_body) = build(place);
+    let (other, other_body) = build(rolled);
 
+    let path_params: Vec<f64> = (0..13).map(|i| f64::from(i) / 12.0).collect();
     assert_eq!(
-        base.section_params, chord_params,
-        "a sweep's sections sit at the loft's chord-length parameters"
+        base.section_params, path_params,
+        "a sweep's sections sit at their stations' path parameters"
     );
     assert_eq!(
-        base_body.section_params, chord_params,
+        base_body.section_params, path_params,
         "the body reads back the parameters its walls were skinned at"
     );
     assert_eq!(

@@ -28,7 +28,10 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-pub(crate) fn stem() -> AtRestBody<f64> {
+/// The stem, or `None` at ε = 1e-12, where its torus wall is past limb
+/// 2's reach: the kernel's limit
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+pub(crate) fn stem() -> Option<AtRestBody<f64>> {
     let stem = tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
@@ -43,10 +46,10 @@ pub(crate) fn stem() -> AtRestBody<f64> {
         },
         STEM_TUBE,
         Tol::witness(),
-    )
-    .expect("stem builds")
-    .body;
-    finished("the stem", stem, Tol::witness())
+    );
+    let stem =
+        test_utils::kernel_limit::pinned(stem, Tol::witness().eps(), &[1e-12], "the stem")?.body;
+    Some(finished("the stem", stem, Tol::witness()))
 }
 
 /// The fork point (the stem's end / the arch's start), its tangent,
@@ -151,54 +154,73 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 ///
 /// PR #1477's deviation 1 measured the wall-1 refusal as the stem's
 /// tube wall against the arch's FAR cap, 2.08 m from any contact,
-/// overlapping only because the wall's box was the WHOLE RING. Three
-/// things have moved since: the ring box is gone
-/// (`boolean::boxes`'s `TorusWindow` arm), the torus is on the operand
-/// gate's KIND roster, so the gate names no pair at all, and the
-/// crossing layer has a circle × torus root lane, so the two seams that
-/// cross the other tube's carrier (the stem's inner equator, the arch's
-/// outer equator) are decided rather than refused. What this row
-/// re-derives now is: (a) wall 1 is past the gate, the crossing layer
-/// and the join, and stops at the interior-loop guard on its two tube
-/// walls; (b)
-/// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
-/// is no longer inside the wall's box either; (d) the weld still has no
-/// torus×torus contact (tube 0.060 vs 0.052 — the walls
-/// share only the weld plane). No `if let` skip-hazard: the far cap
-/// MUST exist.
+/// overlapping only because the wall's box was the WHOLE RING. What
+/// this row re-derives now is: (a) wall 1 builds, both orders: the
+/// section certificate's parallel-tori arm reads the two tube walls'
+/// section as two loops, mirror images across the weld plane, each
+/// outside one face's window, so the interior-loop guard clears them
+/// and the union is one stem of the two tubes' volumes; ∩ is empty and
+/// each difference gives back its first operand; (b) the far cap
+/// stands ~2 m clear of the stem wall's exact locus; (c) it is no
+/// longer inside the wall's box either; (d) near the weld the walls
+/// stand the 8 mm annular gap apart (tube 0.060 vs 0.052). No `if let`
+/// skip-hazard: the far cap MUST exist.
 #[test]
-fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
-    let (s, a) = (stem(), arch());
+fn p1_wall1_glues_the_stem_into_one_body() {
+    let Some(s) = stem() else { return };
+    let a = arch();
     assert_eq!(
         weld_cap_pairs(&s, &a),
         1,
         "exactly one coplanar cross cap pair at the fork"
     );
 
-    let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, past the join");
-    // **Wall 1 is no longer the crossing layer's.** The circle × torus
-    // root lane (`topo::boolean::circle_torus`) certifies that each
-    // seam crosses the other tube's carrier only outside that face's
-    // window, so neither pair is an event; the op reaches the join,
-    // whose germ pair of the stem's weld cap against the arch's wall
-    // takes the plane × wall arm and its chord, an arc of the arch's
-    // meridian circle. Past the join the interior-loop guard refuses the
-    // stem's tube wall against the arch's, two tori with parallel axes
-    // apart, which the section certificate has no arm for. The far-cap
-    // claims below are geometry and stand on their own.
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                site: topo::PairRefusalSite::InteriorLoopGuard,
-                kind: geom::SurfaceKind::Torus,
-                other_kind: geom::SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "wall 1 stops at the interior-loop guard on its two tube walls: {err:?}"
+    // (a) Pappus: each tube is its disc swept along its arc.
+    let tube = |r: f64, ring: f64, turn: f64| core::f64::consts::PI * r * r * ring * deg(turn);
+    let (vs, va) = (
+        tube(STEM_TUBE, STEM_RING, 22.0),
+        tube(ARCH_TUBE, ARCH_RING, 170.0),
     );
+    let volume = |what: &str, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+        let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        r.body().map(|b| {
+            assert_eq!(b.body.shells().count(), 1, "{what}: one shell");
+            topo::test_support::pinned_volume(what, &b.body, Tol::witness()).volume
+        })
+    };
+    for (what, r, want) in [
+        (
+            "stem ∪ arch",
+            topo::union(&s, &a, Tol::witness()),
+            Some(vs + va),
+        ),
+        (
+            "arch ∪ stem",
+            topo::union(&a, &s, Tol::witness()),
+            Some(vs + va),
+        ),
+        ("stem ∩ arch", topo::intersect(&s, &a, Tol::witness()), None),
+        (
+            "stem ∖ arch",
+            topo::subtract(&s, &a, Tol::witness()),
+            Some(vs),
+        ),
+        (
+            "arch ∖ stem",
+            topo::subtract(&a, &s, Tol::witness()),
+            Some(va),
+        ),
+    ] {
+        let got = volume(what, r);
+        match (got, want) {
+            (Some(got), Some(want)) => assert!(
+                (got - want).abs() < 1e-9 * want,
+                "{what}: volume {got}, closed form {want}"
+            ),
+            (None, None) => {}
+            _ => panic!("{what}: body {got:?}, wanted {want:?}"),
+        }
+    }
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
         .into_iter()
@@ -263,10 +285,9 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
         q.x
     );
 
-    // (d) The weld has no torus×torus contact: the two tube walls'
-    // minor radii differ (0.060 vs 0.052), and near the weld plane the
-    // walls stay ~8 mm apart (concentric cross-sections). Sampled on
-    // both walls within 1° of the weld.
+    // (d) Near the weld plane the two tube walls stand ~8 mm apart:
+    // their minor radii differ (0.060 vs 0.052) and their cross-sections
+    // there are concentric. Sampled on both walls within 1° of the weld.
     let assert_minor = |body: &Body<f64>, want: f64| {
         for (_, f) in body.faces() {
             if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.get_surface(f.surface) {
@@ -322,7 +343,168 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     }
     assert!(
         (0.006..0.010).contains(&min_wall),
-        "the two tube walls share only the weld plane: nearest approach must be the \
-         8 mm annular gap, measured {min_wall:.4} m"
+        "near the weld the tube walls' nearest approach is the 8 mm annular gap, \
+         measured {min_wall:.4} m"
+    );
+}
+
+/// **The same two tori with a stem window that reaches over a loop
+/// refuse at their germs.** Run to 30° instead of 22°, the stem's tube
+/// wall spans the loop on the arch's side of the weld plane, and its
+/// seams cross the arch's tube, so the pair carries events, and the
+/// reduction's germ mint, carrying the two tube walls' section to read a
+/// site's foot, refuses it (`GermSectionUnbuilt`, torus × torus: the
+/// march's own stop on the lily's tori, `CellBudget` at the compiled ε
+/// and the tube's straddle at 1e-6,
+/// [`the_lilys_tori_exhaust_the_doors_cell_budget`]) before the
+/// interior-loop guard is asked. What this row pins is that refusal: it
+/// goes red when the op starts building this pair, or refuses it
+/// somewhere else. It cannot see the certificate. The certificate-level degrade row is
+/// `section_cert_parallel_tori_rows`
+/// `the_lilys_pair_clears_only_on_windows_that_miss_its_loops`.
+#[test]
+fn a_stem_window_reaching_over_a_loop_does_not_glue() {
+    let long = tube_along_arc(
+        tube_frame(
+            Point3::new(-STEM_RING, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
+        STEM_RING,
+        TubeWindow::Arc {
+            t0: 0.0,
+            t1: deg(30.0),
+        },
+        STEM_TUBE,
+        Tol::witness(),
+    );
+    let Some(long) =
+        test_utils::kernel_limit::pinned(long, Tol::witness().eps(), &[1e-12], "the long stem")
+    else {
+        return;
+    };
+    let (long, a) = (finished("the long stem", long.body, Tol::witness()), arch());
+    for (what, r) in [
+        ("long ∪ arch", topo::union(&long, &a, Tol::witness())),
+        ("arch ∪ long", topo::union(&a, &long, Tol::witness())),
+    ] {
+        // The door's own stop on the pair: its cell budget at the
+        // compiled ε, its tube at 1e-6, as the door row below pins it.
+        let coarse = Tol::witness().eps() == 1e-6;
+        assert!(
+            match &r {
+                Err(BooleanError::GermSectionUnbuilt {
+                    a_kind: geom::SurfaceKind::Torus,
+                    b_kind: geom::SurfaceKind::Torus,
+                    why: topo::SectionUnbuilt::March(march),
+                    ..
+                }) => {
+                    if coarse {
+                        matches!(march, geom_brep::SsiError::TubeStraddles { .. })
+                    } else {
+                        matches!(march, geom_brep::SsiError::CellBudget { .. })
+                    }
+                }
+                _ => false,
+            },
+            "{what}: the two tube walls refuse at their germs: {:?}",
+            r.err()
+        );
+    }
+}
+
+/// **An arch started inside the stem glues to the same volume.** Started
+/// 2° or 5° back from the fork, the arch's tube runs inside the stem's
+/// there (the stem-side loop starts about 7.8° back), so the union is
+/// still the two tubes' volume. Mutant: a certificate that clears a pair
+/// whose overlap the op then counts twice.
+#[test]
+fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
+    let f = arch_frame();
+    let want = core::f64::consts::PI
+        * (STEM_TUBE.powi(2) * STEM_RING * deg(22.0) + ARCH_TUBE.powi(2) * ARCH_RING * deg(170.0));
+    let Some(s) = stem() else { return };
+    for back in [2.0, 5.0] {
+        let early = tube_along_arc(
+            tube_frame(
+                f.center,
+                Vec3::new(0.0, -1.0, 0.0),
+                f.radial,
+                Tol::witness(),
+            ),
+            ARCH_RING,
+            TubeWindow::Arc {
+                t0: deg(-back),
+                t1: deg(170.0),
+            },
+            ARCH_TUBE,
+            Tol::witness(),
+        )
+        .expect("the early arch builds")
+        .body;
+        let a = finished("the early arch", early, Tol::witness());
+        for (what, r) in [
+            ("stem ∪ early", topo::union(&s, &a, Tol::witness())),
+            ("early ∪ stem", topo::union(&a, &s, Tol::witness())),
+        ] {
+            let b = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let b = b.body().expect("a body");
+            assert_eq!(b.body.shells().count(), 1, "{what}: one shell");
+            let v = topo::test_support::pinned_volume(what, &b.body, Tol::witness()).volume;
+            assert!(
+                (v - want).abs() < 1e-9 * want,
+                "{what} from {back}° back: {v} vs {want}"
+            );
+        }
+    }
+}
+
+/// **The lily's stem and arch tori exhaust the door's cell budget.** The
+/// two tube walls' whole tori (axes parallel and apart): the pose's gap
+/// is transverse and the value lists the parallel tori's components,
+/// but where the arch leaves the fork its core runs tangent to the
+/// stem's and its tube 8 mm inside the stem's, a near tube-circle
+/// tangency, and the accounting over the smaller torus's ball refuses
+/// `CellBudget` at the compiled ε, on the tube at 1e-6
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
+/// and on the thin stem's limb 2 at 1e-12 (the kernel limit [`stem`]
+/// names),
+/// as a cylinder × sphere pose near its node does
+/// (`work/sectrung/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
+/// This row pins that stop: it goes red the day the door carries the
+/// lily's pair.
+#[test]
+fn the_lilys_tori_exhaust_the_doors_cell_budget() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let ring = |center, big, small| geom::Surface::Torus {
+        center,
+        axis: Vec3::new(0.0, -1.0, 0.0),
+        major_radius: big,
+        minor_radius: small,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let stem = ring(Point3::new(-STEM_RING, 0.0, 0.0), STEM_RING, STEM_TUBE);
+    let arch = ring(arch_frame().center, ARCH_RING, ARCH_TUBE);
+    let geom_brep::SectionRead::Built(section) =
+        geom_brep::pair_section(&stem, &arch, None, None, band).expect("the pose decides")
+    else {
+        panic!("the value builds two tori");
+    };
+    assert!(
+        section.tangency().is_none() && section.counted().is_some_and(|c| !c.is_empty()),
+        "a transverse gap, its components listed"
+    );
+    let got = geom_brep::torus_torus_ssi(&stem, &arch, section.pose().domain(), band);
+    let eps = Tol::witness().eps();
+    assert!(
+        match &got {
+            Err(geom_brep::SsiError::TubeStraddles { .. }) => eps == 1e-6,
+            Err(geom_brep::SsiError::RefinementExhausted { .. }) => eps == 1e-12,
+            Err(geom_brep::SsiError::CellBudget { .. }) => eps != 1e-6 && eps != 1e-12,
+            _ => false,
+        },
+        "the door's stop on the lily's pair: {:?}",
+        got.map(|o| o.branches.len())
     );
 }

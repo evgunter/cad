@@ -17,6 +17,7 @@
 
 use crate::revolve_common;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -757,7 +758,7 @@ fn nurbs_bump() -> Body<f64> {
     // Lifts RechartStrandsDescriptions: the bump's net is the fixture; the top edges stay the lines they were.
     body.set_face_surface_unvouched_for_tests(
         top,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(patch)),
             sense: true,
         },
@@ -817,11 +818,16 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 /// **The NURBS graze: a bump a clamp's plate grazes in an oval, behind
 /// crossings elsewhere.** The oval is interior to both faces and no edge
 /// event marks it; the bar's crossings through the block's walls are the
-/// only events. The section certificate examines the bump × plate pair
-/// and refuses it on reach: the plane cuts the bump's control net, and
-/// no arm counts a spline section's components. Red against a scope that
-/// leaves NURBS out (no NURBS pair is examined) and against W0 reading
-/// any one control point clear of the plane rather than all.
+/// only events. The section certificate examines the bump × plate pair:
+/// the plane cuts the bump's control net, so the guard reads the
+/// section whole (C3's `PlaneSection::all`), which lists the oval as one
+/// closed loop with its witness. The pair has no event, so the witness
+/// decides it, and the bump face's region does not place it (its
+/// pcurves are the stranded top's, below): the pair refuses undecided,
+/// in both operand orders. Red against a scope that leaves NURBS out (no
+/// NURBS pair is examined), against W0 reading any one control point
+/// clear of the plane rather than all (the pair is parted), and against
+/// the boundary clause read true for a closed loop (the pair clears).
 ///
 /// The bump block is not a finished body: its top edges keep the line
 /// descriptions of the plane the bump replaced, so the at-rest gate
@@ -833,12 +839,12 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
     let (a, b) = (nurbs_bump(), nurbs_clamp());
     assert_eq!(
         nurbs_verdicts(&a, &b),
-        vec!["Nurbs × Plane: Err(Reach)".to_string()],
-        "the bump × plate pair is examined and refuses on reach"
+        vec!["Nurbs × Plane: Err(Undecided)".to_string()],
+        "the bump × plate pair is read whole and its loop refuses undecided"
     );
     assert_eq!(
         nurbs_verdicts(&b, &a),
-        vec!["Plane × Nurbs: Err(Reach)".to_string()],
+        vec!["Plane × Nurbs: Err(Undecided)".to_string()],
         "the same with the operands swapped"
     );
     let errors = topo::AtRestBody::validate(a, Tol::witness())

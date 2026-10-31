@@ -15,6 +15,10 @@
 //!   beside the assertion. The field punctuation is NOT: it is the
 //!   caller's hand-written roster, and [`f6`]'s own module docs argue
 //!   why deriving it was tried and refused.
+//! - [`kernel_limit`], a fixture pinned to refuse as limb 2's kernel
+//!   approximation limit at the tolerance rows it cannot certify at.
+//! - [`pinned_red`], a red row pinned to stop where main stops it, at
+//!   the ε rows it is red at, while the row that owns its fix is open.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
 //! - [`offer`], an offered tolerance executed: the refusal re-raised
@@ -71,9 +75,11 @@ pub mod census;
 pub mod cone_cut;
 pub mod f6;
 pub mod fuzz;
+pub mod kernel_limit;
 pub mod offer;
 pub mod own_thread;
 pub mod panic_capture;
+pub mod pinned_red;
 pub mod refusal;
 pub mod roster;
 pub mod seam_census;

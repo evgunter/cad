@@ -321,123 +321,139 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 /// (a), (b) and (d) run in the default build.
 #[test]
 fn r5_crossing_vertex_on_is_declared_not_measured() {
-    // Plane x + 3y = 400000, normal (1,3,0)/√10; crossing edges hit it
-    // at non-dyadic parameters.
-    let profile = [
-        (99004.0, 98986.0),
-        (101007.0, 99000.0),
-        (101011.0, 101017.0),
-        (98993.0, 101003.0),
-    ];
-    let l = 10.0f64.sqrt();
-    let plane = topo::test_support::split_plane(
-        Point3::new(100000.0, 100000.0, 0.0),
-        Vec3::new(1.0 / l, 3.0 / l, 0.0),
-        geom_core::Tol::witness(),
-    );
-    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-
-    let red = match split_reduce(&operand, &plane, Tol::witness()) {
-        Ok(red) => red,
-        // At the strictest ε row the certified split_edge lane REFUSES
-        // this construction outright: the child-curve re-certification
-        // residual at 1e5-scale coordinates exceeds a 1e-12 band
-        // (ResidualExceeded, typed). That is the fail-loud backstop for
-        // exactly the off-plane-construction concern this test probes —
-        // pin it and stop here for such rows.
-        // (Fix pass MINOR-2: the refusal now carries the crossing site
-        // — edge + straddling endpoints — with the typed error nested.)
-        Err(SplitReduceError::CrossingInsertion { source, .. })
-            if matches!(*source, topo::EulerOpError::Certification { .. }) =>
-        {
-            assert!(
-                band.zero() < 1e-10,
-                "certification refusal expected only at strict ε rows"
+    // Pinned to limb 2's kernel limit at ε = 1e-12: its 2 km edges,
+    // outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at [0, 1.5e-11], the data's own rounding at that length — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands. It claims no miss.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "r5_crossing_vertex_on_is_declared_not_measured",
+        || {
+            // Plane x + 3y = 400000, normal (1,3,0)/√10; crossing edges hit it
+            // at non-dyadic parameters.
+            let profile = [
+                (99004.0, 98986.0),
+                (101007.0, 99000.0),
+                (101011.0, 101017.0),
+                (98993.0, 101003.0),
+            ];
+            let l = 10.0f64.sqrt();
+            let plane = topo::test_support::split_plane(
+                Point3::new(100000.0, 100000.0, 0.0),
+                Vec3::new(1.0 / l, 3.0 / l, 0.0),
+                geom_core::Tol::witness(),
             );
-            return;
-        }
-        Err(other) => panic!("unexpected refusal: {other:?}"),
-    };
+            let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+            let operand =
+                topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+            let band = geom_core::Band::linear(Tol::witness()).unwrap();
 
-    // (c) Telemetry (the Probe recording scalar): split_vertex_side ran
-    // exactly once per OPERAND vertex — constructed crossing vertices
-    // and null-edge copies are cached, never re-measured through the
-    // predicate.
-    //
-    // `Probe` is behind the `probe` feature (it is a `Real`
-    // instantiation, so everything generic monomorphizes at it), and
-    // (a)/(b)/(d) below are f64 claims that must keep running in the
-    // default build — so the gate is on this block rather than on the
-    // whole test or the whole file.
-    #[cfg(feature = "probe")]
-    {
-        use geom_core::k_stats::{Probe, start_recording, take_samples};
-        let n_operand_vertices = fx.body.vertices().count();
-        let fx_p = prism::<Probe>(&profile, 1.0, Tol::witness());
-        let operand =
-            topo::test_support::finished("the fixture", fx_p.body.clone(), Tol::witness());
-        let plane_p = topo::test_support::split_plane(
-            Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
-            Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
-            geom_core::Tol::witness(),
-        );
-        start_recording();
-        let red_p = split_reduce(&operand, &plane_p, Tol::witness()).unwrap();
-        let samples = take_samples();
-        assert_eq!(red_p.on_vertices.len(), 4);
-        let sweeps = samples
-            .iter()
-            .filter(|s| s.predicate == "split_vertex_side")
-            .count();
-        assert_eq!(sweeps, n_operand_vertices, "no re-measurement anywhere");
-    }
+            let red = match split_reduce(&operand, &plane, Tol::witness()) {
+                Ok(red) => red,
+                // At the strictest ε row the certified split_edge lane REFUSES
+                // this construction outright: the child-curve re-certification
+                // residual at 1e5-scale coordinates exceeds a 1e-12 band
+                // (ResidualExceeded, typed). That is the fail-loud backstop for
+                // exactly the off-plane-construction concern this test probes —
+                // pin it and stop here for such rows.
+                // (Fix pass MINOR-2: the refusal now carries the crossing site
+                // — edge + straddling endpoints — with the typed error nested.)
+                Err(SplitReduceError::CrossingInsertion { source, .. })
+                    if matches!(*source, topo::EulerOpError::Certification { .. }) =>
+                {
+                    assert!(
+                        band.zero() < 1e-10,
+                        "certification refusal expected only at strict ε rows"
+                    );
+                    return;
+                }
+                Err(other) => panic!("unexpected refusal: {other:?}"),
+            };
 
-    assert_eq!(red.on_vertices.len(), 4); // 2 crossing segments × 2 rims
-    // (a)+(b): extended-precision residual (two_prod/two_sum) of each
-    // stored crossing point.
-    let two_sum = geom_core::exact::two_sum;
-    let two_prod = |a: f64, b: f64| {
-        let p = a * b;
-        (p, a.mul_add(b, -p))
-    };
-    let mut max_residual: f64 = 0.0;
-    for &v in &red.on_vertices {
-        assert_eq!(red.sides[v], PlaneSide::On, "declared ON");
-        let p = point_of(&red.body, v);
-        let (h1, e1) = two_prod(p.x - plane.origin.x, plane.normal.get().x);
-        let (h2, e2) = two_prod(p.y - plane.origin.y, plane.normal.get().y);
-        let (s, es) = two_sum(h1, h2);
-        let residual = s + (es + e1 + e2);
-        max_residual = max_residual.max(residual.abs());
-    }
-    assert!(
-        max_residual > 0.0,
-        "all constructed points exactly on-plane — the declared-ON \
-         question would be vacuous here"
-    );
-    assert!(
-        max_residual < band.zero(),
-        "constructed-point residual {max_residual:e} exceeds the \
-         coincidence threshold {:e}: declared ON is inconsistent with \
-         the band at this ε row",
-        band.zero()
-    );
-    // (d) A consumer CANNOT re-sweep the reduced body through the
-    // public gate: it now carries null scaffolding, so it is not a
-    // finished body, and the at-rest gate every split door's operand
-    // passes refuses it, naming its null edges. The declared-ON cache
-    // in `red.sides` is therefore the only currency downstream — which
-    // is exactly the declared-coincidence design, pinned here.
-    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(red.body.clone(), Tol::witness())
-        .expect_err("the reduced body is not a finished body");
-    assert!(
-        !errors.is_empty()
-            && errors
-                .iter()
-                .all(|e| matches!(e, ValidationError::NullEdgeAtRest { .. })),
-        "the at-rest gate names the reduced body's null edges: {errors:?}"
+            // (c) Telemetry (the Probe recording scalar): split_vertex_side ran
+            // exactly once per OPERAND vertex — constructed crossing vertices
+            // and null-edge copies are cached, never re-measured through the
+            // predicate.
+            //
+            // `Probe` is behind the `probe` feature (it is a `Real`
+            // instantiation, so everything generic monomorphizes at it), and
+            // (a)/(b)/(d) below are f64 claims that must keep running in the
+            // default build — so the gate is on this block rather than on the
+            // whole test or the whole file.
+            #[cfg(feature = "probe")]
+            {
+                use geom_core::k_stats::{Probe, start_recording, take_samples};
+                let n_operand_vertices = fx.body.vertices().count();
+                let fx_p = prism::<Probe>(&profile, 1.0, Tol::witness());
+                let operand =
+                    topo::test_support::finished("the fixture", fx_p.body.clone(), Tol::witness());
+                let plane_p = topo::test_support::split_plane(
+                    Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
+                    Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
+                    geom_core::Tol::witness(),
+                );
+                start_recording();
+                let red_p = split_reduce(&operand, &plane_p, Tol::witness()).unwrap();
+                let samples = take_samples();
+                assert_eq!(red_p.on_vertices.len(), 4);
+                let sweeps = samples
+                    .iter()
+                    .filter(|s| s.predicate == "split_vertex_side")
+                    .count();
+                assert_eq!(sweeps, n_operand_vertices, "no re-measurement anywhere");
+            }
+
+            assert_eq!(red.on_vertices.len(), 4); // 2 crossing segments × 2 rims
+            // (a)+(b): extended-precision residual (two_prod/two_sum) of each
+            // stored crossing point.
+            let two_sum = geom_core::exact::two_sum;
+            let two_prod = |a: f64, b: f64| {
+                let p = a * b;
+                (p, a.mul_add(b, -p))
+            };
+            let mut max_residual: f64 = 0.0;
+            for &v in &red.on_vertices {
+                assert_eq!(red.sides[v], PlaneSide::On, "declared ON");
+                let p = point_of(&red.body, v);
+                let (h1, e1) = two_prod(p.x - plane.origin.x, plane.normal.get().x);
+                let (h2, e2) = two_prod(p.y - plane.origin.y, plane.normal.get().y);
+                let (s, es) = two_sum(h1, h2);
+                let residual = s + (es + e1 + e2);
+                max_residual = max_residual.max(residual.abs());
+            }
+            assert!(
+                max_residual > 0.0,
+                "all constructed points exactly on-plane — the declared-ON \
+             question would be vacuous here"
+            );
+            assert!(
+                max_residual < band.zero(),
+                "constructed-point residual {max_residual:e} exceeds the \
+             coincidence threshold {:e}: declared ON is inconsistent with \
+             the band at this ε row",
+                band.zero()
+            );
+            // (d) A consumer CANNOT re-sweep the reduced body through the
+            // public gate: it now carries null scaffolding, so it is not a
+            // finished body, and the at-rest gate every split door's operand
+            // passes refuses it, naming its null edges. The declared-ON cache
+            // in `red.sides` is therefore the only currency downstream — which
+            // is exactly the declared-coincidence design, pinned here.
+            let errors =
+                <f64 as topo::AtRestPolicy>::gate_at_rest_kept(red.body.clone(), Tol::witness())
+                    .expect_err("the reduced body is not a finished body");
+            assert!(
+                !errors.is_empty()
+                    && errors
+                        .iter()
+                        .all(|e| matches!(e, ValidationError::NullEdgeAtRest { .. })),
+                "the at-rest gate names the reduced body's null edges: {errors:?}"
+            );
+        },
     );
 }
 

@@ -1,18 +1,14 @@
-//! **The registry's subject and the assembly gate's, gathered once.**
+//! **The registry's subject, gathered once.**
 //!
-//! Two doors here took the shape a caller with a product in hand
-//! needs, and each kept a wrapper for the caller that has none. What
-//! that owes is one claim per door, and it is a claim of EQUALITY
-//! rather than of behaviour: the wrapper is the gather plus the door,
-//! so on any document where the gather succeeds the two spellings must
-//! be indistinguishable. A row that only exercised the new door would
-//! prove the door works and say nothing about whether the old spelling
-//! still means what it used to.
+//! The registry took the shape a caller with a product in hand needs,
+//! and kept a wrapper for the caller that has none. What that owes is a
+//! claim of EQUALITY rather than of behaviour: the wrapper is the gather
+//! plus the door, so on any document where the gather succeeds the two
+//! spellings must be indistinguishable.
 //!
 //! Where they part is the refusal, and it is stated rather than
-//! implied: `ChecksError::Product` and `AssemblyError::Product` are the
-//! WRAPPERS' arms — the gather is theirs — and a door handed a subject
-//! cannot raise them.
+//! implied: `ChecksError::Product` is the WRAPPER's arm — the gather is
+//! its — and a door handed a subject cannot raise it.
 //!
 //! **The gather counter is `cfg(debug_assertions)`, and the statements
 //! that read it carry the same gate.** `gathers_on_this_thread` exists
@@ -31,13 +27,12 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,
-    DocumentId, Evaluation, Node, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Severity,
-    Subject, assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
+    Advisory, CheckId, ChecksConfig, ChecksError, ChecksReport, DocumentId, Evaluation, Node,
+    NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject, product_recorded,
+    run_checks, run_checks_on,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
-use topo::Body;
 
 /// **A world whose gather refuses**: a cube instance pinned to the
 /// world and a second placed on it by a constraint whose side names a
@@ -143,7 +138,7 @@ fn an_empty_world_is_the_empty_product_subject() {
 /// whose side names no face of its part fails the placement holding it,
 /// and the gather refuses that placement typed. Connectedness reads the
 /// evaluation, so where it runs it answers first, refusing the same
-/// placement's standing; with it off, the separation resident reads the
+/// placement's standing; with it off, the at-rest resident reads the
 /// subject, finds none, and the door refuses `Product` carrying the
 /// gather's own sentence. Nothing is run and discarded, and no arm
 /// claims the document denotes no body when it does.
@@ -157,7 +152,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     assert!(
         matches!(
             refusal,
-            ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == placement
+            ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == placement
         ),
         "the premise: the gather refuses the product's `⊔`, poisoned through the failed \
          placement: {refusal:?}"
@@ -180,17 +175,6 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
         }
         other => panic!("expected the subject refusal, got {other}"),
     };
-
-    // The assembly gate forwards the same refusal, said by the same
-    // frame.
-    match assemble(&doc, &ev, tol).expect_err("the gate inherits the gather's refusal") {
-        err @ AssemblyError::Product(_) => assert_eq!(
-            err.spoken(&doc),
-            refusal.spoken(&doc),
-            "the gate's arm is the gather's refusal, said from the document"
-        ),
-        other => panic!("expected the gather's arm, got {other}"),
-    }
 
     let subject_free_off = ChecksConfig {
         connectedness: Severity::Off,
@@ -215,7 +199,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // Where connectedness runs, it reads the evaluation and answers
     // first, through either spelling: its own refusal of the failed
     // placement comes before the subject's.
-    let standing = ChecksError::Root(NodeStanding::Failed { node: placement });
+    let standing = ChecksError::Placement(NodeStanding::Failed { node: placement });
     assert_eq!(
         run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
         standing
@@ -247,8 +231,8 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
 fn a_run_that_needs_no_subject_does_not_gather() {
     let tol = Tol::witness();
     let off = ChecksConfig {
-        separation: Advisory::Off,
         unproven_coincidence: Advisory::Off,
+        at_rest: Severity::Off,
         ..ChecksConfig::default()
     };
     assert!(
@@ -277,7 +261,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
         vec![
             CheckId::ChartCoherence,
             CheckId::UnprovenCoincidence,
-            CheckId::Separation
+            CheckId::AtRest
         ],
         "and the skip is visible"
     );
@@ -301,7 +285,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
         vec![
             CheckId::ChartCoherence,
             CheckId::UnprovenCoincidence,
-            CheckId::Separation
+            CheckId::AtRest
         ]
     );
 }
@@ -309,7 +293,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
 /// **The coincidence lint needs the product.** The at-rest rows ride
 /// it: a mated pair's, and every contact between two copies (D10), so a
 /// document whose gather refuses has rows nobody can read, mate or no
-/// mate (a failed placement here). With Separation and connectedness
+/// mate (a failed placement here). With the at-rest check and connectedness
 /// (which reads the evaluation, and would answer first) off and the
 /// lint on, the run refuses with the gather's refusal rather than
 /// reporting the nodes' rows as if they were all.
@@ -318,8 +302,8 @@ fn the_coincidence_lint_refuses_when_the_gather_refuses() {
     let tol = Tol::witness();
     let cfg = ChecksConfig {
         connectedness: Severity::Off,
-        separation: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
+        at_rest: Severity::Off,
         ..ChecksConfig::default()
     };
     let (collide, opts, _) = failed_placement_world("docm5-lint-collide");
@@ -419,20 +403,20 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
 /// placement, rather
 /// than forwarding the gather's account of the same state.
 #[test]
-fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
+fn a_placement_without_a_value_refuses_as_the_registrys_own_precondition() {
     let tol = Tol::witness();
-    let (doc, root) = failing_root("docm5-precedence");
+    let (doc, placement) = failing_placement("docm5-precedence");
     let ev: Evaluation<f64> = corpus::eval(&doc);
     assert!(
-        ev.value(root).is_none(),
-        "the premise: the root produced no value"
+        ev.value(placement).is_none(),
+        "the premise: the placement produced no value"
     );
     assert!(
         product_recorded(&doc, &ev, tol).is_err(),
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
+        ChecksError::Placement(standing) => assert_eq!(standing.node(), placement),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }
@@ -483,119 +467,6 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
     );
 }
 
-/// **A3 — `assemble` has no logic of its own**, on every corpus
-/// document: the wrapper's verdict and the door's agree, bodies by
-/// their measured identity and refusals by their rendering.
-///
-/// The corpus is part documents, so the A5 gate runs here over products
-/// with no minted declaration; the mate fixtures that exercise the
-/// verdicts themselves are in `asm_r2b_assembly`, `mate1_member_vocab`
-/// and the mate suites, and every one of them goes through `assemble`,
-/// which is now this door plus a gather.
-#[test]
-fn the_assembly_wrapper_and_its_door_agree_on_every_corpus_document() {
-    let tol = Tol::witness();
-    for entry in corpus::documents() {
-        let ev: Evaluation<f64> = corpus::eval(&entry.doc);
-        let wrapped = assemble(&entry.doc, &ev, tol);
-        let gathered = product_recorded(&entry.doc, &ev, tol).expect("the corpus gathers");
-        let direct = assemble_gathered(gathered, tol);
-        agree(entry.name, wrapped, direct);
-    }
-}
-
-/// One document's two assembly verdicts, held to equality.
-///
-/// `Body` carries no bit-equality door, so the identity asserted is the
-/// measured one: the same entity counts and the same mass properties,
-/// whose `Debug` rendering of an `f64` round-trips and is therefore an
-/// exact comparison rather than a tolerant one.
-fn agree(
-    name: &str,
-    wrapped: Result<Assembly<f64>, AssemblyError>,
-    direct: Result<Assembly<f64>, AssemblyError>,
-) {
-    match (wrapped, direct) {
-        (Ok(a), Ok(b)) => {
-            assert_eq!(measure(&a.body), measure(&b.body), "{name}: the same body");
-            assert_eq!(
-                a.contacts.face_face().count(),
-                b.contacts.face_face().count(),
-                "{name}: the same contacts"
-            );
-            assert_eq!(a.names.len(), b.names.len(), "{name}: the same name table");
-        }
-        (Err(a), Err(b)) => assert_eq!(a.to_string(), b.to_string(), "{name}: the same refusal"),
-        (a, b) => panic!(
-            "{name}: the wrapper and the door disagree: {:?} vs {:?}",
-            a.map(|_| "Ok"),
-            b.map(|_| "Ok")
-        ),
-    }
-}
-
-/// A body as an exactly-comparable measurement.
-fn measure(body: &Body<f64>) -> String {
-    format!(
-        "{}|{}|{}|{:?}",
-        body.solids().count(),
-        body.faces().count(),
-        body.edges().count(),
-        topo::mass_properties(
-            &topo::test_support::finished(
-                "the measured body",
-                topo::Body::clone(body),
-                Tol::witness()
-            ),
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-    )
-}
-
-/// **A3 — the gather refusal is the WRAPPER's arm.** The door takes a
-/// product, so `AssemblyError::Product` is unreachable from it; the
-/// wrapper is where a document that does not gather becomes one.
-#[test]
-fn the_assembly_gathers_in_one_place() {
-    assert_eq!(
-        gathers_in(include_str!("../src/assembly.rs")),
-        1,
-        "one gather call in the assembly module's source, in `assemble`"
-    );
-
-    let tol = Tol::witness();
-    let doc = twin("docm5-asm-one-gather");
-    let ev: Evaluation<f64> = corpus::eval(&doc);
-    #[cfg(debug_assertions)]
-    let before = editor_core::gathers_on_this_thread();
-    assemble(&doc, &ev, tol).expect("the wrapper assembles");
-    #[cfg(debug_assertions)]
-    assert_eq!(
-        editor_core::gathers_on_this_thread() - before,
-        1,
-        "one gather per `assemble`"
-    );
-    let product = product_recorded(&doc, &ev, tol).expect("gathers");
-    #[cfg(debug_assertions)]
-    let before = editor_core::gathers_on_this_thread();
-    assemble_gathered(product, tol).expect("the door assembles");
-    #[cfg(debug_assertions)]
-    assert_eq!(
-        editor_core::gathers_on_this_thread() - before,
-        0,
-        "and none in the door under it"
-    );
-
-    let a = twin("docm5-asm-pair-a");
-    let b = twin("docm5-asm-pair-b");
-    let ev_a: Evaluation<f64> = corpus::eval(&a);
-    match assemble(&b, &ev_a, tol).expect_err("the wrapper inherits the gather's refusal") {
-        AssemblyError::Product(_) => {}
-        other => panic!("expected the gather's arm, got {other}"),
-    }
-}
-
 /// **Nothing shares the product to get around the ordering.** The
 /// landing's three consumers are ordered so that one gather is enough;
 /// a `Clone` or an `Arc` on `Product<T>` would be the other answer, and
@@ -621,7 +492,10 @@ fn the_assembly_gathers_in_one_place() {
 fn nothing_clones_or_shares_the_product() {
     for (path, source) in [
         ("checks.rs", include_str!("../src/checks.rs")),
-        ("assembly.rs", include_str!("../src/assembly.rs")),
+        (
+            "checks/at_rest.rs",
+            include_str!("../src/checks/at_rest.rs"),
+        ),
         ("product.rs", include_str!("../src/product.rs")),
     ] {
         let code = test_utils::source::code_only(source);
@@ -706,7 +580,7 @@ fn twin(id: &str) -> ProfileDoc {
 /// placed. The boolean refuses the in-band pair, so the placement is
 /// live and valueless — the state both the registry's precondition and
 /// the gather have something to say about. Answers the placement.
-fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
+fn failing_placement(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
     // The lower slab half as tall at first, so the union evaluates and
@@ -724,7 +598,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let (doc, root) = crate::fixture::place(doc, fused);
+    let (doc, placement) = crate::fixture::place(doc, fused);
     // Then the lower slab raised to a unit height, its top `gap` under
     // the upper slab's bottom.
     let (doc, _) = crate::fixture::step(
@@ -736,7 +610,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             fresh: Vec::new(),
         },
     );
-    (doc, root)
+    (doc, placement)
 }
 
 /// A unit-footprint slab on its own xy, up by `dz`.
@@ -770,33 +644,18 @@ fn slab(doc: ProfileDoc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn the_registry_split_is_measured_at_a_pinned_point() {
     let tol = Tol::witness();
-    let entry = corpus::documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let doc = editor_core::apply(
-        &entry.doc,
-        &editor_core::DocEdit::DefineVar {
-            var: editor_core::VarName::from_static("fins").into(),
-            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    let doc = corpus::place_pattern_to(doc, 160);
+    let doc = corpus::heatsink::placed_fins(160);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
     assert_eq!(
         (product.body.solids().count(), product.body.faces().count()),
-        (161, 991),
-        "the point the registry split is measured at"
+        (161, 966),
+        "the point the registry split is measured at: the base and 160 fins, six faces each"
     );
 }
 
 /// Two extruded squares, the second offset by `apart` in x, each placed,
-/// so the separation resident's pair walk actually runs and has
+/// so the at-rest resident has a pair to read and has
 /// something to disagree about between two twins. Node ids are assigned
 /// in insertion order, so two of these under two document ids are one
 /// recipe under two identities: every lookup a foreign evaluation is

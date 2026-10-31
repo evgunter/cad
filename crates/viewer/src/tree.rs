@@ -16,7 +16,7 @@
 //! verdict is the comparison it decided ([`Asserted::comparison`]),
 //! out of the kernel's own relation and two computed values.
 //!
-//! A failure that CARRIES another node's refusal — a part whose root
+//! A failure that CARRIES another node's refusal — a part whose product
 //! failed or was poisoned, a mate whose pose did not evaluate — points at the
 //! node that failed and never quotes it, so the carried refusal is
 //! drawn under the row as a line of its own, and so on down, one line
@@ -632,8 +632,8 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
 /// **What `id`'s value says in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
 /// whether there is one. `None` for a payload whose `Ok` is the whole
-/// of it: a body, a profile, a pattern's instances (its
-/// count is authored, and the words of any refusal state it), a
+/// of it: a body, a profile, a family's members (its count is
+/// authored, and the words of any refusal state it), a
 /// placement's copy, the world.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
@@ -662,7 +662,8 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_) => None,
+        | ValuePayload::Instances(_)
+        | ValuePayload::Family => None,
     }
 }
 
@@ -1000,17 +1001,19 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // A mate refusal is the placement's: the pose that did not
         // evaluate is carried in its own node's words (module header).
         NodeErrorKind::Mate(_) => None,
+        // A member's refusal names what that member's own refusal names.
+        NodeErrorKind::MemberRefused { source, .. } => repair_named(source),
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
         // not take, an empty body or split side, an index outside the
-        // pattern's instances — and nothing on it refused.
+        // family's members — and nothing on it refused.
         NodeErrorKind::WrongOperand { .. }
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. } => None,
+        | NodeErrorKind::MemberOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
@@ -1045,6 +1048,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
+        | NodeErrorKind::Trace(_)
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
@@ -1070,12 +1074,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::NegativeSpacing { .. }
-        | NodeErrorKind::DegenerateSpacing
-        | NodeErrorKind::DegenerateStep
-        | NodeErrorKind::FullRangeStep { .. }
-        | NodeErrorKind::PlacementsUncertified { .. }
-        | NodeErrorKind::PlacementRule(_)
+        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::IndexCount { .. }
+        | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }

@@ -39,6 +39,7 @@
 use crate::common::operands::pellet;
 use crate::revolve_common;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;

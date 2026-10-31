@@ -3,7 +3,7 @@
 //! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
 //! edges). The join kills the vertex and makes the two edges one.
 //!
-//! **The join door** ([`Body::join_edges`]) is the one public spelling:
+//! **The join door** ([`Body::join_edges`](crate::construction::Construct::join_edges)) is the one public spelling:
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
 //! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
 //! door that carries records or names keyed by the body's cells. The
@@ -47,6 +47,18 @@
 //!   plane × plane pair, which the planar path takes and joins only as
 //!   an `Intersection`. The joined edge is asked the must-carry rule
 //!   again over its own span.
+//!
+//! The joined edge runs on the kept edge's carrier through the vertex,
+//! so the kept edge is one whose carrier has no crease there
+//! ([`crease_at`]: a spline carrier at its clamped end, or at an
+//! interior knot of multiplicity at least its degree). A spline that
+//! ends at the vertex beside a line or a circle on the same locus is
+//! the edge the join kills. Where both carriers crease there, as two
+//! spline pieces meeting at a knot of full multiplicity do, the vertex
+//! is never joined, whatever arm their faces take: every face chart and
+//! edge carrier is C¹ by its knot structure strictly inside its cell
+//! (Ev's PR 5913 ruling), so it is the vertex the knot structure puts
+//! there.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
@@ -378,6 +390,35 @@ pub(super) fn singular_at<T: Decide>(
         .map(|sign| sign != Sign::Positive)
 }
 
+/// Whether `e`'s carrier holds a crease run at its end `w`: a spline
+/// carrier whose parameter there is one point and is its own clamped
+/// end, or an interior knot of multiplicity at least its degree. A
+/// carrier run on through `w` would carry a knot of that multiplicity,
+/// so `w` is the vertex the knot structure puts there, not one a join
+/// takes back (module docs). Structural: the parameter's exact equality
+/// with one of the carrier's own knots, no margin.
+fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: VertexKey) -> bool {
+    let Some(c) = body.edge_curve_linked(e, d).certified() else {
+        return false;
+    };
+    let geom::Curve3::Nurbs(n) = c.carrier() else {
+        return false;
+    };
+    let (t0, t1) = c.params();
+    let starts_at_w = body.get_half_edge(d.he_plus).map(|h| h.start) == Some(w);
+    let t = if starts_at_w { t0 } else { t1 };
+    let knots = n.knot_values();
+    let (a, b) = knots.domain();
+    // Equal as an exact comparison reads it: the least band, where only
+    // a zero difference is Zero and an enclosure straddling it is no
+    // answer, so no crease.
+    [a, b].into_iter().chain(knots.crease_values()).any(|k| {
+        (t - k)
+            .sign_within(Band::least())
+            .is_ok_and(|d| d.sign == Sign::Zero)
+    })
+}
+
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
 /// `pass` were read out of the arena, so every hop past them is a link.
 ///
@@ -405,20 +446,27 @@ fn joinable<T: Decide>(
     if e1 == e2 {
         return Ok(None);
     }
-    let d1 = linked(
-        &body.edges,
-        e1,
-        EntityId::Edge,
-        EntityId::HalfEdge(*h1),
-        "edge",
-    );
-    let d2 = linked(
-        &body.edges,
-        e2,
-        EntityId::Edge,
-        EntityId::HalfEdge(*h2),
-        "edge",
-    );
+    let link = |e: EdgeKey, h: HalfEdgeKey| {
+        linked(
+            &body.edges,
+            e,
+            EntityId::Edge,
+            EntityId::HalfEdge(h),
+            "edge",
+        )
+    };
+    // The joined edge runs on the kept carrier through `w`, so `kept`
+    // is an edge whose carrier has no crease there; where both have
+    // one, `w` is the vertex the knot structure puts there.
+    let (h1, h2, e1, e2) = match (
+        crease_at(body, e1, link(e1, *h1), w),
+        crease_at(body, e2, link(e2, *h2), w),
+    ) {
+        (true, true) => return Ok(None),
+        (false, true) => (h2, h1, e2, e1),
+        _ => (h1, h2, e1, e2),
+    };
+    let (d1, d2) = (link(e1, *h1), link(e2, *h2));
     let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
     let pair = |s: crate::readback::EdgeSides| {
         let (f, g) = s.faces();
@@ -612,7 +660,7 @@ pub(crate) fn joinable_at_rest<T: Decide>(
         .collect()
 }
 
-/// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
+/// Joins every joinable vertex of `body` ([`Body::join_edges`](crate::construction::Construct::join_edges)) and
 /// writes each join's substitution rows into `desc` (`w → kept`,
 /// `gone → kept`, and where the join leaves a conventional vertex, that
 /// vertex `→ kept`), so the op's one [`super::ops::carry`] takes every
@@ -627,7 +675,7 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`Body::join_edges`].
+/// As [`Body::join_edges`](crate::construction::Construct::join_edges).
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
@@ -771,10 +819,22 @@ impl JoinRefusal {
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => format!(
-                "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {defect}"
-            ),
+            }) => match e.render_ended(at) {
+                // The image's refusal ends by its own ending at this door:
+                // an incidence read by the one map (D3), a lane gap "not
+                // yet", an escalation once, as its decision ends it.
+                Some(ended) => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off: {ended}"
+                ),
+                // A refusal no decision owns whose payload carries no
+                // recourse (an unsupported class, a band the tolerance
+                // cannot form), on a body the kernel built.
+                None => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off ({e}). {defect}"
+                ),
+            },
             Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/splice/joining-a-spline-carrier-is-unbuilt); there is no \
@@ -807,37 +867,13 @@ impl core::fmt::Display for JoinRefusal {
 }
 
 impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
-    /// **The join** (`docs/DESIGN.md`, maximal edges): every joinable
-    /// vertex ([`joinable_vertices`]) of the body, one at a time in
-    /// vertex-arena order until none is left, killed and its two edges
-    /// made one. The door every finisher ends with, so no body reaches
-    /// rest holding a vertex the predicate would join
-    /// (`ValidationError::JoinableVertexAtRest`). Returns the joins in
-    /// the order made, a later one's `gone` or `kept` possibly an
-    /// earlier one's `kept`: a door carrying records or names keyed by
-    /// the body's cells reads each join as `vertex → kept`,
-    /// `gone → kept`, and `conventional → kept` where it is set.
-    ///
-    /// Atomic: the joins run on a clone, which is adopted only once every
-    /// join is made and, where the body carried pcurve rows, they are
-    /// re-derived whole, so no row is left keyed by a killed half-edge.
-    /// On any refusal the body is as found. The clone is under one
-    /// surgery scope ([`crate::surgery`]) for every kill, so the door
-    /// derives tier 1 once, before it adopts.
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinUndecided`], the kill's own refusal
-    /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
-    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
-    pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
+    /// The door [`Construct::join_edges`](crate::construction::Construct::join_edges) forwards to;
+    /// documented there.
+    pub(crate) fn join_edges(
+        &mut self,
+        band: Band,
+        tol: Tol,
+    ) -> Result<Vec<EdgeJoin>, BooleanError> {
         // Nothing to join: no clone. Every reading in the band refuses
         // here, before any kill.
         if joinable_vertices(self, band)
@@ -862,33 +898,9 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         Ok(joined)
     }
 
-    /// [`Body::join_edges`] over the vertices `within` holds, on a body
-    /// the caller has staged: the join of a door that owes no write
-    /// outside the entities its call writes (the offset doors, and the
-    /// blend over the shells it carved), or of one that joins its own
-    /// fresh output in place (the shell). Not staged itself —
-    /// a refusal past the first kill leaves `self` part-joined, for the
-    /// caller to discard with its staging — and no reading outside
-    /// `within` is taken, so a vertex the call does not hold can neither
-    /// be joined nor refuse it. The rows the kills moved are re-derived
-    /// over the joined edges' faces alone: the killed edges' rows are
-    /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
-    /// each kept edge bounds, where the body carries rows at all.
-    ///
-    /// The kills run under one surgery scope ([`crate::surgery`]), so a
-    /// run of joins derives tier 1 once, at its close; a run that joins
-    /// nothing writes nothing and sweeps nothing.
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::join_edges`], for the vertices `within` holds.
-    pub fn join_edges_within(
+    /// The door [`Construct::join_edges_within`](crate::construction::Construct::join_edges_within) forwards to;
+    /// documented there.
+    pub(crate) fn join_edges_within(
         &mut self,
         band: Band,
         tol: Tol,
@@ -919,7 +931,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 }
 
-/// [`Body::join_edges`]' loop, on the staged body.
+/// [`Body::join_edges`](crate::construction::Construct::join_edges)' loop, on the staged body.
 fn join_all<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,
@@ -1038,10 +1050,10 @@ fn joined_spec<T: Decide>(
         },
     };
     let description = match kept.description() {
-        geom_brep::EdgeDescription::Intersection { pair, .. } => {
+        geom_brep::EdgeDescription::Intersection { pair, selector } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                witness: carrier.mid_point(a, b),
+                selector: selector.repinned(carrier, a, b),
             }
         }
         geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
@@ -1143,7 +1155,8 @@ mod conventional {
     use geom_core::{Point3, Tol};
 
     use super::is_conventional_vertex;
-    use crate::{Body, MefSite, MevSite};
+    use crate::Body;
+    use crate::construction::{MefSite, MevSite};
 
     #[test]
     fn only_a_lone_self_loops_vertex_is_conventional() {
@@ -1327,6 +1340,10 @@ mod join_door {
     /// (`validate::TIER1_DERIVATIONS`) are the same at every `k`, where
     /// a kill outside the join's scope adds a walk per vertex.
     #[test]
+    #[cfg_attr(
+        feature = "per-op-postcondition",
+        ignore = "pinned red: work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel"
+    )]
     fn a_join_sweeps_tier_1_once_however_many_it_joins() {
         type Door = fn(&mut Body<f64>, [crate::FaceKey; 2]) -> usize;
         // Every face of the solid, as the simultaneous doors require:
@@ -1409,6 +1426,122 @@ mod undecided_text {
                  a tighter enclosure, or {JOIN_LEVER}",
                 diag.payload()
             )
+        );
+    }
+
+    /// **A chart image refused on incidence ends by its read at the join**
+    /// (D3): a carrier decided off its chart is the door's defect, once; one
+    /// read in band at a pose ends in its lever, at a build and at rest,
+    /// with no defect appended.
+    #[test]
+    fn a_join_reading_an_incidence_refusal_ends_by_its_read() {
+        use geom_brep::recourse::Reading;
+        let refusal = |margin| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
+                    geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "WHY",
+                        margin,
+                    },
+                )),
+            })
+        };
+        let m = MarginDiag::value(4e-10);
+        for at in [Reading::Build, Reading::AtRest] {
+            let off = refusal(None).render(at);
+            let defect = geom_brep::recourse::defect_ending(geom_brep::recourse::ReadAt::from(at));
+            assert!(off.ends_with(defect), "{off}");
+            assert_eq!(off.matches("defect").count(), 1, "{off}");
+            let at_pose = refusal(Some(geom_brep::OffMargin::InBand(m))).render(at);
+            assert!(
+                at_pose.contains("Recourse: move the geometry so the edge sits clear")
+                    && !at_pose.contains("defect"),
+                "{at:?}: {at_pose}"
+            );
+        }
+    }
+
+    /// **The join's image arm ends a non-incidence refusal by its own
+    /// ending, once** (D4 ¶1 (iv)): a lane gap or a class reading
+    /// lever-only "not yet", never with a defect appended, and an
+    /// escalation of a defect check in the door's defect, once (review B's
+    /// probe on E1d).
+    #[test]
+    fn the_joins_image_arm_ends_a_refusal_by_its_own_ending() {
+        use geom_brep::recourse::Reading;
+        for (e, defect) in [
+            (
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartClass,
+                    sample: 0,
+                    cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+                },
+                false,
+            ),
+            (
+                geom_brep::PcurveCertifyError::NoGeneralLane {
+                    chart: geom::SurfaceKind::Torus,
+                    carrier: geom::CurveKind::Circle,
+                    gap: geom_brep::LaneGap::Unwritten,
+                },
+                false,
+            ),
+            (
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartWinding,
+                    sample: 0,
+                    cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+                },
+                true,
+            ),
+        ] {
+            let r = JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e.clone())),
+            });
+            for at in [Reading::Build, Reading::AtRest] {
+                let text = r.render(at);
+                let ending = e.ending(at).unwrap_or_default();
+                assert!(
+                    !ending.is_empty() && text.ends_with(&ending),
+                    "{e:?} at {at:?}: {text}"
+                );
+                assert_eq!(text.matches("There is no way through").count(), 1, "{text}");
+                assert_eq!(text.contains("defect"), defect, "{e:?} at {at:?}: {text}");
+            }
+        }
+    }
+
+    /// **A refusal whose payload already ends gets no second ending**
+    /// (review on PR 5844, H5): a piece outside one sector carries its own
+    /// recourse and ends there, with no defect after it; an unsupported
+    /// chart carries none, and the join ends it in its defect, once.
+    #[test]
+    fn the_joins_image_arm_ends_a_self_ended_payload_once() {
+        use geom_brep::recourse::Reading;
+        let render = |e| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+            })
+            .render(Reading::Build)
+        };
+        let sector = render(geom_brep::PcurveCertifyError::SectorRefused {
+            piece: 1,
+            channel: geom_brep::SectorChannel::Azimuth,
+        });
+        assert_eq!(sector.matches("Recourse").count(), 1, "{sector}");
+        assert!(!sector.contains("defect"), "{sector}");
+        let unsupported = render(geom_brep::PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Sphere,
+        });
+        assert_eq!(
+            unsupported.matches(geom_core::KERNEL_DEFECT_ENDING).count(),
+            1,
+            "{unsupported}"
         );
     }
 

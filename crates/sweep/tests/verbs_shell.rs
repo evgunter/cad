@@ -34,6 +34,7 @@ use sweep::test_support::{block, corners, prism, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
+use topo::construction::Construct;
 use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole};
 
 /// The planar face whose origin sits at height `y` (the caps).
@@ -1490,7 +1491,7 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
     // Lifts RechartStrandsDescriptions: a chart worn by faces of opposite sense is the row.
     body.set_face_surface_unvouched_for_tests(
         inner,
-        topo::FaceSurface::Shared {
+        topo::construction::FaceSurface::Shared {
             key: shared,
             sense: inner_sense,
         },
@@ -2290,7 +2291,7 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
                 fd.rings
             )
         };
-        let site = topo::MekrSite::Cycles {
+        let site = topo::construction::MekrSite::Cycles {
             target: anchor(&sealed, fd.outer),
             ring: anchor(&sealed, ring),
         };

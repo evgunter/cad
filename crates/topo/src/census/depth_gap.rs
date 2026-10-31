@@ -1,6 +1,9 @@
-//! **Two faces apart in depth about an axis, a centre or a circle** —
-//! arm 1's clear for a cross-solid pair no direction separates: nested
-//! walls, a cap inside a bore, a plug in a hole, a tube inside a tube.
+//! **Two faces apart in depth about an axis, a centre or a circle, and
+//! the directions those axes, centres and arcs aim across a pair** —
+//! arm 1's clear for a cross-solid pair no direction separates (nested
+//! walls, a cap inside a bore, a plug in a hole, a tube inside a tube),
+//! and the directions arm 1's turned-direction test reads besides its
+//! own.
 //!
 //! A reach box reads a face's extent in linear coordinates; this reads
 //! it in a radial one. A *depth* is the distance from an axis line, from
@@ -59,7 +62,8 @@
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an
 //! axis or centre to the other face's nearest segment point, which arm
-//! 1's turned-direction test reads. That proposes; it decides nothing.
+//! 1's turned-direction test reads; the faces' arcs and carriers aim
+//! more ([`across`]). That proposes; it decides nothing.
 
 use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
@@ -86,6 +90,11 @@ pub(crate) const DEPTH_FOOT: &str = "census_backstop_depth_foot";
 /// nearest boundary segment point (metres), before it is read as a unit
 /// direction ([`toward`]).
 pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
+
+/// K name: an arc's chord normal (its conic's unit normal crossed with
+/// the chord), or the offset between two carriers' axes or centres
+/// (metres), before it is read as a unit direction ([`across`]).
+pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
 
 /// The points within `minor` of the circle about `center`, of radius
 /// `major`, in the plane normal to `normal` (any `normal` where
@@ -139,6 +148,16 @@ pub(super) enum Depth<T: geom_core::Real> {
 pub(super) struct Proposed<T: geom_core::Real> {
     pub(super) depth: Depth<T>,
     pub(super) level: Option<(SurfaceKey, T)>,
+    pub(super) source: Source<T>,
+}
+
+/// What proposed a depth.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Source<T: geom_core::Real> {
+    /// The face's own carrier.
+    Carrier,
+    /// A circle or ellipse arc on the boundary, with its two ends.
+    Arc(Point3<T>, Point3<T>),
 }
 
 /// A face as the depth gap reads it ([`face_read`]).
@@ -146,6 +165,16 @@ pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
     pub(super) cover: Cover<T>,
     pub(super) depths: Vec<Proposed<T>>,
+}
+
+impl<T: geom_core::Real> Read<T> {
+    /// The depth the face's own carrier proposes, where it proposes one.
+    fn carrier(&self) -> Option<Depth<T>> {
+        self.depths
+            .iter()
+            .find(|p| matches!(p.source, Source::Carrier))
+            .map(|p| p.depth)
+    }
 }
 
 fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
@@ -187,14 +216,17 @@ pub(super) fn carrier_depth<T: Decide>(
                 axis: axis.get(),
             },
             level: Some((key, radius.abs())),
+            source: Source::Carrier,
         }),
         FaceBoxRule::ConeSlab { apex, axis, .. } => Some(Proposed {
             depth: Depth::Axis { origin: apex, axis },
             level: None,
+            source: Source::Carrier,
         }),
         FaceBoxRule::SphereWindow { center, radius } => Some(Proposed {
             depth: Depth::Center { center },
             level: Some((key, radius.abs())),
+            source: Source::Carrier,
         }),
         FaceBoxRule::TorusWindow {
             center,
@@ -213,6 +245,7 @@ pub(super) fn carrier_depth<T: Decide>(
                     major: major_radius.abs(),
                 },
                 level: ring.then_some((key, minor_radius)),
+                source: Source::Carrier,
             })
         }
         FaceBoxRule::BoundaryHull | FaceBoxRule::ControlNet(_) => None,
@@ -256,6 +289,10 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                                 axis: arc.axis,
                             },
                             level: None,
+                            source: Source::Arc(
+                                end(edge.he_plus, "he_plus"),
+                                end(edge.he_minus, "he_minus"),
+                            ),
                         });
                         Some(Piece::Ring(conic_ring(&arc)))
                     }
@@ -341,8 +378,9 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
     })
 }
 
-/// `v` less its component along the unit `n`, and that component.
+/// `v` less its component along `n`'s direction, and that component.
 pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
+    let n = n / n.norm();
     let along = v.dot(n);
     (v - n * along, along)
 }
@@ -395,7 +433,7 @@ pub(super) fn sup_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
         // `|w + R·e|² = w_n² + |w_⊥ + R·e|² ≤ w_n² + (|w_⊥| + R)²`, `w`
         // from the centre to `c`, split along `n`.
         Depth::Center { center } => {
-            let (perp, along) = split(ring.center - center, ring.normal / ring.normal.norm());
+            let (perp, along) = split(ring.center - center, ring.normal);
             (along.powi(2) + (perp.norm() + ring.major).powi(2)).sqrt()
         }
         Depth::Core {
@@ -423,7 +461,7 @@ pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
         Depth::Axis { origin, axis } => swing(&ring, origin, axis).rho.0,
         // `|w + R·e|² ≥ w_n² + (|w_⊥| − R)²`.
         Depth::Center { center } => {
-            let (perp, along) = split(ring.center - center, ring.normal / ring.normal.norm());
+            let (perp, along) = split(ring.center - center, ring.normal);
             (along.powi(2) + (perp.norm() - ring.major).powi(2)).sqrt()
         }
         Depth::Core {
@@ -466,14 +504,14 @@ fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Opt
 /// The exact depth of the point `x`.
 pub(super) fn exact<T: Decide>(depth: Depth<T>, x: Point3<T>) -> T {
     match depth {
-        Depth::Axis { origin, axis } => split(x - origin, axis / axis.norm()).0.norm(),
+        Depth::Axis { origin, axis } => split(x - origin, axis).0.norm(),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
             center,
             axis,
             major,
         } => {
-            let (off, t) = split(x - center, axis / axis.norm());
+            let (off, t) = split(x - center, axis);
             ((off.norm() - major).powi(2) + t.powi(2)).sqrt()
         }
     }
@@ -644,6 +682,70 @@ pub(super) fn toward<T: Decide>(
             })
         })
         .collect()
+}
+
+/// **The directions two faces, read as `ra` and `rb` ([`face_read`]),
+/// aim across the pair from their own arcs and carriers**, which
+/// [`toward`] does not read:
+///
+/// - each circle or ellipse arc on either boundary proposes its chord's
+///   normal in the conic's plane, `n̂ × (q − p)` for the arc's ends `p`,
+///   `q` and the conic's normal `n`. An arc of a conic lies on one side
+///   of its chord, and a flat cut along the chord (a D's flat, a
+///   half-disc's diameter, the line through a lens's tips) faces that
+///   way. A closed rim (`p = q`) has no chord and proposes nothing: the
+///   wall it bounds proposes through its carrier, below;
+/// - the two carriers' axes or centres, one from each face, propose the
+///   line between them: the offset of each axis's origin off the
+///   other's (for parallel axes, the line of centres); the offset of a
+///   centre off an axis; the offset between two centres. A torus's core
+///   proposes nothing.
+///
+/// Two skew axes are not given their common normal here: a cylinder
+/// wall's seam rulings run along its axis, so [`toward`]'s offset from
+/// the other axis to the wall's nearest ruling point is that normal
+/// wherever the nearest point lies inside the ruling, and where it lies
+/// at a ruling's end the walls' nearest points are near that end, which
+/// the clamped offset aims at.
+///
+/// That is at most one direction per arc of the two boundaries, and
+/// two per pair of carriers. As [`toward`]'s, they only propose, and
+/// an offset the band cannot read as a unit proposes nothing.
+pub(super) fn across<T: Decide>(
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let unit = |v: Vec3<T>| {
+        is_finite_length(v.norm())
+            .then(|| geom_core::UnitVec3::new(v, DEPTH_ACROSS, band).ok())
+            .flatten()
+    };
+    let chords = [ra, rb].into_iter().flat_map(|read| {
+        read.depths
+            .iter()
+            .filter_map(|proposed| match (proposed.depth, proposed.source) {
+                (Depth::Axis { axis, .. }, Source::Arc(p, q)) => {
+                    unit((axis / axis.norm()).cross(q - p))
+                }
+                _ => None,
+            })
+    });
+    let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
+    let between = match (ra.carrier(), rb.carrier()) {
+        (Some(Depth::Axis { origin: o, axis: a }), Some(Depth::Axis { origin: p, axis: b })) => {
+            vec![off(p, o, a), off(o, p, b)]
+        }
+        (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
+        | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
+            vec![off(center, origin, axis)]
+        }
+        (Some(Depth::Center { center: c }), Some(Depth::Center { center: d })) => {
+            vec![unit(d - c)]
+        }
+        _ => Vec::new(),
+    };
+    chords.chain(between.into_iter().flatten()).collect()
 }
 
 #[cfg(test)]
@@ -940,5 +1042,105 @@ mod tests {
             major: 0.5,
         };
         assert_eq!(sup_on(core, &chord), None, "a core reads no segment");
+    }
+
+    /// A read holding only `depths`.
+    fn read_of(depths: Vec<Proposed<f64>>) -> Read<f64> {
+        Read {
+            surface: SurfaceKey::default(),
+            cover: Cover {
+                pieces: Vec::new(),
+                holds_face: false,
+                plane: None,
+            },
+            depths,
+        }
+    }
+
+    fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
+        Proposed {
+            depth: Depth::Axis { origin: c, axis: n },
+            level: None,
+            source: Source::Arc(from, to),
+        }
+    }
+
+    fn carrier(depth: Depth<f64>) -> Proposed<f64> {
+        Proposed {
+            depth,
+            level: None,
+            source: Source::Carrier,
+        }
+    }
+
+    fn dirs(a: &Read<f64>, b: &Read<f64>) -> Vec<Vec3<f64>> {
+        across(a, b, band()).into_iter().map(|u| u.get()).collect()
+    }
+
+    fn holds(dirs: &[Vec3<f64>], want: Vec3<f64>) -> bool {
+        dirs.iter().any(|d| d.cross(want).norm() < 1e-12)
+    }
+
+    /// **`across` at its degenerate inputs.** A half-disc's arc (its
+    /// chord through the centre) and a scaled conic normal still propose
+    /// the chord's normal in the conic's plane; an ellipse arc's is
+    /// perpendicular to its chord, not its conjugate diameter; a closed
+    /// rim and two coincident centres propose nothing; two parallel axes,
+    /// their origins staggered along them, propose the line of centres.
+    /// Red where the chord direction is read from the centre to the
+    /// chord's midpoint, or the offset off an axis is not projected off
+    /// it.
+    #[test]
+    fn across_reads_its_degenerate_inputs() {
+        let empty = read_of(Vec::new());
+        let z = v(0.0, 0.0, 3.0);
+        let half = read_of(vec![arc(
+            p(0.0, 0.0, 0.0),
+            z,
+            p(0.0, 1.0, 0.0),
+            p(0.0, -1.0, 0.0),
+        )]);
+        assert_eq!(dirs(&half, &empty).len(), 1, "a half-disc proposes one");
+        assert!(
+            holds(&dirs(&half, &empty), v(1.0, 0.0, 0.0)),
+            "its diameter's normal"
+        );
+        // An arc of the ellipse x²/4 + y² = 1 from (2, 0) to (0, 1): its
+        // chord's normal is (1, 2), its midpoint's offset (1, 0.5).
+        let ellipse = read_of(vec![arc(
+            p(0.0, 0.0, 0.0),
+            z,
+            p(2.0, 0.0, 0.0),
+            p(0.0, 1.0, 0.0),
+        )]);
+        assert!(
+            holds(&dirs(&ellipse, &empty), v(1.0, 2.0, 0.0)),
+            "the chord's normal"
+        );
+        let rim = read_of(vec![arc(
+            p(0.0, 0.0, 0.0),
+            z,
+            p(1.0, 0.0, 0.0),
+            p(1.0, 0.0, 0.0),
+        )]);
+        assert!(
+            dirs(&rim, &empty).is_empty(),
+            "a closed rim proposes nothing"
+        );
+        let ball = |c| read_of(vec![carrier(Depth::Center { center: c })]);
+        assert!(
+            dirs(&ball(p(1.0, 2.0, 3.0)), &ball(p(1.0, 2.0, 3.0))).is_empty(),
+            "coincident centres propose nothing"
+        );
+        let wall = |o, a| read_of(vec![carrier(Depth::Axis { origin: o, axis: a })]);
+        let y = v(0.0, 1.0, 0.0);
+        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
+        assert_eq!(parallel.len(), 2, "two offsets");
+        assert!(
+            parallel
+                .iter()
+                .all(|d| d.cross(v(1.0, 0.0, 1.0)).norm() < 1e-12),
+            "the line of centres, off the axes: {parallel:?}"
+        );
     }
 }

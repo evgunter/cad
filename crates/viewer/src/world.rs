@@ -91,8 +91,8 @@ pub fn construction_of_space(
     node: RecipeNodeId,
 ) -> Option<RecipeNodeId> {
     let space = doc.node_space(node)?;
-    let (root, _) = doc.defined_by(space)?;
-    (!matches!(doc.node(root)?, Node::World | Node::Space)).then_some(root)
+    let (construction, _) = doc.defined_by(space)?;
+    (!matches!(doc.node(construction)?, Node::World | Node::Space)).then_some(construction)
 }
 
 /// **Whether `placement` is a copy the picture draws**: a placement

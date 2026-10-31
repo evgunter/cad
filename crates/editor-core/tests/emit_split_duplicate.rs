@@ -43,7 +43,7 @@ fn volume(side: &SplitSide<f64>) -> Option<f64> {
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**b),
+                    topo::Body::clone(b.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),

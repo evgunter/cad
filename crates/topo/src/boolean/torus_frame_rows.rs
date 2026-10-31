@@ -528,7 +528,7 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
     let seed = body.mvfs(Point3::origin(), true).unwrap();
     body.set_face_surface(
         seed.face,
-        crate::FaceSurface::New {
+        crate::construction::FaceSurface::New {
             surface: geom::Surface::Plane {
                 origin: Point3::origin(),
                 normal: n,
@@ -539,7 +539,7 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
     )
     .unwrap();
     body.mev_line(
-        crate::MevSite::Lone {
+        crate::construction::MevSite::Lone {
             r#loop: seed.r#loop,
         },
         to,

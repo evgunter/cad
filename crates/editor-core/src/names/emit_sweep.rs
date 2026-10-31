@@ -102,11 +102,40 @@ fn run_at(pieces: &ProfilePieces, l: usize, run: &[usize]) -> PieceRun {
     }
 }
 
-/// **How a loft's per-position roles are spelled**: its walls and seams
-/// by every section's piece at that position, its caps' rims and
-/// vertices by the end section's own (`RoleSeg::LoftWall`,
-/// `RoleSeg::LoftSeam`). One profile per section, first to last.
+/// **How a loft's per-position roles are spelled**: a wall and a seam
+/// spanning every section by every section's piece at that position
+/// (`RoleSeg::LoftWall`, `RoleSeg::LoftSeam`); one of a loft built one
+/// per slab by its slab and the pieces at the slab's two sections
+/// (`RoleSeg::LoftSlabWall`, `RoleSeg::LoftSlabSeam`), and an interior
+/// section's ring by the section and its own piece; its caps' rims and
+/// vertices by the end section's own. One profile per section, first to
+/// last.
 struct Sections<'a>(&'a [ProfilePieces]);
+
+/// A slab or section index as a role segment holds it.
+#[track_caller]
+fn index(i: usize) -> u32 {
+    u32::try_from(i).unwrap_or_else(|_| {
+        unreachable!("a loft's slab or section index {i} fits a u32: a section is a profile")
+    })
+}
+
+/// **Two adjacent slab walls that do not share exactly one edge**: the
+/// loft builds the walls of one segment slab on slab, each meeting the
+/// next along one rim of the section between them, so any other
+/// cardinality means the body and the bundle disagree (the premise is
+/// [`cap_rim_contradicted`]'s).
+#[track_caller]
+fn section_rim_contradicted(below: FaceKey, above: FaceKey, found: RimShare) -> ! {
+    unreachable!(
+        "loft slab walls {below:?} and {above:?} share {} edge, though the loft mints each \
+         slab wall meeting the next along one rim of the section between them",
+        match found {
+            RimShare::NotAdjacent => "no",
+            RimShare::Several => "more than one",
+        }
+    )
+}
 
 impl Sections<'_> {
     /// The profile a cap end lies on.
@@ -122,24 +151,47 @@ impl Sections<'_> {
         section
     }
 
-    /// The wall at canonical segment `k` of loop `l`.
+    /// The wall at canonical segment `k` of loop `l` across slab `s`
+    /// of `slabs`: across every section where it is the only one.
     #[track_caller]
-    fn wall(&self, l: usize, k: usize) -> RoleSeg {
-        let mut pieces = Vec::with_capacity(self.0.len());
-        for p in self.0 {
-            pieces.push(edge_at(p, l, k));
+    fn wall(&self, l: usize, k: usize, s: usize, slabs: usize) -> RoleSeg {
+        if slabs == 1 {
+            return RoleSeg::LoftWall(self.0.iter().map(|p| edge_at(p, l, k)).collect());
         }
-        RoleSeg::LoftWall(pieces)
+        RoleSeg::LoftSlabWall(
+            index(s),
+            self.0[s..=s + 1].iter().map(|p| edge_at(p, l, k)).collect(),
+        )
     }
 
-    /// The wall–wall edge at canonical vertex `v` of loop `l`.
+    /// The wall–wall edge at canonical vertex `v` of loop `l` across
+    /// slab `s` of `slabs`, as [`Self::wall`].
     #[track_caller]
-    fn strut(&self, l: usize, v: usize) -> RoleSeg {
-        let mut pieces = Vec::with_capacity(self.0.len());
-        for p in self.0 {
-            pieces.push(vertex_at(p, l, v));
+    fn strut(&self, l: usize, v: usize, s: usize, slabs: usize) -> RoleSeg {
+        if slabs == 1 {
+            return RoleSeg::LoftSeam(self.0.iter().map(|p| vertex_at(p, l, v)).collect());
         }
-        RoleSeg::LoftSeam(pieces)
+        RoleSeg::LoftSlabSeam(
+            index(s),
+            self.0[s..=s + 1]
+                .iter()
+                .map(|p| vertex_at(p, l, v))
+                .collect(),
+        )
+    }
+
+    /// The edge of interior section `i`'s ring over canonical segment
+    /// `k` of loop `l`.
+    #[track_caller]
+    fn section_edge(&self, i: usize, l: usize, k: usize) -> RoleSeg {
+        RoleSeg::LoftSectionEdge(index(i), edge_at(&self.0[i], l, k))
+    }
+
+    /// The vertex of interior section `i` over canonical vertex `v` of
+    /// loop `l`.
+    #[track_caller]
+    fn section_vertex(&self, i: usize, l: usize, v: usize) -> RoleSeg {
+        RoleSeg::LoftSectionVertex(index(i), vertex_at(&self.0[i], l, v))
     }
 
     /// The rim where the wall at `(l, k)` meets the cap at `end`.
@@ -246,10 +298,13 @@ pub(crate) fn name_extrude<T: Decide>(
 }
 
 /// Names every boundary entity of a loft body (M6-3): caps, walls,
-/// rims, seams, cap vertices, output body, by the combinatorial zip
-/// below — one wall per corresponding segment pair, each meeting each
-/// cap along one rim — with a wall and a seam named by the pieces the
-/// skin paired, one per section (`sections`, first to last).
+/// rims, seams, cap vertices, interior sections' rings and vertices,
+/// output body, by the combinatorial zip below — per segment one wall
+/// per slab, the first meeting the start cap and the last the end cap
+/// along one rim each, and adjacent slabs' walls along one rim of the
+/// section between them — with a wall and a seam named by the pieces
+/// the skin paired, one per section it spans (`sections`, first to
+/// last).
 pub(crate) fn name_loft<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
@@ -266,16 +321,18 @@ pub(crate) fn name_loft<T: Decide>(
     )
 }
 
-/// The loft's zip: two caps, per-(loop, segment) walls, per-(loop,
-/// vertex) seam edges, each wall meeting each cap along one rim.
+/// The loft's zip: two caps, per-(loop, segment, slab) walls,
+/// per-(loop, vertex, slab) seam edges, each segment's first and last
+/// walls meeting the caps along one rim, adjacent slabs' walls along
+/// one interior rim, adjacent slabs' seams at one interior vertex.
 fn name_loft_topology<T: Decide>(
     node: RecipeNodeId,
     swept: &Sections<'_>,
     body: &Body<T>,
     end_cap: topo::FaceKey,
     start_cap: topo::FaceKey,
-    side_faces: &[Vec<topo::FaceKey>],
-    lateral_edges: &[Vec<EdgeKey>],
+    side_faces: &[Vec<Vec<topo::FaceKey>>],
+    lateral_edges: &[Vec<Vec<EdgeKey>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     t.insert(
@@ -288,44 +345,77 @@ fn name_loft_topology<T: Decide>(
             ent(0, EntityKey::Face(face)),
         )?;
     }
+    // The rim where loop `l`, segment `k`'s wall at `end` meets `cap`.
+    let cap_rim = |l: usize, k: usize, end: CapEnd, cap: FaceKey| {
+        let slabs = &side_faces[l][k];
+        let wall = match end {
+            CapEnd::Start => slabs.first(),
+            CapEnd::End => slabs.last(),
+        };
+        let Some(&wall) = wall else {
+            unreachable!("loft segment ({l}, {k}) has no wall, though the loft mints one a slab")
+        };
+        match rim_between(body, wall, cap) {
+            Rim::One(e) => e,
+            Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
+        }
+    };
 
-    // Walls + rims, indexed by the emitter's canonical (loop,
-    // segment) maps and named by the pieces at those positions.
+    // Walls, cap rims and interior rims, indexed by the emitter's
+    // canonical (loop, segment, slab) maps and named by the pieces at
+    // those positions.
     for (l, segs) in side_faces.iter().enumerate() {
-        for (s, &wall) in segs.iter().enumerate() {
-            t.insert(
-                name1(EntityKind::Face, node, swept.wall(l, s)),
-                ent(0, EntityKey::Face(wall)),
-            )?;
+        for (k, walls) in segs.iter().enumerate() {
+            for (s, &wall) in walls.iter().enumerate() {
+                t.insert(
+                    name1(EntityKind::Face, node, swept.wall(l, k, s, walls.len())),
+                    ent(0, EntityKey::Face(wall)),
+                )?;
+            }
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let rim = match rim_between(body, wall, cap) {
+                t.insert(
+                    name1(EntityKind::Edge, node, swept.rim(end, l, k)),
+                    ent(0, EntityKey::Edge(cap_rim(l, k, end, cap))),
+                )?;
+            }
+            // Slab `s + 1` meets slab `s` along section `s + 1`'s rim.
+            for (s, pair) in walls.windows(2).enumerate() {
+                let rim = match rim_between(body, pair[0], pair[1]) {
                     Rim::One(e) => e,
-                    Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
+                    Rim::NotOne(found) => section_rim_contradicted(pair[0], pair[1], found),
                 };
                 t.insert(
-                    name1(EntityKind::Edge, node, swept.rim(end, l, s)),
+                    name1(EntityKind::Edge, node, swept.section_edge(s + 1, l, k)),
                     ent(0, EntityKey::Edge(rim)),
                 )?;
             }
         }
     }
 
-    // Struts + cap vertices. Strut `j` joins the walls of segments
-    // `j − 1` and `j`; its cap-`end` endpoint is the unique common
-    // vertex with the `end` rim of segment `j`.
+    // Struts, cap vertices and interior vertices. Strut `j` joins the
+    // walls of segments `j − 1` and `j`; its cap-`end` endpoint is the
+    // unique common vertex with the `end` rim of segment `j`, and slab
+    // `s + 1`'s meets slab `s`'s at section `s + 1`.
     for (l, struts) in lateral_edges.iter().enumerate() {
-        for (j, &strut) in struts.iter().enumerate() {
-            t.insert(
-                name1(EntityKind::Edge, node, swept.strut(l, j)),
-                ent(0, EntityKey::Edge(strut)),
-            )?;
-            let (s0, s1) = edge_ends(body, strut);
+        for (j, slabs) in struts.iter().enumerate() {
+            for (s, &strut) in slabs.iter().enumerate() {
+                t.insert(
+                    name1(EntityKind::Edge, node, swept.strut(l, j, s, slabs.len())),
+                    ent(0, EntityKey::Edge(strut)),
+                )?;
+            }
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let wall = side_faces[l][j];
-                let rim = match rim_between(body, wall, cap) {
-                    Rim::One(e) => e,
-                    Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
+                let strut = match end {
+                    CapEnd::Start => slabs.first(),
+                    CapEnd::End => slabs.last(),
                 };
+                let Some(&strut) = strut else {
+                    unreachable!(
+                        "loft vertex ({l}, {j}) has no strut, though the loft mints one a slab"
+                    )
+                };
+                let (s0, s1) = edge_ends(body, strut);
+                let rim = cap_rim(l, j, end, cap);
                 let (r0, r1) = edge_ends(body, rim);
                 let Some(vtx) = common_vertex((s0, s1), (r0, r1)) else {
                     unreachable!(
@@ -338,6 +428,21 @@ fn name_loft_topology<T: Decide>(
                 };
                 t.insert(
                     name1(EntityKind::Vertex, node, swept.cap_vertex(end, l, j)),
+                    ent(0, EntityKey::Vertex(vtx)),
+                )?;
+            }
+            for (s, pair) in slabs.windows(2).enumerate() {
+                let (below, above) = (edge_ends(body, pair[0]), edge_ends(body, pair[1]));
+                let Some(vtx) = common_vertex(below, above) else {
+                    unreachable!(
+                        "loft struts {:?} (ends {below:?}) and {:?} (ends {above:?}) share no \
+                         single endpoint, though the loft mints each slab's strut from the \
+                         last one's far end",
+                        pair[0], pair[1]
+                    );
+                };
+                t.insert(
+                    name1(EntityKind::Vertex, node, swept.section_vertex(s + 1, l, j)),
                     ent(0, EntityKey::Vertex(vtx)),
                 )?;
             }

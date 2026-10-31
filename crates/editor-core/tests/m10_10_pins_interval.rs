@@ -104,6 +104,10 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     // root over `N/D` with `D | N` minted over the polynomial quotient
     // — read as a conjunction with `canonical_root` for the same reason.
     //
+    // **`angle_sum` is the twelfth**: rule H, the canonical `sin`/`cos`
+    // argument and the product rewrite over it, form-level algebra in
+    // the early walk like rule D.
+    //
     // **Both sets are written out WHOLE, field by field**, with no
     // rest pattern: a dial added to `SymRules` is then a compile error
     // here until this row says which side it is on, and a dial left
@@ -118,6 +122,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: false,
             trig_of_atan: false,
+            angle_sum: false,
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
@@ -139,6 +144,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: true,
             trig_of_atan: true,
+            angle_sum: true,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
@@ -148,7 +154,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             decision_read: true,
             registered: true,
         },
-        "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"
+        "`shipped` is `without_the_algebra` with the twelve algebra dials on, and nothing else"
     );
 }
 
@@ -184,6 +190,16 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// `carrier_matches_mapped_source` gained the copies' 36 (196/56 ->
 /// 232/56, 288/0 with the algebra). `line_span`, a profile's, held.
 /// Every one the algebra took before it still takes.
+///
+/// **INTENT E** (a copy is its source's body under its frame): the
+/// holes' copies are no longer mapped and re-certified at their
+/// placements; the cut reads each hole into the plate's frame, so the
+/// rims are certified once more there and not at the copy:
+/// `carrier_on_surface` 360/144 -> 324/108 (432/0 with the algebra),
+/// `witness_on_surface` 40/16 -> 36/12 (48/0), `pcurve_map_residual`
+/// 0/72 -> 0/54 (54/0), `carrier_matches_mapped_source` 232/56 ->
+/// 214/56 (270/0). `line_span` held, and every one the algebra took
+/// before it still takes.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -201,32 +217,32 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
         core::array::from_fn::<u64, 2, _>(|i| a[i] + b[i])
     };
     // The split with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [232, 56]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [360, 144]);
-    assert_eq!(pair(&off, "witness_on_surface"), [40, 16]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 72]);
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [214, 56]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [324, 108]);
+    assert_eq!(pair(&off, "witness_on_surface"), [36, 12]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 54]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [288, 0],
+        [270, 0],
         "rule D meets the pushforward and the carrier at every sample, and the rim at a \
          vertex folds onto the authored |r|, so every one is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
-        [504, 0],
+        [432, 0],
         "both residuals at the carrier's samples, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         pair(&on, "witness_on_surface"),
-        [56, 0],
+        [48, 0],
         "both residuals at the strut witness, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [72, 0],
+        [54, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim folds onto |r|, so every one of the 72 is a \
+         on the negative frame to −1; the rim folds onto |r|, so every one of the 54 is a \
          THEOREM"
     );
     assert_eq!(
@@ -353,8 +369,12 @@ fn m10_10_the_plates_ceiling_is_the_flip() {
 /// 34 -> 68.
 ///
 /// Check 4 decides no whole period (PCERT B2b: a row is its placed
-/// image), so fidelity's branch decisions are gone; the walk's 68 hold
-/// (measured on INTENT stage 3 D after merging main at `557e581a64`).
+/// image), so fidelity's branch decisions are gone.
+///
+/// A copy shares its source's body (D10 `[placement.frame]`), so the
+/// holes' walked rows are derived again only where the cut reads each
+/// hole into the plate's frame: `pcurve_envelope` 32 -> 24, still every
+/// one a theorem, and the walk's branches 68 -> 51.
 #[test]
 fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let tol = Tol::witness();
@@ -362,9 +382,9 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
-    assert_eq!(split.get("pcurve_envelope"), Some(&[32, 0]));
+    assert_eq!(split.get("pcurve_envelope"), Some(&[24, 0]));
     // The walk's branches are definite sign decisions read off the
     // value, deciding each loop's closure joint as it does every other.
     assert_eq!(split.get("pcurve_fidelity_branch"), None);
-    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 68]));
+    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 51]));
 }

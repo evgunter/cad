@@ -56,7 +56,7 @@ use crate::node::RecipeNodeId;
 ///
 /// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
 /// only *referencing* one is `Ambiguous`. This mirrors the three
-/// emitters that already do it (`name_pattern`, `name_in_part`,
+/// emitters that already do it (`name_family`, `name_in_part`,
 /// `graft_names`), so a tie anywhere in an operand table no longer
 /// refuses the whole downstream op.
 #[derive(Clone)]
@@ -69,10 +69,8 @@ pub(super) struct Upstream {
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
     /// The entity's candidate under that name. A VERBATIM carry reads
-    /// it ([`TieRows::carry`]), and so does the pair boolean's corner
-    /// pass, which names each candidate of a tied corner apart; a
-    /// wrapping emitter names a new row, and its candidates are
-    /// numbered afresh.
+    /// it ([`TieRows::carry`]); a wrapping emitter names a new row, and
+    /// its candidates are numbered afresh.
     pub(super) candidate: Candidate,
 }
 
@@ -253,9 +251,7 @@ pub(super) fn narrow_into(
 /// **The narrowing rule for a name this op MINTS**: [`narrow_into`]'s
 /// counterpart for a wrapped name, whose candidates are numbered afresh
 /// as its name is fresh — one survivor is strict, several are a tie the
-/// insert door numbers. The flush writes a minted name through it, and
-/// so does `emit::name_placed_union` for the prototype candidates the
-/// fuse kept.
+/// insert door numbers. The flush writes a minted name through it.
 ///
 /// # Errors
 ///
@@ -344,8 +340,8 @@ pub(super) fn put(
 /// that source's rows as it goes, so a name whose candidates lie in
 /// two different source bodies arrives in two pieces — which is what
 /// a split that separates a tie without cutting either candidate
-/// hands it, one candidate per half, whether as the split root's two
-/// bodies or as two `Part` roots over them. So this is [`TieRows`]
+/// hands it, one candidate per half, whether as the split piece's two
+/// bodies or as two `Part` pieces over them. So this is [`TieRows`]
 /// again, one level out: every row is carried through
 /// [`TieRows::carry`]'s rule and narrowed through [`narrow_into`], the
 /// door `flush` and [`NameTable::project`] also narrow through, so no
@@ -356,7 +352,7 @@ pub(super) fn put(
 /// candidates of one tie merge back into the tie. The same candidate
 /// twice — one entity placed twice — refuses, and so does a strict
 /// name carried twice, since a strict name is its own only candidate.
-/// The refusal is read as each row is carried, so it names the root
+/// The refusal is read as each row is carried, so it names the piece
 /// whose row repeated the pair.
 ///
 /// **Why this door knows the gather's body model.** The source-body
@@ -404,7 +400,7 @@ impl CarriedRows {
 
     /// Writes every carried name onto the aggregate — once, after the
     /// last source has been carried: `Unique` for one candidate (a
-    /// strict name, or a lone `Part` root's piece of a separated tie),
+    /// strict name, or a lone `Part` placement's piece of a separated tie),
     /// `Tied` for several.
     ///
     /// # Errors
@@ -554,7 +550,7 @@ mod tests {
             ],
         )
         .expect("the split's tie");
-        let whole = gather(&[(&split, 0), (&split, 1)]).expect("the split root gathers");
+        let whole = gather(&[(&split, 0), (&split, 1)]).expect("the split piece gathers");
         let (above, below) = (split.project(0).unwrap(), split.project(1).unwrap());
         assert!(
             matches!(above.lookup(&name()), Some(Entry::Unique(_))),
@@ -570,7 +566,7 @@ mod tests {
         assert_eq!(
             gather(&[(&above, 0), (&split, 0)]).map(|t| t.len()),
             Err((1, Box::new(name()))),
-            "a half beside the split root's same body carries candidate 0 twice"
+            "a half beside the split piece's same body carries candidate 0 twice"
         );
     }
 

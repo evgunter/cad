@@ -121,6 +121,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![bracket_loop],
         ids: Vec::new(),
+        on: None,
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
     let thickness = Formula::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
@@ -136,6 +137,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
                 radius: plen(radius),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: profile.into(),
@@ -480,6 +482,7 @@ fn collinear_walls() -> ProfileDoc {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: profile.into(),

@@ -1135,175 +1135,52 @@ pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
     narrow
 }
 
-/// **The placement-major layout**, the one home of its arithmetic:
-/// placement `placement` of a master's body `body`, the master holding
-/// `per` bodies, is output body `placement·per + body`. `wire_pattern`
-/// builds that body there, [`name_pattern`] keys its rows by it, and
-/// the mate walk reads a `Part`'s index through it. A `body` at or past
-/// `per` is a row the master does not have; a product past `u32` is
-/// [`output_body`]'s refusal.
-pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32, NamingError> {
-    if body >= per {
-        return Err(NamingError::Emission {
-            what: "a pattern master's table names a body the master does not have",
-        });
-    }
-    placement
-        .checked_mul(per)
-        .and_then(|b| b.checked_add(body))
-        .ok_or(NamingError::Emission {
-            what: "an output-body index exceeds the table's u32 row width",
-        })
-}
-
-/// Wraps a pattern master's table per structural placement index
-/// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
-/// verbatim (`transform_rigid` key-stability).
-///
-/// **The wrapping is uniform** (ASM-2K D-2): `Instance(j)` wraps EVERY
-/// name of the master, whatever the master's body holds. A master with
-/// several SOLIDS is one such master and is admitted — its names are
-/// already distinct within it (derivation paths tell its solids apart),
-/// and one qualifier per placement carries that distinctness across the
-/// placements; no per-solid sub-index exists, because which solid a
-/// name denotes is read off the name's own derivation, never off the
-/// instance qualifier.
-///
-/// **The instance×body layout.** The master has `per` output bodies —
-/// one for a body-valued input, `M` for an `Instances` value placed
-/// whole (a nested pattern) — and the wrapped table is placement-major
-/// over them: the master's row at body `i` lands, under placement
-/// `j`, at output body `j·per + i`, the index `wire_pattern` builds
-/// that body at and `Node::Part` selects it by. For a one-body master
-/// the body index IS the placement index. A nested pattern's name is
-/// therefore `Instance(j)` over the inner `Instance(i)` over the
-/// master's name — the chain the mate walk consumes outermost first —
-/// and no row of the master is re-keyed past `per`: one at a body the
-/// master does not have is the input's emission bug, refused typed
-/// ([`flat_body_index`]). Totality is checked against every output body.
-pub(crate) fn name_pattern<T: geom_core::Real>(
+/// **A family, named** (D10 `[repetition]`): every name of each
+/// member's table wrapped `Member { at, of }`, its rows at the member's
+/// own output body, the members in index order. The wrapping is
+/// uniform: it wraps every name of a member, body rows included, so a
+/// name of one member is the same selector on every member but its
+/// `at`.
+pub(crate) fn name_family<T: geom_core::Real>(
     node: RecipeNodeId,
-    master: &NameTable,
-    n: i64,
-    per: usize,
-    instances: &[Arc<Body<T>>],
+    members: &[(super::role::MemberAt, &NameTable)],
+    bodies: &[&Body<T>],
 ) -> Result<Arc<NameTable>, NamingError> {
-    let per = output_body(per)?;
-    // An operand table read WHOLE seals here, exactly as one read an
-    // entity at a time seals in `upstream_name`, and every row below
-    // embeds the master's own handle rather than a copy of it.
-    master.seal_order();
     let mut t = NameTable::new();
-    for j in 0..n {
-        let ju = output_body(usize::try_from(j).unwrap_or(usize::MAX))?;
-        // Output body of the master's body `i` under placement `j`.
-        let at = |e: &EntityRef| -> Result<EntityRef, NamingError> {
-            Ok(ent(flat_body_index(ju, per, e.body)?, e.key))
+    for (at_body, (at, member)) in members.iter().enumerate() {
+        // A member's table read WHOLE seals here, as one read an entity
+        // at a time seals in `upstream_name`.
+        member.seal_order();
+        let body = output_body(at_body)?;
+        let place = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+            if e.body != 0 {
+                return Err(NamingError::Emission {
+                    what: "a family's member names a body the member does not have",
+                });
+            }
+            Ok(ent(body, e.key))
         };
-        for (name, entry) in master.iter_refs() {
+        for (name, entry) in member.iter_refs() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
-                path: vec![super::role::RoleSeg::Instance {
-                    i: ju,
+                path: vec![super::role::RoleSeg::Member {
+                    at: at.clone(),
                     of: name.clone(),
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => t.insert(wrapped, at(e)?)?,
+                super::table::Entry::Unique(e) => t.insert(wrapped, place(e)?)?,
                 super::table::Entry::Tied(es) => {
-                    let rows = es.iter().map(at).collect::<Result<Vec<_>, _>>()?;
+                    let rows = es.iter().map(place).collect::<Result<Vec<_>, _>>()?;
                     t.insert_tied(wrapped, rows)?;
                 }
             }
         }
     }
-    for (i, body) in instances.iter().enumerate() {
+    for (i, body) in bodies.iter().enumerate() {
         check_total(&t, body, output_body(i)?)?;
     }
-    Ok(Arc::new(t))
-}
-
-/// Names a [`crate::node::Node::PlacedUnion`]'s ONE output body
-/// (GROUP-BOOLEAN-DESIGN, ratified A′).
-///
-/// The vocabulary does NOT grow: per-instance discrimination is
-/// [`name_pattern`]'s own `Instance(i)` wrapper, segment for segment,
-/// so "instance 7's cavity face" is the same one-row selector on a
-/// fused group as on an unfused pattern. What differs is the TARGET —
-/// a PlacedUnion emits one body, so every instance's rows land at body
-/// index 0, re-keyed through that instance's graft bridge (`bridges[i]`
-/// is the correspondence the graft of instance `i` established).
-///
-/// The BODY name is minted here rather than wrapped, for the reason
-/// [`name_copy`] mints a copy's: the fused body is not the body any
-/// instance-local name denotes, so it is this node's own output body,
-/// named like every other body-producing op's. The prototype's own
-/// body-kind rows therefore do not carry — they have nothing left to
-/// point at, exactly as the product gather rules.
-pub(crate) fn name_placed_union<T: geom_core::Real>(
-    node: RecipeNodeId,
-    master: &NameTable,
-    bridges: &[topo::GraftKeys],
-    fused: &Body<T>,
-) -> Result<Arc<NameTable>, NamingError> {
-    // The prototype's table is read whole; sealing it here is what
-    // `upstream_name` does for a table read an entity at a time.
-    master.seal_order();
-    let mut t = NameTable::new();
-    t.insert(
-        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
-        ent(0, EntityKey::Body),
-    )?;
-    for (i, keys) in bridges.iter().enumerate() {
-        let iu = output_body(i)?;
-        let mapped = |key: EntityKey| -> Option<EntityKey> {
-            match key {
-                EntityKey::Body => None,
-                EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-                EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-                EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
-            }
-        };
-        for (name, entry) in master.iter_refs() {
-            let wrapped = StableName {
-                kind: name.kind,
-                node,
-                path: vec![super::role::RoleSeg::Instance {
-                    i: iu,
-                    of: name.clone(),
-                }],
-            };
-            // The prototype is ONE body — a placed union fuses what
-            // `read_body` admits, and a value of several bodies is
-            // `Pattern`'s to place, never this node's to fuse — so its
-            // table is a single-output-body table, and a row at any
-            // other index is a bug: surfaced, not dropped.
-            let rows: Vec<EntityRef> = match entry {
-                super::table::Entry::Unique(e) => vec![*e],
-                super::table::Entry::Tied(es) => es.clone(),
-            };
-            if rows.iter().any(|e| e.body != 0) {
-                return Err(NamingError::Emission {
-                    what: "a placed union's prototype table names a body the prototype does not have",
-                });
-            }
-            let moved: Vec<EntityRef> = rows
-                .into_iter()
-                .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
-                .collect();
-            // Empty for the prototype's BODY-kind rows: the fused body is
-            // this node's own, named above, so they have nothing to point
-            // at. A consumed candidate does not empty a row here — a placed
-            // union is gated to disjoint placements, where each instance's
-            // `GraftKeys` is total — so a tied row keeps every candidate
-            // and narrows through the one door.
-            if !moved.is_empty() {
-                super::defer::mint_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
-            }
-        }
-    }
-    check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
 }
 
@@ -1313,7 +1190,8 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
 /// copying node, since the copy is that node's output; a family's rows,
 /// body rows included, pass through whole.
 ///
-/// Keys hold verbatim, because `transform_rigid` is key-stable.
+/// Keys hold verbatim, because a copy is its source's body under its
+/// frame.
 pub(crate) fn name_copy<T: geom_core::Real>(
     node: RecipeNodeId,
     source: &NameTable,
@@ -1684,347 +1562,12 @@ pub(crate) fn check_total<T: geom_core::Real>(
     Ok(())
 }
 
-/// **ASM-2K D-2 rows**: the uniform `Instance(i)` wrapping over a
-/// master whose body holds SEVERAL SOLIDS — the shape an assembly's
-/// instantiated part arrives in (`topo::graft_disjoint_all`). Kernel
-/// level on purpose: no document node produces a multi-solid body yet
-/// (solids are minted inside `topo` alone), so the master here is
-/// built at the door that will feed one.
-#[cfg(test)]
-mod pattern_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use geom_core::Tol;
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-
-    use geom_core::Vec3;
-    use topo::Body;
-
-    use super::*;
-    use crate::names::emit_sweep::name_extrude;
-    use crate::names::role::RoleSeg;
-    use crate::names::table::Entry;
-    use crate::node::RecipeNodeId;
-    use profile::RawLoop;
-
-    /// A unit cube at `dx`, with its extrude's own name table.
-    fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
-            geom_core::Point3::new(dx, 0.0, 0.0),
-        ));
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let prof = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .unwrap();
-        let built = sweep::extrude(
-            &prof,
-            sweep::Extrusion::Distance {
-                depth: 1.0_f64,
-                side: sweep::ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        let table = name_extrude(
-            node,
-            &built,
-            &crate::eval::ProfilePieces::numbered(
-                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
-            ),
-        )
-        .unwrap();
-        (built.body, table)
-    }
-
-    /// A master body holding TWO solids, and a table that covers it:
-    /// solid 0 wears its own extrude's names (node 1), solid 1 wears
-    /// node 2's, re-keyed kind-wise in arena order onto the grafted
-    /// copies. Two derivations, so the master's names are distinct
-    /// within the master — which is the premise the wrapping rests on.
-    /// WHICH grafted face wears which of node 2's names is immaterial
-    /// to these rows (they pin the wrapping); minting a faithful key
-    /// bridge across a graft is the consumer's job, not this door's.
-    fn two_solid_master() -> (Body<f64>, NameTable) {
-        let (mut body, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
-        let (second, b) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(2)), 10.0);
-        let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
-            body.faces().map(|(k, _)| k).collect(),
-            body.edges().map(|(k, _)| k).collect(),
-            body.vertices().map(|(k, _)| k).collect(),
-        );
-        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
-        let fresh_f: Vec<_> = body
-            .faces()
-            .map(|(k, _)| k)
-            .filter(|k| !was.0.contains(k))
-            .collect();
-        let fresh_e: Vec<_> = body
-            .edges()
-            .map(|(k, _)| k)
-            .filter(|k| !was.1.contains(k))
-            .collect();
-        let fresh_v: Vec<_> = body
-            .vertices()
-            .map(|(k, _)| k)
-            .filter(|k| !was.2.contains(k))
-            .collect();
-
-        let mut t = NameTable::new();
-        for (name, entry) in a.iter() {
-            match entry {
-                Entry::Unique(e) => t.insert(name.clone(), *e).unwrap(),
-                Entry::Tied(es) => t.insert_tied(name.clone(), es.clone()).unwrap(),
-            }
-        }
-        let (mut fi, mut ei, mut vi) = (0, 0, 0);
-        for (name, entry) in b.iter() {
-            let Entry::Unique(e) = entry else {
-                panic!("the fixture's extrude ties nothing");
-            };
-            // The aggregate is ONE body: it keeps solid 0's body name.
-            let key = match e.key {
-                EntityKey::Body => continue,
-                EntityKey::Face(_) => {
-                    fi += 1;
-                    EntityKey::Face(fresh_f[fi - 1])
-                }
-                EntityKey::Edge(_) => {
-                    ei += 1;
-                    EntityKey::Edge(fresh_e[ei - 1])
-                }
-                EntityKey::Vertex(_) => {
-                    vi += 1;
-                    EntityKey::Vertex(fresh_v[vi - 1])
-                }
-            };
-            t.insert(name.clone(), ent(0, key)).unwrap();
-        }
-        assert_eq!(
-            (fi, ei, vi),
-            (fresh_f.len(), fresh_e.len(), fresh_v.len()),
-            "the second solid is covered exactly"
-        );
-        (body, t)
-    }
-
-    /// The pattern's instance bodies for a master and a z-step —
-    /// `wire_pattern`'s own shape: instance 0 verbatim, the rest
-    /// through the key-stable placement door.
-    fn instances(master: &Body<f64>, n: i64, step: f64) -> Vec<Arc<Body<f64>>> {
-        (0..n)
-            .map(|i| {
-                Arc::new(if i == 0 {
-                    master.clone()
-                } else {
-                    topo::transform_rigid(
-                        master,
-                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * i as f64))
-                            .unwrap(),
-                        Tol::witness(),
-                    )
-                    .unwrap()
-                })
-            })
-            .collect()
-    }
-
-    /// **Row 4.** A pattern of a two-solid master is admitted: N×2
-    /// solids, N × the master's census, and every stable name distinct
-    /// — one `Instance(i)` over the master's own name, no per-solid
-    /// sub-index anywhere in the path.
-    #[test]
-    fn a_multi_solid_master_patterns_with_uniform_instance_wrapping() {
-        let (master_body, master) = two_solid_master();
-        assert_eq!(master_body.solids().count(), 2, "a two-solid master");
-        let n = 3_i64;
-        let bodies = instances(&master_body, n, 5.0);
-        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t =
-            name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
-
-        let times = usize::try_from(n).unwrap();
-        assert_eq!(t.len(), master.len() * times, "census: N × the master's");
-        assert_eq!(
-            bodies.iter().map(|b| b.solids().count()).sum::<usize>(),
-            2 * times,
-            "N × 2 solids"
-        );
-        assert_eq!(
-            bodies.iter().map(|b| b.faces().count()).sum::<usize>(),
-            master_body.faces().count() * times
-        );
-
-        let mut seen = BTreeSet::new();
-        for (name, entry) in t.iter() {
-            assert!(seen.insert(name.clone()), "a name repeated: {name:?}");
-            assert_eq!(name.node, node);
-            assert_eq!(name.path.len(), 1, "one qualifier, not one per solid");
-            let RoleSeg::Instance { i, of } = &name.path[0] else {
-                panic!("not wrapped: {name:?}");
-            };
-            assert!(master.lookup(of).is_some(), "wraps a master name");
-            if let Entry::Unique(e) = entry {
-                assert_eq!(e.body, *i, "the instance index IS the body index");
-            }
-        }
-        assert_eq!(seen.len(), master.len() * times, "all distinct");
-    }
-
-    /// **Row 5.** Names of instance `i` resolve to instance `i`'s
-    /// geometry: the wrapped name looks up to `(body i, the master's
-    /// key)`, the key is live in that instance (placement is
-    /// key-stable), and the entity it names sits where instance `i`
-    /// sits — for BOTH of the master's solids.
-    #[test]
-    fn instance_i_names_resolve_to_instance_i_geometry() {
-        let (master_body, master) = two_solid_master();
-        let (n, step) = (3_i64, 5.0);
-        let bodies = instances(&master_body, n, step);
-        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
-
-        let mut checked = 0;
-        for i in 0..n {
-            let iu = u32::try_from(i).unwrap();
-            for (name, entry) in master.iter() {
-                let Entry::Unique(e) = entry else { continue };
-                let wrapped = StableName {
-                    kind: name.kind,
-                    node,
-                    path: vec![RoleSeg::Instance {
-                        i: iu,
-                        of: name.clone().into(),
-                    }],
-                };
-                assert_eq!(t.lookup(&wrapped), Some(&Entry::Unique(ent(iu, e.key))));
-                assert_eq!(t.name_of(&ent(iu, e.key)), Some(&wrapped));
-                let EntityKey::Vertex(v) = e.key else {
-                    continue;
-                };
-                let at = |b: &Body<f64>| {
-                    let p = b.get_vertex(v).expect("key-stable placement").point;
-                    *b.get_point(p).unwrap()
-                };
-                let (m, inst) = (at(&master_body), at(&bodies[usize::try_from(i).unwrap()]));
-                assert_eq!(inst.x, m.x, "unmoved across the pattern direction");
-                assert_eq!(inst.z, m.z + step * i as f64, "instance {i}'s geometry");
-                checked += 1;
-            }
-        }
-        assert_eq!(checked, 16 * 3, "both solids' 8 vertices, every instance");
-    }
-
-    /// A master's table re-keyed onto body `body`, names verbatim.
-    fn at_body(table: &NameTable, body: u32) -> NameTable {
-        let mut t = NameTable::new();
-        for (name, entry) in table.iter() {
-            let Entry::Unique(e) = entry else {
-                panic!("the fixture's extrude ties nothing");
-            };
-            t.insert(name.clone(), ent(body, e.key)).unwrap();
-        }
-        t
-    }
-
-    /// A master row at a body the master does not have refuses typed:
-    /// the layout re-keys body `i < per` to `j·per + i`, and a row past
-    /// `per` is the input's own emission bug, never re-keyed into
-    /// another placement's range.
-    #[test]
-    fn a_master_row_past_the_masters_body_count_refuses_typed() {
-        let (body, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
-        let master = at_body(&a, 1);
-        let err = name_pattern(
-            RecipeNodeId::new(0, test_utils::refusal::tagged(9)),
-            &master,
-            2,
-            1,
-            &[Arc::new(body)],
-        )
-        .expect_err("a row past the master's body count must refuse");
-        assert!(
-            format!("{err:?}").contains("does not have"),
-            "typed, and about the body: {err:?}"
-        );
-    }
-
-    /// **The instance×body layout**, at the emitter: a two-body master
-    /// (`per = 2`) under `n = 3` placements names `3 × 2` bodies,
-    /// body `i`'s row under placement `j` at output body `j·2 + i`,
-    /// wrapped `Instance(j)` over the master's own name; totality
-    /// holds over all six.
-    #[test]
-    fn a_multi_output_body_master_lays_out_placement_major() {
-        let (b0, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
-        let (b1, b) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(2)), 10.0);
-        let mut master = at_body(&a, 0);
-        for (name, entry) in at_body(&b, 1).iter() {
-            let Entry::Unique(e) = entry else {
-                panic!("the fixture's extrude ties nothing");
-            };
-            master.insert(name.clone(), *e).unwrap();
-        }
-        let (n, per, step) = (3_i64, 2_usize, 5.0);
-        let mut bodies: Vec<Arc<Body<f64>>> = Vec::new();
-        for j in 0..n {
-            for body in [&b0, &b1] {
-                bodies.push(Arc::new(if j == 0 {
-                    body.clone()
-                } else {
-                    topo::transform_rigid(
-                        body,
-                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * j as f64))
-                            .unwrap(),
-                        Tol::witness(),
-                    )
-                    .unwrap()
-                }));
-            }
-        }
-        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
-        assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
-        for j in 0..n {
-            let ju = u32::try_from(j).unwrap();
-            for (name, entry) in master.iter() {
-                let Entry::Unique(e) = entry else { continue };
-                let wrapped = StableName {
-                    kind: name.kind,
-                    node,
-                    path: vec![RoleSeg::Instance {
-                        i: ju,
-                        of: name.clone().into(),
-                    }],
-                };
-                let flat = ju * u32::try_from(per).unwrap() + e.body;
-                assert_eq!(
-                    t.lookup(&wrapped),
-                    Some(&Entry::Unique(ent(flat, e.key))),
-                    "body {} under placement {j} is output body {flat}",
-                    e.body
-                );
-            }
-        }
-    }
-}
-
-/// **#380**: the diagnostic must SURVIVE the `EvalError` boundary. The
-/// bug these rows close was not a missing diagnosis — every emitter
-/// already refused precisely — but a rendering that threw the
-/// diagnosis away, leaving `Display` consumers (Python's typed
-/// exception text among them) with "name emission failed" and a
-/// bisect. Substring pins, per the [`geom_core::COINCIDENCE_RECOURSE`]
-/// convention: prose may be reworded, the SUBJECT may not vanish.
 #[cfg(test)]
 mod display_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom_core::{Band, MarginDiag};
+    use topo::construction::Construct;
 
     use super::*;
     use crate::eval::NodeErrorKind;
@@ -2052,7 +1595,7 @@ mod display_tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3043,6 +2586,7 @@ mod conventional_vertex_tests {
     };
     use crate::node::StepId;
     use profile::PieceRole;
+    use topo::construction::Construct;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
@@ -3091,7 +2635,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mef_chord(
-            topo::MefSite::Lone {
+            topo::construction::MefSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Tol::witness(),
@@ -3128,7 +2672,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Point3::new(1.0, 0.0, 0.0),

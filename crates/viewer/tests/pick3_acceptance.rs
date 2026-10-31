@@ -181,7 +181,8 @@ fn tie_sweep(
                     table.beyond_or_miss += 1;
                 }
                 for win in &exhaustive {
-                    if too_wide(&ray, &reference.parts[win.part].corners[win.item]).is_some() {
+                    let flat = &reference.parts[win.part];
+                    if too_wide(&flat.local(&ray), &flat.corners[win.item]).is_some() {
                         table.wide_winners += 1;
                     }
                 }

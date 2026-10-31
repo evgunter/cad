@@ -2,41 +2,45 @@
 
 the E7 clearance engine: where it lives, what it composes with, and what its refusals say
 
-Opened 2026-09-20 by SHELL's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
-
-## The slate
-
-**21.5 budget points** of dispatchable work against a ceiling of 30.
-
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `SHELL-3` | H | the clearance engine's body-level half moves into topo behind interval — one engine, two consumers |
-| P1 | `SHELL-4` | H | shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion |
-| P1 | `clearance-refusal-names-one-face-twice-across-bodies` | E | ClearanceRefusal prints one FaceKey twice for a cross-body pair, at two renderings over three raise sites, and has no Display at all |
-| P1 | `clearance-reports-a-no-bodies-payload-as-a-bad-body-index` | E | clearance.rs discards two typed causes - InterrogateError::NoBodies reported as a bad body index, and a BandError dropped into the unit variant ToleranceHasNoBand |
-| P1 | `clearance-window-selection-asks-how-many-before-what` | D | clearance::windows_of refuses Unresolved for a tied face name before it can answer NotAFace |
-| P1 | `named-face-scope-refuses-not-a-face-without-naming-what-it-found` | E | clearance.rs's named face scope refuses NotAFace without the kind, and conflates a wrong kind with a wrong body |
-| P1 | `shell-curved-clearance-consumer` | D | where a curved wall-clearance gate can call the E7 engine from (the shell verb sits below it) |
-| P1 | `symbolic-tier-and-clearance-engine` | D | The symbolic identity tier and the clearance engine do not compose |
-| P3 | `geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in` | E | GeometryWitness's hand-listed PartialEq leaves a_chart_axis and b_chart_axis outside equality, and nothing holds the omission a decision |
+Opened 2026-09-20 by SHELL's priority-seam cut (`work/README.md`,
+Track size). Its P2–P4 rows went to CLEARTAIL at the 2026-10-27 cut.
 
 ## Order
 
-`SHELL-3` first — the engine's body-level half moving into `topo`
-behind interval. It is ruled (B at #1737), it is what makes ONE engine
-serve two consumers, and `shell-curved-clearance-consumer` and
-`SHELL-4` both sit behind it.
-
-`symbolic-tier-and-clearance-engine` is the one row that is a
-conversation before it is a unit: two pieces of ratified machinery
-that were built to compose and do not. Ask it early. The four refusal
-rows are class `E` and batch into one unit.
+1. **Wait for INTENT's E (#5811).** It is the one open PR that edits
+   `clearance.rs`. It reads the second selection's body into the
+   first's frame (`framed_of`, `Framed::read_in`), splits `windows_of`
+   around that, and reworks `verify_witness`. Those are the sites
+   `SHELL-3` moves and the refusal rows edit. No CLEAR lane touches
+   `clearance.rs` until E merges.
+2. **Designers, now, in parallel with E.** These rows are design
+   questions and none of them edits code:
+   - `symbolic-tier-and-clearance-engine`. One of its two ways out is
+     "make the engine generic in its lane scalar", and that decides
+     what `SHELL-3` moves: an engine at `Interval`, or a generic one.
+     It is weighed before `SHELL-3`'s spec is final.
+   - `self-intersection-drops-every-vertex-sharing-face-pair-globally`
+     (P0). It is a prerequisite of CARVE's loft certificate.
+   - `min-separation-tightening-crosses-the-drive`. Its ruling (may a
+     lane split be invisible to the census) is Ev's.
+3. **`SHELL-3`** (P0), after E. The body-level half moves into `topo`
+   behind `interval`. Framing stays in `editor-core`'s outer half, so
+   the engine in `topo` takes bodies already read into one frame.
+4. **The refusal batch.** One unit carries the four P1 refusal rows:
+   `clearance-refusal-names-one-face-twice-across-bodies`,
+   `clearance-reports-a-no-bodies-payload-as-a-bad-body-index`,
+   `named-face-scope-refuses-not-a-face-without-naming-what-it-found`
+   and `clearance-window-selection-asks-how-many-before-what`. It runs
+   on the moved code and can run in parallel with step 5.
+5. **On the moved engine:**
+   - `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch` (P0);
+   - the self-intersection row's build, as its designers land it;
+   - then `SHELL-4`.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SHELL inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+The repo-wide tiers (`memories/orchestration-model.md`). `SHELL-3` is
+a move with no behaviour change: a single full review, with the
+M10-5/M10-6 suites and goldens as the differential. The
+self-intersection build is dual: tricky logic, and the loft
+certificate rests on it.

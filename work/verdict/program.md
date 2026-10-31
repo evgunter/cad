@@ -4,12 +4,12 @@ kind: program
 title: VERDICT — the gates props answers through: the size and coincidence bands, the epsilon vocabularies, the door identity checks
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/props
 prefix: verdict/
 tag: (VERDICT orchestrator)
 ab_band: 9500-9599
 paths: [crates/geom-core/src/k_stats.rs]
-keep_out: [opened by PROPS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - PROPS measured 108.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are PROPS NURBS LINALG VERDICT and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, ENCL and STACK hold the certified-enclosure half, QUAD owns props/quad/, SSI and PCERT own the geom-brep certification lanes, PORT took the four refusal rows whose class is the crate boundary]
+keep_out: [opened by PROPS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - PROPS measured 108.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are PROPS NURBS LINALG VERDICT and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, ENCL and STACK hold the certified-enclosure half, QUAD owns props/quad/, SSI and PCERT own the geom-brep certification lanes, PORT took the four refusal rows whose class is the crate boundary]
 ---
 The gates and vocabularies a property answer passes through on its way
 out, and the places two of them disagree. A positive size under the

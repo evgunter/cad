@@ -389,6 +389,21 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// scope-relative and the scope that matters is the ATTACHING
     /// evaluation's descent chain, read where the attach happens.
     pub edge_radii: Vec<Vec<Option<crate::var::VarId>>>,
+    /// **The frame the profile is drawn on**, where it is drawn on one
+    /// ([`crate::DrawnOn`]): a sweep of it is built in the profile's own
+    /// coordinates and stands in that frame of its space.
+    pub(crate) frame: Option<super::Frame<T>>,
+}
+
+impl<T: geom_core::Decide> ProfileValue<T> {
+    /// **A body swept from this profile**, built in the profile's own
+    /// coordinates: in the frame the profile is drawn on, or its own.
+    pub(crate) fn framed(&self, body: std::sync::Arc<topo::Body<T>>) -> super::Framed<T> {
+        match &self.frame {
+            Some(frame) => super::Framed::in_frame(body, frame.clone()),
+            None => super::Framed::own(body),
+        }
+    }
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

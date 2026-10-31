@@ -1,7 +1,7 @@
-//! Ring/genus Euler operators — [`Body::kemr`] (with its band twin
-//! [`Body::kemr_minting`]), [`Body::mekr`], [`Body::kfmrh`] (with its
-//! band twin [`Body::kfmrh_minting`]) — plus
-//! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
+//! Ring/genus Euler operators — [`Body::kemr`](crate::construction::Construct::kemr) (with its band twin
+//! [`Body::kemr_minting`](crate::construction::Construct::kemr_minting)), [`Body::mekr`](crate::construction::Construct::mekr), [`Body::kfmrh`](crate::construction::Construct::kfmrh) (with its
+//! band twin [`Body::kfmrh_minting`](crate::construction::Construct::kfmrh_minting)) — plus
+//! the [`Body::ring_move`](crate::construction::Construct::ring_move) helper (with [`Body::ring_move_minting`](crate::construction::Construct::ring_move_minting))
 //! (M1 PR 3).
 //!
 //! These are the operators that create and consume **rings** (interior
@@ -142,7 +142,7 @@
 //! **solids** it stays a typed error ([`EulerOpError::CrossSolid`]):
 //! combining bodies is the boolean pipeline's combine step, not an
 //! Euler surgery. `f2` must carry **no
-//! rings** (move them off first with [`Body::ring_move`]); its outer
+//! rings** (move them off first with [`Body::ring_move`](crate::construction::Construct::ring_move)); its outer
 //! loop may be `Empty` or `Cycle` — an `Empty` outer becomes an `Empty`
 //! ring of `f1`. No half-edge, vertex, or edge is touched: the
 //! manipulation is purely at the loop/face/shell level (a "truly global"
@@ -150,7 +150,7 @@
 //!
 //! # `ring_move` — NOT an Euler operator
 //!
-//! [`Body::ring_move`] reparents a ring from its face to another face of
+//! [`Body::ring_move`](crate::construction::Construct::ring_move) reparents a ring from its face to another face of
 //! the same shell. It is **not an Euler operator**: the Euler vector is
 //! unchanged, nothing is created or killed, and no provenance changes —
 //! D5 records are *birth* records, and reparenting is not a re-birth. It
@@ -196,7 +196,8 @@
 //!
 //! ```
 //! use geom_core::{Point3, Tol};
-//! use topo::{Body, LoopBoundary, MekrSite, MevSite};
+//! use topo::{Body, LoopBoundary};
+//! use topo::construction::{Construct, MekrSite, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
@@ -255,14 +256,14 @@ use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
-/// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
+/// Where [`Body::mekr`](crate::construction::Construct::mekr) acts: the site addressing for "make edge, kill
 /// ring".
 ///
-/// Same design as [`crate::MevSite`]/[`crate::MefSite`]: the ratified
+/// Same design as [`crate::construction::MevSite`]/[`crate::construction::MefSite`]: the ratified
 /// typed-`Empty` loop state makes every degenerate configuration its own
 /// variant instead of a placeholder half-edge. One variant per
 /// boundary-shape combination of the two loops, covering the inverse of
-/// every [`Body::kemr`] output configuration (general split, ring-side
+/// every [`Body::kemr`](crate::construction::Construct::kemr) output configuration (general split, ring-side
 /// empty, old-side empty, both empty). In every variant the **target**
 /// loop survives (and receives the new halves) and the **ring** loop is
 /// killed; cycle loops are addressed by a member half-edge, empty loops
@@ -319,7 +320,7 @@ pub enum MekrSite {
     },
 }
 
-/// The outcome of one [`Body::kemr`] call: one created key, three (or
+/// The outcome of one [`Body::kemr`](crate::construction::Construct::kemr) call: one created key, three (or
 /// four) dead ones.
 ///
 /// The `killed_*` keys **no longer resolve** — they are returned for the
@@ -345,7 +346,7 @@ pub struct KemrResult {
     pub killed_curve: Option<CurveKey>,
 }
 
-/// The outcome of one [`Body::mekr`] call: the created edge complex and
+/// The outcome of one [`Body::mekr`](crate::construction::Construct::mekr) call: the created edge complex and
 /// the dead ring key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MekrResult {
@@ -366,7 +367,7 @@ pub struct MekrResult {
     pub killed_ring: LoopKey,
 }
 
-/// The outcome of one [`Body::kfmrh`] call: nothing created (the ring is
+/// The outcome of one [`Body::kfmrh`](crate::construction::Construct::kfmrh) call: nothing created (the ring is
 /// the surviving demoted loop), one face — and, in the cross-shell form,
 /// one shell — dead, plus possibly the face's orphaned surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -387,7 +388,7 @@ pub struct KfmrhResult {
     pub killed_shell: Option<ShellKey>,
 }
 
-/// [`Body::kemr`]'s arena delta, shared by both doors.
+/// [`Body::kemr`](crate::construction::Construct::kemr)'s arena delta, shared by both doors.
 #[cfg(debug_assertions)]
 const KEMR_DELTA: ArenaDelta = ArenaDelta {
     loops: 1,
@@ -396,7 +397,7 @@ const KEMR_DELTA: ArenaDelta = ArenaDelta {
     ..ArenaDelta::ZERO
 };
 
-/// What [`Body::kfmrh`]'s precondition phase proved and decided, for
+/// What [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s precondition phase proved and decided, for
 /// its surgery to write.
 struct KfmrhPlan<T: geom_core::Real> {
     f1: FaceKey,
@@ -417,7 +418,7 @@ struct KfmrhPlan<T: geom_core::Real> {
     described: Vec<(EdgeKey, geom_brep::EdgeCurve<T>)>,
 }
 
-/// What [`Body::kfmrh`]'s structural checks prove: `f1`'s shell, the
+/// What [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s structural checks prove: `f1`'s shell, the
 /// killed face `f2` and its shell's records, the form, the ring that
 /// `f2`'s outer loop becomes, and its move onto `f1`.
 struct KfmrhMove {
@@ -446,48 +447,13 @@ impl<T: geom_core::Real> KfmrhPlan<T> {
 }
 
 impl<T: Decide> Body<T> {
-    /// KEMR — *kill edge, make ring*: remove an edge occurring twice in
-    /// one loop, splitting the loop's cycle into two components; `he1`'s
-    /// side becomes a new **ring** of the same face.
-    ///
-    /// The ratified side association, the empty-anchor rules, and the
-    /// deterministic re-anchoring rules: [module docs](self). `he1` and
-    /// `he2` must be the two halves of one edge and lie in the same
-    /// loop.
-    ///
-    /// Euler vector: `(v 0, e −1, f 0, h 0, r +1, s 0)` — arena deltas
-    /// +1 loop, −2 half-edges, −1 edge.
-    ///
-    /// **Minting order** (D9, exact): the ring loop — the only entity
-    /// minted. **Kill order** (D9, exact): `he1`, `he2`, the edge (each
-    /// with its provenance entry), then the edge's curve iff orphaned
-    /// ([`Body::remove_curve_if_orphaned`]).
-    ///
-    /// # Precondition check order
-    ///
-    /// `he1` resolves, then `he2` (`BadArgument::Stale`); they are the
-    /// two halves of one edge ([`BadArgument::NotMates`]); same parent
-    /// loop ([`EulerOpError::NotSameLoop`]). Last, where the edge is a
-    /// null edge, the face is not left with a loop the kill releases
-    /// missing a row on a face the site mint selects
-    /// ([`Body::plan_released_rows`]: [`EulerOpError::PcurveMint`] with
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] naming the face —
-    /// this door takes no band to mint it; [`Body::kemr_minting`] does).
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    ///
-    /// # Panics
-    ///
-    /// Where the body is not tier-1-valid around the edge: a record the
-    /// edge, its halves or their loop name does not resolve, the loop's
-    /// cycle from `he1` does not close through `he2`, a re-anchoring
-    /// write does not hold, both sides are empty at one vertex, or a
-    /// record the kill keeps still names a killed one. Every public door
-    /// keeps the body tier-1-valid, so only a kernel bug reaches these.
-    pub fn kemr(&mut self, he1: HalfEdgeKey, he2: HalfEdgeKey) -> Result<KemrResult, EulerOpError> {
+    /// The door [`Construct::kemr`](crate::construction::Construct::kemr) forwards to;
+    /// documented there.
+    pub(crate) fn kemr(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) -> Result<KemrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let killed = self.kemr_with(he1, he2, None)?;
@@ -496,19 +462,9 @@ impl<T: Decide> Body<T> {
         Ok(killed)
     }
 
-    /// [`Body::kemr`] with a band: where `kemr` refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the killed edge is
-    /// a null edge, and the loop's two sides, as the kill leaves them,
-    /// run through no null edge and miss rows the loop missed while it
-    /// was held open — the face is re-minted at `tol`'s band over those
-    /// sides ([`Body::plan_released_rows`]); everywhere else it is
-    /// `kemr`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::kemr`], except the `KeysOnly` refusal, and the site
-    /// mint's plan in its place ([`Body::plan_released_rows`]').
-    pub fn kemr_minting(
+    /// The door [`Construct::kemr_minting`](crate::construction::Construct::kemr_minting) forwards to;
+    /// documented there.
+    pub(crate) fn kemr_minting(
         &mut self,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
@@ -522,7 +478,7 @@ impl<T: Decide> Body<T> {
         Ok(killed)
     }
 
-    /// [`Body::kemr`]'s plan and surgery, with the band its site mint
+    /// [`Body::kemr`](crate::construction::Construct::kemr)'s plan and surgery, with the band its site mint
     /// runs at, or none for the keys-only door. The door that calls it
     /// declares the postcondition.
     fn kemr_with(
@@ -750,65 +706,9 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// MEKR — *make edge, kill ring*: join a ring of a face back into
-    /// another loop of the same face with a new edge; the ring's loop
-    /// key dies. The exact inverse of [`Body::kemr`].
-    ///
-    /// Site semantics (one variant per boundary-shape combination):
-    /// [`MekrSite`]. Direction convention (module docs): `he_plus` runs
-    /// **target anchor vertex → ring anchor vertex**; both halves land
-    /// in the target loop, which is re-anchored at `he_plus`
-    /// (unconditional). Emanating: `u → he_plus`, `w → he_minus`
-    /// (unconditional, `mev`'s rule).
-    ///
-    /// Euler vector: `(v 0, e +1, f 0, h 0, r −1, s 0)` — arena deltas
-    /// −1 loop, +2 half-edges, +1 edge.
-    ///
-    /// **Pcurve rows**: as [`Body::mev`]'s — the face, when its rows
-    /// were complete, has its merged loop re-minted with both halves in
-    /// it before any mutation, on the terms `mev` states.
-    ///
-    /// **Minting order** (D9, exact): curve (placeholder, anchored at the
-    /// target anchor vertex's coordinates), edge, `he_plus`, `he_minus`.
-    /// **Kill order**: the ring loop (with its provenance entry and every
-    /// null-face record naming it, as a null-face record lives only while
-    /// its face holds both loops it names — [`crate::null`]), after the
-    /// splice.
-    ///
-    /// # Precondition check order
-    ///
-    /// The listing below is **`Cycles`-canonical**; the loop-key-
-    /// addressed sites (`EmptyTarget`, `BothEmpty`) necessarily resolve
-    /// the target loop (and check its boundary shape) *before* the
-    /// distinctness check. Each site's own order is fixed and
-    /// deterministic (the first failure wins).
-    ///
-    /// Anchors resolve ([`BadArgument::Stale`]); the two loops are
-    /// distinct ([`EulerOpError::SameLoop`]); an argument loop has the
-    /// site's required boundary shape ([`EulerOpError::LoopNotEmpty`]);
-    /// both loops belong to one face ([`EulerOpError::NotSameFace`]);
-    /// the ring is not that face's outer loop
-    /// ([`EulerOpError::RingIsOuter`]). Then the geometry gate: `curve`
-    /// certifies against the anchors' points, u → w in the `he_plus`
-    /// forward order ([`EulerOpError::Certification`]; `crate::euler`
-    /// module docs, M2 geometry policy). Last, the pcurve rows, as
-    /// [`Body::mev`] states them: the face's row plan is minted
-    /// ([`EulerOpError::PcurveMint`]). Chord sugar: [`Body::mekr_chord`].
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    ///
-    /// # Panics
-    ///
-    /// Where the body is not tier-1-valid around the two loops: a
-    /// half-edge claims an empty or dead loop, a record they name does
-    /// not resolve, a cycle walk does not close or is not exactly the
-    /// half-edges that claim its loop, a face but the ring's lists the
-    /// ring, or two empty loops share one lone vertex. Every public door
-    /// keeps the body tier-1-valid, so only a kernel bug reaches these.
-    pub fn mekr(
+    /// The door [`Construct::mekr`](crate::construction::Construct::mekr) forwards to;
+    /// documented there.
+    pub(crate) fn mekr(
         &mut self,
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
@@ -825,7 +725,7 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// [`Body::mekr`]'s plan and surgery, with its curve as a
+    /// [`Body::mekr`](crate::construction::Construct::mekr)'s plan and surgery, with its curve as a
     /// [`NewCurve`], which the chord sugar derives inside the plan. The
     /// door that calls it declares the postcondition.
     fn mekr_with(
@@ -851,17 +751,13 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// [`Body::mekr`] with derived scaffolding geometry — the
-    /// polyhedral/migration sugar (see `crate::euler`'s geometry
-    /// policy): the chord line between the two anchor vertices' points
-    /// (`EdgeCurveSpec::line_between`), or the canonical scaffolding
-    /// circle when both anchors are one vertex (structural key
-    /// equality — `EdgeCurveSpec::self_loop_circle_at`).
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError>
+    /// The door [`Construct::mekr_chord`](crate::construction::Construct::mekr_chord) forwards to;
+    /// documented there.
+    pub(crate) fn mekr_chord(
+        &mut self,
+        site: MekrSite,
+        tol: Tol,
+    ) -> Result<MekrResult, EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
@@ -873,105 +769,9 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
-    /// outer loop becomes a ring of `f1`; `f2` dies.
-    ///
-    /// Two forms, selected by where the faces live (M3 PR 1 lifted the
-    /// M1 cross-shell deferral — the ch. 12 glue / ch. 15 seam-zip call
-    /// site now exists):
-    ///
-    /// - **Same shell** (the M1 form): genus surgery — a handle (or a
-    ///   component merge within the shell, the PR 4 transient).
-    /// - **Cross-shell, same solid** (M3): shell **fusion** — `f2`'s
-    ///   shell's surviving faces are re-homed into `f1`'s shell and
-    ///   `f2`'s shell dies. Per-component E–P reading: the two
-    ///   incidence components join through the demoted ring (connected
-    ///   sum — genera add, χ₁+χ₂−2). Serves ch. 15 `setopfinish`'s
-    ///   seam zip and ch. 12 glue (M3 PR 5). Fusing across **solids**
-    ///   stays a typed error ([`EulerOpError::CrossSolid`]): combining
-    ///   bodies is the boolean pipeline's combine step, not an Euler
-    ///   surgery.
-    ///
-    /// The no-rings-on-`f2` rule: [module docs](self). `f2`'s outer may
-    /// be `Empty` or `Cycle` — both legal. No half-edge, vertex, or
-    /// edge is touched.
-    ///
-    /// Euler vector, same-shell form: `(v 0, e 0, f −1, h +1, r +1,
-    /// s 0)` — arena delta −1 face (the "+1 ring" is the surviving
-    /// loop's reclassification, not a mint; genus is derived, not
-    /// stored).
-    ///
-    /// The fusion form's is `(v 0, e 0, f −1, h 0, r +1, s −1)`, `s`
-    /// being the SHELL count (the solid count is unchanged — GWB's
-    /// §9.2.4 "KFSMR" reading), and its arena delta is −1 face and
-    /// −1 shell. **The shell term carries this form's surgery instead
-    /// of the genus term**: eq. 9.2 with `Δf = −1`, `Δr = +1` and
-    /// `Δs = −1` forces `Δh = 0`, which is the connected sum reading
-    /// above — two components' genera add, so no handle is made. A
-    /// caller that expects the same-shell `h +1` here is off by a
-    /// handle.
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): the demoted loop's stored
-    /// rows are a curve stated in `f2`'s chart, so they survive this op
-    /// only when `f1` is on the same CHART ([`Body::same_chart`]: one
-    /// key, or two keys sharing one payload). When it is not, they are
-    /// DROPPED ([`Body::drop_rows`]). Where they do not stand on `f1`
-    /// — dropped, or missing — and `f1`'s rows were complete on an
-    /// analytic chart, `f1` is owed a re-mint this keys-only kill takes
-    /// no band for, so it refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
-    /// moves rather than leave `f1` half-minted — the shape of
-    /// [`Body::kev`]'s refusal where a carrier would go stale.
-    /// [`Body::kfmrh_minting`] is the same kill with a band, and makes
-    /// that move whole. On a spline chart, or an `f1` that was unminted
-    /// or half-minted, the drop is the whole answer at either door.
-    ///
-    /// **Keys-only.** Where `f1` wears another key than `f2`, the
-    /// demoted loop moves onto a chart its edges' descriptions may not
-    /// name. This door asks [`Body::ring_move`]'s questions of that move
-    /// ([`Body::vouch_move`], as [`RechartDoor::Kfmrh`]), on
-    /// [`Body::kef`]'s terms; [`Body::kfmrh_describing`] takes the move
-    /// with its re-descriptions under a band.
-    ///
-    /// **Minting order**: nothing is minted (the loop survives with its D5
-    /// birth record — no provenance changes for survivors; re-homed faces
-    /// keep their birth records — re-homing is not a re-birth). **Kill
-    /// order** (D9, exact): cross-shell form first re-homes `f2`'s shell's
-    /// surviving faces (appended to `f1`'s shell's list in their surviving
-    /// order) and kills the shell (with its provenance); then, both forms,
-    /// the face `f2` (with its provenance and its null-face record) and
-    /// every null-face record naming `f2`'s demoted outer loop, as a
-    /// null-face record lives only while its face holds both loops it names
-    /// ([`crate::null`]), then `f2`'s surface iff orphaned
-    /// ([`Body::remove_surface_if_orphaned`]).
-    ///
-    /// # Precondition check order
-    ///
-    /// `f1` resolves, then `f2` ([`BadArgument::Stale`]); they are
-    /// distinct ([`EulerOpError::SameFace`]); cross-shell only: one
-    /// solid ([`EulerOpError::CrossSolid`]); `f2` has no rings
-    /// ([`EulerOpError::FaceHasRings`]); then the move's keys
-    /// ([`EulerOpError::RechartStrandsDescriptions`], then
-    /// [`EulerOpError::RechartUnvouched`], each naming every edge, in
-    /// the demoted loop's cycle order); then the site mint's plan
-    /// ([`Body::plan_moved_rows`]'s errors): where `f1` would be
-    /// re-minted, [`EulerOpError::PcurveMint`] naming `f1` (`KeysOnly`
-    /// at this door).
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    ///
-    /// # Panics
-    ///
-    /// Where the body is not tier-1-valid around the faces: a record
-    /// they name does not resolve, the demoted loop's walk is not
-    /// exactly the half-edges that claim it, or a record the kill keeps
-    /// still names `f2` or, in the fusion form, its shell. Every public
-    /// door keeps the body tier-1-valid, so only a kernel bug reaches
-    /// these.
-    pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
+    /// The door [`Construct::kfmrh`](crate::construction::Construct::kfmrh) forwards to;
+    /// documented there.
+    pub(crate) fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let plan = self.kfmrh_plan(f1, f2, None, |body, m| {
@@ -985,22 +785,9 @@ impl<T: Decide> Body<T> {
         Ok(fused)
     }
 
-    /// [`Body::kfmrh`] with a band: where `kfmrh` refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the demoted
-    /// loop's rows do not stand on a complete `f1` — this door re-mints
-    /// `f1` at `tol`'s band, the demoted loop walked in its chart
-    /// ([`Body::plan_moved_rows`]); everywhere else it is `kfmrh`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
-    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors);
-    /// and it does not ask the move's keys. Its production caller, the
-    /// boolean's seam zip, relies on that move, and
-    /// [`Body::kfmrh_describing`] absorbs it once the zip states its
-    /// re-descriptions
-    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
-    pub fn kfmrh_minting(
+    /// The door [`Construct::kfmrh_minting`](crate::construction::Construct::kfmrh_minting) forwards to;
+    /// documented there.
+    pub(crate) fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1017,37 +804,9 @@ impl<T: Decide> Body<T> {
         Ok(fused)
     }
 
-    /// **The describing kill**: [`Body::kfmrh_minting`]'s kill with the
-    /// re-descriptions of the demoted loop's edges, under `tol`'s band
-    /// — the twin [`Body::kfmrh`]'s refusals name, as
-    /// [`Body::kef_describing`] is [`Body::kef`]'s, and on its terms:
-    /// each listed description is stated on the adjacency the kill
-    /// leaves, a key `f2` wears standing for `f1`'s
-    /// ([`Body::kfmrh_carried_redescriptions`] states the stored ones
-    /// there), certified on the edge's own carrier and interval, and
-    /// nothing unlisted is re-described.
-    ///
-    /// # Precondition check order
-    ///
-    /// [`Body::kfmrh`]'s structural list; then
-    /// [`Body::kef_describing`]'s listed-edge, strand and residual
-    /// checks, an edge with a half in the demoted loop counting as
-    /// moved ([`EulerOpError::NotMovedEdge`] otherwise); then
-    /// [`Body::kfmrh_minting`]'s site mint.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    ///
-    /// # Panics
-    ///
-    /// As [`Body::kfmrh`].
-    ///
-    /// Also on a kernel bug: an edge the body stores, re-minted or
-    /// restated on its own carrier and interval, whose span or winding
-    /// reads certainly refused at the run's band.
-    pub fn kfmrh_describing(
+    /// The door [`Construct::kfmrh_describing`](crate::construction::Construct::kfmrh_describing) forwards to;
+    /// documented there.
+    pub(crate) fn kfmrh_describing(
         &mut self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1070,18 +829,9 @@ impl<T: Decide> Body<T> {
         Ok(fused)
     }
 
-    /// **The re-descriptions [`Body::kfmrh_describing`] would need to
-    /// carry `kfmrh(f1, f2)`'s move**: [`Body::kef_carried_redescriptions`]'
-    /// reading for the demoted loop, in its cycle order. Pure.
-    ///
-    /// # Errors
-    ///
-    /// [`Body::kfmrh`]'s structural list: `f1` resolves, then `f2`
-    /// ([`BadArgument::Stale`]); they are distinct
-    /// ([`EulerOpError::SameFace`]); they share a solid
-    /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
-    /// ([`EulerOpError::FaceHasRings`]).
-    pub fn kfmrh_carried_redescriptions(
+    /// The door [`Construct::kfmrh_carried_redescriptions`](crate::construction::Construct::kfmrh_carried_redescriptions) forwards to;
+    /// documented there.
+    pub(crate) fn kfmrh_carried_redescriptions(
         &self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1089,8 +839,8 @@ impl<T: Decide> Body<T> {
         Ok(self.carried_by_kill(&self.kfmrh_move(f1, f2)?.kill))
     }
 
-    /// [`Body::kfmrh`]'s structural preconditions and the move it makes,
-    /// which [`Body::kfmrh_carried_redescriptions`] states and the doors
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s structural preconditions and the move it makes,
+    /// which [`Body::kfmrh_carried_redescriptions`](crate::construction::Construct::kfmrh_carried_redescriptions) states and the doors
     /// vouch and carry out.
     fn kfmrh_move(&self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhMove, EulerOpError> {
         let f1_data = lookup(&self.faces, f1, EntityId::Face, Arg("f1"))?;
@@ -1171,7 +921,7 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s preconditions and site mint plan, with the band
     /// the site mint runs at, or none for the keys-only door.
     fn kfmrh_plan(
         &self,
@@ -1266,7 +1016,7 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// [`Body::kfmrh`]'s surgery, from its proved plan. Infallible.
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s surgery, from its proved plan. Infallible.
     fn kfmrh_execute(&mut self, plan: KfmrhPlan<T>) -> KfmrhResult {
         let KfmrhPlan {
             f1,
@@ -1344,104 +1094,13 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Reparents a ring from its face to `to_face` (same shell).
-    /// **NOT an Euler operator** — see the [module docs](self): the
-    /// Euler vector is unchanged, nothing is created or killed, and no
-    /// provenance changes (D5 records are birth records; reparenting is
-    /// not a re-birth). It is the non-Euler addendum to `mef`/`kfmrh`
-    /// (GWB's `lringmv`), needed because `mef` deliberately does not
-    /// reclassify the split face's rings and `kfmrh` requires `f2`
-    /// ring-free.
-    ///
-    /// **This op is also ch. 14's `laringmv`** (M3 PR 1 — ring
-    /// re-homing after splits change containment; serves ch. 14
-    /// `splitconnect` joining, M3 PR 3). Division of labor, ratified
-    /// with the M3 plan: the *containment decision* — which face a
-    /// ring now geometrically belongs to — is the **caller's**, made
-    /// in the splitting/boolean pipeline through PR 2's trilean
-    /// point-in-loop classification machinery. `ring_move` takes the
-    /// target face explicitly and validates only structural legality
-    /// (the ring's current owner, target in the same shell); it never
-    /// runs a geometric containment check itself, so a wrong target is
-    /// the caller's bug, surfaced by the designation-sensitive
-    /// consumers (tier-3 region checks, mass properties), not here.
-    ///
-    /// Reparenting: the ring leaves its face's `rings`, joins
-    /// `to_face.rings` (appended — deterministic order), and its `face`
-    /// back-pointer is repointed. Every null-face record naming the ring is
-    /// dropped, as a null-face record lives only while its face holds both
-    /// loops it names ([`crate::null`]). Moving a ring to its own face is a
-    /// documented no-op (`Ok(())`, body untouched — the rings order is NOT
-    /// perturbed, keeping replay byte-stable, and a record naming the ring
-    /// stands).
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): this door mints and kills
-    /// no half-edge, and it still writes the map — a re-parenting is
-    /// pure of the ARENAS, not of the pcurve map. A row is a curve
-    /// stated in a FACE's chart, so the ring's rows survive the move
-    /// only when `to_face` is on the same CHART as the ring's old face
-    /// ([`Body::same_chart`]); when it is not they are DROPPED
-    /// ([`Body::drop_rows`]). Where they do not stand on `to_face` —
-    /// dropped, or missing — and `to_face`'s rows were complete on an
-    /// analytic chart, this keys-only door refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
-    /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
-    /// takes a band and re-mints `to_face` with the ring walked in its
-    /// chart. Neither face's other loops are touched, the face the ring
-    /// leaves needs nothing beyond the record drop, and the same-face
-    /// no-op moves nothing.
-    ///
-    /// **A ring moved onto a face on another chart is vouched for by
-    /// its edges, or refused** ([`RechartDoor::RingMove`]), at both
-    /// doors: every edge of the ring is asked [`Body::vouch_move`]'s
-    /// questions against `to_face`'s key. The containment decision
-    /// stays the caller's; this is the keys' half of it. The lever is
-    /// the face the ring moves onto: one on a chart its edges name.
-    ///
-    /// # Tier-1 preservation (the demotion claim's least obvious case)
-    ///
-    /// `ring_move` re-glues the per-shell component partition (a face
-    /// glues all its loops — validator pass 11), so unlike the Euler
-    /// operators its tier-1 preservation is not a per-surgery
-    /// Euler-vector fact. It holds anyway, by the separating-curve
-    /// argument (independently derived by the PR 5 review): validator
-    /// passes 3/4/6 force every component to be a closed oriented
-    /// surface, and on a genus-0 component every ring cycle is a
-    /// separating (Jordan) curve — so a cross-component move
-    /// re-partitions the complex into pieces that are again closed
-    /// surfaces with `χ = 2(1 − g)`, `g ≥ 0`; a NON-separating ring
-    /// forces its component's genus ≥ 1 before the move, and a move can
-    /// merge at most two components, so no move manufactures odd χ or
-    /// negative genus. Exercised continuously by the seqgen fuzz lane
-    /// (`ring_move` is a candidate mutator) and by the promoted review
-    /// sweeps (`tests/review_m1_pr5.rs`: every `ring_move` to depth 2
-    /// over adversarial fixtures, including the non-separating-ring
-    /// pillow-torus).
-    ///
-    /// # Precondition check order
-    ///
-    /// The ring resolves ([`BadArgument::Stale`]); it is not its face's
-    /// outer loop ([`EulerOpError::RingIsOuter`]); `to_face` resolves
-    /// (`BadArgument::Stale`); both faces lie in one shell
-    /// ([`EulerOpError::CrossShell`]); then, where `to_face`'s key is
-    /// not the ring's face's, no edge of the ring is stranded
-    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
-    /// in cycle order) and every certified one names that key
-    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
-    /// mint's plan ([`Body::plan_moved_rows`]'s errors): where `to_face`
-    /// would be re-minted, `KeysOnly` at this door.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    ///
-    /// # Panics
-    ///
-    /// Where the ring's face does not resolve, or the ring's walk is not
-    /// exactly the half-edges that claim it: every public door keeps the
-    /// body tier-1-valid, where neither happens.
-    pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
+    /// The door [`Construct::ring_move`](crate::construction::Construct::ring_move) forwards to;
+    /// documented there.
+    pub(crate) fn ring_move(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+    ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         self.ring_move_with(ring, to_face, None, true)?;
@@ -1450,18 +1109,9 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// [`Body::ring_move`] with a band: where `ring_move` refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the ring's rows
-    /// do not stand on a complete `to_face` — this door re-mints
-    /// `to_face` at `tol`'s band, the ring walked in its chart
-    /// ([`Body::plan_moved_rows`]); everywhere else it is `ring_move`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
-    /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
-    /// errors).
-    pub fn ring_move_minting(
+    /// The door [`Construct::ring_move_minting`](crate::construction::Construct::ring_move_minting) forwards to;
+    /// documented there.
+    pub(crate) fn ring_move_minting(
         &mut self,
         ring: LoopKey,
         to_face: FaceKey,
@@ -1475,8 +1125,8 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// [`Body::ring_move_minting`] without the move's keys, as
-    /// [`Body::kef_minting`] is [`Body::kef`] without them: the ring
+    /// [`Body::ring_move_minting`](crate::construction::Construct::ring_move_minting) without the move's keys, as
+    /// [`Body::kef_minting`](crate::construction::Construct::kef_minting) is [`Body::kef`](crate::construction::Construct::kef) without them: the ring
     /// may land on a face on another chart with its edges still
     /// described in the one it leaves. Its caller re-describes them:
     /// the coplanar merge, whose ring drain moves an absorbed face's
@@ -1485,7 +1135,7 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// As [`Body::ring_move_minting`], less the move's keys
+    /// As [`Body::ring_move_minting`](crate::construction::Construct::ring_move_minting), less the move's keys
     /// ([`EulerOpError::RechartStrandsDescriptions`],
     /// [`EulerOpError::RechartUnvouched`]).
     pub(crate) fn ring_move_unasked(
@@ -1502,7 +1152,7 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// [`Body::ring_move`]'s plan and surgery, with the band its site
+    /// [`Body::ring_move`](crate::construction::Construct::ring_move)'s plan and surgery, with the band its site
     /// mint runs at, or none for the keys-only door, asking the move's
     /// keys where `ask_keys` is set. The door that calls it declares the
     /// postcondition.
@@ -1600,11 +1250,11 @@ impl<T: Decide> Body<T> {
     /// `_minting` door's site mint puts back ([`Body::plan_moved_rows`]);
     /// [`Body::same_chart`] states which charts count as one. The
     /// decision is taken here once, for the two doors that move a
-    /// whole loop between existing faces ([`Body::kfmrh`],
-    /// [`Body::ring_move`]); [`Body::mfkrh`] takes it with its spec
+    /// whole loop between existing faces ([`Body::kfmrh`](crate::construction::Construct::kfmrh),
+    /// [`Body::ring_move`](crate::construction::Construct::ring_move)); [`Body::mfkrh`](crate::construction::Construct::mfkrh) takes it with its spec
     /// ([`Body::resolve_face_surface`]) and drops the same list; the
-    /// two doors that move a RUN of one ([`Body::mef`]'s chord surgery,
-    /// [`Body::kef`]'s unsplice) take it at their own sites, over the
+    /// two doors that move a RUN of one ([`Body::mef`](crate::construction::Construct::mef)'s chord surgery,
+    /// [`Body::kef`](crate::construction::Construct::kef)'s unsplice) take it at their own sites, over the
     /// run their plan phase holds.
     ///
     /// **What it drops is what the validator would read.** `halves` is
@@ -1681,7 +1331,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// `face` as a door leaves it that moves the loop `halves` walk onto
-    /// it as a new ring ([`Body::kfmrh`], [`Body::ring_move`]): its own
+    /// it as a new ring ([`Body::kfmrh`](crate::construction::Construct::kfmrh), [`Body::ring_move`](crate::construction::Construct::ring_move)): its own
     /// loops kept, the moved loop rewired after them.
     fn site_face_receiving(&self, face: FaceKey, halves: &[HalfEdgeKey]) -> SiteFace<T> {
         let mut site = self.site_face(face, &[], None);
@@ -1699,7 +1349,7 @@ impl<T: Decide> Body<T> {
     /// is each door's, taken once at its own site, and this takes none.
     ///
     /// **Why dropping rather than re-stating.** An image on another
-    /// chart is DERIVED, not restated — unlike [`Body::split_edge`]'s
+    /// chart is DERIVED, not restated — unlike [`Body::split_edge`](crate::construction::Construct::split_edge)'s
     /// restriction of one image to a sub-interval of its own carrier —
     /// so the moved rows go. What replaces them on a complete analytic
     /// destination is the `_minting` door's site mint

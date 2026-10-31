@@ -77,7 +77,9 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, UvWindow, implicit_enclosure, refused_box};
+use super::enclose::{
+    Box3, NurbsBoxes, UvWindow, has_implicit_enclosure, implicit_enclosure, refused_box,
+};
 use super::four::{Box4, PairBoxes};
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
@@ -963,22 +965,24 @@ fn sweep_r3(
     floor: SweepFloor<Box3>,
     duty: SweepDuty<'_, Box3>,
 ) -> Result<(SweepTally, Vec<Point3<f64>>), SsiError> {
+    if !(has_implicit_enclosure(s1.kind()) && has_implicit_enclosure(s2.kind())) {
+        return Err(SsiError::WrongLane {
+            expected: "two surfaces of kinds the ℝ³ enclosures have arms for",
+        });
+    }
     sweep(floor, duty, |cell| {
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if !e1.is_certified() || !e2.is_certified() {
-            // The lane gate (`cylinder_sphere_ssi`'s `WrongLane`)
-            // admits only kinds in the enclosure roster
-            // (`enclose::has_implicit_enclosure`), so a refused
-            // enclosure here is a degenerate operand, not a missing
-            // arm. A gate that admits a kind outside the roster must
-            // revisit this sentence, or the arm starts blaming a radius
-            // for a missing arm.
+            // Both kinds are in the roster (above), so a refused
+            // enclosure is a degenerate operand, behind the doors' own
+            // radius and ring-convention decisions.
             return Err(SsiError::UnsupportedCertificate {
-                what: "a degenerate operand — a sphere or cylinder of zero \
-                       radius, whose implicit form divides by that radius — \
-                       has no ring-computable implicit enclosure, so its \
-                       domain cannot be proved exhausted",
+                what: "a degenerate operand — a sphere, cylinder or torus tube of \
+                       zero radius, or a torus whose |q|² + R² − r² reaches zero (a \
+                       spindle or horn torus near its axis), each of which its \
+                       implicit form divides by — has no ring-computable implicit \
+                       enclosure, so its domain cannot be proved exhausted",
             });
         }
         Ok(excludes_zero(e1) || excludes_zero(e2))
@@ -1372,6 +1376,42 @@ mod tests {
     };
     use crate::ssi::SsiError;
 
+    /// **The ℝ³ sweep's refusal arm**, below the pose that guards every
+    /// door to it: a zero-radius sphere has no ring-computable implicit
+    /// enclosure (it divides by `2r`), so the first cell's enclosure is
+    /// refused and the sweep says so typed, naming the cause, rather
+    /// than refining to its cell budget.
+    #[test]
+    fn a_zero_radius_operand_refuses_the_enclosure_typed() {
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let point = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 0.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.03, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.08,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = SweepFloor::r3(
+            Box3::around(Point3::new(0.0, 0.0, 0.0), 1.5),
+            1e-3,
+            FloorKind::Seeding,
+        )
+        .unwrap();
+        match super::seed_r3(&wall, &point, floor) {
+            Err(SsiError::UnsupportedCertificate { what }) => {
+                assert!(what.contains("zero radius"), "{what}");
+                assert!(what.contains("cannot be proved exhausted"), "{what}");
+            }
+            other => panic!("expected the enclosure refusal, got {other:?}"),
+        }
+    }
+
     fn unit_square() -> UvRect {
         UvRect {
             u: (0.0, 1.0),
@@ -1586,5 +1626,77 @@ mod tests {
         ] {
             assert!(cell.width().is_nan(), "{cell:?}");
         }
+    }
+
+    /// **The torus's exclusion stays tight on a thin torus.** A sphere
+    /// of radius `0.15` crossing a torus `R = 1, r = 0.1` (`R/r = 10`) is
+    /// swept for seeds to a 512th of the root's width. The torus's
+    /// mean-value enclosure examines about 6.8k cells there; the direct
+    /// quartic `A² − 4R²ρ²`, which treats its two dependent terms as
+    /// independent, examined 67k, and a sweep to the accounting floor
+    /// scales that ratio by the depth. Every point of the section lies
+    /// within a floor cell's half-diagonal of a seed: no cell holding it
+    /// was excluded.
+    #[test]
+    fn a_thin_torus_excludes_tightly_and_keeps_its_section() {
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let (big, small) = (1.0, 0.1);
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big,
+            minor_radius: small,
+            u_ref: Vec3::unit_x(),
+        };
+        let (c, rs) = (Point3::new(1.0, 0.0, 0.1), 0.15);
+        let sphere = Surface::Sphere {
+            center: c,
+            radius: rs,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let root = Box3::around(Point3::origin(), big + small);
+        let floor = root.width() / 512.0;
+        let at = SweepFloor::r3(root, floor, FloorKind::Seeding).unwrap();
+        let (tally, seeds) = super::sweep_r3(&torus, &sphere, at, SweepDuty::Seed).unwrap();
+        assert!(
+            tally.examined < 12_000,
+            "the torus's exclusion has loosened: {} cells examined",
+            tally.examined
+        );
+        let point = |u: f64, v: f64| {
+            let rho = big + small * v.cos();
+            Point3::new(rho * u.cos(), rho * u.sin(), small * v.sin())
+        };
+        let mut found = 0;
+        for i in 0..400 {
+            let u = -0.3 + 0.6 * f64::from(i) / 400.0;
+            let gap = |v: f64| (point(u, v) - c).norm() - rs;
+            for j in 0..64 {
+                let (mut v0, mut v1) = (
+                    core::f64::consts::TAU * f64::from(j) / 64.0,
+                    core::f64::consts::TAU * f64::from(j + 1) / 64.0,
+                );
+                if gap(v0) * gap(v1) > 0.0 {
+                    continue;
+                }
+                for _ in 0..60 {
+                    let m = 0.5 * (v0 + v1);
+                    if gap(v0) * gap(m) <= 0.0 {
+                        v1 = m
+                    } else {
+                        v0 = m
+                    }
+                }
+                let p = point(u, v0);
+                found += 1;
+                assert!(
+                    seeds.iter().any(|s| (*s - p).norm() <= floor),
+                    "the section point {p:?} lies in no surviving cell"
+                );
+            }
+        }
+        assert!(found > 400, "the fixture crosses: {found} section points");
     }
 }

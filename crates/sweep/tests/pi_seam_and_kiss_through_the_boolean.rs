@@ -1,6 +1,6 @@
 //! **What a π seam between distinct carriers, a cap abutting a tube on
 //! its rim, and a coaxial kiss, do through the boolean.** The seam and
-//! the transverse rim build; every other row is a refusal, pinned by
+//! the transverse rims build; every other row is a refusal, pinned by
 //! kind.
 //!
 //! - **The sphere-capped tube** (cylinder `z ∈ [0, h]` ∪ hemisphere of
@@ -25,9 +25,9 @@
 //!   lies inside the partner's face rather than on its boundary, and
 //!   passes the crossing layer the same way; the union stops in the
 //!   join. A same-radius stacked cylinder continues the tube's carrier
-//!   and builds. A cone frustum stops at the crossing layer, on its base
-//!   rim — a parallel lying on the cone and on the tube's wall at once
-//!   (`CurvedPierceUnsupported`).
+//!   and builds. A cone frustum on the rim builds as the dome does: its
+//!   base rim lies on the cone and on the tube's wall at once, and the
+//!   carrier ladder decides the cone distinct from the wall.
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (a slab whose top and bottom are tangent to a
@@ -810,10 +810,14 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
 }
 
 /// **A cap abutting the tube on its rim glues a seam or a
-/// continuation**: the hemisphere's wall meets the tube's in a seam, the
-/// stacked tube's continues its carrier, and the boolean verifies each.
-/// The frustum's base rim lies on the cone and on the tube's wall at
-/// once, and the crossing layer refuses it.
+/// continuation, or meets it at a corner**: the hemisphere's wall meets
+/// the tube's in a seam, the stacked tube's continues its carrier, and
+/// the boolean verifies each. The frustum's base rim lies on the cone
+/// and on the tube's wall at once, at a 45° corner: the carrier ladder
+/// decides the cone distinct from the tube's wall, so the rim is an ON
+/// event, and the union is the tube and the frustum
+/// (`π·R²·H + π·(R/2)/3·(R² + R²/2 + R²/4)`), its abutting discs
+/// consumed: two discs, two half-band walls each.
 #[test]
 fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
     let tube = rod_z(R, 0.0, H);
@@ -844,24 +848,18 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
         assert_eq!(c, (6, 10, 6, 1), "stacked, order {order}: F, E, V, shells");
     }
     let cone = frustum_on_the_cap();
-    // The frustum's base circle is the tube's rim: a parallel lying ON
-    // the cone and on the tube's wall at once, which the circle × cone
-    // lane reads as its coaxial Zero, the door. An abutment is a
-    // contact, so it stays a refusal; the refused edge is that circle.
-    let [ab, ba] = union_both_orders(&tube, &cone);
-    for (order, e, (a, b)) in [(0, ab, (&tube, &cone)), (1, ba, (&cone, &tube))] {
-        let BooleanError::CurvedPierceUnsupported { edge, operand, .. } = e else {
-            panic!("frustum, order {order}: the crossing layer: {e:?}");
-        };
-        let owner = match operand {
-            topo::Operand::A => a,
-            topo::Operand::B => b,
-        };
-        assert!(
-            matches!(carrier_of(owner, edge), geom::Curve3::Circle { .. }),
-            "frustum, order {order}: the rim circle: {:?}",
-            carrier_of(owner, edge)
+    for (order, x, y) in [(0, &tube, &cone), (1, &cone, &tube)] {
+        let (v, c, k) = built(
+            &format!("frustum, order {order}"),
+            topo::union(x, y, Tol::witness()),
         );
+        let want = PI * R * R * H + PI * (R / 2.0) / 3.0 * (R * R + R * R / 2.0 + R * R / 4.0);
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "frustum, order {order}: the tube and the frustum: {v} vs {want}"
+        );
+        assert_eq!(c, (6, 10, 6, 1), "frustum, order {order}: F, E, V, shells");
+        assert_eq!(k, [0; 6], "frustum, order {order}: no contact records");
     }
 }
 
@@ -874,7 +872,20 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
         Tol::witness(),
     );
     for e in union_both_orders(&tube, &ball) {
-        assert!(is_pierce(&e), "tube ∪ ball: {e:?}");
+        // A ruling's touch of the ball, decided, keeps the pierce door; a
+        // meridian's touch of the wall, read in the band's gap, escalates
+        // on the circle × cylinder roots, at the edge and the wall.
+        assert!(
+            is_pierce(&e)
+                || matches!(
+                    e,
+                    BooleanError::CurvedPierceEscalated {
+                        decision: topo::BooleanDecision::ArcCylinderRoots,
+                        ..
+                    }
+                ),
+            "tube ∪ ball: {e:?}"
+        );
     }
 }
 
@@ -1142,13 +1153,14 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     for e in union_both_orders(&bored, &ball) {
         // The ball's meridian circles touch the bore wall at their two
         // equator points: a tangency, which the circle × cylinder lane's
-        // ladder escalates on its own decision when its margin lands in
-        // the band's gap, and which keeps the pierce door otherwise.
+        // ladder escalates on its own decision, at the edge and the wall,
+        // when its margin lands in the band's gap, and which keeps the
+        // pierce door otherwise.
         assert!(
             is_pierce(&e)
                 || matches!(
                     e,
-                    BooleanError::Escalated {
+                    BooleanError::CurvedPierceEscalated {
                         decision: topo::BooleanDecision::ArcCylinderRoots,
                         ..
                     }

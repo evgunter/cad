@@ -45,22 +45,23 @@
 //! `X = L·μ²/(K·μ² + cos²α)` on either conic.)
 //!
 //! **A hyperbola** is read in its hyperbolic parameter `t`:
-//! `X = −L·sinh²(t/2)/K`, `η = b·sinh t` (`b = |L|/(2·√|K|·cos α)`), and
-//! a window end's parameter is `t = asinh(η/b)`. The tangents of
-//! `[t₀, t₁]` meet at
+//! `X = −L·sinh²(t/2)/K`, `η = b·sinh t` (`b = |L|/(2·√|K|·cos α)`),
+//! carried as `E = e^{t/2}`, so every quantity below is algebraic and
+//! the arc is minted at any scalar: a window end at height `η` has
+//! `e^t = S + √(1 + S²)` at `S = η/b ≥ 0` and `1/(√(1 + S²) − S)` below.
+//! The tangents of `[t₀, t₁]` meet at
 //! `(−L·sinh(t₀/2)·sinh(t₁/2)/K, b·sinh((t₀ + t₁)/2))/cosh h`,
-//! `h = (t₁ − t₀)/2`, and the span is the rational quadratic Bézier on
-//! the two ends and that shoulder with weights `(1, cosh h, 1)`: the
-//! weight that puts its mid-parameter point on the section's point at
-//! `(t₀ + t₁)/2`. **A window is cut into `2^k` spans equal in `t`, for
-//! the least `k` that brings each span's weight to at most
-//! [`SPAN_WEIGHT_MAX`]** (`√2`, the reciprocal of a quarter circle's
-//! weight). The spans carry one weight, and the hyperbola's boosts map
-//! each to the next, so with unit knot spacing the arc is `C¹` across
-//! its double interior knots.
-//!
-//! The arc is minted at `f64`.
-//!
+//! `h = (t₁ − t₀)/2`, `cosh h = (E₁/E₀ + E₀/E₁)/2`, and the span is the
+//! rational quadratic Bézier on the two ends and that shoulder with
+//! weights `(1, cosh h, 1)`: the weight that puts its mid-parameter
+//! point on the section's point at `(t₀ + t₁)/2`. **A window is cut
+//! into `2^k` spans equal in `t`, for the least `k` that brings each
+//! span's weight to at most [`SPAN_WEIGHT_MAX`]** (`√2`, the reciprocal
+//! of a quarter circle's weight), each break's `E` the geometric mean of
+//! its neighbours'. The spans carry one weight, and the hyperbola's
+//! boosts map each to the next, so with unit knot spacing the arc is
+//! `C¹` across its double interior knots.
+
 //! # The window
 //!
 //! Each minted end is metered against the end it was given
@@ -77,10 +78,14 @@
 //! the two ends, and the ends are metered: a window whose ends pass the
 //! meter has every point within it.
 
+use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve3};
-use geom_core::{Band, Indeterminate, KnotVector, Margin, Point3, Real, Sign, SplineError, Vec3};
 
-use crate::dihedral::decide;
+use geom_core::{
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SplineError, Vec3,
+};
+
+use crate::dihedral::{decide, decide_reported};
 use geom_core::Decide;
 
 /// The largest weight a hyperbolic span is minted with (module docs).
@@ -213,13 +218,17 @@ pub enum ConicArcError {
     WindowOffSection {
         /// Which end.
         end: WindowEnd,
-        /// The distance, in metres.
-        gap: f64,
+        /// The distance, in metres, as the classifier saw it.
+        gap: MarginDiag,
     },
     /// The window's two ends are one point of the branch.
     EmptyWindow,
     /// The closed form read a value that is not finite.
     NotFinite,
+    /// The hyperbolic window's span weight was not read at or under
+    /// [`SPAN_WEIGHT_MAX`] within the halvings any finite window needs
+    /// (an infinite or unreadable `cosh` of its half span).
+    SpansUnsettled,
     /// The NURBS constructor refused the minted net.
     Carrier(SplineError),
 }
@@ -237,7 +246,7 @@ impl core::fmt::Display for ConicArcError {
             ),
             Self::WindowOffSection { end, gap } => write!(
                 f,
-                "the window's {} end stands {gap:e} m off the section's branch",
+                "the window's {} end stands {gap} m off the section's branch",
                 match end {
                     WindowEnd::From => "first",
                     WindowEnd::To => "last",
@@ -245,6 +254,11 @@ impl core::fmt::Display for ConicArcError {
             ),
             Self::EmptyWindow => write!(f, "the window's two ends are one point of the section"),
             Self::NotFinite => write!(f, "the open conic's closed form read a non-finite value"),
+            Self::SpansUnsettled => write!(
+                f,
+                "the open conic's window is too long for its spans' weight to be read: its \
+                 half span's cosh is not finite"
+            ),
             Self::Carrier(e) => write!(f, "the open conic's arc refused as a NURBS curve: {e}"),
         }
     }
@@ -381,37 +395,50 @@ impl<T: Real> ConicBranch<T> {
 
 /// A span of a branch as a rational quadratic Bézier segment with
 /// weights `(1, weight, 1)`.
-struct Span {
-    ends: (Point3<f64>, Point3<f64>),
-    shoulder: Point3<f64>,
-    weight: f64,
+struct Span<T: Real> {
+    ends: (Point3<T>, Point3<T>),
+    shoulder: Point3<T>,
+    weight: T,
 }
 
-impl ConicBranch<f64> {
+impl<T: Real> ConicBranch<T> {
     /// The hyperbola's semi-conjugate axis `b = |L|/(2·√|K|·cos α)`.
-    fn conjugate(&self) -> f64 {
-        self.l.abs() / (2.0 * (-self.k).sqrt() * self.cos2.sqrt())
+    fn conjugate(&self) -> T {
+        self.l.abs() / (T::from_f64(2.0) * (T::zero() - self.k).sqrt() * self.cos2.sqrt())
     }
 
-    /// The hyperbola's point at hyperbolic parameter `t`:
+    /// `E = e^{t/2}` of the hyperbola's point at `p`'s height
+    /// `η = (p − V)·v̂ = b·sinh t`: `e^t = S + √(1 + S²)` at `S = η/b ≥ 0`
+    /// and `1/(√(1 + S²) − S)` below, each a sum of like signs.
+    fn half_exp(&self, p: Point3<T>) -> T {
+        let s = (p - self.vertex).dot(self.v) / self.conjugate();
+        let c = (T::one() + s.powi(2)).sqrt();
+        s.select_le_zero(T::one() / (c - s), s + c).sqrt()
+    }
+
+    /// The hyperbola's point at `E = e^{t/2}`:
     /// `X = −L·sinh²(t/2)/K`, `η = b·sinh t`.
-    fn hyperbolic_point(&self, t: f64) -> Point3<f64> {
-        let sh = (0.5 * t).sinh();
+    fn hyperbolic_point(&self, e: T) -> Point3<T> {
+        let two = T::from_f64(2.0);
+        let sh = (e - T::one() / e) / two;
         self.vertex
-            + self.u * (-self.l * sh.powi(2) / self.k)
-            + self.v * (self.conjugate() * t.sinh())
+            + self.u * (T::zero() - self.l * sh.powi(2) / self.k)
+            + self.v * (self.conjugate() * (e.powi(2) - T::one() / e.powi(2)) / two)
     }
 
-    /// The hyperbola's span `[t₀, t₁]`: the end tangents meet at
+    /// The hyperbola's span between `E₀ = e^{t₀/2}` and `E₁ = e^{t₁/2}`:
+    /// the end tangents meet at
     /// `X = −L·sinh(t₀/2)·sinh(t₁/2)/(K·cosh h)`,
     /// `η = b·sinh((t₀ + t₁)/2)/cosh h`, `h = (t₁ − t₀)/2`, and the
-    /// weight is `cosh h`.
-    fn hyperbolic_span(&self, t0: f64, t1: f64) -> Span {
-        let ch = (0.5 * (t1 - t0)).cosh();
-        let x = -self.l * (0.5 * t0).sinh() * (0.5 * t1).sinh() / (self.k * ch);
-        let eta = self.conjugate() * (0.5 * (t0 + t1)).sinh() / ch;
+    /// weight is `cosh h = (E₁/E₀ + E₀/E₁)/2`.
+    fn hyperbolic_span(&self, e0: T, e1: T) -> Span<T> {
+        let two = T::from_f64(2.0);
+        let ch = (e1 / e0 + e0 / e1) / two;
+        let (sh0, sh1) = ((e0 - T::one() / e0) / two, (e1 - T::one() / e1) / two);
+        let x = T::zero() - self.l * sh0 * sh1 / (self.k * ch);
+        let eta = self.conjugate() * ((e0 * e1 - T::one() / (e0 * e1)) / two) / ch;
         Span {
-            ends: (self.hyperbolic_point(t0), self.hyperbolic_point(t1)),
+            ends: (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
             shoulder: self.vertex + self.u * x + self.v * eta,
             weight: ch,
         }
@@ -419,16 +446,18 @@ impl ConicBranch<f64> {
 
     /// The parabola's span `[μ₀, μ₁]`: the numerator's blossom over the
     /// denominator's, `cos²α`, at unit weight.
-    fn parabolic_span(&self, m0: f64, m1: f64) -> Span {
+    fn parabolic_span(&self, m0: T, m1: T) -> Span<T> {
         Span {
             ends: (self.point(m0), self.point(m1)),
             shoulder: self.vertex
                 + self.u * (self.l * m0 * m1 / self.cos2)
-                + self.v * (self.l * (m0 + m1) * 0.5 / self.cos2),
-            weight: 1.0,
+                + self.v * (self.l * (m0 + m1) * T::from_f64(0.5) / self.cos2),
+            weight: T::one(),
         }
     }
+}
 
+impl<T: Decide> ConicBranch<T> {
     /// **The arc of the branch from `from` to `to`** (module docs): a
     /// degree-2 rational `Curve3::Nurbs` with weights `(1, w, 1)` per
     /// span, on the knot domain `[0, spans]`, running from the branch's
@@ -439,90 +468,129 @@ impl ConicBranch<f64> {
     /// [`ConicArcError::WindowOffSection`] where an end stands off the
     /// branch, [`ConicArcError::EmptyWindow`] where the ends are one
     /// point, [`ConicArcError::Escalated`] where either is in the band,
-    /// [`ConicArcError::NotFinite`] and [`ConicArcError::Carrier`].
+    /// [`ConicArcError::NotFinite`], [`ConicArcError::SpansUnsettled`]
+    /// and [`ConicArcError::Carrier`].
     pub fn arc(
         &self,
-        from: Point3<f64>,
-        to: Point3<f64>,
+        from: Point3<T>,
+        to: Point3<T>,
         band: Band,
-    ) -> Result<Curve3<f64>, ConicArcError> {
-        let spans: Vec<Span> = match self.conic {
+    ) -> Result<Curve3<T>, ConicArcError> {
+        let spans: Vec<Span<T>> = match self.conic {
             OpenConic::Parabola => {
                 let (m0, m1) = (self.slope_of(from), self.slope_of(to));
                 window_on((from, to), (self.point(m0), self.point(m1)), band)?;
                 vec![self.parabolic_span(m0, m1)]
             }
             OpenConic::Hyperbola => {
-                let b = self.conjugate();
-                let height = |p: Point3<f64>| ((p - self.vertex).dot(self.v) / b).asinh();
-                let (t0, t1) = (height(from), height(to));
-                if !(t0.is_finite() && t1.is_finite()) {
+                let (e0, e1) = (self.half_exp(from), self.half_exp(to));
+                if !(e0.is_bounded() && e1.is_bounded()) {
                     return Err(ConicArcError::NotFinite);
                 }
                 window_on(
                     (from, to),
-                    (self.hyperbolic_point(t0), self.hyperbolic_point(t1)),
+                    (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
                     band,
                 )?;
-                let mut count = 1_u32;
-                while (0.5 * (t1 - t0) / f64::from(count)).cosh() > SPAN_WEIGHT_MAX {
-                    count *= 2;
+                // The least `k` whose `2^k` equal spans each weigh at
+                // most `√2`: `cosh(h/2) = √((cosh h + 1)/2)`. A count is
+                // structure, read on the sign alone, and a reading the
+                // scalar cannot place halves once more, which costs a
+                // span and never exactness.
+                let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
+                let settled = |weight: T| {
+                    matches!(
+                        decide(
+                            "pn_conic_span_weight",
+                            Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
+                            Band::least(),
+                        ),
+                        Ok(Sign::Zero | Sign::Negative)
+                    )
+                };
+                let mut halvings = 0_u32;
+                while !settled(weight) {
+                    if halvings == MAX_HALVINGS {
+                        return Err(ConicArcError::SpansUnsettled);
+                    }
+                    weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
+                    halvings += 1;
                 }
-                let step = (t1 - t0) / f64::from(count);
-                (0..count)
-                    .map(|i| {
-                        let a = t0 + step * f64::from(i);
-                        let z = if i + 1 == count { t1 } else { a + step };
-                        self.hyperbolic_span(a, z)
-                    })
+                // The `2^k + 1` breaks equal in `t`: each midpoint's
+                // `E` is the geometric mean of its neighbours'.
+                let mut breaks = vec![e0, e1];
+                for _ in 0..halvings {
+                    breaks = breaks
+                        .windows(2)
+                        .flat_map(|w| [w[0], (w[0] * w[1]).sqrt()])
+                        .chain(breaks.last().copied())
+                        .collect();
+                }
+                breaks
+                    .windows(2)
+                    .map(|w| self.hyperbolic_span(w[0], w[1]))
                     .collect()
             }
         };
         let mut control = vec![spans[0].ends.0];
-        let mut weights = vec![1.0];
-        let mut knots = vec![0.0; 3];
+        let mut weights = vec![T::one()];
+        // The knots `0, 1, …, spans`, ends of multiplicity three and
+        // interior ones double, counted up in `T`.
+        let mut at = T::zero();
+        let three = NonZeroUsize::MIN.saturating_add(2);
+        let mut runs = vec![(at, three)];
         for (i, span) in spans.iter().enumerate() {
             control.extend([span.shoulder, span.ends.1]);
-            weights.extend([span.weight, 1.0]);
-            #[allow(clippy::cast_precision_loss)] // a span count far below 2⁵³
-            let k = (i + 1) as f64;
-            knots.extend(if i + 1 == spans.len() {
-                vec![k; 3]
-            } else {
-                vec![k; 2]
-            });
+            weights.extend([span.weight, T::one()]);
+            at = at + T::one();
+            runs.push((
+                at,
+                if i + 1 == spans.len() {
+                    three
+                } else {
+                    NonZeroUsize::MIN.saturating_add(1)
+                },
+            ));
         }
         if control
             .iter()
-            .any(|p| !(p.x.is_finite() && p.y.is_finite() && p.z.is_finite()))
-            || weights.iter().any(|w| !w.is_finite())
+            .any(|p| !(p.x.is_bounded() && p.y.is_bounded() && p.z.is_bounded()))
+            || weights.iter().any(|w| !w.is_bounded())
         {
             return Err(ConicArcError::NotFinite);
         }
-        let knots = KnotVector::clamped(knots, 2).map_err(ConicArcError::Carrier)?;
+        let knots = geom_core::spline::Knots::new(runs, 2).map_err(ConicArcError::Carrier)?;
         let curve = NurbsCurve3::new(knots, control, weights).map_err(ConicArcError::Carrier)?;
         Ok(Curve3::Nurbs(std::sync::Arc::new(curve)))
     }
 }
 
+/// The most halvings a hyperbolic window takes: a window whose ends'
+/// `E = e^{t/2}` are finite has `|t₁ − t₀| < 1420`, and `2¹⁶` spans of
+/// weight `√2` cover `2¹⁶·2·acosh √2 > 10⁵` of `t`. A weight still not
+/// read at or under `√2` past them is not a finite window's
+/// ([`ConicArcError::SpansUnsettled`]).
+const MAX_HALVINGS: u32 = 16;
+
 /// The window's ends `given` against the branch's points `read` at their
 /// heights: each within the band of its own, and the two apart.
-fn window_on(
-    given: (Point3<f64>, Point3<f64>),
-    read: (Point3<f64>, Point3<f64>),
+fn window_on<T: Decide>(
+    given: (Point3<T>, Point3<T>),
+    read: (Point3<T>, Point3<T>),
     band: Band,
 ) -> Result<(), ConicArcError> {
     for (end, p, q) in [
         (WindowEnd::From, given.0, read.0),
         (WindowEnd::To, given.1, read.1),
     ] {
-        let gap = q.distance(p);
-        match decide("pn_conic_window_on", Margin::of(gap), band)
+        match decide_reported("pn_conic_window_on", Margin::of(q.distance(p)), band)
             .map_err(ConicArcError::Escalated)?
         {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(ConicArcError::WindowOffSection { end, gap });
+            Decided {
+                sign: Sign::Zero, ..
+            } => {}
+            Decided { margin, .. } => {
+                return Err(ConicArcError::WindowOffSection { end, gap: margin });
             }
         }
     }

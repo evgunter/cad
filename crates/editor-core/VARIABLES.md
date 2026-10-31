@@ -84,6 +84,10 @@ evaluation refuses at each reader (DESIGN `[operations]`; the mint log
 keeps the id from being reused). The doors: declare, set value / unit
 / distribution, define (free ↔ defined, same identity), rename, delete,
 and set a slot from a `Formula`. Create-or-replace by name goes.
+A named variable may stand unused; it is then reported (DESIGN
+`[operations]`, the `unused` check), never removed. An output is a
+byproduct of its operation unless named, and the operation is
+reported when none of its outputs is used.
 
 **VR8 — Coincidence tokens and the analysis lanes read ids.**
 `ParamSource` lowers a slot to its variable expanded through

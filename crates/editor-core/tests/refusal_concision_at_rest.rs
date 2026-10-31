@@ -1,10 +1,10 @@
 //! **Every at-rest finding the viewer shows fits where it is shown.**
 //!
-//! A kernel `topo::ValidationError` reaches the viewer as one line of a
-//! gate's refusal, under a header naming the gate: the at-rest badge
-//! draws `AssemblyError`'s `Display` behind "at rest: "
-//! (`viewer::frame::at_rest_badge`), and the product badge draws
-//! `ProductError`'s, which opens "product: " (`viewer::frame::product_badge`).
+//! A kernel `topo::ValidationError` reaches the viewer as one at-rest
+//! finding the census could not look at (`AtRestEvidence`), behind
+//! "at rest: ", or as one line of the product gather's refusal, which
+//! opens "product: " (`viewer::frame::product_badge`) and, through the
+//! checks registry, "checks: product: ".
 //! These rows render every sample —
 //! `topo::test_support::validation_error_samples`, one per arm and one
 //! per variant of every nested refusal an arm renders, which `topo`'s
@@ -18,8 +18,8 @@
 //! — plus one line per finding. Every admission must admit something a
 //! sample renders, so one its owner's fix made stale goes red.
 //!
-//! **The wrappers rendered.** A one-finding at-rest refusal, and the
-//! product gate's refusal, alone and behind the at-rest badge.
+//! **The wrappers rendered.** A could-not-look finding's evidence, and
+//! the product gate's refusal, alone and as the registry's refusal.
 //!
 //! **What a row here cannot see.** A refusal listing several findings
 //! is several lines under one header, and its length grows with the
@@ -29,7 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{AssemblyError, AtRestFinding, ProductError, RecipeNodeId, SourceFinding};
+use editor_core::{AtRestEvidence, ChecksError, ProductError, RecipeNodeId, SourceFinding};
 use test_utils::refusal::tagged;
 use topo::ValidationError;
 
@@ -38,11 +38,11 @@ use topo::ValidationError;
 /// as the viewer writes them, and the product gate's placement address.
 const LABELS: &[(&str, &str)] = &[
     ("at rest", "at rest"),
-    ("at rest, product", "at rest"),
+    ("checks, product", "checks"),
     ("product", "product"),
-    ("at rest, product", "product"),
-    ("product", "placement 000000000005 output 0"),
-    ("at rest, product", "placement 000000000005 output 0"),
+    ("checks, product", "product"),
+    ("product", "piece 000000000005 output 0"),
+    ("checks, product", "piece 000000000005 output 0"),
     // A sentence whose clause carries no word the shape check reads as
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
@@ -96,12 +96,8 @@ const KERNEL_KEYED: &[&str] = &[
 
 /// Every wrapper `error` can arrive in, rendered as the viewer draws it.
 fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
-    let at_rest = AssemblyError::AtRest {
-        findings: vec![AtRestFinding {
-            error: error.clone(),
-        }],
-    };
-    let product = ProductError::RootInvalid {
+    let at_rest = AtRestEvidence::NoLane(error.clone());
+    let product = ProductError::PieceInvalid {
         findings: vec![SourceFinding {
             node: RecipeNodeId::new(0, tagged(5)),
             output: 0,
@@ -112,8 +108,11 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
         ("at rest", format!("at rest: {at_rest}")),
         ("product", product.to_string()),
         (
-            "at rest, product",
-            format!("at rest: {}", AssemblyError::Product(Box::new(product))),
+            "checks, product",
+            ChecksError::Product {
+                refusal: Some(product.into()),
+            }
+            .to_string(),
         ),
     ]
 }
@@ -149,12 +148,13 @@ fn every_at_rest_finding_renders_to_the_standard() {
                 }
             }
             problems.extend(test_utils::refusal::problems(&name, &text, &allowed, keyed));
-            // A header and ONE finding line: a line break inside a
-            // finding (a `\` continuation left inside a literal) would
-            // split it across the list.
-            if text.lines().count() != 2 {
+            // One finding line, under a header where the wrapper writes
+            // one: a line break inside a finding (a `\` continuation left
+            // inside a literal) would split it across the list.
+            let lines = if route == "at rest" { 1 } else { 2 };
+            if text.lines().count() != lines {
                 problems.push(format!(
-                    "{name} renders {} lines, not a header and one finding: {text}",
+                    "{name} renders {} lines, not {lines}: {text}",
                     text.lines().count()
                 ));
             }

@@ -7,7 +7,7 @@
 //! 1e3) — not a counterexample search.
 
 use super::*;
-use crate::MevSite;
+use crate::construction::MevSite;
 use crate::ring_path::cone_islands::{Frame, band, frames, plane, read_at};
 use core::f64::consts::PI;
 use test_utils::fuzz::{Rng, pinned};
@@ -93,7 +93,7 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(surface, s2),
-            witness: a.carrier.mid_point(0.0, a.end),
+            selector: geom_brep::CurveSelector::Witness(a.carrier.mid_point(0.0, a.end)),
         },
         carrier: a.carrier.clone(),
         param_start: 0.0,
@@ -372,7 +372,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
                     };
                     let (mut body, face, key) = sheet(s, sense);
                     let ring = empty_ring(&mut body, face, island.corners[c]);
-                    let mut halves: Vec<crate::MevCreated> = Vec::new();
+                    let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
                     for k in 0..n - 1 {
                         let a = island.edge(s, c + k);
                         let e = spec(&mut body, key, &a);
@@ -471,7 +471,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
             let ring_in = empty_ring(&mut body, face, pin);
             let ring_out = empty_ring(&mut body, face, pout);
             let rring = empty_ring(&mut body, face, island.corners[c]);
-            let mut halves: Vec<crate::MevCreated> = Vec::new();
+            let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
             for k in 0..n - 1 {
                 let a = island.edge(s, c + k);
                 let e = spec(&mut body, key, &a);

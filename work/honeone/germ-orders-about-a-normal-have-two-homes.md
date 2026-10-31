@@ -47,3 +47,46 @@ re-baseline of its own, on the boolean's ground.
 One cyclic-order door serves both lanes, ties reported to the caller,
 with one set of K names, and the predicate audit's rows for both point
 at it.
+
+## A third rule for one tie (2026-10-28, SPLITDOOR `splitdoor/hole-rim-tangent-germs`)
+
+Two germs along one direction now meet three different rules:
+
+- `splitting/insert.rs` `section_chords` orders them one order down
+  (`curving`): each face's section curvature off the shared tangent,
+  `geom_brep::implicit_graph_acceleration`, differenced and read by
+  `geom_brep::enters_material_order2`; an exact zero refuses
+  `Coincident`, a singular face `Singular`.
+- `boolean/vtxfac.rs` `germ_order` breaks the tie by the partners'
+  nesting (`tie_breaks_after`: the germ whose run's other germ lies
+  nearer clockwise comes after, so the chords nest).
+- `boolean/insert.rs` `strut_order` refuses it (`bool_strut_order`
+  through `decide_nonzero`), which a boolean tangent to a hole's rim at
+  a vertex reaches
+  (`work/splitdoor/a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order.md`).
+
+One door would also have to say which of these a tie means.
+
+## One home for the tie's second order (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+`geom_brep::tied_germ_turn` now orders two germs along one tangent by
+their bends (each section's acceleration off the tangent toward
+`n × t`, `implicit_graph_acceleration` in a plane,
+`implicit_section_acceleration` in a curved face's tangent plane),
+returning the tie (`Zero`) and a singular bend to the caller. The
+split's `section_chords` (`curving`) and the pierce ring's
+`germ_order` both read it; `insert::strut_order` takes the caller's
+tie as a closure, so the rules that remain are the caller's, stated
+where they apply:
+
+- one pierce's two germs along one direction (the ring) and two
+  sectors' germs (the split): one order down, then refused;
+- two pierces' germs along one ray (the ring): the chords' nesting
+  (`tie_breaks_after`), unchanged: cones touching along a ray in the
+  face have sections tangent to it, which read no bend;
+- the orbit walk's two germs in one entry (`walk_faces_first`,
+  `walks_after`): still first order alone
+  (`work/splitdoor/the-booleans-orbit-walk-orders-two-germs-along-one-direction-at-first-order-alone.md`).
+
+The first-order readings, their K names and the sense difference are
+as before.

@@ -341,7 +341,8 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 /// bodies (A10, D10): the operands a combine places against its first
 /// operand's root before it reads them, the new body's world placement
 /// and the bundle that places it, or the target's placements
-/// re-pointed or withdrawn.
+/// re-pointed or withdrawn — or declares the index a pattern's
+/// placement reads.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -386,6 +387,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                     slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
                     ..
                 } | DocEdit::DeleteNode { .. }
+                    | DocEdit::DeclareVar { .. }
                     | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::RemoveConstraint { .. }
@@ -812,4 +814,79 @@ pub fn product_is(session: &mut DocSession, copies: &[RecipeNodeId]) {
     let outcome = session.perform(SessionOp::SetProduct { bodies });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+}
+
+/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
+/// index `k = index(count)` and one placement of `body` in its own space
+/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
+/// Answers the document and the family's placement.
+pub fn row_of_copies(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+    count: i64,
+    (axis, pitch): (pncad::document::TargetAxis, f64),
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let index = viewer::combine::fresh_index(doc);
+    let declared = pncad::document::apply(
+        doc,
+        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let body = body.into();
+    let space = declared
+        .operand_space(&body)
+        .unwrap_or(pncad::document::VarId::WORLD);
+    let row = pncad::pattern::linear_pattern(
+        &index,
+        pncad::document::BodyRead::plain(body),
+        pncad::document::Operand::Var(space),
+        &[(axis, len(pitch))],
+    )
+    .expect("a length pitch");
+    inserted(&declared, row, tol)
+}
+
+/// **One member of the family `family`, read alone** — the part door's
+/// node ([`viewer::combine::part_node`]).
+pub fn member_read(
+    doc: &Doc<ProfileProgram>,
+    family: RecipeNodeId,
+    at: i64,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let node =
+        viewer::combine::part_node(doc, family, viewer::session::PartSelectSpec::Instance(at));
+    inserted(doc, node, tol)
+}
+
+/// **The index the family `family` is evaluated once per value of.**
+pub fn family_index(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> pncad::document::VarId {
+    let reach = doc.node_reach(family);
+    let &[index] = reach.chain().expect("a family") else {
+        panic!("a family of one index");
+    };
+    index
+}
+
+/// **The family `family`'s count, as written.**
+pub fn family_count(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> Formula {
+    let index = family_index(doc, family);
+    let count = &doc
+        .var(index)
+        .and_then(|var| var.def().index())
+        .expect("an index")
+        .count;
+    doc.written(count)
+}
+
+/// **The op that gives the family `family` `count` members**: the
+/// index's count, written through the variable door.
+pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> SessionOp {
+    SessionOp::SetVariable {
+        var: family_index(session.committed_doc(), family),
+        value: viewer::props::SlotValue::Count(count),
+    }
 }

@@ -4,12 +4,12 @@ kind: program
 title: CHORD — the tessellator's arithmetic and its certificates: the chord counts, the sizing schedules and the guards over them
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/mesh
 prefix: chord/
 tag: (CHORD orchestrator)
 ab_band: 6900-6999
 paths: [crates/mesh/src/chords.rs, crates/mesh/src/sizing.rs, crates/mesh/src/cert.rs, crates/mesh/src/nurbs_cert.rs]
-keep_out: [opened by TESS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TESS keeps the rows where the mesh LIES or REFUSES and its band 5100-5199, this program takes the arithmetic beneath them, the two share crates/mesh whole so neither fences the other and a unit crossing announces the seam in its PR, crates/geom-brep is CHART's for the pcurve side and props/ is PROPS' - the Approx-tolerance row sits on both and rides whichever opens first]
+keep_out: [opened by TESS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TESS keeps the rows where the mesh LIES or REFUSES and its band 5100-5199, this program takes the arithmetic beneath them, the two share crates/mesh whole so neither fences the other and a unit crossing announces the seam in its PR where the changes are coupled, crates/geom-brep is CHART's for the pcurve side and props/ is PROPS' - the Approx-tolerance row sits on both and rides whichever opens first]
 ---
 
 The layer beneath TESS's refusals: **what the tessellator computes a

@@ -73,6 +73,15 @@ analytic volume inside both enclosures. The triage branch
 (`triage/nightly-2026-10-27`) re-syncs the sidecar to the live kernel;
 if this row's decision reverts the bracket, the sidecar follows it.
 
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Both rows red at the default ε and 1e-6, green at 1e-12. Each is
+pinned at the default ε and 1e-6 on its message (`the fixture's premise:
+the two rods' midpoints differ` and `a fattening by δ = ε/100 is below
+the stated resolution`); each pin goes red the day its row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
+
 ## The two backstop rows left with the backstop (2026-10-27)
 
-PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`: the midpoint row tested the backstop's enclosure arithmetic and is deleted with it, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`: 1e-3 and 100ε fattenings flagged, the right answer and ε/100 held), green at 1e-9, 1e-6 and 1e-12. Neither row is red any more. What stays here is whether PR 5734's tightened readings are right, and the step-export sidecar that follows them.
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`: the midpoint row tested the backstop's enclosure arithmetic and is deleted with it, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`: 1e-3 and 100ε fattenings flagged, the right answer and ε/100 held), green at 1e-9, 1e-6 and 1e-12. Neither row is red any more, and their pins go with them. What stays here is whether PR 5734's tightened readings are right, and the step-export sidecar that follows them.

@@ -4,12 +4,12 @@ kind: program
 title: ROUND — the profile fillet family: its doors, its recourse sentences, and where a quarter of it lives
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/sketch
 prefix: round/
 tag: (ROUND orchestrator)
 ab_band: 8200-8299
 paths: [crates/profile/src/validate.rs, crates/profile/src/fillet_select.rs]
-keep_out: [opened by PATHS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - PATHS measured 49 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are PATHS ROUND and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, the lattice's ratified design is docs/PATHS-DESIGN.md and the Q1 ruling chain's sixth round is its live doctrine - neither track re-opens it]
+keep_out: [opened by PATHS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - PATHS measured 49 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are PATHS ROUND and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, the lattice's ratified design is docs/PATHS-DESIGN.md and the Q1 ruling chain's sixth round is its live doctrine - neither track re-opens it]
 ---
 The 2-D fillet inside the PATHS lattice — corner rounding, not the
 3-D blend BAND holds — as its own track, because its rows are about

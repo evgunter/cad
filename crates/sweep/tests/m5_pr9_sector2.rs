@@ -21,6 +21,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use topo::construction::Construct;
 use topo::splitting::{SplitReduceError, split};
 
 /// The PR 5 disc: two half-circle arcs (bulge 1), radius 0.5 —

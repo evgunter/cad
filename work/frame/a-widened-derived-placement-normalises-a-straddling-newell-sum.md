@@ -2,11 +2,10 @@
 id: a-widened-derived-placement-normalises-a-straddling-newell-sum
 kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
-status: parked
+status: open
 opened: 2026-09-14
 priority: P0
 cost: H
-blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
 ---
 
 
@@ -254,3 +253,17 @@ moved is which document reaches it first. Filed by DECIDE-3's lane.
 ## Parked under the D10 hold (2026-10-21)
 
 FRAME orchestrator. This row is a frame read off a placement, widened through that placement's own dependency, which is INTENT's ground. `Datum::FaceFrame` is retired (stage 3 A), PR #5547 gave `newell_plane` its caller's `u_ref`, and stage 3 E (`an-operation-computes-in-a-frame-of-its-reads`) with D′'s copies ruling (a body value in its own coordinates plus one composed frame) changes exactly the computation whose enclosure straddles here. Re-measure on `editor-core/tests/m10_derived_frame_interval.rs` when E lands, before specifying anything.
+
+## Re-measured on E (`intent/e-operation-frame-of-reads`)
+
+The trigger fired: E's branch re-measures
+`m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze`
+on the HEIGHT document's `5e-2` rung. With every rule off the plain
+tier refuses nothing and freezes no form (main refuses at the boss
+extrude's `carrier_endpoint_start` over `[0, 0.32]` after twelve
+freezes): a copy shares its source's body under its frame, so the boss
+is never rebuilt over the box, and no mapped extrude is certified
+again. Nothing on the plain tier refuses, the clause-1
+`newell_plane_residual` included. Opened for FRAME to close or re-scope; the
+tilted twin's `interval_span_forward` refusal is pinned separately
+(`m10_derived_frame_tilted_interval`).

@@ -698,9 +698,8 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 /// point of it is off the band of those walls; the join reads its side
 /// off its germ at the seam, and builds at every width.
 ///
-/// Turned at ε 1e-9 from 12ε up, and moved at ε 1e-9 below 30ε, the same
-/// operands refuse earlier, in the reduction's sector question
-/// (`bool_sector_within`, `bool_sector_coplanar`)
+/// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
+/// reduction's sector question (`bool_sector_coplanar`)
 /// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
@@ -712,8 +711,7 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     for pose in [Pose::Aligned, Pose::Turned, Pose::Moved] {
         for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
             channel_rows(pose, m, 0.0, tol, |_| match pose {
-                Pose::Turned if at_1e9 && m >= 12.0 => Want::Sector,
-                Pose::Moved if at_1e9 && m < 30.0 => Want::Sector,
+                Pose::Turned if at_1e9 && m == 12.0 => Want::Sector,
                 _ => Want::Builds,
             });
         }
@@ -724,7 +722,9 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
 /// fill's face toward the channel runs from `w` off the far wall at the
 /// floor to `1.5w` at the ceiling, 30ε across, so the cavity's cross
 /// section is a trapezoid. Its rim lies on the cavity's walls as the
-/// upright face's does, and its germ there reads it.
+/// upright face's does, and its germ there reads it. Both poses build
+/// every op, but for the turned bar `slab ∖ fill` at ε 1e-6, which
+/// refuses on the backstop as the upright channel's does.
 #[test]
 fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
     let tol = Tol::witness();
@@ -734,7 +734,6 @@ fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
     let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
     for pose in [Pose::Aligned, Pose::Turned] {
         channel_rows(pose, 30.0, 0.5, tol, |_| match pose {
-            Pose::Turned if at_1e9 => Want::Sector,
             _ => Want::Builds,
         });
     }

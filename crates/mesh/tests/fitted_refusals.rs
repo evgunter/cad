@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface};

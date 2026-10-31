@@ -392,6 +392,11 @@ const LEDGER: &[Entry] = &[
         disposition: Unconverted("Track Q — raw text"),
     },
     Entry {
+        path: "crates/topo/src/link.rs",
+        disposition: Shared, // the one-door guard over link.rs and census.rs's touch
+                             // section, code view carved by `balanced_end`
+    },
+    Entry {
         path: "crates/topo/src/live.rs",
         disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
     },
@@ -427,10 +432,6 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/validate.rs",
         disposition: Shared, // the at-rest door roster, prose view and code view
-    },
-    Entry {
-        path: "crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs",
-        disposition: Shared, // the given pair's public mints, fields and derives, code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",
@@ -487,6 +488,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/tree_badges.rs",
         disposition: Shared, // the standing doors' as-drawn census, code view
+    },
+    Entry {
+        path: "demos/tour/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
     },
     Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",

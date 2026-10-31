@@ -32,14 +32,14 @@ pub use crate::sketch::ProfileShape;
 /// `Expr` cannot be.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PatternRuleSpec {
-    /// Stepped along a direction (`PatternKind::Linear`).
+    /// Stepped along a direction ([`pncad::pattern::linear_pattern`]).
     Linear {
         /// Step direction components (`Scalar`).
         direction: [Formula; 3],
-        /// Distance between instances (`Length`).
+        /// Distance between copies (`Length`).
         spacing: Formula,
     },
-    /// Stepped around an axis (`PatternKind::Circular`): the line
+    /// Stepped around an axis ([`pncad::pattern::circular_pattern`]): the line
     /// through `through` along `direction`, in the patterned body's
     /// own coordinates, read off its geometry at the numbers' nominal
     /// values.
@@ -48,30 +48,24 @@ pub enum PatternRuleSpec {
         through: [Formula; 3],
         /// The axis direction (`Scalar`).
         direction: [Formula; 3],
-        /// Angular step between instances (`Angle`).
+        /// Angular step between copies (`Angle`).
         step: Formula,
     },
 }
 
 /// **Which copy of a pattern one part form selects** — the
-/// authoring counterpart of [`pncad::document::PartSelect`], beside
+/// authoring counterpart of an indexed read (`BodyRead::indexed`), beside
 /// [`PatternRuleSpec`] for its reason: it names what a form authors,
 /// in the numbers a form holds.
 ///
-/// **The index is an `i64`, not an `Expr`**, which is the whole
-/// difference from the node's own enum and the reason this type
-/// exists. `SlotId::Instance` is Count-typed and STRUCTURAL (spec D3),
-/// exactly as `SlotId::Count` is: it is edited afterwards through
-/// `SetStructuralParam` and never through the continuous door, so an
-/// authoring door that carried an `Expr` would be the one place a
-/// structural slot could be written continuously. The session mints
-/// the `Formula::count` literal ([`crate::combine::part_node`]), which is
-/// the same division of labour [`super::SessionOp::AddPattern`]'s
-/// count already takes.
+/// **The index is an `i64`, not an `Expr`**: a form holds a number,
+/// and the session mints the `Formula::count` literal of the indexed
+/// read ([`crate::combine::part_node`]), the same division of labour
+/// [`super::SessionOp::AddPattern`]'s count already takes.
 ///
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSelectSpec {
-    /// The `i`-th instance of a `Node::Pattern` value.
+    /// The `i`-th member of a family.
     Instance(i64),
 }
 

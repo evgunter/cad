@@ -171,6 +171,7 @@ fn carve(
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(
@@ -423,7 +424,7 @@ fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
                     },
                 );
                 let feet = supports.map(|s| vertex_of(t, &what, &foot_name(&f, end, crease, s)));
-                let got = ends(body, edge_of(t, &what, &arc));
+                let got = ends(&body, edge_of(t, &what, &arc));
                 assert!(
                     same_pair(got, feet),
                     "{what}: the cut-off arc runs {got:?}, not between its feet {feet:?}"
@@ -473,13 +474,13 @@ fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
                 // ends at rather than off the carve's own output.
                 let what = format!("{}: cap {end:?}, crease {crease}", f.what);
                 let z = point(
-                    rod,
+                    &rod,
                     vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, crease)),
                 )
                 .z;
                 for support in supports {
                     let foot = vertex_of(t, &what, &foot_name(&f, end, crease, support));
-                    let p = point(body, foot);
+                    let p = point(&body, foot);
                     assert_eq!(
                         p.z, z,
                         "{what}: the foot on wall {support} sits at z = {}, not in its cap at {z}",
@@ -492,7 +493,7 @@ fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
                     );
                     let face = face_of(t, &what, &support_face(&f, support));
                     assert!(
-                        face_vertices(body, face).contains(&foot),
+                        face_vertices(&body, face).contains(&foot),
                         "{what}: the foot named on wall {support} is not a vertex of that \
                          wall's face — it is on the surface but off the face's extent"
                     );
@@ -536,7 +537,7 @@ fn a_trimline_runs_between_the_two_feet_on_its_own_support() {
                 );
                 let feet =
                     CAPS.map(|end| vertex_of(t, &what, &foot_name(&f, end, crease, support)));
-                let got = ends(body, edge_of(t, &what, &trim));
+                let got = ends(&body, edge_of(t, &what, &trim));
                 assert!(
                     same_pair(got, feet),
                     "{what}: the trimline runs {got:?}, not between its feet {feet:?}"
@@ -595,7 +596,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                         ),
                     ),
                 });
-                let got = ends(body, edge_of(t, &what, &cut));
+                let got = ends(&body, edge_of(t, &what, &cut));
                 assert!(
                     same_pair(got, want),
                     "{what}: the survivor runs {got:?}, not between {want:?}"
@@ -636,7 +637,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
 fn a_convex_band_removes_material_and_a_concave_one_adds_it() {
     for f in fixtures() {
         let ev = fixture::run(&f.doc, &EvalOptions::default());
-        let dv = volume(corpus::body_of(&ev, f.fillet)) - volume(corpus::body_of(&ev, f.rod));
+        let dv = volume(&(corpus::body_of(&ev, f.fillet))) - volume(&(corpus::body_of(&ev, f.rod)));
         match f.side {
             Side::Removes => assert!(
                 dv < 0.0,
@@ -677,9 +678,9 @@ fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
         // The foot of crease 4 on wall 4, offered where the foot of
         // crease 3 on wall 2 belongs.
         let crossed = vertex_of(t, &what, &foot_name(&f, end, 4, 4));
-        let p = point(body, crossed);
+        let p = point(&body, crossed);
         let z = point(
-            rod,
+            &rod,
             vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, 3)),
         )
         .z;
@@ -691,7 +692,7 @@ fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
         );
         let far = face_of(t, &what, &support_face(&f, 2));
         assert!(
-            !face_vertices(body, far).contains(&crossed),
+            !face_vertices(&body, far).contains(&crossed),
             "{what}: the crossed foot IS a vertex of wall 2's face, so the extent check \
              cannot tell the block's top's two faces apart either"
         );
@@ -720,12 +721,12 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex() {
             for &(crease, supports) in f.creases {
                 let what = format!("{}: cap {end:?}, crease {crease}", f.what);
                 let sv = point(
-                    rod,
+                    &rod,
                     vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, crease)),
                 );
                 for support in supports {
                     let p = point(
-                        body,
+                        &body,
                         vertex_of(t, &what, &foot_name(&f, end, crease, support)),
                     );
                     let d =
@@ -772,6 +773,7 @@ fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(
@@ -840,10 +842,10 @@ fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() 
         "at ROD_FILLET the carve takes the bore's wall"
     );
     let out = corpus::body_of(&ev2, fillet);
-    topo::validate_geometric(out, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
-    topo::validate_pseudomanifold(out, &topo::ContactRecords::default(), tol())
+    topo::validate_geometric(&out, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
+    topo::validate_pseudomanifold(&out, &topo::ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("tier 3′, {e:?}"));
-    let dv = volume(out) - volume(corpus::body_of(&ev2, rod));
+    let dv = volume(&out) - volume(&(corpus::body_of(&ev2, rod)));
     let want = -2.0 * sweep::test_support::rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L
         + core::f64::consts::PI * a * a * ROD_L;
     assert!((dv - want).abs() < 1e-12, "ΔV {dv} vs {want}");
