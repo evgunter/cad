@@ -1150,4 +1150,7 @@ mod rows;
 mod sector_rows;
 
 #[cfg(test)]
+mod review_6157_rows;
+
+#[cfg(test)]
 mod review_r2_rows;
