@@ -1,12 +1,13 @@
 ---
 id: skew-cylinder-germ-pair-has-no-section-frame
 kind: issue
-title: Two cylinder walls with skew axes reach the join and refuse GermFrameUnsupported: their quartic section has no frame
+title: Two cylinder walls with skew axes, or coplanar axes and unequal radii, refuse GermFrameUnsupported: cylinder x cylinder is not on the section value
 status: open
 opened: 2026-10-04
 priority: P1
-cost: M
+cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
+design: true
 ---
 
 Found by the cylinder × sphere frame lane's sweep of the germ pairs that
@@ -52,3 +53,39 @@ axis (the common perpendicular is the candidate) sees the loop turn
 monotonically. Past the frame, the pair meets the same lane door as the
 cylinder × sphere pair (`cylinder-sphere-germ-pair-has-no-join-lane`):
 no chord lane for a non-planar section.
+
+## Survey (2026-10-31, SECTARMS orchestrator)
+
+Re-measured on main at b357165a (a survey probe, uncommitted):
+
+- p0 (parallel) and p4 (the crossing pair's nodes) build.
+- p2, p3 and p5, p1 at exactly π/2, and one more skew pose refuse
+  `GermFrameUnsupported { Cylinder, Cylinder }` in both orders.
+- p1 at 1.5707963 rad stops earlier, at a first-order sector side
+  (filed: `apex/a-near-right-angle-cylinder-pair-stops-at-a-first-order-sector-side`).
+
+**Coplanar axes with unequal radii are a second unserved family.**
+`intersecting_cylinder_axes` maps `SectionError::UnequalRadii` to `NoArm`.
+
+**The design retires the frame this row asked for.** The fix is to put
+cylinder × cylinder on `geom_brep::pair_section`. The tangency margins are
+closed form: `e − (r₁+r₂)` and `e − |r₁−r₂|`, with `e` the gap along
+`a₁×a₂`. The components are counted by those margins, and the march comes
+from the existing implicit arms. That move also retires two second
+readings of the pair's coincidence and tangency: `glue.rs`
+`crossing_cylinder_margins` and `section_cert::cylinder_cylinder`.
+
+**A design question sits under it, so `design: true` and re-costed H.**
+Every pair on the value today has a bounded side (a sphere, or a torus's
+`R + r` ball), and C5 says no face's extent enters a value keyed by
+surface pair. Two cylinders have no bounded side:
+
+- parallelism can only be decided against a length;
+- a nearly parallel crossing pose has a section ball of about `r/θ`;
+- the parallel pose's components are open lines, which `carry` refuses.
+
+A second question goes with it: whether the equal-radius bisector pose,
+whose ellipses cross at two nodes, lives on the value with nodes. Moving
+it there as the value stands would regress p4. The cone-frames row
+(`cone-germ-pairs-against-a-curved-face-have-no-section-frame`) has the
+same unbounded-pair question.
