@@ -686,12 +686,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     let [r1, r2] = pose.radii;
     let axis = pose.lines[0].1;
     let mut decided = Vec::new();
-    let component = |shape, winds, witness, carrier| SectionComponent {
-        shape,
-        winds,
-        witness,
-        carrier,
-    };
+    let component = SectionComponent::closed_form;
     let cut = ComponentShape::Open {
         ends: ComponentEnds::cut(),
     };
