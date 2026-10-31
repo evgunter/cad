@@ -1768,3 +1768,9 @@ Signed (CLEAVE orchestrator).
 
   PR 6162 merged (nightly rustdoc red). (CLEAVE orchestrator)
 - 2026-10-31 — Ev merged [ev] PR 6161, retiring `[tolerance.margins]` (i)'s consistency-backstop sentence and clause (iv). PR 6164 merged (`908905d931`): it deletes `k_stats::decide_invariant`, re-points its door tests to `decide`, and marks the audit's invariant-lane paragraph retired. The backstop thread (P0 → [ev] 5780 → 5842 → 6161 → 6164) is closed. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5848 merged (`9fc2720b5e`): the kept side of a glued pair is decided once (`glue::kept_first`, operand-typed), and the zip and the merge read it.
+  - The merge's hole exception is gone, and non-Boolean merges keep the arena-first member's description.
+  - Two P2 rows were filed for the remaining second places (the Eq. 15.3 lump's kept copy; the zip's smallest point key).
+  - Raised with Ev, no action: with the plug written first and tilted in band, the whole merged cap takes the tilt, so a later flush union can escalate.
+
+  Dispatched `two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner` (P1 H, an operand-order asymmetry) on `cleave/two-lumps-pinch-rays`. (CLEAVE orchestrator)
