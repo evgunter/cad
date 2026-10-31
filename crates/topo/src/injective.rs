@@ -2724,9 +2724,9 @@ fn wall_of(surface: &Surface<Interval>, rim: &Rim) -> Option<Wall> {
 ///    range holds `A` strictly inside, so the edge runs past both
 ///    column ends and its vertices lie outside the columns; that range
 ///    is narrower than a turn, so no other lift meets `A`. A closed
-///    edge whose span is a whole period is continued by its closed form, which returns to its
-///    vertex's chart point a whole turn of `v` on: one curve over all
-///    of `v`. Either way each column holds exactly one point of the
+///    edge whose span is a whole period is continued by its closed
+///    form, which returns to its vertex's chart point a whole turn of
+///    `v` on: one curve over all of `v`. Either way each column holds exactly one point of the
 ///    lift read, `(g(v), v)`, at the parameters `t` the columns hold.
 /// 2. `R` is the columns times the hull, on `u`, of the cell and of the
 ///    curve over `t`. Its `u` range is narrower than a turn, so the
