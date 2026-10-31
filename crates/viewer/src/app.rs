@@ -409,23 +409,9 @@ pub struct ViewerApp {
     /// Zeroed and assigned back every frame as
     /// [`Self::profiles_undrawn`] is.
     held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
-    /// Whether the next scene to land should have its δ CHOSEN by the
-    /// triangle budget, rather than drawn at the δ already in force.
-    ///
-    /// Set at startup and on every successful `Open`, and cleared the
-    /// moment it is spent. It is what makes the budget a DEFAULT: a
-    /// document arrives, the budget picks a δ that draws it in a
-    /// reasonable time, and from then on δ is whatever the user asked
-    /// for. Anything stronger — clamping every rebuild — would make
-    /// the View pane's δ field a control that does nothing on exactly
-    /// the documents someone would want it for.
-    fit_delta_on_scene: bool,
-    /// The budget's verdict, while the δ it chose is still the δ in
-    /// force. `None` once the user has moved δ themselves
-    /// ([`ViewerApp::set_delta`] clears it), because from there
-    /// the number on screen is theirs and the badge would be claiming
-    /// a choice it did not make.
-    budget_delta: Option<crate::scene::FittedDelta>,
+    /// What the incoming document is owed when its scene lands, and the
+    /// budget's verdict about it ([`DocumentDerived`]).
+    derived: DocumentDerived,
     /// **The display budget's seam** — where the probe tessellations
     /// that price a document run, which is not this thread.
     ///
@@ -496,10 +482,6 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
-    /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
-    /// a successful `Open`, whose document arrives asynchronously, so
-    /// fitting immediately would frame the outgoing picture.
-    fit_on_scene: bool,
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped — with what it is ABOUT, so
     /// the next event about that subject can retire it
@@ -725,6 +707,72 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// **What the viewer owes the document under the session when its
+/// first scene lands, and what the budget said about it.**
+///
+/// **One value, because replacing the document invalidates all of it
+/// at once** — the session's own [`crate::session`] `Derived` move,
+/// one layer up. [`DocumentDerived::owed`] is the one spelling of "a
+/// document has just arrived": the value [`ViewerApp::document_replaced`]
+/// installs for every operation [`SessionOp::replaces_the_document`]
+/// names, and the base [`DocumentDerived::at_startup`] is built from. A
+/// field added here is reset by being declared.
+///
+/// **A field belongs here when a replacement must reset it and nothing
+/// else would.** A value keyed on the landed generation, δ or picture
+/// revision is retired by the next landing, a per-frame value is
+/// rewritten every frame, and session chrome must survive; none of
+/// those belongs here. The drafts and the open tool hold ids of the
+/// document alongside chrome, so each drops its own half in the same
+/// door.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct DocumentDerived {
+    /// A camera fit is owed as soon as the next rebuilt scene lands.
+    /// The document arrives asynchronously, so fitting at the door
+    /// would frame the outgoing picture.
+    fit_camera: bool,
+    /// Whether the next scene to land should have its δ CHOSEN by the
+    /// triangle budget, rather than drawn at the δ already in force.
+    ///
+    /// Cleared the moment it is spent. It is what makes the budget a
+    /// DEFAULT: a document arrives, the budget picks a δ that draws it
+    /// in a reasonable time, and from then on δ is whatever the user
+    /// asked for. Anything stronger — clamping every rebuild — would
+    /// make the View pane's δ field a control that does nothing on
+    /// exactly the documents someone would want it for. The δ the last
+    /// document was read at says nothing about this one: it is a
+    /// length, and the new document may be a different size.
+    fit_delta: bool,
+    /// The budget's verdict, while the δ it chose is still the δ in
+    /// force. `None` once the user has moved δ themselves
+    /// ([`ViewerApp::set_delta`] clears it), because from there the
+    /// number on screen is theirs and the badge would be claiming a
+    /// choice it did not make.
+    budget_delta: Option<crate::scene::FittedDelta>,
+}
+
+impl DocumentDerived {
+    /// A document has just arrived: both fits owed, no verdict yet.
+    fn owed() -> Self {
+        Self {
+            fit_camera: true,
+            fit_delta: true,
+            budget_delta: None,
+        }
+    }
+
+    /// The startup document: [`Self::owed`] except the camera fit,
+    /// which `pending_fit` takes on the first frame over the startup
+    /// mesh already drawn. Owing it again at the first landing would
+    /// re-frame a camera the user moved in between.
+    fn at_startup() -> Self {
+        Self {
+            fit_camera: false,
+            ..Self::owed()
+        }
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -772,7 +820,9 @@ impl ViewerApp {
         // and there is no aspect to fit against. It is provisional for
         // exactly one frame: `pending_fit` below makes the viewport fit
         // what it draws at its true aspect the first time it runs — the
-        // same fit an open books — so what a user sees is never this.
+        // fit a replaced document books when its scene lands, taken at
+        // once here because the startup mesh is already drawn — so what
+        // a user sees is never this.
         let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
@@ -850,13 +900,12 @@ impl ViewerApp {
             projection_fault: None,
             profiles_undrawn: 0,
             held_edges_refused: None,
-            // The startup document goes through the same door an
-            // opened one does: it is small enough that the budget will
-            // not move its δ, and a first picture that took a
+            // The startup document's δ goes through the same budget an
+            // opened one's does: it is small enough that the budget
+            // will not move it, and a first picture that took a
             // different path from every later one is a difference
             // waiting to be a bug.
-            fit_delta_on_scene: true,
-            budget_delta: None,
+            derived: DocumentDerived::at_startup(),
             fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
@@ -869,7 +918,6 @@ impl ViewerApp {
             split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
-            fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
@@ -890,7 +938,7 @@ impl ViewerApp {
     /// prices a document nobody is looking at. One for a δ the View
     /// pane has moved off prices a number the user has replaced, and
     /// the budget's authority stops at the δ a document OPENS at
-    /// ([`ViewerApp::fit_delta_on_scene`]) — so the typed number wins,
+    /// ([`DocumentDerived::fit_delta`]) — so the typed number wins,
     /// silently, because nothing was taken away from anyone.
     ///
     /// A fit that REFUSED leaves δ alone: the document is one whose
@@ -909,7 +957,7 @@ impl ViewerApp {
             }
             if let Ok(fitted) = done.fit {
                 self.delta = fitted.delta;
-                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+                self.derived.budget_delta = fitted.requested_cost.map(|_| fitted);
             }
         }
     }
@@ -973,13 +1021,13 @@ impl ViewerApp {
         // the seam was cut for. So the shape is the index seam's:
         // submit, keep painting, take the answer when it comes.
         self.take_fit();
-        if self.fit_delta_on_scene && self.session.landed_generation().is_some() {
+        if self.derived.fit_delta && self.session.landed_generation().is_some() {
             // Spent on the first landing, whether or not that landing
             // has a body to price: a document whose product refuses has
             // no size to fit a δ to, and leaving the budget armed for
             // its first successful EDIT would make it something other
             // than the δ a document OPENS at.
-            self.fit_delta_on_scene = false;
+            self.derived.fit_delta = false;
             if let Some(request) = self.session.fit_request(self.delta) {
                 self.fit.submit(request);
             }
@@ -1064,8 +1112,8 @@ impl ViewerApp {
                 // The badge's read, ended by the rebuild it was
                 // waiting for.
                 self.scene_fault = None;
-                if self.fit_on_scene {
-                    self.fit_on_scene = false;
+                if self.derived.fit_camera {
+                    self.derived.fit_camera = false;
                     self.pending_fit = true;
                 }
                 // The gather's own verdict is NOT written here: it is
@@ -1092,7 +1140,7 @@ impl ViewerApp {
         // opening δ and has no further say — including no say over a δ
         // finer than it would have picked, which is the whole
         // difference between a default and a cap.
-        self.budget_delta = None;
+        self.derived.budget_delta = None;
         self.sync_scene();
     }
 
@@ -1151,8 +1199,12 @@ impl ViewerApp {
         self.tools.respeak(doc);
     }
 
-    /// **A document replaced this one**: what held its ids lets them go.
+    /// **A document replaced this one**: everything held about it is
+    /// dropped, here and nowhere else — [`DocumentDerived`] whole, and
+    /// the held ids inside the drafts and the open tool, whose values
+    /// keep their chrome (typed text, which tool is open) across it.
     fn document_replaced(&mut self) {
+        self.derived = DocumentDerived::owed();
         self.drafts.document_replaced();
         self.tools.document_replaced();
     }
@@ -1185,8 +1237,7 @@ impl ViewerApp {
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         for op in ops {
             performed.push(op.clone());
-            let opened = matches!(op, SessionOp::Open(_));
-            let replaced = opened || matches!(op, SessionOp::NewDocument { .. });
+            let replaced = op.replaces_the_document();
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
@@ -1206,18 +1257,6 @@ impl ViewerApp {
             let minted = core::mem::take(&mut outcome.minted);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
-                // A replaced document owes a re-frame AND a fresh δ
-                // — both taken when its scene actually lands, not on
-                // the outgoing picture. The δ the last document was
-                // being read at says nothing about this one: it is a
-                // length in metres, and the new document may be a
-                // different size and a different shape.
-                None if opened => {
-                    self.fit_on_scene = true;
-                    self.fit_delta_on_scene = true;
-                    self.budget_delta = None;
-                    self.document_replaced();
-                }
                 None if replaced => self.document_replaced(),
                 // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
@@ -1790,9 +1829,10 @@ impl ViewerApp {
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
             // and gone the moment the user picks their own.
-            if let Some(badge) =
-                frame::delta_badge(self.budget_delta.as_ref(), self.session.notation().length)
-            {
+            if let Some(badge) = frame::delta_badge(
+                self.derived.budget_delta.as_ref(),
+                self.session.notation().length,
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             // **The three display seams that hold a refusal.**
@@ -1976,7 +2016,7 @@ impl eframe::App for ViewerApp {
                 let mut behavior = ViewerBehavior {
                     session: &self.session,
                     delta: self.delta,
-                    budget_delta: self.budget_delta,
+                    budget_delta: self.derived.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
                     scene_key: self.scene_key,
@@ -3659,7 +3699,7 @@ mod properties_pane_tests {
     use eframe::egui;
     use pncad::document::{Axis3, Node, RecipeNodeId, SlotId};
 
-    use super::ViewerApp;
+    use super::{DocumentDerived, ViewerApp};
     use crate::session::{Selection, SessionOp};
 
     /// The window every whole-app row here is drawn in unless it needs
@@ -5798,6 +5838,149 @@ mod properties_pane_tests {
             "open"
         );
         removed.expect("the row removes the document it saved");
+    }
+
+    /// **A replaced document is owed a re-frame and a fresh δ, and the
+    /// budget's verdict about the last one is dropped**, whichever door
+    /// replaced it. From a settled app whose fits are spent and which
+    /// holds a verdict, each door installs [`DocumentDerived::owed`];
+    /// the reopened copy's landing spends both fits again.
+    #[test]
+    fn a_replaced_document_is_owed_both_fits_and_drops_the_verdict() {
+        let settled = || {
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            let delta = driven.app.delta;
+            driven.app.derived.budget_delta = Some(crate::scene::FittedDelta {
+                requested_cost: Some(1),
+                ..crate::scene::FittedDelta::as_requested(delta)
+            });
+            let derived = driven.app.derived;
+            assert!(
+                !derived.fit_camera && !derived.fit_delta && derived.budget_delta.is_some(),
+                "the startup landing spent both fits, and a verdict is held: {derived:?}"
+            );
+            driven
+        };
+
+        let mut driven = settled();
+        driven.app.perform_batch(vec![SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        }]);
+        assert_eq!(driven.app.derived, DocumentDerived::owed(), "new document");
+
+        let mut driven = settled();
+        let path =
+            std::env::temp_dir().join(format!("framing across open {}.pncad", std::process::id()));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Open(path.clone())]);
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(driven.app.derived, DocumentDerived::owed(), "open");
+        driven.settle();
+        let derived = driven.app.derived;
+        assert!(
+            !derived.fit_camera && !derived.fit_delta,
+            "the opened document's landing spends both fits: {derived:?}"
+        );
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// The camera as a row compares it: where it looks and how far
+    /// back it stands.
+    fn camera_pose(app: &ViewerApp) -> ([f64; 3], f64) {
+        let target = app.camera.target();
+        ([target.x, target.y, target.z], app.camera.distance())
+    }
+
+    /// The camera backed off to `factor` times its distance, so a
+    /// re-frame that follows is visible as a return.
+    fn backed_off(app: &ViewerApp, factor: f64) -> crate::camera::Camera {
+        let camera = &app.camera;
+        let radius = app
+            .scene
+            .bounds()
+            .map_or(crate::camera::DEFAULT_FRAME_RADIUS, |b| {
+                ((b.max_x - b.min_x).powi(2)
+                    + (b.max_y - b.min_y).powi(2)
+                    + (b.max_z - b.min_z).powi(2))
+                .sqrt()
+                    / 2.0
+            });
+        crate::camera::Camera::new(
+            camera.target(),
+            camera.distance() * factor,
+            camera.yaw(),
+            camera.pitch(),
+            camera.fov_y(),
+            radius,
+        )
+        .expect("a camera backed off inside the zoom band")
+    }
+
+    /// **A replaced document re-frames the CAMERA, not only the flag**,
+    /// through both doors and in sequence (Open → NewDocument → Open):
+    /// a camera the user backed off returns to the reopened plate's
+    /// fit, a new (empty) document frames the origin, and the next
+    /// Open frames the plate again. `a_replaced_document_is_owed_both_
+    /// fits_and_drops_the_verdict` holds the flags; this holds what
+    /// they are for, on the frames the viewport actually draws.
+    #[test]
+    fn a_replaced_document_reframes_the_camera_through_both_doors() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let plate = camera_pose(&driven.app);
+        let path =
+            std::env::temp_dir().join(format!("reframe across doors {}.pncad", std::process::id()));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(camera_pose(&driven.app), plate, "open re-frames the plate");
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        });
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let (target, _) = camera_pose(&driven.app);
+        assert_eq!(target, [0.0; 3], "a new document frames the origin");
+        assert!(!driven.app.derived.fit_camera, "its landing spent the fit");
+
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **A camera moved before the index lands is kept**: startup's
+    /// fit is the first frame's (`pending_fit`, over the startup mesh),
+    /// so the first indexed scene owes no second one that would undo a
+    /// move made in between.
+    #[test]
+    fn a_camera_moved_before_the_index_lands_is_kept() {
+        let mut driven = Driven::with(Vec::new());
+        assert!(
+            driven.app.scene_key.is_none(),
+            "the move is made before the first indexed scene lands"
+        );
+        driven.app.camera = backed_off(&driven.app, 2.0);
+        let moved = camera_pose(&driven.app);
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.scene_key.is_some(), "the index has landed");
+        assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
     }
 
     /// **The mate tool's two picks are marked once the selection moves
