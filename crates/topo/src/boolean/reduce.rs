@@ -4830,7 +4830,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             decision: BooleanDecision::WallRoots(fault.rung),
             diag: fault.diag,
         })? {
-            WallRoots::Two(ts) => two(ts),
+            WallRoots::Two(ts, _) => two(ts),
             WallRoots::Tangent => Err(Unsettled::Tangency),
             WallRoots::AxisParallel => return Ok(Some(Err(SpanVerdict::Constant))),
             WallRoots::Miss => Ok(CircleRoots::Miss),
@@ -4866,7 +4866,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
                     decision: BooleanDecision::SphereRoots,
                     diag,
                 })? {
-                WallRoots::Two(ts) => two(ts),
+                WallRoots::Two(ts, _) => two(ts),
                 WallRoots::Tangent => Err(Unsettled::Tangency),
                 WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),
             }

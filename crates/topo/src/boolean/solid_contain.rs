@@ -2396,8 +2396,10 @@ pub(super) enum WallRoots<T> {
     Tangent,
     /// A definitely negative discriminant: no real root.
     Miss,
-    /// Two definite roots of the carrier's own parameter, ascending.
-    Two([T; 2]),
+    /// Two definite roots of the carrier's own parameter, ascending,
+    /// and a bound on either's rounding in that parameter
+    /// ([`Centred::roots`]).
+    Two([T; 2], T),
 }
 
 /// The certified roots of the LINE `q + d·t` against the INFINITE
@@ -2458,9 +2460,18 @@ pub(super) fn line_wall_roots<T: Decide>(
         Sign::Positive => {}
         _ => return Ok(WallRoots::AxisParallel),
     }
-    let b2 = w0p.dot(dp);
-    let c2 = w0p.norm_squared() - radius.powi(2);
-    let disc = b2.powi(2) - a2 * c2;
+    // About the line's closest approach to the axis, held to the run.
+    let shift = ((T::zero() - w0p.dot(dp)) / a2).max(T::zero() - span).min(span);
+    let w = w0p + dp * shift;
+    let centred = Centred {
+        shift,
+        coeffs: [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
+        far: w0.norm() + d.norm() * shift.abs(),
+        near: w.norm() + radius,
+        gradient: T::one(),
+        speed: d.norm(),
+    };
+    let disc = centred.disc();
     match decide(
         "bool_ray_cylinder_disc",
         Margin::over_lever(disc / a2, two_r),
@@ -2474,7 +2485,67 @@ pub(super) fn line_wall_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
+    let (roots, slack) = centred.roots(disc);
+    Ok(WallRoots::Two(roots, slack))
+}
+
+/// **A line × quadric quadratic read where the line passes the
+/// quadric**: `a·s² + 2b·s + c` in `s = t − shift`, the line's parameter
+/// moved to `shift`, its closest approach to the quadric's centre, apex
+/// or axis. Read about the line's start instead, `c` is the residual
+/// there, the square of the start's distance less the body's own
+/// squares: a start `D` out loses `u·D²` of it, which moves a root by
+/// about `u·D²/(2√disc)`, the body's scale squared over a root's
+/// sensitivity (`D = 4·10⁵` m and a unit wall: `10⁻⁵` m). About the
+/// closest approach, `c` is read at the body's own scale, and what the
+/// start's distance leaves is the rounding of the shift itself, linear
+/// in `D` ([`Self::roots`]). The discriminant and the lead are the same
+/// quantities either way, so each margin metered on them is.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Centred<T> {
+    /// Where the parameter is read from.
+    pub(super) shift: T,
+    /// `[a, b, c]`.
+    pub(super) coeffs: [T; 3],
+    /// A bound on the lengths the moved residual was formed from:
+    /// `|w₀| + |d|·|shift|`, `w₀` the start's offset from the quadric.
+    pub(super) far: T,
+    /// The moved offset's length, with the quadric's radius where it
+    /// has one.
+    pub(super) near: T,
+    /// The residual's gradient against the offset, over `2|w|`: `1` for
+    /// a wall or a sphere, `2` for a cone.
+    pub(super) gradient: T,
+    /// `|d|`.
+    pub(super) speed: T,
+}
+
+impl<T: Decide> Centred<T> {
+    /// `b² − a·c`.
+    pub(super) fn disc(&self) -> T {
+        let [a, b, c] = self.coeffs;
+        b.powi(2) - a * c
+    }
+
+    /// **Both roots in the line's own parameter, and a bound on either's
+    /// rounding there**, for a definitely positive `disc`. The residual
+    /// at a root `s` is read off offsets of length at most `far + |d|·|s|`
+    /// (each rounded by `u` of that), against a gradient of at most
+    /// `2·gradient·(near + |d|·|s|)`: so it is off by at most
+    /// [`geom_core::rounding_charge`] of their product, and the root by
+    /// that over the residual's slope there, `2√disc`. Moving the root
+    /// back by `shift` rounds it once more.
+    pub(super) fn roots(&self, disc: T) -> ([T; 2], T) {
+        let [a, b, c] = self.coeffs;
+        let roots = quadratic_roots(a, b, c, disc);
+        let s = roots[0].abs().max(roots[1].abs());
+        let run = self.speed * s;
+        let residual =
+            geom_core::rounding_charge((self.far + run) * (self.gradient * (self.near + run)));
+        let slack = residual / (T::from_f64(2.0) * disc.sqrt())
+            + geom_core::rounding_charge(self.shift.abs() + s);
+        (roots.map(|r| r + self.shift), slack)
+    }
 }
 
 /// **Which rung of [`line_wall_roots`] escalated**: the two questions
@@ -2516,14 +2587,41 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     axis: Vec3<T>,
     half_angle: T,
 ) -> [T; 3] {
+    cone_coeffs(q - apex, d, axis, half_angle)
+}
+
+/// [`line_cone_quadratic`] off the offset `w0` of the line's start from
+/// the apex.
+fn cone_coeffs<T: Decide>(w0: Vec3<T>, d: Vec3<T>, axis: Vec3<T>, half_angle: T) -> [T; 3] {
     let cos2 = half_angle.cos().powi(2);
-    let w0 = q - apex;
     let (da, wa) = (d.dot(axis), w0.dot(axis));
     [
         da.powi(2) - d.norm_squared() * cos2,
         da * wa - w0.dot(d) * cos2,
         wa.powi(2) - w0.norm_squared() * cos2,
     ]
+}
+
+/// [`line_cone_quadratic`] about the line's closest approach to the
+/// apex ([`Centred`]).
+pub(super) fn line_cone_centred<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+) -> Centred<T> {
+    let w0 = q - apex;
+    let shift = (T::zero() - w0.dot(d)) / d.norm_squared();
+    let w = w0 + d * shift;
+    Centred {
+        shift,
+        coeffs: cone_coeffs(w, d, axis, half_angle),
+        far: w0.norm() + d.norm() * shift.abs(),
+        near: w.norm(),
+        gradient: T::from_f64(2.0),
+        speed: d.norm(),
+    }
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -2553,9 +2651,18 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ) -> Result<WallRoots<T>, geom_core::Indeterminate> {
     let w0 = q - center;
     let a2 = d.norm_squared();
-    let b2 = w0.dot(d);
-    let c2 = w0.norm_squared() - radius.powi(2);
-    let disc = b2.powi(2) - a2 * c2;
+    // About the line's closest approach to the centre.
+    let shift = (T::zero() - w0.dot(d)) / a2;
+    let w = w0 + d * shift;
+    let centred = Centred {
+        shift,
+        coeffs: [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        far: w0.norm() + d.norm() * shift.abs(),
+        near: w.norm() + radius,
+        gradient: T::one(),
+        speed: d.norm(),
+    };
+    let disc = centred.disc();
     let two_r = T::from_f64(2.0) * radius;
     match decide(
         "bool_ray_sphere_disc",
@@ -2566,7 +2673,8 @@ pub(super) fn line_sphere_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
+    let (roots, slack) = centred.roots(disc);
+    Ok(WallRoots::Two(roots, slack))
 }
 
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
@@ -2748,9 +2856,14 @@ fn ray_passes_beside<T: Decide>(
     let m = normal.cross(d);
     let m = m / m.norm();
     let (mut above, mut below) = (None::<T>, None::<T>);
-    for (c, r) in verts.into_iter().map(|v| (v, T::zero())).chain(balls) {
-        let h = (c - q).dot(m);
-        let (a, b) = (h - r, T::zero() - h - r);
+    // An edge lies in each of its balls, so on a side of the plane where
+    // either ball does: its clearance is the clearer ball's.
+    for pair in verts.into_iter().map(|v| [(v, T::zero()); 2]).chain(balls) {
+        let [(a, b), (a2, b2)] = pair.map(|(c, r)| {
+            let h = (c - q).dot(m);
+            (h - r, T::zero() - h - r)
+        });
+        let (a, b) = (a.max(a2), b.max(b2));
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
     }
@@ -2849,6 +2962,11 @@ pub(crate) struct RayHit<T> {
     /// crossing, or where the ray passes an edge, within the band of
     /// both its faces.
     pub(crate) at: T,
+    /// A bound on `at`'s rounding, for a face's crossing read off its
+    /// carrier ([`Centred::roots`], [`PlaneCross`]): `pair` orders two
+    /// crossings only past both. Zero for an edge's passage, which its
+    /// span holds, and for a mark.
+    pub(crate) slack: T,
     /// What the ray reads nothing at here ([`edge_meets`]), if anything:
     /// a mark counts nothing and is sideless, so it matters only where
     /// the count reaches it.
@@ -2874,24 +2992,29 @@ impl<T: Copy> RayHit<T> {
         self.count
     }
 
-    /// A face's crossing at `at`, counting `count`.
-    const fn crossing(face: FaceKey, at: T, count: i32) -> Self {
+    /// A face's crossing at `at`, within `slack` of it, counting `count`.
+    const fn crossing(face: FaceKey, at: T, slack: T, count: i32) -> Self {
         Self {
             count,
             face,
             other: None,
             at,
+            slack,
             mark: None,
         }
     }
 
     /// A mark at `at` ([`Mark`]) against `faces`.
-    const fn marked(faces: [FaceKey; 2], at: T, mark: Mark) -> Self {
+    fn marked(faces: [FaceKey; 2], at: T, mark: Mark) -> Self
+    where
+        T: geom_core::Real,
+    {
         Self {
             count: 0,
             face: faces[0],
             other: Some(faces[1]),
             at,
+            slack: T::zero(),
             mark: Some(mark),
         }
     }
@@ -2934,7 +3057,7 @@ impl<T: Copy> RayHit<T> {
         }
         let along = geom_core::k_stats::decide_magnitude(
             order,
-            Margin::of((self.at - other.at).abs()),
+            Margin::of((self.at - other.at).abs() - self.slack - other.slack),
             band,
         );
         if along == Ok(geom_core::k_stats::Magnitude::Positive) {
@@ -2984,6 +3107,10 @@ struct PlaneCross<T: geom_core::Real> {
     face: FaceKey,
     normal: Vec3<T>,
     t: T,
+    /// A bound on `t`'s rounding: `(o − q)·n̂` and `d·n̂` each off by
+    /// [`geom_core::rounding_charge`] of the lengths they are read at,
+    /// over the ray's rate off the plane.
+    slack: T,
     p: Point3<T>,
     outward: Sign,
 }
@@ -3067,6 +3194,8 @@ enum Cross {
 struct RootCross<T> {
     face: FaceKey,
     t: T,
+    /// A bound on `t`'s rounding ([`Centred::roots`]).
+    slack: T,
     side: RootSide,
     /// Its place among its face's roots: two faces on one carrier read
     /// the same roots in the same order.
@@ -3713,11 +3842,12 @@ fn carrier_roots<T: Decide>(
         let read = (|| {
             let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
             let first = roots.len();
-            let mut push = |t: T, side: RootSide| {
+            let mut push = |t: T, slack: T, side: RootSide| {
                 let ordinal = roots.len() - first;
                 roots.push(RootCross {
                     face,
                     t,
+                    slack,
                     side,
                     ordinal,
                 });
@@ -3744,9 +3874,9 @@ fn carrier_roots<T: Decide>(
                         }
                     }
                     WallRoots::Tangent => return Err(RayFault::Graze),
-                    WallRoots::Two(ts) => {
+                    WallRoots::Two(ts, slack) => {
                         for (t, chart) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
-                            push(t, RootSide::Ordered(oriented(chart, sense)));
+                            push(t, slack, RootSide::Ordered(oriented(chart, sense)));
                         }
                     }
                 },
@@ -3757,7 +3887,8 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
+                    let centred = line_cone_centred(q, d, apex, axis, half_angle);
+                    let a2 = centred.coeffs[0];
                     // A bound on the face's reach from its apex, never under
                     // it — the lever both margins below are metered by.
                     let v_ext = region.reach();
@@ -3767,15 +3898,16 @@ fn carrier_roots<T: Decide>(
                     {
                         return Err(RayFault::Graze); // generator-parallel
                     }
-                    let disc = b2.powi(2) - a2 * c2;
+                    let disc = centred.disc();
                     match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
                         .map_err(escalate)?
                     {
                         Sign::Positive => {
                             // Unordered: `A` may be negative, and the count
                             // orders by advance anyway.
-                            for t in quadratic_roots(a2, b2, c2, disc) {
-                                push(t, RootSide::Cone);
+                            let (ts, slack) = centred.roots(disc);
+                            for t in ts {
+                                push(t, slack, RootSide::Cone);
                             }
                         }
                         Sign::Zero => return Err(RayFault::Graze), // tangent ray
@@ -3788,9 +3920,9 @@ fn carrier_roots<T: Decide>(
                     sense,
                     ..
                 } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
-                    WallRoots::Two([near, far]) => {
-                        push(near, RootSide::Ordered(oriented(Sign::Negative, sense)));
-                        push(far, RootSide::Ordered(oriented(Sign::Positive, sense)));
+                    WallRoots::Two([near, far], slack) => {
+                        push(near, slack, RootSide::Ordered(oriented(Sign::Negative, sense)));
+                        push(far, slack, RootSide::Ordered(oriented(Sign::Positive, sense)));
                     }
                     WallRoots::Tangent => return Err(RayFault::Graze),
                     WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
@@ -3823,7 +3955,7 @@ fn carrier_roots<T: Decide>(
                     match torus_crossings(face, found)? {
                         Some(found) => {
                             for &t in found.roots() {
-                                push(t, RootSide::Torus);
+                                push(t, geom_core::rounding_charge(t.abs()), RootSide::Torus);
                             }
                         }
                         None => missed.push(face),
@@ -4094,6 +4226,8 @@ pub(crate) fn ray_crossings<T: Decide>(
             face,
             normal,
             t,
+            slack: geom_core::rounding_charge((origin - q).norm() + t.abs() * d.norm())
+                / denom.abs(),
             p: q + d * t,
             outward,
         });
@@ -4140,21 +4274,24 @@ pub(crate) fn ray_crossings<T: Decide>(
     // stands for, or nothing. ----
     for m in &meets.met {
         let [a, b] = m.faces;
-        let mut ends = [(m.at, 0); 2];
+        let mut ends = [(m.at, 0, T::zero()); 2];
         let mut stands = true;
         for (end, (&f, &c)) in ends.iter_mut().zip(m.faces.iter().zip(&m.cross)) {
             let plane = planes.iter().find(|p| p.face == f);
-            let (t, side) = match c {
-                Cross::Plane => plane.map_or((m.at, Sign::Zero), |p| (p.t, p.outward)),
+            let (t, side, slack) = match c {
+                Cross::Plane => plane.map_or((m.at, Sign::Zero, T::zero()), |p| {
+                    (p.t, p.outward, p.slack)
+                }),
                 Cross::Root(k) => (
                     roots[k].t,
                     match geo_of(f) {
                         Some(geo) => root_outward(f, geo, roots[k], q, d, band)?,
                         None => Sign::Zero,
                     },
+                    roots[k].slack,
                 ),
             };
-            *end = (t, count(side));
+            *end = (t, count(side), slack);
             // A crossing two met edges stand for would be counted at each.
             let k = key(f, c);
             if claims.iter().filter(|(claimed, _)| *claimed == k).count() > 1 {
@@ -4192,7 +4329,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 };
             }
         }
-        let [(ta, sa), (tb, sb)] = ends;
+        let [(ta, sa, ea), (tb, sb, eb)] = ends;
         // An edge's half crossings are its faces' crossings of their
         // carriers, which the ray makes through the edge only where both
         // lie ahead of `q`: from a `q` in band of a face's carrier, the
@@ -4215,9 +4352,13 @@ pub(crate) fn ray_crossings<T: Decide>(
                 face: a,
                 other: Some(b),
                 at: m.at,
+                slack: T::zero(),
                 mark: None,
             },
-            (m.span.0.min(ta).min(tb), m.span.1.max(ta).max(tb)),
+            (
+                m.span.0.min(ta - ea).min(tb - eb),
+                m.span.1.max(ta + ea).max(tb + eb),
+            ),
             false,
         )?;
     }
@@ -4239,21 +4380,25 @@ pub(crate) fn ray_crossings<T: Decide>(
             Some(inside) => Some(inside),
             None => point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?,
         };
-        let point = (c.t, c.t);
+        let point = (c.t - c.slack, c.t + c.slack);
         match inside {
             Some(false) => {}
-            Some(true) => offer(RayHit::crossing(face, c.t, count(c.outward)), point, false)?,
-            None => offer(RayHit::crossing(face, c.t, 0), point, true)?,
+            Some(true) => offer(
+                RayHit::crossing(face, c.t, c.slack, count(c.outward)),
+                point,
+                false,
+            )?,
+            None => offer(RayHit::crossing(face, c.t, c.slack, 0), point, true)?,
         }
     }
     for m in meets.marks {
         offer(m, (m.at, m.at), true)?;
     }
     // A curved face's crossing at `t`, `outward` its sign there.
-    let mut offer_root = |face: FaceKey, t: T, outward: Sign, edge: bool| {
+    let mut offer_root = |face: FaceKey, (t, slack): (T, T), outward: Sign, edge: bool| {
         offer(
-            RayHit::crossing(face, t, count(outward)),
-            (t, t),
+            RayHit::crossing(face, t, slack, count(outward)),
+            (t - slack, t + slack),
             edge || outward == Sign::Zero,
         )
     };
@@ -4321,10 +4466,10 @@ pub(crate) fn ray_crossings<T: Decide>(
         match (held, fault, boundary) {
             (Some((r, geo)), ..) => {
                 let outward = root_outward(r.face, geo, r, q, d, band)?;
-                offer_root(r.face, r.t, outward, false)?;
+                offer_root(r.face, (r.t, r.slack), outward, false)?;
             }
             (None, Some(fault), _) => return Err(fault),
-            (None, None, Some(r)) => offer_root(r.face, r.t, Sign::Zero, true)?,
+            (None, None, Some(r)) => offer_root(r.face, (r.t, r.slack), Sign::Zero, true)?,
             (None, None, None) => {}
         }
     }
@@ -4414,7 +4559,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                         return Err(RayFault::Graze);
                     }
                     WallRoots::Tangent => return Err(RayFault::Graze),
-                    WallRoots::Two(ts) => ts,
+                    WallRoots::Two(ts, _) => ts,
                 };
                 for t in ts {
                     let ahead = ray_walk::advance(rows.advance, Margin::of(t), band)
@@ -4460,9 +4605,9 @@ pub(crate) fn ray_crossings<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let [near, far] =
+                let ([near, far], slack) =
                     match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
-                        WallRoots::Two(ts) => ts,
+                        WallRoots::Two(ts, slack) => (ts, slack),
                         WallRoots::Tangent => return Err(RayFault::Graze),
                         WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
                     };
@@ -4477,7 +4622,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     (near, oriented(Sign::Negative, sense)),
                     (far, oriented(Sign::Positive, sense)),
                 ] {
-                    offer_root(face, t, outward, false)?;
+                    offer_root(face, (t, slack), outward, false)?;
                 }
             }
             // The closed torus group: every root of the tube's quartic,
@@ -4512,11 +4657,12 @@ pub(crate) fn ray_crossings<T: Decide>(
                     let root = RootCross {
                         face,
                         t,
+                        slack: geom_core::rounding_charge(t.abs()),
                         side: RootSide::Torus,
                         ordinal: 0,
                     };
                     let outward = root_outward(face, geo, root, q, d, band)?;
-                    offer_root(face, t, outward, false)?;
+                    offer_root(face, (t, root.slack), outward, false)?;
                 }
             }
         }
@@ -5228,7 +5374,7 @@ mod wall_root_rows {
             r,
             4.0 * r,
         );
-        let WallRoots::Two([t0, t1]) = got else {
+        let WallRoots::Two([t0, t1], _) = got else {
             panic!("both roots: {got:?}");
         };
         assert!(
@@ -5276,7 +5422,7 @@ mod wall_root_rows {
                 band,
             )
             .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
-            let WallRoots::Two([_, t1]) = got else {
+            let WallRoots::Two([_, t1], _) = got else {
                 panic!("both roots at {eps}: {got:?}");
             };
             if (t1 - exit).abs() > eps {
@@ -5287,6 +5433,73 @@ mod wall_root_rows {
             }
         }
         assert!(off.is_empty(), "the exit roots: {off:?}");
+    }
+
+    /// **A ray started far from a thin wall keeps its roots.** A ray
+    /// `D` out from the axis of a wall of radius `r`, across it `x0` off
+    /// the axis, crosses it at `D ∓ √(r² − x0²)`. Read about the ray's
+    /// start, the residual `D² + x0² − r²` loses `u·D²` against `r²`:
+    /// the duplicate row's unit wall `4·10⁵` m out lost `10⁻⁵` m of its
+    /// root, and a 1 mm wall 2 km out loses `10⁻⁷` m. Read about the
+    /// closest approach, each is right to `10⁻¹²` m, and the slack holds
+    /// the error that is left.
+    #[test]
+    fn a_ray_from_far_keeps_a_walls_roots() {
+        for (big, r, x0) in [(4e5, 1.0, 0.6), (2e3, 1e-3, 6e-4)] {
+            let half = (r * r - x0 * x0).sqrt();
+            let got = roots(Point3::new(x0, -big, 0.3), Vec3::new(0.0, 1.0, 0.0), r, 4.0 * big);
+            let WallRoots::Two([t0, t1], slack) = got else {
+                panic!("both roots {big} out: {got:?}");
+            };
+            let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
+            assert!(
+                off <= 1e-12 && off <= slack && slack <= 1e-12,
+                "{big} out: the roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
+            );
+        }
+    }
+
+    /// **The sphere's and the cone's quadratics keep their roots from
+    /// far too**: a 1 mm ball 2 km out, and the right cone about `z`
+    /// (`x² + y² = z²`) crossed at height 1, `x0 = 0.6` off its axis,
+    /// `4·10⁵` m out.
+    #[test]
+    fn a_ray_from_far_keeps_a_spheres_and_a_cones_roots() {
+        let d = Vec3::new(0.0, 1.0, 0.0);
+        let (big, r, x0) = (2e3, 1e-3, 6e-4);
+        let half = (r * r - x0 * x0).sqrt();
+        let got = line_sphere_roots(
+            Point3::new(x0, -big, 0.0),
+            d,
+            Point3::new(0.0, 0.0, 0.0),
+            r,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("the sphere's disc decides: {e:?}"));
+        let WallRoots::Two([t0, t1], slack) = got else {
+            panic!("both of the sphere's roots: {got:?}");
+        };
+        let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
+        assert!(
+            off <= 1e-12 && off <= slack && slack <= 1e-12,
+            "the sphere's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
+        );
+        let big = 4e5;
+        let half = (1.0 - 0.36_f64).sqrt();
+        let cone = line_cone_centred(
+            Point3::new(0.6, -big, 1.0),
+            d,
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            core::f64::consts::FRAC_PI_4,
+        );
+        let (ts, slack) = cone.roots(cone.disc());
+        let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));
+        let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
+        assert!(
+            off <= 1e-12 && off <= slack && slack <= 1e-12,
+            "the cone's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
+        );
     }
 
     /// **The axis-parallel rung reads the drift over the run.** A ray
@@ -5305,7 +5518,7 @@ mod wall_root_rows {
             "a drift of ε/4 over the run: {near:?}"
         );
         let clear = roots(q, ray(4.0 * tol.k() * tol.eps()), 1.0, 1.0);
-        let WallRoots::Two([t0, t1]) = clear else {
+        let WallRoots::Two([t0, t1], _) = clear else {
             panic!("a drift of 4Kε over the run has roots: {clear:?}");
         };
         assert!(

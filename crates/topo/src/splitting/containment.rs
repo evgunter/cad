@@ -1416,9 +1416,9 @@ pub(crate) struct CarrierLoop<T: geom_core::Real> {
     pub(crate) keys: Vec<EdgeKey>,
     /// The edges on their carriers.
     pub(crate) edges: Vec<LoopEdge<T>>,
-    /// A ball holding each curved edge's carrier arc ([`step_ball`]),
-    /// which with `verts` holds the whole loop ([`extent_from`]).
-    balls: Vec<(Point3<T>, T)>,
+    /// The balls holding each curved edge's carrier arc ([`step_ball`]),
+    /// which with `verts` hold the whole loop ([`extent_from`]).
+    balls: Vec<ArcBalls<T>>,
 }
 
 /// One step of a loop's cycle, read with no decision: its start
@@ -1456,8 +1456,18 @@ fn cycle_steps<T: Decide>(
     steps
 }
 
-/// The ball holding a step's edge beyond its end vertices: `None` for
-/// a chord ([`carrier_ball`]).
+/// **Two balls, each holding one curved edge's arc**: a reader of the
+/// edge's extent takes the nearer of them, and a reader of its side of
+/// a plane the clearer. A conic's are its whole carrier's
+/// ([`carrier_ball`]) and its arc's own ([`conic_arc_ball`]): neither
+/// holds the other, since a short arc at the end of a long ellipse's
+/// major axis lies far outside the ball of its own size about the
+/// centre, and the carrier's ball reaches the far end of the ellipse.
+/// Any other carrier's are its one ball, twice.
+pub(crate) type ArcBalls<T> = [(Point3<T>, T); 2];
+
+/// The balls holding a step's edge beyond its end vertices
+/// ([`ArcBalls`]): `None` for a chord.
 ///
 /// # Errors
 ///
@@ -1466,12 +1476,15 @@ fn cycle_steps<T: Decide>(
 fn step_ball<T: Decide>(
     r#loop: LoopKey,
     step: &LoopStep<'_, T>,
-) -> Result<Option<(Point3<T>, T)>, PointInLoopError> {
+) -> Result<Option<ArcBalls<T>>, PointInLoopError> {
     let Some(curve) = step.curve else {
         return Ok(None);
     };
     match carrier_ball(curve.carrier(), curve.params()) {
-        Some(ball) => Ok(Some(ball)),
+        Some(ball) => Ok(Some([
+            ball,
+            conic_arc_ball(curve.carrier(), curve.params()).unwrap_or(ball),
+        ])),
         None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => Ok(None),
         None => Err(PointInLoopError::CorruptLoop { r#loop }),
     }
@@ -1623,6 +1636,36 @@ pub(crate) fn carrier_ball<T: Decide>(
             Some((center, reach))
         }
     }
+}
+
+/// **A ball holding the arc `span` of a conic `carrier`, of the arc's
+/// own size**: about the arc's middle point, to half the span's width
+/// times a bound on the speed over it ([`geom::carrier_speed::SemiAxes::speed_over`]),
+/// widened by the rounding of that middle point at the coordinates the
+/// carrier is placed at. `None` for any carrier but a circle or an
+/// ellipse.
+pub(crate) fn conic_arc_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+) -> Option<(Point3<T>, T)> {
+    let (center, axes) = match *carrier {
+        geom::Curve3::Circle { center, radius, .. } => {
+            (center, geom::carrier_speed::SemiAxes::new(radius, radius))
+        }
+        geom::Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } => (center, geom::carrier_speed::SemiAxes::new(semi_u, semi_v)),
+        _ => return None,
+    };
+    let speed = geom_core::SupSpeed::new(axes.speed_over((t0, t1)));
+    let placed = geom_core::rounding_charge((center - Point3::origin()).norm() + axes.speed_hi());
+    Some((
+        carrier.mid_point(t0, t1),
+        geom_core::bisect::reach(speed, (t0, t1)) + placed,
+    ))
 }
 
 /// **A lower bound on the distance from `q` to the arc `span` of
@@ -1780,7 +1823,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
 pub(crate) fn loop_hull<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-) -> Result<(Vec<Point3<T>>, Vec<(Point3<T>, T)>), PointInLoopError> {
+) -> Result<(Vec<Point3<T>>, Vec<ArcBalls<T>>), PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
         LoopBoundary::Cycle { first } => first,
@@ -1798,10 +1841,11 @@ pub(crate) fn loop_hull<T: Decide>(
 }
 
 /// **The radius of a ball about `from` holding a loop**, given its
-/// vertices and a ball `(center, radius)` holding each curved edge:
-/// `|v − from|` and `|center − from| + radius`, folded by their maximum.
-/// A poisoned term is refused rather than folded, so no lever built on
-/// the extent carries it on.
+/// vertices and the balls holding each curved edge ([`ArcBalls`]):
+/// `|v − from|`, and for each edge the nearer of its balls'
+/// `|center − from| + radius`, folded by their maximum. A poisoned term
+/// is refused rather than folded, so no lever built on the extent
+/// carries it on.
 ///
 /// # Errors
 ///
@@ -1810,19 +1854,19 @@ fn extent_from<T: Decide>(
     r#loop: LoopKey,
     from: Point3<T>,
     verts: &[Point3<T>],
-    balls: &[(Point3<T>, T)],
+    balls: &[ArcBalls<T>],
 ) -> Result<T, PointInLoopError> {
-    let terms = verts.iter().map(|v| (*v - from).norm()).chain(
-        balls
-            .iter()
-            .map(|&(center, radius)| (center - from).norm() + radius),
-    );
+    let poisoned = |term: T| match term.is_poison() {
+        true => Err(PointInLoopError::CorruptLoop { r#loop }),
+        false => Ok(term),
+    };
     let mut extent = T::zero();
-    for term in terms {
-        if term.is_poison() {
-            return Err(PointInLoopError::CorruptLoop { r#loop });
-        }
-        extent = extent.max(term);
+    for v in verts {
+        extent = extent.max(poisoned((*v - from).norm())?);
+    }
+    for pair in balls {
+        let [near, far] = pair.map(|(center, radius)| (center - from).norm() + radius);
+        extent = extent.max(poisoned(near)?.min(poisoned(far)?));
     }
     Ok(extent)
 }
@@ -3345,6 +3389,40 @@ mod spline_cap_rows {
                 Ok(face_wise),
                 "{name}: the face's containment"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod arc_ball_rows {
+    use super::*;
+
+    /// **A short arc at the end of a long ellipse's major axis has a ball
+    /// of its own size.** A seam split `10⁻⁷` off a unit wall's tangent
+    /// plane cuts an ellipse of semi-major `10⁷`, of which the side keeps
+    /// the arc about `v` up to height 1. Its carrier's ball is `10⁷`
+    /// across; its arc's holds each of its points and is under 2 m.
+    #[test]
+    fn a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size() {
+        let (a, b) = (1e7, 1.0);
+        let center = Point3::new(1.0, 0.0, 0.0) + Vec3::new(0.0, 0.0, a);
+        let carrier = geom::Curve3::Ellipse {
+            center,
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            semi_u: a,
+            semi_v: b,
+            u_ref: Vec3::new(0.0, 0.0, -1.0),
+        };
+        let span = (-4.5e-4, 4.5e-4);
+        let Some((mid, radius)) = conic_arc_ball(&carrier, span) else {
+            panic!("an ellipse's arc has a ball")
+        };
+        assert!(radius < 2.0, "the arc's ball is of its size: {radius}");
+        for k in 0..=64 {
+            let t = span.0 + (span.1 - span.0) * f64::from(k) / 64.0;
+            let gap = (carrier.eval(t) - mid).norm();
+            assert!(gap <= radius, "the arc's point at {t} lies {gap} out, past {radius}");
         }
     }
 }
