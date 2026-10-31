@@ -2,10 +2,12 @@
 id: an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side
 kind: issue
 title: An aimed ray starting far past a wall loses its roots and reads a split's side inside out, on main
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
+refs: [aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots]
+branch: flush/aimed-ray-reach
 ---
 
 **Live on main: a correct split is refused at its at-rest gate.**
@@ -93,3 +95,22 @@ wall's radius, for any selection whose reach is large. `c₂` loses
 The P1 stands: it is a live wrong orientation verdict at the at-rest
 gate on ordinary input (a split a hair off tangency). It refuses rather
 than shipping, so it stays P1, not P0.
+
+## The same defect, filed earlier (CHART, 2026-10-24)
+
+`aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots`
+(closed as this row's duplicate on 2026-10-31) found the defect first, while fixing PR 5664's
+review. Its executed witness is the pose `ψ 1e-5, φ 0, L 0`, turned
+about `[1, 0, 0]` by 0.7, from `sweep a_rigid_turn_keeps_a_slivers_volume`.
+- **The aim:** the wall's ray, aimed at its boundary middles' mean
+  height on the meridian of its farthest middle.
+- **What the ray reads:**
+  - the section plane at advance `399999.0000117438`, counted +1;
+  - a "wall" root at `399999.0000214193` that does not lie on the
+    cylinder (`ρ − 1 = −1.45e-5`).
+- **The result:** the true entry is lost, the side reads `In`, and
+  tier 3 refuses the honest body with `NegativeVolume`.
+
+It names `line_sphere_roots` and `line_cone_quadratic` as built the same
+way as `line_wall_roots`. A fix covers all three, and is pinned on this
+pose too.
