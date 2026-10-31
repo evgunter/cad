@@ -88,7 +88,8 @@ failure nor the offer appears until the assembly is opened again.
 (`xdg-desktop-portal` plus a frontend for your desktop) or a `zenity`
 binary. WSL distros ship neither. The app probes at startup: with
 confidently none (no `zenity` on PATH, no D-Bus session bus) the
-Open/Save As buttons are disabled with the reason as their tooltip.
+Open/Save As buttons, and Save for a document with no file yet, are
+disabled with the reason as their tooltip.
 `apt install zenity` (or a portal) fixes it, and the command-line
 document argument needs no dialog at all. The probe's portal arm is only
 a hint: a session bus *without* a working portal frontend still makes an
@@ -96,7 +97,8 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
-**Where the dialogs open.** Open… and Save As… start at the first of
+**Where the dialogs open.** Open…, Save As…, and Save for a document
+with no file yet, start at the first of
 three directories that still exists: the current document's, the one
 the last dialog returned a path in (kept in the preferences file as
 `[files] last_dir`), and the directory the viewer was launched from
@@ -160,8 +162,8 @@ loaded`). `mesa-vulkan-drivers` supplies lavapipe, the software ICD wgpu
 lands on — **`WGPU_BACKEND=gl` is a dead end**, refusing with
 `CreateSurfaceError(Hal(FailedToCreateSurfaceForAnyBackend({})))`, while
 Vulkan needs no environment variable once the ICD is installed. Without
-`zenity` the chooser probe reports `Absent` and disables Open…/Save As…,
-so everything but the dialog still works. The `libEGL warning: DRI3
+`zenity` the chooser probe reports `Absent` and disables Open…/Save As…
+(and Save for a document with no file), so everything but the dialog still works. The `libEGL warning: DRI3
 error` lines on stderr are noise.
 
 **Build `--release`.** In a debug build tessellation and BVH index build
@@ -214,8 +216,8 @@ can break this build with every check green.
 
 Three things are known-absent by design:
 
-- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…
-  are disabled with their reason showing — the same posture a Linux box
+- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…,
+  and Save for the startup document, are disabled with their reason showing — the same posture a Linux box
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
@@ -1031,7 +1033,7 @@ handing a policy's verdict to the wrong door does not build.
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `platform::ChooserBackend::unusable`'s words as its
+(and path-less Save) control with `platform::ChooserBackend::unusable`'s words as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -1049,9 +1051,10 @@ its own `Message` from `chooser.unusable()`, and a rule ranging over
 readers of the sentence would stay green under it. So the population is
 *every read of `ViewerApp::chooser`, this crate's only value of type
 `platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
-by the Open… and Save As… controls, each a `match` on `no_chooser` that
-draws the control disabled with the `Some`'s words as its reason or
-live on `None`, and nowhere else. No
+by the Open…, Save and Save As… controls, each a `match` on `no_chooser`
+(Save's beside the session's path, since a Save with a path puts up no
+dialog) that draws the control disabled with the `Some`'s words as its
+reason or live on `None`, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
 the field — `platform::chooser_backend()` has one caller (the

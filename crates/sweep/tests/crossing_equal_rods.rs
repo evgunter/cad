@@ -296,3 +296,38 @@ fn a_rod_cut_obliquely_and_glued_back_is_the_rod() {
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// **Offsetting the mitred wall refuses typed**: `A ∪ B` at spins
+/// `(0, 0)` holds the ellipse edge between the two walls; moving `A`'s
+/// wall out by 0.05 asks the section of a radius-1.05 and a radius-1
+/// cylinder on meeting axes, which the C5 pose question serves (every
+/// cylinder pose is on the section value). Past that gate the offset
+/// door refuses at the moved vertex
+/// (`shelf/an-offset-wall-against-a-crossing-cylinder-refuses-as-a-vertex-disagreement`);
+/// the row moves when that is built.
+#[test]
+fn offsetting_the_mitred_wall_refuses_typed() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(0.0), crossing(0.0, 0.5));
+    let Ok(BooleanResult::Body(u)) = topo::union(&a, &b, tol) else {
+        panic!("A ∪ B builds at spins (0, 0)");
+    };
+    let mut body = u.body.into_body();
+    // `A`'s wall, every face that wears its surface.
+    let walls: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { axis, .. }) if axis.z.abs() > 0.9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!walls.is_empty(), "A's wall");
+    let got = topo::replace_faces_offset(&mut body, &walls, 0.05, tol);
+    assert!(
+        matches!(got, Err(topo::ReplaceFaceError::VertexDisagreement { .. })),
+        "{got:?}"
+    );
+}
