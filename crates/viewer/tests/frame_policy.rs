@@ -3867,6 +3867,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Blend(BlendEvent::EdgesLost {
                 target,
                 names: vec![face.clone()],
+                picks: 1,
                 kept: 2,
             }),
             frame::Retold::Never,
@@ -3891,6 +3892,24 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the all-edges door's target draws edges the index cannot name",
             ToolNotice::Blend(BlendEvent::EdgesUnnamed {
                 refused: unnamed_on(target),
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: an edge pick with no index declined",
+            ToolNotice::Blend(BlendEvent::Unindexed {
+                picked: target,
+                why: viewer::pickcache::NotIndexed::Absent,
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: an edge pick whose rim the index could not answer declined",
+            ToolNotice::Blend(BlendEvent::RimUnanswered {
+                fault: editor_core::resolve::RimNameFault::Stale {
+                    node: target.node,
+                    body: 0,
+                },
             }),
             frame::Retold::Again,
         ),

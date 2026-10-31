@@ -290,6 +290,8 @@ fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::
         C::SphereTorus => (Relation::OnCarrier, Site::SphereOnTorusAxis),
         C::CylinderTorus => (Relation::Coaxial, Site::CoaxialCylinderTorus),
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
+        C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
+        C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
     }
 }
 

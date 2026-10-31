@@ -610,3 +610,68 @@ which one reviewer can falsify.
 The defect had already gone from main: the 2026-10-14 `SketchPlane`-is-a-`RigidMotion` change makes a mirrored section frame refuse at `check_rigid`, where it is minted. The unit pins that with tests, corrects `loft_body`'s doc, and records the sweep across every door that takes an `Affine3` documented as rigid. It filed one off-ground doc row in `work/issues/`. Review dropped to the orchestrator's read, because no kernel logic changed (the row has the detail).
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the certificate is measured and parked on four CLEAR rows
+
+The embedding certificate's measurement phase finished, across a
+container restart that killed its first lane; that lane's on-disk
+scratch was pushed and a fresh lane resumed from it. The engine
+certifies 5 of the 16 tour lofts and sweeps, at 15–500 times the
+build. Where it answers, it answers right, so the door is sound in
+shape and premature in engine. Rather than ship a gate that refuses
+the tour, `self-overlapping-spines-build-and-validate` is parked on
+the four CLEAR rows the lane filed. Those rows are re-banded P0,
+because a P0 waits on them. CLEAR is told on its log. The row's
+"Measured" section has the table's gist and the door shape kept for
+later. `carve/embedding-certificate` is measurement scratch: it is
+kept, and not merged.
+
+The alternative was to land the door now with SHELL-4's `None` shape
+at f64. It would refuse 11 of the 16 tour bodies, a regression a user
+meets directly.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the tier-3 doors row parked; the pinned wall weighed
+
+`the-sweep-doors-return-bodies-tier-3-refuses` is parked on ONEHOME's
+`the-at-rest-result-gate-and-its-typing-live-in-five-homes` (P1,
+design). That row decides where an at-rest result gate lives and how
+it is typed for every door, so a sweep-door gate built first would be
+the sixth home it retires.
+
+`a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`
+goes to the designer pair now, rather than on the certificate's head
+as planned: the certificate is parked on CLEAR, and the question has
+a final state that can be weighed without it. The blinding byte is on
+`analysis/design-fork/carve-pinned-wall`.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the pinned wall weighed (two rounds, converged); dispatched
+
+The designer pair split in round 1. One classified pinned corners and
+built the wedge, like revolve's on-axis class. The other refused every
+contact, by the minimum distance between the loops. In round 2 each
+took the other's point: the classes stand, and the clearance is read
+beyond the pinned corners. That is one design, not a crossover, so it
+did not go to Ev. Two residual details were settled here: clearance
+over every segment pair (it catches crossing sections, which
+same-index rims miss), and vertex rows in the skin read the door's
+verdict. The row's "Weighed" section has the detail.
+
+Dispatched as `carve/pinned-corners`. Phase 1 measures two things
+before building: whether a NURBS wall with a collapsed column can be
+minted and certified today, and the lens about its chord, which is
+believed to refuse `DegenerateStacking`. Review: **single FULL**.
+The design is decided, and the door logic is checkable by one
+falsifier. Dual is held back because nothing here is hard to reverse:
+class 1's build arrives only with its own lane.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-31 — `sweep-frame-is-a-minimal-rotation-from-the-start-tangent` closed (PR 6138), with the half-turn P0
+
+The sweep frame is now the rotation-minimizing frame, built by double reflection and pivoting at the path's start point. A sweep's v is its path parameter. The rows have the detail. The review found six slow rows that the change reached and nobody ran; that is the class logged above. Eighteen sweep slow rows are red on main independently of this change (cylinder–sphere, torus joins, rulings, pierces, conics, a germ), and seven of them fail on `QuadratureUnsupported`. They are filed on TINT as `eighteen-sweep-slow-rows-are-red-on-main`, with a first bisect suggestion.
+
+Signed: (CARVE orchestrator)

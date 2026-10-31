@@ -522,6 +522,23 @@ impl PickCache {
         }
     }
 
+    /// **The held index, or why there is none** — [`unindexed`]'s
+    /// reading of an absence, for a consumer that needs the index rather
+    /// than a refusal: [`NotIndexed::Building`] while one is on its way,
+    /// [`NotIndexed::Absent`] when nothing is building one (the last
+    /// attempt refused, [`PickCache::error`], or nothing has evaluated).
+    ///
+    /// # Errors
+    ///
+    /// [`NotIndexed`]: `Building` or `Absent`, never `AnotherPicture`,
+    /// which is a question about the picture this cache does not hold.
+    pub fn index_or_why(&self, fit: &dyn FitService) -> Result<&PickIndex, NotIndexed> {
+        self.index().ok_or(match self.index_seam(fit) {
+            IndexSeam::Building => NotIndexed::Building,
+            IndexSeam::Idle => NotIndexed::Absent,
+        })
+    }
+
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
