@@ -2,8 +2,11 @@
 id: a-picked-half-rim-blends-half-and-refuses
 kind: issue
 title: a click on a full-revolve rim picks one half-arc, so the blend tool's fillet refuses SeamVertex and its recourse is a kernel-only query
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-31
+branch: vseam/a-picked-rim-is-the-whole-rim
+pr: 6129
 priority: P1
 cost: M
 ---
@@ -66,3 +69,20 @@ one pick a person makes for it refuses. The scene now asks for both
 halves (`lily::roll_the_mouth`). The upstream cause, that a full
 revolve leaves every circle as two edges, is
 `work/profile/lower-profiles-to-carrier-and-interval-not-vertex-and-bulge.md`.
+
+## Closed
+
+2026-10-31, PR 6129, at the pick. The pick index records each drawn
+body's closed rims of two or more arcs (`topo::query::rim_of` on the
+body it drew, mapped back to names through that body's table) and
+answers `PickIndex::whole_edge`. `Tools::feed` takes the index, and
+the blend tool takes a click as the whole drawn edge: a rim is one
+pick in the panel's count, and un-picking either arc drops the rim.
+`load_all_edges` groups the same way. The selection value stays one
+name (GQ7). The row is
+`blend_authoring::a_click_on_a_seam_split_rim_blends_the_whole_rim`:
+one click on a full-revolve cap rim, then a fillet commit, builds a
+tier-3 valid body, and the same flow on the merge base refuses
+`UnsupportedCorner { SeamVertex }`. The hover and selected lanes still
+light half the circle; that is
+`work/vgeom/a-hovered-or-selected-rim-marks-half-its-circle.md`.
