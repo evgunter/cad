@@ -50,33 +50,39 @@ PR 5808 keeps a closed rim flush in such a face out of the join
 (`boolean/join.rs` `stands_on`), so the one-segment forms with a vertex
 at the touch refuse typed before reaching this, as they did on `main`.
 
-## Closed (PR 5852, 2026-10-27)
+## Closed (PR 5852)
 
-Measured, the S10 cells had a different cause from the one read above.
-At the cut's end, `B`'s dropped top already held the join's copies of
-`A`'s rim, and the end's corner was bounded by `B`'s closed rim:
-`fate.rs` `leaving` levered a bound at its chord, which a closed edge's
-one vertex makes zero, so every corner it bounds read `Zero` on every
-sign and the copy the kept rim runs along was never read `Along`. A
-bound is now levered at its extent (`geom_brep::edge_extent`, the
-diameter for a closed circle), as the sector reader's bounds are.
+Measured, the cells had two causes.
 
-The two-arc `A ∩ B` with `B` over `z ∈ [0, 0.5]` (the floors flush) and
-S7's `B ∪ A` were the cause read above: the kept rim leaves the end
-along the dropped face's boundary edge at first order. `corner_holds`
-now reads a kept edge leaving along a bound one order down,
-`(κ − κ_b)·û` at the shorter reach (`bool_fate_corner_bend`, metres,
-`runs_into`'s reading): into the corner past the bound, out of it, or
-along it where the bends tie. The secant reading stays for a bound with
-no certified bend (a spline, a spiric).
+- **A closed bound levered at its chord.** At the cut's end, `B`'s
+  dropped top already held the join's copies of `A`'s rim, and the
+  end's corner was bounded by `B`'s closed rim: `fate.rs` `leaving`
+  levered a bound at its chord, which a closed edge's one vertex makes
+  zero, so every corner it bounds read `Zero` on every sign. `main`
+  fixed this while the PR was open: OFFSET's reach lever
+  (`geom_brep::edge_reach_bounds`, `fate.rs` `sign_at`) levers each
+  bound at its own reach from the vertex, and S7's `B ∪ A` cells build
+  on `main` by it alone. The PR's own lever at the extent was dropped in
+  the merge in favour of it.
+- **A kept rim leaving along a bound at first order.** The two-arc
+  `A ∩ B` with `B` over `z ∈ [0, 0.5]` (the floors flush) is the cause
+  read above: the kept rim leaves the end along the dropped face's
+  boundary edge at first order. `corner_holds` now
+  reads a kept edge leaving along a bound one order down, `(κ − κ_b)·û`
+  (`fate.rs` `bend_at`, `bool_fate_corner_bend`, metres, `runs_into`'s
+  reading). The result is into the corner past the bound, out of it, or
+  along it where the bends tie, at the shorter reach, from below where a
+  reach is bounded from both sides. The secant reading stays for a bound
+  with no certified bend (a spline, a spiric).
 
-The cells listed above build `SOUND` at the closed form in one shell,
-point-sampled, at rest and turned, with `r_B` at 0.5 and from `1e-6` to
-`1e-4` over 0.3; nearer ties refuse typed, as on `main` (in band, or
-`FallbackExtentUnsupported`, or the volume backstop's
-`ResultVolumeImplausible`). The same lever moves the
-containment fallback's holed-plate cut
-(`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`).
-`A ∪ B` and `B ∩ A` with `A`'s vertex at the touch still refuse at the
-join (`stands_on`); lifted, they do not build, for a reason of the
-join's own: `a-flush-closed-rim-at-its-vertex-is-joined-reversed`.
+Against `main` at `45f6be756b`, probe `rev5808r` (S0, S7, S10) at ε
+default, `1e-6` and `1e-12`: the only cells that move are the
+fate-cut `ClassificationInvariant`s, 16, 8 and 20, every one `main` has
+left, all to `SOUND` at the closed form. They are S10's two-arc `A ∩ B`,
+floors flush, `A`'s vertex at 0 or π, at rest and turned. Nothing moves
+the other way, and the cells the probe reads `BAD` are the same on both
+(`a-seam-ruling-on-a-crescents-tangent-line-ships-a-difference-tier-3-prime-refuses`,
+found in the merge). `A ∪ B` and `B ∩ A` with `A`'s vertex at the
+touch still refuse at the join (`stands_on`); lifted, they do not
+build, for a reason of the join's own:
+`a-flush-closed-rim-at-its-vertex-is-joined-reversed`.

@@ -54,3 +54,17 @@ builds it. Whether the result gate should also read tier 3′ on such a
 body is
 `work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`'s
 question.
+
+## Tangent outside too (probe `rev5808r`, S7)
+
+The same probe's S7 rods, tangent outside along a ruling, show the same
+shape on `main` (`45f6be756b`) and on PR 5852 alike, at every ε row:
+`A` `r = 0.3` about the origin with its vertex at azimuth 0, on the
+tangent line through `(0.3, 0)`, and `B` `r = 0.1` about `(0.4, 0)`,
+`z ∈ [0, 1]`, `[0.5, 1.5]` or `[−0.5, 1.5]`, its vertex at 0 or π.
+`A ∪ B` and `B ∪ A` return `Ok`, two shells, two solids, the
+closed-form volume, tiers 1 and 3 and the certificate passing, and tier
+3′ refuses (44 cells at the default ε, the one- and two-arc forms, at
+rest and turned). With `A`'s vertex off the line (`baz = 1`) every cell
+refuses typed, `CurvedPierceUnsupported`. Which reading tier 3′ refuses there is not read yet; the
+probe at `1953c3a21f` showed the same cells.
