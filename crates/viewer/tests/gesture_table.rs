@@ -69,9 +69,9 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 42 rows: `replaces_the_document` says the property
-//! the table encodes — an operation that puts a different document
-//! under the session — and
+//! second copy of 42 rows: [`SessionOp::replaces_the_document`] says
+//! the property the table encodes — an operation that puts a different
+//! document under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
 //! the table against it over the same sample roster. That is a
 //! different row from `expected`'s, and a stronger one, because the
@@ -1551,86 +1551,6 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
     );
 }
 
-/// **The free-move table's answer, restated as the PROPERTY it encodes
-/// rather than as a second copy of its rows.**
-///
-/// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table's refusals have
-/// no shorter description than the list itself — all but one move the
-/// document, the history or the file a drag previews against, and
-/// `ProbeBounds` reads rather than moves. The
-/// free-move table has two, and they have a name: an operation that REPLACES the
-/// document the session is about — as against one that moves it, which
-/// a prune answers for by reporting. So this says the name, and
-/// `the_free_move_table_refuses_exactly_the_replacement_doors` checks
-/// the table against it. A row that disagrees is either a table entry
-/// that is wrong or a property that has stopped being the reason, and
-/// both are things to find out.
-fn replaces_the_document(op: &SessionOp) -> bool {
-    match op {
-        // The two doors that put a different document under the
-        // session, dropping the whole of its display state with
-        // `DocSession::clear_for_new_document`.
-        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
-        SessionOp::Select(_)
-        | SessionOp::Hover(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::RemoveConstraint { .. }
-        | SessionOp::IntoOwnSpace { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::SetSlotVariable { .. }
-        | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetVariable { .. }
-        | SessionOp::SetVariableUnit { .. }
-        | SessionOp::SetVariableText { .. }
-        | SessionOp::DeclareVar { .. }
-        | SessionOp::RenameVar { .. }
-        | SessionOp::DeleteVar { .. }
-        | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginVariableGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewVariableGesture { .. }
-        | SessionOp::CommitVariableGesture { .. }
-        | SessionOp::CancelGesture
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. }
-        | SessionOp::CancelFreeMove
-        | SessionOp::AddMate { .. }
-        | SessionOp::SketchOnFace { .. }
-        | SessionOp::AddDrawnProfile { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddFusedPattern { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. }
-        | SessionOp::CreateLabelled { .. } => false,
-    }
-}
-
 /// The free-move table is exactly the replacement doors, on the same
 /// sample roster the value table is checked on.
 #[test]
@@ -1641,7 +1561,7 @@ fn the_free_move_table_refuses_exactly_the_replacement_doors() {
     for op in every_op(node, &dir.join("saved.pncad")) {
         assert_eq!(
             op.permitted_during_free_move(),
-            !replaces_the_document(&op),
+            !op.replaces_the_document(),
             "the free-move table's answer for {op:?}"
         );
     }
@@ -1710,11 +1630,11 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         let begins_a_second_probe = matches!(op, SessionOp::BeginFreeMove { .. });
         assert_eq!(
             fenced,
-            replaces_the_document(&op) || begins_a_second_probe,
+            op.replaces_the_document() || begins_a_second_probe,
             "{op:?} refused {:?} with a probe in flight",
             outcome.refusal
         );
-        if replaces_the_document(&op) {
+        if op.replaces_the_document() {
             assert!(
                 outcome.committed.is_empty(),
                 "{op:?} committed while fenced"

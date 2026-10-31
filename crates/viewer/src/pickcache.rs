@@ -298,7 +298,7 @@ impl PickCache {
     ///
     /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
     /// the δ a document OPENS at
-    /// ([`crate::app::ViewerApp::fit_delta_on_scene`]), and that is the
+    /// ([`crate::app::DocumentDerived::fit_delta`]), and that is the
     /// whole of the budget's authority: once a δ is in force it is the
     /// value someone asked for, and a cache that quietly built a
     /// different picture would make the View pane's δ field a control

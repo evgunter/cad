@@ -2691,7 +2691,8 @@ fn full_latitude() -> (f64, f64) {
 ///   `(p − apex)·axis = v·cos α`, so `v` is an affine function of
 ///   position with no critical point on the carrier but the apex: it
 ///   takes the boundary's range of that projection over `cos α`, widened
-///   to the apex's `0`, which a face may hold inside it. A window
+///   to the apex's `0` unless the boundary winds nowhere
+///   ([`winds_nowhere`]): a face may hold the apex inside. A window
 ///   symmetric about the apex would hold the mirror
 ///   nappe, and on it halving `u` never narrows the enclosure (each
 ///   azimuth's generator meets its opposite's), so no subdivision could
@@ -2768,8 +2769,23 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             half_angle,
             ..
         } => {
+            // `slant` encloses `v` over the boundary. The face's `v`
+            // peaks on its boundary or at the apex, so `slant` widened
+            // to `0` holds it, and `slant` alone does wherever it holds
+            // `0` already. It does when the apex is on the boundary,
+            // and when the boundary meets both nappes. Otherwise the
+            // boundary lies on one nappe, off the apex; were the apex
+            // inside the face, a small circle about it would be
+            // homologous, on the punctured nappe, to the whole boundary,
+            // which would wind once. So a boundary winding nowhere
+            // leaves the apex off the face, or `0` inside `slant`.
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            superset(full_turn(), (slant.lo().min(0.0), slant.hi().max(0.0)))
+            let v = if winds_nowhere(body, f) {
+                (slant.lo(), slant.hi())
+            } else {
+                (slant.lo().min(0.0), slant.hi().max(0.0))
+            };
+            superset(full_turn(), v)
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
@@ -2797,6 +2813,40 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         body,
         boundary,
     })
+}
+
+/// **Whether a face's boundary winds nowhere**: the elements of all its
+/// joints, over every loop together, compose to the identity with no
+/// reset. A missing joint, a loop that does not close, or an outer loop
+/// with no edges reads as winding.
+///
+/// On a cone a reset is written at a joint on the apex
+/// ([`crate::joint`]); absent one, the composed `u` of the whole
+/// boundary is its winding about the axis. What a total of zero tells
+/// [`window_of`] is argued there.
+fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
+    let mut elements = Vec::new();
+    for (i, lk) in core::iter::once(f.outer)
+        .chain(f.rings.iter().copied())
+        .enumerate()
+    {
+        match body.get_loop(lk).map(|l| l.boundary) {
+            Some(LoopBoundary::Cycle { first }) => {
+                let Some(cycle) = body.loop_cycle(first) else {
+                    return false;
+                };
+                for he in cycle {
+                    let Some(e) = body.joint(he) else {
+                        return false;
+                    };
+                    elements.push(e);
+                }
+            }
+            Some(LoopBoundary::Empty { .. }) if i > 0 => {}
+            _ => return false,
+        }
+    }
+    crate::joint::Winding::of(elements).is_zero()
 }
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.
@@ -4039,5 +4089,167 @@ mod receipt_rule {
         };
         assert!(bad.holds(), "the identity itself cannot see the defect");
         bad.check_outside_is_a_sub_count();
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod cone_window {
+    use core::f64::consts::{FRAC_PI_2, PI};
+
+    use geom::{Curve3, Surface};
+    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{Which, window_of};
+    use crate::Body;
+    use crate::entity::FaceKey;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+
+    const ALPHA: f64 = 0.5;
+
+    /// The signed slant of the cone's circle at height `z`.
+    fn slant(z: f64) -> f64 {
+        z / ALPHA.cos()
+    }
+
+    /// The cone of half-angle [`ALPHA`] about `+z`, apex at the origin.
+    fn cone() -> Surface<f64> {
+        Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: ALPHA,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// **A cone cap**: the face on [`cone`] bounded by its one circle at
+    /// height `z`, two half-circle edges with no seam, so it holds the
+    /// apex inside and none of its boundary reaches it.
+    fn cone_cap(z: f64) -> (Body<f64>, FaceKey) {
+        let r = z * ALPHA.tan();
+        let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(on(0.0), true).unwrap();
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.0, 0.0, z),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+        )
+        .unwrap();
+        let carrier = body.add_surface(cone());
+        let half = |u0: f64| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(carrier, plane),
+                selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
+            },
+            carrier: Curve3::Circle {
+                center: Point3::new(0.0, 0.0, z),
+                axis: Vec3::unit_z(),
+                radius: r,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: u0,
+            param_end: u0 + PI,
+        };
+        let e = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                on(PI),
+                half(0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let face = body
+            .lifting_rechart_refusals_for_tests(|body| {
+                body.mef(
+                    MefSite::Chords {
+                        he1: e.he_minus,
+                        he2: e.he_plus,
+                    },
+                    half(PI),
+                    FaceSurface::Shared {
+                        key: carrier,
+                        sense: true,
+                    },
+                    Tol::witness(),
+                )
+            })
+            .unwrap()
+            .face;
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, face)
+    }
+
+    /// **A cone face's window ends where the face does, unless the face
+    /// holds the apex.** A wall over `z ∈ [0.5, 1]` misses its apex: its
+    /// `v` window ends at its rims' slants, short of the apex's `0`, and
+    /// holds every point of the face. A cap bounded by its circle at
+    /// `z = 1` holds the apex inside, though none of its boundary reaches
+    /// it: its window runs from the apex to its rim, and so it does with
+    /// any one of its joints missing. Red if the decision reads every
+    /// face as reaching the apex, or none, or reads past a missing joint,
+    /// or if the wall's window ends anywhere but at its rims.
+    #[test]
+    fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
+        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert!(
+            (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
+            "the wall's window ends at its rims, short of the apex: {:?}",
+            w.v
+        );
+        for z in [0.5, 0.75, 1.0] {
+            assert!(
+                w.v.0 <= slant(z) && slant(z) <= w.v.1,
+                "the wall's window holds its points at z = {z}: {:?}",
+                w.v
+            );
+        }
+        let (body, face) = cone_cap(1.0);
+        let lp = body.get_face(face).unwrap().outer;
+        let joints: Option<Vec<_>> = body
+            .loop_lift(lp)
+            .unwrap()
+            .iter()
+            .map(|row| body.joint(row.half_edge))
+            .collect();
+        let winding = crate::joint::Winding::of(joints.expect("the cap's joints are stored"));
+        assert!(
+            !winding.reset && winding.deck.u.abs() == 1,
+            "the cap's circle winds once about the axis: {winding:?}"
+        );
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert!(
+            w.v.0 <= 0.0 && slant(1.0) <= w.v.1,
+            "the cap's window runs from the apex it holds to its rim: {:?}",
+            w.v
+        );
+        let cycle = body
+            .loop_lift(lp)
+            .unwrap()
+            .iter()
+            .map(|row| row.half_edge)
+            .collect::<Vec<_>>();
+        for he in cycle {
+            let (mut body, face) = cone_cap(1.0);
+            body.detach_joint(he);
+            let w = window_of(&body, face, Which::First).unwrap();
+            assert!(
+                w.v.0 <= 0.0,
+                "the cap missing its joint into {he:?} still reaches the apex: {:?}",
+                w.v
+            );
+        }
     }
 }
