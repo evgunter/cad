@@ -73,6 +73,7 @@ and the new-document row in `creation_ops.rs`.
 
 The name now decides nothing past its blank check. That is filed as
 `a-new-documents-typed-name-is-kept-nowhere`. The sweep found the
-same case at the startup door, whose plate carries one derived id in
-every launch. That is filed as
-`the-startup-document-has-one-id-in-every-launch`.
+same case at the startup door, whose plate carried one derived id in
+every launch. That was filed as
+`the-startup-document-has-one-id-in-every-launch` and fixed in the
+same PR.

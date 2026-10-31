@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P3
 cost: E
+design: true
 refs: [new-document-derives-its-id-from-the-typed-name]
 ---
 
@@ -29,3 +30,7 @@ label and the Save As default file name, or should stop asking for
 one. Which one is the open question. Keeping it is a session field
 plus the two chrome readers. Dropping it removes `EmptyName` and the
 form's field.
+
+Style review of PR 6145: `DocSession::new_document` validates the
+name with `Refusal::new_document_name` and then discards it, so the
+trim that function performs feeds nothing past the form's op.

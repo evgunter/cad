@@ -664,13 +664,10 @@ impl Refusal {
     /// refuses, and the New-document form's Create button, which
     /// disables and shows the words.
     ///
-    /// **It hands back the NAME rather than a verdict** because the
-    /// trim is part of the rule and not each caller's own step. A
-    /// control that gated on the raw text would offer a click the door
-    /// refuses; a caller that trimmed again on its own would be a
-    /// second copy of the normalisation with nothing holding the two
-    /// in step — which is the defect one home for the emptiness alone
-    /// still leaves open.
+    /// It hands back the trimmed name, which the form sends in the op.
+    /// Nothing past this check reads the name yet: the door validates
+    /// it and discards it
+    /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
     ///
     /// The name says `new_document` and not `name`: a blank
     /// *variable* name is a different question with a different
@@ -900,6 +897,12 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
+
+impl From<WorkspaceError> for Refusal {
+    fn from(error: WorkspaceError) -> Self {
+        Self::Workspace(Box::new(error))
+    }
+}
 
 /// **The choice a save that would give the document a second file
 /// puts in front of the person** (DI4), drawn from

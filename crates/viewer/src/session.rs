@@ -2031,7 +2031,7 @@ impl DocSession {
         resolver
             .workspace()
             .and_then(|ws| read(&ws))
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+            .map_err(Refusal::from)
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
@@ -2660,7 +2660,7 @@ impl DocSession {
                 self.bind_file(path);
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(error) => OpOutcome::refused(error.into()),
         }
     }
 
@@ -2680,7 +2680,7 @@ impl DocSession {
                 }
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(error) => OpOutcome::refused(error.into()),
         }
     }
 
@@ -2712,9 +2712,11 @@ impl DocSession {
         if let Err(refusal) = Refusal::new_document_name(name) {
             return OpOutcome::refused(refusal);
         }
+        // The `Err` arm is UNTESTED, and labelled as such: `getrandom`
+        // has no injection seam.
         let id = match pncad::workspace::random_document_id() {
             Ok(id) => id,
-            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(error) => return OpOutcome::refused(error.into()),
         };
         self.history = History::new(Doc::empty(id, self.tol));
         self.path = None;

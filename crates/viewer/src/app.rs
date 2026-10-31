@@ -553,6 +553,9 @@ pub enum StartupError {
     Document(scene::SceneDocError),
     /// The document did not produce a drawable scene.
     Scene(scene::SceneError),
+    /// The OS entropy source refused the starting document's id
+    /// (`WorkspaceError::RandomnessUnavailable`).
+    Identity(pncad::workspace::WorkspaceError),
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
@@ -586,6 +589,9 @@ impl core::fmt::Display for StartupError {
             }
             Self::Scene(error) => {
                 write!(f, "the starting document draws no scene: {error}")
+            }
+            Self::Identity(error) => {
+                write!(f, "the starting document has no id: {error}")
             }
             Self::NoWgpuRenderState => f.write_str(
                 "eframe handed the viewer no wgpu render state: this build was linked \
@@ -811,7 +817,13 @@ impl ViewerApp {
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
+        // The startup plate is a new document, so it mints its id as
+        // `SessionOp::NewDocument` does; the scene fixture derives one.
+        // The `Identity` arm is UNTESTED, and labelled as such:
+        // `getrandom` has no injection seam.
+        let id = pncad::workspace::random_document_id().map_err(StartupError::Identity)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
+        let document = document.under_identity(id);
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         // A provisional camera, because no pane has been laid out yet
         // and there is no aspect to fit against. It is provisional for
@@ -1605,12 +1617,10 @@ impl ViewerApp {
             ui.add(egui::Label::new(document_name(self.session.path())).truncate());
             ui.separator();
             // The New… control: one name field. The field is a draft; the
-            // op is emitted only by Create, and only with the name
-            // `Refusal::new_document_name` hands back — the door's own
-            // rule, trim included, so the button cannot offer a click
-            // the door refuses and cannot send a name the door would
-            // have normalised differently. Out of it the button shows
-            // that refusal's own words.
+            // op is emitted only by Create, gated on
+            // `Refusal::new_document_name`, the door's own blank check,
+            // so the button cannot offer a click the door refuses. Out
+            // of it the button shows that refusal's own words.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
                     if ui.button("New…").clicked() {
@@ -3618,10 +3628,11 @@ mod tests {
                 row.painted
             );
         }
-        // A second app over the same startup document, so the same id.
+        // A second app over the original's document, so the same id.
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
+        app.perform_batch(vec![SessionOp::Open(original.clone())]);
         app.perform_batch(vec![SessionOp::Save(copy.clone())]);
         let standing = app.save_choice.clone();
         let fork = standing.as_ref().map(SaveChoice::fork);
@@ -3632,6 +3643,44 @@ mod tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert!(app.save_choice.is_none(), "the fork answered the choice");
         assert_eq!(app.session.path(), Some(copy.as_path()));
+        removed.expect("the fixture removes its folder");
+    }
+
+    /// **Two startups are two documents**: the startup plate mints its
+    /// id, so the second launch's plate, saved at the first's file,
+    /// refuses that it would replace another document.
+    #[test]
+    fn two_startups_mint_two_ids_and_the_second_refuses_the_firsts_file() {
+        use pncad::workspace::WorkspaceError;
+        let dir = std::env::temp_dir().join(format!("two-startups-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let plate = dir.join("plate.pncad");
+        let start = || {
+            ViewerApp::assemble(&egui::Context::default(), pncad::tolerance::witness())
+                .expect("startup that needs no graphics device")
+        };
+        let (mut first, mut second) = (start(), start());
+        let first_id = first.session.committed_doc().id();
+        assert_ne!(
+            first_id,
+            second.session.committed_doc().id(),
+            "one startup plate, two identities"
+        );
+        let saved = first.session.perform(SessionOp::Save(plate.clone()));
+        assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+        let refused = second
+            .session
+            .perform(SessionOp::Save(plate.clone()))
+            .refusal;
+        let removed = std::fs::remove_dir_all(&dir);
+        assert!(
+            matches!(
+                refused,
+                Some(crate::session::Refusal::Workspace(ref error))
+                    if matches!(**error, WorkspaceError::SaveWouldReplaceDocument { id, .. } if id == first_id)
+            ),
+            "{refused:?}"
+        );
         removed.expect("the fixture removes its folder");
     }
 
