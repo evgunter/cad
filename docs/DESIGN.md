@@ -809,25 +809,24 @@ tiers".
      at every edge in (0, 2π), its ends (a cusp, a knife slit) legal
      only where the tangency is jet-determinate; **maximal edges** (no
      joinable vertex at rest); **one region per face**: a face's
-     loops bound one region of its surface. One structural predicate,
-     an edge the face lies on both sides of (a seam, a wrap edge, a
-     spur), gives two views of a face's loops. Its **surface
-     boundary** drops every such edge, which bounds nothing on the
-     surface; an empty one is the whole surface. Its cycles are
-     simple and disjoint, each lies on the face's side of every
-     other, and an open surface's ends lie off the face. Whether a
-     point lies in a face has one reading, the point-in-face doors'
-     (on the face's edge curves), and tier 3 asks those doors what
-     they presume. Its **chart image** drops only spurs (an edge
-     walked out and straight back), keeping seams as the chart's
-     cuts: measurement and a loop's windings read it, and a chart
-     image empty on a closed surface is the whole surface, signed by
-     the face's sense. A wrap tip is a seam whose end lies on a
-     chart singularity: a reader in the chart's own coordinates
-     reads it as the seam it is, through the lift's reset at the
-     singular vertex, and a chart-free reader drops it as a spur,
-     keeping the singular vertex as the datum of the face's side. No reader reads a turn at
-     a spur. **Chart singularities as vertices** are an instance (every one in a face's closure is a
+     loops bound one region of its surface. An edge the face lies on
+     both sides of (a seam, or a wrap edge: the seam that ends at a
+     chart singularity) bounds nothing on the surface, so the face's
+     **surface boundary** is its loops with those edges dropped; an
+     empty one is the whole surface. Its cycles are simple and
+     disjoint, each lies on the face's side of every other, and an
+     open surface's ends lie off the face. Whether a point lies in a
+     face has one reading, the point-in-face doors' (on the face's
+     edge curves), and tier 3 asks those doors what they presume. A
+     reader in the chart's own coordinates (measurement in a lifted
+     coordinate, a loop's windings, the mesher's domain) reads the
+     loops as stored, seams and wrap edges as the chart's cuts and a
+     wrap edge's tip through the lift's reset at its singular
+     vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
+     surface boundary, keeping each wrap tip's singular vertex as the
+     datum of the face's side; an empty one on a closed surface is
+     the whole surface, signed by the face's sense. No reader reads a
+     turn at a wrap tip. **Chart singularities as vertices** are an instance (every one in a face's closure is a
      vertex of it, and every wrap edge's tip lies on its face's chart
      singularity);
      **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
