@@ -2691,7 +2691,8 @@ fn full_latitude() -> (f64, f64) {
 ///   `(p − apex)·axis = v·cos α`, so `v` is an affine function of
 ///   position with no critical point on the carrier but the apex: it
 ///   takes the boundary's range of that projection over `cos α`, widened
-///   to the apex's `0`, which a face may hold inside it. A window
+///   to the apex's `0` unless the face misses its apex
+///   ([`misses_apex`]): one that holds it may hold it inside. A window
 ///   symmetric about the apex would hold the mirror
 ///   nappe, and on it halving `u` never narrows the enclosure (each
 ///   azimuth's generator meets its opposite's), so no subdivision could
@@ -2769,7 +2770,12 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             ..
         } => {
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            superset(full_turn(), (slant.lo().min(0.0), slant.hi().max(0.0)))
+            let v = if misses_apex(body, f, slant) {
+                (slant.lo(), slant.hi())
+            } else {
+                (slant.lo().min(0.0), slant.hi().max(0.0))
+            };
+            superset(full_turn(), v)
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
@@ -2797,6 +2803,45 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         body,
         boundary,
     })
+}
+
+/// **Whether a cone face misses its apex**, read off its boundary's
+/// slant enclosure `slant` and its loops' joint elements: the enclosure
+/// excludes `0`, and the elements of every joint of every loop compose
+/// to the identity, with no reset.
+///
+/// The enclosure keeps the apex off the boundary, which then lies on one
+/// nappe. A reset is written at a joint on the apex ([`crate::joint`]);
+/// absent one, each loop's composed `u` is its winding about the axis,
+/// and the face's loops wind in total as its boundary does. A compact
+/// face holding the apex off its boundary holds it inside, and a small
+/// circle about it, on the punctured nappe, is homologous to the whole
+/// boundary: they wind alike, once. So a total of zero puts the apex off
+/// the face. A missing joint, a reset, or an outer loop with no edges
+/// reads as reaching it.
+fn misses_apex<T: Decide>(body: &Body<T>, f: &Face, slant: Interval) -> bool {
+    if !(slant.is_certified() && (slant.hi() < 0.0 || slant.lo() > 0.0)) {
+        return false;
+    }
+    let mut elements = Vec::new();
+    for (i, lk) in core::iter::once(f.outer).chain(f.rings.iter().copied()).enumerate() {
+        match body.get_loop(lk).map(|l| l.boundary) {
+            Some(LoopBoundary::Cycle { first }) => {
+                let Some(cycle) = body.loop_cycle(first) else {
+                    return false;
+                };
+                for he in cycle {
+                    let Some(e) = body.joint(he) else {
+                        return false;
+                    };
+                    elements.push(e);
+                }
+            }
+            Some(LoopBoundary::Empty { .. }) if i > 0 => {}
+            _ => return false,
+        }
+    }
+    crate::joint::Winding::of(elements).is_zero()
 }
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.

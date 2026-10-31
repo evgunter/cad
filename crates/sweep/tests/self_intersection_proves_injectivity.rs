@@ -1500,43 +1500,42 @@ fn frustum<T: Scalar>(r1: f64) -> Body<T> {
         .body
 }
 
-/// **The cone frustum's cavity exhausts the default budget at both
-/// scalars** (`sf2b_interval_probe`'s frustum, top radius `2/64`,
-/// shelled `1/128`). A cone face's window reaches its apex
-/// (`clearance::window_of`), where the cone's two halves meet in space
-/// and share no point of M. A cell holding the apex is never decided
-/// outside its face (`cell_region` never clears a cone's apex), and is
-/// never apart from the other half's by distance, so it splits until the
-/// budget is spent. The operand holds only because its top rim lies on
-/// its window's first `v` bisection, so its apex cells read vacuous
-/// across the seam. A frustum whose rim does not, top radius `3/64`,
-/// exhausts the budget as an operand too. Pinned, not fixed: the row
-/// `shell-cavity-gate-over-refuses-three-valid-bodies` states where the
-/// pairs go.
+/// **A cone frustum holds at both scalars, and so does its cavity**
+/// (`sf2b_interval_probe`'s frustum, top radius `2/64`, shelled `1/128`;
+/// and top radius `3/64`). A frustum's faces miss their apex, so their
+/// windows end at their rims (`clearance::window_of`): the cone's two
+/// halves meet in space only at the apex, which no cell then holds.
+/// Each holds well inside the budget.
 #[test]
-fn a_cone_frustums_cavity_exhausts_the_budget_at_its_apex() {
-    holds_at_both("the frustum", frustum(2.0 / 64.0), frustum(2.0 / 64.0));
-    fn exhausts<T: Scalar>(what: &str, body: &Body<T>, faces: Option<Vec<FaceKey>>) -> String {
-        let report = injective(body, faces, BUDGET);
+fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
+    fn within(what: &str, report: &BoundReport<Witness>) {
         assert!(
-            matches!(
-                report.verdict,
-                BoundVerdict::Refused(EngineRefusal::Budget(_))
-            ),
-            "{what} exhausts the budget: {:?} {:?}",
+            report.receipt.splits < 1024,
+            "{what} holds without splitting toward the apex: {:?}",
+            report.receipt
+        );
+    }
+    for (what, r1) in [("the 2/64 frustum", 2.0 / 64.0), ("the 3/64 frustum", 3.0 / 64.0)] {
+        for report in &holds_at_both(what, frustum(r1), frustum(r1)) {
+            within(what, report);
+        }
+    }
+    fn cavity_at<T: Scalar>(what: &str) -> BoundReport<Witness> {
+        let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
+        let report = injective(&hollow, Some(faces), BUDGET);
+        println!("[selfx] {what}: {:?} {:?}", report.verdict, report.receipt);
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what} is embedded: {:?} {:?}",
             report.verdict,
             report.receipt
         );
-        class(&report.verdict)
+        within(what, &report);
+        report
     }
-    fn cavity_at<T: Scalar>() -> String {
-        let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
-        exhausts("the frustum's cavity", &hollow, Some(faces))
-    }
-    assert_eq!(
-        cavity_at::<f64>(),
-        cavity_at::<Interval>(),
-        "one class at both scalars"
+    same_class(
+        "the frustum's cavity",
+        &cavity_at::<f64>("the frustum's cavity"),
+        &cavity_at::<Interval>("the frustum's cavity at Interval"),
     );
-    exhausts("the 3/64 frustum", &frustum::<f64>(3.0 / 64.0), None);
 }
