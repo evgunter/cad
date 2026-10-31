@@ -45,11 +45,12 @@ What lands on top of those nights:
 - The seam-region door rows, un-held at 1e-12 by `sect/seam-region-speed`
   and split into five tests: on a 4-vCPU dev box at opt-level 2, 92 s at
   the default ε, 17 s at 1e-6, 620 s at 1e-12, no test over 146 s (the
-  runner ran the old single row about twice as slowly as that box). Against
-  10-28's 52 s that is about 6 minutes of the rows' wall clock.
+  runner ran main's single row in 136 s at the default ε where that box
+  takes 117 s). Against 10-28's 52 s that is about 4 minutes of the rows'
+  wall clock.
 
 So a typical night (build 63, rows 93, after 6) plus PR 6011's rows (8–30
-at 1e-12, more at the other two) plus the door rows (6) is 176–198
+at 1e-12, more at the other two) plus the door rows (4) is 174–196
 minutes before PR 6011's default and 1e-6 costs: it does not fit.
 
 ## What closing it takes

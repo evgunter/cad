@@ -33,7 +33,7 @@ escalated typed refusal, never a raw comparison.
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
-| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
+| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs`; where a chart singularity lies against a face, `crates/geom-brep/src/chart_singularity.rs` |
 | O1 analytic offset mint | `crates/geom-brep/src/offset.rs` |
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
@@ -303,13 +303,23 @@ per-step predicate can prove "no other branch within reach" from local
 data, so none is asked to. `ssi/march.rs` is a candidate generator
 (Hoffmann §6.2: third-order local approximant from the underdetermined
 jet system solved by SVD, Frenet choice of free coefficients, Newton
-refinement; all f64, libm-only, fixed iteration order). Two trace shapes
-are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
-SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
-`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `ssi::PlaneSection` on a plane
-and a NURBS chart, `ssi::Section` on two NURBS charts), from which the
-3-D curve and both pcurves fall out as projections of one traced object
-on one shared parameter. A branch jump is a certificate refusal. The
+refinement; all f64, libm-only, fixed iteration order). Each side
+enters the section through the one exact description it has: its
+implicit residual where it has one in metres (plane, cylinder, sphere,
+torus), else its chart (NURBS). The pair is one system on
+`ℝ³ × ∏ Dᵢ`, the point eliminated wherever a chart side exists, so the
+trace shape is decided by the sides: two residuals, an implicit pair in
+ℝ³ (2×3 SVD; `cylinder_sphere_ssi`); a residual and a chart, one
+equation `f∘S = 0` on the chart's knot rectangle (1×2); two charts, a
+parametric pair in ℝ⁴ on `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD;
+`ssi::Section`), from which the 3-D curve and both pcurves fall out as
+projections of one traced object on one shared parameter. The trace's
+**domain** is the compact part of its state space: a chart side
+contributes its knot rectangle; two residual sides have no compact set
+of their own, so the pose's ball where one is proved, else the
+operation's region, bounds them. No face's trim sizes a domain. A
+component is closed, or ends on the domain's boundary (a rim end on a
+rectangle's side, or a cut end on the region's), or ends at a node. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
@@ -784,9 +794,25 @@ and every reader (the pair's SSI door, the section value, the section
 certificate) reads that one decision: a closed-form margin where the
 pose has one, and otherwise the pair's **critical gap**, a certified
 sweep of a one-parameter distance between the two surfaces' spines,
-never a root formula; in band, it escalates. A pair with a NURBS or
-`Approx` side has no such pose and is outside this rule: its tangency
-is its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
+never a root formula; in band, it escalates. A pair of a NURBS face and a
+surface with an implicit residual `f` (plane, cylinder, sphere, torus;
+the cone once its residual is enclosed) decides its tangency and
+coincidence once, in its classification, on the composite `φ = f∘S`
+over the NURBS face's knot rectangle, before any march, and every
+reader reads that verdict: the hull of `φ` decides apart and
+coincident; the boundary pass decides each side (a side the boolean's
+records declare is read from them); one regularity sweep of the
+rectangle decides the interior, where an isolated critical point of `φ`
+with a nondegenerate Hessian and its value decided in the zero band is
+a tangency decided Zero (a point touch where the Hessian is definite, a
+node where it is indefinite, its arcs ending at it), and a tangency
+along an interior curve, or anything in band, escalates. A side of the
+rectangle collapsed to one point not decided clear of the partner
+refuses at the door, before the sweep, naming the side. The
+interior-loop guard's loop-free stage is that sweep's verdict. A pair
+of two spline sides (NURBS, or `Approx` read as its fit) is classified
+the same way over both rectangles; until that is built, its tangency is
+its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
@@ -865,12 +891,25 @@ operand's axis and core circle, read off the loop in ℝ³, say
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. Each torus pair's pose
+its one reading. A pair traced in ℝ³ is read over its own ball where
+its pose proves one, cut by one region per operation, as at one band:
+the ball about the overlap of the two operands' boxes, padded, which
+holds every section point the operation can use. No face's or site's
+extent enters it, so two faces on one carrier read one value. A
+component is closed, or open with both ends on the domain's boundary,
+or ends at a node (Edge descriptions): a node is
+decided on the pose as a Zero tangency whose section still has
+carriers, placed in closed form, and a site at it reads as the node.
+Two cylinders decide their pose on closed-form margins: parallelism as
+`sin θ · L` at the region's radius `L`; then the gap `e` along the
+common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
+distance where parallel. A cone pair's critical gap is the sweep of the
+discriminant along one carrier's rulings, its double root decided on
+the pose and its apex a closed-form margin. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
-(which holds the whole section, so no face's extent enters a value
-keyed by surface pair; the smaller ball for two tori), and decides the
+(which holds the whole section; the smaller ball for two tori), and decides the
 **critical gap**, the one place a torus pair's tangency is decided. Two
 tori are decided one surface or not before any of it
 (`pair_section::torus_coincidence`): one where the bound on their
@@ -1243,10 +1282,11 @@ curved-cut faces are certified quadrature (C9, `props/quad/`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
-pcurve channels refuse `QuadratureUnsupported`. A face refines until
-its caller's predicate over the enclosure resolves (a sign, a relation,
-or a resolution, each stated by the caller), refinement stops paying, or the
-per-face work bound is reached. It returns the narrowest certified
+pcurve channels refuse `QuadratureUnsupported`. A measurement refines
+where its enclosure is widest until its caller's predicate over the
+enclosure resolves (a sign, a relation, or a resolution over the measured
+surface, each stated by the caller), refinement stops paying, or the
+budget its caller stated is spent. It returns the narrowest certified
 enclosure it reached, with the reason it stopped (`[tolerance.measure]`):
 never a silent Gaussian, and never a refusal for width alone. A plane cap or torus wall
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
@@ -1262,7 +1302,11 @@ by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
-singularity inside a face is a vertex of it, so a sphere face lies on
+singularity in a face's closure is a vertex of it, read off the face's
+region by one reading that STEP import and tier 3 both take
+(`chart_singularity.rs`, `locate`); on a sphere loop of circle arcs that
+reading takes a pole's side from this lane's own stereographic turning
+(`sphere_pole_left`, beside `pole_side`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
@@ -1275,8 +1319,8 @@ loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
 orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
-pole-free reading would assume the rule above, which validity does not
-yet enforce. For a region of one face the flipped bit describes the
+pole-free reading would assume the rule above, which tier 3 enforces
+and this reader does not lean on. For a region of one face the flipped bit describes the
 complement, another valid body. Where a region's faces overlap, tier 3
 refuses it by its cover census (`sphere_region_cover`), read for every
 seam region of two faces or more, whatever its members' own boundaries

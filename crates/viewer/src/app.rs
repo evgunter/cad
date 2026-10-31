@@ -72,7 +72,7 @@ use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp, Step};
+use crate::session::{DocSession, Refusal, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -409,23 +409,9 @@ pub struct ViewerApp {
     /// Zeroed and assigned back every frame as
     /// [`Self::profiles_undrawn`] is.
     held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
-    /// Whether the next scene to land should have its δ CHOSEN by the
-    /// triangle budget, rather than drawn at the δ already in force.
-    ///
-    /// Set at startup and on every successful `Open`, and cleared the
-    /// moment it is spent. It is what makes the budget a DEFAULT: a
-    /// document arrives, the budget picks a δ that draws it in a
-    /// reasonable time, and from then on δ is whatever the user asked
-    /// for. Anything stronger — clamping every rebuild — would make
-    /// the View pane's δ field a control that does nothing on exactly
-    /// the documents someone would want it for.
-    fit_delta_on_scene: bool,
-    /// The budget's verdict, while the δ it chose is still the δ in
-    /// force. `None` once the user has moved δ themselves
-    /// ([`ViewerApp::set_delta`] clears it), because from there
-    /// the number on screen is theirs and the badge would be claiming
-    /// a choice it did not make.
-    budget_delta: Option<crate::scene::FittedDelta>,
+    /// What the incoming document is owed when its scene lands, and the
+    /// budget's verdict about it ([`DocumentDerived`]).
+    derived: DocumentDerived,
     /// **The display budget's seam** — where the probe tessellations
     /// that price a document run, which is not this thread.
     ///
@@ -496,10 +482,6 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
-    /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
-    /// a successful `Open`, whose document arrives asynchronously, so
-    /// fitting immediately would frame the outgoing picture.
-    fit_on_scene: bool,
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped — with what it is ABOUT, so
     /// the next event about that subject can retire it
@@ -725,6 +707,72 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// **What the viewer owes the document under the session when its
+/// first scene lands, and what the budget said about it.**
+///
+/// **One value, because replacing the document invalidates all of it
+/// at once** — the session's own [`crate::session`] `Derived` move,
+/// one layer up. [`DocumentDerived::owed`] is the one spelling of "a
+/// document has just arrived": the value [`ViewerApp::document_replaced`]
+/// installs for every operation [`SessionOp::replaces_the_document`]
+/// names, and the base [`DocumentDerived::at_startup`] is built from. A
+/// field added here is reset by being declared.
+///
+/// **A field belongs here when a replacement must reset it and nothing
+/// else would.** A value keyed on the landed generation, δ or picture
+/// revision is retired by the next landing, a per-frame value is
+/// rewritten every frame, and session chrome must survive; none of
+/// those belongs here. The drafts and the open tool hold ids of the
+/// document alongside chrome, so each drops its own half in the same
+/// door.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct DocumentDerived {
+    /// A camera fit is owed as soon as the next rebuilt scene lands.
+    /// The document arrives asynchronously, so fitting at the door
+    /// would frame the outgoing picture.
+    fit_camera: bool,
+    /// Whether the next scene to land should have its δ CHOSEN by the
+    /// triangle budget, rather than drawn at the δ already in force.
+    ///
+    /// Cleared the moment it is spent. It is what makes the budget a
+    /// DEFAULT: a document arrives, the budget picks a δ that draws it
+    /// in a reasonable time, and from then on δ is whatever the user
+    /// asked for. Anything stronger — clamping every rebuild — would
+    /// make the View pane's δ field a control that does nothing on
+    /// exactly the documents someone would want it for. The δ the last
+    /// document was read at says nothing about this one: it is a
+    /// length, and the new document may be a different size.
+    fit_delta: bool,
+    /// The budget's verdict, while the δ it chose is still the δ in
+    /// force. `None` once the user has moved δ themselves
+    /// ([`ViewerApp::set_delta`] clears it), because from there the
+    /// number on screen is theirs and the badge would be claiming a
+    /// choice it did not make.
+    budget_delta: Option<crate::scene::FittedDelta>,
+}
+
+impl DocumentDerived {
+    /// A document has just arrived: both fits owed, no verdict yet.
+    fn owed() -> Self {
+        Self {
+            fit_camera: true,
+            fit_delta: true,
+            budget_delta: None,
+        }
+    }
+
+    /// The startup document: [`Self::owed`] except the camera fit,
+    /// which `pending_fit` takes on the first frame over the startup
+    /// mesh already drawn. Owing it again at the first landing would
+    /// re-frame a camera the user moved in between.
+    fn at_startup() -> Self {
+        Self {
+            fit_camera: false,
+            ..Self::owed()
+        }
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -772,7 +820,9 @@ impl ViewerApp {
         // and there is no aspect to fit against. It is provisional for
         // exactly one frame: `pending_fit` below makes the viewport fit
         // what it draws at its true aspect the first time it runs — the
-        // same fit an open books — so what a user sees is never this.
+        // fit a replaced document books when its scene lands, taken at
+        // once here because the startup mesh is already drawn — so what
+        // a user sees is never this.
         let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
@@ -850,13 +900,12 @@ impl ViewerApp {
             projection_fault: None,
             profiles_undrawn: 0,
             held_edges_refused: None,
-            // The startup document goes through the same door an
-            // opened one does: it is small enough that the budget will
-            // not move its δ, and a first picture that took a
+            // The startup document's δ goes through the same budget an
+            // opened one's does: it is small enough that the budget
+            // will not move it, and a first picture that took a
             // different path from every later one is a difference
             // waiting to be a bug.
-            fit_delta_on_scene: true,
-            budget_delta: None,
+            derived: DocumentDerived::at_startup(),
             fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
@@ -869,7 +918,6 @@ impl ViewerApp {
             split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
-            fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
@@ -890,7 +938,7 @@ impl ViewerApp {
     /// prices a document nobody is looking at. One for a δ the View
     /// pane has moved off prices a number the user has replaced, and
     /// the budget's authority stops at the δ a document OPENS at
-    /// ([`ViewerApp::fit_delta_on_scene`]) — so the typed number wins,
+    /// ([`DocumentDerived::fit_delta`]) — so the typed number wins,
     /// silently, because nothing was taken away from anyone.
     ///
     /// A fit that REFUSED leaves δ alone: the document is one whose
@@ -909,7 +957,7 @@ impl ViewerApp {
             }
             if let Ok(fitted) = done.fit {
                 self.delta = fitted.delta;
-                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+                self.derived.budget_delta = fitted.requested_cost.map(|_| fitted);
             }
         }
     }
@@ -973,13 +1021,13 @@ impl ViewerApp {
         // the seam was cut for. So the shape is the index seam's:
         // submit, keep painting, take the answer when it comes.
         self.take_fit();
-        if self.fit_delta_on_scene && self.session.landed_generation().is_some() {
+        if self.derived.fit_delta && self.session.landed_generation().is_some() {
             // Spent on the first landing, whether or not that landing
             // has a body to price: a document whose product refuses has
             // no size to fit a δ to, and leaving the budget armed for
             // its first successful EDIT would make it something other
             // than the δ a document OPENS at.
-            self.fit_delta_on_scene = false;
+            self.derived.fit_delta = false;
             if let Some(request) = self.session.fit_request(self.delta) {
                 self.fit.submit(request);
             }
@@ -1064,8 +1112,8 @@ impl ViewerApp {
                 // The badge's read, ended by the rebuild it was
                 // waiting for.
                 self.scene_fault = None;
-                if self.fit_on_scene {
-                    self.fit_on_scene = false;
+                if self.derived.fit_camera {
+                    self.derived.fit_camera = false;
                     self.pending_fit = true;
                 }
                 // The gather's own verdict is NOT written here: it is
@@ -1092,7 +1140,7 @@ impl ViewerApp {
         // opening δ and has no further say — including no say over a δ
         // finer than it would have picked, which is the whole
         // difference between a default and a cap.
-        self.budget_delta = None;
+        self.derived.budget_delta = None;
         self.sync_scene();
     }
 
@@ -1151,8 +1199,12 @@ impl ViewerApp {
         self.tools.respeak(doc);
     }
 
-    /// **A document replaced this one**: what held its ids lets them go.
+    /// **A document replaced this one**: everything held about it is
+    /// dropped, here and nowhere else — [`DocumentDerived`] whole, and
+    /// the held ids inside the drafts and the open tool, whose values
+    /// keep their chrome (typed text, which tool is open) across it.
     fn document_replaced(&mut self) {
+        self.derived = DocumentDerived::owed();
         self.drafts.document_replaced();
         self.tools.document_replaced();
     }
@@ -1185,8 +1237,7 @@ impl ViewerApp {
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         for op in ops {
             performed.push(op.clone());
-            let opened = matches!(op, SessionOp::Open(_));
-            let replaced = opened || matches!(op, SessionOp::NewDocument { .. });
+            let replaced = op.replaces_the_document();
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
@@ -1206,18 +1257,6 @@ impl ViewerApp {
             let minted = core::mem::take(&mut outcome.minted);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
-                // A replaced document owes a re-frame AND a fresh δ
-                // — both taken when its scene actually lands, not on
-                // the outgoing picture. The δ the last document was
-                // being read at says nothing about this one: it is a
-                // length in metres, and the new document may be a
-                // different size and a different shape.
-                None if opened => {
-                    self.fit_on_scene = true;
-                    self.fit_delta_on_scene = true;
-                    self.budget_delta = None;
-                    self.document_replaced();
-                }
                 None if replaced => self.document_replaced(),
                 // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
@@ -1464,10 +1503,10 @@ impl ViewerApp {
                             ui.horizontal_top(|ui| {
                                 if ui
                                     .button(row.button)
-                                    .on_hover_text("select the node this finding is about")
+                                    .on_hover_text("select what this finding is about")
                                     .clicked()
                                 {
-                                    ops.push(SessionOp::Select(Selection::Node(row.node)));
+                                    ops.push(SessionOp::Select(row.select));
                                 }
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);
@@ -1790,9 +1829,10 @@ impl ViewerApp {
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
             // and gone the moment the user picks their own.
-            if let Some(badge) =
-                frame::delta_badge(self.budget_delta.as_ref(), self.session.notation().length)
-            {
+            if let Some(badge) = frame::delta_badge(
+                self.derived.budget_delta.as_ref(),
+                self.session.notation().length,
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             // **The three display seams that hold a refusal.**
@@ -1915,11 +1955,26 @@ impl eframe::App for ViewerApp {
         // Both doors draw on the profile's own plane
         // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
-        let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
+        let mut profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
             held.as_ref()
                 .filter(|_| drawn)
                 .map(|held| sketch::preview(sketch::profile_plane(), &held.loops, tol, delta))
         });
+        // A traced path runs onto the trace at evaluation, which no
+        // replay here can draw: the create door shows the trace instead.
+        let landed = self.session.evaluation_arc().cloned();
+        if let Some(latches) = self.drafts.trace_wanted(landed.as_ref()) {
+            let read = self.session.sketch_trace(&latches.0, &latches.1);
+            self.drafts.show_trace(latches, landed.as_ref(), read);
+        }
+        if self.profile_drawn.create && self.drafts.traces() {
+            profile_previews.create = self
+                .drafts
+                .trace_shown
+                .as_ref()
+                .and_then(|shown| shown.read.as_ref().ok())
+                .map(|marks| Ok(sketch::trace_preview(marks)));
+        }
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
@@ -1961,7 +2016,7 @@ impl eframe::App for ViewerApp {
                 let mut behavior = ViewerBehavior {
                     session: &self.session,
                     delta: self.delta,
-                    budget_delta: self.budget_delta,
+                    budget_delta: self.derived.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
                     scene_key: self.scene_key,
@@ -3644,7 +3699,7 @@ mod properties_pane_tests {
     use eframe::egui;
     use pncad::document::{Axis3, Node, RecipeNodeId, SlotId};
 
-    use super::ViewerApp;
+    use super::{DocumentDerived, ViewerApp};
     use crate::session::{Selection, SessionOp};
 
     /// The window every whole-app row here is drawn in unless it needs
@@ -5785,6 +5840,149 @@ mod properties_pane_tests {
         removed.expect("the row removes the document it saved");
     }
 
+    /// **A replaced document is owed a re-frame and a fresh δ, and the
+    /// budget's verdict about the last one is dropped**, whichever door
+    /// replaced it. From a settled app whose fits are spent and which
+    /// holds a verdict, each door installs [`DocumentDerived::owed`];
+    /// the reopened copy's landing spends both fits again.
+    #[test]
+    fn a_replaced_document_is_owed_both_fits_and_drops_the_verdict() {
+        let settled = || {
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            let delta = driven.app.delta;
+            driven.app.derived.budget_delta = Some(crate::scene::FittedDelta {
+                requested_cost: Some(1),
+                ..crate::scene::FittedDelta::as_requested(delta)
+            });
+            let derived = driven.app.derived;
+            assert!(
+                !derived.fit_camera && !derived.fit_delta && derived.budget_delta.is_some(),
+                "the startup landing spent both fits, and a verdict is held: {derived:?}"
+            );
+            driven
+        };
+
+        let mut driven = settled();
+        driven.app.perform_batch(vec![SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        }]);
+        assert_eq!(driven.app.derived, DocumentDerived::owed(), "new document");
+
+        let mut driven = settled();
+        let path =
+            std::env::temp_dir().join(format!("framing across open {}.pncad", std::process::id()));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Open(path.clone())]);
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(driven.app.derived, DocumentDerived::owed(), "open");
+        driven.settle();
+        let derived = driven.app.derived;
+        assert!(
+            !derived.fit_camera && !derived.fit_delta,
+            "the opened document's landing spends both fits: {derived:?}"
+        );
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// The camera as a row compares it: where it looks and how far
+    /// back it stands.
+    fn camera_pose(app: &ViewerApp) -> ([f64; 3], f64) {
+        let target = app.camera.target();
+        ([target.x, target.y, target.z], app.camera.distance())
+    }
+
+    /// The camera backed off to `factor` times its distance, so a
+    /// re-frame that follows is visible as a return.
+    fn backed_off(app: &ViewerApp, factor: f64) -> crate::camera::Camera {
+        let camera = &app.camera;
+        let radius = app
+            .scene
+            .bounds()
+            .map_or(crate::camera::DEFAULT_FRAME_RADIUS, |b| {
+                ((b.max_x - b.min_x).powi(2)
+                    + (b.max_y - b.min_y).powi(2)
+                    + (b.max_z - b.min_z).powi(2))
+                .sqrt()
+                    / 2.0
+            });
+        crate::camera::Camera::new(
+            camera.target(),
+            camera.distance() * factor,
+            camera.yaw(),
+            camera.pitch(),
+            camera.fov_y(),
+            radius,
+        )
+        .expect("a camera backed off inside the zoom band")
+    }
+
+    /// **A replaced document re-frames the CAMERA, not only the flag**,
+    /// through both doors and in sequence (Open → NewDocument → Open):
+    /// a camera the user backed off returns to the reopened plate's
+    /// fit, a new (empty) document frames the origin, and the next
+    /// Open frames the plate again. `a_replaced_document_is_owed_both_
+    /// fits_and_drops_the_verdict` holds the flags; this holds what
+    /// they are for, on the frames the viewport actually draws.
+    #[test]
+    fn a_replaced_document_reframes_the_camera_through_both_doors() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let plate = camera_pose(&driven.app);
+        let path =
+            std::env::temp_dir().join(format!("reframe across doors {}.pncad", std::process::id()));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(camera_pose(&driven.app), plate, "open re-frames the plate");
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        });
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let (target, _) = camera_pose(&driven.app);
+        assert_eq!(target, [0.0; 3], "a new document frames the origin");
+        assert!(!driven.app.derived.fit_camera, "its landing spent the fit");
+
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **A camera moved before the index lands is kept**: startup's
+    /// fit is the first frame's (`pending_fit`, over the startup mesh),
+    /// so the first indexed scene owes no second one that would undo a
+    /// move made in between.
+    #[test]
+    fn a_camera_moved_before_the_index_lands_is_kept() {
+        let mut driven = Driven::with(Vec::new());
+        assert!(
+            driven.app.scene_key.is_none(),
+            "the move is made before the first indexed scene lands"
+        );
+        driven.app.camera = backed_off(&driven.app, 2.0);
+        let moved = camera_pose(&driven.app);
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.scene_key.is_some(), "the index has landed");
+        assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
@@ -6206,6 +6404,442 @@ mod properties_pane_tests {
             line.contains(&landed) && !line.contains("shown plate"),
             "the verdict says the landed label: {line}"
         );
+    }
+
+    /// **The add-profile form's traced path, driven through the whole
+    /// app** (`SessionOp::AddDrawnProfile`): on the cylinder of the
+    /// corpus's `boss_tangent_by_value`, a boss footprint drawn in the
+    /// plane of a cap runs onto the wall's trace and on along it.
+    mod trace_tool {
+        use pncad::document::{
+            DrawnOn, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+            SlotId, StepArg, TraceCrossing, TracePassage, TraceSense, TraceStepFault,
+        };
+        use pncad::geom::SurfaceKind;
+        use pncad::geom_core::Point2;
+        use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+        use pncad::profile::{Step, Target};
+        use pncad::select::{all_faces, all_vertices, vertex_position};
+
+        use super::Driven;
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_PROFILE, USE_THE_PICKED_FACE};
+        use crate::session::{DocSession, FaceSelection, Selection, SessionOp, SketchTraceFault};
+        use crate::test_support::{inserted, len, placed};
+
+        /// The cylinder's radius, height, and the boss's reach, back
+        /// wall and height, as `boss_tangent_by_value` types them.
+        const RADIUS: f64 = 0.5;
+        const HEIGHT: f64 = 1.0;
+        const REACH: f64 = 1.0;
+        const BACK: f64 = -0.25;
+        const BOSS_H: f64 = 0.5;
+
+        /// The corpus scene's cylinder, its disc centred `cx` along its
+        /// body's `x`, placed in the world: the session, unevaluated
+        /// until `pump`ed, its disc and the cylinder.
+        fn unpumped(cx: f64) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+            let tol = pncad::tolerance::witness();
+            let doc = pncad::document::Doc::empty_derived("boss_tangent_by_value", tol);
+            let (doc, disc) = inserted(
+                &doc,
+                Node::Profile(ProfileProgram {
+                    loops: vec![LoopProgram::circle(cx, 0.0, RADIUS).expect("a disc")],
+                    ids: Vec::new(),
+                    on: None,
+                }),
+                tol,
+            );
+            let (doc, cylinder) = inserted(
+                &doc,
+                Node::Extrude {
+                    profile: disc.into(),
+                    distance: len(HEIGHT),
+                },
+                tol,
+            );
+            let (doc, _) = placed(&doc, cylinder, tol);
+            (DocSession::inline(doc, tol), disc, cylinder)
+        }
+
+        /// [`unpumped`], evaluated.
+        fn cylinder(cx: f64) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+            let (mut session, disc, cylinder) = unpumped(cx);
+            session.pump();
+            (session, disc, cylinder)
+        }
+
+        /// The cylinder's face on a carrier of `kind`, as a pick on it:
+        /// of planes, its cap at `z` (`0`, its start, or its height, its
+        /// end), named by the extrude's role; its cylinder, the first
+        /// of the two half-walls the disc's split circle sweeps.
+        fn face(
+            session: &DocSession,
+            cylinder: RecipeNodeId,
+            kind: SurfaceKind,
+            z: f64,
+        ) -> FaceSelection {
+            let cap = |end| StableName {
+                kind: EntityKind::Face,
+                node: cylinder,
+                path: vec![RoleSeg::Cap(end)],
+            };
+            let name = match kind {
+                SurfaceKind::Plane if z == 0.0 => cap(CapEnd::Start),
+                SurfaceKind::Plane => cap(CapEnd::End),
+                SurfaceKind::Cylinder => {
+                    let (_, ev) = session.landed_pair().expect("the cylinder landed");
+                    let caps = [cap(CapEnd::Start), cap(CapEnd::End)];
+                    let walls: Vec<_> = all_faces(ev, cylinder)
+                        .into_iter()
+                        .filter(|name| !caps.contains(name))
+                        .collect();
+                    let [wall, _] = walls.as_slice() else {
+                        panic!("two half-walls besides the caps: {walls:?}")
+                    };
+                    wall.clone()
+                }
+                other => unreachable!("the cylinder has no {other:?} face"),
+            };
+            FaceSelection {
+                name,
+                node: cylinder,
+                body: 0,
+            }
+        }
+
+        /// The wall and the cap at `z`.
+        fn wall_and_cap(
+            session: &DocSession,
+            cylinder: RecipeNodeId,
+            z: f64,
+        ) -> [FaceSelection; 2] {
+            [
+                face(session, cylinder, SurfaceKind::Cylinder, 0.0),
+                face(session, cylinder, SurfaceKind::Plane, z),
+            ]
+        }
+
+        /// The boss's footprint as the path editor holds it: up from
+        /// `(0, BACK)`, `REACH` along the heading the trace gives, down
+        /// to `BACK` and home. The trace's two steps go after row 2.
+        fn footprint() -> Vec<Step<f64>> {
+            vec![
+                Step::At(Point2::new(0.0, BACK)),
+                Step::Toward { dx: 0.0, dy: 1.0 },
+                Step::Line(REACH),
+                Step::LineTo(Target::Point(Point2::new(REACH, BACK))),
+                Step::LineTo(Target::Start),
+            ]
+        }
+
+        /// **The form, its latches taken from picks of `plane` and
+        /// `traced`, and the heading against the trace.**
+        fn drive(session: DocSession, plane: FaceSelection, traced: FaceSelection) -> Driven {
+            let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+            let drafts = &mut pane.app.drafts;
+            drafts.profile_shape = Some(ShapeKind::Path);
+            drafts.profile_path = footprint();
+            drafts.trace_on = true;
+            drafts.trace_gesture.after = 1;
+            pane.settle();
+            pane.click(crate::pane::create::ADD_FEATURE);
+            for (nth, face) in [plane, traced].into_iter().enumerate() {
+                pane.app
+                    .perform_batch(vec![SessionOp::Select(Selection::Face(face))]);
+                let at = pane.each(USE_THE_PICKED_FACE);
+                assert_eq!(at.len(), 2, "one button per latch");
+                pane.click_at(at[nth]);
+            }
+            pane.click("against");
+            pane.quiet();
+            pane
+        }
+
+        /// The profile the form added: the document's last drawn one.
+        fn added(pane: &Driven) -> (RecipeNodeId, ProfileProgram) {
+            let doc = pane.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .rev()
+                .find_map(|id| match doc.node(id) {
+                    Some(Node::Profile(program)) if program.on.is_some() => {
+                        Some((id, program.clone()))
+                    }
+                    _ => None,
+                })
+                .expect("the form added a drawn profile")
+        }
+
+        /// Add clicked, and the profile extruded `BOSS_H`: the boss.
+        fn boss(pane: &mut Driven, cylinder: RecipeNodeId) -> RecipeNodeId {
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, _) = added(pane);
+            pane.app.perform_batch(vec![SessionOp::AddExtrude {
+                profile,
+                distance: len(BOSS_H),
+            }]);
+            pane.quiet();
+            let doc = pane.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .rev()
+                .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })) && id != cylinder)
+                .expect("the boss extrude")
+        }
+
+        /// `node`'s least `x`, greatest `y` and least `z`, as it landed.
+        fn extent(pane: &Driven, node: RecipeNodeId) -> [f64; 3] {
+            let (_, ev) = pane.app.session.landed_pair().expect("landed");
+            assert!(
+                ev.node_error(node).is_none(),
+                "{node:?} builds: {:?}",
+                ev.node_error(node).map(|e| e.kind.to_string())
+            );
+            let at: Vec<_> = all_vertices(ev, node)
+                .iter()
+                .map(|v| vertex_position(ev, node, v).expect("a vertex"))
+                .collect();
+            [
+                at.iter().map(|p| p.x).fold(f64::INFINITY, f64::min),
+                at.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max),
+                at.iter().map(|p| p.z).fold(f64::INFINITY, f64::min),
+            ]
+        }
+
+        /// `value` written into `node`'s slot `wanted` picks.
+        fn set(
+            pane: &mut Driven,
+            node: RecipeNodeId,
+            wanted: impl Fn(&SlotId) -> bool,
+            value: f64,
+        ) {
+            let slot = crate::props::slot_rows(pane.app.session.committed_doc(), node)
+                .into_iter()
+                .map(|row| row.slot)
+                .find(|slot| wanted(slot))
+                .expect("the node carries the slot");
+            pane.app.perform_batch(vec![SessionOp::SetSlot {
+                node,
+                slot,
+                value: crate::props::SlotValue::Continuous(value),
+            }]);
+            pane.quiet();
+        }
+
+        fn arg(want: StepArg) -> impl Fn(&SlotId) -> bool {
+            move |slot| matches!(slot, SlotId::Profile { arg, .. } if *arg == want)
+        }
+
+        fn near(a: f64, b: f64, what: &str) {
+            assert!((a - b).abs() < 1e-9, "{what}: {a} against {b}");
+        }
+
+        /// **The gesture writes the document's trace steps, and the boss
+        /// follows the wall.** The trace shown is the wall's circle, its
+        /// tangent across the radius. The program is drawn on a frame and
+        /// traces one face; after the authored heading its chain runs
+        /// `line_to` the first crossing out of the wall and heads
+        /// `along_trace` against it, so the one direction written is the
+        /// authored one. Extruded, the boss's wall stands at the radius;
+        /// the radius typed again, it stands at the new one. The door's
+        /// proof of the tangency, and the frame on the top cap and off
+        /// the origin, are `editor-core`'s rows
+        /// (`intent_s6_e_traced_frame`), where the frame is read.
+        #[test]
+        fn the_gesture_writes_the_trace_steps_and_the_boss_follows_the_wall() {
+            let (session, disc, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            let shown = pane
+                .app
+                .drafts
+                .trace_shown
+                .as_ref()
+                .expect("the trace is read");
+            let marks = shown.read.as_ref().expect("the cap's plane cuts the wall");
+            assert!(!marks.marks.is_empty(), "the trace draws points");
+            for mark in &marks.marks {
+                let (p, t) = (mark.at, mark.tangent);
+                assert!(
+                    ((p.x * p.x + p.y * p.y).sqrt() - RADIUS).abs() < 1e-9
+                        && (p.x * t.x + p.y * t.y).abs() < 1e-9,
+                    "a point of the circle, its tangent across the radius: {mark:?}"
+                );
+            }
+            let boss = boss(&mut pane, cylinder);
+            let (_, program) = added(&pane);
+            let Some(DrawnOn { faces, .. }) = &program.on else {
+                unreachable!("found drawn")
+            };
+            assert_eq!(faces.len(), 1, "one traced face");
+            let [LoopProgram::Chain(steps)] = program.loops.as_slice() else {
+                panic!("one chain: {:?}", program.loops)
+            };
+            assert!(
+                matches!(
+                    steps[2],
+                    ProgramStep::LineTo(ProgramTarget::OnTrace { face: 0, crossing })
+                        if crossing == TraceCrossing::first(TracePassage::Leave)
+                ) && matches!(
+                    steps[3],
+                    ProgramStep::AlongTrace {
+                        sense: TraceSense::Against
+                    }
+                ),
+                "the trace's two steps follow row 2: {steps:?}"
+            );
+            assert_eq!(
+                steps
+                    .iter()
+                    .filter(|s| matches!(s, ProgramStep::Toward { .. } | ProgramStep::Angle(_)))
+                    .count(),
+                1,
+                "the one heading written is the authored one: {steps:?}"
+            );
+            near(
+                extent(&pane, boss)[1],
+                RADIUS,
+                "the boss's wall is at the radius",
+            );
+
+            set(&mut pane, disc, arg(StepArg::Radius), 0.625);
+            near(
+                extent(&pane, boss)[1],
+                0.625,
+                "the boss's wall follows the radius",
+            );
+        }
+
+        /// **A traced face with no axis is refused in the pane, Add is
+        /// held, and nothing is written; a traced wall is then shown,
+        /// and its profile undoes, redoes and persists.** The top cap
+        /// traced from the bottom cap's plane (which misses it) has no
+        /// axis to stand the frame on: the pane says the frame's own
+        /// refusal and Add writes nothing. Moved to the wall, the trace
+        /// shows and still nothing is written until Add, which is one
+        /// undoable step and reopens from a save as it was written.
+        #[test]
+        fn a_trace_refused_in_the_pane_writes_nothing_and_an_added_one_persists() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let top = face(&session, cylinder, SurfaceKind::Plane, HEIGHT);
+            let before = session.committed_doc().clone();
+            let undo = session.history().can_undo();
+            let mut pane = drive(session, bottom, top);
+            let shown = pane.app.drafts.trace_shown.as_ref().expect("read");
+            let Err(fault @ SketchTraceFault::Frame(_)) = &shown.read else {
+                panic!("the frame refuses: {:?}", shown.read)
+            };
+            let said = format!("the trace: {fault}");
+            let painted = pane.quiet();
+            assert!(
+                painted.iter().any(|(run, _)| *run == said),
+                "the pane says {said:?}: {painted:?}"
+            );
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            assert!(*pane.app.session.committed_doc() == before, "Add is held");
+
+            pane.app.drafts.trace_face = Some(wall);
+            pane.quiet();
+            assert!(
+                pane.app
+                    .drafts
+                    .trace_shown
+                    .as_ref()
+                    .is_some_and(|s| s.read.is_ok()),
+                "the wall's trace shows"
+            );
+            assert!(
+                *pane.app.session.committed_doc() == before,
+                "a shown trace writes nothing"
+            );
+            assert_eq!(pane.app.session.history().can_undo(), undo);
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let after = pane.app.session.committed_doc().clone();
+            assert!(after != before, "Add writes the profile");
+            pane.app.perform_batch(vec![SessionOp::Undo]);
+            pane.quiet();
+            assert!(
+                *pane.app.session.committed_doc() == before,
+                "one undo takes it back"
+            );
+            pane.app.perform_batch(vec![SessionOp::Redo]);
+            pane.quiet();
+            assert!(
+                *pane.app.session.committed_doc() == after,
+                "and redo restores it"
+            );
+            let dir = std::env::temp_dir().join(format!("trace-tool-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).expect("a scratch directory");
+            let path = dir.join("doc.pncad");
+            let tol = pane.app.session.tol();
+            crate::docio::save_path(&path, pane.app.session.history(), tol).expect("saves");
+            let reopened = crate::docio::open(&path, tol).expect("reopens");
+            assert!(*reopened.doc() == after, "a save reopens as written");
+        }
+
+        /// **The wall picked for the plane is no plane**: the pane says
+        /// so in the frame's words.
+        #[test]
+        fn a_wall_picked_for_the_plane_is_refused_as_no_plane() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, _] = wall_and_cap(&session, cylinder, 0.0);
+            let pane = drive(session, wall.clone(), wall);
+            let shown = pane.app.drafts.trace_shown.as_ref().expect("read");
+            assert!(
+                matches!(
+                    &shown.read,
+                    Err(SketchTraceFault::Frame(fault))
+                        if matches!(**fault, pncad::trace::TracedFrameFault::NotAPlane {
+                            carrier: SurfaceKind::Cylinder
+                        })
+                ),
+                "{:?}",
+                shown.read
+            );
+        }
+
+        /// **A crossing the piece does not make builds, and refuses on
+        /// the profile naming it**: the piece up from inside the disc
+        /// enters the wall never.
+        #[test]
+        fn a_crossing_the_piece_does_not_make_refuses_on_the_profile() {
+            let crossing = TraceCrossing::first(TracePassage::Enter);
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            pane.app.drafts.trace_gesture.crossing = crossing;
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, _) = added(&pane);
+            let (_, ev) = pane.app.session.landed_pair().expect("landed");
+            assert!(
+                matches!(
+                    ev.node_error(profile).map(|e| &e.kind),
+                    Some(pncad::document::NodeErrorKind::Trace(refusal))
+                        if refusal.fault == TraceStepFault::NoSuchCrossing { crossing, found: 0 }
+                ),
+                "{:?}",
+                ev.node_error(profile).map(|e| e.kind.to_string())
+            );
+        }
+
+        /// **Nothing landed, no trace**: a session that has evaluated
+        /// nothing says so rather than reading a stale evaluation.
+        #[test]
+        fn a_trace_before_any_landing_is_unevaluated() {
+            let (probe, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&probe, cylinder, 0.0);
+            let (session, _, _) = unpumped(0.0);
+            assert!(matches!(
+                session.sketch_trace(&bottom, &wall),
+                Err(SketchTraceFault::Unevaluated)
+            ));
+        }
     }
 }
 

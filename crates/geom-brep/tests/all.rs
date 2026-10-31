@@ -80,6 +80,10 @@ mod cert5_arm_and_cells;
 mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
+#[path = "chart_singularity_locate.rs"]
+mod chart_singularity_locate;
+#[path = "chart_singularity_sweep.rs"]
+mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
 
@@ -230,6 +234,12 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
+#[path = "review_6092_delta_probes.rs"]
+mod review_6092_delta_probes;
+#[path = "review_6092_probes.rs"]
+mod review_6092_probes;
+#[path = "review_6092_r2_probes.rs"]
+mod review_6092_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]

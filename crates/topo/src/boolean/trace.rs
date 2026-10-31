@@ -124,10 +124,9 @@ impl core::error::Error for TraceFault {}
 fn unsettled_words(why: Unsettled) -> &'static str {
     match why {
         Unsettled::Tangency => "a double root",
-        Unsettled::SignInBand => "a sign read in the band",
         Unsettled::Meter => "a residual the band cannot meter",
         Unsettled::Exhausted => "the walk ran past its piece budget",
-        Unsettled::ImpossibleCount => "a count the residual cannot have",
+        Unsettled::Floor => "a piece at the walk's floor the band does not read past",
         Unsettled::Resolvent => "a resolvent with no positive root",
         Unsettled::CountDisagrees { .. } => "the built roots disagree with the certified count",
         Unsettled::AtApex => "a root at a cone's apex",
@@ -363,9 +362,7 @@ fn crossing<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
-    let outward =
-        geom_brep::OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, point), sense)
-            .vec();
+    let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
         Margin::levered(outward.dot(velocity) / outward.norm(), lever),

@@ -57,6 +57,11 @@ mod tests {
     /// almost right, which is why it survived: every local battery
     /// passes, because each body is individually perfect.
     ///
+    /// Nor does a gallery document hold what nothing uses (the
+    /// `unused` check, which the viewer's Checks window lists): a
+    /// narration body or an intermediate the scene builds and the file
+    /// does not read is deleted from the document, not carried in it.
+    ///
     /// The row is a TABLE rather than a blanket "no findings", because
     /// one scene legitimately reports and hiding that would be the
     /// same silence in a different place. Changing any number here is
@@ -99,8 +104,9 @@ mod tests {
                 placements: 1,
                 at_rest: 0,
                 product: None,
-                why: "the composed die alone — the blank is a narration body and \
-                      nothing places it, which is what this row guards",
+                why: "the composed die alone — the blank is a narration body, so \
+                      nothing places it, which is what this row guards, and nothing \
+                      reads it, so the document deletes it",
             },
             Shape {
                 name: "heatsink",
@@ -209,6 +215,14 @@ mod tests {
                 "{}: world placements ({})",
                 shape.name,
                 shape.why
+            );
+            let unused = shape.doc.unused();
+            assert!(
+                unused.operations.is_empty() && unused.vars.is_empty(),
+                "{}: nothing unused, got operations {:?} and variables {:?}",
+                shape.name,
+                unused.operations,
+                unused.vars
             );
             if let Some(want) = &shape.product {
                 let product = pncad::document::product(&shape.doc, &evaluation, tol)

@@ -78,6 +78,7 @@ pub(crate) enum CheckId {
     ChartCoherence,
     UnprovenCoincidence,
     AtRest,
+    Unused,
 }
 
 /// The certified/heuristic label (DS6): honesty of language and a
@@ -128,6 +129,7 @@ fn check_id(check: d::CheckId) -> CheckId {
         d::CheckId::ChartCoherence => CheckId::ChartCoherence,
         d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
         d::CheckId::AtRest => CheckId::AtRest,
+        d::CheckId::Unused => CheckId::Unused,
     }
 }
 
@@ -167,6 +169,7 @@ impl CheckId {
             Self::ChartCoherence => d::CheckId::ChartCoherence,
             Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
             Self::AtRest => d::CheckId::AtRest,
+            Self::Unused => d::CheckId::Unused,
         }
     }
 }
@@ -233,13 +236,14 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
         chart_coherence: Advisory,
         unproven_coincidence: Advisory,
         at_rest: Severity,
+        unused: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
         for (NodeId(placement), output_ix, count) in expected_components.unwrap_or_default() {
@@ -255,6 +259,7 @@ impl ChecksConfig {
             chart_coherence: chart_coherence.to_kernel(),
             unproven_coincidence: unproven_coincidence.to_kernel(),
             at_rest: at_rest.to_kernel(),
+            unused: unused.to_kernel(),
         }))
     }
 
@@ -291,6 +296,13 @@ impl ChecksConfig {
         Severity::from_kernel(self.0.at_rest)
     }
 
+    /// The `unused` check's knob — an `Advisory`: an unused thing is
+    /// answered by using it or deleting it, so `Error` is not spellable.
+    #[getter]
+    fn unused(&self) -> Advisory {
+        Advisory::from_kernel(self.0.unused)
+    }
+
     /// The stated expectations, ascending by subject.
     #[getter]
     fn expected_components(&self) -> Vec<(NodeId, u32, u32)> {
@@ -314,12 +326,13 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, \
-             chart_coherence={:?}, unproven_coincidence={:?}, at_rest={:?})",
+             chart_coherence={:?}, unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
             self.0.chart_coherence,
             self.0.unproven_coincidence,
-            self.0.at_rest
+            self.0.at_rest,
+            self.0.unused
         )
     }
 }
@@ -599,8 +612,9 @@ impl CheckEvidence {
 /// One finding of one check on one subject: a copy a placement defines,
 /// attributed as `(placement, output_ix)`; a node
 /// of the document (`node`) — the node that decided an unproven
-/// coincidence; two copies (`copies`); or the body a census at rest
-/// was taken over (`census`). Whichever it is not answers `None`.
+/// coincidence, or an operation nothing uses; two copies (`copies`); the
+/// body a census at rest was taken over (`census`); or a named variable
+/// nothing uses (`var`). Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
@@ -636,7 +650,8 @@ impl CheckFinding {
             d::FindingSubject::Output { placement, .. } => Some(NodeId(placement)),
             d::FindingSubject::Node(_)
             | d::FindingSubject::Copies { .. }
-            | d::FindingSubject::Census { .. } => None,
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
@@ -648,7 +663,8 @@ impl CheckFinding {
             d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
             d::FindingSubject::Node(_)
             | d::FindingSubject::Copies { .. }
-            | d::FindingSubject::Census { .. } => None,
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
@@ -660,7 +676,8 @@ impl CheckFinding {
             d::FindingSubject::Node(node) => Some(NodeId(node)),
             d::FindingSubject::Output { .. }
             | d::FindingSubject::Copies { .. }
-            | d::FindingSubject::Census { .. } => None,
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
@@ -674,7 +691,8 @@ impl CheckFinding {
             d::FindingSubject::Census { read } => Some(Var::of(&self.doc, read)),
             d::FindingSubject::Output { .. }
             | d::FindingSubject::Node(_)
-            | d::FindingSubject::Copies { .. } => None,
+            | d::FindingSubject::Copies { .. }
+            | d::FindingSubject::Var(_) => None,
         }
     }
 
@@ -690,7 +708,21 @@ impl CheckFinding {
             }
             d::FindingSubject::Output { .. }
             | d::FindingSubject::Node(_)
-            | d::FindingSubject::Census { .. } => None,
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Var(_) => None,
+        }
+    }
+
+    /// The variable an `unused` finding is about, spoken by its name;
+    /// `None` for any other subject.
+    #[getter]
+    fn var(&self) -> Option<Var> {
+        match self.finding.subject {
+            d::FindingSubject::Var(var) => Some(Var::of(&self.doc, var)),
+            d::FindingSubject::Output { .. }
+            | d::FindingSubject::Node(_)
+            | d::FindingSubject::Census { .. }
+            | d::FindingSubject::Copies { .. } => None,
         }
     }
 
@@ -735,6 +767,7 @@ impl CheckFinding {
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
             d::FindingSubject::Census { read } => format!("census {read}"),
+            d::FindingSubject::Var(var) => format!("var {var}"),
             d::FindingSubject::Copies { a, b } => {
                 let copy = |c: d::CopyRef| match c.member {
                     0 => format!("{}", c.var),

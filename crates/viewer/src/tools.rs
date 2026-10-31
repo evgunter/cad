@@ -255,6 +255,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }

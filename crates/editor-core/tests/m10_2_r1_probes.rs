@@ -419,51 +419,51 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     )
 }
 
-/// `gap(socket, ball) = R − r − ‖Δc‖` in all three regimes, on real
-/// revolved sphere faces: R = 1 socket at the origin, r = 0.25 ball
-/// offset `c` up the axis — clearance at c = 0.3, contact at c = 0.75,
-/// interference at c = 0.9.
+/// Two solid balls, the smaller inside the larger, are a nested pair:
+/// `gap(large, small) = ‖Δc‖ + r − R` on real revolved sphere faces,
+/// R = 1 at the origin, r = 0.25 offset `c` up the axis — inside at
+/// c = 0.3, touching from inside at c = 0.75, out of it at c = 0.9.
 #[test]
-fn r1_sphere_gap_three_regimes_on_revolved_balls() {
-    for (c, expect) in [(0.3, 0.45), (0.75, 0.0), (0.9, -0.15)] {
+fn r1_sphere_gap_three_regimes_on_nested_balls() {
+    for (c, expect) in [(0.3, -0.45), (0.75, 0.0), (0.9, 0.15)] {
         let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-balls"), Tol::witness());
-        let (doc, socket) = ball(&doc, 1.0, 0.0);
-        let (doc, pin) = ball(&doc, 0.25, c);
-        // The ball joins the socket's space on its axis.
-        let (doc, pin) = fixture::against(
+        let (doc, large) = ball(&doc, 1.0, 0.0);
+        let (doc, small) = ball(&doc, 0.25, c);
+        // The small ball joins the large one's space on its axis.
+        let (doc, small) = fixture::against(
             doc,
-            editor_core::Operand::output(socket, 0),
-            editor_core::Operand::output(pin, 0),
+            editor_core::Operand::output(large, 0),
+            editor_core::Operand::output(small, 0),
             &editor_core::Frame::IDENTITY,
         );
         let ev = eval(&doc);
-        let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
+        let socket_face = faces_of_kind(&ev, large, geom::SurfaceKind::Sphere)
             .first()
-            .expect("the socket revolve mints a sphere face")
+            .expect("the large revolve mints a sphere face")
             .clone();
-        let ball_face = faces_of_kind(&ev, pin, geom::SurfaceKind::Sphere)
+        let small_face = faces_of_kind(&ev, small, geom::SurfaceKind::Sphere)
             .first()
-            .expect("the ball revolve mints a sphere face")
+            .expect("the small revolve mints a sphere face")
             .clone();
         let (doc, m) = fixture::measure_node(
             &doc,
             MeasurePrimitive::Gap { outer: 0, inner: 1 },
-            at_mint([socket_face, ball_face]),
+            at_mint([socket_face, small_face]),
         );
         let (g, dim) = measured(&eval(&doc), m);
         assert_eq!(dim, Dimension::Length);
         assert!(
             (g - expect).abs() < 1e-9,
-            "R − r − Δc = 1 − 0.25 − {c} = {expect}, got {g}"
+            "Δc + r − R = {c} + 0.25 − 1 = {expect}, got {g}"
         );
     }
 }
 
 // ---- gap: coaxial cylinders, three regimes on real geometry ----
 
-/// Two circles extruded into cylinders: `bore_r` at the origin,
-/// `pin_r` offset by `off` along x.
-fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+/// Two circles extruded into solid rods: `wide_r` at the origin,
+/// `thin_r` offset by `off` along x.
+fn rods(wide_r: f64, thin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-cyl"), Tol::witness());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
@@ -475,25 +475,25 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
             on: None,
         })
     };
-    let (doc, p1) = insert(&doc, circle(0.0, bore_r));
-    let (doc, bore) = insert(
+    let (doc, p1) = insert(&doc, circle(0.0, wide_r));
+    let (doc, wide) = insert(
         &doc,
         Node::Extrude {
             profile: p1.into(),
             distance: len(0.1),
         },
     );
-    let (doc, p2) = insert(&doc, circle(off, pin_r));
-    let (doc, pin) = insert(
+    let (doc, p2) = insert(&doc, circle(off, thin_r));
+    let (doc, thin) = insert(
         &doc,
         Node::Extrude {
             profile: p2.into(),
             distance: len(0.1),
         },
     );
-    // The pin joins the bore's space where it stands.
-    let (doc, pin) = fixture::against(doc, bore, pin, &editor_core::Frame::IDENTITY);
-    (doc, bore, pin)
+    // The thin rod joins the wide one's space where it stands.
+    let (doc, thin) = fixture::against(doc, wide, thin, &editor_core::Frame::IDENTITY);
+    (doc, wide, thin)
 }
 
 /// Read every reference AT ITS MINTING NODE — the spelling this suite
@@ -524,27 +524,29 @@ fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> (RecipeNodeId, StableName) 
         .clone()
 }
 
-/// `gap(bore, pin) = r_b − r_p − d` across clearance / contact /
-/// interference, with the axis offset exercised too.
+/// Two solid rods, the thinner inside the wider: their walls are both
+/// convex, a nested pair, so `gap(wide, thin) = d + r_thin − r_wide`,
+/// how far the thin wall stands out of the wide rod's material, inside,
+/// on and out of it, with the axis offset exercised too.
 #[test]
-fn r1_cylinder_gap_three_regimes_on_real_geometry() {
-    for (bore_r, pin_r, off, expect) in [
-        (0.3, 0.2, 0.0, 0.1),    // clearance, structural coaxial
-        (0.3, 0.3, 0.0, 0.0),    // contact, exact arithmetic
-        (0.3, 0.35, 0.0, -0.05), // interference
-        (0.3, 0.2, 0.04, 0.06),  // clearance eaten by axis offset
+fn r1_cylinder_gap_three_regimes_on_nested_rods() {
+    for (wide_r, thin_r, off, expect) in [
+        (0.3, 0.2, 0.0, -0.1),   // inside, structural coaxial
+        (0.3, 0.3, 0.0, 0.0),    // on, exact arithmetic
+        (0.3, 0.35, 0.0, 0.05),  // out of it
+        (0.3, 0.2, 0.04, -0.06), // inside, brought out by the axis offset
     ] {
-        let (doc, bore, pin) = cylinders(bore_r, pin_r, off);
+        let (doc, wide, thin) = rods(wide_r, thin_r, off);
         let ev = eval(&doc);
         let (doc, m) = fixture::measure_node(
             &doc,
             MeasurePrimitive::Gap { outer: 0, inner: 1 },
-            at_mint([wall(&ev, bore), wall(&ev, pin)]),
+            at_mint([wall(&ev, wide), wall(&ev, thin)]),
         );
         let (g, _) = measured(&eval(&doc), m);
         assert!(
             (g - expect).abs() < 1e-12,
-            "gap({bore_r}, {pin_r}, d={off}) = {expect}, got {g}"
+            "gap(wide {wide_r}, thin {thin_r}, d={off}) = {expect}, got {g}"
         );
         if expect == 0.0 {
             assert_eq!(g, 0.0, "the contact regime is exact arithmetic");
@@ -552,32 +554,176 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
     }
 }
 
-/// Swapping the gap's roles NEGATES it for cylinders at zero offset
-/// (`r_p − r_b − d`), which is why the roles are authored: an
-/// interference fit read with swapped roles would silently claim
-/// clearance.
+/// Swapping the gap's roles NEGATES it for two solid rods, one nested
+/// in the other off its axis, an aligned pair, which is why the roles
+/// are authored: read from the wide rod, the thin one stands 0.06
+/// inside it; read from the thin one, the wide stands 0.06 out.
 #[test]
-fn r1_cylinder_gap_role_swap_negates() {
-    let (doc, bore, pin) = cylinders(0.3, 0.2, 0.0);
+fn r1_nested_rods_gap_role_swap_negates() {
+    let (doc, wide, thin) = rods(0.3, 0.2, 0.04);
     let ev = eval(&doc);
-    let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
+    let (w_wall, t_wall) = (wall(&ev, wide), wall(&ev, thin));
     let (doc, fwd) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
-        at_mint([b_wall.clone(), p_wall.clone()]),
+        at_mint([w_wall.clone(), t_wall.clone()]),
     );
     let (doc, rev) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
-        at_mint([p_wall, b_wall]),
+        at_mint([t_wall, w_wall]),
     );
     let ev = eval(&doc);
     let (f, _) = measured(&ev, fwd);
     let (r, _) = measured(&ev, rev);
     assert!(
-        (f - 0.1).abs() < 1e-12 && (r + 0.1).abs() < 1e-12,
+        (f + 0.06).abs() < 1e-12 && (r - 0.06).abs() < 1e-12,
         "{f} vs {r}"
     );
+}
+
+/// **A pin in a real bore reads its fit, in either role order** (C5's
+/// opposed fit): a plate with a hole of radius `R` and a pin of `r`
+/// off its axis by `d` read `R − r − d`, clearance, contact and
+/// interference.
+#[test]
+fn r1_a_pin_in_a_real_bore_reads_its_fit() {
+    for (bore_r, pin_r, off, expect) in [
+        (0.3, 0.2, 0.04, 0.06),
+        (0.3, 0.26, 0.04, 0.0),
+        (0.3, 0.3, 0.04, -0.04),
+    ] {
+        let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-fit"), Tol::witness());
+        let (doc, outline) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![
+                    LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
+                        .expect("finite corners"),
+                    LoopProgram::Circle {
+                        centre: [len(0.0), len(0.0)],
+                        radius: len(bore_r),
+                    },
+                ],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, plate) = insert(
+            &doc,
+            Node::Extrude {
+                profile: outline.into(),
+                distance: len(0.1),
+            },
+        );
+        let (doc, p2) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![LoopProgram::Circle {
+                    centre: [len(off), len(0.0)],
+                    radius: len(pin_r),
+                }],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, pin) = insert(
+            &doc,
+            Node::Extrude {
+                profile: p2.into(),
+                distance: len(0.1),
+            },
+        );
+        let (doc, pin) = fixture::against(doc, plate, pin, &editor_core::Frame::IDENTITY);
+        let ev = eval(&doc);
+        let (bore, wall_of_pin) = (wall(&ev, plate), wall(&ev, pin));
+        for (refs, order) in [
+            ([bore.clone(), wall_of_pin.clone()], "bore outer"),
+            ([wall_of_pin, bore], "pin outer"),
+        ] {
+            let (doc, m) = fixture::measure_node(
+                &doc,
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
+                at_mint(refs),
+            );
+            let (g, _) = measured(&eval(&doc), m);
+            assert!(
+                (g - expect).abs() < 1e-12,
+                "a pin of {pin_r} in a bore of {bore_r} off by {off}, {order}: {expect}, got {g}"
+            );
+        }
+    }
+}
+
+/// **A ball in a real socket reads its fit, in either role order**: a
+/// block of revolution with a spherical hollow of radius 1 (the socket's
+/// face concave) and a ball of 0.25 offset `c` up its axis read
+/// `1 − 0.25 − c`.
+#[test]
+fn r1_a_ball_in_a_real_socket_reads_its_fit() {
+    for (c, expect) in [(0.3, 0.45), (0.75, 0.0), (0.9, -0.15)] {
+        let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-socket"), Tol::witness());
+        let meridian = LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 1.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.5]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.5]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, -1.5]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, -1.5]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, -1.0]))),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: ProgramTarget::Start,
+                b: scl(1.0),
+            }),
+        ]);
+        let (doc, p) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![meridian],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, socket) = insert(
+            &doc,
+            fixture::revolve_about(
+                p,
+                (0.0, 0.0),
+                crate::fixture::along_y(),
+                ang(std::f64::consts::TAU),
+            ),
+        );
+        let (doc, ball) = ball(&doc, 0.25, c);
+        let (doc, ball) = fixture::against(
+            doc,
+            editor_core::Operand::output(socket, 0),
+            editor_core::Operand::output(ball, 0),
+            &editor_core::Frame::IDENTITY,
+        );
+        let ev = eval(&doc);
+        let hollow = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
+            .first()
+            .expect("the socket revolve mints a sphere face")
+            .clone();
+        let face = faces_of_kind(&ev, ball, geom::SurfaceKind::Sphere)
+            .first()
+            .expect("the ball revolve mints a sphere face")
+            .clone();
+        for (refs, order) in [
+            ([hollow.clone(), face.clone()], "socket outer"),
+            ([face, hollow], "ball outer"),
+        ] {
+            let (doc, m) = fixture::measure_node(
+                &doc,
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
+                at_mint(refs),
+            );
+            let (g, _) = measured(&eval(&doc), m);
+            assert!(
+                (g - expect).abs() < 1e-9,
+                "a ball at {c} in a socket, {order}: {expect}, got {g}"
+            );
+        }
+    }
 }
 
 // ---- skew axes refuse (untested in the PR) ----
@@ -734,12 +880,12 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
 #[test]
 fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
     use geom_core::{Bounds, Interval};
-    let (doc, bore, pin) = cylinders(0.3, 0.2, 0.04);
+    let (doc, wide, thin) = rods(0.3, 0.2, 0.04);
     let ev = eval(&doc);
     let (doc, m) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
-        at_mint([wall(&ev, bore), wall(&ev, pin)]),
+        at_mint([wall(&ev, wide), wall(&ev, thin)]),
     );
     let at_f64 = measured(&eval(&doc), m).0;
     let ev_i = evaluate::<Interval>(

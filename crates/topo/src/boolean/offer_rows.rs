@@ -20,7 +20,7 @@
 //! arm has withdrawn its tolerance asserts it stays withdrawn, and
 //! executes the offer it withdrew to show what that offer would meet.
 //! A case that declares a pair declares it through the Boolean's
-//! declaration door (`verify_declared_contacts`); the site cases that
+//! declaration door (`verify_glued_contacts`); the site cases that
 //! hand a declared-`Tangent` question its read directly (`tangent_side`,
 //! `tangent_side_of`) say so, on the plane x cylinder pair that door
 //! admits.
@@ -223,11 +223,6 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    // Declared `Rest` through the door, the walls are one carrier and the
-    // arc's ends are read; a smaller tolerance decides the radii apart.
-    arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("ContactContradicted")) =>
-        arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
@@ -726,14 +721,19 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     .map(|_: CurvedEvent<f64>| ())
 }
 
-/// The rim arcs of a radius-`r` wall sheet against a unit wall sheet
-/// sharing its axis, the pair declared `class` through the Boolean's
-/// declaration door (`verify_declared_contacts`, which also says whether
-/// the two are one carrier): the first arc's raise.
-fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
+/// The rim arcs of a unit wall sheet against a unit wall sheet sharing
+/// its axis, opposed, the pair glued `Rest` as the face-pair door reads
+/// it ([`GluedPair::read`]): the first arc's raise.
+fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
+    let xw = cyl_wall_sheet(
+        &mut x,
+        CylFrame::canonical(1.0),
+        (0.5, 1.0),
+        (0.25, 0.5),
+        tol,
+    );
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
@@ -745,13 +745,10 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
         tol,
     );
     let decls = Glue {
-        pairs: class
-            .map(|class| vec![GluedPair::new(xw, yw, class)])
-            .unwrap_or_default(),
+        pairs: vec![GluedPair::read((&x, xw), (&y, yw), GlueClass::Rest, band())],
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &x, &y, Default::default(), band())?;
+    let declared = GluedPairs::without_struts(&decls, [(xw, yw)].into_iter().collect());
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -895,7 +892,6 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
             face_facing(&block, 1.0),
             &wedge,
             face_facing(&wedge, -1.0),
-            false,
             band,
         )
     };
@@ -1574,13 +1570,18 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
-            vec![GluedPair::new(fa, fb, GlueClass::Rest)]
+            vec![GluedPair::read(
+                (&pa.body, fa),
+                (&pb.body, fb),
+                GlueClass::Rest,
+                band(),
+            )]
         } else {
             Vec::new()
         },
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
+    let one = super::super::verify_glued_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
     let sa = [sector(z, x, fa), sector(x, z, fa)];
     let sb = [sector(z, flank, fb), sector(flank, z, fb)];
@@ -2181,6 +2182,16 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
+        BooleanErrorKind::CurvedPierceEscalated => every_decision()
+            .into_iter()
+            .map(|decision| BooleanError::CurvedPierceEscalated {
+                operand,
+                face,
+                edge: crate::entity::EdgeKey::default(),
+                decision,
+                diag,
+            })
+            .collect(),
         BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
             faces: [face, face],
@@ -2244,10 +2255,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::DeclarationContradicted
         | BooleanErrorKind::ContactContradicted
-        | BooleanErrorKind::ContinuationContradicted
-        | BooleanErrorKind::UnsupportedDeclarationClass
+        | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
@@ -2546,6 +2555,18 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::BoundaryMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::CurveMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
         "escalated",
         "BooleanDecision::Crossing",
         1,
@@ -2585,6 +2606,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "conic_quadric/mod.rs",
         "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "ellipse_torus.rs",
+        "torus_walk",
+        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (
@@ -2722,19 +2749,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::of_plane_rung",
         1,
     ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "SelfCheck::CarrierLadder",
-        1,
-    ),
-    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     ("mod.rs", "route_rim", "Coincide::Rim", 1),
     (
         "mod.rs",
@@ -2854,6 +2868,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
         "line_cone_roots",
@@ -2916,6 +2932,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
         "reduce.rs",
@@ -2965,7 +2993,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
-    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 4),
+    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -2982,6 +3010,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    ("slit.rs", "lies_in", "Coincide::EdgeOnCurvedFace", 1),
     ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
     (
         "slit.rs",
@@ -3021,12 +3050,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConicBend",
         1,
     ),
-    (
-        "vtxfac.rs",
-        "classify_vertex_on_face",
-        "Coincide::Sectors",
-        1,
-    ),
+    ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
@@ -3098,14 +3122,11 @@ lever_rows! {
     // `CurvedFlankSense`: the faces along the edge reshaped to planes that
     // only touch there, at a clear arm.
     curved_flank_reshaped_to_touching_planes: None => planar_flank_membership_at(true, false, 1e-3);
-    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex moved
-    // clearly onto the face it is declared to touch (the arc's ends with
-    // it) passes; moved clearly clear of it, the declaration is
-    // contradicted, which is why the lever no longer names that side.
-    covered_vertex_moved_onto_its_face: None =>
-        arc_against_a_wall(1.0, Some(GlueClass::Rest));
-    covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
-        arc_against_a_wall(1.1, Some(GlueClass::Rest));
+    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex on the
+    // face the door glued it to touch (the arc's ends with it) passes. A
+    // wall moved clear of it is a pair the door does not glue, so no
+    // covered arm reads it.
+    covered_vertex_on_its_glued_face: None => arc_on_its_glued_wall();
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

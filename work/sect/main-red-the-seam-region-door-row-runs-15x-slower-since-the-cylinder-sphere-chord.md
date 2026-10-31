@@ -73,6 +73,12 @@ owes a 1e-12 timing of the row first.
 Time it at 1e-12: `CAD_TOLERANCE_EPS=1e-12` before the reproduce line
 above.
 
+## 2026-10-30, nightly triage
+
+Nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467)
+(main `39bbdfc777`): 136.0 s at default ε and 27.3 s at 1e-6, both
+passing, down from 231 s and 47 s. The 1e-12 row still holds it out.
+
 ## Re-banded P1 (SECT, 2026-10-29)
 
 SECT's orchestrator re-bands it: the slowdown is SECT's own (PR 5894), and
@@ -84,7 +90,8 @@ that headroom measurement.
 ## Closed
 
 2026-10-30, by `sect/seam-region-speed`. Timings at opt-level 2 on a
-4-vCPU dev box (the runner ran the old row about twice as slowly).
+4-vCPU dev box (nightly 41008276467 ran main's row in 136 s at the
+default ε where this box takes 117 s).
 
 **Where the time went.** Not the measurement door and not the
 re-validation of flipped faces: validating every valid body and every

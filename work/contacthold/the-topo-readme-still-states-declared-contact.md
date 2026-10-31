@@ -2,11 +2,14 @@
 id: the-topo-readme-still-states-declared-contact
 kind: issue
 title: crates/topo/README.md still states CONTACT-DESIGN C4's declared contact and a mate declaration at rest, after stages 4 and 5 landed
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-10-30
 priority: P4
 cost: E
-refs: [d10-exit-walk]
+refs: [5997]
+pr: 6079
+branch: contacthold/glued-pair-reads-its-record
 ---
 
 
@@ -32,3 +35,7 @@ DESIGN's state-of-the-build list retires C4's declared seat, so this is
 not a new design decision. Once that row is answered, re-word C4 and the
 preamble to say what the glue table is and how its pairs are read, and
 remove the fence.
+
+## Closed
+
+Closed by PR 6079: crates/topo/README.md states C4 as a glued pair reading its record, and the declaration lines are re-worded.

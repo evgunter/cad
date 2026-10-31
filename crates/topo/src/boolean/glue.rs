@@ -2,17 +2,18 @@
 //! pair whose carriers a margin decides one, or decides tangent along a
 //! locus, is glued, declared or not.
 //!
-//! The operation's door ([`decided_declarations`]) reads every pair of
+//! The operation's door ([`decided_glue`]) reads every pair of
 //! faces of the two operands whose boxes meet. A pair the carrier
-//! ladder ([`super::carrier_pair_relation`], the face-pair door's
-//! reading) decides one carrier joins the operation's declared pairs
-//! under the class its senses decide: opposed senses a `Rest` contact,
-//! aligned senses a continuation. A pair of distinct carriers the
+//! ladder ([`super::carrier_pair_decided`], the face-pair door's
+//! reading) decides one carrier joins the operation's glued pairs
+//! under the class its senses decide, with the margin it was decided
+//! on: opposed senses a `Rest` contact, aligned senses a continuation. A pair of distinct carriers the
 //! tangent witness lane verifies tangent along its locus joins them as
 //! one `Tangent` coincidence, which claims nothing of the materials
 //! (C4): the consumers read which side each lies on. From there the
-//! pair takes the arm its class opens, and the declaration door records
-//! the decision ([`crate::coincidence`]). The decision is
+//! pair takes the arm its class opens, the declaration door records
+//! the decision ([`crate::coincidence`]), and every consuming site reads
+//! the pair's class from that record, measuring it nowhere again. The decision is
 //! kept only where the two faces meet, at a point, an edge or an area
 //! ([`touched`]): the boxes offer a frame-dependent superset of the
 //! pairs that do.
@@ -29,8 +30,8 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, DoorReading, Glue, GluedPair, InBandPair,
-    Operand, PairUnread, TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
+    BooleanError, DeclarationRead, Glue, GluedPair, InBandPair, Operand, PairUnread,
+    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -46,7 +47,7 @@ use crate::entity::FaceKey;
 ///
 /// [`BooleanError::ClassificationInvariant`] where the face tree returns
 /// an index past its input; a face box's own refusal.
-pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
+pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &'d Glue<T>,
@@ -61,26 +62,31 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
         if declared(fa, fb) {
             continue;
         }
-        let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
-            Ok(Ok(CarrierRelation::SameOpposite)) => Some(GlueClass::Rest),
-            Ok(Ok(CarrierRelation::SameOriented)) => Some(GlueClass::Continuation),
-            Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?.then_some(GlueClass::Tangent)
+        let glued = match carrier_pair_decided(a, fa, b, fb, band) {
+            Ok(Ok((relation, Some(margin)))) => GlueClass::of_senses(relation)
+                .map(|class| GluedPair::decided(fa, fb, class, margin)),
+            // One carrier on no margin is no decision this door makes:
+            // every rung that reads one carrier reads it on a margin.
+            Ok(Ok((relation, None))) if GlueClass::of_senses(relation).is_some() => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "the glue door: a pair read one carrier on no margin",
+                });
             }
-            Ok(Err(refusal)) => {
-                in_band.extend(DoorReading::of(refusal).map(|reading| InBandPair {
+            Ok(Ok(_)) | Err(PairUnread::OutsideInventory) => {
+                tangency(a, fa, b, fb, band)?.then(|| GluedPair::new(fa, fb, GlueClass::Tangent))
+            }
+            Ok(Err(reading)) => {
+                in_band.push(InBandPair {
                     a: fa,
                     b: fb,
                     reading,
-                }));
+                });
                 None
             }
             // Unread, like in band: left to the stage that meets the pair (module doc).
             Err(PairUnread::Extent(_)) => None,
         };
-        if let Some(class) = class {
-            found.push(GluedPair::new(fa, fb, class));
-        }
+        found.extend(glued);
     }
     if found.is_empty() && in_band.is_empty() {
         return Ok(Cow::Borrowed(decls));

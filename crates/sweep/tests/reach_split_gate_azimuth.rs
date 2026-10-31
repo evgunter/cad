@@ -521,7 +521,7 @@ fn cuts(f: &Fixture, sigma: f64, s: f64, clear: bool) -> Vec<(Vec3<f64>, f64)> {
 /// Two refusals downstream of the gate are named and let stand loudly,
 /// each under a floor: a half whose volume quadrature cannot decide its
 /// own convergence
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`),
+/// (`work/quadtail/the-escalation-tolerating-rows-can-assert-their-answers-now.md`),
 /// and the split's sector decision at a vertex a cut passes within
 /// `10²` ε of, on a body under `10⁷` ε across
 /// (`work/tally/split-bisector-side-in-band-off-a-corner-at-millimetre-scale.md`).
