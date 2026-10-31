@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-25
 priority: P0
 cost: H
-design: true
 refs: [c5-plane-torus-cone-cylinder-arms, nurbs-edge-crossing-rung-is-the-ring-composite, joining-a-spline-carrier-is-unbuilt]
 ---
 
@@ -71,3 +70,28 @@ section's fitted loop), and SPLICE's operand edge gate is deleted
 (`splice/delete-the-boolean-operand-edge-gate`, closed). What remains is
 this row's own open design read, the certification of a NURBS face's
 section against a sphere or a cone.
+
+## Decided (2026-10-31, Ev on `[ev]` PR 6121; fork rows 225 and 226)
+
+The section of a NURBS face against any surface with an implicit residual
+is one arm, `φ = f∘S` on the face's knot rectangle. The rectangle is the
+section value's domain for this pair (C3's domain rule). Components may
+end on its sides.
+
+Coincidence and tangency are decided once, before the march, and every
+reader reads that verdict. The decision runs in three stages:
+- the hull of `φ`;
+- the boundary pass;
+- one regularity sweep, which is W5 at a plane.
+
+An isolated critical point of `φ` at the zero level with a nondegenerate
+Hessian is decided Zero: a touch where the Hessian is definite, a node
+where it is indefinite. A side collapsed to a point not clear of the
+partner refuses before the sweep.
+
+Plane × NURBS folds into this arm. Its build follows PR 6026 and SPLICE's
+W5 row. The curved partners (sphere, cylinder, torus) come first and the
+cone after SECTRUNG's cone unit. The build is staged as units on this row.
+
+The row's open question, "fitted cubic or per-span bound", was a false
+choice: the arm needs both.

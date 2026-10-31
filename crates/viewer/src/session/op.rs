@@ -1016,10 +1016,11 @@ pub enum SessionOp {
         bodies: Vec<Operand>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
-    /// `DocEdit::SetLabel` on the node it created last, as ONE action
-    /// and one undo. The insert carries no label, because what an
-    /// insert carries is what its node's id is minted from; the label
-    /// is the second edit of the same action.
+    /// `DocEdit::SetLabel` on the node it made (`world::made`: the last
+    /// node it minted that is not a placement), as ONE action and one
+    /// undo. The insert carries no label, because what an insert
+    /// carries is what its node's id is minted from; the label is the
+    /// last edit of the creation's own run.
     CreateLabelled {
         /// The creation.
         creation: Creation,
