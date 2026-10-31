@@ -578,7 +578,8 @@ predicate over the enclosure resolves, until refinement stops paying (a
 floor no round removes), or until the work budget the caller states with
 its predicate, in one unit for every lane, as a multiple of reading the
 measured surface once. The kernel's own questions (the validity gate, a
-boolean's decisions) state a fixed multiple. What a measurement spends
+boolean's decisions, a document's assertions) state a fixed constant per
+question. What a measurement spends
 depends on what it asks and on the geometry, never on how its surface is
 cut into faces. It returns the narrowest enclosure reached and why it
 stopped.
