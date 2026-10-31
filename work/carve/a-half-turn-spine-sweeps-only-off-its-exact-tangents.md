@@ -2,11 +2,13 @@
 id: a-half-turn-spine-sweeps-only-off-its-exact-tangents
 kind: issue
 title: sweep_body refuses a planar half-turn spine with exact end tangents (PathTangentReversal) and builds it only off a float knife edge
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: M
 refs: [sweep-frame-is-a-minimal-rotation-from-the-start-tangent]
+rides_with: sweep-frame-is-a-minimal-rotation-from-the-start-tangent
+branch: carve/sweep-frame
 ---
 
 Found by SHOW's `klein-scene-should-adopt-the-one-body-loop-sweep`
