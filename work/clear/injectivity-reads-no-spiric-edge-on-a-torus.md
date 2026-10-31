@@ -2,10 +2,11 @@
 id: injectivity-reads-no-spiric-edge-on-a-torus
 kind: issue
 title: The injectivity check reads no spiric edge: a plane meeting a torus off its axis (the klein elbow's shelled caps) refuses Departure at the root, Structural on both sides
-status: dispatched
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: H
+closed: 2026-10-31
 ---
 
 
