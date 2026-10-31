@@ -1765,107 +1765,103 @@ impl DocSession {
                 into_space(run, placement, space)
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
-            SessionOp::AddProfile { loops } => self.add_profile(loops),
-            SessionOp::SketchOnFace {
-                face,
-                loops,
-                distance,
-                spin,
-            } => self.sketch_on_face(&face, loops, distance, spin),
-            SessionOp::AddDrawnProfile {
-                plane,
-                traced,
-                chains,
-            } => self.add_drawn_profile(&plane, &traced, chains),
             SessionOp::EditProfile {
                 node,
                 base,
                 loops,
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
-            SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
-            SessionOp::AddRevolve {
-                profile,
-                axis_through,
-                axis_heading,
-                angle,
-            } => self.add_revolve(profile, axis_through, axis_heading, angle),
-            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
-            SessionOp::AddSplit {
-                target,
-                origin,
-                normal,
-            } => self.add_split(target, &origin, &normal),
-            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddTransform {
-                input,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
-            SessionOp::AddPattern { input, count, rule } => {
-                self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
-            }
-            SessionOp::AddFusedPattern { input, count, rule } => {
-                self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
-            }
-            SessionOp::AddFillet {
-                target,
-                radius,
-                selection,
-            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
-            SessionOp::AddChamfer {
-                target,
-                distance,
-                selection,
-            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
-            SessionOp::AddPart { of, select } => self.add_part(of, select),
-            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside),
-            SessionOp::AddInstance { id } => self.add_instance(id),
+            op @ (SessionOp::AddProfile { .. }
+            | SessionOp::SketchOnFace { .. }
+            | SessionOp::AddDrawnProfile { .. }
+            | SessionOp::AddExtrude { .. }
+            | SessionOp::AddRevolve { .. }
+            | SessionOp::AddBoolean { .. }
+            | SessionOp::AddSplit { .. }
+            | SessionOp::AddMirror { .. }
+            | SessionOp::AddTransform { .. }
+            | SessionOp::AddPattern { .. }
+            | SessionOp::AddFusedPattern { .. }
+            | SessionOp::AddFillet { .. }
+            | SessionOp::AddChamfer { .. }
+            | SessionOp::AddPart { .. }
+            | SessionOp::Duplicate { .. }
+            | SessionOp::AddInstance { .. }) => self.create(op, None),
             SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
             SessionOp::SetLabel { node, label } => {
                 self.commit_written(DocEdit::SetLabel { node, label })
             }
             SessionOp::SetProduct { bodies } => self.set_product(bodies),
-            SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
+            SessionOp::CreateLabelled { creation, label } => {
+                self.create(creation.into_op(), Some(label))
+            }
         }
     }
 
-    /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
-    ///
-    /// The creation is performed as it would be alone, through
-    /// whichever commit door it takes. Once it has recorded its state,
-    /// a `SetLabel` on the last node it minted that is not a world
-    /// placement is applied to that
-    /// state's document and joins that state's group
-    /// ([`History::extend_current`]), so the insert and the label are
-    /// one undo whatever door recorded the insert. A creation that
-    /// recorded nothing (refused, or declined) is answered as it is,
-    /// and its label is not applied.
-    fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
-        let before = self.history.current();
-        let mut outcome = self.perform(creation.into_op());
-        let recorded = self.history.current();
-        let Some(node) = crate::world::made(self.history.doc(), &outcome.minted) else {
-            return outcome;
-        };
-        if recorded == before || outcome.refusal.is_some() {
-            return outcome;
-        }
-        let edit = DocEdit::SetLabel {
-            node,
-            label: Some(label),
-        };
-        match apply(self.history.doc(), &edit, self.tol) {
-            Ok(applied) => {
-                self.history
-                    .extend_current(recorded, edit.clone(), applied.doc);
-                outcome.committed.push(edit);
-                self.request_eval();
+    /// **A creating operation, through its own door** — and, where
+    /// `label` is given, labelled in the same run
+    /// ([`SessionOp::CreateLabelled`]): the door's run ends with a
+    /// `SetLabel` on the node it made ([`Self::commit_creation`]), so
+    /// the insert and its label are one recorded action and one undo
+    /// whichever door stages it. A refused creation records nothing,
+    /// its label included.
+    fn create(&mut self, op: SessionOp, label: Option<Label>) -> OpOutcome {
+        match op {
+            SessionOp::AddProfile { loops } => self.add_profile(loops, label),
+            SessionOp::SketchOnFace {
+                face,
+                loops,
+                distance,
+                spin,
+            } => self.sketch_on_face(&face, loops, distance, spin, label),
+            SessionOp::AddDrawnProfile {
+                plane,
+                traced,
+                chains,
+            } => self.add_drawn_profile(&plane, &traced, chains, label),
+            SessionOp::AddExtrude { profile, distance } => {
+                self.add_extrude(profile, distance, label)
             }
-            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
+            SessionOp::AddRevolve {
+                profile,
+                axis_through,
+                axis_heading,
+                angle,
+            } => self.add_revolve(profile, axis_through, axis_heading, angle, label),
+            SessionOp::AddBoolean { spec } => self.add_boolean(spec, label),
+            SessionOp::AddSplit {
+                target,
+                origin,
+                normal,
+            } => self.add_split(target, &origin, &normal, label),
+            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane, label),
+            SessionOp::AddTransform {
+                input,
+                translation,
+                rotation_axis,
+                rotation_angle,
+            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle, label),
+            SessionOp::AddPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Instances, label)
+            }
+            SessionOp::AddFusedPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Fused, label)
+            }
+            SessionOp::AddFillet {
+                target,
+                radius,
+                selection,
+            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet, label),
+            SessionOp::AddChamfer {
+                target,
+                distance,
+                selection,
+            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer, label),
+            SessionOp::AddPart { of, select } => self.add_part(of, select, label),
+            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside, label),
+            SessionOp::AddInstance { id } => self.add_instance(id, label),
+            other => unreachable!("{other:?} creates no node, so it is no creation"),
         }
-        outcome
     }
 
     /// The documents the open document's own directory offers as
@@ -1979,7 +1975,7 @@ impl DocSession {
     /// self-instance refusal is the one that survives saving, and
     /// naming the recoverable problem first would send a user off to
     /// save for nothing.
-    fn add_instance(&mut self, id: DocumentId) -> OpOutcome {
+    fn add_instance(&mut self, id: DocumentId, label: Option<Label>) -> OpOutcome {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
             return OpOutcome::refused(refusal);
         }
@@ -1989,7 +1985,7 @@ impl DocSession {
         };
         // A creation: the instance, which is a placement, placed into
         // the world at the identity over its own copies.
-        self.commit_run(|run| {
+        self.commit_creation(label, |run| {
             run.insert(Node::instantiate_part(
                 DocRef { id, pin },
                 Operand::Var(VarId::WORLD),
@@ -2744,14 +2740,14 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
+    fn add_profile(&mut self, loops: Vec<LoopProgram<Formula>>, label: Option<Label>) -> OpOutcome {
+        self.commit_creation(label, |run| {
+            run.insert(Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
                 on: None,
-            })),
-            fresh: Vec::new(),
+            }))
+            .map(drop)
         })
     }
 
@@ -2765,6 +2761,7 @@ impl DocSession {
         loops: Vec<LoopProgram<Formula>>,
         distance: Formula,
         spin: Formula,
+        label: Option<Label>,
     ) -> OpOutcome {
         let doc = self.committed_doc();
         let (body, name) = picked_body(doc, face);
@@ -2777,7 +2774,7 @@ impl DocSession {
         if let Err(refusal) = stranded_pick(doc, &over, taken) {
             return OpOutcome::refused(refusal);
         }
-        self.commit_run(|run| {
+        self.commit_creation(label, |run| {
             let sketched = run.sketch_on_face(
                 body,
                 name,
@@ -2806,6 +2803,7 @@ impl DocSession {
         plane: &FaceSelection,
         traced: &[FaceSelection],
         chains: Vec<pncad::trace::Chain>,
+        label: Option<Label>,
     ) -> OpOutcome {
         let doc = self.committed_doc();
         let Some(first) = traced.first() else {
@@ -2830,10 +2828,7 @@ impl DocSession {
         };
         let faces = traced.iter().map(|face| face_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
-            Ok(node) => self.commit(DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            }),
+            Ok(node) => self.commit_creation(label, |run| run.insert(node).map(drop)),
             Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
         }
     }
@@ -2969,14 +2964,22 @@ impl DocSession {
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
+    fn add_extrude(
+        &mut self,
+        profile: RecipeNodeId,
+        distance: Formula,
+        label: Option<Label>,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        self.create_placed(Node::Extrude {
-            profile: profile.into(),
-            distance,
-        })
+        self.create_placed(
+            Node::Extrude {
+                profile: profile.into(),
+                distance,
+            },
+            label,
+        )
     }
 
     /// Insert one revolve of an existing profile about an axis line in
@@ -2987,20 +2990,24 @@ impl DocSession {
         axis_through: [Formula; 2],
         axis_heading: Formula,
         angle: Formula,
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        self.create_placed(Node::Revolve {
-            profile: profile.into(),
-            axis_through,
-            axis_heading,
-            angle,
-        })
+        self.create_placed(
+            Node::Revolve {
+                profile: profile.into(),
+                axis_through,
+                axis_heading,
+                angle,
+            },
+            label,
+        )
     }
 
     /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, spec: BooleanSpec) -> OpOutcome {
+    fn add_boolean(&mut self, spec: BooleanSpec, label: Option<Label>) -> OpOutcome {
         for seat in spec.operands() {
             if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -3017,17 +3024,11 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        let staged = self.stage_run(|run| {
+        self.commit_creation(label, |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            combine_in_world(run, &spec.operands(), node)?;
-            Ok(node)
-        });
-        let (staged, _) = match staged {
-            Ok(staged) => staged,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        self.record_run(staged)
+            combine_in_world(run, &spec.operands(), node).map(drop)
+        })
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
@@ -3039,6 +3040,7 @@ impl DocSession {
         target: Operand,
         origin: &[Formula; 3],
         normal: &[Formula; 3],
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_read(&target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -3047,12 +3049,12 @@ impl DocSession {
             Ok(tool) => tool,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Split {
+        self.commit_creation(label, |run| {
+            run.insert(Node::Split {
                 target: target.into(),
                 tool,
-            }),
-            fresh: Vec::new(),
+            })
+            .map(drop)
         })
     }
 
@@ -3062,7 +3064,12 @@ impl DocSession {
     /// unioned, taking over the body's drawn copies through the feature
     /// takeover's re-point ([`repoint`]). An unplaced body's image is
     /// written alone.
-    fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
+    fn add_mirror(
+        &mut self,
+        body: Operand,
+        plane: &FaceSelection,
+        label: Option<Label>,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -3074,7 +3081,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let node = combine::mirror_node(body.clone(), on, face);
-        self.commit_run(|run| {
+        self.commit_creation(label, |run| {
             let image = run.insert(node)?;
             if over.is_empty() {
                 return Ok(());
@@ -3145,6 +3152,7 @@ impl DocSession {
         translation: &[Formula; 3],
         rotation_axis: &[Formula; 3],
         rotation_angle: &Formula,
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
@@ -3160,7 +3168,7 @@ impl DocSession {
         };
         let over = self.placements_of(&input);
         let taken = crate::world::read_var(doc, &input);
-        let staged = self.stage_run(|run| {
+        self.commit_creation(label, |run| {
             // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
             let placement = run.insert(Node::place(
@@ -3168,13 +3176,8 @@ impl DocSession {
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            repoint(run, over, taken, placement)?;
-            Ok(())
-        });
-        match staged {
-            Ok((staged, ())) => self.record_run(staged),
-            Err(refusal) => OpOutcome::refused(refusal),
-        }
+            repoint(run, over, taken, placement)
+        })
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -3196,6 +3199,7 @@ impl DocSession {
         count: i64,
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_placeable(&input) {
             return OpOutcome::refused(refusal);
@@ -3249,7 +3253,7 @@ impl DocSession {
         };
         match output {
             // Several bodies, the family itself.
-            PatternOutputChoice::Instances => self.commit_run(|run| {
+            PatternOutputChoice::Instances => self.commit_creation(label, |run| {
                 declare(run)?;
                 run.insert(placement).map(drop)
             }),
@@ -3259,7 +3263,7 @@ impl DocSession {
                 if let Err(refusal) = stranded_pick(self.committed_doc(), &over, taken) {
                     return OpOutcome::refused(refusal);
                 }
-                self.commit_run(|run| {
+                self.commit_creation(label, |run| {
                     declare(run)?;
                     let row = run.insert(placement)?;
                     let fused = run.insert(Node::Union {
@@ -3273,12 +3277,17 @@ impl DocSession {
 
     /// Insert one read of a family's member
     /// ([`SessionOp::AddPart`]), placed in the world.
-    fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
+    fn add_part(
+        &mut self,
+        of: RecipeNodeId,
+        select: PartSelectSpec,
+        label: Option<Label>,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
             return OpOutcome::refused(refusal);
         }
         let node = combine::part_node(self.committed_doc(), of, select);
-        self.create_placed(node)
+        self.create_placed(node, label)
     }
 
     /// Duplicate one body ([`SessionOp::Duplicate`]): a copy of it
@@ -3289,7 +3298,12 @@ impl DocSession {
     /// where it was; the copy is a creation, so it is placed where the
     /// person can see it, and it is a body of its own — a feature
     /// authored on it re-points the copy's placements alone.
-    fn add_duplicate(&mut self, input: Operand, beside: Option<RecipeNodeId>) -> OpOutcome {
+    fn add_duplicate(
+        &mut self,
+        input: Operand,
+        beside: Option<RecipeNodeId>,
+        label: Option<Label>,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -3324,7 +3338,7 @@ impl DocSession {
             Operand::Var(space),
             pncad::document::Placed::unmated(moves).bundle(),
         );
-        self.commit_run(|run| {
+        self.commit_creation(label, |run| {
             let copy = run.insert(stepped)?;
             // A copy stepped in the world stands there already.
             if space == VarId::WORLD {
@@ -3362,6 +3376,7 @@ impl DocSession {
         size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -3392,7 +3407,7 @@ impl DocSession {
             BlendKindChoice::Fillet => Node::fillet(read, size, selection),
             BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
         };
-        self.feature_over(over, taken, node)
+        self.feature_over(over, taken, node, label)
     }
 
     /// **A creation gesture's one action** (A10): the new body, and its
@@ -3402,8 +3417,8 @@ impl DocSession {
     ///
     /// What is placed is the made node's first `Body` output: a revolve
     /// defines its body and its axis, and naming it alone reads neither.
-    fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
-        self.commit_run(|run| {
+    fn create_placed(&mut self, node: AuthoredNode, label: Option<Label>) -> OpOutcome {
+        self.commit_creation(label, |run| {
             let made = run.insert(node)?;
             let body = body_of(run.doc(), made);
             place_in_world(run, body).map(drop)
@@ -3420,11 +3435,12 @@ impl DocSession {
         over: Vec<RecipeNodeId>,
         taken: Option<VarId>,
         node: AuthoredNode,
+        label: Option<Label>,
     ) -> OpOutcome {
         if let Err(refusal) = stranded_pick(self.committed_doc(), &over, taken) {
             return OpOutcome::refused(refusal);
         }
-        self.commit_run(|run| {
+        self.commit_creation(label, |run| {
             let result = run.insert(node)?;
             repoint(run, over, taken, result)
         })
@@ -3765,6 +3781,34 @@ impl DocSession {
             Ok((staged, ())) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
         }
+    }
+
+    /// [`Self::commit_run`] for a creation's action, which ends — where
+    /// `label` is given — with a `SetLabel` on the node the action made
+    /// ([`crate::world::made`]: the last it minted that is not a
+    /// placement). The label is the run's last edit, so the edits, the
+    /// minted ids and the netted maintenance the outcome carries are
+    /// the one recording's.
+    fn commit_creation(
+        &mut self,
+        label: Option<Label>,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>,
+    ) -> OpOutcome {
+        self.commit_run(|run| {
+            action(run)?;
+            let Some(label) = label else {
+                return Ok(());
+            };
+            let minted: Vec<RecipeNodeId> = run.minted().iter().flatten().copied().collect();
+            let Some(node) = crate::world::made(run.doc(), &minted) else {
+                unreachable!("a creation's accepted run mints the node it creates")
+            };
+            run.apply(DocEdit::SetLabel {
+                node,
+                label: Some(label),
+            })
+            .map(drop)
+        })
     }
 
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):

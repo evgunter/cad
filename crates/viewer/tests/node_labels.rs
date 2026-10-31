@@ -216,29 +216,50 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
     );
 }
 
-/// **`op`, labelled `text`, as one undo**: the creation commits through
-/// whatever door it takes, the action ends with a `SetLabel` on the
-/// node it made (`viewer::world::made`: the last it minted that is not
-/// a world placement), the label is on that node, and ONE undo returns
-/// the document to what it was before the action. Answers that node.
+/// **`op`, labelled `text`, as one recorded action**: the creation is
+/// performed alone first, and undone, so that its own outcome is the
+/// yardstick. Labelled, it commits through whatever door it takes and
+/// its outcome is that same action's with one more edit: the same edits
+/// in the same order and then a `SetLabel` on the node it made
+/// (`viewer::world::made`: the last it minted that is not a world
+/// placement), the same minted ids and the same netted maintenance, and
+/// ONE evaluation requested for the whole of it. The label is on that
+/// node, and ONE undo returns the document to what it was before the
+/// action. Answers that node.
 fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
     let before = session.committed_doc().clone();
     let what = format!("{op:?}");
+    let alone = session.perform(op.clone());
+    assert!(alone.refusal.is_none(), "{what} alone: {:?}", alone.refusal);
+    session.perform(SessionOp::Undo);
+    session.pump();
     let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+    let requested = session.generation();
     let outcome = session.perform(SessionOp::CreateLabelled {
         creation,
         label: label(text),
     });
     assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+    assert_eq!(
+        session.generation(),
+        requested.next(),
+        "{what}: one action requests one evaluation"
+    );
     let node = viewer::world::made(session.committed_doc(), &outcome.minted)
         .unwrap_or_else(|| panic!("{what} made a node"));
-    assert!(
-        matches!(
-            outcome.committed.last(),
-            Some(DocEdit::SetLabel { node: at, label: Some(l) }) if *at == node && *l == label(text)
-        ),
-        "{what}: the action ends with the label: {:?}",
-        outcome.committed
+    let labelled = DocEdit::SetLabel {
+        node,
+        label: Some(label(text)),
+    };
+    let expected: Vec<_> = alone.committed.iter().cloned().chain([labelled]).collect();
+    assert_eq!(
+        outcome.committed, expected,
+        "{what}: the creation's own edits in order, then its label"
+    );
+    assert_eq!(outcome.minted, alone.minted, "{what}: the same ids minted");
+    assert_eq!(
+        outcome.maintenance, alone.maintenance,
+        "{what}: the label nets no maintenance of its own"
     );
     assert_eq!(
         session.committed_doc().label(node),
@@ -260,8 +281,54 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
     node
 }
 
+/// **A refused creation applies no label**, whether the door refuses
+/// before its run (an extrude of a node that is no profile) or the run
+/// refuses inside it (a profile of no loops, which the edit door
+/// refuses): nothing is committed, the label included, no history state
+/// is recorded and no evaluation is requested.
+#[test]
+fn a_refused_creation_applies_no_label() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-refused", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let refused = [
+        SessionOp::AddExtrude {
+            profile: extrude,
+            distance: common::len(0.01),
+        },
+        SessionOp::AddProfile { loops: Vec::new() },
+    ];
+    for op in refused {
+        let what = format!("{op:?}");
+        let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+        let requested = session.generation();
+        let outcome = session.perform(SessionOp::CreateLabelled {
+            creation,
+            label: label("never"),
+        });
+        assert!(outcome.refusal.is_some(), "{what}: refused");
+        assert!(
+            outcome.committed.is_empty() && outcome.minted.is_empty(),
+            "{what}: nothing committed: {:?}",
+            outcome.committed
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before) && session.committed_doc().labels().is_empty(),
+            "{what}: the document is as it was, with no label"
+        );
+        assert!(!session.history().can_undo(), "{what}: no history state");
+        assert_eq!(
+            session.generation(),
+            requested,
+            "{what}: nothing to evaluate"
+        );
+    }
+}
+
 /// **Every creating op, labelled, is one undo** — whichever commit door
-/// it takes (`commit`, `commit_run`, or the boolean's own staged run).
+/// it takes, since every door stages its run through one recorder.
 /// The sample set is held to `SessionOp::creates_a_node` through the
 /// gesture table's every-op roster: a creation added there and not
 /// sampled here is red.
