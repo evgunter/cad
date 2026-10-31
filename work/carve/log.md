@@ -533,6 +533,78 @@ Signed: (CARVE orchestrator)
 - 2026-10-30 — **Hold (RESTCURVE):** Ev questioned the wrap tip on `[ev]` PR 6085. A sphere face other than the whole sphere has a singularity-free chart (stereographic from a point off the face), which may retire pole vertices and wrap edges for spheres. Your wrap-tip row is re-parked on `work/restcurve/sphere-faces-take-a-per-face-chart-or-pole-vertices` (ruling). Please do not build on the tip until it is ruled. (RESTCURVE orchestrator)
 - 2026-10-31 — **Hold lifted (RESTCURVE):** Ev approved `[ev]` PR 6085's decision 3 (fork-log row 222). The wrap tip stays; a tip is any valence-1 end of a wrap edge; the wrap edge is the face's seam kept to its end. A chart reader reads the tip as the seam through the lift's reset; a chart-free reader drops it and keeps the pole vertex as the side's datum. Your wrap-tip row is open again; RESTCURVE's tier unit (PR 6097) gets its fix pass now. (RESTCURVE orchestrator)
 
+## 2026-10-31 — picked up; fourth priority-seam cut: LATHE opened
+
+Picked up by a new sitting (CARVE `active`). Since the 2026-10-10 hand
+back, other programs filed eleven rows here and CLEAR unparked the P0
+`self-overlapping-spines-build-and-validate`. The slate measured 71
+budget points against 30, so it is cut on its semantic seams, the rows
+moving by `git mv` with their ids:
+
+- **CARVE keeps the loft and sweep bodies: 30 points.** The P0
+  certificate, the reflected placement, the pinned wall, the sweep
+  frame law, and the doors' tier-3 result gate, which is the
+  certificate's other half at the same doors.
+- **LATHE (new, band 18400-18499) takes extrude and revolve: 30
+  points.** The full revolve's one band, the cap planes minted by
+  Newell rather than by their frame (both extrude rows and the loft
+  cap's, one question), the guided derived-frame escalation, and the
+  readings those verbs refuse by. `revolve-wall-kind-escalates-in-band`
+  is priced P2/M and the endings re-spell `C` on the way.
+- **CARVETAIL takes `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`**
+  (P1, H): the loft's arc columns are its charter. It gives
+  `skinned-wall-weights-drift-an-ulp-along-the-stacking` (P3, E) to
+  CARVEREST to stay inside 30.
+
+Citations of moved rows by path are re-pointed (two test comments,
+nine work files); `docs/DESIGN-FORK-LOG.md` is a record and keeps its
+paths.
+
+The alternative was a split by priority again (P0–P1 here, the rest
+out), which would have parted the three cap rows and left each track
+telling two stories.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-31 — dispatched: the certificate, the reflected placement, the frame weighing
+
+- **`self-overlapping-spines-build-and-validate`** (`carve/embedding-certificate`),
+  in two phases. The first measures the body-level injectivity certificate
+  on today's loft and sweep bodies (verdicts, price, false refusals by
+  CLEAR row) and proposes the door's shape, then stops for a go-ahead.
+  The certificate fixes what every loft and sweep door promises, which
+  would be hard to change later, so the review tier is **DUAL**.
+- **`a-reflected-loft-placement-evades-both-normal-checks`** (`carve/reflected-placement`):
+  a rigidity decide at the loft and sweep doors, plus the sweep across
+  every door that takes an `Affine3` documented as rigid. Review: **single
+  FULL**. A wrong rigidity decide would be a confident wrong answer, and
+  the unit is small enough to read whole.
+- **`sweep-frame-is-a-minimal-rotation-from-the-start-tangent`**: the
+  designer pair (one Opus, one Fable), with the problem stated and no
+  options given. The blinding byte is on `analysis/design-fork/carve-sweep-frame`.
+
+The pinned wall waits on the certificate's head, as `plan.md` says.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the frame law weighed; implementer dispatched
+
+The designer pair on `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`
+converged in round one: a rotation-minimizing frame by double
+reflection, pivoting at the path's start point, with the sweep's v
+becoming the path parameter. The row's "Weighed" section has the
+detail. Nothing went to Ev: both designers found it is the only
+kernel-owned law left, and it changes no ratified text. Ev is told
+about the visible roll of the tour coil's wire, and about the held
+need (a frame held to a direction).
+
+CARVETAIL's P0 `a-half-turn-spine-sweeps-only-off-its-exact-tangents`
+is the same law's singular point. It moved here and rides with this
+row; CARVE is at 33 points with it, a passenger rather than new work.
+
+Dispatched as `carve/sweep-frame`. Review: **single FULL**. The law is
+decided, and the risk is in the discretization and the re-baselines,
+which one reviewer can falsify.
 ## 2026-10-31 — `a-reflected-loft-placement-evades-both-normal-checks` closed (PR 6120)
 
 The defect had already gone from main: the 2026-10-14 `SketchPlane`-is-a-`RigidMotion` change makes a mirrored section frame refuse at `check_rigid`, where it is minted. The unit pins that with tests, corrects `loft_body`'s doc, and records the sweep across every door that takes an `Affine3` documented as rigid. It filed one off-ground doc row in `work/issues/`. Review dropped to the orchestrator's read, because no kernel logic changed (the row has the detail).

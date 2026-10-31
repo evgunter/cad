@@ -4,6 +4,8 @@ kind: issue
 title: Revolve's classify_segment refuses SliverAxisClearance when the wall-kind reading is in band, where D3 takes the cone lane
 status: open
 opened: 2026-10-20
+priority: P2
+cost: M
 ---
 
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane
