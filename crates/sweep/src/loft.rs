@@ -265,10 +265,10 @@ pub enum LoftError {
     /// here: coincidence, where every corner of every loop is pinned
     /// ([`Self::PinnedCorner`]'s predicate) and every segment is the same
     /// curve in both sections, at every scale down to bit-equal
-    /// sections; and sections apart whose moving control rows (the
-    /// outer loop's, its pinned corners left out) have no mean
-    /// displacement along the base normal — an in-plane pair, or a
-    /// symmetric lens turned about its chord. Sections that touch are
+    /// sections; and sections apart whose moving corners (the outer
+    /// loop's not pinned in the slab, or every loop's where the outer
+    /// loop is all pinned) have no mean displacement along the base
+    /// normal — an in-plane pair. Sections that touch are
     /// [`Self::SectionsTouch`], read before this.
     DegenerateStacking {
         /// The slab — the pair [`SlabPair`] names.
@@ -322,25 +322,27 @@ pub enum LoftError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// Two segments of a slab's two sections meet beyond the pinned
-    /// corners they share: a hinge slid along its own edge, or sections
-    /// that cross. Both sections' loops lie on the body's boundary, so
-    /// the boundary would meet itself there off its own edges.
+    /// Two segments of a slab's two sections meet, beyond the pinned
+    /// corners they share where they share one: a hinge slid along its
+    /// own edge, or sections that cross. Both sections' loops lie on the
+    /// body's boundary, so the boundary would meet itself there off its
+    /// own edges.
     SectionsTouch {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
         /// The segment of section `slab`, then the segment of section
         /// `slab + 1`.
         segments: [LoopSegment; 2],
+        /// Whether the two share a pinned corner.
+        shared: bool,
     },
-    /// Whether two segments of a slab's two sections are apart beyond
-    /// the corners they share is not decided.
+    /// Whether two segments of a slab's two sections are apart (beyond
+    /// the pinned corners they share) is not decided.
     ///
-    /// `Some`: a reading escalated. `None`: a pair with an arc in it
-    /// whose control polygon no section plane separates from the other
-    /// segment — the frontier of that reading (the control polygon
-    /// holds the arc, and the reading asks no more of it), not a
-    /// verdict that the two meet.
+    /// `Some`: a reading escalated. `None`: the curve-pair reader
+    /// (`geom_brep::curve_pair::meet`) could not settle a pair with an
+    /// arc in it — a budget, a root finder or a pose it has no closed
+    /// form for — which is not a verdict that the two meet.
     ClearanceUndecided {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -564,13 +566,22 @@ impl fmt::Display for LoftError {
                     source.ending(geom_core::COINCIDENCE_RECOURSE),
                 )
             ),
-            Self::SectionsTouch { slab, segments } => write!(
+            Self::SectionsTouch {
+                slab,
+                segments,
+                shared,
+            } => write!(
                 f,
-                "loft section {slab}'s {} meets section {far}'s {} beyond the corners they \
-                 share, so the body's boundary would meet itself there. Recourse: move \
-                 section {far} clear of section {slab}",
+                "loft section {slab}'s {} meets section {far}'s {}{}, so the body's \
+                 boundary would meet itself there. Recourse: move section {far} clear of \
+                 section {slab}",
                 segments[0],
                 segments[1],
+                if *shared {
+                    " beyond the corner they share"
+                } else {
+                    ""
+                },
                 far = SlabPair(*slab).far()
             ),
             Self::ClearanceUndecided {
@@ -579,10 +590,10 @@ impl fmt::Display for LoftError {
                 source: None,
             } => write!(
                 f,
-                "whether loft section {slab}'s {} and section {far}'s {} are apart beyond \
-                 the corners they share is not decided: an arc's control polygon is all \
-                 this reading asks of it, and no section plane separates the two. \
-                 Recourse: move section {far} clear of section {slab}, or split the arc",
+                "whether loft section {slab}'s {} and section {far}'s {} are apart is not \
+                 decided: the curve-pair reader could not settle them (a limit of the \
+                 reader, not a verdict that they meet). Recourse: move section {far} clear \
+                 of section {slab}",
                 segments[0],
                 segments[1],
                 far = SlabPair(*slab).far()
@@ -729,7 +740,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// BEFORE the skin, because it decides, under the run's tolerance,
 /// whether two adjacent sections are apart and which corners they pin;
 /// a pair it refuses (down to exact coincidence) never reaches the
-/// skin's parameterization, whose vertex rows read its verdict.
+/// skin's parameterization.
 fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     sections: SectionsAtT<'_, T, L>,
     places: &[SketchPlane<T>],
@@ -868,15 +879,16 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             .iter()
             .map(|lp| strip_points(lp, |p| *p))
             .collect();
-        let pinned =
-            stacking::stacking_door(self.places, &canonical, &strips, self.v_degree, band)?;
-        let geometry = skin_validated(
-            canonical,
+        stacking::stacking_door(
             self.places,
+            &canonical,
+            &strips,
             self.v_degree,
-            Some(&pinned.still_outer()),
-        )
-        .map_err(LoftError::Skin)?;
+            band,
+            self.tol,
+        )?;
+        let geometry =
+            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
         assemble(
             self.places,
             &geometry.walls,
@@ -966,14 +978,9 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|lp| strip_points(lp, |p| p.map(T::from_computed)))
             .collect();
-        let pinned = stacking::stacking_door(places, &lifted, &strips, self.v_degree, band)?;
-        let geometry = skin_validated(
-            canonical,
-            channel_places,
-            self.v_degree,
-            Some(&pinned.still_outer()),
-        )
-        .map_err(LoftError::Skin)?;
+        stacking::stacking_door(places, &lifted, &strips, self.v_degree, band, self.tol)?;
+        let geometry =
+            skin_validated(canonical, channel_places, self.v_degree).map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()

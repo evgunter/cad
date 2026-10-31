@@ -232,12 +232,18 @@ fn sections_that_meet_beyond_their_pinned_corners_refuse_naming_the_segments() {
         ("crossing sections", 2, &crossing, 1, [seg(1), seg(1)]),
     ] {
         match loft_body::<f64>(&vec![square(); n], ps, v, tol) {
-            Err(e @ LoftError::SectionsTouch { slab: 0, segments }) => {
+            Err(
+                e @ LoftError::SectionsTouch {
+                    slab: 0,
+                    segments,
+                    shared: false,
+                },
+            ) => {
                 assert_eq!(segments, want, "{what}: the first pair that meets is named");
                 let msg = e.to_string();
                 assert!(
                     msg.contains(&format!(
-                        "loft section 0's {} meets section 1's {} beyond the corners they share",
+                        "loft section 0's {} meets section 1's {}, so the body's boundary",
                         want[0], want[1]
                     )),
                     "{what}: {msg}"
@@ -249,31 +255,184 @@ fn sections_that_meet_beyond_their_pinned_corners_refuse_naming_the_segments() {
 }
 
 /// **A lens turned about its chord**: both corners pinned in every slab,
-/// the arcs apart elsewhere. Its clearance holds (each arc's control
-/// points, the shared corners left out, lie on one side of the other
-/// section's plane), so an asymmetric lens reaches the class-1 refusal
-/// naming its hinged segment. A symmetric one turns its upper half up
-/// and its lower half down by the same amount, so its moving rows have
-/// no mean step along the base normal: the frontier of the step arm,
-/// refused as `DegenerateStacking`.
+/// the arcs apart elsewhere, the curve-pair reader finding them meet
+/// only at those corners. No corner moves, so the step decides nothing
+/// and the lens reaches the class-1 refusal naming its hinged segment —
+/// symmetric or not, and turned either way.
 #[test]
-fn a_lens_turned_about_its_chord_reaches_class_1_or_states_its_frontier() {
+fn a_lens_turned_about_its_chord_reaches_class_1() {
     let tol = Tol::witness();
-    let about = |a: f64| turn([0.0; 3], [-1.0, 0.0, 0.0], a);
-    let three = places(&[Affine3::identity(), about(0.4), about(0.8)], tol);
-    let two = places(&[Affine3::identity(), about(0.8)], tol);
-    for (what, ps, v) in [("three sections", &three, 2), ("a wedge", &two, 1)] {
-        let n = ps.len();
-        assert_unsupported(
-            &format!("asymmetric lens, {what}"),
-            loft_body::<f64>(&vec![lens(0.8, 0.3); n], ps, v, tol),
-            PinnedSite::Segment(0),
-            0,
-        );
-        match loft_body::<f64>(&vec![lens(0.5, 0.5); n], ps, v, tol) {
-            Err(LoftError::DegenerateStacking { slab: 0 }) => {}
-            other => panic!("symmetric lens, {what}: expected DegenerateStacking, got {other:?}"),
+    for sense in [1.0, -1.0] {
+        let about = |a: f64| turn([0.0; 3], [-sense, 0.0, 0.0], a);
+        let three = places(&[Affine3::identity(), about(0.4), about(0.8)], tol);
+        let two = places(&[Affine3::identity(), about(0.8)], tol);
+        for (what, ps, v) in [("three sections", &three, 2), ("a wedge", &two, 1)] {
+            for (ridge, keel) in [(0.8, 0.3), (0.5, 0.5)] {
+                assert_unsupported(
+                    &format!("lens ({ridge}, {keel}) turned {sense}, {what}"),
+                    loft_body::<f64>(&vec![lens(ridge, keel); ps.len()], ps, v, tol),
+                    PinnedSite::Segment(0),
+                    0,
+                );
+            }
         }
+    }
+}
+
+/// A circle of radius `r`, two semicircles, its vertices at angle `a`
+/// and `a + π`.
+fn circle(r: f64, a: f64) -> Vec<ProfileLoop<f64>> {
+    let p = |t: f64| Point2::new(r * t.cos(), r * t.sin());
+    vec![bulge_loop(vec![
+        (p(a), 1.0),
+        (p(a + core::f64::consts::PI), 1.0),
+    ])]
+}
+
+/// **An elbow builds whatever vertex its circle is authored from.** A
+/// unit circle turned 0.4 rad about an axis in its plane at x = 1.2:
+/// the two planes meet outside the circle, so the loft is a torus
+/// wedge, embedded. The arc pairs are read by the curve-pair reader's
+/// closed forms, which do not see the start vertex.
+#[test]
+fn an_elbow_whose_planes_meet_outside_the_circle_builds_from_any_start() {
+    let tol = Tol::witness();
+    for start in [0.0f64, 45.0, 90.0] {
+        for (n, v) in [(2usize, 1usize), (3, 2)] {
+            let ms: Vec<Affine3<f64>> = (0..n)
+                .map(|i| {
+                    #[allow(clippy::cast_precision_loss)]
+                    let a = 0.4 * i as f64;
+                    turn([1.2, 0.0, 0.0], [0.0, 1.0, 0.0], a)
+                })
+                .collect();
+            let out = loft_body::<f64>(
+                &vec![circle(1.0, start.to_radians()); n],
+                &places(&ms, tol),
+                v,
+                tol,
+            );
+            assert!(out.is_ok(), "start {start}, {n} sections: {:?}", out.err());
+        }
+    }
+}
+
+/// **A tilted D whose arc rows step back builds.** A D (the line x = 0
+/// from (0, −1) to (0, 1), a semicircle through (±1, 0)) tilted about
+/// y with its arc side down, then moved by (1.2, 0, h). Every ruling
+/// stays at its own y, and each y-slice is a simple quad, so the body
+/// is embedded; the arc's mid control points step back along the base
+/// normal, which the step does not read.
+#[test]
+fn a_tilted_d_whose_arc_rows_step_back_builds() {
+    let tol = Tol::witness();
+    for bulge in [1.0, -1.0] {
+        let d = vec![bulge_loop(vec![
+            (Point2::new(0.0, -1.0), 0.0),
+            (Point2::new(0.0, 1.0), -bulge),
+        ])];
+        for th in [0.3, 0.5, 0.7] {
+            for h in [0.1, 0.2, 0.3] {
+                let ps = places(
+                    &[
+                        Affine3::identity(),
+                        Affine3::translation(Vec3::new(1.2, 0.0, h))
+                            * turn([0.0; 3], [0.0, 1.0, 0.0], th),
+                    ],
+                    tol,
+                );
+                let out = loft_body::<f64>(&vec![d.clone(); 2], &ps, 1, tol);
+                assert!(out.is_ok(), "bulge {bulge}, θ {th}, h {h}: {:?}", out.err());
+            }
+        }
+    }
+}
+
+/// **A tight-bend tube sweeps whatever vertex its circle starts at.** A
+/// circle of radius up to 0.9 swept along a radius-1 quarter circle,
+/// its vertices toward the bend's axis or 45° off it.
+#[test]
+fn a_tight_bend_tube_sweeps_from_any_start() {
+    let tol = Tol::witness();
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    let path = geom::NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ],
+        vec![1.0, h, 1.0],
+    )
+    .unwrap();
+    let place =
+        SketchPlane::from_frame(path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap());
+    let frame = place.placement();
+    let d = Point3::new(0.0, 0.0, 0.0) - place.origin();
+    let toward = d.dot(frame.linear.c1).atan2(d.dot(frame.linear.c0));
+    for r in [0.3, 0.6, 0.75, 0.8, 0.9] {
+        for shift in [0.0f64, 45.0] {
+            let profile = circle(r, toward - shift.to_radians());
+            for (stations, v) in [(3usize, 2usize), (5, 2), (3, 1)] {
+                let out = sweep_body::<f64>(&profile, place, &path, stations, v, tol);
+                assert!(
+                    out.is_ok(),
+                    "r {r}, shift {shift}, {stations} stations, v {v}: {:?}",
+                    out.err()
+                );
+            }
+        }
+    }
+}
+
+/// **The step's own escalation.** A square moved five units along its
+/// plane and by the band's midpoint along its normal: every corner
+/// moves, the two are apart, and only the mean step along the base
+/// normal is in band.
+#[test]
+fn a_step_in_band_escalates_on_the_base_normal() {
+    let tol = Tol::witness();
+    let mid = 0.5 * (1.0 + tol.k()) * tol.eps();
+    let ps = places(
+        &[
+            Affine3::identity(),
+            Affine3::translation(Vec3::new(5.0, 0.0, mid)),
+        ],
+        tol,
+    );
+    match loft_body::<f64>(&vec![square(); 2], &ps, 1, tol) {
+        Err(LoftError::StackingEscalated { slab: 0, source }) => {
+            assert_eq!(source.predicate, Some("loft_stacking"));
+        }
+        other => panic!("expected StackingEscalated on slab 0, got {other:?}"),
+    }
+}
+
+/// **Sections that hold their outer loop and move a hole.** The outer
+/// square is pinned at every corner and the hole slides in the plane:
+/// the outer loop gives no step, so the step reads every loop's moving
+/// corners, whose mean along the normal is zero — no direction.
+#[test]
+fn an_outer_loop_held_with_a_hole_moving_in_its_plane_has_no_step() {
+    let tol = Tol::witness();
+    let ring = |cx: f64| -> Vec<ProfileLoop<f64>> {
+        vec![
+            ProfileLoop::polygon(
+                [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)]
+                    .iter()
+                    .map(|&(x, y)| Point2::new(x, y)),
+            ),
+            ProfileLoop::polygon(
+                [(-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (0.5, -0.5)]
+                    .iter()
+                    .map(|&(x, y)| Point2::new(x + cx, y)),
+            ),
+        ]
+    };
+    let ps = places(&[Affine3::identity(), Affine3::identity()], tol);
+    match loft_body::<f64>(&[ring(-2.0), ring(2.0)], &ps, 1, tol) {
+        Err(LoftError::DegenerateStacking { slab: 0 }) => {}
+        other => panic!("expected DegenerateStacking, got {other:?}"),
     }
 }
 

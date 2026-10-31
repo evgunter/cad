@@ -10376,7 +10376,7 @@ pub fn segments_parallel<T: Decide>(
     escalation(parallel, errors)
 }
 
-/// **Whether two segments that share nothing meet**, read as the census
+/// **Whether two straight segments that share nothing meet**, read as the census
 /// reads two line edges no record covers: an end of each on an end of
 /// the other (pass 1's `pm_census_vv_gap`), an end of each on the
 /// other's interior (pass 2's reading), then the interiors (pass 5's,
@@ -10386,7 +10386,7 @@ pub fn segments_parallel<T: Decide>(
 /// # Errors
 ///
 /// The first reading the band could not call, in that order.
-pub fn segments_meet<T: Decide>(
+pub fn line_segments_meet<T: Decide>(
     a: (Point3<T>, Point3<T>),
     b: (Point3<T>, Point3<T>),
     band: Band,

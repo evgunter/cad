@@ -109,7 +109,7 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("extrusion_obliquity", EXTRUDE),
     ("loft_corner_pinned", LOFT),
     ("loft_rim_pinned", LOFT),
-    ("loft_section_clearance", LOFT),
+    ("loft_shared_corner_lead", LOFT),
     ("loft_stacking", LOFT),
     ("sweep_path_tangent", PATH),
     ("sweep_path_turn", PATH),

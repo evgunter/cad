@@ -152,7 +152,20 @@ fn r2_a_rotated_top_loop_still_measures_the_centroid() {
     assert!(a.is_ok(), "turned quarter: {:?}", a.err());
     assert!(matches!(
         loft_body::<f64>(&sections, &at(0.5 * tol.eps()), 1, tol),
-        Err(LoftError::SectionsTouch { slab: 0, .. })
+        Err(LoftError::SectionsTouch {
+            slab: 0,
+            segments: [
+                sweep::LoopSegment {
+                    loop_index: 0,
+                    segment: 0
+                },
+                sweep::LoopSegment {
+                    loop_index: 0,
+                    segment: 0
+                }
+            ],
+            shared: false,
+        })
     ));
     assert!(matches!(
         loft_body::<f64>(&sections, &at(-1.0), 1, tol),

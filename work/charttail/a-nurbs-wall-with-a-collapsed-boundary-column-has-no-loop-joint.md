@@ -50,3 +50,10 @@ a pinned corner; a segment pinned at both ends has no wall, and its
 neighbours share the edge, as revolve's `WallClass::OnAxis` does) and
 the door's last refusal (`crates/sweep/src/loft/stacking.rs`,
 `stacking_door`, step 4) is deleted.
+
+Class 1's build also owes the skin's vertex rows reading the door's
+verdict: today `crates/sweep/src/skin.rs` `chord_length_parameters`
+reads every control row by an exact compare, so a corner the door
+decides pinned only up to rounding would count as moving and set the
+parameters by that rounding's ratios. While the door refuses every
+pinned corner before the skin, no such row reaches it.
