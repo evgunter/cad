@@ -68,3 +68,14 @@ Either the app asks the session whether the document was REPLACED
 three fields move to where the replacement is already handled once.
 The predicate is the smaller change and it puts the rule in the same
 place as its sentence.
+
+## 2026-10-31 — still live, and now one line
+
+`perform_batch` in `crates/viewer/src/app.rs` has gained the predicate
+this row asked for: `let replaced = opened || matches!(op,
+SessionOp::NewDocument { .. })`, added for DI1's tool-clearing. The
+re-frame and the δ reset are still taken under `None if opened` only,
+and `NewDocument` goes to `None if replaced => self.document_replaced()`.
+The fix is to take all three under `replaced`, along with a row that
+pins it. It is best built together with
+`viewerapp-document-derived-state-has-no-boundary` (P1).
