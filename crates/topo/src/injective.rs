@@ -2353,7 +2353,7 @@ fn curved_walls<'a>(
     let curved = |i: &usize| b.edges.get(*i).is_some_and(|e| is_curved(piece.surface, e));
     let &first = walls.iter().find(|i| curved(i))?;
     Some(match walls {
-        [e] => match b.edges.get(*e).and_then(|r| wall_of(piece.surface, r)) {
+        [e] => match b.edges.get(*e).and_then(|r| wall_image(piece.surface, r)) {
             Some(w) => present_wall(piece, *e, w, None, near_edges, near_vertices, band),
             None => present_curved(piece, *e, None, near_edges, near_vertices, band),
         },
@@ -2401,14 +2401,76 @@ fn beside_curve(
         return Unpresented::Structural;
     }
     match curved.iter().find(|&&i| {
-        b.edges
-            .get(i)
-            .is_none_or(|e| !reads_curve(piece.surface, e) && wall_of(piece.surface, e).is_none())
+        b.edges.get(i).is_none_or(|e| {
+            !reads_curve(piece.surface, e) && wall_image(piece.surface, e).is_none()
+        })
     }) {
         Some(&i) => unread(i, near_edges),
         None if curved.is_empty() => unread(first, near_edges),
         None => Unpresented::Local,
     }
+}
+
+/// **Whether the curved edge `ei` is the shared cell**, for a
+/// presentation by it alone: one that is not, beside a shared vertex, is
+/// read by no curve presentation (a smaller cell may hold the vertex
+/// alone).
+fn sharing(
+    ei: usize,
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+) -> Result<bool, Unpresented> {
+    let shared = near_edges.contains(&ei);
+    if !shared && !near_vertices.is_empty() {
+        return Err(Unpresented::Local);
+    }
+    Ok(shared)
+}
+
+/// **The curve `e` read through a `corner`'s vertex**: its closed form
+/// continued past that end, over its own span `(t0, t1)` and as much
+/// again, or half what a turn leaves, whichever is less. `None` with no
+/// corner; a closed edge has no end to read through.
+///
+/// The half-turn cap keeps the continued span short of a turn, which
+/// [`present_curved`]'s and [`present_wall`]'s step 1 rest on: a span a
+/// turn long or more would carry its continuation round to its own far
+/// end, so the columns could hold the edge and its continuation both.
+fn through_of(
+    e: &Rim,
+    corner: Option<Corner>,
+    (t0, t1): (f64, f64),
+) -> Result<Option<Through>, Unpresented> {
+    let Some(c) = corner else {
+        return Ok(None);
+    };
+    if e.ends[0] == e.ends[1] {
+        return Err(Unpresented::Local);
+    }
+    let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
+    if ext.is_nan() || ext <= 0.0 {
+        return Err(Unpresented::Local);
+    }
+    let start = e.ends[0] == c.vertex;
+    Ok(Some(Through {
+        corner: c,
+        t: if start { t0 } else { t1 },
+        span: if start {
+            (t0 - ext, t1)
+        } else {
+            (t0, t1 + ext)
+        },
+    }))
+}
+
+/// The range `(lo, hi)` widened to hold `x`.
+fn widened((lo, hi): (f64, f64), x: Interval) -> (f64, f64) {
+    (lo.min(x.lo()), hi.max(x.hi()))
+}
+
+/// Whether `x` lies within the closed range `(lo, hi)`.
+fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
+    lo <= x.lo() && x.hi() <= hi
 }
 
 /// **Present `piece`'s face by the region on one side of the curved
@@ -2485,35 +2547,8 @@ fn present_curved<'a>(
         exactly(l, 0.0) || (periodic(piece.surface, axis) && (exactly(l, 1.0) || exactly(l, -1.0)))
     });
     let continued = e.ends[0] == e.ends[1] && whole_turn(t0, t1) && lattice;
-    let shared = near_edges.contains(&ei);
-    if !shared && !near_vertices.is_empty() {
-        return Err(Unpresented::Local);
-    }
-    // Through a corner the curve is read past its vertex by its closed
-    // form, over a span still short of a turn: its own pieces and as
-    // much again, or half what the turn leaves, past that end.
-    let through = match corner {
-        Some(c) => {
-            if continued || e.ends[0] == e.ends[1] {
-                return Err(Unpresented::Local);
-            }
-            let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
-            if ext.is_nan() || ext <= 0.0 {
-                return Err(Unpresented::Local);
-            }
-            let start = e.ends[0] == c.vertex;
-            Some(Through {
-                corner: c,
-                t: if start { t0 } else { t1 },
-                span: if start {
-                    (t0 - ext, t1)
-                } else {
-                    (t0, t1 + ext)
-                },
-            })
-        }
-        None => None,
-    };
+    let shared = sharing(ei, near_edges, near_vertices)?;
+    let through = through_of(e, corner, (t0, t1))?;
     for column in [Axis::U, Axis::V] {
         let span = through.as_ref().map_or((t0, t1), |th| th.span);
         let pieces = Pieces::of(&chart, column, span, continued);
@@ -2702,11 +2737,17 @@ impl WallImage {
 
 /// **The wall image of a torus face's one use of an edge**, where it
 /// has one.
-fn wall_of(surface: &Surface<Interval>, rim: &Rim) -> Option<Wall> {
+fn wall_image(surface: &Surface<Interval>, rim: &Rim) -> Option<Wall> {
     match (surface, rim.uses.as_slice()) {
         (Surface::Torus { .. }, [u]) => u.wall,
         _ => None,
     }
+}
+
+/// Whether an edge is a parallel of its face's chart: its one use a
+/// coordinate line holding `v`.
+fn parallel(rim: &Rim) -> bool {
+    matches!(rim.uses.as_slice(), [u] if u.iso.is_some_and(|i| i.held == Axis::V))
 }
 
 /// **Present a torus face by the region on one side of the spiric edge
@@ -2775,45 +2816,19 @@ fn present_wall<'a>(
     if !(t1 - t0).is_finite() || t1 <= t0 {
         return Err(Unpresented::Structural);
     }
-    let shared = near_edges.contains(&ei);
-    if !shared && !near_vertices.is_empty() {
-        return Err(Unpresented::Local);
-    }
+    let shared = sharing(ei, near_edges, near_vertices)?;
     let closed = e.ends[0] == e.ends[1] && whole_turn(t0, t1);
-    // Through a corner the curve is read past its vertex, over a span
-    // still short of a turn, as [`present_curved`] reads one.
-    let through = match corner {
-        Some(c) => {
-            if e.ends[0] == e.ends[1] {
-                return Err(Unpresented::Local);
-            }
-            let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
-            if ext.is_nan() || ext <= 0.0 {
-                return Err(Unpresented::Local);
-            }
-            let start = e.ends[0] == c.vertex;
-            Some(Through {
-                corner: c,
-                t: if start { t0 } else { t1 },
-                span: if start {
-                    (t0 - ext, t1)
-                } else {
-                    (t0, t1 + ext)
-                },
-            })
-        }
-        None => None,
-    };
+    let through = through_of(e, corner, (t0, t1))?;
     // Through a corner `R` holds the vertex: the cell is widened to its
     // chart point, on the copy nearest the cell.
     let mut cell = (piece.u, piece.v);
     if let Some(th) = &through {
         let [vu, vv] = w.at(at(th.t));
-        let widen = |(lo, hi): (f64, f64), x: Interval| {
-            let x = wrap(x, geom::mid_param(lo, hi));
-            (lo.min(x.lo()), hi.max(x.hi()))
-        };
-        cell = (widen(cell.0, vu), widen(cell.1, vv));
+        let near = |(lo, hi): (f64, f64), x: Interval| wrap(x, geom::mid_param(lo, hi));
+        cell = (
+            widened(cell.0, near(cell.0, vu)),
+            widened(cell.1, near(cell.1, vv)),
+        );
     }
     let (cu, a) = cell;
     // Step 1: the one lift across the columns, and the parameters they
@@ -2875,7 +2890,6 @@ fn present_wall<'a>(
         // The vertex is in `R`, on the lift read: its parameter among
         // the columns', its point within `R`'s `u` range.
         let held = wrap(w.on(Axis::U, at(th.t)), geom::mid_param(x.0, x.1));
-        let within = |p: Interval, (lo, hi): (f64, f64)| lo <= p.lo() && p.hi() <= hi;
         if !(t.lo() <= th.t && th.t <= t.hi() && within(held, x)) {
             return Err(Unpresented::Local);
         }
@@ -3075,11 +3089,11 @@ enum Reading {
     /// edge straight in the chart.
     Curve,
     /// The shared edge is a spiric's wall image on a torus
-    /// ([`present_wall`]), the other edge a coordinate line.
+    /// ([`present_wall`]), the other edge a parallel of it.
     Wall(Wall),
     /// The shared edge is a coordinate line of a cylinder's chart, the
-    /// other edge a harmonic chart curve; or of a torus's, the other
-    /// edge a wall image.
+    /// other edge a harmonic chart curve; or a parallel of a torus's,
+    /// the other edge a wall image.
     Line(ChartCurve),
 }
 
@@ -3091,8 +3105,8 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     let (s, curved) = (piece.surface, |r: &Rim| is_curved(piece.surface, r));
     if curved(e) {
         let straight = straight(s, o, c.vertex).is_some();
-        if let Some(w) = wall_of(s, e) {
-            return straight.then_some(Reading::Wall(w));
+        if let Some(w) = wall_image(s, e) {
+            return (straight && parallel(o)).then_some(Reading::Wall(w));
         }
         (reads_curve(s, e) && straight).then_some(Reading::Curve)
     } else {
@@ -3101,9 +3115,11 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         // parallels and meridians, coordinate lines, so none reaches this;
         // a cone's apex collapses a line of its chart, and is not read
         // past here, conservatively: an apex in reach is a vertex the
-        // reading refuses. On a torus only a wall image leaves the line,
-        // whose `v` is linear in its parameter; a harmonic curve there,
-        // which can turn on both axes, is not argued.
+        // reading refuses. On a torus the line is a parallel, and the
+        // curve a wall image, whose `v` is linear in its parameter: that
+        // is what [`leaves_line`]'s rate on the held axis reads. A
+        // meridian, along which the wall's azimuth can turn, and a
+        // harmonic curve, which can turn on both axes, are not argued.
         let line = matches!(e.uses.as_slice(), [u] if u.iso.is_some_and(|i| !i.full));
         if !(line && curved(o)) || piece.whole {
             return None;
@@ -3114,7 +3130,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         };
         match s {
             Surface::Cylinder { .. } => harmonic.map(|h| Reading::Line(ChartCurve::Harmonic(h))),
-            Surface::Torus { .. } => wall_of(s, o).map(|w| Reading::Line(ChartCurve::Wall(w))),
+            Surface::Torus { .. } if parallel(e) => {
+                wall_image(s, o).map(|w| Reading::Line(ChartCurve::Wall(w)))
+            }
             _ => None,
         }
     }
@@ -3632,13 +3650,10 @@ fn graph_read(
         (place(column), place(other))
     });
     let cell = match vertex {
-        Some((vc, vo)) => {
-            let widen = |(lo, hi): (f64, f64), x: Interval| (lo.min(x.lo()), hi.max(x.hi()));
-            match column {
-                Axis::U => (widen(own.0, vc), widen(own.1, vo)),
-                Axis::V => (widen(own.0, vo), widen(own.1, vc)),
-            }
-        }
+        Some((vc, vo)) => match column {
+            Axis::U => (widened(own.0, vc), widened(own.1, vo)),
+            Axis::V => (widened(own.0, vo), widened(own.1, vc)),
+        },
         None => own,
     };
     let (a0, a1) = column.of(cell);
@@ -3719,7 +3734,6 @@ fn graph_read(
         // So this is not load-bearing; it states step 3's premise.
         let ends = Ends::of(p, &run, rising, (a0, a1));
         let (ts, te) = (p.params(run.first()?).lo(), p.params(run.last()?).hi());
-        let within = |x: Interval, (lo, hi): (f64, f64)| lo <= x.lo() && x.hi() <= hi;
         let held = nearest(p.chart.on(other, at(th.t)));
         if !(ts <= th.t && th.t <= te && within(ends.along(th.t), (a0, a1)) && within(held, rb)) {
             return None;
@@ -4301,6 +4315,26 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         shared,
     };
     let (ex, ey) = (near.side(false), near.side(true));
+    // A wall image is read against a plane's carrier only
+    // ([`WallImage::psi`]): across a shared spiric between two faces
+    // neither of which is a plane, no arm certifies at any depth.
+    let walled = |p: &Piece<'_>, edges: &[usize]| {
+        edges.iter().any(|&i| {
+            p.boundary
+                .edges
+                .get(i)
+                .is_some_and(|e| wall_image(p.surface, e).is_some())
+        })
+    };
+    let plane = |p: &Piece<'_>| matches!(p.surface, Surface::Plane { .. });
+    if (walled(x, &ex) || walled(y, &ey)) && !plane(x) && !plane(y) {
+        return Outcome::Refuse(EngineRefusal::Uncertified {
+            a: x.face,
+            b: y.face,
+            shared,
+            arm: CertificateArm::Departure,
+        });
+    }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
@@ -6754,6 +6788,33 @@ mod presentation_rows {
         }
     }
 
+    /// The meridian `u` of [`ring`]`(2)` from `v.0` (vertex `ends[0]`)
+    /// to `v.1`, a coordinate line of its chart.
+    fn meridian(n: u64, ends: [u64; 2], u: f64, v: (f64, f64)) -> Rim {
+        let circle = Curve3::Circle {
+            center: Point3::new(iv0(2.0 * u.cos()), iv0(2.0 * u.sin()), iv0(0.0)),
+            axis: Vec3::new(iv0(u.sin()), iv0(-u.cos()), iv0(0.0)),
+            radius: iv0(0.5),
+            u_ref: Vec3::new(iv0(u.cos()), iv0(u.sin()), iv0(0.0)),
+        };
+        Rim {
+            key: edge(n),
+            arc: Some((circle, (iv0(v.0.min(v.1)), iv0(v.0.max(v.1))))),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: Some([p2((u, v.0.min(v.1))), p2((u, v.0.max(v.1)))]),
+                iso: Some(Iso {
+                    held: Axis::U,
+                    at: iv0(u),
+                    full: false,
+                }),
+                harmonic: None,
+                wall: None,
+            }],
+        }
+    }
+
     /// The torus face of `rims`, its vertices at `points`.
     fn walled(rims: Vec<Rim>, points: &[(u64, Point3<Interval>)], sense: bool) -> Boundary {
         Boundary {
@@ -6919,34 +6980,7 @@ mod presentation_rows {
     fn another_edge_in_reach_of_a_walls_rectangle_is_not_presented() {
         let s = ring(2.0);
         let um = g(1.0) - 0.001;
-        let (e, w) = (
-            Vec3::new(iv0(um.cos()), iv0(um.sin()), iv0(0.0)),
-            Vec3::new(iv0(um.sin()), iv0(-um.cos()), iv0(0.0)),
-        );
-        let meridian = Rim {
-            key: edge(2),
-            arc: Some((
-                Curve3::Circle {
-                    center: Point3::new(iv0(2.0 * um.cos()), iv0(2.0 * um.sin()), iv0(0.0)),
-                    axis: w,
-                    radius: iv0(0.5),
-                    u_ref: e,
-                },
-                (iv0(0.5), iv0(1.5)),
-            )),
-            ends: [vertex(2), vertex(3)],
-            uses: vec![Use {
-                plus: true,
-                image: Some([p2((um, 0.5)), p2((um, 1.5))]),
-                iso: Some(Iso {
-                    held: Axis::U,
-                    at: iv0(um),
-                    full: false,
-                }),
-                harmonic: None,
-                wall: None,
-            }],
-        };
+        let meridian = meridian(2, [2, 3], um, (0.5, 1.5));
         let mut b = spiric_face(true, true);
         b.edges.push(meridian);
         b.vertices.insert(vertex(2), on_ring(um, 0.5));
@@ -6969,9 +7003,9 @@ mod presentation_rows {
 
     /// **The wall's closed form encloses the separator along the face's
     /// image of its chart curve** ([`WallImage::psi`]): on a torus whose
-    /// radii drift from the carrier's, a wall wound backward on the
-    /// mirror torus, its minor angle off a whole turn (so `sin v0`
-    /// weighs its height term), against tilted planes, `ψ` over a piece
+    /// radii drift from the carrier's, a wall wound either way on either
+    /// torus (each sign of `σ` and of `κ`), its minor angle off a whole
+    /// turn (so `sin v0` weighs its height term), against tilted planes, `ψ` over a piece
     /// of parameters meets `ψ` at points of it evaluated through the
     /// surface. Red if any coefficient, the drift's included, is
     /// dropped or mis-signed.
@@ -6984,37 +7018,41 @@ mod presentation_rows {
             minor_radius: iv0(0.47),
             u_ref: ex(),
         };
-        let w = Wall {
-            u0: iv0(0.7),
-            v0: iv0(TURN + 0.4),
-            sigma: -1.0,
-            kappa: 1.0,
-            major: iv0(2.0),
-            minor: iv0(0.5),
-            offset: iv0(OFF),
-        };
-        let image = WallImage::of(&s, w).expect("a torus");
-        for (n, q) in [
-            ((0.6, 0.0, 0.8), (0.3, 0.1, 0.0)),
-            ((0.0, 0.0, 1.0), (0.0, 0.0, 0.2)),
-            ((0.48, 0.6, -0.64), (-1.0, 0.5, 0.3)),
-        ] {
-            let n = Vec3::new(iv0(n.0), iv0(n.1), iv0(n.2));
-            let q = Point3::new(iv0(q.0), iv0(q.1), iv0(q.2));
-            for k in 0..12 {
-                let t0 = -3.0 + 0.5 * f64::from(k);
-                let piece = Interval::from_bounds(t0, t0 + 0.01);
-                let closed = image.psi(&Psi::Linear { n, q }, piece).expect("linear");
-                for t in [t0, t0 + 0.005, t0 + 0.01] {
-                    let [u, v] = w.at(iv0(t));
-                    let at_t = n.dot(s.eval(u, v) - q);
-                    assert!(
-                        closed.lo() <= at_t.hi() && at_t.lo() <= closed.hi(),
-                        "ψ at t = {t}: {at_t:?} outside the closed form's {closed:?}"
-                    );
+        for (sigma, kappa) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            let w = Wall {
+                u0: iv0(0.7),
+                v0: iv0(TURN + 0.4),
+                sigma,
+                kappa,
+                major: iv0(2.0),
+                minor: iv0(0.5),
+                offset: iv0(OFF),
+            };
+            let image = WallImage::of(&s, w).expect("a torus");
+            for (n, q) in [
+                ((0.6, 0.0, 0.8), (0.3, 0.1, 0.0)),
+                ((0.0, 0.0, 1.0), (0.0, 0.0, 0.2)),
+                ((0.48, 0.6, -0.64), (-1.0, 0.5, 0.3)),
+            ] {
+                let n = Vec3::new(iv0(n.0), iv0(n.1), iv0(n.2));
+                let q = Point3::new(iv0(q.0), iv0(q.1), iv0(q.2));
+                for k in 0..12 {
+                    let t0 = -3.0 + 0.5 * f64::from(k);
+                    let piece = Interval::from_bounds(t0, t0 + 0.01);
+                    let closed = image.psi(&Psi::Linear { n, q }, piece).expect("linear");
+                    for t in [t0, t0 + 0.005, t0 + 0.01] {
+                        let [u, v] = w.at(iv0(t));
+                        let at_t = n.dot(s.eval(u, v) - q);
+                        assert!(
+                            closed.lo() <= at_t.hi() && at_t.lo() <= closed.hi(),
+                            "σ {sigma}, κ {kappa}, ψ at t = {t}: {at_t:?} outside the closed form's \
+                         {closed:?}"
+                        );
+                    }
                 }
             }
         }
+        let image = WallImage::of(&s, wall()).expect("a torus");
         assert!(
             image
                 .psi(
@@ -7056,8 +7094,9 @@ mod presentation_rows {
     /// curve, [`WallImage::psi`]), over columns `2.6` rad wide: on the
     /// plane `x = 0.3`, zero; on `x = 0.31`, at least `0.009`; on its own
     /// plane but a torus `0.01` larger than the carrier's, at least the
-    /// drift's `0.3·0.01/2.5`. Red if the zero check, or the drift, is
-    /// lax.
+    /// drift's `0.3·0.01/2.5`; on a plane tilted through the curve's
+    /// point at the columns' middle, not zero. Red if the zero check, or
+    /// the drift, is lax, or if `ψ` is read at one parameter.
     #[test]
     fn a_separator_along_a_wall_reads_zero_only_on_the_spirics_plane() {
         let on = wall_side(2.0).psi(&plane_at(OFF)).expect("a plane");
@@ -7071,6 +7110,16 @@ mod presentation_rows {
         assert!(
             !is_zero(drift, band()) && drift.hi() >= 0.001,
             "a torus 0.01 larger: {drift:?}"
+        );
+        let (a, mid) = (0.3f64, on_ring(g(1.5), 1.5));
+        let tilted = Psi::Carrier(Implicit::Plane {
+            o: mid,
+            n: Vec3::new(iv0(a.cos()), iv0(a.sin()), iv0(0.0)),
+        });
+        let through = wall_side(2.0).psi(&tilted).expect("a plane");
+        assert!(
+            !is_zero(through, band()),
+            "a plane through the curve's middle only, over t in (0.2, 2.8): {through:?}"
         );
         let graph = Psi::Graph {
             m: ex(),
@@ -7250,5 +7299,278 @@ mod presentation_rows {
             on_wall(&s, &b, &local, (&[1], &[vertex(1)]), cell),
             Ok(Presentation::Vacuous)
         ));
+    }
+
+    /// **A wall frame**: the torus, the carrier, its wall image there,
+    /// and the chart point of the curve at `t`. `Own` is [`ring`] and
+    /// [`spiric`]; `Flipped` the same torus and plane with the carrier's
+    /// axis reversed (`σ = κ = −1`, the oval on the `−y` side); `Mirror`
+    /// the oval of [`spiric`] on its mirror torus through `x = 0.3`
+    /// (`σ = 1`, `κ = −1`).
+    #[derive(Clone, Copy, Debug)]
+    enum Frame {
+        Own,
+        Flipped,
+        Mirror,
+    }
+
+    impl Frame {
+        fn surface(self) -> Surface<Interval> {
+            let center = match self {
+                Self::Mirror => Point3::new(iv0(2.0 * OFF), iv0(0.0), iv0(0.0)),
+                _ => origin(),
+            };
+            Surface::Torus {
+                center,
+                axis: ez(),
+                major_radius: iv0(2.0),
+                minor_radius: iv0(0.5),
+                u_ref: ex(),
+            }
+        }
+
+        fn carrier(self) -> Curve3<Interval> {
+            let axis = match self {
+                Self::Flipped => Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0)),
+                _ => ez(),
+            };
+            Curve3::Spiric {
+                center: origin(),
+                axis,
+                u_ref: ex(),
+                major_radius: iv0(2.0),
+                minor_radius: iv0(0.5),
+                offset: iv0(OFF),
+            }
+        }
+
+        fn wall(self) -> Wall {
+            let (u0, sigma, kappa) = match self {
+                Self::Own => (0.0, 1.0, 1.0),
+                Self::Flipped => (0.0, -1.0, -1.0),
+                Self::Mirror => (core::f64::consts::PI, 1.0, -1.0),
+            };
+            Wall {
+                u0: iv0(u0),
+                sigma,
+                kappa,
+                ..wall()
+            }
+        }
+
+        fn chart(self, t: f64) -> (f64, f64) {
+            match self {
+                Self::Own => (g(t), t),
+                Self::Flipped => (-g(t), -t),
+                Self::Mirror => (core::f64::consts::PI - g(t), t),
+            }
+        }
+
+        /// The face bounded by the whole oval, run forward.
+        fn face(self) -> Boundary {
+            let (u0, v0) = self.chart(0.0);
+            let (u1, v1) = self.chart(TURN);
+            let p = self.carrier().eval(iv0(0.0));
+            Boundary {
+                sense: true,
+                edges: vec![Rim {
+                    key: edge(1),
+                    arc: Some((self.carrier(), (iv0(0.0), iv0(TURN)))),
+                    ends: [vertex(1), vertex(1)],
+                    uses: vec![Use {
+                        plus: true,
+                        image: Some([p2((u0, v0)), p2((u1, v1))]),
+                        iso: None,
+                        harmonic: None,
+                        wall: Some(self.wall()),
+                    }],
+                }],
+                vertices: BTreeMap::from([(vertex(1), p)]),
+                extent: None,
+            }
+        }
+
+        /// A cell beside the curve at `t = 1`, on the side `side` of it
+        /// in `u` (`-1` below).
+        fn beside(self, side: f64) -> ((f64, f64), (f64, f64)) {
+            let (u, v) = self.chart(1.0);
+            let near = (u + side * 0.01, u + side * 0.02);
+            (
+                (near.0.min(near.1), near.0.max(near.1)),
+                (v - 0.05, v + 0.05),
+            )
+        }
+    }
+
+    /// **The face's side of a wall is read for each sign of `σ` and of
+    /// `κ`** ([`present_wall`]'s step 3): the face lies left of its
+    /// traversal about the outward normal, so where the loop runs the
+    /// edge forward and `v` falls with `t` (`σ = −1`), it lies at higher
+    /// `u`; where `v` rises, at lower `u`, whatever `κ`. Each face is
+    /// presented on its side and certified there against the cap's
+    /// plane. Red if the side is read off anything but `σ`, the loop and
+    /// the sense, or if the azimuth's sign is mis-read.
+    #[test]
+    fn a_wall_is_read_on_its_faces_side_for_each_sign_of_its_image() {
+        let local = only_edge();
+        for (frame, side, toward) in [
+            (Frame::Own, Side::XHi, -1.0),
+            (Frame::Flipped, Side::XLo, 1.0),
+            (Frame::Mirror, Side::XHi, -1.0),
+        ] {
+            let (s, b) = (frame.surface(), frame.face());
+            let got = curve_side(on_wall(&s, &b, &local, (&[0], &[]), frame.beside(toward)));
+            assert_eq!(got, Some(side), "{frame:?}");
+            let (plane, mut cap) = cap();
+            cap.edges[0].arc = Some((frame.carrier(), (iv0(0.0), iv0(TURN))));
+            let near = Near {
+                edges: vec![(0, 0)],
+                vertices: Vec::new(),
+            };
+            let piece = |surface, boundary, (u, v): ((f64, f64), (f64, f64)), face| Piece {
+                face,
+                surface,
+                whole: false,
+                boundary,
+                u,
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            let got = certify_pair(
+                &piece(&plane, &cap, ((0.0, 0.01), (0.0, 0.01)), face(1)),
+                &piece(&s, &b, frame.beside(toward), face(2)),
+                &near,
+                band(),
+            );
+            assert!(
+                matches!(got, Outcome::Certified { .. }),
+                "{frame:?}: the cap's plane separates: {got:?}"
+            );
+        }
+    }
+
+    /// **A meridian corner on a torus is read by neither corner
+    /// reading** ([`reading`]): the wall leaving a meridian into the
+    /// face's side, with either edge shared, refuses `Structural` — the
+    /// readings argue parallels only. Red if a meridian is admitted.
+    #[test]
+    fn a_meridian_corner_of_a_wall_refuses_typed() {
+        let s = ring(2.0);
+        let mut b = walled(
+            vec![
+                wall_rim(1, [1, 2], (1.0, 2.0), true),
+                meridian(2, [1, 3], g(1.0), (1.0, 0.5)),
+            ],
+            &[
+                (1, on_ring(g(1.0), 1.0)),
+                (2, on_ring(g(2.0), 2.0)),
+                (3, on_ring(g(1.0), 0.5)),
+            ],
+            true,
+        );
+        b.extent = Some([(g(1.0) - 0.6, g(1.0) + 0.6), (0.4, 2.5)]);
+        let local = at_the_corner();
+        let cell = ((g(1.0) - 0.01, g(1.0) + 0.01), (0.99, 1.01));
+        for shared in [0, 1] {
+            let got = on_wall(&s, &b, &local, (&[shared][..], &[vertex(1)]), cell);
+            assert!(
+                matches!(got, Err(Unpresented::Structural)),
+                "shared edge {shared}: {:?}",
+                read(got)
+            );
+        }
+    }
+
+    /// **A reflex line corner's thin cell is not read vacuous**
+    /// ([`present_line_corner`]): the cell reaching just past the
+    /// parallel onto its non-face side clips to a sliver, but the corner
+    /// is reflex, the face beyond the vertex is in the cell, and the
+    /// reading refuses `Structural` before the sliver is read. Red if the
+    /// sliver is read first.
+    #[test]
+    fn a_reflex_line_corners_thin_cell_is_not_read_vacuous() {
+        let b = wall_corner(-0.5, true, 1.0);
+        let s = ring(2.0);
+        let local = at_the_corner();
+        let cell = ((g(1.0) - 0.01, g(1.0) + 0.01), (1.0, 1.02));
+        let got = on_wall(&s, &b, &local, (&[1], &[vertex(1)]), cell);
+        assert!(
+            matches!(got, Err(Unpresented::Structural)),
+            "{:?}",
+            read(got)
+        );
+    }
+
+    /// **A wall read through a corner is continued less than a turn**
+    /// ([`through_of`]'s cap): the wall over `t ∈ [0, 4]` read through its
+    /// vertex at `t = 0` is continued past it by `(τ − 4)/2`, so columns
+    /// reaching `3` below the vertex are not presented. Continued by its
+    /// own span, the curve would reach round to its far end, whose lift a
+    /// turn down lies in those columns. Red if the cap is dropped.
+    #[test]
+    fn a_wall_read_through_a_corner_is_continued_less_than_a_turn() {
+        let mut b = walled(
+            vec![
+                wall_rim(1, [1, 2], (0.0, 4.0), true),
+                parallel(2, [1, 3], 0.0, (g(0.0), g(0.0) - 0.5), false),
+            ],
+            &[
+                (1, on_ring(g(0.0), 0.0)),
+                (2, on_ring(g(4.0), 4.0)),
+                (3, on_ring(g(0.0) - 0.5, 0.0)),
+            ],
+            true,
+        );
+        b.extent = Some([(g(0.0) - 0.6, g(0.0) + 0.6), (-0.1, 4.1)]);
+        let s = ring(2.0);
+        let local = at_the_corner();
+        let near = |v: (f64, f64)| {
+            on_wall(
+                &s,
+                &b,
+                &local,
+                (&[0], &[vertex(1)]),
+                ((g(0.0) - 0.01, g(0.0) + 0.01), v),
+            )
+        };
+        assert!(cornered(&near((-0.01, 0.01))), "at the vertex");
+        assert!(!cornered(&near((-3.0, 0.01))), "three below it");
+    }
+
+    /// **A shared spiric between two tori refuses at once**
+    /// ([`departure`]): the wall image is read against a plane's carrier
+    /// only, so no arm certifies across it at any depth. Red if the pair
+    /// is split instead.
+    #[test]
+    fn a_spiric_shared_by_two_tori_refuses_at_once() {
+        let (s, b) = (ring(2.0), spiric_face(true, true));
+        let twin = spiric_face(false, false);
+        let local = only_edge();
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let piece = |boundary, face| Piece {
+            face,
+            surface: &s,
+            whole: false,
+            boundary,
+            u: (g(1.0) - 0.02, g(1.0) - 0.01),
+            v: (0.95, 1.05),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = certify_pair(&piece(&b, face(1)), &piece(&twin, face(2)), &near, band());
+        assert!(
+            matches!(
+                got,
+                Outcome::Refuse(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
     }
 }
