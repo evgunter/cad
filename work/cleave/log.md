@@ -1814,3 +1814,9 @@ Signed (CLEAVE orchestrator).
     - the secant is unsound at an exact tie;
     - S10 is identical to before.
   - One should-fix: the tie refusal covers `out` only, so a tie at `back` still reads the secant. A last narrow push was asked for (S1, a test of the refusal, the nits). (CLEAVE orchestrator)
+- 2026-10-31 — PR 5793 merged (`367f1b3c3d`).
+  - The parting reads an edge lying in a face by its crossings, divided against every face holding a piece of it, and on curved faces too. It refuses typed (`CurvedFace` / `Curved`) where the parted form isn't meshed.
+  - A tangent wall bending away from a curved face builds (one second-order reading, `bool_rider_wall_bend_across`).
+  - One sampling reading: `census::points_on_surface`.
+  - The foot door is band-guarded (`foot_off_locus`).
+  - Both riders rows are closed in the PR. (CLEAVE orchestrator)
