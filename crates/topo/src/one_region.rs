@@ -38,6 +38,8 @@ use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};
 use crate::validate::ValidationError;
 
+fn mutant(n: &str) -> bool { std::env::var("REVIEW_MUTANT").map_or(false, |v| v == n) }
+
 /// **Every region finding on `body`'s curved faces**, in face-arena
 /// order (module docs).
 pub(crate) fn region_errors<T: Decide>(body: &Body<T>, band: Band) -> Vec<ValidationError> {
@@ -58,7 +60,7 @@ pub(crate) fn region_errors<T: Decide>(body: &Body<T>, band: Band) -> Vec<Valida
         let Ok(cycles) = crate::surface_boundary::surface_cycles(body, face) else {
             continue; // tier 1 refuses a boundary that does not walk
         };
-        let units = if torus {
+        let units = if torus && !mutant("M6") {
             match torus_units(body, face, &cycles) {
                 Some(Ok(units)) => units,
                 Some(Err(essential)) => {
@@ -120,7 +122,7 @@ fn torus_units<T: Decide>(
     }
     match essential.as_slice() {
         [] => {}
-        &[(a, da), (b, db)] if da.compose(db) == crate::joint::Deck::IDENTITY => {
+        &[(a, da), (b, db)] if mutant("M3") || da.compose(db) == crate::joint::Deck::IDENTITY => {
             units.push(vec![a, b]);
         }
         more => return Some(Err(more.len())),
@@ -165,9 +167,12 @@ fn read_cycle<T: Decide>(
         };
         match crate::boolean::cycle_side(body, face, unit, *q, band) {
             Ok(None) => return Read::NoDoor,
-            Ok(Some(Some(true))) => return Read::Face,
-            Ok(Some(Some(false))) => return Read::Off(vertex),
+            Ok(Some(Some(side))) => {
+                return if side != mutant("M2") { Read::Face } else { Read::Off(vertex) };
+            }
             Ok(Some(None)) => {}
+            Err(RegionRefusal::Escalated(_)) if mutant("M5") => return Read::Off(vertex),
+            Err(RegionRefusal::Escalated(_)) if mutant("M4") => {}
             Err(RegionRefusal::Escalated(diag)) => {
                 in_band.get_or_insert((vertex, diag));
             }

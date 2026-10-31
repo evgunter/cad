@@ -300,6 +300,23 @@ pub(crate) fn boundary<T: Decide>(
             }
         }
     }
+    if std::env::var("REVIEW_BASE_BOUNDARY").is_ok() {
+        let mut edges = Vec::new();
+        for &lk in core::iter::once(&f.outer).chain(&f.rings) {
+            let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else { continue };
+            for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+                let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+                if null.contains(&h.edge) || body.both_sides_face(h.edge).ok_or_else(corrupt)?.is_some() {
+                    continue;
+                }
+                let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+                let curve = body.edge_curve_linked(h.edge, edge).certified().unwrap();
+                let (t0, t1) = curve.params();
+                edges.push(RegionEdge { edge: h.edge, r#loop: lk, cycle: usize::MAX, carrier: curve.carrier().clone(), t0, t1, turn: curve.turn().copied(), forward: he == edge.he_plus });
+            }
+        }
+        return Ok(Some(edges));
+    }
     let cycles = crate::surface_boundary::surface_cycles(body, face).map_err(|_| corrupt())?;
     let mut edges = Vec::new();
     for (cycle, members) in cycles.iter().enumerate() {
@@ -332,6 +349,7 @@ pub(crate) fn boundary<T: Decide>(
 /// region reading restricted to those cycles reads
 /// ([`super::contain::cycle_side`]).
 pub(crate) fn keep_cycles<T: geom_core::Real>(edges: &mut Vec<RegionEdge<T>>, keep: &[usize]) {
+    if std::env::var("REVIEW_MUTANT").map_or(false, |v| v == "M1") { return; }
     edges.retain(|e| keep.contains(&e.cycle));
 }
 
