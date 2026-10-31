@@ -333,7 +333,7 @@
 //!   the control net's every point is certified strictly on one side of
 //!   the plane — the patch lies in the net's convex hull, its weights
 //!   being positive. Any other pose is the section value's whole reading
-//!   ([`geom_brep::pair_section`] with a march door, C3's `all()`), which the march
+//!   ([`geom_brep::pair_section()`] with a march door, C3's `all()`), which the march
 //!   door reads (at `f64`; with no door, R-lane): a closed branch is a
 //!   loop, read by W3, W4 or the no-event decision; an open branch, a
 //!   `Side` region and a `Corner` region reach the wall's chart boundary
@@ -800,7 +800,7 @@ pub(crate) fn classify<T: Decide>(
 /// positive), so a net whose every point is certified strictly on one
 /// side of the plane meets it nowhere (W0); an approximating surface is
 /// read as its fit. Any other pose is the section value's whole reading
-/// ([`geom_brep::pair_section`]) through `lane`; with no lane the
+/// ([`geom_brep::pair_section()`]) through `lane`; with no lane the
 /// scalar does not march, R-lane.
 fn spline_plane<T: Decide>(
     f: &geom::Surface<T>,

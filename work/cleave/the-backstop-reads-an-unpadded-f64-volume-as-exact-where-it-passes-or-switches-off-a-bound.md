@@ -2,11 +2,13 @@
 id: the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound
 kind: issue
 title: The volume backstop passes a violated bound whose f64 margin rounds to holding, and its operand gate and +V posture read the unpadded f64 sum as exact too
-status: open
+status: closed
 opened: 2026-10-21
 priority: P1
 cost: M
 refs: [the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it, a-planar-face-sums-its-area-about-a-far-carrier-origin]
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -101,3 +103,7 @@ share one cause. They may be one fix, a margin type that is never "exact"
 at `f64`. `SignReading::Exact`, `SignReading::exact()` and `is_exact()`
 invite exactly these reads: "exact" there means "one value, no
 quadrature bracket", not "exact" (R1, style).
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Its three readers (the Bound arm's held read, the `bounded` operand gate, the +V posture) went with it. The far-anchored closed form's rounding the row leans on is NEARPOINT's (`a-planar-face-sums-its-area-about-a-far-carrier-origin`), and the oracle's docs name it as a flag's possible cause.

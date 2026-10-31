@@ -2,11 +2,13 @@
 id: a-settled-declared-coincidence-crosses-a-tight-volume-bound
 kind: issue
 title: A declared coincidence the door settles inside the band moves a correct result past a tight volume bound, and the backstop refuses it ResultVolumeImplausible
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: H
 design: true
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -155,3 +157,7 @@ orders. Pinned by
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E widens the class rather than redefining it away. A pair decided Zero now glues undeclared too (`crates/topo/src/boolean/glue.rs:40`), so the residue no longer needs a declaration. A Zero glue moves the result by up to the zero band times the glued face's area. TANG's curved instance, which is inside the zero band, still refuses at the backstop's tight bound in both orders (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs:916`, `k ∈ {−¼, −½}`). The in-band half goes with F: until `declared-pairs-retire`, a declared pair's rung still bridges an in-band margin. The design question stands: the forgiveness must be local to the glued face.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. A correct result a declared coincidence moved inside the band is returned at every bound; the oracle allows exactly that movement (ε of boundary displacement over the operands' boundary). No allowance was built.

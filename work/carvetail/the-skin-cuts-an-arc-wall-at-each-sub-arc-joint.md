@@ -25,3 +25,7 @@ The skin, the loft and the sweep should mint one wall per sub-arc, with a smooth
 - **Sequencing:** land it before the tier-3 rule, `tier-3-refuses-a-carrier-with-an-interior-c0-knot`.
 
 Filed by the TESS orchestrator at the ruling.
+
+## Evidence: klein wall 3 stops on this crease (2026-10-31)
+
+From SPLICE's `splice/rim-sector-clearance`, at ε 1e-9, 1e-6 and 1e-12 alike. With the neck seam cleared at the loop's rim, the union of the bulb and the loop (klein wall 3, `demos/tour/src/klein.rs` `wall3_pinned`) refuses `SplineCrossingUnsettled { edge 4v1, face 3v3, why: Crease }`. Face 3v3 is a half tube of the swept loop, its section two quarter arcs joined at a double knot `u = ½` (`crease_values() == [0.5]`) in the seam plane `y = 0`. The flare cone's seam line, edge 4v1 from `(0.312, 0, 2.443)` along `(½, 0, −√3/2)`, crosses the wall transversally on that joint, near `t ≈ 0.577`, chart `(0.5, 0.819)`. The spline-face arm refuses any meeting on a crease (`geom_brep::curve_face::spline_face`, the crease rule). Once the sweep mints an edge at the joint, as this row owes, the crossing is a meeting on a boundary edge, which the boundary pass reads.

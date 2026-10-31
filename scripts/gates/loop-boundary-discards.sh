@@ -159,7 +159,6 @@ REGISTER=(
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
   "crates/topo/src/stands.rs|face_loops||1|unaudited"
-  "crates/topo/src/side_reader.rs|line_loop_mean||1|audited: an outer loop with no edge has no points to take the mean of, and the aim falls to planar_interior_point, which reads the same face's loops by name"
   "crates/topo/src/boolean/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
   "crates/topo/src/boolean/region.rs|boundary||2|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
