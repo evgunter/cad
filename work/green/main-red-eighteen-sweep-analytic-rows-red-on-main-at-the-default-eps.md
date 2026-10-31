@@ -35,3 +35,25 @@ may already be covered by an existing row:
 `bisector_nodes` at 1e-12. If one is, add this evidence to that row
 rather than duplicating it.
 
+
+## 2026-10-31 (SECT, lane `sect-onesix`)
+
+Measured on main `b719d39ad1` at opt-level 2. Two of these rows also
+read the same at 1e-6 and 1e-12 as at the default ε:
+
+- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
+  stops `Projected`, where the row wants `Join { closed: false }`.
+  `a_rod_across_the_inner_bound_…` stops `Projected` and
+  `a_rod_off_the_axis_line_…` stops `ConicTrim`, at every ε.
+- `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`:
+  for β 0.5 the five ops stop `ring volume`, `quadrature volume`,
+  `quadrature volume`, `ring volume`, `quadrature volume`. For β 0.6 and
+  0.7 all five stop `quadrature volume`. `OTHER_SPINS_STOPS` wants
+  `spline join` on ∪ and on c ∖ h.
+
+Until SECT's PR on
+`sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`
+lands, both rows are pinned at 1e-6 to an earlier stop, the germ
+section's `Winds(Unseparated)`. That PR removes the two pins. With the
+pins gone, at 1e-6 both rows stop exactly as listed above, so all three
+ε now share this one red.
