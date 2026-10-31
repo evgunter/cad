@@ -51,3 +51,9 @@ saying what moved) or a wrong discard. The owner is split between
 FLUSH (the discards the pin counts) and PRED (the change that moved
 them); the first of the two to pick this up moves the file onto its
 slate. Brick × brick only, so no spline or spiric edge is involved.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Still `(26292, 2004)` at every ε. The pin now reads `(26_292, 2004)`
+with a comment naming this row; closing it decides whether that count
+is right and rewrites the comment either way.

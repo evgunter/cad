@@ -126,10 +126,11 @@
 //!
 //! **What the escalation channel carries is every escalation the
 //! CERTIFICATION doors produce** — [`decide`], [`decide_flagged`],
-//! [`decide_invariant`] and the gate doors below. [`check_unlogged`] is
-//! the deliberate exception and records neither channel (its own docs
-//! say why), so "every escalation this funnel produces" would be one
-//! door too wide. A site whose escalation a definite outcome of the same
+//! [`decide_invariant`] and the gate doors below. [`unlogged`] and its
+//! one-margin case [`check_unlogged`] are the deliberate exception: what
+//! they decide reaches neither channel of the caller's frame (their own
+//! docs say why), so "every escalation this funnel produces" would be
+//! one door too wide. A site whose escalation a definite outcome of the same
 //! op superseded splices that reading with [`splice_superseded`], which
 //! carries its verdicts and samples and leaves the escalation out. The
 //! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
@@ -331,7 +332,40 @@ fn classify<T: Decide>(
     margin: T,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classify_in(name, margin, band, true)
+    // The name is SCOPED to this classification: it is restored on the
+    // way out, so a decision taken outside any named door (a bare
+    // `sign_within`, a comparison inside a builder) is recorded under
+    // the unnamed default and never charged to whichever predicate
+    // happened to classify last. M10-8's shape report was charging each
+    // replay's first decisions to the previous replay's last predicate
+    // until this was scoped (`assert_bound` read 9 decisions for 1).
+    let prev = CURRENT.with(|c| c.replace(name));
+    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    CURRENT.with(|c| c.set(prev));
+    // THE STAGED-CEILING DIAL, and it exists only under the test-only
+    // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
+    // feature off there is no branch here at all, which is the whole
+    // reason it is a cargo feature rather than a runtime flag.
+    #[cfg(feature = "identity-pass-testing")]
+    let outcome = match outcome {
+        Err(e) if identity_pass(name) => Ok(Decided {
+            sign: Sign::Zero,
+            margin: e.margin,
+        }),
+        o => o,
+    };
+    // Both channels of the innermost open bracket: a definite sign as
+    // a verdict, an indeterminate outcome as an escalation.
+    match &outcome {
+        Ok(decided) => record_verdict(Verdict {
+            predicate: name,
+            sign: decided.sign,
+        }),
+        Err(source) => {
+            record_escalation(*source);
+        }
+    }
+    outcome
 }
 
 /// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
@@ -388,58 +422,6 @@ fn identity_pass(name: &str) -> bool {
     !list.is_empty() && list.split(',').any(|n| n.trim() == name)
 }
 
-/// The one body behind [`classify`] and [`check_unlogged`]: the scoped
-/// name, the classification, and — for a certification predicate — the
-/// verdict-log push. `logged` is the only difference between the two
-/// doors, and it is an argument here rather than a second copy of the
-/// body so the "exactly one shipped `sign_within`" claim stays true by
-/// construction.
-fn classify_in<T: Decide>(
-    name: &'static str,
-    margin: T,
-    band: Band,
-    logged: bool,
-) -> Result<Decided, Indeterminate> {
-    // The name is SCOPED to this classification: it is restored on the
-    // way out, so a decision taken outside any named door (a bare
-    // `sign_within`, a comparison inside a builder) is recorded under
-    // the unnamed default and never charged to whichever predicate
-    // happened to classify last. M10-8's shape report was charging each
-    // replay's first decisions to the previous replay's last predicate
-    // until this was scoped (`assert_bound` read 9 decisions for 1).
-    let prev = CURRENT.with(|c| c.replace(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    CURRENT.with(|c| c.set(prev));
-    // THE STAGED-CEILING DIAL, and it exists only under the test-only
-    // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
-    // feature off there is no branch here at all, which is the whole
-    // reason it is a cargo feature rather than a runtime flag.
-    #[cfg(feature = "identity-pass-testing")]
-    let outcome = match outcome {
-        Err(e) if identity_pass(name) => Ok(Decided {
-            sign: Sign::Zero,
-            margin: e.margin,
-        }),
-        o => o,
-    };
-    // Both channels of the innermost open bracket — a definite sign as
-    // a verdict, an indeterminate outcome as an escalation — for a
-    // certification predicate; an evaluator check (`logged == false`)
-    // records neither, for the reason at `check_unlogged`.
-    if logged {
-        match &outcome {
-            Ok(decided) => record_verdict(Verdict {
-                predicate: name,
-                sign: decided.sign,
-            }),
-            Err(source) => {
-                record_escalation(*source);
-            }
-        }
-    }
-    outcome
-}
-
 /// Pushes one definite decision onto the innermost open frame — the
 /// only write to the verdict channel. With no frame open the verdict is
 /// recorded nowhere, which is what a decision outside every bracket is.
@@ -458,7 +440,7 @@ fn record_verdict(mut verdict: Verdict) {
 /// hands it back — **the only place this channel is MINTED**, so an
 /// escalation that reaches a caller from inside a bracket is on that
 /// bracket's log by construction rather than by each producer
-/// remembering to log it. The minters are [`classify_in`], for the
+/// remembering to log it. The minters are [`classify`], for the
 /// funnel's own escalation; `mint_rejection` / [`gate_measured`], for
 /// the requirement a predicate puts on an answer the funnel gave
 /// definitely; and [`straddle`], for two decided bounds on one quantity
@@ -624,32 +606,45 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
     })
 }
 
-/// **A check named for the recorder and NOT logged as a verdict** —
-/// the door for a ruled decision that is not part of what a
-/// certificate states: `geom_brep`'s pcurve schedule on a `Harmonic`
-/// row, which cross-checks check 4's closed form where the scalar is
-/// a point and is not run over a parameter box (C4; ledger row F20),
-/// and limb 2's image-miss tell, which names a refusal the certificate
-/// has already made (ledger row F21). It classifies through the one body, so its K
-/// samples carry its name, and it stays OUT of the verdict log on
-/// purpose: the log is the verdict-diff engine's — the witness's
-/// certification verdicts against the leaf's, row for row — and the
-/// pcurve cross-check runs at the driver's point witness and not at the
-/// box leaf, so logged it would put rows in one vector the other cannot
-/// have, and a refusal still refuses the witness build. (The
-/// evaluator's finiteness check, ledger row F18, went through here
-/// until it stopped deciding: it asks `Real::is_bounded` now.)
+/// **Runs `work` under a frame of its own and discards what the frame
+/// recorded** — the door for readings that decide nothing a census must
+/// see. Every decision `work` takes classifies through the one body, so
+/// its K samples reach the installed sink under their own predicate
+/// names; its verdicts and escalations land in the scope's frame, which
+/// is dropped on the way out, so the caller's frame receives neither.
+///
+/// The log is the verdict-diff engine's (the witness's certification
+/// verdicts against the leaf's, row for row) and the subdivision
+/// driver's (an escalation is its cue to refine). A reading belongs
+/// here when no outcome of it can change what the caller certifies:
+/// logged, it would put rows in one lane's vector that the other lane
+/// cannot have, or hand the driver a cue that refining cannot answer.
+///
 /// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
-/// row that argues why the decision is taken outside the logged
-/// `Margin` doors.
+/// row in `docs/predicate-dimension-audit.md` that argues why the
+/// readings are taken outside the log.
+pub fn unlogged<R>(ledger_row: &'static str, work: impl FnOnce() -> R) -> R {
+    let _ = ledger_row;
+    let scope = Bracket::open();
+    let out = work();
+    drop(scope.finish());
+    out
+}
+
+/// **One check named for the recorder and NOT logged**: [`unlogged`]
+/// around a single classification. Its sites are a ruled decision that
+/// is not part of what a certificate states, such as `geom_brep`'s
+/// pcurve schedule on a `Harmonic` row, which cross-checks check 4's
+/// closed form at the driver's point witness and not at the box leaf
+/// (C4; ledger row F20), and limb 2's image-miss tell, which names a
+/// refusal the certificate has already made (ledger row F21).
 pub fn check_unlogged<T: Decide>(
     name: &'static str,
     margin: T,
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
-    let _ = ledger_row;
-    classify_in(name, margin, band, false).map(|d| d.sign)
+    unlogged(ledger_row, || classify(name, margin, band)).map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -1226,7 +1221,7 @@ fn pop_frame(depth: usize, id: u64) -> Recorded {
 /// sink in ITS order, which is the order a serial walk would have
 /// recorded them in.
 ///
-/// The two channels ride together for the reason `classify_in` writes
+/// The two channels ride together for the reason `classify` writes
 /// them together: a consumer cannot take one and miss the other.
 ///
 /// Neither `Clone` nor `Default`, deliberately, and `#[must_use]` on
@@ -1695,6 +1690,8 @@ impl Real for Probe {
 
     const NAME: &'static str = "telemetry probe";
 
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
@@ -1820,6 +1817,14 @@ impl Bounds for Probe {
 impl crate::real::CertifiedEnclosure for Probe {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         crate::real::CertifiedEnclosure::certified_bracket(self.0)
+    }
+
+    fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
+        record
+    }
+
+    fn held<C: Copy + core::fmt::Debug + Send + Sync + 'static>(held: &C) -> &C {
+        held
     }
 }
 
@@ -1989,6 +1994,62 @@ mod tests {
         assert_eq!(log.escalations[0].predicate(), "vlog_e");
         assert_eq!(log.escalations[0].source.predicate, Some("vlog_e"));
         assert_eq!(open_frames(), 0);
+    }
+
+    /// **The unlogged scope reaches neither channel of the caller's
+    /// frame**: a verdict and an escalation taken inside it are gone,
+    /// the decisions on either side of it are kept in order, and the
+    /// scope's own frame is closed on the way out.
+    #[test]
+    fn an_unlogged_scope_discards_its_verdicts_and_escalations() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let bracket = Bracket::open();
+        assert_eq!(
+            decide("scope_before", Margin::of(1.0f64), b),
+            Ok(Sign::Positive)
+        );
+        let inside = unlogged("F28", || {
+            assert_eq!(open_frames(), 2, "the scope runs under a frame of its own");
+            (
+                decide("scope_verdict", Margin::of(-1.0f64), b),
+                decide("scope_escalation", Margin::of(mid), b).is_err(),
+                check_unlogged("scope_check", -1.0f64, b, "F28"),
+            )
+        });
+        assert_eq!(
+            inside,
+            (Ok(Sign::Negative), true, Ok(Sign::Negative)),
+            "the scope hands its readings back unchanged"
+        );
+        assert_eq!(
+            decide("scope_after", Margin::of(-1.0f64), b),
+            Ok(Sign::Negative)
+        );
+        let log = bracket.finish();
+        let names: Vec<_> = log.verdicts.iter().map(|v| v.predicate).collect();
+        assert_eq!(names, ["scope_before", "scope_after"]);
+        assert!(log.escalations.is_empty(), "{:?}", log.escalations);
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// The K stream does not move across the scope: its samples reach
+    /// the caller's sink under their own predicate names.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn an_unlogged_scope_keeps_every_sample_under_its_name() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        start_recording();
+        unlogged("F28", || {
+            let _ = decide("scope_sample_a", Margin::of(Probe(1.0)), b);
+            let _ = check_unlogged("scope_sample_b", Probe(mid), b, "F28");
+        });
+        let got: Vec<_> = take_samples()
+            .iter()
+            .map(|s| (s.predicate, s.margin))
+            .collect();
+        assert_eq!(got, [("scope_sample_a", 1.0), ("scope_sample_b", mid)]);
     }
 
     /// **The nesting row**: an inner bracket records into its own

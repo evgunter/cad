@@ -5,7 +5,6 @@ title: the Live guard compares the spelling of the key looked up, not the key
 status: closed
 opened: 2026-09-05
 refs: [D50]
-track: P
 priority: P3
 cost: M
 design: true

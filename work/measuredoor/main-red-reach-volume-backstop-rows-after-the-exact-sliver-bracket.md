@@ -72,3 +72,12 @@ midpoint moved from `3926990816.9872403` to `3926990816.987241`
 analytic volume inside both enclosures. The triage branch
 (`triage/nightly-2026-10-27`) re-syncs the sidecar to the live kernel;
 if this row's decision reverts the bracket, the sidecar follows it.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Both rows red at the default ε and 1e-6, green at 1e-12. Each is
+pinned at the default ε and 1e-6 on its message (`the fixture's premise:
+the two rods' midpoints differ` and `a fattening by δ = ε/100 is below
+the stated resolution`); each pin goes red the day its row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

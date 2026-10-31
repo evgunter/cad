@@ -69,9 +69,10 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{
-    Body, FaceKey, FaceSurface, HalfEdgeKey, KemrResult, KfmrhResult, LoopBoundary, MefCreated,
-    MefSite, MevCreated, MevSite, MvfsCreated,
+use crate::{Body, FaceKey, HalfEdgeKey, LoopBoundary};
+
+use crate::construction::{
+    FaceSurface, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
 };
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, newell_plane};
@@ -695,6 +696,39 @@ pub fn brick_with_fresh_keys<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body
 }
 
+/// **What an edge computes, by value channel** — for the dual-against-
+/// `f64` rows, which compare a dual body with the same construction at
+/// `f64`. A dual edge carries no certificate (DL3), and its interval is
+/// the vertices' own, so a row comparing those compares input; these are
+/// what the edge computes at its own scalar: the carrier (an
+/// `Intersection` carrier is derived from its faces' surfaces), the
+/// carrier evaluated at the middle of the edge's interval, and the
+/// turn check 2 minted at both scalars with the extent it decided (`None`
+/// on a carrier with no period). One line per certified edge, the scalar
+/// read through `value`; `f64`'s `Debug` round-trips, so equal lines
+/// are equal bits.
+pub fn computed_edge_channels<T: geom_core::Decide>(
+    body: &Body<T>,
+    value: impl Fn(T) -> f64 + Copy,
+) -> Vec<String> {
+    body.curves()
+        .filter_map(|(_, c)| c.certified())
+        .map(|edge| {
+            let (t0, t1) = edge.params();
+            let mid = edge.carrier().eval((t0 + t1) * T::from_f64(0.5));
+            let turn = edge
+                .turn()
+                .map(|t| (t.turn(), value(t.extent().get()).to_bits()));
+            format!(
+                "{:?} | {:?} | {:?}",
+                edge.carrier().map_scalar(value),
+                [value(mid.x), value(mid.y), value(mid.z)].map(f64::to_bits),
+                turn
+            )
+        })
+        .collect()
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
@@ -735,7 +769,7 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
@@ -1393,7 +1427,7 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: frame.at((u0 + u1) * 0.5, v),
+                selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v)),
             },
             carrier,
             param_start: T::from_f64(t0),
@@ -1750,7 +1784,7 @@ pub fn kill_under_a_null_strut(
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            crate::NewVertexSide::Above,
+            crate::construction::NewVertexSide::Above,
         )
         .unwrap();
     let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {
@@ -1815,7 +1849,7 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: carrier.eval(0.5 * tau),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * tau)),
             },
             carrier,
             param_start: 0.0,
@@ -1871,7 +1905,9 @@ pub fn arc_cap(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
-                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                    selector: geom_brep::CurveSelector::Witness(
+                        carrier.eval(0.5 * (span.0 + span.1)),
+                    ),
                 },
                 carrier,
                 param_start: span.0,

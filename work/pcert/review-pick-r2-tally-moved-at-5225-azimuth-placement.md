@@ -103,3 +103,73 @@ PR 5742** (`intent/value-chart-orientation`). That is the move the
 fall (21 now, 29 then) and the refusal columns hold. PR 5742 merged
 without re-pinning. The question this row already asks still stands
 before any re-pin.
+
+## 2026-10-27 (INTENT, `intent/value-chart-main-reds`): PR 5742's 21 are geometry that moved; re-pinned
+
+Measured landing by landing and ray by ray, at `767d26a9` (PR 5742's
+first parent) against `19eff38c` (its merge), with the reproduce line
+above and a per-landing, per-ray dump:
+- Every landing reads the base's tally except `kitchen_sink` after its
+  first edit: `(2196, 1058, 0, 0)` → `(2196, 1037, 0, 0)`.
+- That edit sets the moved copy's `Slide(Y)` to 5, on a plane mate to the
+  union's underside (`d = −z`). The retired chart ran a slide along
+  `d × x = −y`, and the least-turn chart runs it along `+y`, so the copy
+  and its linear pattern stand at `y ∈ [5, 6.8]` instead of
+  `[−5, −3.2]`. That is the 24 vertices that differ between the two
+  dumps, three parts of 8. The open landing reads the same at both
+  commits.
+- Rays aimed at those 24 vertices: 250 → 249 answered.
+- Rays aimed at the 91 fixed vertices: 808 → 788. All 20 are at the far
+  reach, which is four times the scene's extent and grew from 27 to
+  27.196 with the copy. At reaches 1.48 and 3.0, no fixed-vertex ray
+  changed.
+- The refusal columns are unchanged.
+
+So no answer moved without its geometry moving, and the pin is now
+`(392112, 131691, 26058, 8292)`, with this reading in the pin's doc comment.
+
+**Still open on this row:** the earlier refusal moves (PR 5225's +1218
+refused candidates, #5659's +750). PR 5717's re-pin folded them into
+the mesh-sizing entry, measured from `(440460, 141163, 13482, 6882)`
+when main read `(441036, 141417, 25542, 7998)`, so they were never
+attributed. Main is green again with this re-pin, but whether those
+refusals are what B1 and the single chart reading should produce is
+still unanswered.
+
+**2026-10-28, INTENT stage 3 G (PR 5954).** On main at `a195f777` the row reads `(392112, 131373, 12996, 6342)` against the pin `(392112, 131343, 26058, 8292)`. G leaves the pin as it is and moves only the second count, the rays answered at the aimed vertex: `(392112, 131405, 12996, 6342)`, 32 more grazes. Its corpus documents are families where they were patterns, and `heat_sink` stands its fins beside the union as main's does. A re-pin after G merges takes G's tally.
+
+## 2026-10-29 (GREEN, nightly 76): the refusal halving is #5920
+
+Red in `viewer app feature` and the full suite on nightly 76 (run
+40823227622, main `5648e577eb`), as `(392112, 131405, 12996, 6342)`
+against the pin `(392112, 131343, 26058, 8292)` written by #5811.
+Bisected over the first-parent merges from #5811 (`6f1c805c2`) to G's
+merge base (`a195f777`) with `cargo test -p viewer --test all --
+review_pick_r2::the_certified_determinant` at the default ε, keyed on
+the refused-candidate count:
+
+| merge | tally |
+|---|---|
+| `6f1c805c2` (#5811) | `(392112, 131343, 26058, 8292)` = the pin |
+| `890d10746` (#5920's first parent) | `(392112, 131343, 26058, 8292)` |
+| `148c1a24f` (**#5920**, `tess/sphere-tilted-circle-lane`) | `(392112, 131373, 12996, 6342)` |
+| `a195f777` (G's base) | `(392112, 131373, 12996, 6342)` |
+| `a454950e3` (main, 2026-10-29) | `(392112, 131405, 12996, 6342)` |
+
+So **#5920** ("the sphere arm keeps a pole as a polygon side") makes
+30 more rays answer at the aimed vertex, halves the refused candidates
+(26058 → 12996), and gives 1950 fewer rays a refusal. The ray count holds,
+and the row's other asserts hold: no genuine crossing is refused, and
+there are no wide winners. G (#5954) then adds the 32 `kitchen_sink`
+grazes measured in G's entry above.
+
+INTENT stage 6 A (#6023) has since re-pinned the row over a new
+corpus, so main is green on it. The question this row asks now covers a third
+refusal move: is #5920's halving what its sphere mesh should produce?
+TESS owns that answer, as the merge's program
+(`work/tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side.md`).
+This entry is the evidence: read the refused candidates per landing at `890d10746`
+against `148c1a24f`.
+
+
+**2026-10-30, nightly triage** (nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467), main `39bbdfc777`): red at every ε and in the viewer app job, `(431064, 143483, 14556, 7266)` against the pin `(431064, 143421, 27618, 9216)`. The pin was wrong when #6023 wrote it: every commit of #6023's branch from the pin commit `a5bc5a82` to its merge reads tonight's tally. A `git bisect run --first-parent` over `78ca7fcb..39bbdfc777` found every later merge red with the same tally, which rules out the slit-tip readers (#6052). Re-pinned in the nightly triage PR. The halving is #5920's, on `tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side`.

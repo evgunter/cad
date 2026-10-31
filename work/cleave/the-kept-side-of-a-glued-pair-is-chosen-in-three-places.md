@@ -4,7 +4,7 @@ kind: issue
 title: Which description a glued pair keeps is chosen in three places: the zip keeps A's vertex, the merge keeps the arena-first face except where it plugs a hole, and the glue decides nothing
 status: closed
 opened: 2026-10-27
-closed: 2026-10-27
+closed: 2026-10-31
 priority: P1
 cost: M
 refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
@@ -49,16 +49,17 @@ strays more from the original".
 
 ## Closed
 
-2026-10-27, PR 5848. `boolean::glue::kept_first` states the decision
+2026-10-31, PR 5848. `boolean::glue::kept_first` states the decision
 once: a glued pair's sides as `(kept, other)`, the first-written
 operand's first. The zip reads it for the vertex a fused joint keeps
-and the edge a seam pair keeps; the boolean writes each declared
-surface pair kept side first (`ops::declared_surface_pairs`); and the
-merge (`merge_faces.rs` `kept_description`, `wear`) re-charts the
-group's survivor onto the description the declared pairs write first,
-the arena-first member's where nothing orders the group. The survivor
-is still the outermost member, a surgery matter only: where A's face
-plugs a hole of B's, B's host face survives wearing A's description. `contact8_dangling_seam`
+and the edge a seam pair keeps; the boolean records each glued surface
+pair kept side first (`ops::GluedSurfaces::of_result`,
+`GluedSurfacePair::{kept, other}`); and the merge (`merge_faces.rs`
+`kept_description`, `wear`) re-charts the group's survivor onto the
+description the glued pairs record first, the arena-first member's
+where nothing orders the group. The survivor is still the outermost
+member, a surgery matter only: where A's face plugs a hole of B's, B's
+host face survives wearing A's description. `contact8_dangling_seam`
 `a_plug_folded_first_merges_into_the_face_it_plugs` pins the plug ∪
 holed block caps on the plug's surface keys, green at tiers 2, 3, 3′
 and its volume. Two further places the sweep found are filed:

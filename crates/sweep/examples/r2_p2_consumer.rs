@@ -19,13 +19,15 @@
 
 use profile::SketchPlane;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use topo::{Body, Pcurve, Rechart};
+use topo::construction::Rechart;
+use topo::{Body, Pcurve};
 
 /// `face` onto a fresh chart, `surface`, outward-facing. Every edge the
 /// move would strand is restated as an image in the chart of its OTHER
@@ -191,7 +193,7 @@ fn main() {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, new_key),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,

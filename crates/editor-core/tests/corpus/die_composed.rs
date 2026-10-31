@@ -186,8 +186,8 @@ pub fn selection(
 ///    read. A full
 ///    revolve's band is two half-faces split at the seam meridians, so
 ///    the rim is two arcs and the band role has two variants; the union
-///    says both. A seam's sides are in name order, and the cube's read
-///    names before the pip's, so the cap is the first side.
+///    says both. A seam's sides are a set, so the pattern holds
+///    whichever side names first.
 ///
 /// What is NOT selected falls out of the shapes: the cavity meridians
 /// are `From(Meridian(..))`, and neither alternative admits a carried
@@ -277,6 +277,7 @@ pub fn document() -> CorpusDoc {
     let cube_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
@@ -290,6 +291,7 @@ pub fn document() -> CorpusDoc {
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc],
         ids: Vec::new(),
+        on: None,
     }));
     let ball = r.insert(revolve_about(
         ball_p,

@@ -59,7 +59,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::search_kit::{band, matched, offset, unit_vec};
+use super::search_kit::{band, find, label, matched, near_cells, offset, unit_vec};
 use super::*;
 use core::f64::consts::TAU;
 use geom::Surface;
@@ -148,14 +148,6 @@ pub(super) struct Traced {
     pub classes: Vec<Class>,
 }
 
-fn find(parent: &mut [usize], mut x: usize) -> usize {
-    while parent[x] != x {
-        parent[x] = parent[parent[x]];
-        x = parent[x];
-    }
-    x
-}
-
 /// Traces the torus's residual over `θ ∈ [0, 2π)` (periodic) and
 /// `t ∈ [t0, t1]`; `None` when a component reaches the window's edge.
 pub(super) fn trace(
@@ -214,15 +206,7 @@ pub(super) fn trace(
         let (x, y) = (find(&mut parent, x), find(&mut parent, y));
         parent[x] = y;
     }
-    let mut index = std::collections::BTreeMap::new();
-    let mut comp = vec![None; n];
-    for k in 0..n {
-        if active[k] {
-            let root = find(&mut parent, k);
-            let next = index.len();
-            comp[k] = Some(*index.entry(root).or_insert(next));
-        }
-    }
+    let (comp, count) = label(&mut parent, &active);
     let centre = |k: usize| {
         let (i, j) = (k % nth, k / nth);
         ring.angles(wall.at(
@@ -230,7 +214,7 @@ pub(super) fn trace(
             t0 + (t1 - t0) * (j as f64 + 0.5) / nt as f64,
         ))
     };
-    let mut odd = vec![[false; 3]; index.len()];
+    let mut odd = vec![[false; 3]; count];
     for &(x, y, seam) in &edges {
         let Some(k) = comp[x] else { continue };
         let ((ux, vx), (uy, vy)) = (centre(x), centre(y));
@@ -259,22 +243,7 @@ impl Traced {
     fn near(&self, th: f64, t: f64) -> Vec<usize> {
         let i = (th.rem_euclid(TAU) / TAU * self.nth as f64) as isize;
         let j = ((t - self.t0) / (self.t1 - self.t0) * self.nt as f64) as isize;
-        let mut out = Vec::new();
-        for dj in -2..=2 {
-            for di in -2..=2 {
-                let jj = j + dj;
-                if jj < 0 || jj >= self.nt as isize {
-                    continue;
-                }
-                let ii = (i + di).rem_euclid(self.nth as isize) as usize;
-                if let Some(c) = self.comp[jj as usize * self.nth + ii]
-                    && !out.contains(&c)
-                {
-                    out.push(c);
-                }
-            }
-        }
-        out
+        near_cells(&self.comp, (self.nth, self.nt), (i, j), 2, false)
     }
 
     fn sorted(&self) -> Vec<Class> {
@@ -583,8 +552,12 @@ fn square_pose_at(
     let d0 = b1 * psi.cos() + b2 * psi.sin();
     let across = a.cross(d0);
     let foot = c + across * e + a * z0;
-    // The foot is the pivot: the axis's point nearest the reach's centre.
-    let lever = super::lever(foot, reach_of(&ring));
+    // The foot is the pivot: the axis's point nearest the torus's centre,
+    // levered over the torus's own ball, as the section value reads it.
+    let lever = geom_brep::pair_section::torus::lever(
+        foot,
+        geom_brep::ExtentBall::of_torus(ring.c, ring.big_r, ring.r),
+    );
     let tilt = if rng.unit() < 0.3 {
         band().zero() / lever * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()
     } else {
@@ -617,8 +590,8 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
     let b = band();
     let (torus, wall) = (p.ring.surface(), p.wall.surface());
     let reach = reach_of(&p.ring);
-    let sec = classify(&torus, &wall, reach, b);
-    let back = classify(&wall, &torus, reach, b);
+    let sec = classify(&torus, &wall, reach, Some(geom_brep::SsiLane::marched()), b);
+    let back = classify(&wall, &torus, reach, Some(geom_brep::SsiLane::marched()), b);
     let mut bad = Vec::new();
     if !swapped_agrees(&sec, &back) {
         bad.push(format!(
@@ -692,6 +665,7 @@ fn the_square_wall_arm_agrees_with_the_traced_section() {
                 &p.ring.surface(),
                 &p.wall.surface(),
                 reach_of(&p.ring),
+                Some(geom_brep::SsiLane::marched()),
                 band(),
             );
             let key = match &sec {
@@ -725,7 +699,13 @@ fn json_vec(v: [f64; 3]) -> String {
 /// One pose and the arm's answer, as `scripts/oracles/torus_square_wall_mpmath.py`
 /// reads it.
 pub(super) fn dump_line(what: &str, ring: &Ring, wall: &Wall) -> String {
-    let sec = classify(&ring.surface(), &wall.surface(), reach_of(ring), band());
+    let sec = classify(
+        &ring.surface(),
+        &wall.surface(),
+        reach_of(ring),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     let xyz = |p: Vec3<f64>| json_vec([p.x, p.y, p.z]);
     let answer = match &sec {
         Section::Components { parts, single } => {

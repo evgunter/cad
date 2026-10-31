@@ -9,9 +9,9 @@
 //! parameters here, so the operator sequence itself exists once.
 
 use geom_core::{Decide, Point3};
-use topo::{
-    Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite, VertexKey,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
 use super::SweptSeg;
 use super::axis::AxisFrame;

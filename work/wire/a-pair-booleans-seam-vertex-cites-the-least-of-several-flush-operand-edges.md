@@ -2,10 +2,11 @@
 id: a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges
 kind: issue
 title: A pair boolean's seam vertex cites the least of several flush edges of one operand, which at a union operand is the member minted first
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: E
+closed: 2026-10-26
 ---
 
 Filed by WIRE's `wire-mintfirst` lane (branch
@@ -85,3 +86,5 @@ union's rule at the pair: cite the set, read it `Through`.
 ## Back to WIRE at P2 (WIRE orchestrator, 2026-10-26)
 
 PR 5758 built Ev's ruling on PR 5705, "an orientation is read, never chosen", at the union and at seams. The pair boolean still reads a line of several flush operand edges along the LEAST of them: `emit_topo::flush_lines` / `least_per_line`, and N2's "at a pair boolean as the least of them" (README ~391). That is the one place the approved rule is not yet built. Under it, the line's sense names each flush edge it enters along (`Through { entering }`), as the union's `Merged` line does now. PR 5758's review (finding 1) points here.
+
+Closed by PR 5778 (2026-10-26). A pair boolean's line of several flush edges is now `Merged` of them and reads `Through { entering }`, through the union's shared `line_name` / `sense_along_line`. `least_per_line` is deleted. With this, Ev's 5705 rule is built at every door. No published table reaches the arm; fold steps only. The witness is emitter-level and goes red on base.

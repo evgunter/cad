@@ -14,12 +14,14 @@
 
 use geom_core::spline::Knots;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{NetState, NurbsSurface, Surface};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
-use topo::{FaceSurface, ValidationError, validate, validate_closed, validate_geometric};
+use topo::construction::FaceSurface;
+use topo::{ValidationError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 

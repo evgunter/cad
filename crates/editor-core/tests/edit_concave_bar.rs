@@ -71,6 +71,7 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
                 radius: len(A),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, bar) = fixture::insert(doc, extrude(p, 0.8));
@@ -184,11 +185,11 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
             "{verb}: at 0.1 the carve takes the bar's wall"
         );
         let out = corpus::body_of(&ev2, blend);
-        topo::validate_geometric(out, tol()).unwrap_or_else(|e| panic!("{verb}: tier 3, {e:?}"));
-        topo::validate_pseudomanifold(out, &topo::ContactRecords::default(), tol())
+        topo::validate_geometric(&out, tol()).unwrap_or_else(|e| panic!("{verb}: tier 3, {e:?}"));
+        topo::validate_pseudomanifold(&out, &topo::ContactRecords::default(), tol())
             .unwrap_or_else(|e| panic!("{verb}: tier 3′, {e:?}"));
         let pi = core::f64::consts::PI;
-        let dv = volume(out) - volume(corpus::body_of(&ev2, union));
+        let dv = volume(&out) - volume(&(corpus::body_of(&ev2, union)));
         let section = if chamfer {
             r * r / 2.0
         } else {

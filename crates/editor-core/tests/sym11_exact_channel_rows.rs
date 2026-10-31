@@ -34,8 +34,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// them.
 ///
 /// The plate and the annulus refuse nowhere the bisection reaches, and
-/// replay whole at [`PAST_NO_CEILING`]. The link stops at the
-/// extrude's attachment gate (`carrier_matches_mapped_source`). The
+/// replay whole at [`PAST_NO_CEILING`]. The link replays whole too:
+/// rule H proves the extrude's attachment gate
+/// (`carrier_matches_mapped_source`) it stopped at. The
 /// bracket's and the pad's over-band span readings (`arc_span`,
 /// `line_span`) are settled by the segments' ends, which lie on the
 /// other carrier, so the bracket replays whole and the pad stops at
@@ -45,12 +46,26 @@ use crate::m10_9_pins_interval::measured_studies;
 /// says in its PR which column moved, by how much and why — a `frozen`
 /// move attributed by the freezes' profile (`FreezeCause`, by op) — and
 /// that no dispute fired.
+///
+/// **Pinned at what main measures** (2026-10-28), unexplained: the
+/// table had not been re-taken since before INTENT's PR 5811 (copies
+/// that no longer run their maps) and PR 5728 (limb 2 for every
+/// carrier), and every document moved, `frozen` most of all (the plate
+/// 1557 -> 229). No dispute fired. Which change moved which column is
+/// `work/offset/main-red-three-m10-interval-pins-moved-at-5728`'s to
+/// read.
+///
+/// Then two numeric columns fell, both from the profile's simplicity
+/// pass: it no longer reads a gap on a line pair that shares a vertex
+/// (`profile::seg`'s `line_line`, PR 5952). The plate 832 -> 824 (its
+/// rectangle's four corners, on each one's axis) and the bracket's by
+/// ten.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1253, 979, 1557]),
-    ("r1_annulus", [632, 557, 844]),
-    ("r2_link", [295, 253, 264]),
-    ("r2_filleted_bracket", [1630, 1329, 2409]),
-    ("r2_rounded_pad", [1570, 1272, 3037]),
+    ("two_hole_plate", [1149, 824, 229]),
+    ("r1_annulus", [654, 555, 212]),
+    ("r2_link", [962, 805, 2241]),
+    ("r2_filleted_bracket", [1542, 1159, 914]),
+    ("r2_rounded_pad", [1616, 1262, 2476]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

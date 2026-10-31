@@ -43,7 +43,9 @@ profile at ε 1e-9: five refusals, in four tests, all
 
 On the section path these poses meet the join first, which shapes the
 dropped face (`join`'s `one_site_segments`, `LoneRing::Closed`) or
-refuses typed (`a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed`).
+refused typed, until the carrier ladder's cone arm let the cylinder
+and cone straddles build
+(`a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op`).
 The fallback asks `cut` alone. The section path's `boss/holedlow ∩`
 (the PR 5706 review corpus) refuses at the same corner, on both trees:
 the cut now divides its two closed rims, then stops at a chord end on
@@ -60,3 +62,18 @@ holed case moves to a cut:
 - **`rehome`**: a ring whose one vertex shares the new face's vertex's
   point key.
 
+
+## The ring pose cuts at a true corner lever (OFFSET, 2026-10-27)
+
+`fate::leaving` levered a corner's readings (`corner_holds`, the tip
+turn) at each bound's chord, for every carrier kind. A closed bound (the
+hole's ring `r = 0.1` here) has a chord of zero, so every side read Zero
+and the rim's vertex read in no corner. OFFSET's
+`edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`
+(PR 5875) levers it at `geom_brep::edge_extent_sup`, the ring's
+diameter, and the boss-over-a-hole pose now cuts: the holed plate's top
+and the lidded case's top are held in part and nothing is uncut. The
+pinning row is renamed
+`a_closed_conic_in_the_partners_face::the_fallback_cuts_a_closed_rim_beside_a_ring`.
+That PR did not measure the plug-in-a-bore pose or the pinch's `rehome`
+pose, so this item stays open for them.

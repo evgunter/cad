@@ -190,9 +190,9 @@ fn knots_hugging_the_trim_edges_stay_sound() {
 
 /// A GENUINE C0 jump: a degree-1 v direction whose sections VARY in
 /// size, so `S_v` (and the flux integrand) really jumps at the
-/// off-grid interior v knots — unlike the unit's blade-8, whose
+/// off-grid interior v knots — unlike the sweep unit's blades, whose
 /// identical evenly-stacked sections make the locus a smooth
-/// extrusion and the multiplicity-equals-degree knots structural
+/// extrusion and its interior knots structural
 /// only. Under the shipped engine this must certify (at a loose eps)
 /// and CONTAIN the dense oracle; under a corrupted cut list that
 /// ignores knots, the midpoint rule integrates across the jump with a

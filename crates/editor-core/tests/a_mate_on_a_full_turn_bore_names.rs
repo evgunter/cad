@@ -54,12 +54,15 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// The evaluated body of node `n`, finished as an operand.
+/// The evaluated body of node `n` where it stands in its space,
+/// finished as an operand.
 fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
     match &ev.value(n).expect("the sweep evaluates").payload {
-        ValuePayload::Body(b) => {
-            sweep::test_support::finished("the operand", (**b).clone(), Tol::witness())
-        }
+        ValuePayload::Body(b) => sweep::test_support::finished(
+            "the operand",
+            crate::fixture::in_space(b),
+            Tol::witness(),
+        ),
         other => panic!("a sweep's payload is a body, got {}", other.kind_name()),
     }
 }
@@ -81,6 +84,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, collar) = insert(
@@ -95,6 +99,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 radius: len(0.3),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, shaft) = insert(

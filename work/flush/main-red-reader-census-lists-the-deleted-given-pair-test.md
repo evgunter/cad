@@ -2,7 +2,8 @@
 id: main-red-reader-census-lists-the-deleted-given-pair-test
 kind: issue
 title: Main red: reader_census still lists crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs, which PR 5772 deleted
-status: open
+status: closed
+closed: 2026-10-27
 opened: 2026-10-27
 priority: P1
 cost: E
@@ -27,3 +28,7 @@ The same census is also red on a second, unrelated entry, `crates/topo/src/link.
 ## Done when
 
 The stale entry is dropped (or moved to wherever the given pair's rows now live, if they moved with a `Shared` read), and `reader_census` is green on main.
+
+## Closed (2026-10-27, by the ATREST orchestrator)
+
+The same `reader_census` row was red on ATREST's `link.rs` too. Both were fixed in one PR: the dead entry for the deleted `crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs` is removed from the ledger, and `reader_census::` is 7/7.

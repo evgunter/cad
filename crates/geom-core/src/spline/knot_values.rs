@@ -268,11 +268,14 @@ impl<T: SpanLocate> Knots<T> {
             let index = self.first_wide_run().unwrap_or(0);
             return Err(SplineError::CarrierKnotNotAPoint { index });
         };
-        Ok(self
-            .runs()
-            .zip(point.knot_runs())
-            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
-            .map(|((value, _), _)| value))
+        // The runs ascend, so the one whose first knot can be `v` is the
+        // first knot at or above it; a run's value is its first knot's.
+        let knots = point.knots();
+        let at = knots.partition_point(|&k| k < v);
+        Ok(knots
+            .get(at)
+            .filter(|k| k.to_bits() == v.to_bits())
+            .map(|_| self.values[at]))
     }
 
     /// The spans the parameter `t` overlaps: the first and the last, or
@@ -455,6 +458,16 @@ impl<T: Real> Knots<T> {
             at += m;
             (v, m)
         })
+    }
+
+    /// **The creases as held**: the value of each interior run of
+    /// multiplicity at least the degree
+    /// ([`KnotStructure::crease_runs`](super::KnotStructure::crease_runs)),
+    /// ascending. The one statement of where a spline has no derivative
+    /// inside its domain, read as values.
+    pub fn crease_values(&self) -> Vec<T> {
+        let values: Vec<T> = self.runs().map(|(v, _)| v).collect();
+        self.structure.crease_runs().map(|r| values[r]).collect()
     }
 
     /// The parameter domain as held: the end runs' values at the

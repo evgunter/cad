@@ -131,7 +131,7 @@ eframe = { version = "0.36.1", default-features = false, features = [
 # be the one that widens them.
 winit = { version = "0.30.13", default-features = false, optional = true }
 # The native file dialog — the ONE thing in the open/save path that
-# escapes headless testing. `viewer::docio::{open, save_path}` are
+# escapes headless testing. `viewer::docio::{open, save}` are
 # ordinary typed functions over a `Path`; this crate chooses the path
 # and does nothing else.
 #

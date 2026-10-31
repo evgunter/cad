@@ -85,6 +85,10 @@ mod asm_r2b_interface_wire;
 mod asm_upd_pin_update;
 #[path = "assemble_one_local_battery.rs"]
 mod assemble_one_local_battery;
+#[path = "atrest_carried_coincidence.rs"]
+mod atrest_carried_coincidence;
+#[path = "atrest_operation_rows_quiet.rs"]
+mod atrest_operation_rows_quiet;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
@@ -117,6 +121,8 @@ mod boss_flush_offer;
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "clearance_refusals_say_what_they_found.rs"]
+mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
 #[path = "display_contract.rs"]
@@ -183,8 +189,6 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_placement_corpus_bits.rs"]
 mod edit_placement_corpus_bits;
-#[path = "edit_placement_type.rs"]
-mod edit_placement_type;
 #[path = "edit_planar_carve.rs"]
 mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
@@ -223,12 +227,20 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_review_rows.rs"]
+mod g_family_review_rows;
+#[path = "g_index_families.rs"]
+mod g_index_families;
+#[path = "g_ring_closure_measure.rs"]
+mod g_ring_closure_measure;
 #[path = "gap_reads_a_cell_against_a_round_face.rs"]
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "refactor_pose_definitions.rs"]
+mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
@@ -540,8 +552,6 @@ mod parallel_node_map_probe;
 mod part_depth_bound;
 #[path = "parts_entered_before_the_map.rs"]
 mod parts_entered_before_the_map;
-#[path = "pattern_spacing_and_step.rs"]
-mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -556,8 +566,6 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "placedunion_wire.rs"]
-mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
 mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
@@ -796,6 +804,8 @@ mod intent_dprime1_target_space;
 mod intent_dprime2_mates_read_geometry;
 #[path = "intent_dprime3_assemble_product_slot.rs"]
 mod intent_dprime3_assemble_product_slot;
+#[path = "intent_e_operation_frame_of_reads.rs"]
+mod intent_e_operation_frame_of_reads;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -810,6 +820,8 @@ mod intent_loft_set_sections;
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]
 mod intent_part_split_half;
+#[path = "intent_placement_carries_at_rest.rs"]
+mod intent_placement_carries_at_rest;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]
@@ -838,6 +850,18 @@ mod intent_s4_h_placed;
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
 mod intent_s5_b_interference;
+#[path = "intent_s5_c_at_rest_check.rs"]
+mod intent_s5_c_at_rest_check;
+#[path = "intent_s5_c_quietable.rs"]
+mod intent_s5_c_quietable;
+#[path = "intent_s6_c_trace.rs"]
+mod intent_s6_c_trace;
+#[path = "intent_s6_d_tangency.rs"]
+mod intent_s6_d_tangency;
+#[path = "intent_s6_e_traced_frame.rs"]
+mod intent_s6_e_traced_frame;
+#[path = "intent_unused_check.rs"]
+mod intent_unused_check;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
@@ -848,6 +872,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "split_joined_keys_tie.rs"]
+mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]

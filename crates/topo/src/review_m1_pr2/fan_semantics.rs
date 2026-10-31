@@ -6,7 +6,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::{Body, MefSite, MevSite, validate};
+use crate::{Body, validate};
+
+use crate::construction::{MefSite, MevSite};
 use geom_core::Point3;
 use geom_core::Tol;
 
@@ -101,7 +103,9 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
         body.clone().mev_line(site, p(9.0), tol),
         Err(crate::EulerOpError::RebasedCarrier { .. })
     ));
-    let z = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let z = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     let start = |body: &Body<f64>, he| body.get_half_edge(he).unwrap().start;
@@ -241,7 +245,9 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
         body.clone().mev_line(site, Point3::new(0.0, -1.0, 0.0), tol),
         Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == tri.edge
     ));
-    let f = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let f = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     // Moved: exactly the run member, across the loop boundary.

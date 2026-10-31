@@ -454,7 +454,7 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
 /// Which traversals OPEN an iso side.
 ///
 /// An iso side may be carried by SEVERAL edges — a vertex dropped on
-/// it by [`Body::split_edge`], a boolean, or an exporter emitting two
+/// it by [`Body::split_edge`](crate::construction::Construct::split_edge), a boolean, or an exporter emitting two
 /// collinear edges (which is what every exporter emits when a vertex
 /// lands on such an edge). Two consecutive traversals continue ONE
 /// side when they are the same kind AND the junction between them lies

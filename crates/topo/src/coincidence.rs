@@ -116,26 +116,37 @@ pub enum Relation {
 }
 
 impl Relation {
-    /// The class a face pair glued under this relation glues as: one
+    /// The relation in words, for a refusal's prose: a noun phrase,
+    /// never the derived `Debug` (`Tangent` carries a field).
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        match self {
+            Self::SameOriented => "one carrier, sides aligned",
+            Self::SameOpposite => "one carrier, sides opposed",
+            Self::OnCarrier => "a cell on another's carrier",
+            Self::CommonFoot => "two bands ending at one point of an edge",
+            Self::Tangent { aligned: true } => "a smooth tangent joint",
+            Self::Tangent { aligned: false } => "a tangent cusp",
+            Self::SurfaceTangent => "two surfaces tangent along a locus",
+            Self::Coaxial => "one axis of revolution",
+            Self::SameRadius => "one radius",
+            Self::AxesMeet => "axes meeting in a point",
+            Self::CoRuled => "carriers ruled along one direction",
+            Self::Meet => "a point the cells share",
+        }
+    }
+
+    /// The class a face pair glued under this relation glues as: the
+    /// class whose [`crate::contact::GlueClass::relation`] it is (one
     /// carrier opposed a `Rest` contact, aligned a continuation, a
-    /// tangency `Tangent`. `None` for a relation that glues no face
+    /// tangency `Tangent`). `None` for a relation that glues no face
     /// pair.
     #[must_use]
-    pub const fn glued_class(self) -> Option<crate::contact::GlueClass> {
-        use crate::contact::GlueClass as C;
-        match self {
-            Self::SameOpposite => Some(C::Rest),
-            Self::SameOriented => Some(C::Continuation),
-            Self::SurfaceTangent => Some(C::Tangent),
-            Self::Tangent { .. }
-            | Self::OnCarrier
-            | Self::CommonFoot
-            | Self::Coaxial
-            | Self::SameRadius
-            | Self::AxesMeet
-            | Self::CoRuled
-            | Self::Meet => None,
-        }
+    pub fn glued_class(self) -> Option<crate::contact::GlueClass> {
+        crate::contact::GlueClass::ALL
+            .iter()
+            .copied()
+            .find(|class| class.relation() == self)
     }
 }
 
@@ -158,6 +169,14 @@ pub enum DecisionSite {
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.
     CoaxialSphere,
+    /// The sphere×torus pair's coaxial classification: the sphere's
+    /// centre on the torus's axis.
+    SphereOnTorusAxis,
+    /// The cylinder×torus pair's coaxial classification: the cylinder's
+    /// axis on the torus's.
+    CoaxialCylinderTorus,
+    /// The torus pair's coaxial classification: the two tori on one axis.
+    CoaxialTori,
     /// The cylinder pair's crossing classification: two walls of one
     /// radius whose axes meet, cut by each other in the two
     /// bisector-plane ellipses.
@@ -234,8 +253,7 @@ pub struct Coincidence {
     pub relation: Relation,
     /// Where it was decided.
     pub site: DecisionSite,
-    /// The margin that decision read: Zero, or in band where a
-    /// declaration bridged it.
+    /// The margin that decision read, decided Zero.
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,

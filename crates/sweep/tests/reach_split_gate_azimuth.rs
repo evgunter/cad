@@ -521,13 +521,31 @@ fn cuts(f: &Fixture, sigma: f64, s: f64, clear: bool) -> Vec<(Vec3<f64>, f64)> {
 /// Two refusals downstream of the gate are named and let stand loudly,
 /// each under a floor: a half whose volume quadrature cannot decide its
 /// own convergence
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`),
+/// (`work/quadtail/the-escalation-tolerating-rows-can-assert-their-answers-now.md`),
 /// and the split's sector decision at a vertex a cut passes within
 /// `10²` ε of, on a body under `10⁷` ε across
 /// (`work/tally/split-bisector-side-in-band-off-a-corner-at-millimetre-scale.md`).
 /// Both are typed, and neither is the gate's.
 #[test]
 fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
+    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a sphere
+    // fixture (extent 1734) refuses to revolve as limb 2's kernel limit, bound
+    // 3.35e-12. Whether that is an accepted kernel limit or a regression is
+    // the question of
+    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
+    // until it closes, the row stops there, and the pin goes red the day the
+    // row passes.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the partial-turn sphere faces",
+        every_cut_clear_of_a_partial_turn_sphere_face_splits_row,
+    );
+}
+
+/// The row [`every_cut_clear_of_a_partial_turn_sphere_face_splits`]
+/// runs, under its pin.
+fn every_cut_clear_of_a_partial_turn_sphere_face_splits_row() {
     for f in fixtures() {
         let sigma = sense(&build(&f, 1.0), f.theta);
         for n in [

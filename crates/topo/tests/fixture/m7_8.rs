@@ -18,6 +18,7 @@
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Point3, Real, Tol};
 use topo::Body;
+use topo::construction::Construct;
 
 /// The described NURBS net on `y = 0`, u along +x, v along +z, at `T`.
 pub fn nurbs_wall<T: SpanLocate>() -> geom::Surface<T> {
@@ -52,7 +53,7 @@ where
     let wall = body
         .set_face_surface(
             cube.mefs[1].face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: nurbs_wall::<T>(),
                 sense: true,
             },
@@ -73,7 +74,7 @@ where
         let witness = p0.lerp(p1, T::from_f64(0.5));
         let description = geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         };
         if s1 != wall && s2 != wall {
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);

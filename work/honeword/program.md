@@ -4,7 +4,7 @@ kind: program
 title: HONEWORD — split and boolean refusal text and payloads: one ending per decision, the right operand, the margin printed, the right reader
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/split
 prefix: honeword/
 tag: (HONEWORD orchestrator)
 ab_band: 9980-9989

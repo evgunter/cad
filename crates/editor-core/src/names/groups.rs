@@ -4,10 +4,11 @@
 //! the entities an op made from one parent. Which entities those are
 //! is decided where the names are minted, from descent and geometry:
 //! the boolean groups a result face by the operand face it descends
-//! from, an edge by its operand edge or seam pair, a seam vertex by its
-//! parent pair, and the split groups a face by its operand face and the
-//! side it landed on. The group's base name is spelled from that key,
-//! and each member's name is the base, alone or with one qualifier.
+//! from, an edge by its operand edge, seam pair or joined set, a corner
+//! held at several vertices by that corner, and the split groups a face
+//! by its operand face and the side it landed on. The group's base
+//! name is spelled from that key, and each member's name is the base,
+//! alone or with one qualifier.
 //!
 //! The name alone cannot say which group a row belongs to. Two TIED
 //! parents (N2) have one name, so their groups share a base and the
@@ -26,10 +27,11 @@
 //!
 //! What a group counts is the number of DISTINCT entities of the node's
 //! output that descend from the group's parent within that group. For
-//! a pair boolean or a split that is the group's own members. For a
-//! union it is the published body's entities, followed from the fold
-//! step that formed the group through every later step
-//! ([`FragmentGroups::folded`]).
+//! a pair boolean or a split that is the group's own members, and so
+//! it is for a union's faces and seam edges, which the union groups
+//! over its finished body. For a union's other groups it is the
+//! published body's entities, followed from the fold step that formed
+//! the group through every later step ([`FragmentGroups::folded`]).
 //!
 //! The record is diagnosis-time evidence about one run. It rides the
 //! node's value like the verdict log does, and like the verdict log it
@@ -64,11 +66,6 @@ struct Group {
     members: Vec<EntityRef>,
     /// Where they descend from.
     parent: Parent,
-    /// Whether the emitter formed this group from SEVERAL tied parents
-    /// at once. Its seam lanes key a group by the two parents' NAMES,
-    /// and tied parents share names, so their pieces land in one group
-    /// and no one parent's count is on record.
-    tie_summed: bool,
     /// Whether the group is one parent's share of a LINE's group: the
     /// edges a node holds on one line (N2), whichever parent edge on it
     /// each descends from, are one group, counted together
@@ -89,7 +86,7 @@ impl GroupRecord {
     /// Records one group of one parent: its `base`, its `members` (the
     /// output's entities, each once), and where they descend from.
     pub(crate) fn record(&mut self, base: &StableName, members: Vec<EntityRef>, parent: Parent) {
-        self.push(base, members, parent, false, false);
+        self.push(base, members, parent, false);
     }
 
     /// Records one parent edge's share of the group of the line `line`:
@@ -102,58 +99,21 @@ impl GroupRecord {
         members: Vec<EntityRef>,
         parent: Parent,
     ) {
-        self.push(line, members, parent, false, true);
+        self.push(line, members, parent, true);
     }
 
-    /// Records a group the emitter formed by parent NAMES, so that
-    /// tied parents' pieces share it (see [`Group::tie_summed`]).
-    /// `tied` says whether any parent was tied.
-    pub(crate) fn record_by_name(
-        &mut self,
-        base: &StableName,
-        members: Vec<EntityRef>,
-        tied: bool,
-    ) {
-        self.push(base, members, Parent::Elsewhere, tied, false);
-    }
-
-    fn push(
-        &mut self,
-        base: &StableName,
-        members: Vec<EntityRef>,
-        parent: Parent,
-        tie_summed: bool,
-        on_line: bool,
-    ) {
+    fn push(&mut self, base: &StableName, members: Vec<EntityRef>, parent: Parent, on_line: bool) {
         self.0.entry(base.clone()).or_default().push(Group {
             members,
             parent,
-            tie_summed,
             on_line,
         });
     }
 }
 
-/// The groups a union forms over its finished body (its faces, by
-/// parent, and its seam edges, by the parents they lie between), and
-/// the bases it leaves to the fold's own groups instead.
-///
-/// The union forms these groups by parent NAME, so tied parents share
-/// one and it holds no one parent's count; which of its groups that
-/// leaves to the fold is the union's to say (`emit_union`'s
-/// `name_by_parents`), and it says it here, in `by_fold`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct Rederived {
-    /// The groups whose counts are on record.
-    pub(crate) groups: GroupRecord,
-    /// The bases the fold's entity-followed groups answer for.
-    pub(crate) by_fold: BTreeSet<StableName>,
-}
-
 /// One group's count, as the rung reads it: the distinct entities of
-/// the node's output descended from its parent within it, or `None`
-/// where no one parent's count is on record (a tie-summed group).
-type Count = Option<usize>;
+/// the node's output descended from its parent within it.
+type Count = usize;
 
 /// The groups a node's emission formed, as the diagnosis ladder reads
 /// them (module docs). A consumer holds one on every node value and
@@ -167,19 +127,16 @@ enum Read {
     /// One emission's counts, by base.
     Minted(BTreeMap<StableName, Vec<Count>>),
     /// A union's counts: each fold step's, by FOLD-SPACE base, the
-    /// descent already followed to the published body; the groups the
-    /// union re-derives over the finished body, by published base; and
-    /// the re-derived bases left to the fold ([`Rederived`]).
+    /// descent already followed to the published body; and the groups
+    /// the union re-derives over the finished body, by published base.
     Folded {
         node: RecipeNodeId,
         steps: Vec<BTreeMap<StableName, Vec<Count>>>,
         published: BTreeMap<StableName, Vec<Count>>,
-        by_fold: BTreeSet<StableName>,
     },
 }
 
-/// Each group's count in `record`: its distinct members, or `None` for
-/// a group tied parents share.
+/// Each group's count in `record`: its distinct members.
 fn counts(record: &GroupRecord) -> BTreeMap<StableName, Vec<Count>> {
     record
         .0
@@ -194,7 +151,7 @@ fn counts(record: &GroupRecord) -> BTreeMap<StableName, Vec<Count>> {
 /// The counts of the groups under one base, each group's `set` its
 /// distinct entities: one count per group, but every share of a line's
 /// group ([`Group::on_line`]) counted together, as one count of their
-/// union, ahead of the others. `None` for a group tied parents share.
+/// union, ahead of the others.
 fn line_counts(
     groups: &[Group],
     sets: impl IntoIterator<Item = BTreeSet<EntityRef>>,
@@ -205,13 +162,10 @@ fn line_counts(
         if g.on_line {
             line.get_or_insert_with(BTreeSet::new).extend(set);
         } else {
-            rest.push((!g.tie_summed).then_some(set.len()));
+            rest.push(set.len());
         }
     }
-    line.map(|set| Some(set.len()))
-        .into_iter()
-        .chain(rest)
-        .collect()
+    line.map(|set| set.len()).into_iter().chain(rest).collect()
 }
 
 /// Whether a union names every group under `base` over its finished
@@ -253,7 +207,7 @@ impl FragmentGroups {
     pub fn from_sizes(groups: impl IntoIterator<Item = (StableName, usize)>) -> Self {
         let mut m: BTreeMap<StableName, Vec<Count>> = BTreeMap::new();
         for (base, size) in groups {
-            m.entry(base).or_default().push(Some(size));
+            m.entry(base).or_default().push(size);
         }
         Self(Read::Minted(m))
     }
@@ -285,13 +239,14 @@ impl FragmentGroups {
     /// the evaluation's to fail on.
     ///
     /// A union names its faces and seam edges over the finished body,
-    /// not by fold step, and `published` is the record of those groups;
-    /// it answers for a face or seam base except the ones it leaves to
-    /// the fold ([`FragmentGroups::sizes`]).
+    /// not by fold step, one group per parent (a seam's, per pair of
+    /// parents), tied parents' too; `published` is the record of those
+    /// groups, and it answers for every face or seam base
+    /// ([`FragmentGroups::sizes`]).
     pub(crate) fn folded(
         node: RecipeNodeId,
         steps: &[Arc<GroupRecord>],
-        published: &Rederived,
+        published: &GroupRecord,
     ) -> Self {
         let mut counted: Vec<BTreeMap<StableName, Vec<Count>>> = vec![BTreeMap::new(); steps.len()];
         // Each entity of the step after the current one → the published
@@ -328,8 +283,7 @@ impl FragmentGroups {
         Self(Read::Folded {
             node,
             steps: counted,
-            published: counts(&published.groups),
-            by_fold: published.by_fold.clone(),
+            published: counts(published),
         })
     }
 
@@ -342,24 +296,20 @@ impl FragmentGroups {
 
     /// Each group's count under `base`, one per group (two tied parents
     /// give two), empty when no group is. `None` when no one parent's
-    /// count is on record: a group tied parents share, a union's base
-    /// the collapse refuses (a junction whose lines it collides), or two
-    /// of one fold step's bases
-    /// that publish as one.
+    /// count is on record: a union's base the collapse refuses (a
+    /// junction whose lines it collides), or two of one fold step's
+    /// bases that publish as one.
     ///
     /// A union's base can be spelled by more than one step: a step that
     /// leaves an entity whole spells a group of one, and a later step
     /// that divides it spells the group of its pieces under the same
     /// collapsed base. Both count the same published entities, so the
     /// latest step that spells the base answers. A face or seam base is
-    /// answered by the groups re-derived over the finished body, except
-    /// the ones the union leaves to the fold ([`Rederived::by_fold`]).
+    /// answered by the groups re-derived over the finished body.
     pub(crate) fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
         let counts = match &self.0 {
             Read::Minted(m) => m.get(base).cloned().unwrap_or_default(),
-            Read::Folded {
-                published, by_fold, ..
-            } if rederived(base) && !by_fold.contains(base) => {
+            Read::Folded { published, .. } if rederived(base) => {
                 published.get(base).cloned().unwrap_or_default()
             }
             Read::Folded { node, steps, .. } => {
@@ -383,7 +333,7 @@ impl FragmentGroups {
                 found.unwrap_or_default()
             }
         };
-        counts.into_iter().collect()
+        Some(counts)
     }
 }
 

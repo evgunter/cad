@@ -4,7 +4,7 @@ kind: program
 title: LIB — usable as a library
 status: ready
 opened: 2026-08-06
-area: api
+group: api/python
 prefix: lib/
 ab_band: 300-399
 paths: [crates/pncad/*, crates/pncad-py/*, docs/LIBRARY-DESIGN.md, docs/RECIPE-DOORS-DESIGN.md, docs/GUIDE.md]

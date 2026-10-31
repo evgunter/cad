@@ -56,3 +56,22 @@ The same fourteen sweep rows, and no others, fail under `--all-features` on main
 Find the `mfkrh` call on these paths that ends with the face's surface unreferenced. Either the surface should be removed in the same op, or the op's precondition should forbid the state. Then the rows pass under the scalpel; the ciw row would keep them there.
 
 **Wider than ten rows** (seen 2026-10-18 at `683f44c3c0`'s parent, `cargo nextest run --workspace --all-features` locally, while landing PR #5267, which touches no crate below editor-core): 34 sweep rows panic at `crates/topo/src/surgery.rs:357` with this item's message, `mfkrh postcondition: result is not tier-1 valid (kernel bug)`, `OrphanGeometry { Surface }`. Beside the ten listed: `a_closed_conic_in_the_partners_face::*` (5), `an_annular_tube_through_a_plate::*` (8), `germ_plane_torus_chord::*` (6), `germ_plane_torus_frame::*` (2), `germ_plane_torus_spiric::*` (1), `pi_seam_and_kiss_through_the_boolean::*` (1) and `section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds` (1). CI, which does not build the workspace with `--all-features`, passes them all.
+
+## Still on main (2026-10-28, GREEN)
+
+A hosted run of `cargo nextest run --profile ci --workspace --exclude
+viewer --all-features` on `origin/main` `4beeeb05` (run `40720990736`, job
+`122931500237`) ran 14 009 tests in 116 s. 24 failed. Twenty-one of those are
+this item: `surgery.rs:385`, `mfkrh postcondition`, `OrphanGeometry {
+Surface(1v3) }`. By file:
+
+- `a_closed_conic_in_the_partners_face::*` (6)
+- `a_plane_across_a_one_face_wall::*` (6)
+- `an_annular_tube_through_a_plate::*` (4)
+- `germ_coplanar_conic`, `germ_plane_torus_chord`, `one_segment_loop`,
+  `pi_seam_and_kiss_through_the_boolean` and `section_end_poses` (1 each)
+
+The nightly `--all-features` row that GREEN adds holds
+`topo/per-op-postcondition` out until this item closes. The workflow
+comment there names this file, so whoever closes it should drop the
+feature from that row's `HELD_OUT_FEATURES` in `nightly.yml`.

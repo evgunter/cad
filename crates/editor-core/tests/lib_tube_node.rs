@@ -49,8 +49,8 @@ use core::f64::consts::PI;
 
 use corpus::{body_of, eval, failures, hollow_tube_elbow, tube_ring};
 use editor_core::{
-    Axis3, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, TubeWindow, apply, load, save,
+    Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    SlotId, TubeWindow, apply, load, save,
 };
 use fixture::{ang, len};
 use geom_core::Tol;
@@ -221,13 +221,6 @@ fn the_tube_slots_carry_their_dimensions_and_labels() {
         assert!(!slot.is_structural(), "{label} is a continuous parameter");
         assert!(slot.component().is_none(), "{label} is not a vector part");
     }
-    // The spine is the tube's own z circle: the tube carries no
-    // direction slot.
-    assert!(
-        solid_node(2.0, TubeWindow::Full, 0.5)
-            .expr(SlotId::Direction(Axis3::X))
-            .is_none()
-    );
 }
 
 // ---------------------------------------------------------------
@@ -243,7 +236,7 @@ fn the_solid_ring_meters_its_closed_form() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        topo::Body::clone(&(body_of(&ev, d.result.expect("a result node")))),
         Tol::witness(),
     );
     let props = topo::mass_properties(
@@ -292,7 +285,7 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        topo::Body::clone(&(body_of(&ev, d.result.expect("a result node")))),
         Tol::witness(),
     );
     let props = topo::mass_properties(
@@ -352,7 +345,7 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, tube)),
+        topo::Body::clone(&(body_of(&ev, tube))),
         Tol::witness(),
     );
     let props = topo::mass_properties(
@@ -397,7 +390,7 @@ fn the_solid_elbow_meters_its_pappus_form() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, tube)),
+        topo::Body::clone(&(body_of(&ev, tube))),
         Tol::witness(),
     );
     let props = topo::mass_properties(
@@ -473,7 +466,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
             "mass properties",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(body_of(&ev, id)),
+                topo::Body::clone(&(body_of(&ev, id))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -497,11 +490,11 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     // And they store DIFFERENT radii sets, which is the same claim one
     // layer nearer the geometry.
     assert_eq!(
-        stored_minor_bits(body_of(&ev, solid)),
+        stored_minor_bits(&(body_of(&ev, solid))),
         vec![outer.to_bits(); 2]
     );
     assert_eq!(
-        stored_minor_bits(body_of(&ev, hollow)),
+        stored_minor_bits(&(body_of(&ev, hollow))),
         both_radii(outer, inner)
     );
 }
@@ -810,7 +803,7 @@ fn bumping_the_wall_moves_the_stored_inner_radius() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, d.result.expect("a result node"));
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         both_radii(hollow_tube_elbow::OUTER, after),
         "a wall edit moves the inner radius and leaves the outer one exactly alone"
     );

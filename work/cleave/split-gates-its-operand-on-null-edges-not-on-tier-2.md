@@ -71,7 +71,7 @@ blended body (filed: `work/band/blend-doors-answer-an-inside-out-operand-with-an
 `replace_face_offset` answers it inside-out (evidence added to
 `work/shell/shell-answers-for-the-complement-of-an-inside-out-operand.md`);
 the STEP writer refuses a null edge by hand and reads nothing else
-(filed: `work/exch/exchange-writers-take-a-body-no-at-rest-gate-read.md`).
+(filed: `work/reimport/exchange-writers-take-a-body-no-at-rest-gate-read.md`).
 
 ## Closed (PR 4084, 2026-10-06)
 

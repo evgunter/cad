@@ -1,7 +1,7 @@
 //! **One gather per landing**, and the landing's observables around it.
 //!
 //! `DocSession::land` has four consumers of the document's product —
-//! the product's own verdict, the advisory registry, the A5 badge, and
+//! the product's own verdict, the advisory registry, the at-rest badge, and
 //! the session itself, which KEEPS the body for the display fit — and
 //! each of the first three used to derive it for itself. What replaced
 //! that is an ORDER (fault, registry, badge) in which one gather is
@@ -80,12 +80,12 @@ fn a_part_document_lands_on_one_gather() {
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(session.product_fault().is_none(), "the product gathers");
     assert!(session.checks().is_some(), "and the registry reports");
-    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+    assert!(session.at_rest().is_none(), "a part has no at-rest badge");
 }
 
-/// **A1 — an assembly-shaped document lands on one gather too**, and
-/// that is the case the order is FOR: the badge consumes the product,
-/// so it goes last and the registry reads it first.
+/// **A1 — an assembly-shaped document lands on one gather too**: the
+/// registry reads the product, and the at-rest badge reads the
+/// registry's report.
 #[test]
 fn an_assembly_shaped_document_lands_on_one_gather() {
     let tol = Tol::witness();
@@ -96,20 +96,15 @@ fn an_assembly_shaped_document_lands_on_one_gather() {
     assert!(session.product_fault().is_none(), "the product gathers");
     assert!(session.checks().is_some(), "the registry reports");
     assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
-        "and the A5 badge is taken: {:?}",
+        matches!(session.at_rest(), Some(AtRestBadge { .. })),
+        "and the at-rest badge is taken: {:?}",
         session.at_rest()
     );
 }
 
 /// **The landing's body is handed on, not gathered again**, on a part
-/// document — the path with no A5 gate to give it away.
-///
-/// Delete `land`'s `Some(Arc::new(product.body.into_body()))` and
-/// this row goes red on the `expect`, where the certified-assembly row
-/// below stays green; make `DocSession::landed_body` gather instead of
-/// borrow and it goes red on the count while the assembly row's count
-/// also moves.
+/// document. Make `DocSession::landed_body` gather instead of borrow
+/// and it goes red on the count.
 #[test]
 fn a_part_documents_body_is_borrowed_from_its_landing() {
     let tol = Tol::witness();
@@ -131,50 +126,16 @@ fn a_part_documents_body_is_borrowed_from_its_landing() {
     assert!(solids > 0, "and it is the drawable body");
 }
 
-/// **A certified assembly hands its body back too.** The A5 gate
-/// consumes the product it judges, and a certification returns the
-/// same aggregate on its `Assembly` — so the one path that could have
-/// lost the body to the gate does not.
-///
-/// Take the body from `badge`'s `Ok` arm and return `None` there and
-/// this row goes red where the part-document row above stays green:
-/// the two differ in exactly the gate, which is the claim.
+/// **An assembly keeps its body, whatever its census found.** Two posts
+/// seated side by side under the shelf, three ε apart: inside the sliver
+/// band, so the census cannot look at the faces they stand off over.
+/// That is a could-not-look finding, which refuses nothing, and the landing keeps
+/// the product's body all the same.
 #[test]
-fn a_certified_assembly_keeps_the_body_the_gate_was_given() {
+fn an_assembly_keeps_its_body_whatever_its_census_found() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-assembly", tol);
-    let session = common::asm::open_bench(&bench, tol);
-    assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
-        "this row's premise is a certified gate: {:?}",
-        session.at_rest()
-    );
-
-    let before = gathers_on_this_thread();
-    assert!(session.landed_body().is_some(), "the aggregate is kept");
-    assert_eq!(
-        gathers_on_this_thread() - before,
-        0,
-        "the gate handed it back rather than eating it"
-    );
-}
-
-/// **A REFUSED A5 gate is the one landing that keeps no body**, and it
-/// is not the same `None` as a refused gather: the product gathered
-/// fine, and the gate ate it in refusing.
-///
-/// This is the path `scene::product_of_evaluation` exists for. Make
-/// `badge` hand the body back on its `Err` arm — by cloning before the
-/// gate, the trade `LandedRun::body` rejects — and this row goes red on
-/// the `is_none`, alone among the three.
-#[test]
-fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
-    let tol = Tol::witness();
-    let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    // The two posts seated side by side under the shelf, three ε apart:
-    // inside the sliver band, so the census cannot look at the faces
-    // they stand off over, and the gate refuses.
     let middle = common::asm::SHELF_LENGTH / 2.0;
     let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
     for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
@@ -187,27 +148,24 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     assert!(
         matches!(
             session.at_rest(),
-            Some(AtRestBadge::Refused { message })
-                if message.contains("whether they lie on one plane is within the tolerance band")
+            Some(AtRestBadge { could_not_look, .. }) if *could_not_look > 0
         ),
-        "this row's premise is a gate refused on an in-band face pair: {:?}",
+        "this row's premise is a census that could not look in the band: {:?}",
         session.at_rest()
     );
-
-    assert!(
-        session.product_fault().is_none(),
-        "the GATHER succeeded — this is not the refused-gather case"
-    );
-    assert!(
-        session.landed_body().is_none(),
-        "and the body went into the gate that refused"
+    assert!(session.product_fault().is_none(), "the GATHER succeeded");
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_some(), "and the aggregate is kept");
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "handed on, not gathered again"
     );
 }
 
 /// **A gather refusal has no body to hand out, and asking does not
 /// re-run the refusal.** `None` here means the pair has no product at
-/// all, which is what `product_fault` is already saying — the other
-/// `None` from the row above.
+/// all, which is what `product_fault` is already saying.
 ///
 /// Make `landed_body` gather when the field is empty and this row goes
 /// red on the count, where every other row in this file stays green.
@@ -248,7 +206,7 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
         session.checks().is_none(),
         "and the registry has no subject, so there is no report"
     );
-    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+    assert!(session.at_rest().is_none(), "a part has no at-rest badge");
 }
 
 /// **A4 — a gather refusal the empty-product reading does not claim
@@ -303,7 +261,7 @@ fn a_stranded_product_lands_with_a_fault_and_no_report() {
         viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
         "no row holds the read, so the frame is the channel"
     );
-    assert!(session.at_rest().is_none(), "a part has no A5 badge");
+    assert!(session.at_rest().is_none(), "a part has no at-rest badge");
 }
 
 /// **A4 — a document that denotes no body is not a refusal**
@@ -339,7 +297,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
 /// world — the measure read at it places nothing — so the gather says
 /// `EmptyProduct` while the document still holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
-/// the A5 badge agrees with it: there is no product for the gate to
+/// the at-rest badge agrees with it: there is no product for the check to
 /// judge, and an at-rest badge reading "at rest: product: …" would
 /// show a failure the line above it says is not one.
 ///
@@ -386,7 +344,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge agrees: an assembly with nothing in the world is not a refusal"
+        "and the at-rest badge agrees: an assembly with nothing in the world is not a refusal"
     );
 }
 
@@ -394,7 +352,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
 /// either.** Beside an instance, an extrude whose distance divides by
 /// zero fails at evaluation, so the gather refuses with a class
 /// `ProductErrorKind::means_no_body` does not claim, in a document that
-/// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
+/// is assembly-shaped. The at-rest check never ran, so it gave no verdict:
 /// the refusal is `DocSession::product_fault`'s, and
 /// `frame::badge_site` routes it (a placement whose body failed to the
 /// feature tree).
@@ -433,7 +391,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::Root(NodeStanding::Poisoned { through, .. })) if *through == extrude
+            Some(ProductError::Read(NodeStanding::Poisoned { through, .. })) if *through == extrude
         ),
         "the premise: a placement poisoned by its failed body, which is a refusal and not \
          an absence: {:?}",
@@ -442,7 +400,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge takes no verdict on a product the gate never saw"
+        "and the at-rest badge takes no verdict on a product the check never saw"
     );
     let rows = session.tree_rows();
     assert!(

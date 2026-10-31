@@ -14,7 +14,9 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::spline::SpanLocate;
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
-use topo::{AtRestPolicy, Body, FaceSurface, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{AtRestPolicy, Body};
 
 /// The cap with its rim turned `−phi` and its meridian `+phi` about the
 /// pole axis: every carrier end then sits `phi·r` off its vertex (`r`
@@ -222,7 +224,7 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
 fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
     lane: &str,
     t: f64,
-) -> (Body<T>, topo::SplitEdgeCreated) {
+) -> (Body<T>, topo::construction::SplitEdgeCreated) {
     let mut body = half_cap::<T>(0.0).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let meridian = body
         .edges()

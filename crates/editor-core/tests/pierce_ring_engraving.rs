@@ -90,6 +90,7 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         })
     };
     let (doc, disc) = insert(doc, profile(LoopProgram::circle(0.0, 0.0, R).unwrap()));
@@ -136,10 +137,10 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             panic!("{label}: the pocket refused: {e}");
         }
         let body = body_of(&ev, cut);
-        assert_eq!(topo::validate(body), Ok(()), "{label}: tier 1");
-        assert_eq!(topo::validate_closed(body), Ok(()), "{label}: closed");
+        assert_eq!(topo::validate(&body), Ok(()), "{label}: tier 1");
+        assert_eq!(topo::validate_closed(&body), Ok(()), "{label}: closed");
         assert_eq!(
-            topo::validate::validate_geometric(body, tol),
+            topo::validate::validate_geometric(&body, tol),
             Ok(()),
             "{label}: tier 3"
         );
@@ -151,7 +152,7 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             )
             .volume
         };
-        let tool_volume = volume(body_of(&ev, prism));
+        let tool_volume = volume(&(body_of(&ev, prism)));
         assert!(
             (tool_volume - area * 2.0 * DEPTH).abs() < 1e-17,
             "{label}: the tool's prism is its outline's area times its length: \
@@ -159,7 +160,7 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             area * 2.0 * DEPTH
         );
         let truth = PI * R * R * HEIGHT - area * DEPTH;
-        let got = volume(body);
+        let got = volume(&body);
         assert!(
             (got - truth).abs() < 1e-15,
             "{label}: pocketed cylinder {got} against the closed form {truth}"
@@ -185,7 +186,7 @@ fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
     if let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) {
         panic!("the rim-crossing pocket refused: {e}");
     }
-    let body = topo::test_support::finished("body", topo::Body::clone(body_of(&ev, cut)), tol);
+    let body = topo::test_support::finished("body", topo::Body::clone(&(body_of(&ev, cut))), tol);
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
     assert_eq!(

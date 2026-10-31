@@ -171,7 +171,7 @@ this section teaches — it is the shape of *using* this kernel:
 
 > **author → validate → measure → tessellate → cross-check → export**
 
-The tour's `run_body` (`demos/tour/src/main.rs`) is that ladder
+The tour's `run_body` (`demos/tour/src/lib.rs`) is that ladder
 written once and applied to every scene. Nothing about it is
 demo-specific; your own program should look like it.
 
@@ -1739,6 +1739,7 @@ let (next, profile) = insert(
     Node::Profile(ProfileProgram {
         loops: vec![outline, hole],
         ids: Vec::new(),
+        on: None,
     }),
 );
 doc = next;
@@ -1756,8 +1757,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-// An evaluated value holds the body as built; the measurement reads it finished.
-let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+// An evaluated value holds the body as built, in its own coordinates
+// (`Framed::body`); the measurement reads it finished.
+let body = AtRestBody::validate(Body::clone(body.body()), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
@@ -1780,7 +1782,7 @@ use pncad::prelude::*;
 #     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { loops: vec![outline, hole], ids: Vec::new() }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { loops: vec![outline, hole], ids: Vec::new(), on: None }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5) });
 # doc = next;
@@ -1887,6 +1889,7 @@ let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
+    on: None,
 }));
 doc = next;
 let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5) });
@@ -1902,6 +1905,7 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
             .expect("finite corners"),
     ],
     ids: Vec::new(),
+    on: None,
 }));
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25) });
@@ -1927,7 +1931,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+    let body = AtRestBody::validate(Body::clone(body.body()), tol).expect("a finished body");
     mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 

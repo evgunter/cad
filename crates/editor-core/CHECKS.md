@@ -5,9 +5,10 @@ that produce findings and never change a body (DESIGN
 `[intent.checked]`). The registry and its residents are
 `src/checks.rs` and `src/checks/` (`run_checks`, `enforce_checks`,
 `CheckId`, `CheckKind`, `Severity`, `Advisory`); the sink is
-`src/finding.rs`. The residents are `Connectedness`, `Separation`,
-`ChartCoherence` and `UnprovenCoincidence`, the last DESIGN
-`[coincidence.door]`'s lint.
+`src/finding.rs`. The residents are `Connectedness`, `ChartCoherence`,
+`Unused`, DESIGN `[operations]`'s finding of what the person made and
+nothing uses, `UnprovenCoincidence`, DESIGN `[coincidence.door]`'s
+lint, and `AtRest`, DESIGN `[assertions]`'s at-rest check.
 
 The clause ids are the DISCIPLINES-DESIGN family's and keep their
 numbers. DS1, DS2, DS4, DS5 and DS7 described declared-coincidence
@@ -104,38 +105,63 @@ needs it). Two corrections earned on contact:
   clean. The waiver rule's staleness clause above is thereby
   confirmed by its first resident within one review cycle.
 
-**Second resident SHIPPED (2026-08-29): the product-separation
-check.** Resident `CheckId::Separation`, kind Certified, over every
-pair of gathered solids the product took from DIFFERENT root subjects,
-held to `topo::SolidSeparation`'s box-level certificate. It discharges
-the obligation `topo::graft_disjoint_all_keyed` leaves to its callers
-(that door asserts nothing about its operands, so someone must
-establish disjointness) for the caller that had none — the product
-gather. It REPORTS: a document whose roots interpenetrate still draws,
-because the finding is the only thing that says the almost-right
-picture is wrong.
+**The at-rest resident: `CheckId::AtRest`.** Kind Certified, it reads
+the census each `⊔` ran over its arrivals (ASSEMBLY A5), the product's
+and every `⊔` the product does not read, and reports two kinds of
+finding under the `⊔` that decided it: an overlap between two arrivals
+(`InterferenceFinding`, and a part's carried one), quiet or loud; and a
+pair the census could not look at (`AtRestEvidence`), loud,
+unquietable and refusing at no severity. A contact is never its
+finding: it is the `unproven-coincidence` lint's row. It REPORTS: a
+document whose copies interpenetrate still draws, because the finding is
+the only thing that says the almost-right picture is wrong.
 
-**Its severity knob is `Advisory` (Off/Warn), not `Severity`, and that
-is this doc's waiver rule biting for the first time.** The rule above
-is an *iff*, and this resident ships no acknowledgment record — so
-`error` is not merely unset, it is unrepresentable, enforced by the
-type rather than by a comment asking callers not to reach for it. The
-declared-contact suppression it does have is NOT a waiver and must not
-be counted as one: it is derived from mates rather than authored about
-a finding, keyed by kernel arena entities rather than stable names,
-carries no provenance, and has no staleness direction.
+**Its severity knob is `Severity` (Off/Warn/Error), default Warn, and
+that is the assertion rule below at work.** A finding refuses only where
+an assertion could have quieted it (DESIGN `[assertions.quiet]`), so
+`Error` is legal: at `Error`, `enforce_checks` refuses a loud
+interference finding some assertion the quieting rule accepts could
+quiet, and nothing else this resident reports. A finding no such
+assertion could quiet (an overlap the kernel could not intersect; one
+whose bounding faces offer no pair the rule would take, or whose
+overlap crosses every such pair's carriers; one carrying a verdict no
+assertion over it speaks for) is outside what the document can yet say
+(below): loud, and refused at no severity. A quiet
+finding (`CheckFinding::quiet`) is listed with the assertion that quiets
+it and never refuses. The census's own pre-filter is the pair filter;
+the resident adds no box test of its own.
 
-**This is the resident that makes the waiver vocabulary stop being
-paper.** The note above records it as deferred "until a resident needs
-it"; one now does. `demos/tour`'s `heatsink.pncad` produces five
-findings that are all CORRECT — its fins are unioned into its base
-only in demo-side code, so its product genuinely is overlapping solids
-— and there is no way to acknowledge them short of turning the
-resident off wholesale, which turns it off for the diefillet defect
-too. The shape it wants is `expected_components`' one subject up:
-keyed by the `(root, output)` PAIR a finding names, with the same
-two-directional staleness. Until it exists, `Advisory` is the honest
-knob and the noise is the standing demonstration of the gap.
+**The unproven-coincidence resident: `CheckId::UnprovenCoincidence`.**
+It reports each row the coincidence door leaves unproven, an
+operation's or an at-rest census's (DESIGN `[coincidence]`). A row is
+quiet under a holding `= 0` over the measure that says what it decided
+(`checks::at_rest::quiet_row`): a `Gap` over its two cells, read on
+their sides, for a contact, a flush pair or a tangency; a `Distance`
+between the poses its cells' carriers have (an axis, a centre) for a
+centre on an axis, two axes meeting, or two axes one, where the two
+axes read parallel; a `Gap` or a `Distance` between a split's tool and
+its vertex. Only `= 0` quiets, since a bound is a tolerance; and only an
+opposed pair's `Gap` quiets an interference. A finding refuses only
+where such an assertion could hold, which the rule evaluates
+(`row_quietable`). A row no
+assertion says (a blend turn's two feet, two radii written apart, a
+profile junction, a blend's joint) is loud, refuses at no severity, and
+its recourse names the construction alone (`coincide::Recourse::words`).
+
+**The unused resident: `CheckId::Unused`.** Kind Certified, it reads
+the recipe alone (`Doc::unused`), nothing evaluated and no subject
+gathered. A use is a read (a slot, an operand or a definition reading
+the variable), being the product, or being what an assertion states.
+It reports what is deliberate and unused at the tip of each dead
+chain: an operation none of whose outputs is used
+(`FindingSubject::Node`), and a named variable nothing uses that no
+reported operation defines (`FindingSubject::Var`, spoken by its
+name). What a tip reads is used by it, so deleting the tip surfaces
+the next. An output nobody named and an anonymous variable are
+byproducts and never reported; the world is exempt; a `Measure` no
+assertion reads is reported. A part's unused things are the part's own
+and are not carried into a host. Its knob is `Advisory`, default Warn:
+nothing quiets an unused thing but using or deleting it.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
 knob (round 3, per Ev: blocking is fine if exceptions are

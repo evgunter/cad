@@ -52,6 +52,7 @@ pub(crate) fn disc(
                 .expect("a finite circle"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

@@ -468,6 +468,10 @@ impl<T: KinkJacobian> Real for Dual<T> {
 
     const NAME: &'static str = "dual";
 
+    /// **Nothing**: a dual never certifies (DL1), so a dual body
+    /// carries no certificate (DL3).
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = crate::real::Uncertified;
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
@@ -509,6 +513,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// `(1, 0)`.
     fn one() -> Self {
         Self::constant(T::one())
+    }
+
+    /// `(sin(τ/12), 0)`, `T`'s: a constant of the run.
+    fn sin_of_a_twelfth() -> Self {
+        Self::constant(T::sin_of_a_twelfth())
     }
 
     /// `(π, 0)` — a constant of the run, not a function of the parameter.
@@ -765,6 +774,15 @@ impl<T: KinkJacobian> Real for Dual<T> {
             value: self.value.max(other.value),
             deriv: self.value.max_deriv(self.deriv, other.value, other.deriv),
         }
+    }
+}
+
+/// A dual's doors construct and never check (DL1, DL3): what it holds in
+/// a certifying door's record's place is [`crate::Uncertified`].
+impl<T: KinkJacobian> crate::real::TangentTransport for Dual<T> {
+    fn uncertified<C: Copy + core::fmt::Debug + Send + Sync + 'static>() -> crate::real::Uncertified
+    {
+        crate::real::Uncertified
     }
 }
 

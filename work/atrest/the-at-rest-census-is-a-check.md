@@ -2,10 +2,13 @@
 id: the-at-rest-census-is-a-check
 kind: issue
 title: D10 stage 5 PR C: the at-rest census is a check resident reporting interference and could-not-look; at-rest contacts go to the unproven-coincidence lint; nothing at rest refuses; A5's gate, assemble and Separation retire
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
+closed: 2026-10-26
+branch: atrest/the-at-rest-census-is-a-check
+pr: 5810
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
@@ -60,3 +63,18 @@ localised to the faces bounding it, or loud, unquietable and never
 refusing when the intersection refuses. An undecided pair is an
 `AtRest` could-not-look finding, which refuses at no severity (DS6). Each finding is quiet under D10's rule or loud. Nothing
 refuses: a caller that wants a gate runs `enforce_checks` at `Error`."
+
+## Closed
+
+2026-10-26, by the PR on branch `atrest/the-at-rest-census-is-a-check`
+(stage 5 C). `CheckId::AtRest` is a registry resident (knob `Severity`,
+default Warn, kind Certified) reporting interference and could-not-look
+(`AtRestEvidence`) under the `⊔` that decided each; the contact half of
+the quieting rule (`checks::at_rest::quiet_contact`) quiets the lint's
+at-rest rows at any cell dimension; `CheckFinding::quiet` is listed and
+never refuses; `enforce_checks` skips quiet and could-not-look findings;
+`assemble`, `assemble_gathered`, `Assembly`, `AssemblyError`,
+`AtRestFinding`, `CheckId::Separation`, its evidence and its config
+retire. The PR body is the record of what moved. Rows carried past it:
+`an-assertion-quiets-an-operations-unproven-row` (opened),
+`at-rest-check-rows-left-unwitnessed` (filed).

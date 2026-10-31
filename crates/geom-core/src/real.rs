@@ -310,6 +310,20 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
+    /// **What a certifying door's record is held as at this scalar**:
+    /// the record itself where the scalar certifies, and
+    /// [`Uncertified`] where it never does (a dual, DL1). An edge a
+    /// door attaches carries its certificate in this shape, so a body
+    /// at a tangent-transport scalar carries none by type (DL3), and a
+    /// reader at a certifying scalar reads the record with no arm for
+    /// its absence.
+    ///
+    /// Declared, never defaulted, as [`Real::WITNESS`] is: a new scalar
+    /// says which side of the partition it is on. A record is held only
+    /// through [`CertifiedEnclosure::carried`], so a scalar that holds
+    /// records and cannot certify is not constructible from this side.
+    type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     ///
     /// **For a constant only**: a literal, a count, a tolerance, data
@@ -556,6 +570,14 @@ pub trait Real:
     /// never a different numeric result.
     fn cos(self) -> Self {
         self.sin_cos().1
+    }
+
+    /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
+    /// the literal. A scalar that records structure keeps the sine of
+    /// the angle instead, valued `1/2`, so what reads the structure sees
+    /// the angle and not only its value.
+    fn sin_of_a_twelfth() -> Self {
+        Self::from_f64(0.5)
     }
 
     /// The tangent (argument in radians).
@@ -904,7 +926,8 @@ pub const fn pow2(e: i32) -> f64 {
 ///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim)), and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
 ///   propagates `NaN` but not infinity, so a `min` hides an
@@ -999,7 +1022,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the
@@ -1430,7 +1454,7 @@ pub mod bounds_allowlist {
     //! certificate is the base scalar's. **Whether they should carry
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
     //! not the door** — the one production caller,
-    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `editor_core::eval::wire::images_apart`, sits beneath
     //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
     //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
     //! by propagation. **Doors tighten; passes keep their lanes.** (The
@@ -1463,6 +1487,24 @@ pub mod bounds_allowlist {
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
     //! are the walk's, scalar for scalar.
+    //!
+    //! **The clearance engine's door rides the same seam** (CLEAR's
+    //! symbolic-tier ruling, 2026-10-27, applying the M5 PR 11
+    //! precedent): `topo::clearance` (`Side::windows`, `Sweep::run`,
+    //! `min_separation` and the window and region helpers beneath them)
+    //! and `topo::cell_region`'s two doors take a `Body<T>` at
+    //! `Decide + CertifiedBounds`. `QuadLane::certified` stays the only
+    //! entry from the props reporting walks; these are further doors of
+    //! the same kind, outside them. The argument is the same one. The
+    //! bracket half is what lifts each surface, curve and point the door
+    //! reads into interval arithmetic (`Interval::from_certified`), where
+    //! the cells, the enclosures, the funnelled `d − c` and the bracket
+    //! are computed. The `Decide` half is what places a cell's or a
+    //! witness station's point at `T` through the point-in-face doors.
+    //! No bracket of `T` is branched on. The weakest bound that works is
+    //! this one: drop the bracket term and no lift into interval
+    //! arithmetic can be formed; drop `Decide` and no station can be
+    //! placed.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
@@ -1536,10 +1578,10 @@ pub mod bounds_allowlist {
     //! that door's signature rather than widening the rule's reach. It
     //! is what keeps `Bounds` off `topo`'s doors: the lane is a sealed
     //! VALUE (`geom_brep::NurbsLane`) whose one constructor carries the
-    //! lane bound, handed to the shared machinery as `_via(…, lane)`'s
-    //! argument, and `topo`'s doors read it off the scalar's policy
-    //! (`AtRestPolicy::nurbs_lane`). Injection moves a bound onto a
-    //! narrower signature; it does not remove one.
+    //! lane bound, handed to the certifying doors as their `lane`
+    //! argument, and `topo`'s doors reach those doors through the
+    //! scalar's policy (`AtRestPolicy::attach_edge`). Injection moves a
+    //! bound onto a narrower signature; it does not remove one.
     //!
     //! **2026-09-02, amending the entry above rather than adding a row — the
     //! lane's split is a BOUND, not a trait.** This lane's static split was
@@ -1562,25 +1604,36 @@ pub mod bounds_allowlist {
     //! strictness**: a dual reached the trait and got
     //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
     //! the call, and the refusal variant is retired with the impl that raised
-    //! it. **What a mixed pass does instead**: `geom_brep`'s
-    //! `certify_via`/`recertify_via` take `Option<NurbsLane>` as the
-    //! shared body's argument — `NurbsLane` a sealed value whose one
-    //! constructor carries the bound above — and `topo`'s operations
-    //! fill it from the scalar's policy (`AtRestPolicy::nurbs_lane`,
-    //! `None` at a dual). The validators keep their shape: check 2
-    //! re-certifies through `recertify_via`, whose argument every door
-    //! bounded on the certification right fills (`validate_geometric`,
-    //! `validate_pseudomanifold`, `contact_marks` and their certificate and
-    //! declared forms) and every `_structural` door leaves empty — the M7-8
-    //! class is then not re-derived and, being outside those doors'
-    //! rights, not reported either (the lane's absence is its own
-    //! refusal, `CertifyError::NurbsLaneNotSupplied`).
+    //! it. **What a mixed pass does instead** is the edge door split
+    //! below (2026-10-25): no door takes the lane as an option.
     //! **The symbolic tier needs no arm of its own and gains none**:
     //! `Sym<T>` implements [`Bounds`](super::Bounds),
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
     //! [`Decide`](crate::Decide) exactly when its base scalar does, so it
     //! satisfies the free function's signature for every certifying base —
     //! which is what the deleted trait's symbolic impl said with an impl.
+    //!
+    //! **2026-10-25 (Ev's ruling on PR 5689; `geom-brep` README C2) — the
+    //! edge door split as a BOUND.** An edge door is two functions: the
+    //! mint (`geom_brep::EdgeCurve::mint`), construction at any deciding
+    //! scalar, and the certification (`EdgeCurve::certify`,
+    //! `certify_stated`, `recertify`, `recertify_stated` and the engine
+    //! they share), bounded on `Decide + `[`CertifiedBounds`](super::CertifiedBounds)
+    //! and taking the lane as a plain argument. `geom_brep::certify`
+    //! carries those doors for that reason, and `topo::policy_lane` the
+    //! certifying scalars' door bodies their policies run
+    //! (`certifying_attach`, `certifying_reattach`), and nothing else: the
+    //! compound is forced for the reason the entry above gives, and what it
+    //! buys is that no code path at a dual can name a certifying function —
+    //! a compile error, not a runtime `None`. What an edge carries is the
+    //! scalar's to say ([`Real::Carries`](super::Real::Carries)): the
+    //! certificate where it certifies, [`Uncertified`](super::Uncertified)
+    //! at a dual.
+    //! The same ruling's C2 (as ratified on PR 5652: limbs 1 and 2 owed
+    //! by every carrier) puts a closed-form carrier's limb 2 at the rung-3
+    //! limb's own bound, so `geom_brep::edge_nurbs`'s `analytic_edge_limbs`
+    //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
+    //! M6-2/M7-8 entries above with nothing wider.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
@@ -1618,7 +1671,7 @@ pub mod bounds_allowlist {
     //! (DS6). One consequence crosses a unit boundary and is recorded here: no
     //! `Dual` implements [`CertifiedEnclosure`](super::CertifiedEnclosure), so `editor_core::run_checks`
     //! is no longer callable at one — DL1 holding one door further out, since
-    //! the registry's separation resident GRANTS a certificate. The suite
+    //! the registry's residents GRANT certificates. The suite
     //! that pins it is `editor-core/tests/r1_dual_probes.rs`, whose
     //! end-to-end rows build the dual body and the closure that would reach
     //! the registry and record that the call cannot be written; that is the
@@ -1775,6 +1828,34 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
+
+    /// `record`, held as this scalar holds a certifying door's record
+    /// ([`Real::Carries`]): the one constructor of a held record, on the
+    /// trait a dual does not implement.
+    fn carried<C: Copy + Debug + Send + Sync + 'static>(record: C) -> <Self as Real>::Carries<C>
+    where
+        Self: Real;
+
+    /// The record `held` holds.
+    fn held<C: Copy + Debug + Send + Sync + 'static>(held: &<Self as Real>::Carries<C>) -> &C
+    where
+        Self: Real;
+}
+
+/// **What a tangent-transport scalar holds where a certifying scalar
+/// holds a record**: nothing ([`Real::Carries`]). A dual never certifies
+/// (DUAL-DESIGN DL1), and a dual body carries no certificate (DL3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Uncertified;
+
+/// **A scalar that transports tangents and never certifies** — the
+/// dual's side of [`Real::Carries`]' partition: its doors construct and
+/// never check, and what they hold in a record's place is
+/// [`Uncertified`]. No scalar implements both this and
+/// [`CertifiedEnclosure`].
+pub trait TangentTransport: Real {
+    /// What this scalar holds in a record's place.
+    fn uncertified<C: Copy + Debug + Send + Sync + 'static>() -> Self::Carries<C>;
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so
@@ -1784,6 +1865,14 @@ pub trait CertifiedEnclosure: Copy {
 impl CertifiedEnclosure for f64 {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         (!self.is_nan()).then_some((self, self))
+    }
+
+    fn carried<C: Copy + Debug + Send + Sync + 'static>(record: C) -> C {
+        record
+    }
+
+    fn held<C: Copy + Debug + Send + Sync + 'static>(held: &C) -> &C {
+        held
     }
 }
 
@@ -1871,6 +1960,8 @@ impl Real for f64 {
     const WITNESS: Witness = Witness::Inexact;
 
     const NAME: &'static str = "f64";
+
+    type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {

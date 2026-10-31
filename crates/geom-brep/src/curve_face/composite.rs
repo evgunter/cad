@@ -2,8 +2,7 @@
 //! ([`super::Door::SplineComposite`]): the face's canonical residual
 //! composed along the span's NURBS carrier, the ring composite `f ∘ C`
 //! ([`geom_core::spline::compose::canonical_composite`]), read piece by
-//! piece. The boolean dispatches the plane alone (`super::route`); the
-//! arm reads a cylinder, cone, sphere or torus the same way, metered
+//! piece. It reads a plane, cylinder, cone, sphere or torus, metered
 //! through the form's distance divisor.
 //!
 //! The carrier's net is written in the surface's chart frame in
@@ -17,7 +16,11 @@
 //! by an upper bound on the form's distance divisor over the net's hull
 //! (the plane's is one), bounds the part's distance from the surface from
 //! below, and that is what is decided against the band `implicit_residual`
-//! is decided against. **A piece never straddles a knot**: the pieces
+//! is decided against. The divisor is a factor of `f` at each point,
+//! `|f(p)| ≤ d(p)·divisor(p)` with `d` the distance from the form's zero
+//! set (`projected::Meters::divisor`), not a bound along a path to it, so
+//! the hull, which holds every point of the span, is the region it is
+//! read over. **A piece never straddles a knot**: the pieces
 //! start as the carrier's knot spans cut at the span's ends, and every
 //! later piece is a part of one, so each row is one polynomial and a
 //! derivative read on it is the derivative there. On a piece:
@@ -56,25 +59,37 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, R
 
 use crate::half_angle::SPLITS;
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::Unsettled;
+use crate::roots::{Unsettled, touch_or_tangency};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum CompositeRefusal {
     /// A decision the arm must read definite fell in the band's gap:
-    /// whether a located crossing lies ON the surface, or where it stands
-    /// against an end of the span, a crease or the crossing before it.
+    /// whether a located crossing lies ON the surface, where it stands
+    /// against an end of the span, a crease or the crossing before it, or
+    /// a piece's end, or every share of a piece, read in the gap where the
+    /// carrier comes within the band of the surface.
     Escalated(Indeterminate),
-    /// The walk could not settle the span: [`Unsettled::Tangency`] (the
-    /// carrier stays within the band of the surface along a piece too
-    /// short to cut, touches it at a knot, or crosses it twice within the
-    /// band, a double or a triple root among them), [`Unsettled::Crease`],
-    /// [`Unsettled::SignInBand`] (a located crossing does not read on the
+    /// The walk reached a limit, or a reading it has no arm for:
+    /// [`Unsettled::Tangency`] (the carrier decided within the zero band
+    /// of the surface along a piece, at every share, or at a knot it
+    /// leaves the way it came, or two crossings the band reads at one
+    /// point), [`Unsettled::Floor`] (a piece at the floor that its
+    /// enclosure does not read past the band), [`Unsettled::Crease`],
+    /// [`Unsettled::Meter`] (a located crossing reads definitely off the
     /// surface) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
+    /// The face's surface describes no frame or no positive meter: its
+    /// chart frame does not certify (a reference direction along its
+    /// axis, a zero or non-finite direction), or the form's distance
+    /// divisor has no positive upper bound over the net's hull (a
+    /// non-positive or non-finite radius). A surface tier 3 refuses
+    /// ([`geom::Surface::representability_margins`]), read here because
+    /// the arm does not re-validate its inputs.
+    FaceDegenerate(&'static str),
     /// The composite could not be formed: the face has no canonical form
-    /// (a spline face), or a control point, a knot, a frame scalar or the
-    /// net's structure did not certify.
+    /// (a spline face), or a control point, a knot or the net's structure
+    /// did not certify.
     Unread(&'static str),
 }
 
@@ -115,15 +130,28 @@ enum Meeting {
     /// A crossing at the parameter.
     Crossing(f64),
     /// A touch at a knot: the carrier comes within the band there and
-    /// leaves on the side it came from.
-    Touch(f64),
+    /// leaves on the side it came from; the refusal the band's reading
+    /// there makes.
+    Touch(f64, CompositeRefusal),
 }
 
-/// An end of a piece, read: definitely past the band on a side, or not.
-#[derive(Clone, Copy, PartialEq, Eq)]
+/// An end of a piece, read: definitely past the band on a side, or not,
+/// with the band's escalation where the reading fell in its gap.
+#[derive(Clone, Copy)]
 enum Reading {
     Past(Sign),
-    Near,
+    Near(Option<Indeterminate>),
+}
+
+impl Reading {
+    /// The refusal of a reading the walk needed past the band: the gap's
+    /// escalation, or a touch decided in the zero band.
+    fn refused(self) -> CompositeRefusal {
+        match self {
+            Self::Near(gap) => touch_or_tangency(gap, CompositeRefusal::Escalated),
+            Self::Past(_) => Unsettled::Tangency.into(),
+        }
+    }
 }
 
 /// **The crossings of a spline span with an analytic face's carrier**:
@@ -165,7 +193,8 @@ pub fn crossings<T: Decide>(
     let floor = (b - a) * FLOOR_SHARE;
     let read = |f: Interval| match decide(PAST_THE_BAND, Margin::of(f / divisor), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Reading::Past(s),
-        Ok(Sign::Zero) | Err(_) => Reading::Near,
+        Ok(Sign::Zero) => Reading::Near(None),
+        Err(diag) => Reading::Near(Some(diag)),
     };
     let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
         let p = net.eval(T::from_computed(t));
@@ -189,25 +218,26 @@ pub fn crossings<T: Decide>(
                 return cut(piece, floor, &read).map(Step::Halve);
             }
             let (fa, fb) = (end_value(&piece, true), end_value(&piece, false));
-            match (read(fa), read(fb)) {
+            let (ra, rb) = (read(fa), read(fb));
+            match (ra, rb) {
                 (Reading::Past(l), Reading::Past(r)) if l == r => {}
                 (Reading::Past(l), Reading::Past(_)) => {
                     meetings.push(Meeting::Crossing(bisect_row(&piece, l, &residual)?));
                 }
-                (Reading::Near, Reading::Near) => {
+                (Reading::Near(_), Reading::Near(_)) => {
                     return cut(piece, floor, &read).map(Step::Halve);
                 }
                 // Within the band at the span's own end: that end's
                 // meeting, `f` being monotone over the piece.
-                (Reading::Near, Reading::Past(_)) if piece.a == a => {}
-                (Reading::Past(_), Reading::Near) if piece.b == b => {}
-                (Reading::Past(far), Reading::Near) => {
+                (Reading::Near(_), Reading::Past(_)) if piece.a == a => {}
+                (Reading::Past(_), Reading::Near(_)) if piece.b == b => {}
+                (Reading::Past(far), Reading::Near(_)) => {
                     if open.is_some() {
-                        return Err(Unsettled::Tangency.into());
+                        return Err(rb.refused());
                     }
                     open = Some((piece.b, piece, far));
                 }
-                (Reading::Near, Reading::Past(far)) => {
+                (Reading::Near(_), Reading::Past(far)) => {
                     let Some((k, before, l)) = open.take() else {
                         // The piece before this knot read definitely
                         // past the band there, and this one not: they
@@ -215,10 +245,10 @@ pub fn crossings<T: Decide>(
                         return Err(Unsettled::Tangency.into());
                     };
                     if k != piece.a {
-                        return Err(Unsettled::Tangency.into());
+                        return Err(ra.refused());
                     }
                     meetings.push(if l == far {
-                        Meeting::Touch(k)
+                        Meeting::Touch(k, ra.refused())
                     } else {
                         Meeting::Crossing(knot_crossing(&before, &piece, l, &residual)?)
                     });
@@ -233,8 +263,8 @@ pub fn crossings<T: Decide>(
         Ok(Some(refusal)) => return Err(refusal),
         Ok(None) => {}
     }
-    if open.is_some() {
-        return Err(Unsettled::Tangency.into());
+    if let Some((_, piece, _)) = open {
+        return Err(read(end_value(&piece, false)).refused());
     }
     let creases = creases(net, (a, b), &cross)?;
     settle(net, params, band, &creases, meetings, &residual)
@@ -255,7 +285,24 @@ fn composite_rows<T: Real>(
     let point = |p: Point3<T>| Vec3::new(cross(p.x), cross(p.y), cross(p.z));
     let vector = |v: Vec3<T>| Vec3::new(cross(v.x), cross(v.y), cross(v.z));
     let o = point(origin);
-    let e = frame.map(vector);
+    // The frame formed in certification arithmetic: the axis normalized,
+    // and the reference direction made orthogonal to it and normalized.
+    // Its enclosures hold an exactly orthonormal frame about the stored
+    // axis, which the radial terms read; the stored twin is orthonormal
+    // only to its rounding.
+    let [u_ref, _, axis] = frame.map(vector);
+    let e2 = axis / axis.norm();
+    let radial = u_ref - e2 * u_ref.dot(e2);
+    let e0 = radial / radial.norm();
+    let e = [e0, e2.cross(e0), e2];
+    if !e
+        .iter()
+        .all(|v| v.x.is_certified() && v.y.is_certified() && v.z.is_certified())
+    {
+        return Err(CompositeRefusal::FaceDegenerate(
+            "the face's chart frame does not certify",
+        ));
+    }
     let framed: Vec<Vec3<Interval>> = net
         .control()
         .iter()
@@ -268,9 +315,7 @@ fn composite_rows<T: Real>(
         .iter()
         .all(|g| g.x.is_certified() && g.y.is_certified() && g.z.is_certified())
     {
-        return Err(unread(
-            "a control point or the chart frame does not certify",
-        ));
+        return Err(unread("a control point does not certify"));
     }
     let coords = [
         framed.iter().map(|g| g.x).collect::<Vec<_>>(),
@@ -332,8 +377,10 @@ fn composite_rows<T: Real>(
             hull(&coords[2]),
         ))
         .abs();
-    if !(divisor.is_certified() && divisor.lo() > 0.0) {
-        return Err(unread("a scalar of the surface does not certify"));
+    if !(divisor.is_certified() && divisor.hi() > 0.0) {
+        return Err(CompositeRefusal::FaceDegenerate(
+            "the form's distance divisor has no positive upper bound",
+        ));
     }
     let divisor = Interval::from_bounds(divisor.hi(), divisor.hi());
     let ends = [a, b];
@@ -364,23 +411,19 @@ fn creases<T: Real>(
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
 ) -> Result<Vec<f64>, CompositeRefusal> {
-    let knots = net.knot_values();
-    let mut values = Vec::new();
-    for (u, _) in knots.runs() {
+    let mut out = Vec::new();
+    for u in net.knot_values().crease_values() {
         let u = cross(u);
         if !u.is_certified() {
             return Err(CompositeRefusal::Unread(
                 "a knot of the carrier does not certify",
             ));
         }
-        values.push(u.lo());
+        if a < u.lo() && u.lo() < b {
+            out.push(u.lo());
+        }
     }
-    Ok(knots
-        .structure()
-        .crease_runs()
-        .map(|r| values[r])
-        .filter(|&k| a < k && k < b)
-        .collect())
+    Ok(out)
 }
 
 /// The hull of a row's coefficients: by the convex hull property, an
@@ -540,17 +583,29 @@ fn cut(
     read: &impl Fn(Interval) -> Reading,
 ) -> Result<[Piece; 2], CompositeRefusal> {
     if piece.b - piece.a <= floor {
-        return Err(Unsettled::Tangency.into());
+        return Err(Unsettled::Floor.into());
     }
+    // The first share read in the band's gap, which a piece that reads in
+    // band at every share refuses on.
+    let mut gap = None;
     let Some((c, s)) = SPLITS.iter().find_map(|&k| {
         let c = piece.a + (piece.b - piece.a) * k;
         let s = share(&piece, c);
-        (piece.a < c && c < piece.b && matches!(read(value_at(&piece, s)), Reading::Past(_)))
-            .then_some((c, s))
+        if !(piece.a < c && c < piece.b) {
+            return None;
+        }
+        match read(value_at(&piece, s)) {
+            Reading::Past(_) => Some((c, s)),
+            Reading::Near(Some(diag)) => {
+                gap.get_or_insert(diag);
+                None
+            }
+            Reading::Near(None) => None,
+        }
     }) else {
         // Within the band at every share: the carrier runs along the
         // surface here, or crosses it twice within the band.
-        return Err(Unsettled::Tangency.into());
+        return Err(touch_or_tangency(gap, CompositeRefusal::Escalated));
     };
     let (num_l, num_r) = split_row(&piece.num, s);
     let (den_l, den_r) = split_row(&piece.den, s);
@@ -643,18 +698,20 @@ fn settle<T: Decide>(
         .collect();
     let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
-        let (Meeting::Crossing(t) | Meeting::Touch(t)) = meeting;
+        let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let p = net.eval(T::from_computed(t));
         for &crease in &creases {
             if !apart("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
-        if matches!(meeting, Meeting::Touch(_)) {
-            return Err(Unsettled::Tangency.into());
+        if let Meeting::Touch(_, refusal) = meeting {
+            return Err(refusal);
         }
+        // Definitely off at the located crossing: the residual's step
+        // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::SignInBand.into());
+            return Err(Unsettled::Meter.into());
         }
         let mut at_end = false;
         for end in ends {

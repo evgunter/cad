@@ -12,6 +12,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
+use topo::construction::Construct;
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -209,7 +210,11 @@ fn split_circle_carrier_intersection_edge() {
         (created.second_curve, (t, t1)),
     ] {
         let child = body.get_curve_geom(curve_key).unwrap().certified().unwrap();
-        let EdgeDescription::Intersection { witness, .. } = *child.description() else {
+        let EdgeDescription::Intersection {
+            selector: geom_brep::CurveSelector::Witness(witness),
+            ..
+        } = *child.description()
+        else {
             panic!("child lost its Intersection description");
         };
         let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);
@@ -450,8 +455,8 @@ fn split_then_null_lifecycle_on_prism() {
     let he = body.get_vertex(v).unwrap().emanating.unwrap();
     let created = body
         .mev_null(
-            topo::MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Below,
+            topo::construction::MevSite::Fan { he1: he, he2: he },
+            topo::construction::NewVertexSide::Below,
         )
         .unwrap();
     // Raw door: the measured body carries a null scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex), and the door's typed refusal of it is the subject.

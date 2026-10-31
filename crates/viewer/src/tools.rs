@@ -44,7 +44,8 @@ use crate::combine::{
     TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
-use crate::pickindex::PickKinds;
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{PickIndex, PickKinds};
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};
@@ -205,7 +206,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
-        SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddPattern { .. } | SessionOp::AddFusedPattern { .. } => Some(ToolKind::Pattern),
         SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
         // ONE op for both selectors: the two doors mint the same op with
         // different payloads, so a landed `AddPart` is this tool's edit
@@ -247,6 +248,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -255,6 +257,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }
@@ -704,6 +707,13 @@ impl Tools {
     /// [`Tools::reconcile`] answers with and are shown the same way; a
     /// frame in which every pick landed answers with none.
     ///
+    /// **`index` is what an edge pick means** — the whole drawn edge it
+    /// is part of ([`PickIndex::whole_edge`]), so a click on a circle
+    /// the body holds as two arcs reaches the blend tool as the circle.
+    /// It is the index the pick was made through, or why there is none
+    /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
+    /// one rather than hold what may be half a circle.
+    ///
     /// **`doc` is what routes a seated tool's pick**, not what
     /// judges it: a seat asks the document what KIND of node was
     /// picked so a pick that only one of two seats can hold lands in
@@ -714,7 +724,12 @@ impl Tools {
     /// how a declined pick becomes a click that silently did nothing,
     /// which is the bug this return value exists to prevent.
     #[must_use = "a declined pick is only reported if its notice is shown"]
-    pub fn feed(&mut self, doc: &Doc<ProfileProgram>, ops: &[SessionOp]) -> Vec<ToolNotice> {
+    pub fn feed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        index: Result<&PickIndex, NotIndexed>,
+        ops: &[SessionOp],
+    ) -> Vec<ToolNotice> {
         let mut notices = Vec::new();
         for op in ops {
             let SessionOp::Select(selection) = op else {
@@ -729,7 +744,7 @@ impl Tools {
                 }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {

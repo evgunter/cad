@@ -49,7 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
+use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -180,13 +180,11 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             diag: contradiction_margin("carrier_cyl_radius"),
         },
         ContactRefusal::Escalated { diag: diag() },
-        ContactRefusal::Undeclared { diag: diag() },
     ];
     // The longest `what`s the raise sites write.
     v.extend(
         [
-            "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder, torus)",
+            crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -411,6 +409,15 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
+        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Escalated {
+            check: geom_brep::PcurveCheck::MapResidual,
+            cause: diag(),
+        }),
+        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+            iso: Some(geom_brep::PcurveCheck::MapResidual),
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        }),
         PlaneNurbsRefusal::TubeNotOneArc {
             rungs: 3,
             cause: geom_brep::ssi::OneArcRefusal::Short,
@@ -430,6 +437,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::TubeNotOneArc {
             rungs: 20,
             cause: geom_brep::ssi::OneArcRefusal::Unlinked,
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 16,
+            cause: geom_brep::ssi::OneArcRefusal::AlongSide { chart: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 16,
+            cause: geom_brep::ssi::OneArcRefusal::EndOnSides { sides: 2 },
         },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
@@ -461,25 +476,53 @@ fn certify_errors() -> Vec<CertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Plane,
             carrier: geom::CurveKind::Line,
+            why: "the line's points are not on the chart",
             margin: None,
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
+            why: "the line is not shown off the plane through the apex",
             margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::NurbsLaneNotSupplied,
-        CertifyError::OnPairArcRim {
-            iso: None,
-            limb: geom_brep::SsiLimb::HullValueChart,
-            bound: MarginDiag::value(4.6e-4),
-        },
+        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
+            geom_brep::ArcRimRefusal::Refused {
+                iso: None,
+                limb: geom_brep::SsiLimb::HullValueChart,
+                bound: MarginDiag::value(4.6e-4),
+            },
+        )),
         CertifyError::IntersectionSameSurface { key },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Image(Some(geom_brep::PcurveCheck::MapResidual)),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Image(None),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::ImageEscalated {
+                check: geom_brep::PcurveCheck::ParamSpan,
+                cause: diag(),
+            },
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+                axis: geom_brep::ChartAxis::U,
+            }),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::OffSide,
+        },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
@@ -554,9 +597,9 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
-        // A declared carrier's incidence in band at the edge certificate.
+        // A carrier's incidence in band at the edge certificate.
         CertifyError::Escalated {
-            check: CertCheck::DeclaredIncidence,
+            check: CertCheck::ChartIncidence,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
@@ -590,14 +633,22 @@ fn certify_errors() -> Vec<CertifyError> {
 fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     use geom_brep::AnalyticRung3Refusal as A;
     vec![
-        A::Limb {
+        A::KernelLimit {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullSup,
+            bound: 7.5e-5,
             margin: MarginDiag::value(7.5e-5),
+            width: 1e-6,
+            extent: 2.0,
+        },
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Torus,
+            bound: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
+            width: 1e-15,
+            extent: 2.0,
         },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullValue,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
@@ -610,10 +661,15 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::Tube,
             cause: diag(),
         },
+        A::Stalled {
+            operand: geom::SurfaceKind::Cylinder,
+            cause: diag(),
+        },
         A::NoOffsetBound {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::CarrierEnclosure(carrier_enclosure()),
         A::NoTubeEnclosure {
             operand: geom::SurfaceKind::Torus,
         },
@@ -771,39 +827,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
-    // Each certification refusal under both authorities: the ending of
-    // a carrier off its face turns on which ([`crate::validate`]'s
-    // `off_face_ending`).
-    for authority in authorities() {
-        v.extend(
-            pcurve_certify_errors()
-                .into_iter()
-                .map(|error| PcurveMintError::Certify {
-                    half_edge,
-                    error,
-                    authority,
-                }),
-        );
-    }
+    v.extend(
+        pcurve_certify_errors()
+            .into_iter()
+            .map(|error| PcurveMintError::Certify { half_edge, error }),
+    );
     v
-}
-
-/// The two authorities a locus can have, each spelled through
-/// [`geom_brep::EdgeAuthority::kind`]: derived, and declared by an
-/// extruded sketch point.
-pub(crate) fn authorities() -> [geom_brep::AuthorityKind; 2] {
-    [
-        geom_brep::EdgeAuthority::<f64>::Derived.kind(),
-        geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
-            source: geom_brep::MappedSource::ExtrudedPoint {
-                point: geom_core::Point2::new(0.0, 0.0),
-                place: geom_core::Affine3::identity(),
-                vec: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            },
-            range: geom_brep::SubRange::whole(),
-        })
-        .kind(),
-    ]
 }
 
 fn props_errors() -> Vec<PropsError> {
@@ -1037,22 +1066,20 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::FaceFaceTangent {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Tangent,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Rest,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
     ]
@@ -1381,6 +1408,44 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::CurvedSenseInverted { face },
         ValidationError::SeamRegionOvercovered { face, times: 2 },
         ValidationError::SeamRegionCoverUnresolved { face },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            lies: crate::SingularityLies::Interior,
+        },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::Apex,
+            lies: crate::SingularityLies::InsideEdge { edge },
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::South,
+            reading: geom_brep::chart_singularity::Undecided::Boundary(diag()),
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            reading: geom_brep::chart_singularity::Undecided::Side(
+                geom_brep::chart_singularity::SideUnread::Straddle,
+            ),
+        },
+        ValidationError::WrapTipOffChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
+        ValidationError::WrapTipUndecided {
+            face,
+            edge,
+            tip: vertex,
+            cause: diag(),
+        },
+        ValidationError::WrapTipWithoutChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
@@ -1681,7 +1746,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         s.push((
             format!("ContactContradicted/{}", class.name()),
             ValidationError::ContactContradicted {
-                declaration: DeclaredContact {
+                declaration: ContactPair {
                     a: face,
                     b: face,
                     class,
@@ -1910,6 +1975,17 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out.extend(gaps::<_, PlaneNurbsRefusalKind>(
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
+    ));
+    let arc_rims: Vec<geom_brep::ArcRimRefusal> = plane_nurbs_refusals()
+        .into_iter()
+        .filter_map(|e| match e {
+            PlaneNurbsRefusal::ArcRim(r) => Some(r),
+            _ => None,
+        })
+        .collect();
+    out.extend(gaps::<_, geom_brep::edge_nurbs::ArcRimRefusalKind>(
+        "ArcRimRefusal",
+        &arc_rims,
     ));
     out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
         "AnalyticRung3Refusal",

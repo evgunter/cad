@@ -82,7 +82,8 @@ fn overlapping_balls_union_through_their_tilted_section() {
 /// band, so neither "miss" nor "meet" may be asserted. The rider's
 /// enclosure escalates first and hands the pair to the circle × sphere
 /// roots, whose extreme residual — the same exact quantity — escalates
-/// in its turn, so the name on the refusal is the roots'.
+/// in its turn, at the edge and the sphere, so the name on the refusal
+/// is the roots'.
 #[test]
 fn in_band_clearance_escalates_through_the_funnel() {
     let tol = Tol::witness().get();
@@ -92,7 +93,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
     let err =
         union(&a, &b, SweepStrategy::Realized).expect_err("an in-band clearance cannot classify");
     match &err {
-        BooleanError::Escalated { diag, .. } => {
+        BooleanError::CurvedPierceEscalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
                 Some("bool_conic_quadric_first_extreme"),

@@ -13,10 +13,9 @@ use geom_brep::{
     CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair,
 };
 use geom_core::{Point3, Vec3};
-use topo::{
-    Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
-    validate_geometric,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, ContactRecords, EulerOpError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 use common::{
@@ -220,7 +219,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.description = EdgeDescriptionSpec::Intersection {
         pair: SurfacePair::new(foreign1, foreign1),
-        witness: p0.lerp(p1, 0.5),
+        selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
     };
     let err = body
         .set_edge_curve(edge_key, spec, Tol::witness())
@@ -265,7 +264,7 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // at a dual with a zero pad; the cube's one shell skips check 10), and
     // none of them reads a certified lane. The
     // f64 lane's own composed-door rows are elsewhere in this file.
-    use geom_core::{Dual, Dual64};
+    use geom_core::Dual64;
     let mut f = geometric_cube::<f64>(Tol::witness());
     let mut d = geometric_cube::<Dual64>(Tol::witness());
     describe_as_intersections(&mut f.body, Tol::witness());
@@ -278,20 +277,14 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // structural pass above is not a weaker subject standing in for one
     // that would have failed.
     assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
-    let f_certs: Vec<f64> = f
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
-        .collect();
-    let d_certs: Vec<Dual<f64>> = d
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
-        .collect();
-    assert_eq!(f_certs.len(), d_certs.len());
-    for (fv, dv) in f_certs.iter().zip(&d_certs) {
-        assert_eq!(fv.to_bits(), dv.value.to_bits());
-    }
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f.body, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d.body, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 #[test]
@@ -350,7 +343,7 @@ fn near_tangent_intersection_attachment_escalates() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = EdgeDescriptionSpec::Intersection {
         pair: SurfacePair::new(flat, tilted),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     let err = body
         .set_edge_curve(split.edge, spec, Tol::witness())

@@ -4,7 +4,6 @@ kind: issue
 title: Epsilon has no type of its own, so StepOptions and step-import restate Tolerance::init's rule by hand (S4's shape)
 status: closed
 opened: 2026-08-20
-github: 741
 refs: [732, 881]
 closed: 2026-09-04
 ---

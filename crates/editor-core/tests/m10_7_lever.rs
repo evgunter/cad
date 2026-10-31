@@ -126,6 +126,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
             Node::Profile(ProfileProgram {
                 loops: vec![square.clone()],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         doc = next;

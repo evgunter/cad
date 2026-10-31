@@ -13,7 +13,7 @@
 //! [`certified_subdivision`], decided on the residual itself in the
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
-//! tangency refused typed, [`crate::roots::Unsettled`]).
+//! tangency refused typed, [`crate::roots::RootRefusal`]).
 //!
 //! The subdivision is not bound to degree two: a residual of degree `N`
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
@@ -87,7 +87,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::{QuarticRows, depressed_quartic_roots};
-use crate::roots::{RootRefusal, Roots, Unsettled};
+use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
 /// torus ([`crate::ConicTorusHarmonics`]).
@@ -297,8 +297,8 @@ const POLE_CANDIDATES: u32 = 32;
 ///
 /// # Errors
 ///
-/// [`RootRefusal::Escalated`], the ladder's in-band sign, and
-/// [`RootRefusal::Unsettled`], the subdivision's.
+/// [`RootRefusal::Escalated`], the ladder's in-band sign, and the
+/// subdivision's [`RootRefusal`]: a touch, a limit or a fault.
 pub fn half_angle_roots<T: Decide>(
     f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
@@ -308,14 +308,14 @@ pub fn half_angle_roots<T: Decide>(
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
     ladder_roots(f, &residual, &frame, rows, band)?;
-    Ok(certified_subdivision(
+    certified_subdivision(
         &f.poly(),
         &residual,
         &frame.walk,
         &rows.verify,
         Some(slack),
         band,
-    )?)
+    )
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
@@ -416,28 +416,20 @@ fn ladder_roots<T: Decide>(
         let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
             - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
         // Its answer is not read (the subdivision answers); an in-band
-        // sign it meets is the door's escalation. Its `CountDisagrees` is
-        // dropped with its count, unlike the line × torus door's, where
-        // the quartic's coefficients are the residual's own and a
-        // disagreement is a classification invariant: here they come
+        // sign it meets is the door's escalation. A repeated root it reads
+        // is dropped with its count, as is its `CountDisagrees`, unlike
+        // the line × torus door's, where the quartic's coefficients are
+        // the residual's own and a disagreement is a classification
+        // invariant: here they come
         // through the anchor rotation, pole division and rescale, whose
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
         return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
             Err(RootRefusal::Escalated(diag)) => Err(diag),
             Ok(_)
-            | Err(RootRefusal::Unsettled(
-                Unsettled::CountDisagrees { .. }
-                | Unsettled::Tangency
-                | Unsettled::Resolvent
-                | Unsettled::SignInBand
-                | Unsettled::Meter
-                | Unsettled::Exhausted
-                | Unsettled::ImpossibleCount
-                | Unsettled::AtApex
-                | Unsettled::Degenerate
-                | Unsettled::Crease,
-            )) => Ok(()),
+            | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+                Ok(())
+            }
         };
     }
     Ok(())
@@ -507,8 +499,9 @@ const BISECTIONS: u32 = 64;
 /// midpoint `m`, with the derivatives there to third order and the one
 /// global bound the harmonics give exactly, `|F⁗| ≤ M₄ = Σ k⁴Aₖ`. The
 /// turn is cut into pieces whose every end has a DEFINITE residual sign
-/// (a cut that would land in the band is moved along its piece). On a
-/// piece of half-width `w`:
+/// (a cut that would land in the band is moved along its piece, and a
+/// starting sixteenth with no definite share is left inside its
+/// neighbours' piece). On a piece of half-width `w`:
 ///
 /// - **clear** — `|F(m)| − (|F′(m)|w + |F″(m)|w²/2 + |F‴(m)|w³/6 +
 ///   M₄w⁴/24)` (less the noise) definitely positive, in metres: `F`
@@ -520,20 +513,32 @@ const BISECTIONS: u32 = 64;
 ///   piece holds at most one root, and holds one exactly when its ends'
 ///   signs differ; that root is bisected on the residual itself to the
 ///   scalar's resolution and must then read ON the surface (`side`,
-///   `Zero`), or the walk refuses [`Unsettled::SignInBand`] — and, where the caller hands
+///   `Zero`): in the gap it is a touch, and definitely off it refuses
+///   [`Unsettled::Meter`], the residual's step between two adjacent
+///   scalars being past the band — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
 ///   too, or it refuses [`Unsettled::Meter`]. The bisection closes on two adjacent scalars, and the root is
 ///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
-///   holds a double root — a tangency — and the walk refuses
-///   [`Unsettled::Tangency`], never a certified `Miss`.
+///   holds a double root — a tangency — and the walk refuses it
+///   [`Unsettled::Tangency`], never a certified `Miss`. Its clear margin
+///   is a lower bound on `|F|`, which a looser bound reads lower, so it
+///   is no reading of the band (a bound in the gap and one below it are
+///   one refusal).
+///
+/// A piece none of whose split shares reads a definite sign, and a turn
+/// with no definite share at all, refuse the same way: a touch on the
+/// first share read in the gap, or [`Unsettled::Tangency`] where every
+/// share read zero. The walk has cut wherever it can.
 ///
 /// # Errors
 ///
-/// [`Unsettled`] as above, [`Unsettled::Exhausted`] past the piece
-/// budget, and [`Unsettled::ImpossibleCount`] for an odd count round the
-/// turn or more roots than the degree allows.
+/// [`RootRefusal::Touch`], [`Unsettled::Tangency`] and
+/// [`Unsettled::Meter`] as above,
+/// [`Unsettled::Exhausted`] past the piece budget, and
+/// [`RootFault::ImpossibleCount`] for an odd count round the turn or more
+/// roots than the degree allows.
 ///
 /// The same Taylor bound, over a piece of a harmonic, is
 /// `curve_pair::pose::window`'s.
@@ -568,7 +573,7 @@ pub fn certified_subdivision<T: Decide>(
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
-) -> Result<TrigRoots<T>, Unsettled> {
+) -> Result<TrigRoots<T>, RootRefusal> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -640,29 +645,42 @@ pub fn certified_subdivision<T: Decide>(
     };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
     let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
+    // The first reading in the band's gap at a cut the walk tried: what a
+    // walk that can cut nowhere definite refuses on.
+    let gap = core::cell::Cell::new(None);
     let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        Ok(Sign::Zero) | Err(_) => None,
+        Ok(Sign::Zero) => None,
+        Err(diag) => {
+            if gap.get().is_none() {
+                gap.set(Some(diag));
+            }
+            None
+        }
     };
+    // Every cut tried reads in band: a touch on the gap's reading where
+    // one read there, and a touch decided in the zero band where none did.
+    let uncut = || touch_or_tangency(gap.get(), RootRefusal::Touch);
     // The first cut: one end in each sixteenth of the turn, each moved
-    // along its sixteenth until its sign is definite; the last end is the
-    // first a turn on.
+    // along its sixteenth until its sign is definite; a sixteenth with no
+    // such share is re-cut by leaving it inside its neighbours' piece, so
+    // a stretch in band at the walk's own cuts is walked, not refused. The
+    // last end is the first a turn on.
     let n = SUBDIVISION_START;
     let piece = T::tau() / T::from_f64(f64::from(n));
     let base = (t0 + t1) / two - T::pi();
-    let Some(mut ends) = (0..n)
-        .map(|k| {
+    let mut ends: Vec<(T, Sign)> = (0..n)
+        .filter_map(|k| {
             let from = base + piece * T::from_f64(f64::from(k));
             SPLITS.iter().find_map(|&share| {
                 let t = from + piece * T::from_f64(share);
                 side(t).map(|s| (t, s))
             })
         })
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Err(Unsettled::SignInBand);
+        .collect();
+    let Some(&(first, first_side)) = ends.first() else {
+        return Err(uncut());
     };
-    let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
     // The pieces are walked left to right ([`geom_core::bisect`]), so the
     // bisection's raw midpoints come out in order; the reported roots do
@@ -744,8 +762,14 @@ pub fn certified_subdivision<T: Decide>(
                 // by that turn, on the scalars the root is reported at.
                 let turn = lo - reported(lo);
                 root = nearer(close(l - turn, r - turn));
-                if !on(root) {
-                    return Step::Stop(Unsettled::SignInBand);
+                match decide(rows.side, Margin::of(residual(root)), band) {
+                    Ok(Sign::Zero) => {}
+                    Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                    // Definitely off beside a sign change: the residual's
+                    // step between adjacent scalars is past the band.
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        return Step::Stop(Unsettled::Meter.into());
+                    }
                 }
             }
             if let Some(meter) = slack {
@@ -768,27 +792,31 @@ pub fn certified_subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter),
+                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter.into()),
                 }
             }
             roots.push(root);
             return Step::Settled;
         }
+        // The clear margin is a lower bound on the residual, not a
+        // reading of it: a looser bound reads it lower, so where it falls
+        // says how good the bound is, not how near the carrier passes.
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(Unsettled::Tangency);
+            return Step::Stop(Unsettled::Tangency.into());
         }
+        gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(Unsettled::SignInBand);
+            return Step::Stop(uncut());
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     });
     match walk {
         Ok(None) => {}
         Ok(Some(why)) => return Err(why),
-        Err(_) => return Err(Unsettled::Exhausted),
+        Err(_) => return Err(Unsettled::Exhausted.into()),
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -797,9 +825,10 @@ pub fn certified_subdivision<T: Decide>(
     // `2N` is more than a degree-`N` polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
-        return Err(Unsettled::ImpossibleCount);
+        return Err(RootFault::ImpossibleCount.into());
     }
-    Roots::of(&roots).ok_or(Unsettled::ImpossibleCount)
+    // At most `2N ≤ 2·MAX_DEGREE` roots: the capacity holds them.
+    Ok(Roots::of(&roots).unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")))
 }
 
 #[cfg(test)]
@@ -832,7 +861,7 @@ mod subdivision_guard_rows {
         residual: &impl Fn(f64) -> f64,
         noise: f64,
         eps: f64,
-    ) -> Result<TrigRoots<f64>, Unsettled> {
+    ) -> Result<TrigRoots<f64>, RootRefusal> {
         let frame = SubdivisionFrame {
             t0: -0.5,
             t1: 0.5,
@@ -1052,5 +1081,369 @@ mod subdivision_guard_rows {
             Err(_) => {}
             other => panic!("{other:?} for a residual crossing twice"),
         }
+    }
+
+    /// **Review R1 (PR 5993): the re-cut never loses or merges a root.**
+    /// `F = A(1 − cos φ)² − c`, `φ = θ − θ₀`, is flat to fourth order at
+    /// `θ₀` (`F ≈ Aφ⁴/4 − c`), so with `A = 10⁻⁶` a whole sixteenth about
+    /// `θ₀` reads in band at every share and the first cut leaves it
+    /// inside its neighbours' piece. Swept over `θ₀` (so the flat stretch
+    /// lands on a cut, across two sixteenths, and inside one) and over
+    /// `c` (no root, a double root, two roots within the band of each
+    /// other, two roots in adjacent sixteenths, two roots well apart):
+    /// every certified answer has the true count with each root on the
+    /// residual, and every refusal is a touch or a limit, never a fault
+    /// and never a certified miss of a residual that crosses.
+    #[test]
+    fn review_r1_the_recut_keeps_every_root() {
+        let a = 1e-6;
+        let (mut certified, mut touched, mut limited) = (0, 0, 0);
+        // Every third of a sixteenth, so the flat stretch sits on a cut,
+        // across one, and inside a sixteenth.
+        for i in 0..48 {
+            let t0 = -PI + 2.0 * PI * f64::from(i) / 48.0 + 1e-3;
+            for c in [-1e-11, 0.0, 1e-11, 1e-10, 4e-9, 3e-8, 1e-7, 1e-6] {
+                let f = DegreeTwo::new(
+                    1.5 * a - c,
+                    -2.0 * a * t0.cos(),
+                    -2.0 * a * t0.sin(),
+                    0.5 * a * (2.0 * t0).cos(),
+                    0.5 * a * (2.0 * t0).sin(),
+                )
+                .poly();
+                let value = |t: f64| a * (1.0 - (t - t0).cos()).powi(2) - c;
+                // The nearest roots stand `0.16` apart, so a coarser grid
+                // than `sign_changes`' reads them.
+                let truth = (0..=20_000_u32)
+                    .map(|k| value(-PI + 2.0 * PI * f64::from(k) / 20_000.0))
+                    .collect::<Vec<_>>()
+                    .windows(2)
+                    .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+                    .count();
+                match walk(&f, &value, 0.0, 1e-9) {
+                    Ok(Roots::Certified(found)) => {
+                        certified += 1;
+                        assert_eq!(found.count(), truth, "θ₀ {t0}, c {c:e}: {found:?}");
+                        for &t in found.roots() {
+                            assert!(value(t).abs() <= 1e-8, "θ₀ {t0}, c {c:e}: root {t}");
+                        }
+                    }
+                    Ok(Roots::Miss) => {
+                        assert_eq!(truth, 0, "θ₀ {t0}, c {c:e}: a miss of {truth} crossings");
+                        certified += 1;
+                    }
+                    Err(RootRefusal::Touch(_)) => touched += 1,
+                    Err(RootRefusal::Unsettled(_)) => limited += 1,
+                    other => panic!("θ₀ {t0}, c {c:e} ({truth} crossings): {other:?}"),
+                }
+            }
+        }
+        assert!(
+            touched > 0 && certified > 0,
+            "certified {certified}, touched {touched}, limited {limited}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_5993_recut_rows {
+    //! Review rows (PR 5993, R2): the first cut's re-cut of a sixteenth
+    //! with no definite share. Each residual is read against a dense
+    //! sampling of its sign changes; the walk may refuse, but a certified
+    //! count must be the true one.
+
+    use core::f64::consts::PI;
+
+    use super::*;
+
+    const ROWS: SubdivisionRows = SubdivisionRows {
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
+    };
+
+    fn walk(f: &TrigPoly<f64>, eps: f64) -> Result<TrigRoots<f64>, RootRefusal> {
+        let frame = SubdivisionFrame {
+            t0: -0.5,
+            t1: 0.5,
+            speed_hi: 1.0,
+            noise: 0.0,
+            f_per_metre: 1.0,
+            f_per_metre_hi: 1.0,
+            residual_reach: None,
+            jet: None,
+        };
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        certified_subdivision(
+            f,
+            &value,
+            &frame,
+            &ROWS,
+            None,
+            Band::new(eps, 10.0 * eps).unwrap(),
+        )
+    }
+
+    fn sign_changes(f: &TrigPoly<f64>) -> usize {
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        let n = 400_000_u32;
+        let s: Vec<f64> = (0..=n)
+            .map(|k| value(-PI + 2.0 * PI * f64::from(k) / f64::from(n)))
+            .collect();
+        s.windows(2)
+            .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+            .count()
+    }
+
+    /// How many sixteenths of the first cut have no definite share.
+    fn dropped(f: &TrigPoly<f64>, eps: f64) -> usize {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let value = |t: f64| {
+            f.cos[0]
+                + f.cos[1] * t.cos()
+                + f.sin[1] * t.sin()
+                + f.cos[2] * (2.0 * t).cos()
+                + f.sin[2] * (2.0 * t).sin()
+        };
+        let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
+        let base = 0.0 - PI;
+        (0..SUBDIVISION_START)
+            .filter(|&k| {
+                let from = base + piece * f64::from(k);
+                !SPLITS.iter().any(|&s| {
+                    matches!(
+                        decide(ROWS.side, Margin::of(value(from + piece * s)), band),
+                        Ok(Sign::Positive | Sign::Negative)
+                    )
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    fn review_5993_recut_never_certifies_a_wrong_count() {
+        let eps = 1e-9;
+        // A small-amplitude second harmonic over a near-cancelling first:
+        // wide in-band stretches at the first cut's shares.
+        let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut recut, mut certified, mut touched, mut other) = (0, 0, 0, 0);
+        for _ in 0..4000 {
+            let amp = 10f64.powf(-9.0 + 3.0 * rnd()); // 1e-9 .. 1e-6
+            let c0 = amp * (2.0 * rnd() - 1.0);
+            let f = DegreeTwo::new(
+                c0,
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+                amp * (2.0 * rnd() - 1.0),
+            )
+            .poly();
+            let drops = dropped(&f, eps);
+            let got = walk(&f, eps);
+            if drops == 0 {
+                continue;
+            }
+            recut += 1;
+            match got {
+                Ok(Roots::Certified(found)) => {
+                    certified += 1;
+                    let truth = sign_changes(&f);
+                    assert_eq!(
+                        found.count(),
+                        truth,
+                        "{:?}: dropped {drops}",
+                        (f.cos, f.sin)
+                    );
+                }
+                Ok(Roots::Miss) => {
+                    certified += 1;
+                    assert_eq!(
+                        sign_changes(&f),
+                        0,
+                        "{:?}: a miss, dropped {drops}",
+                        (f.cos, f.sin)
+                    );
+                }
+                Err(RootRefusal::Touch(_)) => touched += 1,
+                _ => other += 1,
+            }
+        }
+        println!("recut {recut}: certified {certified}, touch {touched}, other {other}");
+        assert!(
+            certified > 0,
+            "the re-cut certified nothing in {recut} draws"
+        );
+    }
+
+    /// Two transverse roots in adjacent sixteenths about a stretch in band.
+    #[test]
+    fn review_5993_two_roots_beside_a_dropped_sixteenth() {
+        let eps = 1e-9;
+        for &(a, d) in &[
+            (1e-7, 5e-10),
+            (1e-7, 2e-9),
+            (1e-7, 4e-9),
+            (3e-8, 1e-9),
+            (1e-6, 2e-8),
+        ] {
+            // a·(1 − cos t) − d: roots at ±acos(1 − d/a).
+            let f = DegreeTwo::new(a - d, -a, 0.0, 0.0, 0.0).poly();
+            let got = walk(&f, eps);
+            println!(
+                "a {a:e} d {d:e} dropped {} truth {} -> {got:?}",
+                dropped(&f, eps),
+                sign_changes(&f)
+            );
+            if let Ok(Roots::Certified(found)) = got {
+                assert_eq!(found.count(), sign_changes(&f));
+            }
+            assert!(!matches!(got, Ok(Roots::Miss)), "a miss of two roots");
+        }
+    }
+
+    /// An exact double root, and a root exactly at a cut's first share.
+    #[test]
+    fn review_5993_double_root_and_root_at_a_cut() {
+        let eps = 1e-9;
+        let f = DegreeTwo::new(1e-7, -1e-7, 0.0, 0.0, 0.0).poly();
+        let got = walk(&f, eps);
+        println!("double: dropped {} -> {got:?}", dropped(&f, eps));
+        assert!(got.is_err(), "a double root certified: {got:?}");
+        let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
+        let at = -PI + piece * 9.0 + piece * SPLITS[0];
+        // sin(t − at) · 1e-3: roots at `at` and `at + π`.
+        let (s, c) = at.sin_cos();
+        let f = DegreeTwo::new(0.0, -1e-3 * s, 1e-3 * c, 0.0, 0.0).poly();
+        let got = walk(&f, eps);
+        println!("root at a cut -> {got:?}");
+        match got {
+            Ok(Roots::Certified(found)) => assert_eq!(found.count(), 2),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review3_fault_rows {
+    //! Review 3 (PR 5993): `RootFault::ImpossibleCount` from legal input.
+    //! The residual is the harmonics summed in another order, and the
+    //! frame charges that evaluation's rounding honestly: a door that does
+    //! this is legal input, so a fault here is reachable.
+
+    use super::*;
+
+    const ROWS: SubdivisionRows = SubdivisionRows {
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
+    };
+
+    #[test]
+    #[ignore = "review probe"]
+    fn review3_no_legal_residual_reaches_impossible_count() {
+        let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut tally = std::collections::BTreeMap::<String, usize>::new();
+        let mut faults = Vec::new();
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for i in 0..30_000 {
+                let scale = 10f64.powf(-3.0 * rnd());
+                let phi = core::f64::consts::TAU * rnd();
+                // A near-double root (family 0), a near-quadruple one
+                // (1), or a random pair of harmonics (2).
+                let d = eps * 10f64.powf(3.0 * rnd() - 1.0) * (2.0 * rnd() - 1.0);
+                let tiny = eps * 10f64.powf(2.0 * rnd() - 1.0);
+                let (c, s) = match i % 3 {
+                    0 => (
+                        [scale - d, -scale * phi.cos(), tiny * (2.0 * rnd() - 1.0)],
+                        [0.0, -scale * phi.sin(), tiny * (2.0 * rnd() - 1.0)],
+                    ),
+                    1 => (
+                        // (1 − cos(t−φ))² = 3/2 − 2cos(t−φ) + cos(2(t−φ))/2
+                        [
+                            scale * 1.5 - d,
+                            -2.0 * scale * phi.cos(),
+                            0.5 * scale * (2.0 * phi).cos(),
+                        ],
+                        [
+                            0.0,
+                            -2.0 * scale * phi.sin(),
+                            0.5 * scale * (2.0 * phi).sin(),
+                        ],
+                    ),
+                    _ => (
+                        [
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                        ],
+                        [
+                            0.0,
+                            scale * (2.0 * rnd() - 1.0),
+                            scale * (2.0 * rnd() - 1.0),
+                        ],
+                    ),
+                };
+                let f = DegreeTwo::new(c[0], c[1], s[1], c[2], s[2]).poly();
+                let sum: f64 = c.iter().chain(&s).map(|x| x.abs()).sum();
+                let frame = SubdivisionFrame {
+                    t0: -0.5,
+                    t1: 0.5,
+                    speed_hi: 1.0,
+                    noise: 16.0 * f64::EPSILON * sum,
+                    f_per_metre: 1.0,
+                    f_per_metre_hi: 1.0,
+                    residual_reach: None,
+                    jet: None,
+                };
+                let residual = |t: f64| {
+                    ((s[2] * (2.0 * t).sin() + c[2] * (2.0 * t).cos()) + s[1] * t.sin())
+                        + (c[1] * t.cos() + c[0])
+                };
+                let got = certified_subdivision(&f, &residual, &frame, &ROWS, None, band);
+                let key = match &got {
+                    Ok(Roots::Certified(found)) => format!("certified {}", found.count()),
+                    Ok(other) => format!("{other:?}").chars().take(12).collect(),
+                    Err(RootRefusal::Touch(_)) => "touch".into(),
+                    Err(RootRefusal::Escalated(_)) => "escalated".into(),
+                    Err(RootRefusal::Unsettled(u)) => format!("{u:?}"),
+                    Err(RootRefusal::Fault(fault)) => {
+                        faults.push((eps, i % 3, c, s));
+                        format!("FAULT {fault:?}")
+                    }
+                };
+                *tally.entry(format!("{eps:e} {key}")).or_default() += 1;
+            }
+        }
+        println!("{tally:#?}");
+        assert!(faults.is_empty(), "legal residuals fault: {faults:?}");
     }
 }

@@ -32,12 +32,11 @@
 //! - **analytic**: `geom_core::spline::compose` composes the surface's
 //!   polynomial implicit form with the carrier and returns a certified
 //!   per-span hull of the composite. Its units are the composite's, so
-//!   this module converts to meters **exactly** — `÷ 2R` for the sphere
-//!   and cylinder, identity for the plane. Cone and torus are *not*
-//!   converted: their meters forms carry a root, which certification
-//!   arithmetic does not take (C9), so an
-//!   arm wanting them must land that conversion first
-//!   ([`super::enclose`] carries the same boundary, same reason).
+//!   this module converts to meters — **exactly** for the plane
+//!   (identity), the sphere and the cylinder (`÷ 2R`), and per span on
+//!   the torus, whose meters residual is `F/(2r·(A + 2Rρ))` for its
+//!   quartic `F = A² − 4R²ρ²` ([`ToMeters::Torus`]). The cone has no
+//!   conversion and refuses.
 //! - **NURBS**: `sup_t |S(P(t)) − C(t)|` bounded by the
 //!   **tensor-product Bernstein composition**
 //!   (`geom_core::spline::compose::tensor`, M5 PR 7b): the difference
@@ -119,8 +118,8 @@ use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_po
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
-    Real, Sign, Vec3,
+    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
+    Margin, Point3, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -130,7 +129,7 @@ use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
     Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    tube_margin, zero_free_lower_bound,
+    torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -437,15 +436,15 @@ fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
-/// The `compose` implicit form of an analytic surface, and the exact
-/// divisor converting its composite's units to meters.
+/// The `compose` implicit form of an analytic surface, and how its
+/// composite crosses to meters.
 ///
 /// `Err` names the reason, which the caller turns into an
-/// [`SsiError::UnsupportedCertificate`] verbatim: the kinds whose
-/// meters form carries a root certification arithmetic does not take (cone, torus), NURBS
-/// (no implicit form), and — since M6-2 — an operand whose structural
-/// parameters are not exact at the caller's scalar (see [`exact`]).
-fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &'static str> {
+/// [`SsiError::UnsupportedCertificate`] verbatim: the cone (no meters
+/// conversion), NURBS (no implicit form), and — since M6-2 — an operand
+/// whose structural parameters are not exact at the caller's scalar
+/// (see [`exact`]).
+fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeters), &'static str> {
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
@@ -460,7 +459,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             Ok((
                 ImplicitSurface::Plane { point, normal },
                 // n·(P − p₀) is already meters for a unit normal.
-                1.0,
+                ToMeters::Divisor(1.0),
             ))
         }
         Surface::Sphere { center, radius, .. } => {
@@ -471,7 +470,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 ImplicitSurface::Sphere { center, radius },
                 // |P−c|² − R² = 2R · the linearized meters residual,
                 // exactly.
-                2.0 * radius,
+                ToMeters::Divisor(2.0 * radius),
             ))
         }
         Surface::Cylinder {
@@ -495,16 +494,117 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 },
                 // |w|² − R² = 2R · the linearized meters residual,
                 // exactly.
-                2.0 * radius,
+                ToMeters::Divisor(2.0 * radius),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root, which certification arithmetic does not take; \
-             a spline stand-in and its offset description have no implicit form \
-             to build one from)")
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (Some(center), Some(axis), Some(major), Some(minor)) = (
+                exact3(center.to_array()),
+                exact3(axis.to_array()),
+                exact(major_radius),
+                exact(minor_radius),
+            ) else {
+                return Err(WIDENED);
+            };
+            Ok((
+                ImplicitSurface::Torus {
+                    center,
+                    axis,
+                    major_radius: major,
+                    minor_radius: minor,
+                },
+                ToMeters::Torus {
+                    center,
+                    major,
+                    minor,
+                },
+            ))
         }
+        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(
+            "no meters composite for this surface kind (the cone's composite has no \
+             meters conversion; a spline stand-in and its offset description have no \
+             implicit form to build one from)",
+        ),
     }
+}
+
+/// How an implicit composite's units cross to meters.
+#[derive(Clone, Copy, Debug)]
+enum ToMeters {
+    /// One outward division by an exact divisor.
+    Divisor(f64),
+    /// The torus, per span of the carrier `C`. Its meters residual is
+    /// `m = F/(2r·(A + 2Rρ))` with `A = |q|² + R² − r²` and `ρ` the
+    /// distance from the axis, so a span's bound reads `F∘C` against
+    /// `A∘C`, `A`'s own composite over the same spans
+    /// (`enclose::torus_meters_sup`), and a break's floor uses
+    /// `2Rρ ≤ R² + ρ² ≤ A + r²` (`enclose::torus_meters_floor`).
+    Torus {
+        center: [f64; 3],
+        major: f64,
+        minor: f64,
+    },
+}
+
+/// A limb-2 composite's readings in meters: its sup, each span's sup,
+/// and each break's floor.
+fn meters_readings(
+    composite: &compose::CompositeForm,
+    data: &CurveCertData<'_>,
+    to: ToMeters,
+) -> Result<(f64, Vec<f64>, Vec<f64>), SsiError> {
+    let (center, major, minor) = match to {
+        ToMeters::Torus {
+            center,
+            major,
+            minor,
+        } => (center, major, minor),
+        ToMeters::Divisor(per) => {
+            let spans = composite
+                .span_bounds()
+                .into_iter()
+                .map(|b| mag_in_meters(b, per))
+                .collect();
+            let floors = composite
+                .break_values()
+                .into_iter()
+                .map(|v| zero_free_lower_bound(in_meters(v, per)))
+                .collect();
+            return Ok((mag_in_meters(composite.bound(), per), spans, floors));
+        }
+    };
+    let a = compose::squared_distance_composite(data, &center, torus_a_shift(major, minor))
+        .map_err(|_| SsiError::UnsupportedCertificate {
+            what: "the torus's A composite refused the fitted carrier",
+        })?;
+    let (f_spans, a_spans) = (composite.span_bounds(), a.span_bounds());
+    let (f_breaks, a_breaks) = (composite.break_values(), a.break_values());
+    if f_spans.len() != a_spans.len() || f_breaks.len() != a_breaks.len() {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the torus's A composite does not share its quartic's spans",
+        });
+    }
+    let spans: Vec<f64> = f_spans
+        .into_iter()
+        .zip(a_spans)
+        .map(|(f, a)| torus_meters_sup(f, a, major, minor))
+        .collect();
+    let sup = spans
+        .iter()
+        .try_fold(0.0f64, |acc, &x| (!x.is_nan()).then(|| acc.max(x)))
+        .unwrap_or(f64::NAN);
+    let floors = f_breaks
+        .into_iter()
+        .zip(a_breaks)
+        .map(|(f, a)| torus_meters_floor(f, a, minor))
+        .collect();
+    Ok((sup, spans, floors))
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand. The carrier
@@ -526,7 +626,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
     };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (form, per_meter) =
+        let (form, to_meters) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
@@ -544,22 +644,13 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 what: "the implicit composite refused the fitted carrier",
             }
         })?;
-        // Every reading crosses to metres by one outward division.
-        let spans: Vec<f64> = composite
-            .span_bounds()
-            .into_iter()
-            .map(|b| mag_in_meters(b, per_meter))
-            .collect();
+        let (sup, spans, floors) = meters_readings(&composite, &data, to_meters)?;
         Ok(Hull {
-            sup: mag_in_meters(composite.bound(), per_meter),
+            sup,
             breaks: composite.num.breaks().to_vec(),
             work: spans.len(),
             spans,
-            floors: composite
-                .break_values()
-                .into_iter()
-                .map(|v| zero_free_lower_bound(in_meters(v, per_meter)))
-                .collect(),
+            floors,
             data: (),
         })
     };
@@ -885,7 +976,7 @@ pub(crate) struct Hull<P = ()> {
 /// Whether a certified upper bound clears the band's zero: a selection
 /// on the bound's own bracket (C6's f64 lane), never the limb's decision.
 /// A refused (`NaN`) bound does not clear.
-fn clears(bound: f64, band: Band) -> bool {
+pub(crate) fn clears(bound: f64, band: Band) -> bool {
     matches!(
         bound.partial_cmp(&band.zero()),
         Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
@@ -1023,7 +1114,7 @@ pub(crate) enum Subdivided<P = ()> {
 /// **Limb 2, subdivided until it decides** (C2.2), for every door that
 /// states it: the search's two arms here, and the analytic rung-3
 /// certificate's distance bound
-/// ([`crate::pcurve_cache::projected::net_offset_sup`]). `hull` builds a
+/// ([`crate::pcurve_cache::limb2_offset_sup`]). `hull` builds a
 /// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies
@@ -1071,6 +1162,20 @@ pub(crate) fn subdivide<P, E>(
     hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
     band: Band,
 ) -> Result<Subdivided<P>, E> {
+    subdivide_until(hull, band, |_| false)
+}
+
+/// [`subdivide`] with one stop more: a round whose hull `floored` calls
+/// at its floor — a bound no halving can take lower, read off the
+/// round's own data — stops on the lowest hull as the other stops do,
+/// so rounds that cannot clear are not spent. It is asked after the
+/// band and the break's value, so a hull that clears or shows a miss
+/// still says so.
+pub(crate) fn subdivide_until<P, E>(
+    hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
+    band: Band,
+    floored: impl Fn(&Hull<P>) -> bool,
+) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
     let mut descent: Option<Descent<Hull<P>>> = None;
     let mut work = Work::new(SSI_HULL_WORK);
@@ -1091,8 +1196,9 @@ pub(crate) fn subdivide<P, E>(
         // Nothing left to halve, or a refused (NaN) bound, which steers
         // nothing: the loop's own exhaustion. A NaN never lowers the
         // lowest bound, so a later round's NaN stops on the earlier
-        // certified hull.
-        let exhausted = next.is_empty() || h.sup.is_nan();
+        // certified hull. A bound at its floor is exhausted the same
+        // way: no round would take it lower.
+        let exhausted = next.is_empty() || h.sup.is_nan() || floored(&h);
         next.truncate(SSI_HULL_CUTS - cuts.len());
         // On the first hull nothing is spent, so a composite over the
         // budget stops here unsubdivided.
@@ -1209,10 +1315,10 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 /// The box chain covering a carrier: one padded box per span of its
 /// [`refined_net`], from the span's control hull (containment by the
 /// convex-hull property, positive weights making the rational basis a
-/// partition of unity).
+/// partition of unity), beside the box's axis and the span it hulls.
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
-) -> Vec<(Box3, Vec3<T>)> {
+) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
     let mut out = Vec::new();
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
@@ -1262,7 +1368,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
-        out.push((bx, t / n));
+        out.push((bx, t / n, (a, b)));
     }
     out
 }
@@ -1296,6 +1402,20 @@ impl Rung {
     }
 }
 
+/// **One padded chain box's graph margin** for an analytic pair: the
+/// zero-free reading ([`tube_margin`]) of `(∇f₁ × ∇f₂)·e` over `bx`
+/// ([`graph_margin`]); `None` where the enclosure is refused. Limb 3's
+/// probe and the coarse-span reading ([`coarse_tube_spans`]) read a box
+/// by it.
+fn box_graph_margin<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    bx: Box3,
+    e: Vec3<T>,
+) -> Option<f64> {
+    tube_margin(graph_margin(s1, s2, bx, e))
+}
+
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
 /// criterion in ℝ³ over a box chain of the given radius, and, where the
 /// margin is zero-free, the one-arc proof over the chain cut to `slab`
@@ -1311,7 +1431,7 @@ impl Rung {
 /// `None` when the chain is empty or broken, a definite structural
 /// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
-    chain: &[(Box3, Vec3<T>)],
+    chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
@@ -1323,7 +1443,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut prev: Option<Box3> = None;
     let mut padded = Vec::with_capacity(chain.len());
-    for (raw, e) in chain.iter() {
+    for (raw, e, _) in chain.iter() {
         // The chain is built once (an O(n²) knot refinement) and padded
         // per ladder rung, which is a pure interval widening.
         let bx = raw.pad(radius);
@@ -1336,7 +1456,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+        let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
             return Some(Rung::refused(SsiTube::Spatial { radius }));
         };
         if m < worst {
@@ -1344,7 +1464,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
     }
     let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
-    let (Some((_, e0)), Some((_, e1))) = (chain.first(), chain.last()) else {
+    let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
     let one_arc = (worst > 0.0).then(|| {
@@ -1518,6 +1638,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
+        // An `Undecided` here stays unnamed: past the side arm it may come
+        // from that arm's own in-band readings, which are indeterminate.
         one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
@@ -1605,7 +1727,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (rung, (pad_a, pad_b)): (f64, PairPads),
     band: Band,
 ) -> Option<Rung> {
-    use super::four::{Box4, PairBoxes, dominant, graph_margin, one_arc_pair};
+    use super::four::{Box4, PairBoxes, dominant, end_reach, graph_margin, one_arc_pair};
     let (sa, sb) = (na.speeds(), nb.speeds());
     let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
     let pair = PairBoxes::new(na, nb, speeds);
@@ -1616,10 +1738,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // steers which determinant is asked.
     let tangent = |t: T| -> Option<[f64; 4]> {
         let (da, db) = (pa.deriv(t), pb.deriv(t));
-        let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
-        let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
-        let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
-        (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+        super::four::scaled_unit([da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()], speeds)
     };
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());
@@ -1656,7 +1775,23 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
             (state(t), dominant(&pair, e))
         });
         let domain = Box4::of_charts(na.surface(), nb.surface());
-        one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
+        let mut along = None;
+        for (k, p) in [pa, pb].into_iter().enumerate() {
+            let (u, v) = (2 * k, 2 * k + 1);
+            let rect = UvRect {
+                u: domain.0[u],
+                v: domain.0[v],
+            };
+            let within = (
+                end_reach(band.zero(), speeds[u]),
+                end_reach(band.zero(), speeds[v]),
+            );
+            if super::four::along_side(p, rect, within) {
+                along = u32::try_from(k).ok();
+                break;
+            }
+        }
+        one_arc_pair(&pair, (&boxes, domain, along), ends, band.zero())
     });
     #[allow(clippy::cast_possible_truncation)]
     Some(Rung {
@@ -1675,8 +1810,8 @@ pub(crate) const NURBS_LIMBS_NEED_PCURVE: &str = "a NURBS operand's limbs need t
 /// [`certify_branch`]'s routing boundary for a closed-form carrier
 /// between two analytic operands, whose tube is the ℝ³ box chain.
 pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of two analytic \
-     operands is a chain of a spline carrier's control-net hulls; a closed-form carrier on \
-     such a pair is rung 1 or 2, zero by construction";
+     operands is a chain of a spline carrier's control-net hulls, which a closed-form carrier \
+     does not have";
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
 /// analytic partner is not a plane.
@@ -1694,7 +1829,33 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
-        .map(|(b, _)| b.pad(radius))
+        .map(|(b, _, _)| b.pad(radius))
+        .collect()
+}
+
+/// **The spans that hold an ℝ³ tube at the rung `radius`**
+/// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
+/// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the
+/// carrier's parameter intervals whose chain box ([`box_chain`]) is wider
+/// than `up` and, padded by it, is not shown a graph
+/// ([`box_graph_margin`]). A box no wider than the rung is held by its
+/// padding, which halving its span does not narrow, so it is not named.
+/// Empty where `radius` is the ladder's widest rung.
+pub(crate) fn coarse_tube_spans(
+    carrier: &NurbsCurve3<f64>,
+    (s1, s2): (&Surface<f64>, &Surface<f64>),
+    radius: f64,
+    (extent, band): (f64, Band),
+) -> Vec<RefusedSpan> {
+    let Some(up) = tube_ladder(extent, band).filter(|r| *r > radius).last() else {
+        return Vec::new();
+    };
+    box_chain(carrier)
+        .into_iter()
+        .filter(|(raw, e, _)| {
+            raw.width() > up && !box_graph_margin(s1, s2, raw.pad(up), *e).is_some_and(|m| m > 0.0)
+        })
+        .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
         .collect()
 }
 
@@ -1724,9 +1885,28 @@ pub enum OneArcRefusal {
     Short,
     /// A walk of a box's boundary resolved no count, or a linking
     /// reading no sign. A solution on the boundary may be tangential to
-    /// it, sit on a corner, or lie below the walk's resolution. The
-    /// cause carries the escalation as the funnel recorded it.
+    /// it, sit where faces of the box meet, or lie below the walk's
+    /// resolution. The cause carries the escalation as the funnel
+    /// recorded it. On the two-chart tube the two shapes below are
+    /// renamed out of it.
     Undecided(Indeterminate),
+    /// The two-chart tube's walk resolved nothing, and the carrier's
+    /// image on a chart lies along a side of that chart's domain (a
+    /// boundary row or column) within the end box: the locus may run on
+    /// a face of every box rather than cross it, where no root is
+    /// isolated. The image is placed, not the locus.
+    AlongSide {
+        /// The chart: `0` the first operand's, `1` the second's.
+        chart: u32,
+    },
+    /// The two-chart tube's walk resolved nothing at an end of the
+    /// carrier, which lies on this many sides of the two charts' domains
+    /// at once, each within the end box: its root may sit on an edge or
+    /// corner where those sides meet, which no face's walk isolates.
+    EndOnSides {
+        /// How many domain sides the end lies on.
+        sides: u32,
+    },
 }
 
 impl core::fmt::Display for OneArcRefusal {
@@ -1751,8 +1931,23 @@ impl core::fmt::Display for OneArcRefusal {
                  slice through that end or within the tolerance of it"
             }
             Self::Undecided(_) => {
-                "a box's boundary walk resolved no count: a solution tangent to it, on a \
-                 corner, or below the walk's resolution"
+                "a box's boundary walk resolved no count: a solution tangent to it, where \
+                 its faces meet, or below the walk's resolution"
+            }
+            Self::AlongSide { chart } => {
+                return write!(
+                    f,
+                    "a box's boundary walk resolved no count, and the carrier lies along a \
+                     boundary row of chart {chart}'s domain: the locus may run on a face of every \
+                     box, where no root is isolated"
+                );
+            }
+            Self::EndOnSides { sides } => {
+                return write!(
+                    f,
+                    "the walk at an end of the carrier resolved nothing, and that end lies on \
+                     {sides} domain sides at once, where no face's walk isolates its root"
+                );
             }
         })
     }
@@ -1831,6 +2026,8 @@ fn limb_three<T: Decide>(
         Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
         Shortfall::Unlinked => OneArcRefusal::Unlinked,
         Shortfall::Short => OneArcRefusal::Short,
+        Shortfall::AlongSide(chart) => OneArcRefusal::AlongSide { chart },
+        Shortfall::EndOnSides(sides) => OneArcRefusal::EndOnSides { sides },
         // The walk read no margin it could classify, and the funnel
         // records that as it records any unreadable one; an unreadable
         // margin never classifies positive.
@@ -2308,6 +2505,63 @@ mod tests {
             Ok(Subdivided::Value { .. }) => panic!("no break value is certified"),
             Err(()) => panic!("the synthetic hull does not refuse"),
         }
+    }
+
+    /// **The rounds stop at the floor their data sets** (limb 2's round
+    /// stop, [`super::subdivide_until`], with limb 2's own predicate,
+    /// [`crate::pcurve_cache::projected::round_floored`]: the bound within
+    /// 16× the net's rounding, that rounding 16× the band's zero, and
+    /// the bound not halved by the last round): with every round's bound at twice a
+    /// rounding that halving does not lower — a family scalar's carrier
+    /// spread over its box — the second hull is the last one built, and
+    /// the limb reads the bound; without the stop the same hulls are
+    /// rebuilt round after round until the stall rule ends them. A bound
+    /// still falling tenfold a round goes on below the rounding, and a
+    /// hull that clears is still read as clearing.
+    #[test]
+    #[allow(clippy::panic)]
+    fn the_rounds_stop_once_the_bound_is_within_the_floor() {
+        use super::{Subdivided, subdivide_until};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e}"));
+        let run = |stop: bool, sup: &dyn Fn(usize) -> f64, floor: f64| {
+            let calls = core::cell::Cell::new(0);
+            let hull = |cuts: &[f64]| {
+                let k = calls.get();
+                calls.set(k + 1);
+                Ok::<_, ()>(flat_hull(cuts, sup(k)))
+            };
+            let last = core::cell::Cell::new(None::<f64>);
+            let floored = |h: &super::Hull| {
+                let before = last.replace(Some(h.sup));
+                stop && crate::pcurve_cache::projected::round_floored(h.sup, before, floor, band)
+            };
+            match subdivide_until(hull, band, floored) {
+                Ok(Subdivided::Bound(h)) => (h.sup, calls.get()),
+                _ => panic!("the synthetic hull stops on its bound"),
+            }
+        };
+        let flat = |_: usize| 0.8;
+        assert_eq!(run(true, &flat, 0.4), (0.8, 2));
+        let (sup, rounds) = run(false, &flat, 0.4);
+        assert_eq!(sup, 0.8);
+        assert!(rounds > 2, "without the stop the rounds go on: {rounds}");
+        let falling = |k: usize| 1e-3 * 0.1_f64.powi(i32::try_from(k).unwrap_or(0));
+        let (cleared, _) = run(true, &falling, 0.4);
+        assert!(
+            cleared <= band.zero(),
+            "a bound falling tenfold a round goes on below the rounding until it clears: \
+             {cleared:e}"
+        );
+        let (_, near) = run(true, &|_| 2e-9, 1.5e-9);
+        assert!(
+            near > 2,
+            "a rounding near the band leaves the rounds on: {near}"
+        );
+        assert_eq!(
+            run(true, &|_| 1e-12, 0.4),
+            (1e-12, 1),
+            "a hull that clears clears"
+        );
     }
 
     /// **The subdivision stalls on the second round that does not lower
@@ -2814,7 +3068,7 @@ mod tests {
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
-                    .map(|(b, axis)| {
+                    .map(|(b, axis, _)| {
                         let leg = legs[usize::from(b.x.hi() > bend[0])];
                         (axis.x - leg[0])
                             .abs()
@@ -3021,14 +3275,14 @@ mod tests {
         };
         let at_f64: Vec<Box3> = super::box_chain(&curve)
             .into_iter()
-            .map(|(b, _)| b)
+            .map(|(b, _, _)| b)
             .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
             super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
                 .into_iter()
-                .map(|(b, _)| b)
+                .map(|(b, _, _)| b)
                 .collect();
         let at_interval = misses(&at_interval);
         assert!(
@@ -3513,7 +3767,7 @@ mod tests {
         );
     }
 
-    /// **A refused transversality enclosure is no sliver.** A torus has
+    /// **A refused transversality enclosure is no sliver.** A cone has
     /// no ℝ³ gradient enclosure, so every box of every rung of an
     /// analytic tube against one is refused: the ladder answers nothing
     /// (`TubeProbeSilent`, every rung offered), where reading each
@@ -3532,11 +3786,10 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let torus = Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -1.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major_radius: 1.25,
-            minor_radius: 0.25,
+            half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let carrier = NurbsCurve3::new(
@@ -3551,7 +3804,7 @@ mod tests {
             carrier.domain(),
             Lane::AtRest {
                 a: &SsiOperand::Analytic(&plane),
-                b: &SsiOperand::Analytic(&torus),
+                b: &SsiOperand::Analytic(&cone),
                 pcurve_a: None,
                 pcurve_b: None,
             },
@@ -3652,6 +3905,116 @@ mod tests {
                 "{}: the uncleared span is located",
                 arm.sup
             );
+        }
+    }
+
+    /// Limb 2's torus readings of `carrier` over its spans cut at
+    /// `breaks`: the composite's breaks, its sup, each span's sup and
+    /// each break's floor, all in meters.
+    #[allow(clippy::unwrap_used)]
+    fn torus_readings(
+        carrier: &geom::NurbsCurve3<f64>,
+        torus: &geom::Surface<f64>,
+        breaks: &[f64],
+    ) -> (Vec<f64>, f64, Vec<f64>, Vec<f64>) {
+        use geom_core::spline::compose::{self, CurveCertData};
+        let curve = geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
+        let net = crate::carrier_net::carrier_net(&curve, carrier.domain(), breaks).unwrap();
+        let (ck, cw, cc) = net.operand();
+        let data = CurveCertData::new(ck, cw, cc)
+            .unwrap()
+            .with_breaks(net.cuts());
+        let (form, to) = super::composite_form(torus).unwrap();
+        let composite = compose::implicit_composite(&data, &form).unwrap();
+        let (sup, spans, floors) = super::meters_readings(&composite, &data, to).unwrap();
+        let at = composite.num.breaks().to_vec();
+        assert_eq!(
+            spans.len() + 1,
+            at.len(),
+            "one span between each two breaks"
+        );
+        assert_eq!(floors.len(), at.len(), "one floor per break");
+        (at, sup, spans, floors)
+    }
+
+    /// **Limb 2's torus conversion bounds every sampled residual**,
+    /// counterexample search: cubic carriers whose controls lie on a
+    /// torus (thin to fat, horn and spindle, tilted; a span the
+    /// conversion refuses reads `NaN`, which bounds nothing) displaced by up to a tenth of the
+    /// tube, read over eight spans. Each span's bound holds the meters
+    /// residual `implicit_residual` at points sampled in it, and each
+    /// break's floor is no more than the residual there: a conversion
+    /// that divided by too much, or floored by too little, reads red.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+        use crate::ssi::enclose::tests::{on_torus, torus};
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point3, Vec3};
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("torus limb 2");
+        for _ in 0..fuzz::scaled(40) {
+            let small = rng.log_uniform(1e-3, 1.0);
+            let big = small * rng.range(0.5, 30.0);
+            let c = [
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ];
+            let torus = torus(
+                c,
+                [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), 0.6],
+                big,
+                small,
+            );
+            let (u0, v0) = (rng.range(0.0, 6.3), rng.range(0.0, 6.3));
+            let (du, dv) = (rng.range(-0.6, 0.6), rng.range(-2.0, 2.0));
+            let lift = small * rng.log_uniform(1e-9, 0.1);
+            let points: Vec<Point3<f64>> = (0..6)
+                .map(|i| {
+                    let s = f64::from(i) / 5.0;
+                    let off = Vec3::new(
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    );
+                    on_torus(&torus, u0 + du * s, v0 + dv * s) + off * lift
+                })
+                .collect();
+            let knots = KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap();
+            let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
+            let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
+            let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
+            let ctx = format!("{torus:?}, lift {lift:e}: {}", fuzz::replay());
+            assert!(
+                sup.is_finite() || big <= small,
+                "a ring torus's bound: {ctx}"
+            );
+            let residual =
+                |t: f64| crate::implicit::implicit_residual(&torus, carrier.eval(t)).abs();
+            let slack = |x: f64| x * (1.0 + 1e-9) + 1e-15 * big;
+            for (j, span) in spans.iter().enumerate() {
+                for k in 0..=16 {
+                    let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
+                    let m = residual(t);
+                    assert!(
+                        span.is_nan() || m <= slack(*span),
+                        "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
+                    );
+                }
+            }
+            for (j, floor) in floors.iter().enumerate() {
+                let m = residual(at[j]);
+                assert!(
+                    *floor <= slack(m),
+                    "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
+                );
+            }
         }
     }
 }

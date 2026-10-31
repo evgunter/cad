@@ -191,6 +191,8 @@ mod surfaces_nurbs_surface;
 mod surfaces_nurbs_surface_interval;
 #[path = "surfaces/poison_parameter.rs"]
 mod surfaces_poison_parameter;
+#[path = "surfaces/rect_enclosure.rs"]
+mod surfaces_rect_enclosure;
 #[path = "surfaces/review_m2_pr1.rs"]
 mod surfaces_review_m2_pr1;
 #[path = "surfaces/review_m2_pr1_interval.rs"]

@@ -4,7 +4,6 @@ kind: issue
 title: the per-shell component glue relation is implemented three times, and the test-support copy is the one that drifts
 status: open
 opened: 2026-09-06
-track: P
 refs: [S69, 2014]
 priority: P1
 cost: D

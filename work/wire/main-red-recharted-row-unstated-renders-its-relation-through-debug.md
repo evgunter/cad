@@ -2,10 +2,11 @@
 id: main-red-recharted-row-unstated-renders-its-relation-through-debug
 kind: issue
 title: Main red: BooleanError::RechartedRowUnstated renders its Relation through Debug, which the binding's prose census refuses (since PR 5795)
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -42,3 +43,5 @@ one, or word the arm from its variant), so the census row is green
 without a new allowance.
 
 Reproduce: `cargo nextest run -p pncad-py -E 'test(=prose_census::tests::no_display_impl_renders_a_brace_shaped_payload_through_debug)'`.
+
+Closed by this PR (wire/recharted-relation-words, 2026-10-27). `RechartedRowUnstated`'s Display now renders the relation through `Relation::noun` (words), not `Debug`. The same PR fixes the sibling census red from PR 5829: `UnsupportedTurnedCell`'s message renders its key through the variant's `cell` field, which the census can type, instead of locally bound keys. Both `prose_census` tests pass.

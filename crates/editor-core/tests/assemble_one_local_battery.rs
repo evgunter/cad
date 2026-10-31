@@ -2,12 +2,12 @@
 //! gather.**
 //!
 //! The gather gates its aggregate with tier 3, runs tier 3′'s census
-//! over it and keeps both verdicts on the product; the assembly gate
+//! over it and keeps both verdicts on the product; the at-rest check
 //! reads the kept census and runs no predicate. The witness is the
 //! `probe` sample log, which records every predicate decision the
 //! at-rest passes make: the gather's samples must be, as a multiset,
 //! exactly a standalone tier-3′ pass's over the assembled body, and the
-//! assembly gate's must be none. A gate that re-ran the battery or the
+//! at-rest check's must be none. A check that re-ran the battery or the
 //! census records its samples a second time; a gather that skipped the
 //! census loses the census's.
 #![cfg(feature = "probe")]
@@ -15,7 +15,7 @@
 
 use crate::fixture::{place, two_blocks_and_their_union};
 
-use editor_core::{CancelToken, EvalOptions, assemble_gathered, evaluate, product_recorded};
+use editor_core::{CancelToken, EvalOptions, evaluate, product_recorded};
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe};
 
@@ -43,7 +43,7 @@ fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<Bits>) {
 }
 
 #[test]
-fn the_gather_pays_tier_3_prime_once_and_the_assembly_gate_nothing() {
+fn the_gather_pays_tier_3_prime_once_and_the_at_rest_check_nothing() {
     let tol = Tol::witness();
     let (doc, union) = two_blocks_and_their_union("assemble-one-local-battery");
     let (doc, _) = place(doc, union);
@@ -56,10 +56,23 @@ fn the_gather_pays_tier_3_prime_once_and_the_assembly_gate_nothing() {
     );
     let (product, gather) = recorded(|| product_recorded(&doc, &ev, tol));
     let product = product.expect("the union gathers");
-    let (assembly, gate) = recorded(|| assemble_gathered(product, tol));
-    let assembly = assembly.expect("an unmated product assembles");
+    let at_rest_only = editor_core::ChecksConfig {
+        connectedness: editor_core::Severity::Off,
+        unproven_coincidence: editor_core::Advisory::Off,
+        ..editor_core::ChecksConfig::default()
+    };
+    let (report, gate) = recorded(|| {
+        editor_core::run_checks_on(
+            &doc,
+            &ev,
+            editor_core::Subject::Product(&product),
+            &at_rest_only,
+            tol,
+        )
+    });
+    report.expect("the at-rest check runs over the product");
     let (whole, pass) =
-        recorded(|| topo::validate_pseudomanifold(&assembly.body, &assembly.contacts, tol));
+        recorded(|| topo::validate_pseudomanifold(&product.body, &product.contacts, tol));
     whole.expect("the assembled body passes tier 3′");
     assert!(
         !pass.is_empty(),
@@ -67,7 +80,7 @@ fn the_gather_pays_tier_3_prime_once_and_the_assembly_gate_nothing() {
     );
     assert!(
         gate.is_empty(),
-        "the assembly gate recorded {} samples: it reads the gather's census and runs none",
+        "the at-rest check recorded {} samples: it reads the gather's census and runs none",
         gate.len()
     );
     assert_eq!(

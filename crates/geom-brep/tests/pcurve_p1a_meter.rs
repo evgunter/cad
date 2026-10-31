@@ -72,6 +72,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("a drift inside the band certifies")
     .certificate()
@@ -154,6 +155,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             &lookup,
             1.0,
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .unwrap_or_else(|e| panic!("{name} seam certifies at a {d:e} drift: {e:?}"))
         .certificate()
@@ -201,13 +203,16 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("an ellipse is not a locus of any sphere chart image");
     assert_eq!(
         err,
-        CertifyError::ChartImageUnavailable {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
+            why: "a sphere holds no line, and its plane sections are circles",
+            margin: None,
         },
         "the refusal must name the (chart, carrier) pair it could not state"
     );
@@ -262,6 +267,7 @@ mod at_intervals {
             &lookup,
             geom_core::Real::from_f64(1.0),
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the seam certifies at the interval scalar");
         // The enclosure must CONTAIN the drift it was built from: an
@@ -315,6 +321,7 @@ mod at_intervals {
             &lookup,
             geom_core::Real::from_f64(1.0),
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("a 2.5e-10 drift is inside the band");
         let m = certified.certificate().max_residual;

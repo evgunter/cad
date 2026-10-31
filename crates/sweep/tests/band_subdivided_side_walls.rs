@@ -413,7 +413,7 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
         .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     let l = loft_body::<f64>(&[vec![lp.clone()], vec![lp]], &places, 1, t).unwrap();
-    let (w0, w1) = (l.side_faces[0][0], l.side_faces[0][1]);
+    let (w0, w1) = (l.side_faces[0][0][0], l.side_faces[0][1][0]);
     assert_ne!(key_of(&l.body, w0), key_of(&l.body, w1));
     assert!(matches!(
         l.body.get_surface(key_of(&l.body, w0)),

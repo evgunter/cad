@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol};
 use topo::{
@@ -59,25 +60,21 @@ fn disc_in_top(s: f64, radius: f64) -> (Body<f64>, topo::FaceKey, topo::FaceKey)
     (body, top, disc.face)
 }
 
-/// **(a)**: the top and the disc, declared one plane, glue into one
-/// face: the orientation rung reads them over the pair's reach, not the
-/// circle's chord, and the circle's vertex, left a lone vertex of the
-/// top once the circle is killed, is deleted with its ring.
+/// **(a)**: the top and the disc, on two keys of one plane, glue into
+/// one face: the orientation rung reads them over the pair's reach, not
+/// the circle's chord, and the circle's vertex, left a lone vertex of
+/// the top once the circle is killed, is deleted with its ring.
 #[test]
 fn a_disc_declared_on_its_hosts_plane_merges_across_the_circle() {
     let (mut body, top, disc) = disc_in_top(1.0, 1.0);
-    let keys = (
-        body.get_face(top).unwrap().surface,
-        body.get_face(disc).unwrap().surface,
-    );
     let disc_outline = body.get_face(disc).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(disc_outline).unwrap().boundary else {
         panic!("the disc's outline is the circle");
     };
     let circle_vertex = body.get_half_edge(first).unwrap().start;
     let outcome = body
-        .merge_coplanar_faces_declared(&[keys], Tol::witness())
-        .unwrap_or_else(|err| panic!("the declared pair glues: {err:?}\n{err}"));
+        .merge_coplanar_faces(Tol::witness())
+        .unwrap_or_else(|err| panic!("the pair glues: {err:?}\n{err}"));
     let [group] = &outcome.groups[..] else {
         panic!("one group: {outcome:?}");
     };
@@ -228,7 +225,7 @@ fn hemispheres() -> Body<f64> {
     let seed = body.mvfs(origin + x, true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Sphere {
                 center: origin,
                 radius: 1.0,
@@ -246,11 +243,11 @@ fn hemispheres() -> Body<f64> {
         u_ref: x,
     };
     body.mef(
-        topo::MefSite::Lone {
+        topo::construction::MefSite::Lone {
             r#loop: seed.r#loop,
         },
         geom_brep::EdgeCurveSpec::arc_of_circle(equator, 0.0, core::f64::consts::TAU).unwrap(),
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();

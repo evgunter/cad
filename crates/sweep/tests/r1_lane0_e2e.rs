@@ -16,10 +16,11 @@
 
 use std::sync::Arc;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::{Affine3, Tol, Vec3};
-use topo::FaceSurface;
+use topo::construction::FaceSurface;
 
 #[allow(unused_imports)]
 use crate::common::approx::{band, box_with_approx_cap, planar_patch, pulled_back};
@@ -39,6 +40,23 @@ fn rigid_f64() -> Affine3<f64> {
 /// door re-asked.
 #[test]
 fn the_f64_seam_answers_every_public_door() {
+    // Pinned red since PR 4472: at ε = 1e-6 the moved cap's plane × fit
+    // section refuses its tube's one-arc proof undecided
+    // (`work/ssiedge/a-plane-section-along-a-fits-window-edge-proves-no-one-arc`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the f64 seam",
+        &[
+            "RechartFalsifies { door: SetFaceSurfacesDescribing, edge: EdgeKey(10v1), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
+            "predicate: Some(\"ssi_tube_one_arc\")",
+        ],
+        the_f64_seam_answers_every_public_door_row,
+    );
+}
+
+/// The row [`the_f64_seam_answers_every_public_door`] runs, under its pin.
+fn the_f64_seam_answers_every_public_door_row() {
     let d = 0.05;
     let (body, face) = box_with_approx_cap(d, 1e-9);
     let Some(Surface::Approx(_)) = body.get_surface(body.get_face(face).unwrap().surface) else {

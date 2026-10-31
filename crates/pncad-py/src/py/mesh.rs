@@ -162,6 +162,11 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The cause is the sortable word; face and edge are keys.
+        T::SphereTrimShape { cause, .. } => {
+            fields[4] = ("note", PyString::new(py, cause.name()).unbind().into_any());
+            Ok(())
+        }
         // The key-only arms: the offending entity is an arena key, so
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }
@@ -170,7 +175,10 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }
-        | T::PinchWedge { .. } => Ok(()),
+        | T::PinchWedge { .. }
+        | T::TrimLoopOrientation { .. }
+        | T::FoldedTriangle { .. }
+        | T::BoundaryEar { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

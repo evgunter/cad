@@ -42,13 +42,11 @@
 //! D-tabs), no `copysign` atom from any site stands in a residual the
 //! tier is asked to decide, with rule F on or shut
 //! (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`): the bracket renders 41
-//! early forms and the link 48, the parameter D-tab 20, the other
-//! four none, and not one of them carries a `copysign` atom. (An
-//! earlier head measured `geom-brep/src/tangent.rs`'s jet sign in the
-//! bracket's and the link's `tangent_normal_parallel` residuals; that
-//! predicate renders no early form on either now.) On the five cheap
-//! documents the gating half
+//! `sym12_the_copysign_census_at_the_nominal`): the plate renders 8
+//! early forms, the bracket 46, the link 44, the literal D-tab 68 and
+//! the parameter D-tab 72, the annulus and the boss none, and not one
+//! of them carries a `copysign` atom. On the five cheap documents the
+//! gating half
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
 //! asserts it. So the reach either arm has MEASURED is still the
 //! orthonormal basis's atoms alone.
@@ -82,16 +80,19 @@
 //! `geom-brep/src/intersect.rs`'s plane × cone graze, whose one
 //! generator lies a quarter turn either side of the plane normal's
 //! azimuth by the sign of `c`, the normal's axial component, which the
-//! apex-reach decision has already made definite on that arm (no
-//! measured document reaches it);
+//! apex-reach decision has already made definite on that arm;
+//! `geom-brep/src/intersect/conic_arc.rs`'s plane × cone parabola and
+//! hyperbola, three sites: the apex gap signed by `c` (`δσ`), which
+//! only names which of the two vertices is the near one, mirror images
+//! about the apex's foot at `c = ±0`, so either sign of a zero `c`
+//! serves the same pair of branches; the seed's side of the centre,
+//! signed by `δσ` and decided after the transfer, so a `δσ` that
+//! straddles zero hulls the side and refuses rather than naming a
+//! branch; and the slope quadratic's stable root, signed by the
+//! branch's `L`, whose own vertex and frame were placed by the same
+//! `δσ` (no measured document reaches either file's sites);
 //! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano
-//! root's sign transfer from `Q`;
-//! `geom-brep/src/intersect.rs`'s plane × cone graze (the tangent
-//! generator's half turn, signed by the axis lean `c`), re-asked on
-//! the seven documents with rule F on and shut when it was minted: no
-//! `copysign` atom stood in a decided residual on any of them, the
-//! jet's on the bracket and the link included, which (1) counts from
-//! an earlier head. That list is not
+//! root's sign transfer from `Q`. That list is not
 //! prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
 //! shipped sources and reds when a site appears or goes, so the day a

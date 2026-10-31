@@ -70,10 +70,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use editor_core::resolve::RimNameFault;
 use pncad::document::{
     Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
-use pncad::geom_core::{Point3, Tol};
+use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
     HitTestError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
@@ -864,6 +865,102 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **The drawn edges that are one circle**: each closed rim of two or
+/// more arcs among a drawn body's edges, by (node, body), as the names
+/// of its arcs in rim order.
+///
+/// A rim is `NodePick::boundary_rims`' answer, `topo::query::rim_of`
+/// spoken in names: the closed chain of circle arcs between one pair of
+/// surfaces. The picture draws such a chain as one circle, and a full
+/// revolve of a profile touching the axis splits every latitude circle
+/// into its `BandRim` and `BandRimPi` halves, so without this table one
+/// click on the circle means half of it.
+///
+/// An edge on no rim of two or more is absent, and stands for itself.
+/// An edge whose rim the door could not answer holds its
+/// [`RimNameFault`], which [`PickIndex::whole_edge`] answers in place of
+/// a guess: a half pick taken silently is the defect this table exists
+/// to remove.
+///
+/// **What it costs, measured** (debug, PR 6129's review): the corpus's
+/// index builds moved within noise, and a memo-hit rebuild of a
+/// rim-dense full revolve went from 3.1 ms to 6.2 ms, because the walk
+/// runs on every build and is not memoised with the `NodePick`.
+#[derive(Debug, Default)]
+struct Rims {
+    rims: Vec<Vec<StableName>>,
+    of: BTreeMap<(RecipeNodeId, u32), BTreeMap<StableName, Result<usize, RimNameFault>>>,
+}
+
+impl Rims {
+    /// One drawn part's rims, read beside its window's names: the two
+    /// doors walk the same boundary polylines in the same order.
+    fn push(
+        &mut self,
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+        names: &[Result<StableName, UnnamedEntity>],
+    ) -> Result<(), PickIndexError> {
+        let rims = part.boundary_rims(eval).map_err(PickIndexError::Names)?;
+        let mut found: BTreeMap<StableName, Result<usize, RimNameFault>> = BTreeMap::new();
+        assert_eq!(
+            names.len(),
+            rims.len(),
+            "body {} of {:?}: `boundary_names` answered {} polylines and `boundary_rims` {}; \
+             both walk the same boundaries",
+            part.body(),
+            part.node(),
+            names.len(),
+            rims.len()
+        );
+        for (name, rim) in names.iter().zip(rims) {
+            // An unnamed edge is the window's loud arm already
+            // (`PickIndex::edge_names_in`), and no pick can name it.
+            let Ok(name) = name else {
+                continue;
+            };
+            match rim {
+                Ok(None) => {}
+                Ok(Some(_)) if found.contains_key(name) => {}
+                Ok(Some(arcs)) => {
+                    for arc in &arcs {
+                        found.insert(arc.clone(), Ok(self.rims.len()));
+                    }
+                    self.rims.push(arcs);
+                }
+                Err(fault) => {
+                    found.insert(name.clone(), Err(fault));
+                }
+            }
+        }
+        if !found.is_empty() {
+            self.of.insert((part.node(), part.body()), found);
+        }
+        Ok(())
+    }
+
+    fn rim_holding(&self, edge: &EdgeSelection) -> Option<Result<&[StableName], RimNameFault>> {
+        let held = self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
+        Some(match held {
+            // Every id in `of` was minted by `push` as the index of the
+            // rim it pushed next, so one past the end is a broken table,
+            // and an empty whole would fix a blend target holding nothing.
+            Ok(rim) => Ok(self.rims.get(*rim).map_or_else(
+                || {
+                    unreachable!(
+                        "rim id {rim} of {:?} body {} is past the {} rims recorded",
+                        edge.node,
+                        edge.body,
+                        self.rims.len()
+                    )
+                },
+                Vec::as_slice,
+            )),
+            Err(fault) => Err(*fault),
+        })
+    }
+}
+
 /// **What a picture IS**: the landed generation an index describes and
 /// the δ its copies were tessellated at.
 ///
@@ -952,6 +1049,8 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
+    /// The drawn edges that are one circle ([`Rims`]).
+    rims: Rims,
     /// Each drawn placement's space, the one its copy is placed into
     /// ([`Doc::node_space`]): the pick orders faces within one space
     /// only.
@@ -1043,9 +1142,11 @@ impl PickIndex {
         // written the same way.
         let mut patches = PartWindows::<Patches>::new();
         let mut edges = PartWindows::<Edges>::new();
+        let mut rims = Rims::default();
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
+            rims.push(part, eval, edges.laid_out(part.node(), part.body()).1)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
@@ -1054,6 +1155,7 @@ impl PickIndex {
             ids,
             patches,
             edges,
+            rims,
             spaces,
         })
     }
@@ -1117,6 +1219,28 @@ impl PickIndex {
             Some(Ok(name)) => Ok(name),
             Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
         }
+    }
+
+    /// The face the patch `id` denotes: its name and the (node, body)
+    /// it is drawn on, which tells two copies of one body apart where
+    /// the name alone does not.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::name_of`]. The id map is derived from the same
+    /// windows as the name table, so a name with no patch would be an
+    /// id no patch draws, and is said as one.
+    pub fn face_of(&self, id: u32) -> Result<FaceSelection, PatchNameFault> {
+        let name = self.name_of(id)?;
+        let patch = self
+            .ids
+            .key_of(id)
+            .ok_or(PatchNameFault::Unassigned { id })?;
+        Ok(FaceSelection {
+            name: name.clone(),
+            node: patch.node,
+            body: patch.body,
+        })
     }
 
     /// The ids a name is drawn as — **the id map's inverse**, across
@@ -1219,6 +1343,7 @@ impl PickIndex {
                 mesh: part.mesh(),
                 ids,
                 probe: display.moved_placements.get(&part.node()).copied(),
+                placed: in_space_of(part),
             });
         }
         if parts.is_empty() {
@@ -1302,14 +1427,20 @@ impl PickIndex {
         // origin at the world's — so the merge below orders the batches
         // as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
-        for part in self
-            .parts
-            .iter()
-            .filter(visible)
-            .filter(|part| !display.moved_placements.contains_key(&part.node()))
-        {
-            let space = self.spaces.get(&part.node()).copied();
-            unmoved.entry(space).or_default().push(part.target());
+        // A part drawn under a probe is its own group, picked by the
+        // ray carried back through the probe's display map. A part's own
+        // frame is the kernel's door's to read ([`pick_face`] reads the
+        // ray into each target's frame), so copies in one space are one
+        // batch the kernel orders.
+        let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
+        for part in self.parts.iter().filter(visible) {
+            match probed(display, part) {
+                None => {
+                    let space = self.spaces.get(&part.node()).copied();
+                    unmoved.entry(space).or_default().push(part.target());
+                }
+                Some(map) => mapped.push((map, part)),
+            }
         }
         // Every group's whole answer, in group order: the unmoved
         // batches, the world's first, then the moved instances. A
@@ -1319,20 +1450,8 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (&node, frame) in &display.moved_placements {
-            if display.hidden_placements.contains(&node) {
-                continue;
-            }
-            let targets: Vec<PickTarget<'_>> = self
-                .parts
-                .iter()
-                .filter(|part| part.node() == node)
-                .map(NodePick::target)
-                .collect();
-            if targets.is_empty() {
-                continue;
-            }
-            let map = frame.affine::<f64>();
+        for (map, part) in mapped {
+            let targets = [part.target()];
             let inverse = map.inverse();
             let local = Ray {
                 origin: inverse.transform_point(ray.origin),
@@ -1504,6 +1623,27 @@ impl PickIndex {
         self.edges.of_target(edge.node, edge.body, &edge.name)
     }
 
+    /// **The whole drawn edge an edge pick is part of**: every arc of
+    /// its rim, in rim order, when the picked edge is one arc of a
+    /// closed rim of two or more (`NodePick::boundary_rims` on the body
+    /// this index drew); the pick's own name otherwise.
+    ///
+    /// The picture draws a rim as one circle, so this is what a click
+    /// on that circle means, and a consumer that takes edge picks asks
+    /// here rather than reading the half the cursor happened to be
+    /// nearest.
+    ///
+    /// # Errors
+    ///
+    /// The [`RimNameFault`] the rim door answered for this edge: a
+    /// naming or pairing bug, and the pick's meaning is unknown.
+    pub fn whole_edge(&self, edge: &EdgeSelection) -> Result<Vec<StableName>, RimNameFault> {
+        match self.rims.rim_holding(edge) {
+            None => Ok(vec![edge.name.clone()]),
+            Some(rim) => rim.map(<[StableName]>::to_vec),
+        }
+    }
+
     /// The tessellated part drawing one (node, body).
     fn part_of(&self, node: RecipeNodeId, body: u32) -> Option<&NodePick> {
         self.parts
@@ -1530,7 +1670,7 @@ impl PickIndex {
         let Some(boundary) = mesh.boundaries.get(id.boundary) else {
             return Vec::new();
         };
-        let place = placement(display, id.node);
+        let place = placement(display, part);
         boundary
             .points
             .iter()
@@ -1855,7 +1995,7 @@ impl PickIndex {
         for (rank, part) in bodies.iter().enumerate() {
             let (node, body) = (part.node(), part.body());
             let mesh = part.mesh();
-            let place = placement(display, node);
+            let place = placement(display, part);
             for id in self.edges_in(node, body) {
                 let Some(boundary) = mesh.boundaries.get(id.boundary) else {
                     continue;
@@ -2176,7 +2316,7 @@ fn own_crossing(
     } else {
         vec![chords.on_chord([from, to])]
     };
-    let place = placement(display, part.node());
+    let place = placement(display, part);
     let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
     Some(
         triangles
@@ -2212,16 +2352,47 @@ struct Candidate {
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
 /// mark on empty space.
-fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) -> Point3<f64> {
-    let map = display
-        .moved_placements
-        .get(&node)
-        .copied()
-        .map(|frame: Frame| frame.affine::<f64>());
+fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> Point3<f64> {
+    let map = drawn(display, part);
     move |point| match &map {
         Some(map) => map.transform_point(point),
         None => point,
     }
+}
+
+/// **Where a drawn part's tessellation is drawn**: its body's frame
+/// composed into its space ([`pncad::document::in_space`], the picture's
+/// one composing door), then the free-move probe frame the display view
+/// puts the owning instance under. `None` where it is under neither,
+/// so a part computed in its space's coordinates is drawn as tessellated.
+fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    let placed = in_space_of(part);
+    let probe = display
+        .moved_placements
+        .get(&part.node())
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>());
+    match (probe, placed) {
+        (None, placed) => placed,
+        (Some(probe), None) => Some(probe),
+        (Some(probe), Some(placed)) => Some(probe * placed),
+    }
+}
+
+/// **The free-move probe frame a part's instance is drawn under**, if
+/// the display view puts it under one: a display map, not the model's.
+fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    display
+        .moved_placements
+        .get(&part.node())
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>())
+}
+
+/// The part's frame in its space, `None` where its body is in its
+/// space's coordinates already.
+fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
+    pncad::document::in_space(part).map(|map| map.to_affine())
 }
 
 /// **The one drawn edge's own nearest segment**, or `None` when no

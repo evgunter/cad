@@ -45,7 +45,9 @@ use geom_core::{Band, Point2, Point3, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, Pcurve, PcurveMintError};
 
 // ---------------------------------------------------------------- //
 // Fixture helpers, verbatim from m8_4_intersection_iso.rs           //
@@ -164,7 +166,7 @@ fn intrinsic_seam_at(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,

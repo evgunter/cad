@@ -682,8 +682,18 @@ fn require_rings_wound_against(
 /// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
 /// component, as the interval sum carries `J`'s width, so a lever in the
 /// cap's own plane still carries it — and a wall's chart flux.
+/// How a cap's area reads its vector area `A⃗`: `‖A⃗‖` on a plane, and
+/// `|â·A⃗|/sin α` on a cone, whose every normal makes the angle `π/2 − α`
+/// with its axis `â`.
+#[derive(Clone, Copy, Debug)]
+enum CapArea {
+    Plane,
+    Cone { axis: RVec3, sin_a: Interval },
+}
+
 fn face_bounds(
     face: &RimFaceQ,
+    cap: CapArea,
     pieces: usize,
 ) -> Result<(FaceCutBounds, Vec<[Interval; 4]>, f64), PropsError> {
     let mut va = face.closed_va;
@@ -708,7 +718,10 @@ fn face_bounds(
         None => (
             FaceCutBounds {
                 flux: position,
-                area: (va[0].sqr() + va[1].sqr() + va[2].sqr()).sqrt(),
+                area: match cap {
+                    CapArea::Plane => (va[0].sqr() + va[1].sqr() + va[2].sqr()).sqrt(),
+                    CapArea::Cone { axis, sin_a } => dot(&axis, &va).abs_enclosure() / sin_a,
+                },
             },
             Vec::new(),
             removable,
@@ -844,6 +857,40 @@ pub fn rim_face_rounds<T: Decide>(
     window: RoundWindow,
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
+    rounds::<T>(face, CapArea::Plane, band, window, accept)
+}
+
+/// **A cone cap bounded by a rational spline rim**: [`rim_face_rounds`]
+/// on `face` read about the apex (`lever` the apex less the centre, every
+/// term about the apex), whose area is `|â·A⃗|/sin α`. On a cone `x − A`
+/// lies along the generator, in the tangent plane, so the position flux
+/// is `A·∫n dS = A·A⃗`, and `A⃗ = ½∮(x − A) × dx` is the boundary's.
+///
+/// # Errors
+///
+/// As [`rim_face_rounds`] on a cap.
+pub fn cone_cap_rounds<T: Decide>(
+    face: &RimFaceQ,
+    (axis, sin_a): (RVec3, Interval),
+    band: Band,
+    window: RoundWindow,
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
+    if face.wall.is_some() {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a cone cap handed a torus wall's chart",
+        });
+    }
+    rounds::<T>(face, CapArea::Cone { axis, sin_a }, band, window, accept)
+}
+
+fn rounds<T: Decide>(
+    face: &RimFaceQ,
+    cap: CapArea,
+    band: Band,
+    window: RoundWindow,
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     if let Some(chart) = &face.wall {
         wall_windings::<T>(chart, band)?;
         if chart.parts.len() != chart.ends.len() {
@@ -862,7 +909,7 @@ pub fn rim_face_rounds<T: Decide>(
     let mut round = run.first();
     let mut pieces = EDGE_INIT_PIECES << round;
     loop {
-        let (bounds, loops, removable) = face_bounds(face, pieces)?;
+        let (bounds, loops, removable) = face_bounds(face, cap, pieces)?;
         let (stop, accepted) = run.ask(round, bounds, removable, accept, || {
             face_extent::<T>(bounds.area, face.perimeter, band)
         })?;

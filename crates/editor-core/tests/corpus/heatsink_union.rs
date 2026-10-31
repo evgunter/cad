@@ -1,41 +1,19 @@
-//! Corpus document **heat_sink_fins** — the register payoff: F4's
-//! out-of-document fin union moves INTO the document.
-//!
-//! `heat_sink` carries the gap in its own body: a `Pattern` node whose
-//! `Instances` payload no `Boolean` can consume, and BESIDE it the
-//! explicit placement + union chain that assembles the fins. The demo
-//! tour says the same thing in demo code, "honestly outside the
-//! document", because a boolean operand refuses `Instances`.
-//!
-//! `PlacedUnion(fin, Linear{..})` is the fin group said once: ONE node,
-//! ONE body out, the count still riding the `fins` document parameter
-//! through `SetStructuralParam`. The value is an ordinary `Body`, so
-//! every downstream door consumes it with no new arms — `die_tool`
-//! feeds its group straight into a `Boolean` in this same corpus.
-//!
-//! # What this document does NOT carry, and why
+//! Corpus document **heat_sink_fins** — the fin group fused in the
+//! document: one placement over the index `k = index(fins)` and a
+//! union reading its family whole (D10 `[repetition]`). Its members
+//! are rigid images of one body, which the reads show, so the union's
+//! separation certificate answers for every pair at once.
 //!
 //! The heat sink's BASE is not unioned here — this fixture's subject is
-//! the GROUP node, and it stops there.
+//! the group, and it stops there; `heat_sink` carries the base.
 //!
-//! It is not stopping at a wall. This finding used to read that fusing
-//! the group into a base "needs a kernel door that does not exist",
-//! because `combine` takes two SINGLE-SOLID operands; that described
-//! the pre-#571 lowering, whose output was N solids. The adjudicated
-//! lowering grafts onto existing solids, so the value is ONE solid of N
-//! shells — the representation the pairwise chain it replaces produced,
-//! and the one the seamed boolean path accepts (`topo::instance`'s door
-//! docs). `die_tool` in this same corpus feeds its group straight into
-//! a `Boolean`, and the demo tour's heat sink now unions one into a
-//! base.
-//!
-//! Vocabulary: Profile, Extrude, PlacedUnion (Linear), `InsertNode`,
-//! `DeclareVar`, `DefineVar`, `SetStructuralParam`, `SetParam`.
+//! Vocabulary: Profile, Extrude, Place, Union, `InsertNode`,
+//! `DeclareVar` (a Count and an index), `SetParam`.
 //!
 //! Geometry is `heat_sink`'s fin, constant for constant: footprint
 //! `0.1875 × 0.75` at `z = 0.1875`, extruded `0.8125`, five of them at
 //! pitch `0.3125` — which leaves `0.3125 − 0.1875 = 0.125` of clear air
-//! between neighbours, the clearance the disjointness certificate needs.
+//! between neighbours.
 //!
 //! Exact oracles, derived here (both dyadic): each fin is
 //! `0.1875 · 0.75 · 0.8125 = 0.1142578125`, so five are
@@ -43,13 +21,12 @@
 //! `2 · (0.1875 + 0.75) · 0.8125 = 1.5234375` of wall = `1.8046875`,
 //! so five are **9.0234375**.
 //!
-//! D2 bump: the fin master's `Distance` — its cone is the master
-//! extrude and the group, which is the memoized-recompute claim
-//! `lib_placedunion.rs` pins.
+//! D2 bump: the fin's `Distance` — its cone is the fin, the family and
+//! the union.
 
-use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
+use editor_core::{Coord, Dimension, DocEdit, Formula, FreeVar, Node, SlotId, TargetAxis, VarName};
 
-use crate::fixture::{len, scl};
+use crate::fixture::len;
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -80,25 +57,21 @@ pub fn document() -> CorpusDoc {
         profile: fin_p.into(),
         distance: len(0.8125),
     });
-    // The whole fin group, in ONE node.
-    let fins = r.insert(
-        Node::placed_union(
-            fin,
-            Formula::count(FINS),
-            PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(PITCH),
-            },
-        )
-        .expect("a stepped rule takes a count"),
+    // One fin per value of the index, its count the parameter, and
+    // their union.
+    let k = r.index(
+        "k",
+        Formula::named(VarName::from_static("fins"), Dimension::Count),
     );
-    // …driven by the document's Count parameter, exactly as the
-    // ungrouped twin's pattern is.
-    r.push(DocEdit::SetStructuralParam {
-        node: fins,
-        slot: SlotId::Count,
-        expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
-        fresh: Vec::new(),
+    let row = r.copies(
+        fin,
+        vec![(
+            Coord::Slide(TargetAxis::X),
+            Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
+        )],
+    );
+    let fins = r.insert(Node::Union {
+        members: editor_core::Bodies::Family(row.into()),
     });
     // In the world with the fins' feet 0.1875 up, where `heat_sink`'s
     // stand.
@@ -106,7 +79,7 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "heat_sink_fins",
-        about: "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
+        about: "the parametric fin group fused: a union of one family over the fins index",
         edits: r.edits,
         doc: r.doc,
         result: Some(fins),

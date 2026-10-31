@@ -35,6 +35,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_1_SQRT_2;
+use topo::construction::Construct;
 
 use crate::common::approx::band;
 use geom::Surface;
@@ -44,7 +45,8 @@ use sweep::blend::BlendError;
 use sweep::blend::battery::chain_g1;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_naming_totality, revolved_about_y};
-use topo::{Body, EdgeKey, FaceSurface, ValidationError, validate_geometric};
+use topo::construction::FaceSurface;
+use topo::{Body, EdgeKey, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()

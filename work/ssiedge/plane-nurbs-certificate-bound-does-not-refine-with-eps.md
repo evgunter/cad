@@ -225,3 +225,42 @@ on the algebraic route. The schedule, the image and the doc are all in
 ## Un-parked (band-rule triage, 2026-10-25)
 
 This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` and PR 3524 for the convex form at `insert_once_ring` (term (c) above). PR 3524 closed that site. The one site still open on that row, `crates/mesh/src/chords.rs`, plays no part in limb 2. So the design question in "What follows" item 2 can be taken up now. Before weighing (i) against (ii), re-take the 2026-10-01 table: its numbers are from the lerp form.
+
+## Measured on two spline charts: lily wall 8 (SPLICE, 2026-10-27)
+
+That wall 8 was the leaf's sheath grafted on its blade; since 2026-10-29 the scene builds the leaf as one loft, and the sweep row `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs` builds the same graft.
+
+From `work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`.
+
+Once the result's seam between two spline walls reads its dihedral
+(`geom_brep::classify_seam`), lily wall 8 (the sheath grafted on its
+blade) gets one step further and stops at this row's limb, on the
+NURBS × NURBS lane (`edge_nurbs::nurbs_pair_limbs`) rather than the plane
+× NURBS one: `describe_intersection` on the shared rim, a `Circle` edge
+between a rational loft wall of each body, refuses
+`CertifyError::PlaneNurbs(Limb { limb: ImageMiss, margin: 9.007e-6 })`
+at `Tol::witness`, in both operand orders. Fixture:
+`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (5 stations); the
+tour's `lily.rs` wall 8 (9 stations) stops at the same refusal, its
+margin 4.527e-6.
+
+The circle is an exact boundary row of each wall: `topo::pcurves::pcurve_of`
+derives its image there as an exact `Pcurve::IsoArc` (the arc-rim class),
+which the seam's dihedral reads its chart parameters off. The pair lane
+re-derives a degree-1 image from feet instead (`chart_image`), and that
+image's miss is the whole refusal. So on this class a third route sits
+beside (i) and (ii) above: certify against the exact image the chart's
+description already states, where one exists.
+
+**The two margins' scaling (review of PR 5868).** The two fixtures differ
+in station count, 5 against 9 (4 against 8 spans along the loft), and the
+miss falls from 9.0e-6 to 4.53e-6: about `1/(n − 1)`, not the `h²` a
+chord's sagitta would give. Recorded here, not acted on.
+
+**At ε 1e-6 (2026-10-28).** The sweep row's 9.0e-6 miss lands inside
+the band `[1e-6, 1e-5)` and escalates (`Escalated { PlaneNurbsHullValue }`,
+`"ssi_hull_value_chart"`) rather than refusing; the tour's lily wall 8
+escalates the pair's transversality in band at sample 12 (margin 8.3e-6)
+before it. Both pins name the site, the rim's certification, not the
+cause.

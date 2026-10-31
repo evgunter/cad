@@ -1,12 +1,11 @@
 """One evaluation, one gather: the product memoized on `Evaluation`.
 
-`run_checks`, `assemble`, `product` and `product_named` all want the
-document's product, and each of them used to gather its own. A Python
+`run_checks`, `product` and `product_named` all want the document's
+product. A Python
 `Evaluation` is the immutable (document, evaluation) pair captured at
 `evaluate` and the product is a pure function of that pair and the
 run's tolerance, so the first of those doors gathers and the rest
-reuse. No signature changed and no name was added: the whole of the
-change is that asking twice costs once.
+reuse: asking twice costs once.
 
 WHAT THIS FILE CAN AND CANNOT SEE. The gather COUNT is not a Python
 observable — the kernel's witness is a debug-only thread-local counter
@@ -15,8 +14,7 @@ number — so the counts are pinned in Rust, on the default build path,
 by `crate::tests::product_memo_rows` in `crates/pncad-py/src/tests.rs`,
 against the very functions these doors call. What is asserted HERE is
 everything a caller can actually observe: that the answers are
-unchanged in either order, that a consuming gate does not empty the
-memo under the next caller, and that the pairing refusal every one of
+unchanged in either order, and that the pairing refusal every one of
 these doors owes still arrives — which is the one thing a memo could
 have silently dropped, because a memo reaches no gather to be refused
 by.
@@ -30,7 +28,6 @@ from pncad import (
     Doc,
     Formula,
     Node,
-    assemble,
     evaluate,
     m,
     product,
@@ -62,44 +59,31 @@ def one_box(seed="memo-one-box"):
 
 
 class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
-    def test_the_order_the_two_doors_are_asked_in_changes_nothing(self):
+    def test_the_order_the_doors_are_asked_in_changes_nothing(self):
         """The memo is filled by whichever door asks first, and the
-        second reads what the first left. Both orders, one document,
-        the same two answers."""
+        others read what the first left. Both orders, one document,
+        the same answers."""
         doc = one_box()
 
         forward = evaluate(doc)
         report_first = run_checks(doc, forward)
-        assembly_second = assemble(doc, forward)
+        named_second = product_named(doc, forward)
 
         backward = evaluate(doc)
-        assembly_first = assemble(doc, backward)
+        named_first = product_named(doc, backward)
         report_second = run_checks(doc, backward)
 
         self.assertEqual(report_first.findings, report_second.findings)
         self.assertEqual(report_first.skipped, report_second.skipped)
-        self.assertEqual(assembly_first.names, assembly_second.names)
+        self.assertEqual(named_first[1], named_second[1])
         self.assertEqual(
-            pinned(assembly_first.body).volume,
-            pinned(assembly_second.body).volume,
+            pinned(named_first[0]).volume,
+            pinned(named_second[0]).volume,
         )
-
-    def test_the_gate_consumes_a_copy_and_the_next_caller_still_answers(self):
-        """`assemble_gathered` CONSUMES its product, so the memo hands
-        it a copy — measured at a fiftieth of the gather it saves. The
-        observable half of that decision is this: everything asked
-        after the gate still answers, and answers the same."""
-        doc = one_box("memo-survives-the-gate")
-        ev = evaluate(doc)
-        first = assemble(doc, ev)
-        self.assertEqual(assemble(doc, ev).names, first.names)
         self.assertEqual(
-            pinned(product(doc, ev)).volume,
-            pinned(first.body).volume,
+            pinned(product(doc, forward)).volume,
+            pinned(named_first[0]).volume,
         )
-        _, names = product_named(doc, ev)
-        self.assertEqual(sorted(names), sorted(first.names))
-        self.assertEqual(run_checks(doc, ev).findings, [])
 
     def test_two_evaluations_of_one_document_answer_the_same(self):
         """The memo is per-evaluation, and an evaluation is per-ask.
@@ -152,11 +136,6 @@ class TestTheMemoRefusesAMispairedDocument(unittest.TestCase):
             run_checks(self.doc, self.ev)
         self.assertEqual(caught.exception.variant, "evaluation_of_another_document")
 
-    def test_assemble_refuses_under_the_gathers_own_tag(self):
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(self.doc, self.ev)
-        self.assertEqual(caught.exception.variant, "evaluation_of_another_document")
-
     def test_product_refuses(self):
         with self.assertRaises(pncad.ProductError) as caught:
             product(self.doc, self.ev)
@@ -179,8 +158,6 @@ class TestTheMemoRefusesAMispairedDocument(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "evaluation_of_another_document")
         with self.assertRaises(pncad.ChecksError):
             run_checks(self.doc, self.ev)
-        with self.assertRaises(pncad.AssemblyError):
-            assemble(self.doc, self.ev)
 
 
 if __name__ == "__main__":

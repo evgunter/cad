@@ -1,30 +1,31 @@
-//! **A pattern is shape-preserving over the value**: `Pattern` takes an
-//! `Instances` value whole and yields `Instances` — a pattern of N
-//! bodies is their `N·M` placements laid out placement-major
-//! (`wire_pattern`'s layout: output body `j·M + i` is placement `j` of
-//! inner body `i`, named `Instance(j)` over the inner name).
+//! **A placement over a family is a family of families** (D10
+//! `[repetition]`): a placement whose source reads a family reaches
+//! that family's index, so with its own index `j` declared within the
+//! source's `i` it is one member per `(i, j)`, outer first — member
+//! `(i, j)` is placement `j` of the source's member `i`, named
+//! `Member { (i, j) }` over the name the source member's entity wears
+//! in its own body: one qualifier, keyed by every index it reaches.
 //!
 //! Every identity here is BIT identity through the public doors: the
-//! oracle for "the outer map applied to inner instance `i`" is the same
-//! `Pattern` over `Part(Instance(i))` — the same kernel op on the same
+//! oracle for "placement `j` of member `i`" is the same placement over
+//! the indexed read `inner[i]` alone — the same kernel op on the same
 //! body under the same map, so nothing is approximate and no rule is
-//! restated. The
-//! lane rows of the same claims are `eval6_placers_over_instances_interval`.
-//! The digest here is the geometry, the topology and the arena keys —
-//! the bits a consumer reads.
+//! restated. The lane rows of the same claims are
+//! `eval6_placers_over_instances_interval`. The digest here is the
+//! geometry, the topology and the arena keys — the bits a consumer
+//! reads.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use std::sync::Arc;
 
 use crate::fixture;
 
 use editor_core::{
-    DocumentId, EntityKey, Entry, EvalOptions, Node, NodeErrorKind, PartSelect, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, ValuePayload,
+    BodyRead, DocumentId, EntityKey, Entry, EvalOptions, Formula, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, ValuePayload, VarId,
 };
-use fixture::{in_copy, insert, len, on_frame, run, scl};
+use fixture::{in_member, insert, len, on_frame, run};
 use geom_core::Tol;
 use topo::Body;
 
@@ -47,38 +48,63 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A linear pattern of `count` along `dir` at `spacing`.
-pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
-    Node::Pattern {
-        input: input.into(),
-        count: editor_core::Formula::count(count),
-        kind: PatternKind::Linear {
-            direction: dir.map(scl),
-            spacing: len(spacing),
-        },
-    }
-}
-
-/// `Part(Instance(i))` of `of`.
-pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
-    Node::Part {
-        of: of.into(),
-        select: PartSelect::Instance(editor_core::Formula::count(i)),
-    }
-}
-
 /// The inner count and the outer count of the nested documents.
 pub(crate) const M: i64 = 3;
 pub(crate) const N: i64 = 2;
 
-/// **The nested document**: a cube, an inner pattern of `M` along x,
-/// an outer pattern of `N` along y over the inner's VALUE. Returns
-/// `(doc, cube, inner, outer)`.
-pub(crate) fn nested_doc(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+/// **A copy of `source`, a read of `at`, in its own space slid
+/// `scalar(by)·2` along y**: the document and the placement.
+pub(crate) fn along_y(
+    doc: ProfileDoc,
+    (at, source): (RecipeNodeId, BodyRead<Formula>),
+    by: VarId,
+) -> (ProfileDoc, RecipeNodeId) {
+    let target = fixture::space(&doc, at);
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(by, [0.0, 1.0, 0.0], 2.0),
+    );
+    insert(
+        doc,
+        Node::place(source, editor_core::Operand::Var(target), placed.bundle()),
+    )
+}
+
+/// **The nested document**: a cube, an inner row of `M` along x over
+/// `i`, an outer row of `N` along y over the inner's family and
+/// `j = index(N) within i`. Returns `(doc, cube, inner, outer, i, j)`.
+pub(crate) fn nested_doc(
+    label: &str,
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    VarId,
+    VarId,
+) {
     let (doc, cube) = cube_doc(label);
-    let (doc, inner) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, outer) = insert(doc, linear(inner, [0.0, 1.0, 0.0], 2.0, N));
-    (doc, cube, inner, outer)
+    let (doc, i, inner) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
+    let (doc, j) = fixture::index_of(doc, "j", Formula::count(N), Some(i));
+    let read = BodyRead::plain(fixture::body_read(&doc, inner.into()));
+    let (doc, outer) = along_y(doc, (inner, read), j);
+    (doc, cube, inner, outer, i, j)
+}
+
+/// **Each inner member alone, placed as the outer places it**: one row
+/// of `N` over `inner[i]` per `i`, under one index of its own. The
+/// document and the rows, by `i`.
+pub(crate) fn per_member(doc: ProfileDoc, inner: RecipeNodeId) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (mut doc, alone) = fixture::index(doc, "alone", N);
+    let mut rows = Vec::new();
+    for i in 0..M {
+        let read = BodyRead::indexed(inner, vec![Formula::count(i)]);
+        let (next, row) = along_y(doc, (inner, read), alone);
+        doc = next;
+        rows.push(row);
+    }
+    (doc, rows)
 }
 
 /// Every geometric description of a body with its arena key, plus the
@@ -97,8 +123,8 @@ pub(crate) fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<
     v
 }
 
-/// The `Instances` a node evaluated to.
-pub(crate) fn instances_of<T: geom_core::Decide>(
+/// The bodies of the family a node evaluated to, each in its space.
+pub(crate) fn instances_of<T: geom_core::Decide + topo::AtRestPolicy>(
     ev: &editor_core::Evaluation<T>,
     id: RecipeNodeId,
 ) -> Vec<Arc<Body<T>>> {
@@ -107,23 +133,11 @@ pub(crate) fn instances_of<T: geom_core::Decide>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Instances(v) => v.clone(),
-        other => panic!("{id:?} is a {}, not instances", other.kind_name()),
-    }
-}
-
-/// The one body a node evaluated to.
-pub(crate) fn body_of<T: geom_core::Decide>(
-    ev: &editor_core::Evaluation<T>,
-    id: RecipeNodeId,
-) -> Arc<Body<T>> {
-    match &ev
-        .value(id)
-        .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
-        .payload
-    {
-        ValuePayload::Body(b) => Arc::clone(b),
-        other => panic!("{id:?} is a {}, not a body", other.kind_name()),
+        ValuePayload::Instances(v) => v
+            .iter()
+            .map(|b| Arc::new(crate::fixture::in_space(b)))
+            .collect(),
+        other => panic!("{id:?} is a {}, not a family", other.kind_name()),
     }
 }
 
@@ -131,42 +145,40 @@ fn opts() -> EvalOptions {
     EvalOptions::default()
 }
 
-// ---- claim 3: the nested layout ----
+/// The place of member `(i, j)` among the outer family's bodies: `i`
+/// outer.
+fn flat(i: usize, j: usize) -> usize {
+    i * N as usize + j
+}
 
-/// **Claim 3.** `Pattern_N(Pattern_M(cube))` is `N·M` bodies; body
-/// `j·M + i` is bit-identical to placement `j` of `Pattern_N(Part(i))`
-/// — the outer rule over the inner instance alone, through the same
-/// door; every name is `Instance(j)` over `Instance(i)` over a master
-/// name, at row body `j·M + i`; and every entity of every output body
-/// is named.
+// ---- the nested layout ----
+
+/// **A family of families is one member per `(i, j)`, `i` outer**: the
+/// outer placement is `N·M` bodies; member `(i, j)` is bit-identical to
+/// placement `j` of `inner[i]` alone, through the same door; every name
+/// is one `Member { (i, j) }` over a master name, at body `i·N + j`,
+/// where the inner family holds that master name at body `i` under
+/// `Member { (i) }`; and every entity of every member is named. Red if
+/// the outer family is laid out placement-major, or its names drop the
+/// inner index.
 #[test]
-fn a_nested_pattern_lays_out_placement_major() {
-    let (doc, cube, inner, outer) = nested_doc("eval6-c3");
-    let mut doc = doc;
-    let mut per_instance = Vec::new();
-    for i in 0..M {
-        let (next, selected) = insert(doc, part(inner, i));
-        let (next, over_one) = insert(next, linear(selected, [0.0, 1.0, 0.0], 2.0, N));
-        doc = next;
-        per_instance.push(over_one);
-    }
+fn a_family_of_families_is_one_member_per_pair_outer_first() {
+    let (doc, cube, inner, outer, i_var, j_var) = nested_doc("eval6-c3");
+    let (doc, rows) = per_member(doc, inner);
     let ev = run(&doc, &opts());
     let nested = instances_of(&ev, outer);
     assert_eq!(nested.len() as i64, N * M, "N·M bodies");
-    for (i, over_one) in per_instance.iter().enumerate() {
-        let alone = instances_of(&ev, *over_one);
+    for (i, row) in rows.iter().enumerate() {
+        let alone = instances_of(&ev, *row);
         assert_eq!(alone.len() as i64, N);
         for j in 0..N as usize {
             assert_eq!(
-                bits(&nested[j * M as usize + i]),
+                bits(&nested[flat(i, j)]),
                 bits(&alone[j]),
-                "body j·M + i = {}·{M} + {i} is placement {j} of inner instance {i}",
-                j
+                "member ({i}, {j}) is placement {j} of inner member {i}"
             );
         }
     }
-    // The names: Instance(j) over Instance(i) over the cube's own name,
-    // at body j·M + i, and the inner row it wraps sits at body i.
     let (of_inner, of_outer) = (
         ev.table_at(inner).expect("the inner"),
         ev.table_at(outer).expect("the outer"),
@@ -174,35 +186,41 @@ fn a_nested_pattern_lays_out_placement_major() {
     assert_eq!(of_outer.len(), of_inner.len() * N as usize);
     for (name, entry) in of_outer.iter() {
         assert_eq!(name.node, outer);
-        let [
-            RoleSeg::Instance {
-                i: j,
-                of: inner_name,
-            },
-        ] = name.path.as_slice()
-        else {
-            panic!("one Instance(j) qualifier: {name:?}");
+        let [RoleSeg::Member { at, of: inner_name }] = name.path.as_slice() else {
+            panic!("one Member qualifier: {name:?}");
         };
-        assert_eq!(inner_name.node, inner);
-        let [RoleSeg::Instance { i, of: master }] = inner_name.path.as_slice() else {
-            panic!("over one Instance(i) qualifier: {name:?}");
+        // A copy names its own body; every other entity wears its
+        // source's name.
+        if inner_name.node == outer {
+            assert_eq!(inner_name.path, [RoleSeg::OutputBody], "{name:?}");
+            continue;
+        }
+        let [(iv, i), (jv, j)] = at.as_slice() else {
+            panic!("two indices: {name:?}");
         };
-        assert_eq!(master.node, cube, "over the master's own name");
-        let inner_entry = of_inner.lookup(inner_name).expect("the inner row exists");
-        let flat = |e: &editor_core::EntityRef| editor_core::EntityRef {
-            body: j * (M as u32) + e.body,
+        assert_eq!((*iv, *jv), (i_var, j_var), "outer first");
+        let master = inner_name;
+        assert_eq!(master.node, cube, "over the master's own name: {name:?}");
+        let inner_entry = of_inner
+            .lookup(&in_member(
+                inner,
+                vec![(i_var, *i)],
+                master.as_ref().clone(),
+            ))
+            .expect("the inner row exists");
+        let at_flat = |e: &editor_core::EntityRef| editor_core::EntityRef {
+            body: u32::try_from(flat(*i as usize, *j as usize)).unwrap(),
             key: e.key,
         };
         let expected = match inner_entry {
             Entry::Unique(e) => {
-                assert_eq!(e.body, *i, "the inner row's body is its instance index");
-                Entry::Unique(flat(e))
+                assert_eq!(e.body, *i, "the inner row's body is its member's place");
+                Entry::Unique(at_flat(e))
             }
-            Entry::Tied(es) => Entry::Tied(es.iter().map(flat).collect()),
+            Entry::Tied(es) => Entry::Tied(es.iter().map(at_flat).collect()),
         };
-        assert_eq!(entry, &expected, "{name:?} at body j·M + i");
+        assert_eq!(entry, &expected, "{name:?} at body i·N + j");
     }
-    // Totality over every output body.
     for (ix, body) in nested.iter().enumerate() {
         let ix = ix as u32;
         let named = |key: EntityKey| {
@@ -226,68 +244,78 @@ fn a_nested_pattern_lays_out_placement_major() {
     }
 }
 
-// ---- item 5: Part over a nested value indexes the flat list ----
+// ---- one member of a family of families ----
 
-/// `Part(Instance(k))` over the nested value hands back body `k` of
-/// the flat list — the very `Arc` — with the outer's table projected
-/// onto it (the nested name resolves there verbatim), and refuses one
-/// index past the flat count with that count.
+/// **`outer[i, j]` reads member `(i, j)`**: the very body, in its frame,
+/// its nested name resolving in the read's table verbatim; and a read
+/// one past the inner count refuses `MemberOutOfRange` at the values
+/// written. Red if a two-index read is a flat index.
 #[test]
-fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
-    let (doc, cube, inner, outer) = nested_doc("eval6-part");
+fn a_two_index_read_picks_its_member() {
+    let (doc, cube, _, outer, i_var, j_var) = nested_doc("eval6-part");
     let mut doc = doc;
-    let mut parts = Vec::new();
-    for k in 0..=N * M {
-        let (next, p) = insert(doc, part(outer, k));
-        doc = next;
-        parts.push(p);
+    let mut reads = Vec::new();
+    for i in 0..M {
+        for j in 0..N {
+            let (next, p) =
+                fixture::member_at(doc, outer, vec![Formula::count(i), Formula::count(j)]);
+            doc = next;
+            reads.push((i, j, p));
+        }
     }
+    let (doc, past) = fixture::member_at(doc, outer, vec![Formula::count(M), Formula::count(0)]);
     let ev = run(&doc, &opts());
-    let nested = instances_of(&ev, outer);
-    for (k, p) in parts.iter().enumerate().take((N * M) as usize) {
-        let body = body_of(&ev, *p);
-        assert!(
-            Arc::ptr_eq(&body, &nested[k]),
-            "Part({k}) is flat body {k} itself"
-        );
-        let (j, i) = (k as i64 / M, k as i64 % M);
-        let cube_body = editor_core::StableName {
-            kind: editor_core::EntityKind::Body,
-            node: cube,
-            path: vec![RoleSeg::OutputBody],
+    let ValuePayload::Instances(bodies) =
+        &ev.value(outer).expect("the outer family evaluated").payload
+    else {
+        panic!("the outer placement is a family")
+    };
+    let cube_cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: cube,
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+    };
+    for &(i, j, p) in &reads {
+        let k = flat(i as usize, j as usize);
+        let ValuePayload::Body(picked) = &ev.value(p).expect("the read evaluated").payload else {
+            panic!("a member read is a body")
         };
-        let name = in_copy(outer, j as u32, in_copy(inner, i as u32, cube_body));
-        assert_eq!(
-            ev.table_at(*p).expect("the part").lookup(&name),
-            Some(&Entry::Unique(editor_core::EntityRef {
-                body: 0,
-                key: EntityKey::Body,
-            })),
-            "the (j, i) = ({j}, {i}) name resolves in Part({k})'s table"
+        assert!(
+            Arc::ptr_eq(picked.shared(), bodies[k].shared())
+                && matches!(picked.relative(&bodies[k]), Ok(None)),
+            "outer[{i}, {j}] is member body {k} itself, in its frame"
+        );
+        let at = |v: i64| u32::try_from(v).unwrap();
+        let name = in_member(
+            outer,
+            vec![(i_var, at(i)), (j_var, at(j))],
+            cube_cap.clone(),
+        );
+        assert!(
+            ev.table_at(p).expect("the read").lookup(&name).is_some(),
+            "the ({i}, {j}) name resolves in outer[{i}, {j}]'s table"
         );
     }
-    let past = parts[(N * M) as usize];
     assert!(
         matches!(
             ev.node_error(past).map(|e| &e.kind),
-            Some(NodeErrorKind::InstanceOutOfRange { index, count, .. })
-                if *index == N * M && *count == (N * M) as usize
+            Some(NodeErrorKind::MemberOutOfRange { input, at })
+                if *input == outer && at.as_slice() == [M, 0]
         ),
-        "one past the flat count refuses with the flat count: {:?}",
+        "one past the inner count refuses at the values written: {:?}",
         ev.node_error(past)
     );
 }
 
 // ---- the door ----
 
-/// **The operand door.** A pattern reads a body or instances and the
-/// door refuses everything else typed, before any evaluation: a split
-/// named alone is two bodies, so the read names a port. A boolean reads
-/// ONE body and refuses instances — the asymmetry
-/// `ValuePayload::Instances` states — as a kind at the same door.
+/// **The operand door.** A placement reads a body or a family and the
+/// door refuses a split named alone, typed, before any evaluation: it
+/// is two bodies, so the read names a port. A union reads a family
+/// spelled at a member's seat as its every member (D10 `[repetition]`).
 #[test]
-fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
-    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
+fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
+    use editor_core::{EditError, OperandSlot};
     let (doc, cube) = cube_doc("eval6-door");
     let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
@@ -297,36 +325,46 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
             tool,
         },
     );
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let refusal = fixture::insert_refused(&doc, linear(split, [0.0, 1.0, 0.0], 2.0, N));
+    let (doc, k, row) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
+    let target = fixture::space(&doc, cube);
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(k, [0.0, 1.0, 0.0], 2.0),
+    );
+    let refusal = fixture::insert_refused(
+        &doc,
+        Node::place(
+            BodyRead::plain(editor_core::Operand::Node(split)),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ),
+    );
     assert!(
         matches!(
             &refusal,
-            EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
+            EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Source), .. }
+                if input.id() == split
         ),
         "a split named alone: {refusal:?}"
     );
-    let (doc, pat_pattern) = insert(doc, linear(pattern, [0.0, 1.0, 0.0], 2.0, N));
-    let refusal = fixture::insert_refused(
-        &doc,
+    let (doc, both) = insert(
+        doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![pattern.into(), cube.into()]),
+            members: editor_core::Bodies::Spelled(vec![row.into(), cube.into()]),
         },
     );
-    assert!(
-        matches!(
-            &refusal,
-            EditError::SlotVarKind {
-                slot: editor_core::SlotId::Operand(OperandSlot::Member(0)),
-                found: VarKind::Bodies,
-                expected: SlotKind::Is(VarKind::Body),
-                ..
-            }
-        ),
-        "a boolean reads one body: {refusal:?}"
-    );
     let ev = run(&doc, &opts());
-    assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) = &ev
+        .value(both)
+        .unwrap_or_else(|| panic!("{:?}", ev.node_error(both)))
+        .payload
+    else {
+        panic!("the union is a body")
+    };
+    // The cube is member 0 of its own row: three solids, the cube
+    // fused with its copy.
+    assert_eq!(body.body().solids().count() as i64, M);
 }
 
 // ---- the lanes the hosted matrix does not draw: Dual64 ----
@@ -341,28 +379,21 @@ fn run_dual(doc: &ProfileDoc) -> editor_core::Evaluation<geom_core::Dual64> {
     )
 }
 
-/// Claim 3's per-body identity at `Dual64`.
+/// The nested layout's per-member identity at `Dual64`.
 #[test]
-fn a_nested_pattern_lays_out_placement_major_at_dual64() {
-    let (doc, _cube, inner, outer) = nested_doc("eval6-c3-dual");
-    let mut doc = doc;
-    let mut per_instance = Vec::new();
-    for i in 0..M {
-        let (next, selected) = insert(doc, part(inner, i));
-        let (next, over_one) = insert(next, linear(selected, [0.0, 1.0, 0.0], 2.0, N));
-        doc = next;
-        per_instance.push(over_one);
-    }
+fn a_family_of_families_is_one_member_per_pair_at_dual64() {
+    let (doc, _cube, inner, outer, _, _) = nested_doc("eval6-c3-dual");
+    let (doc, rows) = per_member(doc, inner);
     let ev = run_dual(&doc);
     let nested = instances_of(&ev, outer);
     assert_eq!(nested.len() as i64, N * M);
-    for (i, over_one) in per_instance.iter().enumerate() {
-        let alone = instances_of(&ev, *over_one);
+    for (i, row) in rows.iter().enumerate() {
+        let alone = instances_of(&ev, *row);
         for j in 0..N as usize {
             assert_eq!(
-                bits(&nested[j * M as usize + i]),
+                bits(&nested[flat(i, j)]),
                 bits(&alone[j]),
-                "body {j}·{M} + {i}"
+                "member ({i}, {j})"
             );
         }
     }

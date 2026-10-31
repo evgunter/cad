@@ -210,6 +210,8 @@ CERT_HOME_SUBJECT='the Certification trait itself, the one file whose production
 # other. One path per line; the census reads this array by its name.
 CERT_IMPORTERS_SUBJECT='a certification file, whose production code this gate holds to the rules in its header'
 CERT_IMPORTERS=(
+  crates/geom-brep/src/intersect/section_bounds.rs
+  crates/geom-brep/src/krawczyk.rs
   crates/geom-brep/src/offset_fit.rs
   crates/geom-brep/src/offset_meters.rs
   crates/geom-brep/src/patch_bound.rs

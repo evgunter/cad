@@ -43,13 +43,69 @@ impl Neg for DInterval {
 
 impl Mul for DInterval {
     type Output = Self;
+    /// The four-corner fold, read on two corners where either operand
+    /// is a one-signed non-point interval ([`DInterval::signed_corners`]),
+    /// bit for bit the fold.
     fn mul(self, rhs: Self) -> Self {
         if let Some(p) = Self::propagate2(&self, &rhs) {
             return p;
         }
+        self.signed_corners(rhs)
+            .or_else(|| rhs.signed_corners(self))
+            .unwrap_or_else(|| self.corner_product(rhs))
+    }
+}
+
+impl DInterval {
+    /// The general product's four-corner fold, on operands neither
+    /// poisoned nor empty.
+    fn corner_product(self, rhs: Self) -> Self {
         let dec = self.dec.min(rhs.dec);
         let (lo, hi) = corner_bounds::<Product>(self, rhs);
         Self::make(lo, hi, dec)
+    }
+
+    /// **`self · w` on two corners, where `w` is one-signed**, `None`
+    /// where the fold must decide: a point `w` (whose fold already reads
+    /// two corners), a `w` reaching zero, or a selected corner with a
+    /// zero factor. A positive `w` is [`DInterval::mul_nonneg`]'s case
+    /// and its argument; a negative one is that case mirrored, since
+    /// every directed corner bound is odd in each factor away from zero
+    /// (`mul_lo(a, −b) = −mul_hi(a, b)`: the rounded product negates
+    /// exactly, the 2Prod witness reads `|r|` and a residual that
+    /// negates with it, and `next_down(−r) = −next_up(r)`), so the
+    /// fold's least over `self · w` is the negated greatest over
+    /// `self · (−w)`. Operands are neither poisoned nor empty.
+    fn signed_corners(self, w: Self) -> Option<Self> {
+        if w.lo == w.hi {
+            return None;
+        }
+        if w.lo > 0.0 {
+            self.nonneg_corners(w)
+        } else if w.hi < 0.0 {
+            self.nonneg_corners(-w).map(|p| -p)
+        } else {
+            None
+        }
+    }
+
+    /// [`DInterval::mul_nonneg`]'s selection for `w.lo >= 0`, `None`
+    /// where a selected corner has a zero factor.
+    fn nonneg_corners(self, w: Self) -> Option<Self> {
+        let (a, b) = if self.lo >= 0.0 {
+            (self.lo, w.lo)
+        } else {
+            (self.lo, w.hi)
+        };
+        let (c, e) = if self.hi >= 0.0 {
+            (self.hi, w.hi)
+        } else {
+            (self.hi, w.lo)
+        };
+        if a == 0.0 || b == 0.0 || c == 0.0 || e == 0.0 {
+            return None;
+        }
+        Some(Self::make(mul_lo(a, b), mul_hi(c, e), self.dec.min(w.dec)))
     }
 }
 
@@ -134,20 +190,8 @@ impl DInterval {
         if Self::propagate2(&self, &w).is_some() || w.lo < 0.0 || w.lo == w.hi {
             return self * w;
         }
-        let (a, b) = if self.lo >= 0.0 {
-            (self.lo, w.lo)
-        } else {
-            (self.lo, w.hi)
-        };
-        let (c, e) = if self.hi >= 0.0 {
-            (self.hi, w.hi)
-        } else {
-            (self.hi, w.lo)
-        };
-        if a == 0.0 || b == 0.0 || c == 0.0 || e == 0.0 {
-            return self * w;
-        }
-        Self::make(mul_lo(a, b), mul_hi(c, e), self.dec.min(w.dec))
+        self.nonneg_corners(w)
+            .unwrap_or_else(|| self.corner_product(w))
     }
 }
 
@@ -556,6 +600,36 @@ mod tests {
                 y.hi
             );
         }
+    }
+
+    /// **The product is the four-corner fold, bit for bit**: every
+    /// interval over [`intervals`] times every other, `x * y` (which
+    /// reads two corners where either operand is one-signed) against
+    /// [`DInterval::corner_product`], bounds and decoration. Red under a
+    /// mirrored selection that rounds or picks a corner the fold does
+    /// not, or a zero's sign the fold does not give.
+    #[test]
+    fn the_product_is_the_four_corner_fold() {
+        let all = intervals();
+        let mut signed = 0;
+        for &x in &all {
+            for &y in &all {
+                if x.is_empty() || y.is_empty() || x.is_nai() || y.is_nai() {
+                    continue;
+                }
+                assert_eq!(bits(x * y), bits(x.corner_product(y)), "{x:?} * {y:?}");
+                if x.signed_corners(y)
+                    .or_else(|| y.signed_corners(x))
+                    .is_some()
+                {
+                    signed += 1;
+                }
+            }
+        }
+        assert!(
+            signed > 10_000,
+            "the table reaches the two-corner read: {signed}"
+        );
     }
 
     /// **A product by a non-negative multiplier is the general

@@ -47,6 +47,7 @@ fn fans<T: Decide>(fans: &[(Vec3<T>, Vec<Point3<T>>)]) -> Link<T> {
             apex: o,
             wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
             closed: false,
+            clear: None,
         })
         .collect();
     Link::of(o, sectors).expect("the fans make a link")

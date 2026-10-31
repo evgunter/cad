@@ -4,12 +4,12 @@ kind: program
 title: BUDGET — the tessellation budget instrument: what tess-lint reads, what it compares, and what its figures are worth
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/measure
 prefix: budget/
 tag: (BUDGET orchestrator)
 ab_band: 9700-9799
 paths: [tools/tess-lint/src/*, tools/tess-meter/src/*, docs/TESS-BUDGET.md]
-keep_out: [opened by INSTR's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - INSTR measured 47.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are INSTR BUDGET and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, GUARD owns scripts/gates whole, TINT and VACUITY own the suite-side instruments, CHORD owns the tessellator arithmetic the budget measures]
+keep_out: [opened by INSTR's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - INSTR measured 47.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are INSTR BUDGET and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, GUARD owns scripts/gates whole, TINT and VACUITY own the suite-side instruments, CHORD owns the tessellator arithmetic the budget measures]
 ---
 The tessellation-budget instrument, split from the predicate
 instrument INSTR keeps — they share a discipline and nothing else.

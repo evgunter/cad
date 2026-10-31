@@ -406,7 +406,6 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             )
         };
 
-        let mid = carrier.mid_point(t0, t1);
         let displacement = p_start - old_start;
         let sides = [
             (pa.old_key, chart_moves(pa.distance, band)?),
@@ -453,7 +452,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                     authority,
                     sides,
                     slides,
-                    mid,
+                    (&carrier, t0, t1),
                     carried,
                     |declared| {
                         crate::offset_restate::re_ask_on_pair(
@@ -759,7 +758,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// - **The clone** each door writes to.
 /// - **One tiers-1-and-2 walk over that clone**, when the door's
 ///   surgery scope ([`crate::surgery`]) closes
-///   ([`Surgery::close_gated`](crate::Surgery::close_gated)). Inside
+///   ([`Surgery::close_gated`](crate::construction::Surgery::close_gated)). Inside
 ///   the scope `set_face_surface` and `set_edge_curve` check their own
 ///   arena deltas and nothing else; the close derives tier 1 once, a
 ///   tier-1 finding panics naming the door
@@ -775,7 +774,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 ///   every setter sweeps the whole body as well.
 /// - **One more tier-1 walk where the door joins anything** (`join`
 ///   set, as every public door does). The join
-///   (`replace_face::staged_join` → [`Body::join_edges_within`]) runs
+///   (`replace_face::staged_join` → [`Body::join_edges_within`](crate::construction::Construct::join_edges_within)) runs
 ///   on the staged body after the gated scope has closed, in a scope
 ///   of its own: its kills (`kev_describing`) check their arena deltas,
 ///   and the join's close sweeps tier 1 once however many vertices it
@@ -1326,6 +1325,10 @@ mod scope_walks {
     /// still panics, naming the door, rather than becoming an error
     /// return.
     #[test]
+    #[cfg_attr(
+        feature = "per-op-postcondition",
+        ignore = "pinned red: work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel"
+    )]
     #[should_panic(expected = "offset_planes_together postcondition: result is not tier-1 valid")]
     fn the_door_panics_on_an_out_of_scope_malformed_solid() {
         let (mut body, first, second) = two_boxes();

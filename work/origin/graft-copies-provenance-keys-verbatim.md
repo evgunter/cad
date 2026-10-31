@@ -4,7 +4,6 @@ kind: issue
 title: topo: a graft copies every Provenance record verbatim, so key-carrying variants point into the SOURCE arena after boolean::combine
 status: closed
 opened: 2026-09-02
-github: 1597
 refs: [1595, 1562]
 priority: P0
 cost: H

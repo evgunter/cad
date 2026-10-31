@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::NurbsCurve3;
@@ -36,11 +37,9 @@ use geom_brep::OutwardNormal;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
+use topo::construction::{FaceSurface, MevSite, NewVertexSide};
 use topo::readback::{ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose};
-use topo::{
-    Body, CurveKind, EdgeKey, EntityId, FaceKey, FaceSurface, MevSite, NewVertexSide, Surface,
-    query,
-};
+use topo::{Body, CurveKind, EdgeKey, EntityId, FaceKey, Surface, query};
 
 /// A seed face carrying `surface`.
 fn seed_face(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
@@ -289,7 +288,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
             },
             carrier,
             param_start: 0.0,

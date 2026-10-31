@@ -27,7 +27,7 @@ gathered across M2's full pipeline.
   (predicate, margin, band, outcome) with decisions bit-identical to
   f64. That premise is checked, not argued:
   `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the
   registered corpus at `Probe` and at `f64` and compares them bit for
   bit (value channel, mass properties, content keys, name tables,
   verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
@@ -3371,3 +3371,24 @@ are `docs/predicate-dimension-audit.md`'s rows of the same names. They
 are asked by the clearance sweep per (window, cell), so their
 populations are the sweep's cells times each face's features; they
 pool with nothing, and with each other not at all.
+
+## CARVE addendum (2026-10-31): the sweep frame is carried station to station
+
+The path sweep's carry is computed once in `f64` from the path and the
+station count (`crates/sweep/README.md` `[sweep.frame]`), so its
+decisions are taken at `f64` at every lane scalar; the driver dump was
+not re-taken for this addendum, so no population count is claimed.
+
+- **`sweep_path_chord` is added** (`sweep`'s `skin.rs`,
+  `PathCarry::of`): the step from each station to the next decided
+  into a direction witness through `UnitVec3::new`, a length against
+  the linear band. Coincident stations decide it zero.
+- **`sweep_path_turn` changes its pair.** It is still F22's
+  `1 + a·b` inside `RigidMotion::turned_between`, now for `a` station
+  `i`'s tangent mirrored in the chord and `b` station `i + 1`'s, the
+  double reflection's second reflection. It is asked once per step
+  whose two tangents differ in their bits, rather than once per
+  station against the start tangent, and its margin approaches zero
+  only where the path turns a half turn between two stations.
+- **`sweep_path_tangent` is unchanged** in what it decides, and is now
+  decided at `f64` rather than at the lane scalar.

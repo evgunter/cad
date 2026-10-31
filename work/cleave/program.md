@@ -4,7 +4,7 @@ kind: program
 title: CLEAVE — split and boolean outputs that are invalid or wrong, and the P1 structure under them
 status: active
 opened: 2026-10-01
-area: kernel
+group: kernel/boolean/split
 prefix: cleave/
 tag: (CLEAVE orchestrator)
 ab_band: 9800-9899

@@ -102,6 +102,8 @@ pub struct Members {
     pub op: NaryOp,
     /// Each member's records and rank, in list order.
     pub members: Vec<MemberInputs>,
+    /// The member pairs certified apart, which are not judged.
+    pub apart: topo::Apart,
 }
 
 /// **The two sweeps of a profile** — the verbs [`Sweep::run_profile`]

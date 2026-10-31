@@ -180,7 +180,12 @@ pub(crate) fn found<T: Decide>(
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
-        Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => Err(RayFault::Graze),
+        // A touch of the leg is the probe's, as a limit is; a fault grazes
+        // too (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
+        Ok(Roots::On(_))
+        | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+            Err(RayFault::Graze)
+        }
         Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }
@@ -235,9 +240,13 @@ pub(crate) enum Scaffolding {
 /// loop order, each on its certified carrier. `None` where a carrier's
 /// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
 /// the boundary no reading may step over, and null scaffolding is as
-/// `scaffolding` says. An edge both of whose sides are the face (a seam,
-/// both its half-edges in the face's loops) is no boundary of it and is
-/// left out.
+/// `scaffolding` says. Past those, an edge the face lies on both sides of
+/// ([`Body::both_sides_face`]: a seam, a wrap edge, a spur) is no
+/// boundary of it and is left out. The edges kept are the set the
+/// surface boundary's walk reaches
+/// ([`crate::surface_boundary::surface_cycles`]), by construction: both
+/// drop exactly the edges the predicate names. They are listed in loop
+/// order, not walk order; none for a face that covers its surface.
 ///
 /// # Errors
 ///
@@ -286,6 +295,13 @@ pub(crate) fn boundary<T: Decide>(
             if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
             }
+            if body
+                .both_sides_face(edge_key)
+                .ok_or_else(corrupt)?
+                .is_some()
+            {
+                continue;
+            }
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
                 edge: edge_key,
@@ -293,14 +309,11 @@ pub(crate) fn boundary<T: Decide>(
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
-                turn: curve.certificate().turn,
+                turn: curve.turn().copied(),
                 forward: he == edge.he_plus,
             });
         }
     }
-    let seam = |e: EdgeKey| edges.iter().filter(|a| a.edge == e).count() > 1;
-    let seams: Vec<EdgeKey> = edges.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
-    edges.retain(|a| !seams.contains(&a.edge));
     Ok(Some(edges))
 }
 
@@ -799,11 +812,11 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
         unreachable!("the fixture's outer loop is a cycle")
     };
     body.mev_null(
-        crate::MevSite::Fan {
+        crate::construction::MevSite::Fan {
             he1: first,
             he2: first,
         },
-        crate::NewVertexSide::Above,
+        crate::construction::NewVertexSide::Above,
     )
     .unwrap();
 }
@@ -822,10 +835,18 @@ pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<
     };
     let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
     let (start, end) = (circle.eval(t0), circle.eval(t1));
-    geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
-        .ok()?
-        .certificate()
-        .turn
+    geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |_| None,
+        1.0,
+        band,
+        geom_brep::NurbsLane::certified(),
+    )
+    .ok()?
+    .turn()
+    .copied()
 }
 
 #[cfg(test)]

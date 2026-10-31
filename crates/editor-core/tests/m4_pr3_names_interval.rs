@@ -68,7 +68,7 @@ fn corpus() -> ProfileDoc {
     // declaration survived a milestone because nothing verified it:
     // the boolean's only verify-at-use site was Union-only, and this
     // op is a Subtract. The op-door pass
-    // (`boolean::verify_declared_contacts`) now checks every declared
+    // (`boolean::verify_glued_contacts`) now checks every declared
     // pair, which is what surfaced this. Coverage is not lost: `decl_u`
     // above still exercises the declared-boolean naming path with a
     // declaration that is TRUE.

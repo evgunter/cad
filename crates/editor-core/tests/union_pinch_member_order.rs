@@ -345,10 +345,10 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         panic!("{what}: refused: {e:?}");
     }
     let body = body_of(ev, id);
-    if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
+    if let Err(e) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("{what}: tier 3 refused the body: {e:?}");
     }
-    let mesh = mesh::tessellate(body, 1e-3, Tol::witness())
+    let mesh = mesh::tessellate(&body, 1e-3, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: tessellation refused: {e:?}"));
     let v = mesh::validate::signed_volume(&mesh);
     assert!(
@@ -356,11 +356,12 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         "{what}: volume {v}, closed form {volume}"
     );
     let none = ContactRecords::default();
-    let contacts = match &ev.value(id).expect("node evaluated to a value").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+    let value = ev.value(id).expect("node evaluated to a value");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
         _ => &none,
     };
-    let verdict = topo::validate_pseudomanifold(body, contacts, Tol::witness()).map_err(|es| {
+    let verdict = topo::validate_pseudomanifold(&body, contacts, Tol::witness()).map_err(|es| {
         let mut es: Vec<(String, Option<Point>)> = es
             .iter()
             .map(|e| match e {
@@ -376,12 +377,12 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         es.sort_unstable();
         es
     });
-    if let Err(e) = topo::test_support::meeting::corners_disjoint(body, Tol::witness()) {
+    if let Err(e) = topo::test_support::meeting::corners_disjoint(&body, Tol::witness()) {
         panic!("{what}: {e}");
     }
     Outcome {
-        shape: shape(body),
-        record: record(body, contacts),
+        shape: shape(&body),
+        record: record(&body, contacts),
         verdict,
         manifold: mesh::validate::check_mesh(&mesh).map_err(|e| kind(&format!("{e:?}")).to_owned()),
     }
@@ -428,8 +429,9 @@ fn ring_fusion_recorded(ev: &Evaluation<f64>, id: RecipeNodeId, o: &Outcome, wha
 fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
     let body = body_of(ev, id);
     let none = ContactRecords::default();
-    let contacts = match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+    let value = ev.value(id).expect("the node evaluated");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
         _ => &none,
     };
     let z = |v: topo::VertexKey| {
@@ -875,7 +877,7 @@ fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
                 editor_core::Entry::Tied(rs) => rs.iter().map(|r| r.key).collect(),
             };
             keys.iter()
-                .any(|k| matches!(k, editor_core::EntityKey::Vertex(v) if at_point(body, *v) == p))
+                .any(|k| matches!(k, editor_core::EntityKey::Vertex(v) if at_point(&body, *v) == p))
         })
         .map(|(n, _)| format!("{n:?}"))
         .collect();
@@ -1330,11 +1332,11 @@ fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> NamedShape {
     let body = body_of(ev, id);
     let at = |k: &editor_core::EntityKey| -> Vec<Point> {
         let mut ps: Vec<Point> = match *k {
-            editor_core::EntityKey::Vertex(v) => vec![at_point(body, v)],
-            editor_core::EntityKey::Edge(e) => ends(body, e).map(|v| at_point(body, v)).to_vec(),
-            editor_core::EntityKey::Face(f) => face_vertices(body, f)
+            editor_core::EntityKey::Vertex(v) => vec![at_point(&body, v)],
+            editor_core::EntityKey::Edge(e) => ends(&body, e).map(|v| at_point(&body, v)).to_vec(),
+            editor_core::EntityKey::Face(f) => face_vertices(&body, f)
                 .into_iter()
-                .map(|v| at_point(body, v))
+                .map(|v| at_point(&body, v))
                 .collect(),
             _ => Vec::new(),
         };
@@ -1441,7 +1443,7 @@ fn named_alike(gap: &Gap) -> usize {
         }
         built += 1;
         let body = body_of(&ev, u);
-        if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
+        if let Err(e) = topo::validate_geometric(&body, Tol::witness()) {
             panic!("{what}: tier 3 refused the body: {e:?}");
         }
         let mut walls = gap
@@ -1456,7 +1458,7 @@ fn named_alike(gap: &Gap) -> usize {
                         let editor_core::EntityKey::Edge(k) = r.key else {
                             return None;
                         };
-                        let mut ps = ends(body, k).map(|v| at_point(body, v));
+                        let mut ps = ends(&body, k).map(|v| at_point(&body, v));
                         ps.sort_unstable();
                         (ps == [micron(MEET[0], MEET[1], lo), micron(MEET[0], MEET[1], hi)])
                             .then_some(n)
@@ -1477,7 +1479,7 @@ fn named_alike(gap: &Gap) -> usize {
                 "{what}: the seam from z {lo} to {hi} lies between the wedges' walls: {seam:?}"
             );
         }
-        let here = (shape(body), named_shape(&ev, u));
+        let here = (shape(&body), named_shape(&ev, u));
         if let Some(f) = &first {
             assert_eq!(here.0, f.0, "{what}: a different body from the first order");
             same_table(&here.1, &f.1, &what);
@@ -1632,7 +1634,10 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
             while let [RoleSeg::From { of, .. }] = face.path.as_slice() {
                 face = of.name();
             }
-            copies.entry(at_point(body, v)).or_default().push(face.node);
+            copies
+                .entry(at_point(&body, v))
+                .or_default()
+                .push(face.node);
         }
         for z in [0.2, 0.4] {
             let at = micron(MEET[0], MEET[1], z);

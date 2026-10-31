@@ -319,9 +319,9 @@ fn a1_inside_out_cone_apex() {
 }
 
 /// A1: sense-flipped cone_apex — the body never exists to carry the
-/// flip: since the M6-6 rider the degenerate-apex normalization
-/// cross-checks the stated sense against the loop's derived winding
-/// (the torus pattern) and refuses PRE-BODY.
+/// flip: the chart-singularity normalization reads the stated sense
+/// against the side of the loop its seam lies on and refuses an
+/// inverted face PRE-BODY.
 #[test]
 fn a1_cone_apex_flip_senses() {
     let text = fixture("cone_apex").replace(

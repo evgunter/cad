@@ -85,3 +85,11 @@ bisected. Its test,
 (`crates/sweep/tests/saddle_wall_offset_fit.rs:23-41`), so the red that
 row describes no longer reproduces. It is left open for its owner to
 close with the commit that re-wrote the row.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Both still red at 1e-12 with the messages above. Each is pinned at
+1e-12 on its stop (`d = 0.05: the cap's fit stopped at` and `eps 1e-12:
+the cap's fit stopped at`); each pin goes red the day its row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

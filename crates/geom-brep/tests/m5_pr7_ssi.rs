@@ -1880,45 +1880,14 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
     });
 }
 
-/// **The ℝ³ sweep's refusal arm**: an operand whose certified implicit
-/// enclosure cannot be formed at all, so no cell can be excluded and
-/// the domain cannot be proved exhausted by any amount of refinement.
-///
-/// The fixture is a **zero-radius sphere** — a point, which the
-/// `Surface` enum admits (its radius is documented "positive by
-/// convention", and the convention is unchecked). The sphere's
-/// enclosure divides by `2r`, and the ring refuses a divisor that
-/// touches zero, so the very first cell's enclosure is refused.
-///
-/// **The refusal names the cause a caller can actually produce**, and
-/// the row pins that rather than the obligation alone: the only way
-/// into this arm is a degenerate INSTANCE of a supported kind, because
-/// `cylinder_sphere_ssi` refuses `WrongLane` for anything but a
-/// cylinder and a sphere — a kind with no implicit form at all never
-/// gets here. Pinning the text is also what keeps this row from
-/// passing on some other `UnsupportedCertificate`, of which the
-/// certificate stack has many.
-///
-/// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
-/// `seed_r3` before `account_r3`, the refusal arm lives in the closure
-/// the shared recursion runs under either duty, and the first cell's
-/// enclosure is refused — so the refusal arrives during seeding and accounting is
-/// never reached (instrumented). The Account-duty cell of this door
-/// has no row.
-///
-/// Without the arm the sweep does not go wrong quietly in one step: a
-/// refused enclosure excludes nothing, so every cell refines and
-/// **another door answers** — measured, on this fixture, the cell
-/// budget. The caller is then told the search was too big, when the
-/// truth is that this operand has no certificate at all and no budget
-/// would have helped. That is what this arm exists to prevent: not a
-/// wrong answer, a wrong DIAGNOSIS. The chart lane states the same duty
-/// one door over — see
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], whose
-/// mint refuses a non-finite chart speed before the cell budget can
-/// answer in its place.
+/// **A zero-radius operand refuses at the pair's pose**, before any
+/// sweep: the pose guards both radii definitely positive
+/// (`cs_sphere_radius`), the section table's posture, so the march never
+/// meets a sphere that is a point. The fixture is a zero-radius sphere,
+/// which the `Surface` enum admits (its radius is "positive by
+/// convention", unchecked there).
 #[test]
-fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
+fn a_degenerate_r3_operand_refuses_at_the_pose() {
     let point_sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 0.0,
@@ -1927,35 +1896,22 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     };
     let c = threaded_cylinder();
     match ssi::cylinder_sphere_ssi(&c, &point_sphere, slab(), band()) {
-        Err(ref err @ SsiError::UnsupportedCertificate { what }) => {
-            // The sweep's own arm, not one of the certificate stack's:
-            // this phrase appears at exactly one site in the kernel.
+        Err(
+            ref err @ SsiError::RadiusNotPositive {
+                radius: geom_brep::SectionRadius::Sphere,
+            },
+        ) => {
+            let shown = err.render(geom_brep::recourse::Reading::Build);
             assert!(
-                what.contains("ring-computable implicit enclosure"),
-                "the refusal must be the SWEEP's refusal arm: {what}"
-            );
-            assert!(what.contains("cannot be proved exhausted"), "{what}");
-            // The sentence must name a cause this door can deliver. A
-            // kind with no implicit form cannot reach the arm, so a
-            // message blaming one would send a reader hunting for an
-            // operand `WrongLane` already refused.
-            assert!(
-                what.contains("zero radius"),
-                "the refusal must name the producible cause: {what}"
+                shown.contains("whether a sphere's radius is positive"),
+                "{shown}"
             );
             assert!(
-                !what.contains("this surface kind has no"),
-                "the refusal must not blame a KIND its own door excludes: {what}"
+                shown.contains("make the sphere's radius clearly larger"),
+                "{shown}"
             );
-            assert!(format!("{err}").starts_with("ssi: "), "{err}");
         }
-        Err(other) => panic!("expected the enclosure refusal, got {other}"),
-        Ok(out) => panic!(
-            "SILENT: a domain no enclosure could be formed over returned Ok with {} \
-             branches and a receipt {:?}",
-            out.branches.len(),
-            out.exhaustiveness
-        ),
+        other => panic!("expected the pose's radius refusal, got {other:?}"),
     }
 }
 
@@ -2292,9 +2248,7 @@ fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
 /// Nothing downstream can then state the operation's own terms, so the
 /// mint refuses before the first division rather than letting the sweep run
 /// to its cell budget and answer in its place — the budget's sentence
-/// ("your search exceeded the budget") would be the wrong DIAGNOSIS,
-/// the substitution [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s
-/// arm exists to prevent one lane over.
+/// ("your search exceeded the budget") would be the wrong DIAGNOSIS.
 ///
 /// The fixture is a net at `1e200` m: every input is finite, the
 /// derivative boxes are finite intervals, and their magnitudes overflow
@@ -2399,7 +2353,7 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     assert!(r.implemented, "Nurbs×Nurbs is implemented");
     assert!(r.note.contains("TWO-CHART"), "{}", r.note);
     for (a, b) in [
-        (SurfaceKind::Cylinder, SurfaceKind::Torus),
+        (SurfaceKind::Cone, SurfaceKind::Torus),
         (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {
@@ -2524,7 +2478,9 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
     let v = bracket.finish().verdicts;
     for name in [
-        "ssi_cs_tangency",
+        "cs_coaxial",
+        "cs_near_reach",
+        "cs_far_reach",
         "ssi_transversality",
         "ssi_step_progress",
         "ssi_on_locus",
@@ -3921,7 +3877,7 @@ fn a_straight_branch_is_one_hermite_span_at_any_length() {
             "{at}: spans {span:e}"
         );
         let b = &out.branches[0];
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert_ne!(from.side, to.side, "{at}: one end on each of two sides");
@@ -3979,7 +3935,7 @@ fn a_curved_branch_the_hermite_cannot_certify_is_marched() {
         "{at}: spans {span:e}"
     );
     let b = &out.branches[0];
-    let BranchEnd::Crossings { from, to } = b.end else {
+    let BranchEnd::Rim { from, to } = b.end else {
         panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
     };
     assert!(
@@ -4120,7 +4076,7 @@ fn converging_crossings_certify_no_wrong_pairing() {
             .map(|b| (b.carrier.eval(b.params.0), b.carrier.eval(b.params.1)))
             .collect();
         for (n, b) in out.branches.iter().enumerate() {
-            let BranchEnd::Crossings { from, to } = b.end else {
+            let BranchEnd::Rim { from, to } = b.end else {
                 panic!("{at}: branch {n} ends at its crossings, got {:?}", b.end);
             };
             assert!(
@@ -4191,7 +4147,7 @@ fn a_plane_three_eps_off_a_flat_walls_edge_traces_the_edge_long_branch() {
     assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
     assert_eq!(out.exhaustiveness.contact, 0, "{what}: no region banked");
     let b = &out.branches[0];
-    let BranchEnd::Crossings { from, to } = b.end else {
+    let BranchEnd::Rim { from, to } = b.end else {
         panic!("{what}: the branch ends at its crossings, got {:?}", b.end);
     };
     assert!(
@@ -4265,7 +4221,7 @@ fn a_side_the_plane_crosses_inside_the_band_ends_its_arc_at_its_own_root() {
     assert!(bracket.0 <= 0.5 && 0.5 <= bracket.1, "c = 3ε: {bracket:?}");
     let (out, span) = one_branch("c = 8ε", run(8.0 * eps));
     assert!((span - 0.5).abs() < 1.0e-6, "c = 8ε: spans {span:e}");
-    let BranchEnd::Crossings { from, to } = out.branches[0].end else {
+    let BranchEnd::Rim { from, to } = out.branches[0].end else {
         panic!("c = 8ε: the branch ends at its crossings");
     };
     assert!(
@@ -4816,7 +4772,7 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
         panic!("{at}: expected one branch, got {}", out.branches.len());
     };
     assert!(
-        matches!(branch.end, BranchEnd::Crossings { .. }),
+        matches!(branch.end, BranchEnd::Rim { .. }),
         "{at}: an arc between two crossings: {:?}",
         branch.end
     );
@@ -5374,7 +5330,7 @@ fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
         let [b] = out.branches.as_slice() else {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert!(
@@ -6020,7 +5976,7 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
         let [b] = out.branches.as_slice() else {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert!(

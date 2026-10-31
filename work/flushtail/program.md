@@ -4,11 +4,11 @@ kind: program
 title: FLUSHTAIL — the join's tail: the side reader's bounds and ledgers, the glue door's quiet paths, and the curved-merge and conic-span residues
 status: ready
 opened: 2026-10-20
-area: kernel
+group: kernel/boolean/join
 prefix: flushtail/
 tag: (FLUSHTAIL orchestrator)
 paths: []
-keep_out: [opened 2026-10-20 as the lower half of FLUSH's priority-seam cut per work/README.md Track size - FLUSH keeps its P0 to P2 rows, and these rows lie on the same ground (crates/topo/src/boolean/* incl. join.rs and solid_contain.rs, crates/topo/src/side_reader.rs and props.rs, crates/editor-core's revalue_corpus), which FLUSH, CLEAVE, SECT, ZIP, FUSE, GERM, CONTACTHOLD, TANG, BOXES, PIN and RESTREAD share by design and RESTFRONT owns validate.rs - claim no path, run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-20 as the lower half of FLUSH's priority-seam cut per work/README.md Track size - FLUSH keeps its P0 to P2 rows, and these rows lie on the same ground (crates/topo/src/boolean/* incl. join.rs and solid_contain.rs, crates/topo/src/side_reader.rs and props.rs, crates/editor-core's revalue_corpus), which FLUSH, CLEAVE, SECT, ZIP, FUSE, GERM, CONTACTHOLD, TANG, BOXES, PIN and RESTREAD share by design and RESTFRONT owns validate.rs - claim no path, run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 **The join's tail.** FLUSH's P3 and P4 rows, cut from it along its
 priority seam on 2026-10-20.

@@ -21,15 +21,15 @@ producer minted for it, and the Python door is a bare method like the
 three rungs below it. That claim is only worth what a test can show,
 and showing it needs the SAME geometry through two doors that differ
 in nothing but whether declarations rode along. The mated bench stand
-is that pair — `assemble` gates and mints, `product` gathers and
-declares nothing — and `TestTheRecordsRideWithTheBody` is the row.
+is that pair — an instance of it carries the records its census
+minted across the document seam, `product` gathers and declares
+nothing — and `TestTheRecordsRideWithTheBody` is the row.
 
 THE ORACLES ARE DOORS, NOT RESTATED ARITHMETIC
 ----------------------------------------------
 Nothing below asserts a hand-computed verdict. The fourth rung is
 checked against the third (which already shipped), and against the
-`assemble` gate (which takes the same verdict, and whose passing is
-the precondition for reaching an `Assembly` at all). The geometry is the tour's own bench,
+at-rest check, which reads the same census. The geometry is the tour's own bench,
 taken through `test_assembly_eval.opened` rather than rebuilt here, so
 this file and the two assembly files agree on the scene by
 construction (`bench_scene.py` is the one definition of it).
@@ -62,14 +62,15 @@ from pncad import (
     Start,
     StationMove,
     ValidationError,
+    DocRef,
     ValidationFinding,
-    assemble,
     circle,
     circle_split,
     evaluate,
     m,
     product,
     rad,
+    run_checks,
 )
 
 from placing import against, placed, assemble_world_copies
@@ -212,8 +213,9 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
     """The family's load-bearing claim: the declarations are captured
     with the body, so the verdict turns on which door minted it.
 
-    ONE geometry, two doors. `assemble` gates the product against its
-    mates' minted records and hands back a body carrying them;
+    ONE geometry, two doors. An instance of the document, standing at
+    the identity in another one, is a body carrying the records the
+    document's census minted for its seats (D-1, across the seam);
     `product` gathers the identical solids and declares nothing. If the
     capture were decorative both would answer alike."""
 
@@ -225,28 +227,41 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         doc = self.docs[label]
         return doc, evaluate(doc, resolver=self.store)
 
+    def instanced(self, label):
+        """The body of an instance of `label`'s document, at the
+        identity in a document of its own: the document's product with
+        the records its census minted."""
+        doc = self.docs[label]
+        outer = Doc(f"validate-instance-of-{label}")
+        instance = outer.insert(
+            Node.instantiate_part(
+                DocRef(doc.id, self.store.current_pin(doc.id)), outer.world
+            )
+        )
+        outer.set_product(instance)
+        return evaluate(outer, resolver=self.store).value(instance).body()
+
     def test_the_same_geometry_answers_differently_through_the_two_doors(self):
         doc, ev = self.evaluated("stand")
         gathered = product(doc, ev)
-        assembly = assemble(doc, ev)
+        instanced = self.instanced("stand")
 
-        # It IS the same geometry — the gather and the gate agree on
-        # the body, which `test_assembly_author` already pins and this
-        # row depends on, so it is re-asserted rather than assumed.
+        # It IS the same geometry — the gather and the instance agree on
+        # the body, so it is asserted rather than assumed.
         self.assertEqual(
             pinned(gathered).volume,
-            pinned(assembly.body).volume,
+            pinned(instanced).volume,
         )
         # And on every rung that does not consult declarations.
         for rung in ("validate", "validate_closed", "validate_geometric"):
             with self.subTest(rung=rung):
                 getattr(gathered, rung)()
-                getattr(assembly.body, rung)()
+                getattr(instanced, rung)()
 
-        # The fourth rung is where they part. The at-rest body's
-        # records back its seats; the gathered body has none, so every
-        # seat is an unrecorded contact.
-        assembly.body.validate_pseudomanifold()
+        # The fourth rung is where they part. The instance's records
+        # back its seats; the gathered body has none, so every seat is
+        # an unrecorded contact.
+        instanced.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
         self.assertEqual(caught.exception.door, "validate_pseudomanifold")
@@ -256,7 +271,7 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         """The stand's two mated seats are two touches between copies,
         and the census records each as one face pair. Without the
         records the gathered body refuses on exactly those two pairs,
-        and carrying them the at-rest body passes: the body carries a
+        and carrying them the instance's body passes: the body carries a
         record for each seat. (Python sees no record count, so an extra
         record that backs nothing is outside what this row can see.)"""
         doc, ev = self.evaluated("stand")
@@ -266,20 +281,21 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
             [(f.variant, f.contact_kind) for f in caught.exception.findings],
             [("unrecorded_contact", "conformal_patch")] * 2,
         )
-        assemble(doc, ev).body.validate_pseudomanifold()
+        self.instanced("stand").validate_pseudomanifold()
 
     def test_a_mate_less_assembly_is_the_control(self):
         """The flat-pack layout: same doors, no mates, no touches —
         and the two bodies agree, because its solids are disjoint.
 
-        Without this row the pair above would only show that
-        `assemble` answers more kindly than `product`. It shows
-        instead that they differ exactly when touches exist to
-        differ about."""
+        Without this row the pair above would only show that an
+        instance answers more kindly than `product`. It shows instead
+        that they differ exactly when touches exist to differ about,
+        and the at-rest check, reading the same census, has nothing to
+        report."""
         doc, ev = self.evaluated("layout")
-        assembly = assemble(doc, ev)
-        assembly.body.validate_pseudomanifold()
+        self.instanced("layout").validate_pseudomanifold()
         product(doc, ev).validate_pseudomanifold()
+        self.assertEqual(run_checks(doc, ev).findings, [])
 
 
 #: The phrase the kernel's prose spells each census contact word with,
@@ -327,7 +343,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         message = str(self.refusal())
         self.assertIn("is an unrecorded contact", message)
         self.assertIn(
-            "Recourse: declare the named contact class, or move the geometry", message
+            "Recourse: move the geometry so the faces clearly touch or clearly part",
+            message,
         )
 
     def test_the_census_findings_arrive_as_prose(self):
@@ -516,10 +533,10 @@ class TestTheRefusalsShape(unittest.TestCase):
           Python a body WITH declarations either mints them from the
           geometry it is looking at — `Value.body` off a boolean,
           whose surviving records are the ones the result still
-          witnesses — or gates them first: `assemble` answers an
-          `Assembly` only after tier 3′ passed over exactly that pair,
-          and refuses with `AssemblyError` when it does not. `product`
-          gathers and declares nothing, so its bodies are plain. A
+          witnesses — or carries them from where they were minted: an
+          instance's body holds the records its document's census
+          left over that document's own geometry. `product` gathers and
+          declares nothing, so its bodies are plain. A
           `ContactRecords` has no Python spelling, so nothing here can
           part a record from its witness; the kernel's own suites do
           it by tampering with the record set directly.
@@ -591,7 +608,7 @@ def polygonal_loft():
 
 
 def oversized_round_loft():
-    """A tapered round tube 8 km long: RATIONAL walls, and a part big
+    """A tapered round tube 64 km long: RATIONAL walls, and a part big
     enough that the certified quadrature cannot reach its target.
 
     The size is the point rather than an accident. The reporting
@@ -599,18 +616,16 @@ def oversized_round_loft():
     tolerance, while the width a rational wall reaches by the face
     work wall (`FACE_WORK_WALL`) is a length that grows with the
     PART — so at the suite's own eps the two cross only on a part
-    this large. Measured on this tube at the default eps: at 125 m it
-    certifies, at 1 km (8x) it certifies, and at 8 km (64x) each wall
-    stops at the work wall after 11 rounds, 1.400e-6 m wide against
-    the 1.024e-6 m target. The crossing is near 47x, so 64x is the
-    first power of two clear of it.
+    this large. Measured on this tube at the default eps (the sweep
+    suite's `round_tube`, the same loft): at 8 km (64x) it certifies,
+    and at 64 km (512x) each wall stops at the work wall.
     """
     return stacked_loft(
         Doc(),
         2,
-        8000.0,
+        64000.0,
         lambda t: circle_split(
-            (0.0 * m, 0.0 * m), (1497.6 * (1 - t) + 748.8 * t) * m, 2, 0.0 * rad
+            (0.0 * m, 0.0 * m), (11980.8 * (1 - t) + 5990.4 * t) * m, 2, 0.0 * rad
         ),
     )
 
@@ -716,10 +731,10 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(e.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
-        # tube of radii 1497.6 m and 748.8 m over an 8 km spine
+        # tube of radii 11980.8 m and 5990.4 m over a 64 km spine
         # encloses the frustum on those radii, and the rational walls
         # the loft fits sit around it.
-        frustum = math.pi * 8000.0 * (1497.6**2 + 1497.6 * 748.8 + 748.8**2) / 3.0
+        frustum = math.pi * 64000.0 * (11980.8**2 + 11980.8 * 5990.4 + 5990.4**2) / 3.0
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
         # A deciding predicate the walk runs out on is THE quadrature

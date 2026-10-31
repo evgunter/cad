@@ -87,6 +87,7 @@ dependencies = [
  "pncad",
  "serde_json",
  "tess-meter",
+ "test-utils",
 ]
 
 [[package]]
@@ -527,6 +528,10 @@ dependencies = [
  "mesh",
  "topo",
 ]
+
+[[package]]
+name = "test-utils"
+version = "0.0.0"
 
 [[package]]
 name = "topo"

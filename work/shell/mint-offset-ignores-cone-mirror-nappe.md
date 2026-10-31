@@ -4,7 +4,6 @@ kind: issue
 title: replace_face::mint_offset does not discharge ConeOffset's mirror-nappe consumer obligation
 status: closed
 opened: 2026-08-29
-github: 1199
 refs: [1180, SHELL-6]
 closed: 2026-09-08
 ---
