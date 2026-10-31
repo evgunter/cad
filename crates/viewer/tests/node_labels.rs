@@ -10,7 +10,9 @@ use crate::common;
 use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
-use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{
+    Doc, DocEdit, Label, Maintenance, Node, ProfileProgram, RecipeNodeId, SlotId,
+};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, SessionOp};
@@ -225,8 +227,16 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 /// placement), the same minted ids and the same netted maintenance, and
 /// ONE evaluation requested for the whole of it. The label is on that
 /// node, and ONE undo returns the document to what it was before the
-/// action. Answers that node.
-fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
+/// action. Answers that node and the maintenance the action netted.
+///
+/// The helper behind
+/// `every_creation_labelled_is_one_undo_whatever_door_commits_it` and
+/// `a_labelled_creation_nets_the_maintenance_its_own_run_reports`.
+fn labelled_as_one_undo(
+    session: &mut DocSession,
+    op: SessionOp,
+    text: &str,
+) -> (RecipeNodeId, Vec<Maintenance>) {
     let before = session.committed_doc().clone();
     let what = format!("{op:?}");
     let alone = session.perform(op.clone());
@@ -278,7 +288,7 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
         "{what}: redo brings both back"
     );
     session.pump();
-    node
+    (node, outcome.maintenance)
 }
 
 /// **A refused creation applies no label**, whether the door refuses
@@ -327,6 +337,73 @@ fn a_refused_creation_applies_no_label() {
     }
 }
 
+/// **A labelled creation nets the maintenance its own run reports**:
+/// a union takes over the first block's world copy and deletes the
+/// second's, which strands the paint keyed on that copy (and retires
+/// the copy's anonymous values). The label is
+/// one more edit of the same run, so the outcome carries the run's
+/// netted row and nothing of the label's own.
+#[test]
+fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
+    use editor_core::{Attr, Rgba8};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-maintenance", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let block = |session: &mut DocSession, x: f64| {
+        let made = session.perform(SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([x, 0.0], 0.02, 0.02)],
+        });
+        let [profile] = made.minted[..] else {
+            panic!("one profile minted: {:?}", made.minted);
+        };
+        let placed = session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.01),
+        });
+        let doc = session.committed_doc();
+        let body = viewer::world::made(doc, &placed.minted).expect("an extrude");
+        let copy = placed
+            .minted
+            .iter()
+            .copied()
+            .find(|&node| matches!(doc.node(node), Some(Node::Place { .. })))
+            .expect("the extrude's world copy");
+        (body, doc.outputs(copy)[0])
+    };
+    let (kept, _) = block(&mut session, 0.0);
+    let (joined, copy) = block(&mut session, 0.05);
+    let (doc, _) = common::edited(
+        session.committed_doc(),
+        DocEdit::SetAppearance {
+            body: copy,
+            name: StableName {
+                kind: EntityKind::Face,
+                node: joined,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (_, maintenance) = labelled_as_one_undo(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Union(vec![kept.into(), joined.into()]),
+        },
+        "joined",
+    );
+    assert!(
+        maintenance
+            .iter()
+            .any(|row| matches!(row, Maintenance::StrandedAppearance { .. })),
+        "the deleted copy's paint is stranded: {maintenance:?}"
+    );
+}
+
 /// **Every creating op, labelled, is one undo** — whichever commit door
 /// it takes, since every door stages its run through one recorder.
 /// The sample set is held to `SessionOp::creates_a_node` through the
@@ -343,7 +420,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let mut sampled = std::collections::BTreeSet::new();
     let mut run = |session: &mut DocSession, op: SessionOp, text: &str| {
         sampled.insert(format!("{:?}", std::mem::discriminant(&op)));
-        labelled_as_one_undo(session, op, text)
+        labelled_as_one_undo(session, op, text).0
     };
 
     let profile = run(
@@ -1064,7 +1141,7 @@ fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
 
 /// **A degenerate creation still mints the node its label lands on**: a
 /// pattern of one and a body less itself (the typed empty body) are
-/// accepted, so `commit_creation`'s "an accepted run mints" holds on
+/// accepted, so `DocSession::create`'s "an accepted run mints" holds on
 /// them and each is labelled in its one action.
 #[test]
 fn a_degenerate_creation_still_mints_the_node_it_labels() {

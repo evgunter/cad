@@ -45,13 +45,15 @@ last insert. `History::extend_current` then loses its one caller.
 
 ## Closed 2026-10-31
 
-Landed by PR 6128. Every creating door now stages its run through
-`DocSession::commit_creation`, which ends the run with the `SetLabel`
-on `crate::world::made`'s node. So a labelled creation is one
-`Recording`: its outcome's edits, minted ids and netted maintenance
-come from one `Recorded`, and it makes one evaluation request rather
-than the two the graft cost. `SessionOp::CreateLabelled` dispatches
-through `DocSession::create`, the one place the sixteen creating ops
-meet their doors. `History::extend_current` is deleted. The sweep for
-other history-level compositions in `crates/viewer/src` found none
-(the hit list is in the PR body).
+Landed by PR 6128. Each creating door now reads the session, writes
+nothing, and answers a `Creating` run. `DocSession::perform_op`'s one
+exhaustive dispatch hands that run to `DocSession::create`, which stages
+it, ends it with the `SetLabel` on `crate::world::made`'s node where a
+label is given, and records it. A labelled creation is therefore one
+`Recording`: its edits, minted ids and netted maintenance come from one
+`Recorded`, and it makes one evaluation request instead of the two the
+graft cost. The label is carried by the dispatch alone and reaches no
+door. `History::extend_current` is deleted. The sweep for other
+history-level compositions in `crates/viewer/src` found none (the hit
+list is in the PR body). Filed from the review:
+`a-pattern-of-zero-is-refused-by-the-form-and-accepted-by-the-door`.
