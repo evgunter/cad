@@ -1,0 +1,5 @@
+fork: the-viewers-save-and-the-store (vseam, session-save-is-two-acts)
+byte: 38 (/dev/urandom, one byte, at dispatch 2026-10-31)
+mapping: even -> Opus is A, Fable is B
+A = Opus
+B = Fable
