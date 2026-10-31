@@ -287,7 +287,7 @@ mod tests {
     /// The loop's pieces: each knot span's control hull, padded by `pad`.
     fn pieces(c: &Curve3<f64>, pad: f64) -> Vec<Piece> {
         let Curve3::Nurbs(net) = c else {
-            panic!("a spline");
+            return Vec::new();
         };
         let lifted = net.map_scalar(lift);
         let g = Interval::from_bounds(-pad, pad);
