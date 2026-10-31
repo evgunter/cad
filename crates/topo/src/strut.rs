@@ -60,7 +60,9 @@ pub(crate) enum StrutRefusal {
 
 impl<T: crate::props::AtRestPolicy> Body<T> {
     /// **Does `toward` dangle alone at its start vertex**: is that vertex
-    /// the free end of a strut?
+    /// the free end of a strut? The orbit of one is the vertex
+    /// [`crate::surface_boundary::tips`] reads off a loop; a wrap edge's
+    /// such end is a wrap tip, any other a construction spur's.
     ///
     /// # Panics
     ///

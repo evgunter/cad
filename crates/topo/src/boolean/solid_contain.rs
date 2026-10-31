@@ -4889,7 +4889,7 @@ mod wall_root_rows {
     /// The radius is `1/ε`, so the retired `|d⊥|²/2r` read `ε/2` here,
     /// in the zero band, and the wall arm skipped every ray of the
     /// schedule: a point on the axis of a rod that wide read `Out`
-    /// (`reach_volume_backstop.rs`'s scaled oblique rod at ε = 1e-6).
+    /// (a scaled oblique rod at ε = 1e-6).
     #[test]
     fn a_ray_across_a_wide_walls_axis_has_both_roots() {
         let r = 1.0 / Tol::witness().eps();
