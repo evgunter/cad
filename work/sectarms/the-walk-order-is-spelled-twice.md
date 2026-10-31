@@ -2,12 +2,13 @@
 id: the-walk-order-is-spelled-twice
 kind: issue
 title: The order along a section conic is spelled twice: the boolean's partner ranking reads the side of an axis plane, the split's conic_pairs a parameter walk
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 pr: 6126
 branch: sectarms/walk-order-held
+closed: 2026-10-31
 ---
 
 
