@@ -1794,3 +1794,7 @@ Signed (CLEAVE orchestrator).
     - the filed seam-ruling row's footprint corrected, with its S7 `CensusUndecidable` sibling split out;
     - merge leftovers in the closed-conic test;
     - a P2 row for `NoCorner` speaking as a kernel invariant. (CLEAVE orchestrator)
+- 2026-10-31 — The two-lumps lane opened PR 6170 (`a10fec9142`), with CI green. The cause was in the join, not the ring order: the first ring cycle closed was the zero-area sliver between the two lumps' copies of the line.
+  - The tie's own order now winds that sliver (`join::tie_winding`, read only where the first-order winding reads Zero).
+  - A plug of several faces now nests whole in `outermost_survivor`.
+  - Its 216-cell probe: main refuses 54, and head builds 216/216 at three ε. Claims and style reviews dispatched. (CLEAVE orchestrator)
