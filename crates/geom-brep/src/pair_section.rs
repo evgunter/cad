@@ -551,40 +551,83 @@ pub enum ComponentShape {
 }
 
 /// **The sides of a surface's parameter rectangle a component reaches**,
-/// by the parameter each holds fixed: whether a side is the surface's
-/// boundary or a seam of a closed channel is the reader's question.
+/// each named by the parameter it holds fixed and the end it holds it
+/// at: whether a side is the surface's boundary, a seam of a closed
+/// channel or a collapsed side (a pole) is the reader's question.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ChartReach {
-    /// It reaches a side on which `u` is held fixed.
-    pub u_side: bool,
-    /// It reaches a side on which `v` is held fixed.
-    pub v_side: bool,
+    /// `[u held fixed, v held fixed]`, each `[at the low end, at the
+    /// high end]`.
+    sides: [[bool; 2]; 2],
 }
 
 impl ChartReach {
     /// The side `side` alone.
     #[must_use]
     pub fn side(side: crate::ssi::ChartSide) -> Self {
-        let u_side = side.fixed == crate::ssi::ChartAxis::U;
-        Self {
-            u_side,
-            v_side: !u_side,
-        }
+        let mut sides = [[false; 2]; 2];
+        sides[axis_index(side.fixed)][end_index(side.end)] = true;
+        Self { sides }
+    }
+
+    /// The two sides meeting at `corner`.
+    #[must_use]
+    pub fn corner(corner: crate::ssi::ChartCorner) -> Self {
+        use crate::ssi::{ChartAxis, ChartSide};
+        Self::side(ChartSide {
+            fixed: ChartAxis::U,
+            end: corner.u,
+        })
+        .or(Self::side(ChartSide {
+            fixed: ChartAxis::V,
+            end: corner.v,
+        }))
     }
 
     /// The sides either reaches.
     #[must_use]
     pub fn or(self, other: Self) -> Self {
-        Self {
-            u_side: self.u_side || other.u_side,
-            v_side: self.v_side || other.v_side,
+        let mut sides = self.sides;
+        for (mine, theirs) in sides.iter_mut().flatten().zip(other.sides.iter().flatten()) {
+            *mine |= *theirs;
         }
+        Self { sides }
     }
 
     /// It reaches some side.
     #[must_use]
     pub fn any(self) -> bool {
-        self.u_side || self.v_side
+        self.sides.iter().flatten().any(|&s| s)
+    }
+
+    /// The sides it reaches.
+    pub fn sides(self) -> impl Iterator<Item = crate::ssi::ChartSide> {
+        use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+        [
+            (ChartAxis::U, ChartEnd::Low),
+            (ChartAxis::U, ChartEnd::High),
+            (ChartAxis::V, ChartEnd::Low),
+            (ChartAxis::V, ChartEnd::High),
+        ]
+        .into_iter()
+        .filter(move |&(fixed, end)| self.sides[axis_index(fixed)][end_index(end)])
+        .map(|(fixed, end)| ChartSide { fixed, end })
+    }
+}
+
+/// A chart axis's index in [`ChartReach`]'s sides.
+fn axis_index(axis: crate::ssi::ChartAxis) -> usize {
+    match axis {
+        crate::ssi::ChartAxis::U => 0,
+        crate::ssi::ChartAxis::V => 1,
+    }
+}
+
+/// A chart end's index in [`ChartReach`]'s sides.
+fn end_index(end: crate::ssi::ChartEnd) -> usize {
+    match end {
+        crate::ssi::ChartEnd::Low => 0,
+        crate::ssi::ChartEnd::High => 1,
     }
 }
 
@@ -732,12 +775,19 @@ impl PairPose<f64> {
             return p.domain();
         }
         let ball = self.ball();
-        SsiDomain {
-            center: ball.center(),
-            half_extent: ball.radius() * 1.01,
-            extent: ball.radius() * 2.0,
-            floor_scale: 1.0,
-        }
+        domain_about(ball.center(), ball.radius() * 1.01, ball.radius() * 2.0)
+    }
+}
+
+/// **A march's domain**: the cube of half-width `half_extent` about
+/// `center`, its feature extent `extent`, at the standard accounting
+/// floor.
+fn domain_about(center: Point3<f64>, half_extent: f64, extent: f64) -> SsiDomain {
+    SsiDomain {
+        center,
+        half_extent,
+        extent,
+        floor_scale: 1.0,
     }
 }
 

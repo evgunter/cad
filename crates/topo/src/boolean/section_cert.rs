@@ -48,8 +48,13 @@
 //!   lie across with no edge on it (a seamless band, or a patch across
 //!   the seam whose loops lift closed), so reaching it clears nothing:
 //!   this is read per surface from the chart the loop walk reads
-//!   (`pcurves::chart_closed_channels`), never assumed of a kind. A
-//!   `Side` region is certified only to lie within its reach of the
+//!   (`pcurves::chart_closed_channels`), never assumed of a kind. Nor
+//!   does a collapsed side clear, one the chart maps to a point (a
+//!   revolved dome's pole): no pcurve need run along it, so `X` may hold
+//!   the point with no edge there and `γ` pass through it inside `X`. A
+//!   side clears only where its net row is decided to span more than a
+//!   point (`pcurves::chart_side_bounds`), whatever else refuses the
+//!   pose first. A `Side` region is certified only to lie within its reach of the
 //!   side; it is reported where the side lies within the band of the
 //!   other face's plane, so the side's points in `X` lie on an edge of
 //!   `X` within the band of that face, a contact the sweep records or
@@ -430,8 +435,8 @@ pub(crate) struct Component<T: Real> {
     /// component.
     pub witness: Option<Point3<T>>,
     /// It reaches a side of the named face's chart rectangle in a
-    /// channel that chart does not close (W1′); `F` where it reaches both
-    /// faces' (one is enough).
+    /// channel that chart does not close, and no collapsed side (W1′);
+    /// `F` where it reaches both faces' (one is enough).
     pub reaches: Option<Side>,
     /// **How far the witness may stand from the component**, in metres:
     /// a marched loop's pad ([`geom_brep::CarriedComponent::pad`], where
@@ -1837,8 +1842,9 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// for it. A section a closed form counts is its components, each with
 /// whether it winds about each carrier and its witness, certified single
 /// when there is one, and the face whose chart boundary it reaches in a
-/// channel the chart does not close (W1′), read at `band` as the loop
-/// walk reads it; one no closed form counts is the march's, read by
+/// channel the chart does not close, on a side that is not collapsed
+/// (W1′, `pcurves::chart_side_bounds`), read at `band` as the loop walk
+/// reads it; one no closed form counts is the march's, read by
 /// `marched` ([`of_carried`]).
 pub(super) fn of_pair_section<T: Decide>(
     read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
@@ -1896,8 +1902,9 @@ pub(super) fn of_pair_section<T: Decide>(
     }
     let (f, g) = section.pose().operands();
     let bounds = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| {
-        let [u_closed, v_closed] = crate::pcurves::chart_closed_channels(surface, band);
-        (reach.u_side && !u_closed) || (reach.v_side && !v_closed)
+        reach
+            .sides()
+            .any(|side| crate::pcurves::chart_side_bounds(surface, side, band))
     };
     Section::Components {
         parts: components

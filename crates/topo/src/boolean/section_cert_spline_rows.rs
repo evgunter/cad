@@ -81,18 +81,22 @@ fn off_the_circle(w: Point3<f64>, h: f64) -> f64 {
 /// witness decides it: `In` both faces is R-loop, no verdict is R-undec,
 /// and it clears only `Out` of a face (W3); with an event it is the lone
 /// evented component (W4). Against a face whose edge stands `d` from the
-/// witness, past the band but inside the band widened by the pad,
-/// the placement reads the witness on the edge, so it does not clear.
-/// The same plane stored with its origin a kilometre off reads the same
-/// loop. Red against the boundary clause read true for a closed loop
-/// (every verdict clears as `Reaches`), against the pad dropped
-/// between the section and the placement (the component's or the rule's
-/// hand-off; the boolean's own widening is
-/// `nurbs_plane_guard::a_spline_witness_by_an_edge_is_placed_on_the_widened_band`),
-/// against a pad that does not scale with the band (a tube's rung),
-/// and against the plane read at its stored origin rather than its
-/// pivot (at ε 1e-12, where the kilometre's reach no longer settles). One reading of each plane serves every assertion: a loop's
-/// accounting is the expensive one.
+/// witness, past the band by one and a half pads, inside the band the
+/// rule pads by twice the pad, the placement reads the witness on the
+/// edge, so it does not clear. The same plane stored with its origin a
+/// kilometre off reads the same loop.
+///
+/// Red against the boundary clause read true for a closed loop (every
+/// verdict clears as `Reaches`); against the pad dropped between the
+/// section and the placement (the component's or the rule's hand-off;
+/// the boolean's own widening is
+/// `nurbs_plane_guard::a_spline_witness_by_an_edge_is_placed_on_the_widened_band`);
+/// against the rule padding by one pad rather than two; against a pad
+/// that does not scale with the band (a tube's rung); and against the
+/// plane read at its stored origin rather than its pivot (at ε 1e-12,
+/// where the kilometre's reach no longer settles). One reading of each
+/// plane serves every assertion: a loop's accounting is the expensive
+/// one.
 #[test]
 fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
     let s = read(&level(-0.1), &dome());
@@ -124,8 +128,14 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
         "evented"
     );
     // The rule pads the band by twice the pad ([`Component::pad`]): an
-    // edge one pad past the band's zero reads the witness on it.
-    let d = band().zero() + c.pad;
+    // edge one and a half pads past the band's zero reads the witness on
+    // it, where a band padded by one pad would not.
+    let d = band().zero() + 1.5 * c.pad;
+    assert!(
+        band().zero() + c.pad < d && d < band().zero() + 2.0 * c.pad,
+        "the edge {d:e} stands between one pad and two past the band: {:e}",
+        c.pad
+    );
     let edge = |_, wide: Band| [if d > wide.zero() { OUT } else { None }, IN];
     assert_eq!(
         certify(&s, false, band(), |_| Sheet::Not, edge),
@@ -266,7 +276,9 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
                 built.components(),
                 geom_brep::Components::Counted(c) if c.len() == 1 && matches!(
                     c[0].shape,
-                    geom_brep::ComponentShape::Open { reaches: [_, r] } if r.u_side && !r.v_side
+                    geom_brep::ComponentShape::Open { reaches: [_, r] }
+                        if r.sides().count() == 2
+                            && r.sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
                 )
             ),
             "closed {closed}: one branch from one u side to the other: {built:?}"
@@ -359,4 +371,111 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
         band(),
     );
     assert!(matches!(unread, Section::NoLane("f64")), "{unread:?}");
+}
+
+/// **A plane stored far off is read at its pivot and charged the
+/// shift.** The dome cut by a tilted plane through `(½, ½, −0.1)`, its
+/// origin stored ten kilometres off along it: the foot the reading
+/// moves the origin to is found in `f64`, some picometres off the stored
+/// plane. The witness stands within its pad of the stored plane's
+/// section, so at least within it of the stored plane. Red against the
+/// shift left uncharged (the reading's band unpadded and the bracket
+/// reading the foot's plane).
+#[test]
+fn a_plane_stored_far_off_is_charged_its_pivots_shift() {
+    let (through, normal) = (p(0.5, 0.5, -0.1), v(1.0, 2.0, 8.0));
+    let stored = plane(p(20_000.5, -9_999.5, -0.1), normal);
+    let c = lone(&read(&stored, &dome()));
+    let w = c.witness.expect("a loop carries a witness");
+    let off = ((w - through).dot(normal) / normal.norm()).abs();
+    assert!(
+        off <= c.pad,
+        "the witness stands {off:e} off the stored plane, past its pad {:e}",
+        c.pad
+    );
+}
+
+/// A dome of revolution about `z`, its apex `(0, 0, 0)` the collapsed
+/// side `v = 0` of its chart, its `u` row the rational circle (closed),
+/// its rim `v = 1` the circle of radius 1 at `z = −½`.
+fn revolved_dome() -> Surface<f64> {
+    let ku = KnotVector::clamped(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+    )
+    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0, 1.0),
+        (1.0, 1.0, s),
+        (0.0, 1.0, 1.0),
+        (-1.0, 1.0, s),
+        (-1.0, 0.0, 1.0),
+        (-1.0, -1.0, s),
+        (0.0, -1.0, 1.0),
+        (1.0, -1.0, s),
+        (1.0, 0.0, 1.0),
+    ];
+    let profile = [(0.0, 0.0), (0.5, 0.0), (1.0, -0.5)];
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for &(x, y, w) in &ring {
+        for &(r, z) in &profile {
+            control.push(p(r * x, r * y, z));
+            weights.push(w);
+        }
+    }
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(ku, kv, control, weights).unwrap(),
+    ))
+}
+
+/// **A collapsed side bounds no face.** On the revolved dome the apex
+/// side `v = 0` is a point, so a face may hold it with no edge there;
+/// the rim `v = 1` is a curve in an open channel and bounds; the `u`
+/// sides are the seam of a closed channel and do not. Red against the
+/// collapse unread (the apex read as bounding).
+#[test]
+fn a_collapsed_side_bounds_no_face() {
+    use geom_brep::{ChartAxis, ChartEnd, ChartSide};
+    let side = |fixed, end| ChartSide { fixed, end };
+    let dome = revolved_dome();
+    for (s, want) in [
+        (side(ChartAxis::V, ChartEnd::Low), false),
+        (side(ChartAxis::V, ChartEnd::High), true),
+        (side(ChartAxis::U, ChartEnd::Low), false),
+        (side(ChartAxis::U, ChartEnd::High), false),
+    ] {
+        assert_eq!(
+            crate::pcurves::chart_side_bounds(&dome, s, band()),
+            want,
+            "{s}"
+        );
+    }
+}
+
+/// **A loop through a pole is not cleared by reaching it.** A plane
+/// through the revolved dome's apex, tilted 0.3 rad, meets it in a
+/// closed curve of diameter `2·tan 0.3` through the apex, inside a face
+/// the rim alone bounds; the apex is the chart's collapsed side `v = 0`,
+/// with no edge on it, so W1′'s premise fails there. Through the apex
+/// and a few tenths of a band either side, no reading clears the pose
+/// by reaching the pole side. (Today the reading refuses the pole side
+/// as a graze first; `a_collapsed_side_bounds_no_face` is the row that
+/// reds without the guard's own condition.)
+#[test]
+fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
+    let a = 0.3_f64;
+    for d in [0.0, 0.3 * band().zero(), -0.3 * band().zero()] {
+        let tilted = plane(p(0.0, 0.0, -d), v(a.sin(), 0.0, a.cos()));
+        let s = read(&tilted, &revolved_dome());
+        let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
+        assert!(
+            !matches!(&verdict, Ok(c) if c.iter().any(|c| matches!(c, Cleared::Reaches(_)))),
+            "d {d:e}: the loop through the apex is cleared by reaching a side: {s:?} {verdict:?}"
+        );
+    }
 }

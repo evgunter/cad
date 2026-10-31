@@ -1689,6 +1689,56 @@ pub(crate) fn chart_closed_channels<T: Decide>(surface: &Surface<T>, band: Band)
     ]
 }
 
+/// **Whether a side of `surface`'s chart rectangle bounds a face lying
+/// on it** (`section_cert`'s W1′): the side lies in a channel the chart
+/// does not close ([`chart_closed_channels`]), and it is a curve, not a
+/// point: some control point of the net's row along it is decided apart
+/// from the row's first (`pcurve_chart_side_spans`), so the side is no
+/// collapsed side, a pole a face may lie across with no edge on it. A
+/// row decided one point, or undecided, collapses; a surface that is no
+/// spline has no side read here.
+pub(crate) fn chart_side_bounds<T: Decide>(
+    surface: &Surface<T>,
+    side: geom_brep::ChartSide,
+    band: Band,
+) -> bool {
+    use geom_brep::{ChartAxis, ChartEnd};
+    let [u_closed, v_closed] = chart_closed_channels(surface, band);
+    let closed = match side.fixed {
+        ChartAxis::U => u_closed,
+        ChartAxis::V => v_closed,
+    };
+    let Some(payload) = surface.spline_chart() else {
+        return false;
+    };
+    let (nu, nv) = payload.control_counts();
+    let row: Vec<usize> = match (side.fixed, side.end) {
+        (ChartAxis::U, ChartEnd::Low) => (0..nv).collect(),
+        (ChartAxis::U, ChartEnd::High) => {
+            (0..nv).map(|iv| (nu.saturating_sub(1)) * nv + iv).collect()
+        }
+        (ChartAxis::V, ChartEnd::Low) => (0..nu).map(|iu| iu * nv).collect(),
+        (ChartAxis::V, ChartEnd::High) => {
+            (0..nu).map(|iu| iu * nv + nv.saturating_sub(1)).collect()
+        }
+    };
+    let control = payload.control();
+    let Some(first) = row.first().and_then(|&i| control.get(i)) else {
+        return false;
+    };
+    let spans = row.iter().filter_map(|&i| control.get(i)).any(|p| {
+        matches!(
+            decide(
+                "pcurve_chart_side_spans",
+                Margin::of(first.distance(*p)),
+                band
+            ),
+            Ok(Sign::Positive)
+        )
+    });
+    !closed && spans
+}
+
 /// A spline net's channel, for the closure question [`net_closes`] asks.
 #[derive(Clone, Copy)]
 enum NetChannel {
