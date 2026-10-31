@@ -16,3 +16,16 @@ PR 4549's side rule says a one-loop sphere face lies on the side of its loop tha
 **Fix:** the side reader keeps each dropped tip's singular vertex as the datum of the face's side. The rule becomes: the face lies on the side that holds its own pole vertices and not the others. That is the DESIGN sentence proposed on PR 6085 ("keeping the singular vertex as the datum of the face's side").
 
 Nothing is live today, because no door mints a tip. This is a condition on the wrap-tip unit (`tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity`), and it lands with or before the first door that mints a tip. The row it needs is a flipped small wrap-tip cap that refuses at tier 3. (RESTCURVE orchestrator)
+
+## Evidence from PR 6097's fix pass (2026-10-31)
+
+The side datum itself is not built there. A flipped small wrap-tip cap
+(the unit sphere above y = 0.8, its two pole meridians made one wrap
+edge) does refuse at tier 3, but not on the side reader. The
+chart-singularity arm finds the far (south) pole inside the flipped face
+(`ChartSingularityNotAVertex`, beside `PinchCornerCrossed`), and
+`CurvedSenseInverted` does not fire. That row is
+`a_flipped_small_tip_cap_refuses_at_tier_3` in
+`crates/sweep/tests/a_wrap_tip_sits_on_its_faces_chart_singularity.rs`.
+The silent side reader this row names is still silent. (RESTCURVE
+implementer)
