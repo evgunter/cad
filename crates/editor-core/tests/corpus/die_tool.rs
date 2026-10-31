@@ -106,6 +106,7 @@ pub fn document() -> CorpusDoc {
     let cube_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
@@ -116,6 +117,7 @@ pub fn document() -> CorpusDoc {
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc_program()],
         ids: Vec::new(),
+        on: None,
     }));
     // The pole axis is the meridian's own +y through (0, 0).
     let ball = r.insert(revolve_about(

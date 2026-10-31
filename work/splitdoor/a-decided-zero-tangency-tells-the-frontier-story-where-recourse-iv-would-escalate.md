@@ -32,3 +32,7 @@ When a root door reads an exact tangency (its discriminant decided Zero, not in 
 This is a design fork. It goes to an Opus/Fable designer pair (`docs/DESIGN-FORK-PROTOCOL.md`), then to Ev.
 
 One candidate shape: escalate a decided Zero only where its witness is the user's geometry, and keep the frontier where the touch is at a kernel-placed seam or outside the span.
+
+## Witness from the two-rims row (2026-10-30)
+
+`two-rims-read-coplanar-refuse-unsupported-or-untyped` at k = 80, second rod first (ε 1e-9 and 1e-12). All three ops end at the width arm with `clear = 3.999e-10` and `clear_read = Ok(Zero)`, which becomes `Tangency` and then the frontier; PR 5993's delta review instrumented it. Under escalation the user would get the meeting's lever; under the frontier they get "not built yet". The geometry is two rims of glued planes meeting in band, so here the witness is the user's own geometry, unlike the Steinmetz seams.

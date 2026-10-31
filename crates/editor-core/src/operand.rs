@@ -186,6 +186,9 @@ pub enum OperandSlot {
     Open,
     /// The face a face frame is read off.
     Face,
+    /// Traced face `i` of a profile drawn on a frame
+    /// ([`crate::program::DrawnOn::faces`]).
+    Traced(u32),
     /// One side of a placement's constraint: the face it is read off.
     Side {
         /// The constraint.
@@ -230,6 +233,7 @@ impl OperandSlot {
             Self::Selection => Some(format!("edge {reference}")),
             Self::Open => Some(format!("open face {reference}")),
             Self::Face => Some("face".to_owned()),
+            Self::Traced(i) => Some(format!("traced face {i}")),
             Self::Measured(_, i) => Some(format!("reference {i}")),
             Self::Side { constraint, side } => Some(format!("{constraint} side {}", side.name())),
             _ => None,
@@ -249,6 +253,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
+            Self::Traced(i) => format!("traced face {}", u64::from(i) + 1),
             Self::Side { constraint, side } => {
                 format!("constraint {constraint} side {}", side.name())
             }
@@ -282,7 +287,7 @@ impl OperandSlot {
             Self::Space => SlotKind::Is(VarKind::Space),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
-            Self::Face => SlotKind::Is(VarKind::Face),
+            Self::Face | Self::Traced(_) => SlotKind::Is(VarKind::Face),
             // A mate's pose, of whichever kind; the door asks that its
             // two sides agree (`MateFault::KindsDiffer`).
             Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),

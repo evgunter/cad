@@ -797,6 +797,22 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 /// the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
+    // Pinned red at 1e-6 since PR 6011: the closest pair escalates at
+    // the straddle
+    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "two loops near the node",
+        &[
+            "d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 0.10006928966127418, hi: 0.2063515605648144, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 0.10979844554160123, escalate: 0.10980744554160123 }, predicate: Some(\"curve_carrier_straddle\") })",
+        ],
+        two_loops_keep_their_sites_and_order_near_the_node_row,
+    );
+}
+
+/// The row [`two_loops_keep_their_sites_and_order_near_the_node`] runs, under its pin.
+fn two_loops_keep_their_sites_and_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));

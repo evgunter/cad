@@ -43,7 +43,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::sector_shape::CornerBounds;
+use crate::sector_shape::SlitTips;
 use crate::splitting::{
     EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
 };
@@ -100,8 +100,9 @@ pub(crate) enum VertexRefusal {
     Plane(&'static str),
 }
 
-/// Decides `vertex`, at point `at` and `offset` from `plane`, ON the
-/// plane, above it or below it.
+/// Decides `vertex` of `body`, whose slit tips at rest are `tips`, at
+/// point `at` and `offset` from `plane`, ON the plane, above it or
+/// below it.
 ///
 /// The offset is decided first, under the door's own `name`, as it
 /// always was: an in-band offset escalates and a definite one is the
@@ -115,7 +116,7 @@ pub(crate) enum VertexRefusal {
 /// [`VertexRefusal`].
 pub(crate) fn decide_vertex_on_plane<T: Decide>(
     name: &'static str,
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     plane: impl FnOnce() -> Result<SectionPlane<T>, VertexRefusal>,
     (offset, far): (
@@ -129,7 +130,13 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
     if on_plane.sign != Sign::Zero {
         return Ok(on_plane);
     }
-    read_sections(body, (vertex, at), plane, (offset, on_plane, far), band)
+    read_sections(
+        (body, tips),
+        (vertex, at),
+        plane,
+        (offset, on_plane, far),
+        band,
+    )
 }
 
 /// [`decide_vertex_on_plane`] past the offset: `on_plane` is the
@@ -145,7 +152,7 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
 ///
 /// [`VertexRefusal`].
 pub(crate) fn read_sections<T: Decide>(
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     plane: impl FnOnce() -> Result<SectionPlane<T>, VertexRefusal>,
     (offset, on_plane, far): (
@@ -164,7 +171,14 @@ pub(crate) fn read_sections<T: Decide>(
         return Ok(on_plane);
     }
     let plane = plane()?;
-    let entered = entered_faces(body, (vertex, at), (&orbit, &faces), plane, &far, band)?;
+    let entered = entered_faces(
+        (body, tips),
+        (vertex, at),
+        (&orbit, &faces),
+        plane,
+        &far,
+        band,
+    )?;
     let Some(sine) = entered
         .into_iter()
         .filter_map(|face| section_sine(body, (vertex, at), face, plane, band))
@@ -233,9 +247,10 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
 
 /// The read faces ([`read_kind`]) whose sector at the vertex holds the
 /// plane's trace (module docs). `orbit` and `faces` are the vertex's
-/// orbit and each orbit half-edge's sector face.
+/// orbit and each orbit half-edge's sector face; a sector at one of
+/// `tips` is the face's full turn round the slit's tip.
 fn entered_faces<T: Decide>(
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     (orbit, faces): (&[HalfEdgeKey], &[FaceKey]),
     plane: SectionPlane<T>,
@@ -285,11 +300,7 @@ fn entered_faces<T: Decide>(
                     (vertex, face),
                     (dir_a, dir_b),
                     resolved.at_vertex,
-                    if he == orbit[next] {
-                        CornerBounds::OneEdge
-                    } else {
-                        CornerBounds::Distinct
-                    },
+                    tips.bounds(vertex, face, he == orbit[next]),
                     n,
                     band,
                 )

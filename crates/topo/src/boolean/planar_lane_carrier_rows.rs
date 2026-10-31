@@ -235,7 +235,7 @@ pub(super) fn sweep_a(
     let mut acc = super::ContactAcc::default();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     super::sweep_direction(
-        &mut x,
+        (&mut x, &crate::sector_shape::SlitTips::of(a)),
         &mut y,
         crate::boolean::Operand::A,
         &crate::boolean::GluedPairs::default(),

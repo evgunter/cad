@@ -154,6 +154,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -292,6 +293,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 radius: len(r),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         r_.insert(Node::Extrude {
             profile: profile.into(),
@@ -401,6 +403,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let c = r.insert(Node::Extrude {
         profile: c_profile.into(),
@@ -412,6 +415,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: block_profile.into(),

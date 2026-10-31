@@ -107,6 +107,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),

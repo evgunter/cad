@@ -2,10 +2,11 @@
 id: main-reds-editor-core-slow-set-and-the-k-probe-sweep
 kind: issue
 title: Main carries 24 editor-core slow-set reds and two reds that abort scripts/k_probe_sweep.sh (sweep ray_wall_margin_twins, editor-core m4_pr8_k_probe content key)
-status: open
+status: closed
 opened: 2026-10-21
 priority: P1
 cost: H
+closed: 2026-10-30
 ---
 
 
@@ -336,3 +337,12 @@ halves hold unchanged: one cell pair at each broken bound, and the
 frontier at `c = 0.5` refused on a budget after 65 536 cells.
 `the_margin_thin_accounting_is_goldened_bit_exact` (above) is still red
 on the same tree.
+
+## Closed (2026-10-30)
+
+Every red this row names is greened on main: re-blessed with its cause,
+fixed at its site, or pinned (`test_utils::pinned_red`, exact-value or
+census pins, or a nightly-filter exclusion) with a dated line on the
+owning program's open row. The last of them landed in #6093. The causes
+live on those rows, not here. A pin that goes red later is a new
+nightly red, handled from that night's triage.

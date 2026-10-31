@@ -44,6 +44,6 @@ Rows, all in `crates/editor-core/tests/coincidence_door.rs`:
 - `a_corner_the_tool_passes_through_is_not_on_it_by_construction`: a turned cube levelled so a corner lies on the slab's top by value; that row stays `Unproven` and the crossings beside it prove.
 
 Filed beside it:
-- `work/carve/an-extrudes-cap-carrier-is-minted-by-newell-not-by-its-frame.md` (P2);
+- `work/lathe/an-extrudes-cap-carrier-is-minted-by-newell-not-by-its-frame.md` (P2);
 - `work/sym/a-plane-poses-normal-read-off-a-face-is-opaque-to-the-unit-relation-at-sym.md` (P2);
 - `work/msolve/split-and-mirror-take-a-point-the-plane-kind-forgets.md` (P3).

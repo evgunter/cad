@@ -127,11 +127,11 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 /// passing by testing nothing. Every wall must carry the same interior
 /// knots: the sections are one skin.
 ///
-/// "Off-grid" is tested against the coarsest cut the rounds make
-/// (`AXIS_INIT_PIECES = 8`) and every doubling of it up to the last
-/// round's `1024`: a knot that coincided with a cell edge at any of
-/// those resolutions would never have straddled, and the row would be
-/// measuring the on-grid case by accident.
+/// "Off-grid" is tested against the dyadic grid of the domain at 8 and
+/// every doubling of it up to `1024`: the cut lists restart at every
+/// knot, so an off-grid knot makes spans of unequal, non-dyadic length,
+/// and a knot on that grid would be measuring the even-span case by
+/// accident.
 fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let body = &lofted.body;
     let interior_of = |face: topo::FaceKey| -> Vec<f64> {
@@ -311,7 +311,7 @@ fn row(
     // `shell_reference`), so on these walls, centred on the world
     // origin, a quadrature face's lever is their diameter where the
     // origin's was their radius (`m8_3_rational_volume`'s ceiling).
-    // blade-10 measured 2.21e-6 at 1e-9, 2.16 times the target: the
+    // blade-10 measured 1.11e-6 at 1e-9, 1.08 times the target: the
     // ceiling is the measure with headroom, not a bound the rule
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
@@ -334,7 +334,7 @@ fn row(
 /// blade-10's volume pad at the default ε, the measure the ceiling's
 /// comment cites (blade-8 at v-degree 1 read the same pad, before its
 /// walls became one slab each).
-const BLADE_10_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
+const BLADE_10_PAD_AT_DEFAULT_EPS: f64 = 1.106_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's

@@ -130,13 +130,14 @@ pub(super) fn door_half_angle_roots<T: Decide>(
     .map(Roots::widen))
 }
 
-/// A root finder's answer as a door gives it: an uncertified count as
-/// the inner `Err`, and an in-band sign escalated as the door's
-/// `decision`.
+/// A root finder's answer as a door gives it: a limit as the inner
+/// `Err`, a sign in the band's gap (a classifying sign, or a touch)
+/// escalated as the door's `decision`, and a fault a kernel defect.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`], as above.
+/// [`BooleanError::Escalated`], as above, and
+/// [`BooleanError::ClassificationInvariant`] for a fault.
 pub(super) fn door_refusal<V>(
     found: Result<V, RootRefusal>,
     decision: BooleanDecision,
@@ -144,7 +145,12 @@ pub(super) fn door_refusal<V>(
     match found {
         Ok(roots) => Ok(Ok(roots)),
         Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
-        Err(RootRefusal::Escalated(diag)) => Err(BooleanError::Escalated { decision, diag }),
+        Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
+            Err(BooleanError::Escalated { decision, diag })
+        }
+        Err(RootRefusal::Fault(fault)) => Err(BooleanError::ClassificationInvariant {
+            what: fault.readings(),
+        }),
     }
 }
 
@@ -372,4 +378,22 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
 pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
     let mid = (t0 + t1) / T::from_f64(2.0);
     mid + (raw - mid).reduce_periodic_centred(T::tau())
+}
+
+/// A root door's answer for a row: its roots, or its refusal, a limit
+/// (`Some`) or `None` for its decision's escalation.
+///
+/// # Panics
+///
+/// On any other refusal.
+#[cfg(test)]
+#[allow(clippy::panic)]
+pub(super) fn door_answer<T: geom_core::Real>(
+    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
+) -> Result<CircleRoots<T>, Option<Unsettled>> {
+    match got {
+        Ok(found) => found.map_err(Some),
+        Err(BooleanError::Escalated { .. }) => Err(None),
+        Err(other) => panic!("the door refused outside its decision: {other:?}"),
+    }
 }

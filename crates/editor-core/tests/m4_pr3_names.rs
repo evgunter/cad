@@ -157,6 +157,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![meridian],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

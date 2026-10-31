@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P2
 cost: M
-refs: [coaxiality-of-two-revolution-carriers-is-tested-five-ways, tangent-and-coaxial-scenes-are-in-the-corpus]
+refs: [coaxiality-of-two-revolution-carriers-is-tested-five-ways, 6023]
 ---
 
 Found by INTENT stage 6 PR A (`work/intent/tangent-and-coaxial-scenes-are-in-the-corpus.md`),
@@ -37,6 +37,18 @@ and standing beside the corpus registry for it
   `CurvedPierceUnsupported { operand: A, face, edge, band }` after
   in-band escalations on `bool_conic_quadric_sub_side` and
   `bool_conic_quadric_sub_clear`.
+
+INTENT stage 6 PR C (`work/intent/a-sketch-continues-tangent-to-a-surfaces-trace.md`)
+reaches the third refusal by construction too.
+`intent_s6_c_trace::a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim`
+draws the cone's half-section on a frame of the sphere's space. It
+runs along the base chord to where the chord leaves the sphere's
+trace, then along the trace's tangent there to the axis, and the cone
+is revolved from it. The generator's distance from the
+centre is the sphere's radius. The union still refuses
+`CurvedPierceUnsupported`, and that test pins the refusal. So
+constructing the tangency instead of typing it does not reach the
+boolean's missing tangent arm.
 
 So the section value's `CylinderTorus` and `CylinderSphere`
 classifications, which `boolean::glue::section_door` records as

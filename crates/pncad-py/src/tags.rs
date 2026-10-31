@@ -553,6 +553,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Traced(_) => "traced",
         S::Side { .. } => "side",
         S::Source => "source",
         S::Measured(..) => "measured",
@@ -870,6 +871,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
+        C::Trace => "trace",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1041,6 +1043,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
+        NodeErrorKind::Trace(refusal) => Some(trace_step_fault_tag(&refusal.fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1487,6 +1490,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
@@ -1505,10 +1509,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
-        BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
-        BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
+        BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
@@ -1835,6 +1837,36 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Trace(_) => "trace",
+    }
+}
+
+/// The stable tag for why a profile step reading a face's trace
+/// refused — the inner arm of a `trace` node refusal. A carrier that
+/// could not be read along the piece says how
+/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// on-carrier piece, a sign in the band, an uncertified root count.
+pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
+    use pncad::document::TraceStepFault as F;
+    use pncad::topo::boolean::trace::TraceFault as C;
+    match fault {
+        F::Undrawn => "undrawn",
+        F::Unevaluated => "unevaluated",
+        F::NoSuchFace { .. } => "no_such_face",
+        F::NoPen => "no_pen",
+        F::NoHeading => "no_heading",
+        F::NotARun => "not_a_run",
+        F::OffTrace => "off_trace",
+        F::NoTrace => "no_trace",
+        F::NoSuchCrossing { .. } => "no_such_crossing",
+        F::NoTangent => "no_tangent",
+        F::Unreached => "unreached",
+        F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Grazing) => "grazing",
+        F::Carrier(C::Apex) => "apex",
+        F::Carrier(C::OnCarrier) => "on_carrier",
+        F::Carrier(C::Escalated(_)) => "escalated",
+        F::Carrier(C::Unsettled(_)) => "unsettled",
     }
 }
 
@@ -2119,9 +2151,11 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
+        StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
+        StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2170,10 +2204,10 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
-/// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words. `chart_singularity_vertex` keeps its
-/// disposition beside the word too ([`singularity_found_tag`]).
+/// The match is exhaustive, so a normalization minted kernel-side
+/// stops this crate compiling instead of arriving under one of these
+/// words. `chart_singularity_vertex` keeps its disposition beside the
+/// word too ([`singularity_found_tag`]).
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
@@ -2181,6 +2215,8 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
     }
 }
 
@@ -2899,6 +2935,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
         CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
+        CheckEvidence::Unused { .. } => "unused",
     }
 }
 
@@ -3069,6 +3106,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
         ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
+        ValidationError::ChartSingularityNotAVertex { .. } => "chart_singularity_not_a_vertex",
+        ValidationError::ChartSingularityUndecided { .. } => "chart_singularity_undecided",
+        ValidationError::WrapTipOffChartSingularity { .. } => "wrap_tip_off_chart_singularity",
+        ValidationError::WrapTipUndecided { .. } => "wrap_tip_undecided",
+        ValidationError::WrapTipWithoutChartSingularity { .. } => {
+            "wrap_tip_without_chart_singularity"
+        }
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

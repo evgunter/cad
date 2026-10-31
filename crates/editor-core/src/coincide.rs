@@ -54,6 +54,14 @@
 //! cells with an axis names the first of one axis, one radius and one
 //! sense the door did not establish ([`Axes`]).
 //!
+//! **A traced profile is that rung's statement too** ([`traced`]): a
+//! tangency row between a face and an extrude's wall over a piece that
+//! leaves the face's trace along its tangent holds where the extrude's
+//! heading, its frame's `z`, is one `Axis` with the face's, and the face
+//! is itself an extrude's wall, which its own construction slides along
+//! that axis. A wall that would keep the tangency but for its heading
+//! names the axis to read off the face ([`Recourse::ReadTheAxis`]).
+//!
 //! A profile's junction no constructor made is a row of the profile
 //! node itself, its cells the two pieces that meet there
 //! ([`NamedCell::Piece`]); each piece is its own construction, so no
@@ -545,40 +553,77 @@ impl Residual {
 /// **What would make an unproven row structural.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
-    /// Build the cells as one construction of the same variables,
-    /// or assert the coincidence at its site: the residual the replay
-    /// read whole is a function of the variables alone that the door did
-    /// not show zero.
+    /// Build the cells as one construction of the same variables, or
+    /// assert the coincidence where an assertion says it: the residual
+    /// the replay read whole is a function of the variables alone that
+    /// the door did not show zero.
     OneConstruction,
-    /// Assert the coincidence at its site: the door has no form of the
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as a construction the door reads: the door has no form of the
     /// row's residual to read ([`Unreplayed`] other than
     /// [`Unreplayed::Numeric`]), or the one it read keeps a value
     /// computed apart from the variables
     /// ([`geom_core::sym::deferred::Undischarged::KeepsAnOpaqueAtom`]).
     Assert,
-    /// Assert the coincidence at its site: the form the replay read
-    /// outgrew the door's budget
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as one construction: the form the replay read outgrew the door's
+    /// budget
     /// ([`geom_core::sym::deferred::Undischarged::OverTheBudget`]), so
     /// whether it is zero is not decided there.
     Budget,
+    /// Read the sweep's heading off the face the profile traces: the
+    /// wall leaves that face's trace along its tangent and a slide along
+    /// that face's axis would keep the tangency, but no statement the
+    /// door reads makes the extrude's heading that axis (a frame read off
+    /// a rim may be coaxial with its wall for every value, and the door
+    /// does not read it so) ([`traced`]).
+    ReadTheAxis,
 }
 
 impl Recourse {
-    /// The recourse as a sentence's ending.
+    /// **The recourse as a sentence's ending**, `sayable` whether an
+    /// assertion could quiet the row (`checks::at_rest::row_quietable`):
+    /// the assertion is offered only where one can say the row, and a
+    /// row no assertion says (a blend turn's two feet, two radii written
+    /// apart, a cell no measure reads) names the construction alone
+    /// (`[intent.checked]`).
     #[must_use]
-    pub const fn words(self) -> &'static str {
+    pub const fn words(self, sayable: bool) -> &'static str {
+        // Each reason once, behind the assertion where one can say the
+        // row and behind the construction where none can.
+        macro_rules! either {
+            ($why:literal) => {
+                if sayable {
+                    concat!("Recourse: assert the coincidence at its site; ", $why)
+                } else {
+                    concat!(
+                        "Recourse: build the cells as one construction the door reads; ",
+                        $why
+                    )
+                }
+            };
+        }
+        macro_rules! one_construction {
+            ($($or:literal)?) => {
+                concat!(
+                    "Recourse: build the cells as one construction of the same variables, so \
+                     the coincidence holds whatever their values"
+                    $(, $or)?
+                )
+            };
+        }
         match self {
-            Self::OneConstruction => {
-                "Recourse: build the cells as one construction of the same variables, so \
-                 the coincidence holds whatever their values, or assert it at its site"
-            }
+            Self::OneConstruction if sayable => one_construction!(", or assert it at its site"),
+            Self::OneConstruction => one_construction!(),
             Self::Assert => {
-                "Recourse: assert the coincidence at its site; the door cannot read what decided it \
-                 as a function of the variables"
+                either!("the door cannot read what decided it as a function of the variables")
             }
-            Self::Budget => {
-                "Recourse: assert the coincidence at its site; what decided it, read as a function \
-                 of the variables, outgrew the door's budget"
+            Self::Budget => either!(
+                "what decided it, read as a function of the variables, outgrew the door's budget"
+            ),
+            Self::ReadTheAxis => {
+                "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
+                 keeps the tangency the profile draws whatever the values"
             }
         }
     }
@@ -680,13 +725,27 @@ pub fn prove<P: crate::ProfilePayload>(
         })
         .collect();
     let stated = stated::Stated::of(doc, tol);
-    let left: Vec<Vec<bool>> = nodes
+    let traced: Vec<Vec<Traced>> = nodes
         .iter()
         .zip(&walked)
         .map(|((_, rows), walked)| {
             rows.iter()
                 .zip(walked)
-                .map(|(row, constructions)| !first_rung(doc, &stated, row, constructions, tol))
+                .map(|(row, c)| traced(doc, &stated, row, c, tol))
+                .collect()
+        })
+        .collect();
+    let left: Vec<Vec<bool>> = nodes
+        .iter()
+        .zip(&walked)
+        .zip(&traced)
+        .map(|(((_, rows), walked), traced)| {
+            rows.iter()
+                .zip(walked)
+                .zip(traced)
+                .map(|((row, constructions), &traced)| {
+                    !first_rung(doc, &stated, row, constructions, traced, tol)
+                })
                 .collect()
         })
         .collect();
@@ -721,46 +780,53 @@ pub fn prove<P: crate::ProfilePayload>(
         .zip(walked)
         .zip(replayed)
         .zip(axes_one)
-        .map(|((((_, rows), walked), replayed), axes_one)| {
+        .zip(traced)
+        .map(|(((((_, rows), walked), replayed), axes_one), traced)| {
             rows.iter()
                 .zip(walked)
                 .zip(replayed)
                 .zip(axes_one)
-                .map(|(((row, constructions), replayed), one)| match replayed {
-                    None => Proof::Structural(Rung::SameConstruction),
-                    Some(Ok(rung)) => Proof::Structural(rung),
-                    Some(Err(((replay, recourse), left))) => {
-                        // An axis row the first rung left has two axes;
-                        // a curved wall pair whose axes the mates make
-                        // one, and whose radii the replay never read,
-                        // is left at its radius unread.
-                        let left = left.or_else(|| {
-                            if axis_row(row) {
-                                Some(Component::Axis)
-                            } else {
-                                (one && row.site == topo::DecisionSite::CarrierLadder)
-                                    .then_some(Component::RadiusUnread)
+                .zip(traced)
+                .map(
+                    |((((row, constructions), replayed), one), traced)| match replayed {
+                        None => Proof::Structural(Rung::SameConstruction),
+                        Some(Ok(rung)) => Proof::Structural(rung),
+                        Some(Err(((replay, recourse), left))) => {
+                            // An axis row the first rung left has two axes;
+                            // a curved wall pair whose axes the mates make
+                            // one, and whose radii the replay never read,
+                            // is left at its radius unread.
+                            let left = left.or_else(|| {
+                                if axis_row(row) {
+                                    Some(Component::Axis)
+                                } else {
+                                    (one && row.site == topo::DecisionSite::CarrierLadder)
+                                        .then_some(Component::RadiusUnread)
+                                }
+                            });
+                            // The edit a finding names makes two axes one
+                            // construction; no construction changes a sense
+                            // the row decided.
+                            let recourse = match (left, recourse) {
+                                _ if traced == Traced::AxisUnread => Recourse::ReadTheAxis,
+                                (Some(Component::Axis), Recourse::Assert) => {
+                                    Recourse::OneConstruction
+                                }
+                                (Some(Component::Sense), _) => Recourse::Assert,
+                                (_, recourse) => recourse,
+                            };
+                            let axes = left.map(|left| axes(doc, &stated, &constructions, left));
+                            Proof::Unproven {
+                                residual: Residual {
+                                    constructions,
+                                    replay,
+                                    axes,
+                                },
+                                recourse,
                             }
-                        });
-                        // The edit a finding names makes two axes one
-                        // construction; no construction changes a sense
-                        // the row decided.
-                        let recourse = match (left, recourse) {
-                            (Some(Component::Axis), Recourse::Assert) => Recourse::OneConstruction,
-                            (Some(Component::Sense), _) => Recourse::Assert,
-                            (_, recourse) => recourse,
-                        };
-                        let axes = left.map(|left| axes(doc, &stated, &constructions, left));
-                        Proof::Unproven {
-                            residual: Residual {
-                                constructions,
-                                replay,
-                                axes,
-                            },
-                            recourse,
                         }
-                    }
-                })
+                    },
+                )
                 .collect()
         })
         .collect())
@@ -798,18 +864,178 @@ fn axes<P>(
 
 /// **The door's first rung**, over `row`'s cells walked to their
 /// constructions: one construction read twice, a cell its face's minter
-/// built on it ([`on_by_construction`]), or two poses the mates make one
-/// ([`stated_by_the_mates`]).
+/// built on it ([`on_by_construction`]), two poses the mates make one
+/// ([`stated_by_the_mates`]), or a wall a traced profile swept tangent
+/// (`traced`, [`traced`]).
 fn first_rung<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     stated: &stated::Stated,
     row: &NamedCoincidence,
     constructions: &[Result<Construction, Unwalked>],
+    traced: Traced,
     tol: geom_core::Tol,
 ) -> bool {
     one_construction(constructions)
         || on_by_construction(doc, row, constructions, tol)
         || stated_by_the_mates(doc, stated, row, constructions, tol)
+        || traced == Traced::Stated
+}
+
+/// **How far a row is the trace statement's**, the least to the most
+/// ([`traced`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Traced {
+    /// The row is no wall leaving a traced face's trace along its
+    /// tangent, by a sweep along that face's generators.
+    No,
+    /// It is, but the extrude's heading is not one `Axis` with the
+    /// face's by any statement the door reads.
+    AxisUnread,
+    /// It is, and the heading is that `Axis`: the row holds.
+    Stated,
+}
+
+/// **The first rung's statement by a traced profile**
+/// (`[coincidence.structural]`): a tangency row between a face `F` and an
+/// extrude's wall over a piece that leaves a crossing of `F`'s trace
+/// along its tangent ([`leaves_along_a_trace`]), where the extrude's
+/// slide is a motion of `F`'s. Three things are read, none of them per
+/// carrier:
+///
+/// 1. the step's own equality, the piece's heading the trace's tangent;
+/// 2. a pose the door decides: the extrude's heading, its frame's `z`
+///    ([`stated::frame_z`]), one `Axis` with `F`'s ([`stated::Stated`]);
+/// 3. the symmetry `F`'s construction states: `F` is an extrude's wall,
+///    which its own extrude slides along its generators, and an axis
+///    read off it runs along them.
+///
+/// `F` is the face the profile traces, read where the wall is read,
+/// or another face of its carrier ([`stated::carrier`]).
+fn traced<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    stated: &stated::Stated,
+    row: &NamedCoincidence,
+    constructions: &[Result<Construction, Unwalked>],
+    tol: geom_core::Tol,
+) -> Traced {
+    let ([Ok(a), Ok(b)], topo::Relation::SurfaceTangent, Some(doc)) =
+        (constructions, row.relation, P::evaluable(doc))
+    else {
+        return Traced::No;
+    };
+    swept_tangent(doc, stated, a, b, tol).max(swept_tangent(doc, stated, b, a, tol))
+}
+
+/// **How far `wall` is an extrude's wall over a piece leaving `face`'s
+/// trace along its tangent, slid along `face`'s generators** ([`traced`]).
+fn swept_tangent(
+    doc: &crate::ProfileDoc,
+    stated: &stated::Stated,
+    wall: &Construction,
+    face: &Construction,
+    tol: geom_core::Tol,
+) -> Traced {
+    let Origin::Minted(name) = &wall.origin else {
+        return Traced::No;
+    };
+    let [RoleSeg::Lateral(run)] = name.path.as_slice() else {
+        return Traced::No;
+    };
+    if stated::in_a_part(doc, wall) {
+        return Traced::No;
+    }
+    let Some(Node::Extrude { profile, .. }) = doc.node(name.node) else {
+        return Traced::No;
+    };
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
+        return Traced::No;
+    };
+    let Some(on) = &program.on else {
+        return Traced::No;
+    };
+    run.pieces()
+        .iter()
+        .map(|piece| {
+            let Some(traced) = leaves_along_a_trace(program, piece)
+                .and_then(|at| on.faces.get(at))
+                .and_then(|&read| {
+                    let select = doc.selection(read)?;
+                    let [name] = select.names.as_slice() else {
+                        return None;
+                    };
+                    construction(doc, select.body, name, tol).ok()
+                })
+            else {
+                return Traced::No;
+            };
+            let read_here = Construction {
+                origin: traced.origin.clone(),
+                maps: wall.maps.iter().chain(&traced.maps).cloned().collect(),
+            };
+            if stated::carrier(&read_here) != stated::carrier(face)
+                || !slides_along_its_generators(&traced)
+            {
+                return Traced::No;
+            }
+            let heading = stated::frame_z(doc, stated, on.frame, tol);
+            if heading.is_some_and(|z| stated.sense(&z, &stated::Key::axis(doc, &traced)).is_some())
+            {
+                Traced::Stated
+            } else {
+                Traced::AxisUnread
+            }
+        })
+        .max()
+        .unwrap_or(Traced::No)
+}
+
+/// **The face a profile piece leaves along the tangent of its trace**,
+/// by its place in [`crate::DrawnOn::faces`]: the leg of the step after
+/// an [`crate::ProgramStep::AlongTrace`], at the crossing the step
+/// before that ran onto. The profile's lattice admits after a director
+/// only a leg that departs along it (a line, or an arc tangent to it),
+/// so the leg's heading at the crossing is the trace's tangent. `None`
+/// for any other piece.
+fn leaves_along_a_trace(
+    program: &crate::ProfileProgram,
+    piece: &crate::names::ProfileEdgeRef,
+) -> Option<usize> {
+    use crate::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
+    let crate::names::ProfileEdgeRef::Piece {
+        step,
+        role: profile::PieceRole::Leg,
+    } = piece
+    else {
+        return None;
+    };
+    let (loop_, at) = program
+        .ids
+        .iter()
+        .enumerate()
+        .find_map(|(l, ids)| ids.iter().position(|s| s == step).map(|i| (l, i)))?;
+    let LoopProgram::Chain(steps) = program.loops.get(loop_)? else {
+        return None;
+    };
+    let [reach, ProgramStep::AlongTrace { .. }] = steps.get(at.checked_sub(2)?..at)? else {
+        return None;
+    };
+    let face = match reach {
+        ProgramStep::LineTo(ProgramTarget::OnTrace { face, .. })
+        | ProgramStep::ContinueTo(ProgramTarget::OnTrace { face, .. })
+        | ProgramStep::ArcTo(ProgramArcData::Center {
+            target: ProgramTarget::OnTrace { face, .. },
+            ..
+        }) => *face,
+        _ => return None,
+    };
+    usize::try_from(face).ok()
+}
+
+/// **Whether `face`'s construction slides it along its generators**:
+/// an extrude's wall (the one minter of a `Lateral` face), whose own
+/// extrude is that slide, so an axis read off it runs along them.
+fn slides_along_its_generators(face: &Construction) -> bool {
+    matches!(&face.origin, Origin::Minted(name) if matches!(name.path.as_slice(), [RoleSeg::Lateral(_)]))
 }
 
 /// Each cell of a row walked to its construction, or why it was not.
@@ -978,9 +1204,7 @@ fn lies_on<P: crate::ProfilePayload>(
     }
     // A walk that stopped at an instance holds the part's names, whose
     // profiles this document does not hold.
-    if let Some(Map::World(at)) = cell.maps.last()
-        && matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
-    {
+    if stated::in_a_part(doc, cell) {
         return on_face(cell_name, face_name, &|_, _, _| false);
     }
     // The profile an extrude at `node` of this document sweeps.

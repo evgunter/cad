@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
-refs: [a-census-contact-is-a-row-and-a-record, a-placement-carries-its-sources-at-rest-result]
+refs: [a-census-contact-is-a-row-and-a-record, 5903]
 blocked_on: []
 ---
 

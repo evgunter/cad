@@ -100,7 +100,7 @@ fn an_in_band_pass_inside_the_span_refuses() {
     );
     let got = read(&net, &ground());
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(CompositeRefusal::Escalated(_))),
         "{got:?}"
     );
 }
@@ -138,7 +138,7 @@ fn a_tangency_refuses() {
     );
     let got = read(&net, &ground());
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(CompositeRefusal::Escalated(_))),
         "{got:?}"
     );
 }

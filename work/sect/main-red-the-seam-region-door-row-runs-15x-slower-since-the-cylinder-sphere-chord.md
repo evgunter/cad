@@ -70,3 +70,9 @@ owes a 1e-12 timing of the row first.
 
 Time it at 1e-12: `CAD_TOLERANCE_EPS=1e-12` before the reproduce line
 above.
+
+## 2026-10-30, nightly triage
+
+Nightly [41008276467](https://github.com/evgunter/cad/actions/runs/41008276467)
+(main `39bbdfc777`): 136.0 s at default ε and 27.3 s at 1e-6, both
+passing, down from 231 s and 47 s. The 1e-12 row still holds it out.

@@ -1108,7 +1108,10 @@ impl<P> Doc<P> {
     /// its input's; a selection in its body's, and a pose in the space
     /// of what it reads. `None` for a profile, a scalar, a space itself,
     /// or a read this document does not resolve. Nothing is evaluated.
-    pub fn space_of(&self, var: VarId) -> Option<VarId> {
+    pub fn space_of(&self, var: VarId) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         SpaceWalk::new(self).var(var)
     }
 
@@ -1116,7 +1119,10 @@ impl<P> Doc<P> {
     /// node read through its body, an output, a variable by id or by
     /// name, or a selection's body. `None` for a read this document
     /// does not resolve, or one in no space.
-    pub fn operand_space(&self, read: &crate::Operand) -> Option<VarId> {
+    pub fn operand_space(&self, read: &crate::Operand) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         match read {
             crate::Operand::Node(id) => self.node_space(*id),
             crate::Operand::Output { node, port } => self.space_of(self.output(*node, *port)?),
@@ -1133,13 +1139,19 @@ impl<P> Doc<P> {
 
     /// **The space `node`'s body is in** ([`Self::space_of`] of its
     /// body), `None` for a node that builds no body.
-    pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId> {
+    pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         SpaceWalk::new(self).node(id)
     }
 
     /// **Every node's space** ([`Self::node_space`]), in one walk: what
     /// an evaluation holds of the recipe's derivation.
-    pub fn spaces(&self) -> BTreeMap<RecipeNodeId, VarId> {
+    pub fn spaces(&self) -> BTreeMap<RecipeNodeId, VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         let mut walk = SpaceWalk::new(self);
         self.nodes
             .keys()
@@ -1151,7 +1163,10 @@ impl<P> Doc<P> {
     /// predicate a door comparing two nodes' geometry asks, from the
     /// recipe: `Some` naming the two spaces, `None` when both are in one
     /// or either builds no body.
-    pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)> {
+    pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         two_spaces(self.node_space(a), self.node_space(b))
     }
 
@@ -1409,6 +1424,48 @@ impl<P> Doc<P> {
             })
             .map(|(&id, _)| id)
             .collect()
+    }
+
+    /// **What the person made and nothing uses** (D10 `[operations]`
+    /// "The product"), read off the recipe alone. A use is a read (a
+    /// slot, an operand or a definition reading it), being the product,
+    /// or being what an assertion states, which is a read of its slot.
+    /// Reported are the tips: each operation with outputs none of which
+    /// is used, in id order, and then each named variable nothing uses
+    /// and no reported operation defines, in id order. What a tip reads
+    /// is used by it, so deleting a tip surfaces the next. An unnamed
+    /// variable is a byproduct and never reported, and so is the world.
+    pub fn unused(&self) -> Unused
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        // The world is exempt, named or not: one rule both passes read.
+        let used = |var: &VarId| {
+            *var == VarId::WORLD || readers.contains_key(var) || self.product == Some(*var)
+        };
+        let mut defines: BTreeMap<RecipeNodeId, Vec<VarId>> = BTreeMap::new();
+        for (&var, held) in &self.vars {
+            if let Some((node, _)) = held.def().output() {
+                defines.entry(node).or_default().push(var);
+            }
+        }
+        let operations: Vec<RecipeNodeId> = defines
+            .iter()
+            .filter(|(_, outputs)| !outputs.iter().any(used))
+            .map(|(&node, _)| node)
+            .collect();
+        let vars = self
+            .var_names
+            .keys()
+            .filter(|var| !used(var))
+            .filter(|var| {
+                self.defined_by(**var)
+                    .is_none_or(|(node, _)| operations.binary_search(&node).is_err())
+            })
+            .copied()
+            .collect();
+        Unused { operations, vars }
     }
 
     /// **The anonymous variables [`Node::written`] would not reproduce**:
@@ -2828,6 +2885,17 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
     total
 }
 
+/// **The tips of a document's dead chains** ([`Doc::unused`]): what
+/// the `unused` check reports.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Unused {
+    /// The operations none of whose outputs is used, in id order.
+    pub operations: Vec<RecipeNodeId>,
+    /// The named variables nothing uses, in id order, but for those a
+    /// listed operation defines.
+    pub vars: Vec<VarId>,
+}
+
 /// **The adjacency of a document's definitions** ([`Doc::definition_edges`]),
 /// by declaration position: each defined variable's live reads, and
 /// each variable's definers in declaration order.
@@ -3274,7 +3342,7 @@ struct SpaceWalk<'d, P> {
     memo: BTreeMap<RecipeNodeId, Option<VarId>>,
 }
 
-impl<'d, P> SpaceWalk<'d, P> {
+impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
     fn new(doc: &'d Doc<P>) -> Self {
         let own = doc
             .vars
@@ -3324,6 +3392,24 @@ impl<'d, P> SpaceWalk<'d, P> {
                 self.var(*selection)
             }
             Node::Shell { open, .. } => self.var(*open),
+            // A profile drawn on a frame is in the frame's space; a free
+            // profile is in none.
+            Node::Profile(_) => {
+                let Node::Profile(p) = self.doc.nodes.get(&id)? else {
+                    unreachable!("matched a profile")
+                };
+                let reads: Vec<VarId> = p.read_rows().into_iter().map(|(_, &v)| v).collect();
+                self.reached_all(reads).first().copied()
+            }
+            // A sweep of a profile drawn on a frame is in the frame's
+            // space; of a free one, in the space it defines.
+            Node::Extrude { profile, .. }
+            | Node::Revolve { profile, .. }
+            | Node::Sweep { profile, .. }
+            | Node::Loft { first: profile, .. } => {
+                let profile = *profile;
+                self.var(profile).or_else(|| self.own.get(&id).copied())
+            }
             // A construction is in the space it defines; nothing else
             // reads a body or defines a space.
             _ => self.own.get(&id).copied(),

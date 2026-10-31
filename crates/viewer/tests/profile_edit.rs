@@ -256,6 +256,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
             &ProfileProgram {
                 loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
                 ids: Vec::new(),
+                on: None,
             },
         );
         let held = sketch::held_program(pncad::document::SpokenNode::absent(node), &program, &doc)
@@ -471,6 +472,7 @@ fn a_kept_driven_argument_is_not_written_over() {
     let mut probe = Node::Profile(ProfileProgram {
         loops: moved,
         ids: Vec::new(),
+        on: None,
     });
     *probe.expr_mut(driven).expect("the slot") = common::len(0.012);
     let Node::Profile(ProfileProgram { loops, .. }) = probe else {
@@ -491,6 +493,7 @@ fn a_kept_driven_argument_is_not_written_over() {
     let mut probe = Node::Profile(ProfileProgram {
         loops: committed,
         ids: Vec::new(),
+        on: None,
     });
     let other = SlotId::Profile {
         loop_: 0,
@@ -656,6 +659,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         base: ProfileProgram {
             loops: Vec::new(),
             ids: Vec::new(),
+            on: None,
         },
         loops: Vec::new(),
         ids: Vec::new(),

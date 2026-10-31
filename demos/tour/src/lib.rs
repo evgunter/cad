@@ -1091,9 +1091,9 @@ pub fn cli() {
     // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
     // regenerated from, and the reason the kernel's model corpus can
     // register this scene's die without a second transcription of it
-    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s — the
-    // composed die placed and the blank left unplaced, which holds for
-    // a corpus too — but the FILE differs: the gallery saves a snapshot, which
+    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s with the
+    // blank kept — the composed die placed and the blank left unplaced,
+    // which holds for a corpus too — and the FILE differs: the gallery saves a snapshot, which
     // records its ε and refuses to load at any other, while the corpus
     // replays at every CI ε row, so this door writes the empty
     // document plus the whole model as an edit log (the derivation and

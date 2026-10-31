@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P3
 cost: M
-refs: [a-part-drops-its-census-findings-at-the-seam, 5325]
+refs: [5810, 5325]
 ---
 
 The two reviews of PR #5325 raised these, and the fix passes left them
