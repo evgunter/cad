@@ -26,12 +26,13 @@ use geom::{Curve3, Surface};
 use geom_core::{Point2, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
-use topo::{Body, ReplaceFaceError, ShellError};
+use topo::{Body, ReplaceFaceError};
 
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::{charts, hollow_moves};
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
+use crate::common::oracles::{frustum_wedge_cavity, frustum_wedge_cavity_area};
 use crate::common::stations::construction_state;
 use crate::common::torus_walls::{assert_hollow_volume, disc_cut_volume};
 use sweep::test_support::finished;
@@ -793,34 +794,50 @@ fn a_partial_two_arc_torus_hollows_to_its_measured_volume() {
     );
 }
 
-/// **A three-quarter-turn cone frustum refuses at the axial door's
-/// gate** (`work/shelf/partial-cone-frustum-three-quarter-turn-
-/// refuses-edge-disagreement.md`): the cavity moves the meridian caps
-/// off the axis, so each wall/cap edge's moved section is a hyperbola,
-/// a NURBS arc on a cone no tube certifies yet. The door names the
-/// conic before any corner is solved, where the generator's two ends
-/// used to disagree by more than a millimetre.
+/// **A three-quarter-turn cone frustum hollows**: the cavity moves the
+/// meridian caps off the axis, so each wall/cap edge's moved section is
+/// a hyperbola, minted as the moved pair's arc between the moved
+/// corners; it rests because the plane×cone section states the bounds
+/// that retire its tube. The hollow passes
+/// tier 3 and measures the operand less the reflex wedge's cavity
+/// ([`frustum_wedge_cavity`]).
 #[test]
-fn a_three_quarter_turn_cone_frustum_refuses_at_the_gate() {
+fn a_three_quarter_turn_cone_frustum_hollows() {
+    let (r0, r1, h, t) = (1.0, 0.5, 2.0, 0.05);
+    let turn = 3.0 * FRAC_PI_2;
     let body = polyline(
-        &[(0.0, 0.0), (1.0, 0.0), (0.5, 2.0), (0.0, 2.0)],
-        Revolution::Partial(3.0 * FRAC_PI_2),
+        &[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)],
+        Revolution::Partial(turn),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("the moved caps cut the cone in a hyperbola");
-    let ShellError::Face { error, .. } = &e else {
-        panic!("expected the axial door's refusal, got {e}");
-    };
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("the three-quarter frustum hollows, got {e}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "tier 3");
+    let frustum = core::f64::consts::PI * h * (r0 * r0 + r0 * r1 + r1 * r1) / 3.0;
+    assert_hollow_volume(
+        "the three-quarter frustum",
+        &hollow,
+        turn / core::f64::consts::TAU * frustum - frustum_wedge_cavity(r0, r1, h, turn, t),
+    );
+    // The boundary's area, the cavity's cone cap bounded by the
+    // hyperbolic arcs read through the certified rim lane about its apex.
+    let tol = tol();
+    let measured = topo::test_support::pinned_volume(
+        "props",
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    );
+    let area = frustum_wedge_cavity_area(r0, r1, h, turn, 0.0)
+        + frustum_wedge_cavity_area(r0, r1, h, turn, t);
+    println!(
+        "[measured] the three-quarter frustum: area {} oracle {area} pad {:e}",
+        measured.surface_area, measured.area_pad
+    );
     assert!(
-        matches!(
-            **error,
-            ReplaceFaceError::TogetherConicArc {
-                conic: geom_brep::OpenConic::Hyperbola,
-                ..
-            }
-        ),
-        "expected the gate's hyperbola refusal, got {error}"
+        (measured.surface_area - area).abs() <= measured.area_pad + 1e-12 * area,
+        "the three-quarter frustum's boundary is {area}, got {}",
+        measured.surface_area
     );
 }
 

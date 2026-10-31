@@ -71,8 +71,8 @@ Tol::witness())`:
 passed `check_mesh`. As in the table above, the result is not monotone
 in δ (`w = 1e-2` refuses at 0.05 and `w = 1e-3` with aligned vertices
 does not). `crates/sweep/tests/an_annular_tube_through_a_plate.rs`
-`thin_nested_rings_build` pins the refusal at δ 5e-3 on all six ops of
-three nested rings of width 1e-3, 9e-4 and 1e-4.
+`thin_nested_rings_build` pinned the refusal at δ 5e-3 on all six ops of
+three nested rings of width 1e-3, 9e-4 and 1e-4, until they meshed (re-measured below).
 
 ## 2026-10-11 — lens faces at a curved corner pinch (FLUSH)
 
@@ -123,3 +123,47 @@ arc and one straight cut: this row's sliver. The certified volumes
 match the closed forms. The row
 `crates/sweep/tests/bisector_nodes.rs::an_edge_near_a_node_crosses_through_the_bisector_planes`
 holds its cap poses to the certified bracket alone, citing this file.
+
+## Re-measured (2026-10-28, main `ed45c3c8`, TESS thin-rings lane)
+
+This re-measurement follows PR 5717 (`pred/mesh-sizing-rule`, merge `463956a6`),
+which sizes each mesh lane at the coarsest step its own theorem grants. The
+measurement uses a throwaway probe that was not committed: the C-shape at
+inner radius `1 − w`, extruded by 1, then
+`mesh::tessellate(body, δ, Tol::witness())` and `check_mesh` on every mesh
+that built.
+
+| w \ δ | 0.5 | 0.1 | 1e-2 | 1e-3 |
+|---|---|---|---|---|
+| 0.1 | Ok | Ok | Ok | Ok |
+| 0.06 | Ok | Ok | Ok | Ok |
+| 0.04 | Ok | Ok | Ok | Ok |
+| 0.02 | Ok | Ok | Ok | Ok |
+| 0.01 | **refused** | **refused** | Ok | Ok |
+
+Against the 2026-10-06 table, `w = 0.04` and `w = 0.02` at δ 0.1 now
+mesh. `w = 0.01` still refuses at δ 0.5 and 0.1, as
+`Triangulation { face }`.
+
+The JOIN tube alone, re-taken with the same probe:
+
+| w, `ai` | δ 0.05 | δ 5e-3 | δ 1e-3 |
+|---|---|---|---|
+| 1e-2, 0 | Ok | Ok | Ok |
+| 1e-2, π | Ok | Ok | Ok |
+| 1e-3, 0 | Ok | Ok | Ok |
+| 1e-3, π | Ok | Ok | Ok |
+| 1e-4, 0 | Ok | Ok | Ok |
+| 1e-4, π | Ok | Ok | **refused** |
+
+Six cells moved from refused to Ok. One cell, `w = 1e-4` with opposed
+vertices at δ 1e-3, moved from Ok to **refused**, so the result is still
+not monotone in δ. No mesh that built in either table failed `check_mesh`.
+
+`thin_nested_rings_build` now holds all six ops of the three nested thin
+rings to `check_mesh` at δ 5e-3. Their mesh volumes match the closed
+forms within 1.8e-5 at every width.
+
+These sections were not re-measured: the FLUSH curved-pinch lines, the
+TANG capped-rod lunes, and the `bisector_nodes.rs` comments that cite this
+row ("does not triangulate at any chord tried").

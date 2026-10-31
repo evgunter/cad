@@ -17,7 +17,7 @@ scene functions that gate one body with `validate_geometric` (or
 `classify_shells`) and measure the SAME body with `mass_properties`
 in a separate call — the spelling
 `work/perf/gate-then-measure-pays-two-quadratures` (closed, #2440)
-fixed in the tour's main walk (`demos/tour/src/main.rs`, `run_body`)
+fixed in the tour's main walk (`demos/tour/src/lib.rs`, `run_body`)
 and not in the scenes:
 
 - `demos/tour/src/diefillet.rs`, `stops` — `composed` is measured and

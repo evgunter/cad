@@ -42,7 +42,9 @@
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite, VertexKey};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
+use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, VertexClass, WallClass, WallKind};
 use super::chain::build_chain;
@@ -749,8 +751,9 @@ impl<T: Real> Wire<T> {
 /// The wire case (file docs): the wire sweeps as an open chain
 /// anchored on the axis at both tips —
 /// in **two π-bands**, so each pole/apex ends with valence 2 (the
-/// angle-0 and angle-π meridians; a one-band wire would leave the tips
-/// valence-1, which tier 2 rightly bans as strut scaffolding). No seam
+/// angle-0 and angle-π meridians, the pole form [`geom::pole_form`]
+/// describes; a one-band wire would leave the tips valence-1, which
+/// tier 2 rightly bans as strut scaffolding). No seam
 /// zip exists in this path: band 2 is carved out of the original wire
 /// face by one rim-closing `mef` per interior vertex, and the wire
 /// face itself survives as segment 0's band-2 wall. The handles are
@@ -826,7 +829,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
+    let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
             MevSite::Fan {

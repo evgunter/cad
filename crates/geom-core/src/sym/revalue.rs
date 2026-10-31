@@ -143,7 +143,7 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
             let kid = |i: usize| memo.get(&n.kids[i]).copied().flatten();
             let v = match n.op {
                 SymOp::Param => env(ParamSymbol(n.payload)),
-                SymOp::Opaque | SymOp::Hull => None,
+                SymOp::Opaque | SymOp::Hull | SymOp::Free => None,
                 SymOp::Lit => Some(f64::from_bits(n.payload)),
                 SymOp::Pi => Some(f64::pi()),
                 SymOp::Add => Some(kid(0)? + kid(1)?),

@@ -9,7 +9,7 @@
 //! rendering. The label is the kernel's ([`Recourse`]).
 
 /// Whether a rendering keeps a refusal's own labels: its stage word,
-/// and whatever labels its arms carry (a finding's `root N output M`
+/// and whatever labels its arms carry (a finding's `placement N output M`
 /// subject, a forwarded load's stage word).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Labels {
@@ -81,6 +81,30 @@ pub(crate) const ONLY_A_PLACEMENT_RELATES_TWO_SPACES: &str = "only a placement r
 /// says what the refused door does in one space.
 pub(crate) fn place_into_one_space(within: &str) -> String {
     format!("place one body into the other's space, or {within} one space")
+}
+
+/// **What to do about an N2 tie**: the recourse every refusal of a
+/// tied name states ([`crate::InterrogateError::Ambiguous`],
+/// [`crate::resolve::ResolveError::Ambiguous`],
+/// [`crate::clearance::SelectionRefusal::Tied`]).
+pub(crate) const REFINE_THE_TIE: &str = "refine the reference until one candidate remains";
+
+/// **A value that carries no bodies**, said of it: `is a profile value
+/// and carries no bodies at all`. The one spelling of the fact for
+/// every door that reads a body out of a node's value
+/// ([`crate::InterrogateError::NoBodies`],
+/// [`crate::clearance::SelectionRefusal::NoBodies`]).
+pub(crate) struct CarriesNoBodies(pub &'static str);
+
+impl core::fmt::Display for CarriesNoBodies {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self(payload) = *self;
+        write!(
+            f,
+            "is {} {payload} value and carries no bodies at all",
+            article(payload)
+        )
+    }
 }
 
 /// **The indefinite article a word takes**, by its first letter: `an`

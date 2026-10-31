@@ -5,22 +5,16 @@
 //! The ball is one closed sphere group, so the kernel re-charts it
 //! (`topo::boolean::ops::apply_recuts`): it turns the ball about its
 //! centre until a pole lies on the brick's axis, keeping every key. The
-//! result's seam pieces and poles then descend from the ball's by key
-//! but lie off the ball's own seam and poles. The subtract names them by
-//! key; the union reads member vertices off the members' own bodies,
-//! finds none at the turned pole, and reads it by the lines through it:
-//! the ball's two meridians, which lie on one great circle and so are
-//! one line, meeting no face of another member there. Which reading is
-//! right is the open question of [`ROW`].
+//! result's seam pieces and poles then lie off the ball's own seam and
+//! poles, and descend from no cell of the ball, so every op refuses to
+//! name them ([`ROW`], whose way through is to cut the sphere instead of
+//! turning it).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
 use crate::emit_sphere_cut_in_cap::{ball, brick_toward, dir, world_in_brick};
 use crate::fixture::insert;
-use editor_core::{
-    BooleanValue, EntityKey, EntityKind, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg,
-    ValuePayload,
-};
+use editor_core::{NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
 const ROW: &str =
@@ -56,20 +50,13 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [b, brick, out])
 }
 
-fn body_of(payload: &ValuePayload<f64>) -> &topo::Body<f64> {
-    match payload {
-        ValuePayload::Body(b) => b,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        other => panic!("expected a body, got {other:?}"),
-    }
-}
-
-/// **Every op over the ball and the brick, in both orders**: the
-/// intersect and the union refuse at the turned pole ([`ROW`]); the
-/// subtract names, and cites one of the ball's poles at a point where
-/// the ball holds no vertex, the turned pole.
+/// **Every op over the ball and the brick, in both orders, refuses at
+/// a piece of the turned ball's seam**: no name form is true of a cell
+/// the re-chart turned, so none is published under the ball's names.
+/// Every result keeps a turned seam piece, and edges are read before
+/// vertices, so each refuses on an edge.
 #[test]
-fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_read() {
+fn a_ball_cut_by_a_brick_refuses_to_name_its_turned_seam_or_pole() {
     for (op, ball_first) in [
         ("intersect", true),
         ("intersect", false),
@@ -83,43 +70,16 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
         let ev = run(&doc);
         assert!(failure(&ev, b).is_none(), "{what}: the ball names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
-        if op != "subtract" {
-            let e = format!("{:?}", failure(&ev, out).expect("refuses"));
-            assert!(
-                e.contains("one member edge meets no face at a union vertex no seam reaches"),
-                "{what}: refused other than at the turned pole ({ROW}): {e}"
-            );
-            continue;
-        }
-        assert!(failure(&ev, out).is_none(), "{what}: the subtract names");
-        let ball = ev.value(b).expect("the ball's value");
-        let poles: Vec<_> = body_of(&ball.payload)
-            .vertex_points()
-            .map(|(_, p)| p)
-            .collect();
-        let value = ev.value(out).expect("the subtract's value");
-        let points: std::collections::BTreeMap<_, _> =
-            body_of(&value.payload).vertex_points().collect();
-        let turned: Vec<_> = crate::fixture::table(&ev, out)
-            .iter()
-            .filter_map(|(n, e)| match (n.path.as_slice(), e) {
-                ([RoleSeg::From { of, .. }], Entry::Unique(r))
-                    if of.kind == EntityKind::Vertex
-                        && matches!(of.path.as_slice(), [RoleSeg::Pole(_)]) =>
-                {
-                    match r.key {
-                        EntityKey::Vertex(v) => Some(points[&v]),
-                        _ => None,
-                    }
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(turned.len(), 1, "{what}: one of the ball's poles survives");
+        let cell = match failure(&ev, out) {
+            Some(NodeErrorKind::Naming(NamingError::UnsupportedTurnedCell { cell, .. })) => *cell,
+            other => {
+                panic!("{what}: refused other than at a turned seam or pole ({ROW}): {other:?}")
+            }
+        };
         assert!(
-            poles.iter().all(|&p| (p - turned[0]).norm() > 0.1),
-            "{what}: the subtract cites a ball pole at {:?}, off the ball's own poles {poles:?}",
-            turned[0]
+            matches!(cell, topo::Cell::Edge(_)),
+            "{what}: refused on {cell:?}, not on a piece of the turned seam, which the pass \
+             reads before the turned pole"
         );
     }
 }

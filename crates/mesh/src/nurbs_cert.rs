@@ -860,8 +860,7 @@ pub(crate) fn nurbs_cell_grid(
 /// [`geom_core::spline::KnotStructure::crease_runs`] names, the same
 /// statement the C¹ gate (`KnotVector::c1`) refuses on.
 fn creases(knots: &geom_core::spline::Knots<f64>) -> Vec<f64> {
-    let values: Vec<f64> = knots.runs().map(|(u, _)| u).collect();
-    knots.structure().crease_runs().map(|r| values[r]).collect()
+    knots.crease_values()
 }
 
 impl NurbsCellGrid {

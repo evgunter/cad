@@ -1,5 +1,5 @@
 //! **An edge lying in a face along any piece of its length is parted
-//! there, on a plane face or a curved one**
+//! there on a plane face, and refuses typed on a curved one**
 //! (`crates/topo/README.md`, tier 3: where more than two sheets meet on
 //! a line, the material decides the edges). A reflex edge of one operand
 //! whose two faces both leave its line into the material of a face of
@@ -23,11 +23,11 @@
 //!   through its chord and its arc, and the D crossed twice by its arc.
 //! - **Along a ruling.** The tunnel's apex resting along the bottom
 //!   ruling of a rod's wall, the rod running through the block or
-//!   ending inside it, where the apex crosses the wall's arcs.
+//!   ending inside it, where the apex crosses the wall's arcs: `A ∖ B`
+//!   would leave a slit of the curved wall, which refuses `CurvedFace`.
 //! - **An arc resting in a curved face**, a V revolved about `y` whose
-//!   tip arc lies in a bore's wall or a spherical floor, refuses typed:
-//!   the reduction does not place an arc lying in a curved face's
-//!   interior.
+//!   tip arc lies in a bore's wall or a spherical floor: `A ∖ B`'s two
+//!   coincident arcs refuse `Curved`.
 //!
 //! Each op of the scenes that build, both orders, builds at its
 //! closed-form volume with tiers 3 and 3′ and its material at sample
@@ -115,10 +115,15 @@ const OPS: [(&str, usize); 6] = [
 /// **Every op of `scene` builds sound** (module docs); what does not,
 /// as a line each.
 fn every_op(scene: &Scene<'_>) -> Vec<String> {
+    every_op_but(scene, None)
+}
+
+/// [`every_op`], less the op `skip`.
+fn every_op_but(scene: &Scene<'_>, skip: Option<&str>) -> Vec<String> {
     let eps = tol().eps();
     let (a, b) = (&scene.a, &scene.b);
     let mut wrong = Vec::new();
-    for (op, k) in OPS {
+    for (op, k) in OPS.into_iter().filter(|&(op, _)| Some(op) != skip) {
         let what = format!("{}, {op}, ε = {eps:e}", scene.what);
         let r = match run(op, a, b) {
             Ok(BooleanResult::Body(r)) => r,
@@ -513,10 +518,14 @@ fn rod_along_x(x0: f64, len: f64) -> AtRestBody<f64> {
 }
 
 /// **The tunnel's apex resting along the bottom ruling of a rod's wall
-/// parts in every op** (module docs), the rod through the block and
-/// ending inside it.
+/// builds in every op but `A ∖ B`** (module docs), the rod through the
+/// block and ending inside it. `A ∖ B` leaves the apex lying in the
+/// rod's wall with both its faces leaving into the wall's material: two
+/// coincident edges, a slit of a curved face, which the parting refuses
+/// `EdgeInFace` (`CurvedFace`) rather than ship one edge
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
 #[test]
-fn a_keel_along_a_cylinder_floors_ruling_parts_in_every_op() {
+fn a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit() {
     let the_block = ((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.5));
     let a = less(
         "the tunnelled block",
@@ -565,7 +574,21 @@ fn a_keel_along_a_cylinder_floors_ruling_parts_in_every_op() {
             keel: (line.0, line.1, &[(-1.0, 1.0)]),
         },
     ];
-    let wrong: Vec<String> = scenes.iter().flat_map(every_op).collect();
+    let mut wrong: Vec<String> = Vec::new();
+    for scene in &scenes {
+        wrong.extend(every_op_but(scene, Some("A ∖ B")));
+        match run("A ∖ B", &scene.a, &scene.b) {
+            Err(BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::CurvedFace,
+                ..
+            }) => {}
+            other => wrong.push(format!(
+                "{}, A ∖ B: {:?}, where it refuses CurvedFace",
+                scene.what,
+                other.map(|_| ()).map_err(|e: BooleanError| e.kind())
+            )),
+        }
+    }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
@@ -592,7 +615,7 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
 /// sphere `|p| = 2`, less a V whose tip arc lies on it, the V inside the
 /// slab's turn (60°) or leaving through its end face (−20°).
 #[test]
-fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_typed() {
+fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_only_its_slit() {
     let profile = |pts: Vec<(Point2<f64>, f64)>| {
         finished(
             "the slab",
@@ -635,11 +658,27 @@ fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_typed() {
         for turn in [60.0, -20.0] {
             let v = turned_v(&v, turn);
             for (op, _) in OPS {
-                match run(op, slab, &v) {
-                    Err(BooleanError::CurvedPierceUnsupported { .. }) => {}
-                    other => wrong.push(format!(
-                        "{what}, the V turned {turn}°, {op}: {:?}, where it refuses \
-                         CurvedPierceUnsupported",
+                let cut = format!("{what}, the V turned {turn}°, {op}");
+                match (op, run(op, slab, &v)) {
+                    (
+                        "A ∖ B",
+                        Err(BooleanError::EdgeInFace {
+                            gap: topo::EdgeInFaceGap::Curved,
+                            ..
+                        }),
+                    ) => {}
+                    (op, Ok(BooleanResult::Body(r))) if op != "A ∖ B" => {
+                        if let Err(e) = topo::validate_geometric(&r.body, tol()) {
+                            wrong.push(format!("{cut}: tier 3: {e:?}"));
+                        }
+                        if let Err(e) = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()) {
+                            wrong.push(format!("{cut}: tier 3′: {e:?}"));
+                        }
+                    }
+                    // The V turned 60° lies inside the slab.
+                    ("B ∖ A", Ok(BooleanResult::Empty)) if turn > 0.0 => {}
+                    (_, other) => wrong.push(format!(
+                        "{cut}: {:?}",
                         other.map(|_| ()).map_err(|e: BooleanError| e.kind())
                     )),
                 }

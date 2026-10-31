@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished, prism_z};
 use geom_core::Decide;
@@ -472,7 +473,7 @@ fn notch_fill_dense_ties() {
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
-    use topo::{PlaneIdentity, PlaneRelation, oriented_plane_eq};
+    use topo::{PlaneRelation, oriented_plane_eq};
     let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
@@ -482,16 +483,14 @@ fn plane_eq_nan_and_negzero() {
     let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
     let p1 = mk(Vec3::new(0.0, 0.0, nan1), Point3::new(0.0, 0.0, 0.0));
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
-    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
+    let r = oriented_plane_eq(&p1, &p2, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
-    for id in [PlaneIdentity::NONE, PlaneIdentity::DECLARED] {
-        assert_eq!(
-            oriented_plane_eq(&q1, &q2, id, &metre_ball(1.0), band).unwrap(),
-            PlaneRelation::SameOpposite
-        );
-    }
+    assert_eq!(
+        oriented_plane_eq(&q1, &q2, &metre_ball(1.0), band).unwrap(),
+        PlaneRelation::SameOpposite
+    );
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----
@@ -645,7 +644,7 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     // Lifts RechartStrandsDescriptions: the relabelled cone is the operand gate's input, its box read off the brick.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Cone {
                 apex,
                 axis: Vec3::new(1.0, 0.0, 0.0),
@@ -772,7 +771,7 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
             sense: true,
         },
@@ -845,8 +844,8 @@ fn corrected_subtract_cells_geometric() {
     assert_eq!(red.pierce_rings.len(), 4);
 }
 
-/// A ball of radius `arm` about the origin, no point of either face
-/// known: the extent a bare arm names.
-fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
-    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
+/// A ball of radius `arm` about the origin: the extent a bare arm
+/// names.
+fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
 }

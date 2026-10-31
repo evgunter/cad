@@ -3,16 +3,17 @@
 //!
 //! A box split by a plane at mid-height; BOTH halves read by port and
 //! unioned back together (a rest contact across the two section faces,
-//! which is what a union of two resting bodies is); a three-instance
-//! linear pattern of the box with its MIDDLE instance selected by a
-//! `Part` and placed in the world lifted. Every standard row — evaluation at
+//! which is what a union of two resting bodies is); a three-member row
+//! of the box, one placement over `k = index(3)` (D10 `[repetition]`),
+//! with its MIDDLE member read as `row[1]` and placed in the world
+//! lifted. Every standard row — evaluation at
 //! every CI ε row and under `interval`, persistence round-trip (D6.1),
 //! the latency table — runs both end to end.
 //!
 //! The box's height is a document parameter (`h`) that the split's
 //! target reads, so the Interval-lane rows (`docm2_part_interval`)
-//! can widen it and read the Part's body against the instance read
-//! off the pattern's own value at that lane.
+//! can widen it and read the member's body against the one read off
+//! the row's own value at that lane.
 //!
 //! Dyadic mass pin: the two halves unioned are the 2 × 2 × 1 box
 //! again — volume 4, area 2·4 + 4·2 = 16. The union of the halves
@@ -21,15 +22,15 @@
 //! through.
 //!
 //! D2 bump: the tool plane's height, the parameter `cut` (mid-DAG — its
-//! cone is the split and the union; the pattern chain is reused).
+//! cone is the split and the union; the row is reused).
 
 use super::PlacePart;
 use editor_core::{
-    Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
-    RoleSeg, SplitHalf, StableName, UnitSym, VarName,
+    Coord, Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, RecipeNodeId, RoleSeg,
+    SplitHalf, StableName, TargetAxis, UnitSym, VarName,
 };
 
-use crate::fixture::{desc, len, scl, start_cap_at};
+use crate::fixture::{desc, len, start_cap_at};
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -39,11 +40,11 @@ const BOX_HALF: f64 = 1.0;
 const BOX_H: f64 = 1.0;
 /// The tool plane's height, meters.
 const CUT_Z: f64 = 0.5;
-/// The pattern's instance count.
+/// The row's member count.
 const COUNT: i64 = 3;
-/// The pattern's pitch along x, meters — clear of the box's 2 m width.
+/// The row's pitch along x, meters — clear of the box's 2 m width.
 const PITCH: f64 = 3.0;
-/// The middle instance's lift, meters.
+/// The middle member's lift, meters.
 const LIFT: f64 = 2.0;
 
 /// The document parameter the box's height reads.
@@ -114,24 +115,21 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- three boxes along x, and the middle one lifted ----
-    let pattern = r.insert(Node::Pattern {
-        input: cube.into(),
-        count: Formula::count(COUNT),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(PITCH),
-        },
-    });
-    let middle = r.insert(Node::Part {
-        of: pattern.into(),
-        select: PartSelect::Instance(Formula::count(1)),
-    });
+    let k = r.index("k", Formula::count(COUNT));
+    let row = r.copies(
+        cube,
+        vec![(
+            Coord::Slide(TargetAxis::X),
+            Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
+        )],
+    );
     r.place_part(whole);
-    // The middle copy stands `LIFT` up the world's z, its other values
-    // the constant zero: a placement with no mate states its motion on
-    // the world's axes.
-    let lifted = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
-        editor_core::Operand::from(middle),
+    // The middle member stands `LIFT` up the world's z, its other
+    // values the constant zero: a placement with no mate states its
+    // motion on the world's axes.
+    let lifted = r.insert(crate::fixture::stood(editor_core::BodyRead::indexed(
+        row,
+        vec![Formula::count(1)],
     )));
     let placed = editor_core::Placed::of(
         &r.doc,
@@ -145,7 +143,7 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "part_select",
-        about: "DOCM-2: a split's two halves read by port, and a pattern's middle instance (Node::Part)",
+        about: "DOCM-2: a split's two halves read by port, and a row's middle member read as row[1]",
         edits: r.edits,
         doc: r.doc,
         result: Some(whole),

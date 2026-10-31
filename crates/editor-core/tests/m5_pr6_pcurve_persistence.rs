@@ -31,11 +31,11 @@ fn bodies(ev: &editor_core::Evaluation<f64>) -> Vec<Body<f64>> {
             continue;
         };
         match &v.payload {
-            ValuePayload::Body(b) => out.push((**b).clone()),
+            ValuePayload::Body(b) => out.push(b.body().clone()),
             ValuePayload::Split { above, below } => {
                 for side in [above, below] {
                     if let SplitSide::Body(b) = side {
-                        out.push((**b).clone());
+                        out.push(b.body().clone());
                     }
                 }
             }

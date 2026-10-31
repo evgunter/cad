@@ -618,14 +618,14 @@ pub enum RefusalReason {
     Budget(BudgetKind),
     /// **A measure could not be taken, for a reason the BOX cannot
     /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
-    /// kind of entity, a pairing the wedge rule empties, a carrier the
-    /// engine does not support.
+    /// kind of entity, a scope naming no face, a carrier the engine does
+    /// not support.
     ///
     /// These are facts about the DOCUMENT, not about the parameter
     /// values, so every sub-box inherits them exactly. Before this
     /// class they fell to the catch-all `Bisect` and the driver split
     /// its way through the whole leaf budget re-deriving the same
-    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// refusal — a measured >60 s on a pairing fixture — and
     /// then priced the mass as `Budget`, which named the symptom
     /// instead of the cause. Refusing terminally is both faster and
     /// truer: the mass is refused under its own class, and the class
@@ -654,7 +654,7 @@ pub enum RefusalReason {
 pub enum MeasureRefusalClass {
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
-    Clearance(crate::clearance::ClearanceRefusal),
+    Clearance(topo::clearance::MinSeparationRefusal),
 }
 
 impl MeasureRefusalClass {
@@ -1232,29 +1232,6 @@ pub enum DriveRefusal {
     /// answers this document completely, and saying so is more useful
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
-    /// **The symbolic tier and the clearance engine do not compose**
-    /// (E12's unit, deviation D3; issue `symbolic-tier-and-clearance-engine`).
-    ///
-    /// `min_clearance` answers with an enclosure computed by
-    /// [`crate::clearance`]'s engine, which is written at
-    /// [`geom_core::Interval`] concretely — it borrows a
-    /// `&Body<Interval>` — so it cannot be handed the leaf replay's
-    /// `Body<Sym<Interval>>`, and no scalar remap of a body exists to
-    /// strip one. The lane therefore has no clearance answer at all.
-    ///
-    /// Refused up front rather than degraded: the trait's honest `None`
-    /// reads downstream as the typed absence
-    /// [`crate::eval::ValuePayload::MeasureUnavailable`], which is a
-    /// VALUE, so the leaf would certify with the clearance measure
-    /// silently missing from it. That is precisely the quiet degradation
-    /// this kernel refuses, so the drive says so instead. The recourse
-    /// is in the message: drive this document with
-    /// [`SymbolicDials::off`].
-    SymbolicClearanceUnsupported {
-        /// The measure node whose primitive has no lane, spoken from
-        /// the driven document.
-        node: SpokenNode,
-    },
 }
 
 impl core::fmt::Display for DriveRefusal {
@@ -1268,12 +1245,6 @@ impl core::fmt::Display for DriveRefusal {
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
                  no varying axis — the nominal build is the whole answer",
-            ),
-            Self::SymbolicClearanceUnsupported { node } => write!(
-                f,
-                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
-                 identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
-                 to get the numeric-only answer, or measure a closed form"
             ),
         }
     }
@@ -1317,13 +1288,6 @@ pub fn drive(
     let root = ParamBox::of(analyzed);
     if root.varying().next().is_none() {
         return Err(DriveRefusal::NothingVaries);
-    }
-    if config.symbolic.enabled
-        && let Some(node) = clearance_measure(doc)
-    {
-        return Err(DriveRefusal::SymbolicClearanceUnsupported {
-            node: doc.spoken(node),
-        });
     }
 
     // The WITNESS build: the document at its nominals, at f64. Its
@@ -1533,19 +1497,6 @@ pub fn drive(
     })
 }
 
-/// The first `Measure` node reading a `min_clearance` primitive, if
-/// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
-fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.ids().iter().copied().find(|&id| {
-        matches!(
-            doc.node(id),
-            Some(Node::Measure {
-                primitive: crate::measure::MeasurePrimitive::MinClearance { .. }
-            })
-        )
-    })
-}
-
 /// The evaluation options every pass of a drive uses: sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
@@ -1560,12 +1511,7 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
 /// The SCALAR is the other half of "the way this driver certified it",
 /// and it does not ride here: it rides on the verdict
 /// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
-/// `crate::eval::replay_leaf`. The clearance engine is the one consumer
-/// that cannot take it — its selection type is written at `Interval`
-/// concretely — which is why a document carrying a `min_clearance`
-/// measure refuses the symbolic tier up front
-/// ([`DriveRefusal::SymbolicClearanceUnsupported`]) rather than
-/// certifying leaves the engine could not then read.
+/// `crate::eval::replay_leaf`.
 pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
@@ -1760,8 +1706,8 @@ fn classify_replay<T: geom_core::Decide>(
         };
         // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
         // R1's MINOR-6). A selection naming the wrong kind of entity,
-        // or a pairing the wedge rule empties, is a fact about the
-        // document: every sub-box inherits it exactly, so refining
+        // or a scope naming no face, is a fact about the document:
+        // every sub-box inherits it exactly, so refining
         // re-derives the same refusal until the budget runs out and
         // then prices the mass `Budget`, naming the symptom. The
         // classes listed in `box_independent_measure_class` are the
@@ -1867,27 +1813,12 @@ fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdic
 }
 
 /// What one escalation makes of a leaf: a terminal sliver when its
-/// enclosure sits wholly inside the band ([`sliver`]), otherwise the
+/// enclosure sits wholly inside the band ([`topo::clearance::sliver`]), otherwise the
 /// cue to bisect. One spelling for the three reads of `classify_replay`.
 fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
-    sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
+    topo::clearance::sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
         LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
     })
-}
-
-/// The predicate name of an escalation whose enclosure sits WHOLLY
-/// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test, the classifier's own verdict
-/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
-/// refinement could still decide it.
-///
-/// **Crate-visible because the clearance engine's inner subdivision
-/// refuses by the same rule** ([`crate::clearance`]): one home, so the
-/// two subdivisions cannot drift apart on what a sliver is.
-pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    source
-        .terminal_sliver
-        .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
@@ -2215,47 +2146,21 @@ pub fn assertion_at(
 /// under the symptom's name. A class wrongly made terminal costs a leaf
 /// that a smaller box would have certified. So the terminal classes are
 /// enumerated, and every refusal not listed bisects.
-///
-/// The clearance arm matches every [`ClearanceRefusal`] arm, but its
-/// carrier's one producer — `clearance::min_separation`, through
-/// [`MinClearanceLane`]'s interval impl — refuses with four of them:
-/// `EmptyScope`, `NoAdmittedPair`, `Unsupported` and `PoisonEnclosure`.
-/// The other seven are classed by what they mean, so the match stays
-/// exhaustive and an arm added to the enum does not compile unclassed;
-/// the carrier narrows to the measure path's own arms when the enum
-/// splits (`work/clear/SHELL-3.md`).
-///
-/// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
-/// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         NodeErrorKind::MeasureClearanceRefused(r) => {
-            use crate::clearance::ClearanceRefusal as C;
-            let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
+            use topo::clearance::MinSeparationRefusal as E;
             match r {
-                // Reached: which faces are in scope, whether the two
-                // scopes pair at all, and whether the carrier has an
-                // implementation are decided by the document's own
+                // Which faces are in scope, and whether the carrier has
+                // an implementation, are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => engine(),
-                // Not reached from `min_separation`. The bound and the
-                // run's tolerance are fixed for the whole drive, so no
-                // sub-box changes them either.
-                C::NotADistance { .. } | C::ToleranceHasNoBand => engine(),
-                // Reached: an enclosure that did not evaluate over this
-                // box (NaI, or empty) may evaluate over a smaller one, so
-                // nothing proves it box-independent.
-                C::PoisonEnclosure { .. } => None,
-                // Not reached from `min_separation`. Each is a function
-                // of the box — a budget, an in-band decision, a witness,
-                // a certified leaf, or a selection read at one leaf's
-                // replay (a node that did not build there) — and can
-                // differ over a smaller one.
-                C::Budget(_)
-                | C::Selection(_)
-                | C::Sliver { .. }
-                | C::WitnessUnverified { .. }
-                | C::NothingCertified { .. } => None,
+                E::EmptyScope { .. } | E::Unsupported { .. } => {
+                    Some(MeasureRefusalClass::Clearance(r.clone()))
+                }
+                // An enclosure that did not evaluate over this box (NaI,
+                // or empty) may evaluate over a smaller one, so nothing
+                // proves it box-independent.
+                E::PoisonEnclosure { .. } => None,
             }
         }
         _ => None,
@@ -2275,6 +2180,47 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the run's linear band")
+    }
+
+    /// **An engine refusal under `min_clearance` that no smaller box can
+    /// change is refused mass under its own class, not a bisection to a
+    /// `Budget`**: the pricing the planted `NoAdmittedPair` row once
+    /// carried (`m10_6_r1_probes_interval`, row 5), re-pinned with the
+    /// refusals the engine still raises. A scope naming no face and a
+    /// carrier with no window are facts about the document; an enclosure
+    /// that did not evaluate may evaluate over a smaller box, so it
+    /// bisects.
+    #[test]
+    fn a_box_independent_clearance_refusal_is_terminal_refused_mass() {
+        use topo::clearance::MinSeparationRefusal as R;
+        let refused = |r: R| NodeErrorKind::MeasureClearanceRefused(r);
+        for r in [
+            R::EmptyScope {
+                side: topo::clearance::Which::First,
+            },
+            R::Unsupported {
+                carrier: "an approximated face",
+                face: topo::FaceKey::default(),
+                side: topo::clearance::Which::First,
+            },
+        ] {
+            let class = box_independent_measure_class(&refused(r.clone()));
+            assert_eq!(
+                class,
+                Some(MeasureRefusalClass::Clearance(r.clone())),
+                "{r:?}"
+            );
+            let reason = RefusalReason::MeasureRefused {
+                node: RecipeNodeId::new(0, 0),
+                class: class.unwrap(),
+            };
+            assert_eq!(reason.class(), ReasonClass::MeasureRefused, "{r:?}");
+        }
+        let poison = R::PoisonEnclosure {
+            a: topo::FaceKey::default(),
+            b: topo::FaceKey::default(),
+        };
+        assert_eq!(box_independent_measure_class(&refused(poison)), None);
     }
 
     /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
@@ -2332,6 +2278,7 @@ mod tests {
             |k| arena.get(k).cloned(),
             geom_core::Real::from_f64(1.0),
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .is_err();
         assert!(refused, "the configuration is not a tangency");

@@ -4,7 +4,6 @@ kind: issue
 title: `PathError`'s Display arms render scalars with `{:?}`, so refusal sentences carry round-tripped float noise
 status: open
 opened: 2026-08-30
-github: 1282
 refs: [1267]
 priority: P1
 cost: M

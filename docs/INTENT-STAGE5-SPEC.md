@@ -31,7 +31,7 @@ Scope: DESIGN `[assertions]` and `[assertions.quiet]`, as `work/intent/plan.md` 
 The state C starts from (D′3 over main):
 
 - **The census at each `⊔`.** `product::product_recorded` gathers the body the product slot reads. Where that is a `⊔`, each operand is one arrival, grafted as the `⊔` grafted it (`product.rs`, `gather`). The gather runs `topo::record_at_rest` with one group per arrival (`checks/at_rest.rs`, `copy_groups`) and keeps the census's verdicts on the product (`Product::census`) and its rows (`Product::coincidences`, each an `AtRestRow`). Every `⊔` the slot does not read is gathered the same way, beside it (`product::assemble_gathers`, `Product::assembles`, `AssembleGather`). `wire_assemble` (`eval/wire.rs`) grafts and decides nothing (D′3's deviation 1). If D′3's pending MAJOR 1 moves the census into the `⊔`'s wire, the resident reads each `Assemble` node's value instead of the gathers, and nothing else in §4 changes.
-- **The gate** (`assembly.rs`). `assemble` and `assemble_gathered` call `verdict` on the product and `gate_assembles` on each other `⊔`. `verdict` refuses `AssemblyError::CarriedAtRest` on a part's carried refusal (`ahead_of_at_rest`). It then reads the census less what a part already answered (`checks::at_rest::less_carried`) and partitions it (`checks::at_rest::partition`): interference findings go to `Assembly::interference`, and everything else refuses `AssemblyError::AtRest`. An unread `⊔` whose gather refuses refuses `AssemblyError::Assemble`. A part's verdict crosses the instance seam as `seam_verdict` reads it: `CarriedInterference` and `CarriedAtRestFinding`, each with a `Route`, reported once per part row (`once_per_part_row`).
+- **The gate** (`assembly.rs`). `assemble` and `assemble_gathered` call `verdict` on the product and `gate_assembles` on each other `⊔`. `verdict` refuses `AssemblyError::CarriedAtRest` on a part's carried refusal (`ahead_of_at_rest`). It then reads the census (on D′3's branch, less what a part already answered, `checks::at_rest::less_carried`, which neither D′3 nor C kept) and partitions it (`checks::at_rest::partition`): interference findings go to `Assembly::interference`, and everything else refuses `AssemblyError::AtRest`. An unread `⊔` whose gather refuses refuses `AssemblyError::Assemble`. A part's verdict crosses the instance seam as `seam_verdict` reads it: `CarriedInterference` and `CarriedAtRestFinding`, each with a `Route`, reported once per part row (`once_per_part_row`).
 - **The lint** (`checks.rs`, `door_rows`, `DoorJob`). `CheckId::UnprovenCoincidence` already reads the at-rest rows of the product and of every unread `⊔`. Its knob is `Advisory`, because it reads no assertion.
 - **`Separation`** (`checks.rs`, `separation`, `mated_pairs`). It reports two solids from different subjects that `topo::SolidSeparation`'s boxes cannot prove apart. It is suppressed where a record cites a row the door's first rung proves, and its knob is `Advisory`.
 - **Callers of the gate**: the viewer's at-rest badge (`viewer/src/session.rs`: `assemble_gathered` in the landing, `badge`, `AtRestBadge`); Python (`pncad.assemble`, `py/assembly.rs` `assemble`; `product_memo.rs`); the tour (`demos/tour/src/assembly.rs`, two `assemble` calls); and the gallery's separation count (`demos/tour/src/gallery.rs`, `advisory`). D′3 also adds `Doc.assemble` and `Node.assemble` to Python, which author the `⊔` operator and are not the gate.
@@ -66,7 +66,7 @@ The state C starts from (D′3 over main):
 
 **Findings at rest** (`checks.rs`, `checks/at_rest.rs`):
 
-- **An arrival** is one operand of a `⊔` at one value of its indices, as `[assertions]` defines it. The census names it by the read the operand entered the `⊔` through: the operand's `VarId`, and, until G, the output body of a `Pattern` or `PlacedUnion` operand (D′3's interim). `CopyRef` and `FaceSite` keep their shape, read as an arrival and a face as the arrival's own name table spells it (`StableName`), as D′3's `checks/at_rest.rs` already un-keys a `⊔`'s `From { read, of }`.
+- **An arrival** is one operand of a `⊔` at one value of its indices, as `[assertions]` defines it. The census names it by the read the operand entered the `⊔` through: the operand's `VarId`, at the member's index values for a family. `CopyRef` and `FaceSite` keep their shape, read as an arrival and a face as the arrival's own name table spells it (`StableName`), as D′3's `checks/at_rest.rs` already un-keys a `⊔`'s `From { read, of }`.
 - **A contact is the lint's, and only the lint's.** A touch the census records between two arrivals is a `CensusAtRest` row (`AtRestRow`) and a record citing it. `CheckId::UnprovenCoincidence` reports it unless the door proves it, once, under the `⊔` that decided it. `AtRest` has no contact finding. This holds for a flush pair as well.
 - **`CheckId::AtRest` reports two kinds of finding**, each under the `⊔` that decided it (`FindingSubject` names that `⊔`'s output):
   - **interference**: `InterferenceFinding` as B built it, between two arrivals, quiet or loud;
@@ -96,7 +96,7 @@ The state C starts from (D′3 over main):
 
 For the product (the `⊔`, or other body, the slot reads) and for each `AssembleGather` the product carries, the resident takes the gather's census verdicts as the gate reads them today:
 
-1. `Product::census` less what a part already answered (`less_carried`);
+1. `Product::census` as the gather kept it (a part's pair-less escalation re-found inside its copy is reported, loud, until it names its pair: `work/contacthold/an-escalated-census-finding-names-no-pair.md`);
 2. `partition` into interference findings and the rest;
 3. the product's carried findings (`carried_interference`, `carried_at_rest`), each once per part row.
 
@@ -136,7 +136,7 @@ The space condition follows from the selections: a `Gap` over the `⊔`'s operan
 ### Severity and the refusing path
 
 - `ChecksConfig::at_rest: Severity`, default `Warn`.
-- `enforce_checks` skips every finding whose `quiet` is `Some`, and every `AtRest` could-not-look finding, whatever the severity. So the only `AtRest` findings that refuse are loud interference findings at `Error`, and an unlocalized overlap is not among them, since `Overlap::Unlocalized` is loud and never refuses.
+- `enforce_checks` refuses a finding only where an assertion could have quieted it. It skips every finding whose `quiet` is `Some`, and every finding no assertion the quieting rule accepts could quiet (`CheckEvidence::never_refuses`): every `AtRest` could-not-look finding, an unlocalized overlap, and a bounded one the rule finds no quieting `Gap` for (`InterferenceFinding::quietable`), whatever the severity. So the only `AtRest` findings that refuse are loud quietable interference findings at `Error`.
 - A quiet finding stays stale-safe for free: an assertion whose finding goes away still checks its own measure, and a `Gap = 0` whose cells separate is `Violated`.
 
 ### Order
@@ -191,7 +191,7 @@ These change no ratified decision; each describes code this PR changes.
 | Census output, records, rows, interference findings | unmoved (the same functions, in the same order) |
 | At-rest outcome | the gate is gone; every outcome is a report |
 | Checks report | `AtRest` added, `Separation` gone; `CheckFinding::quiet`; at-rest rows the contact half quiets go quiet |
-| `enforce_checks` | skips quiet findings and `AtRest` could-not-look findings |
+| `enforce_checks` | skips quiet findings and every finding no assertion could quiet (`never_refuses`) |
 | Python `.pyi` and census | `assemble`/`Assembly`/`AssemblyError` gone; `CheckId.AtRest`, `AtRestEvidence` |
 | Ids, wire, content keys, geometry | unmoved |
 

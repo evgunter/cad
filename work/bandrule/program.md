@@ -4,12 +4,12 @@ kind: program
 title: BANDRULE — what a band refuses that its rule would build, or refuses under the wrong name: features in and around its region, chain ends and joints, and the corner and geometry endings
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/sweep/blend
 prefix: bandrule/
 tag: (BANDRULE orchestrator)
 ab_band: 17800-17899
 paths: [crates/sweep/src/blend/consume.rs, crates/sweep/src/blend/admit.rs, crates/sweep/src/blend/mod.rs, crates/sweep/src/blend/surgery.rs, crates/sweep/src/blend/open/*, crates/sweep/src/chamfer.rs]
-keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDREACH the reach meter and support screen, BANDMETER the surgery's ring cap and strip meters, all four share crates/sweep/src/blend by design, so run scripts/work.py territory on your branch and announce the seam in the PR, step 4 of the band-feature rule (whole shells and the seal) stays BAND's and the feature rows here build beside it]
+keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDREACH the reach meter and support screen, BANDMETER the surgery's ring cap and strip meters, all four share crates/sweep/src/blend by design, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled, step 4 of the band-feature rule (whole shells and the seal) stays BAND's and the feature rows here build beside it]
 ---
 
 **The band's conservative refusals of shapes, P3.** Ev's band-feature

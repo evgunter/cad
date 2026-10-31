@@ -66,6 +66,7 @@ fn prism(doc: ProfileDoc, rim: Rim) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -184,10 +185,10 @@ fn within_sources(
             .filter(|(n, _)| n.kind == EntityKind::Edge && line_of(n) == line)
             .map(|(n, _)| (n.clone(), edge_of(src_table, "a row on the cited line", n)))
             .collect();
-        let here = ends(body, k);
+        let here = ends(&body, k);
         let within = |src: EdgeKey| {
-            let [q0, q1] = ends(src_body, src);
-            match topo::query::edge_carrier_kind(src_body, src) {
+            let [q0, q1] = ends(&src_body, src);
+            match topo::query::edge_carrier_kind(&src_body, src) {
                 Some(topo::query::CurveKind::Line) => {
                     let d = q1 - q0;
                     here.iter().all(|&p| {
@@ -230,7 +231,7 @@ fn within_sources(
             );
         };
         let whole = {
-            let q = ends(src_body, *src);
+            let q = ends(&src_body, *src);
             let same = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| (a - b).norm() < 1e-9;
             (same(here[0], q[0]) && same(here[1], q[1]))
                 || (same(here[0], q[1]) && same(here[1], q[0]))
@@ -251,7 +252,7 @@ fn within_sources(
                  all of {piece:?}"
             ),
         }
-        if topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Circle)
+        if topo::query::edge_carrier_kind(&body, k) == Some(topo::query::CurveKind::Circle)
             && here.iter().all(|p| (p.z - 1.0).abs() < 1e-9)
         {
             on_top_arc += 1;

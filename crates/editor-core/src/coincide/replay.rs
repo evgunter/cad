@@ -45,9 +45,9 @@ use std::collections::BTreeMap;
 
 use geom_core::sym::deferred;
 use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, CarrierRelation, FaceKey};
+use topo::{CarrierRelation, FaceKey};
 
-use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
+use super::{Canceled, Component, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
 use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
@@ -102,11 +102,14 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
-/// A rung that proved a row, or why the replay could not.
-type Proved = Result<Rung, Left>;
+/// A rung that proved a row, or why the replay could not and, for two
+/// cells with an axis, the first component of one axis, one radius and
+/// one sense it did not establish.
+type Proved = Result<Rung, (Left, Option<Component>)>;
 
 /// **The symbolic rungs for each row the first rung left**
-/// (`left`, in the shape of `nodes`): in the order given, a rung that
+/// (`left`, in the shape of `nodes`), each row's two axes read as the
+/// mates state them where `axes_one` holds: in the order given, a rung that
 /// proved the row or why the replay could not, and `None` for a row
 /// the first rung proved. `nodes` holds each deciding node with its
 /// rows in decision order, which is what a row's ordinal is counted in.
@@ -121,7 +124,7 @@ type Proved = Result<Rung, Left>;
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
-    left: &[Vec<bool>],
+    (left, axes_one): (&[Vec<bool>], &[Vec<bool>]),
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
@@ -177,15 +180,15 @@ pub(super) fn rungs(
         let mut ev: Option<Evaluation<Lane>> = None;
         let band = Band::linear(tol);
         let mut out = Vec::with_capacity(nodes.len());
-        for (&(node, rows), asks) in nodes.iter().zip(asks) {
+        for ((&(node, rows), asks), axes_one) in nodes.iter().zip(asks).zip(axes_one) {
             let mut ordinals = BTreeMap::new();
             let mut answers = Vec::with_capacity(rows.len());
-            for (row, ask) in rows.iter().zip(asks) {
+            for ((row, ask), &stated) in rows.iter().zip(asks).zip(axes_one) {
                 let ordinal = ordinals.entry(row.site).or_insert(0usize);
                 let at = core::mem::replace(ordinal, *ordinal + 1);
                 answers.push(match ask {
                     None => None,
-                    Some(Err(why)) => Some(Err(why)),
+                    Some(Err(why)) => Some(Err((why, None))),
                     Some(Ok(())) => {
                         let ev = match &mut ev {
                             Some(ev) => &*ev,
@@ -198,7 +201,7 @@ pub(super) fn rungs(
                                 &*ev.insert(replayed)
                             }
                         };
-                        Some(prove_row(ev, node, row, at, band, cancel)?)
+                        Some(prove_row(ev, (node, row, at), stated, (band, tol), cancel)?)
                     }
                 });
             }
@@ -243,23 +246,23 @@ fn stands_on_a_part(doc: &crate::doc::Doc<ProfileProgram>, node: RecipeNodeId) -
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
-/// node's rows at its site; an at-rest row is read off the copies by
-/// the carrier verdict alone (the census is not re-run). Canceled
-/// before it discharges a margin.
+/// node's rows at its site, its two axes read as the mates state them
+/// where `stated` ([`carrier_verdict`]); an at-rest row is read off the
+/// copies by the carrier verdict alone (the census is not re-run).
+/// Canceled before it discharges a margin.
 fn prove_row(
     ev: &Evaluation<Lane>,
-    node: RecipeNodeId,
-    row: &NamedCoincidence,
-    at: usize,
-    band: Result<Band, BandError>,
+    (node, row, at): (RecipeNodeId, &NamedCoincidence, usize),
+    stated: bool,
+    (band, tol): (Result<Band, BandError>, Tol),
     cancel: &crate::CancelToken,
-) -> Result<Result<Rung, Left>, Canceled> {
+) -> Result<Proved, Canceled> {
     if cancel.is_canceled() {
         return Err(Canceled);
     }
     // A row the replay left with no form of its own: nothing the door
     // could read, so the recourse is the assertion.
-    let left = |why| Ok(Err((why, Recourse::Assert)));
+    let left = |why| Ok(Err(((why, Recourse::Assert), None)));
     if row.site == topo::DecisionSite::CensusAtRest {
         if let Some(why) = at_rest_unbuilt(ev, node, row) {
             return left(why);
@@ -268,10 +271,12 @@ fn prove_row(
         let Ok(band) = band else {
             return left(Unreplayed::Refused);
         };
-        return Ok(match carrier_verdict(ev, row, band) {
+        return Ok(match carrier_verdict(ev, row, band, tol, stated) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
-            Some(Err(why)) => Err(numeric(why)),
-            None => Err((Unreplayed::OtherDecisions, Recourse::Assert)),
+            Some(Err(CarrierFail::Undischarged(why))) => Err((numeric(why), None)),
+            Some(Err(CarrierFail::Left(component, why))) => Err((numeric(why), Some(component))),
+            Some(Err(CarrierFail::Frame)) => Err(((Unreplayed::Frame, Recourse::Assert), None)),
+            None => Err(((Unreplayed::OtherDecisions, Recourse::Assert), None)),
         });
     }
     let Some(value) = ev.value(node) else {
@@ -286,17 +291,21 @@ fn prove_row(
     else {
         return left(Unreplayed::OtherDecisions);
     };
-    if let Ok(band) = band
-        && let Some(Ok(())) = carrier_verdict(ev, row, band)
-    {
-        return Ok(Ok(Rung::CarrierVerdict));
+    let mut component = None;
+    if let Ok(band) = band {
+        match carrier_verdict(ev, row, band, tol, stated) {
+            Some(Ok(())) => return Ok(Ok(Rung::CarrierVerdict)),
+            Some(Err(CarrierFail::Frame)) => return left(Unreplayed::Frame),
+            Some(Err(CarrierFail::Left(left, _))) => component = Some(left),
+            Some(Err(CarrierFail::Undischarged(_))) | None => {}
+        }
     }
     if cancel.is_canceled() {
         return Err(Canceled);
     }
     Ok(deferred::discharge_or_why(replayed.margin)
         .map(|()| Rung::MarginIdentity)
-        .map_err(numeric))
+        .map_err(|why| (numeric(why), component)))
 }
 
 /// A form the tier read and did not discharge: a coincidence of values
@@ -344,18 +353,39 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
     }
 }
 
+/// Why a carrier verdict the replay reads is not proven.
+enum CarrierFail {
+    /// Its Zero is not discharged.
+    Undischarged(deferred::Undischarged),
+    /// One cell's body could not be read into the other's frame.
+    Frame,
+    /// Two cylinders, read as one axis, one radius and one sense
+    /// ([`one_cylinder`]): this component is not established, for this
+    /// reason.
+    Left(Component, deferred::Undischarged),
+}
+
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
-/// on is proven, or why the first that is not keeps; `None` where the
-/// replay reads no such verdict (not two faces, a face it did not
-/// build, or another relation decided). A meeting of cells at a point
-/// is read by the margin that decided it, which the replay computes
-/// from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
+/// on is proven, or why the first that is not keeps, or that one cell
+/// could not be read into the frame the verdict is decided in; `None`
+/// where the replay reads no such verdict (not two faces, a face it did
+/// not build, or another relation decided). A meeting of cells at a
+/// point is read by the margin that decided it, which the replay
+/// computes from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
+///
+/// Two cylinders are also read by their axis and the numbers a rigid
+/// motion keeps ([`one_cylinder`]), the axis as the mates state it
+/// where `stated` (`[placement.placement]`: the door "reads by what its
+/// mates state and replays where they state nothing"), so not as the
+/// fold builds it. Either reading proves the row.
 fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-) -> Option<Result<(), deferred::Undischarged>> {
+    tol: Tol,
+    stated: bool,
+) -> Option<Result<(), CarrierFail>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
@@ -365,19 +395,139 @@ fn carrier_verdict(
         return None;
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
-    match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
+    // Decided in the frame `[placement.frame]` conditions on (the cell
+    // in its space's coordinates, else the first), the other read in.
+    let computing = crate::eval::Framed::computing_among([a, b])?;
+    let (Ok(a_in), Ok(b_in)) = (computing.read_in(a, tol), computing.read_in(b, tol)) else {
+        return Some(Err(CarrierFail::Frame));
+    };
+    let kernel = || match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => {
-            Some(deferred::discharge_or_why(margin))
+            Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,
+    };
+    match one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated) {
+        None => kernel(),
+        Some(Ok(())) => Some(Ok(())),
+        Some(Err((component, why))) => match kernel() {
+            Some(Ok(())) => Some(Ok(())),
+            _ => Some(Err(CarrierFail::Left(component, why))),
+        },
     }
+}
+
+/// **Two faces on cylinders, read as one axis, one radius and one
+/// sense**: the axis as stated where `stated`, else the two axes one
+/// line in the symbols; the radii's difference zero in the symbols (one
+/// `Length` read twice), and each face's rims ([`rim_radii`]) its own
+/// cylinder's radius, so a wall a revolve read as a cylinder from the
+/// values of its meridian's two ends is not one radius by that reading
+/// alone; the material sides' bits giving `wanted`. The first component
+/// not established and why; `None` where either face is not on a
+/// cylinder.
+fn one_cylinder(
+    (a, fa): (&topo::Body<Lane>, FaceKey),
+    (b, fb): (&topo::Body<Lane>, FaceKey),
+    wanted: CarrierRelation,
+    band: Band,
+    stated: bool,
+) -> Option<Result<(), (Component, deferred::Undischarged)>> {
+    use geom_core::Decide;
+    use topo::boolean::CarrierDesc::Cylinder;
+    let (
+        Some(Cylinder {
+            origin: oa,
+            axis: da,
+            radius: ra,
+            outward: sa,
+        }),
+        Some(Cylinder {
+            origin: ob,
+            axis: db,
+            radius: rb,
+            outward: sb,
+        }),
+    ) = (
+        topo::boolean::face_carrier(a, fa),
+        topo::boolean::face_carrier(b, fb),
+    )
+    else {
+        return None;
+    };
+    let zero = |x: Lane| {
+        x.sign_within(band)
+            .map_or(Err(deferred::Undischarged::Otherwise), |d| {
+                deferred::discharge_or_why(d.margin)
+            })
+    };
+    let established = || {
+        if !stated {
+            let (cross, off) = (da.cross(db), (ob - oa).cross(db));
+            for r in [cross.x, cross.y, cross.z, off.x, off.y, off.z] {
+                zero(r).map_err(|why| (Component::Axis, why))?;
+            }
+        }
+        let radius = |why| (Component::Radius, why);
+        for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
+            let rims = rim_radii(body, face);
+            if rims.len() < 2 {
+                return Err(radius(deferred::Undischarged::Otherwise));
+            }
+            for rim in rims {
+                zero(rim - *r).map_err(radius)?;
+            }
+        }
+        zero(ra - rb).map_err(radius)?;
+        if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
+            return Err((Component::Sense, deferred::Undischarged::Otherwise));
+        }
+        Ok(())
+    };
+    Some(established())
+}
+
+/// **The radii of the circles bounding `face`**: a revolved wall's
+/// rims, each the radius of the meridian end it turns, where the
+/// wall's cylinder reads one end's alone.
+fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
+    let Some(f) = body.get_face(face) else {
+        return Vec::new();
+    };
+    let mut radii = Vec::new();
+    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(lp).map(|l| &l.boundary) {
+            Some(topo::LoopBoundary::Cycle { first }) => *first,
+            // A lone vertex bounds no rim.
+            Some(topo::LoopBoundary::Empty { .. }) | None => continue,
+        };
+        let mut at = first;
+        while let Some(he) = body.get_half_edge(at) {
+            if let Some(geom::Curve3::Circle { radius, .. }) = body
+                .get_edge(he.edge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(topo::CurveGeom::certified)
+                .map(geom_brep::EdgeCurve::carrier)
+            {
+                radii.push(*radius);
+            }
+            at = he.next;
+            if at == first {
+                break;
+            }
+        }
+    }
+    radii
 }
 
 /// The face `cell` names, as the replay built it: the body of the read
 /// it came in through and its key there, read in that read's own table.
 /// A product `⊔`'s name of the read's entity, keyed by that read, is
 /// the read's own name there.
-fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
+fn face_of<'e>(
+    ev: &'e Evaluation<Lane>,
+    cell: &NamedCell,
+) -> Option<(&'e crate::eval::Framed<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };

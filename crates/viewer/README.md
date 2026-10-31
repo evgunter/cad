@@ -88,7 +88,8 @@ failure nor the offer appears until the assembly is opened again.
 (`xdg-desktop-portal` plus a frontend for your desktop) or a `zenity`
 binary. WSL distros ship neither. The app probes at startup: with
 confidently none (no `zenity` on PATH, no D-Bus session bus) the
-Open/Save As buttons are disabled with the reason as their tooltip.
+Open/Save As buttons, and Save for a document with no file yet, are
+disabled with the reason as their tooltip.
 `apt install zenity` (or a portal) fixes it, and the command-line
 document argument needs no dialog at all. The probe's portal arm is only
 a hint: a session bus *without* a working portal frontend still makes an
@@ -96,7 +97,8 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
-**Where the dialogs open.** Open… and Save As… start at the first of
+**Where the dialogs open.** Open…, Save As…, and Save for a document
+with no file yet, start at the first of
 three directories that still exists: the current document's, the one
 the last dialog returned a path in (kept in the preferences file as
 `[files] last_dir`), and the directory the viewer was launched from
@@ -160,8 +162,8 @@ loaded`). `mesa-vulkan-drivers` supplies lavapipe, the software ICD wgpu
 lands on — **`WGPU_BACKEND=gl` is a dead end**, refusing with
 `CreateSurfaceError(Hal(FailedToCreateSurfaceForAnyBackend({})))`, while
 Vulkan needs no environment variable once the ICD is installed. Without
-`zenity` the chooser probe reports `Absent` and disables Open…/Save As…,
-so everything but the dialog still works. The `libEGL warning: DRI3
+`zenity` the chooser probe reports `Absent` and disables Open…/Save As…
+(and Save for a document with no file), so everything but the dialog still works. The `libEGL warning: DRI3
 error` lines on stderr are noise.
 
 **Build `--release`.** In a debug build tessellation and BVH index build
@@ -214,8 +216,8 @@ can break this build with every check green.
 
 Three things are known-absent by design:
 
-- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…
-  are disabled with their reason showing — the same posture a Linux box
+- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…,
+  and Save for the startup document, are disabled with their reason showing — the same posture a Linux box
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
@@ -551,8 +553,8 @@ evaluation) pair, taken in that pair's single `land`. As one value
 they cannot come from different runs, which is the property
 `landed_pair` needs: it returns two of the seven, and the two it
 returns are the pair a single run answered. The gather's outcome is
-one `Result`, the refusal or what the gather left (the A5 badge and
-the body); `LandedRun`'s doc says what that shape does and does not
+one `Result`, the refusal or what the gather left (the at-rest badge
+and the body); `LandedRun`'s doc says what that shape does and does not
 rule out.
 
 The body is the one thing a landing keeps with a cost on the other
@@ -562,10 +564,7 @@ against an `Arc` clone, on a 165-body, 990-face document — and the
 price is that the session retains one gathered aggregate for the life
 of a landing, beside the `Doc` and `Evaluation` it already holds. One
 at a time: the next landing replaces it, and `Open` drops it with the
-rest of `Derived`. It is absent when the gather refused, and when the
-A5 gate refused and so consumed the product it was judging; the
-consumer that needs one there gathers it itself, at a door that says
-so (`scene::product_of_evaluation`). `bounds` sits in
+rest of `Derived`. It is absent when the gather refused. `bounds` sits in
 `Derived` but is discarded on a stricter rule than the block's: every
 submit drops it (`request_eval`), because a range is a statement about
 one document and a commit or an undo already invalidates it. Both
@@ -858,7 +857,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind`, `PatternKindChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind`, `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -1034,7 +1033,7 @@ handing a policy's verdict to the wrong door does not build.
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `platform::ChooserBackend::unusable`'s words as its
+(and path-less Save) control with `platform::ChooserBackend::unusable`'s words as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -1052,9 +1051,10 @@ its own `Message` from `chooser.unusable()`, and a rule ranging over
 readers of the sentence would stay green under it. So the population is
 *every read of `ViewerApp::chooser`, this crate's only value of type
 `platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
-by the Open… and Save As… controls, each a `match` on `no_chooser` that
-draws the control disabled with the `Some`'s words as its reason or
-live on `None`, and nowhere else. No
+by the Open…, Save and Save As… controls, each a `match` on `no_chooser`
+(Save's beside the session's path, since a Save with a path puts up no
+dialog) that draws the control disabled with the `Some`'s words as its
+reason or live on `None`, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
 the field — `platform::chooser_backend()` has one caller (the
@@ -1460,7 +1460,7 @@ is where the question of whether it should be broken at all is kept.
 ### Zoom to fit frames what is drawn
 
 Every fit — the toolbar's **Zoom to fit**, and the fits that startup
-and an open book through `pending_fit` — frames the **drawn extent**:
+and a replaced document book through `pending_fit` — frames the **drawn extent**:
 the world box around what the viewport hands the GPU as geometry on
 that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
 every committed profile's loops and every drawn preview's loops
@@ -1720,10 +1720,10 @@ a commit that lands under a probe is pruned and reported (at the edit,
 and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
-free-move table is checked against the property rather than against a
-second copy of 46 rows (`replaces_the_document`, in
-`tests/gesture_table.rs`), and `perform` consults both tables in turn,
-value gesture first.
+free-move table is checked against the property
+(`SessionOp::replaces_the_document`, in `session/op.rs`) rather than
+against a second copy of its rows (`tests/gesture_table.rs`), and `perform` consults both
+tables in turn, value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one
 layer down: `DisplayState::begin_free_move` answers a second begin off
@@ -2376,8 +2376,8 @@ ways across five modules* without stating what a *way* was, so a
 reviewer meeting a new site could not tell whether it made seven or
 was one more instance of a way already counted. A shape has no
 syntactic marker and no grep produces the population, so the
-enumeration rule is the list itself — **six shapes, composed in five
-modules of this crate** — and a new site is a seventh member only when
+enumeration rule is the list itself — **five shapes, composed in four
+modules of this crate** — and a new site is a sixth member only when
 its shape is not one of these:
 
 - **A composer on the vocabulary type, one home, called by every
@@ -2397,19 +2397,12 @@ its shape is not one of these:
   last step has to target the start*.
 - **A reason accumulated as chrome-local data and rendered once** —
   `pane::create`'s `blocked: Option<&'static str>`.
-- **Already stringified into the value and stored** —
-  `session::AtRestBadge::Refused`, whose `message` `frame::at_rest_badge`
-  renders unaltered.
 
-The five modules are the ones a shape is COMPOSED in —
-`session::refuse`, `platform`, `pane::create`, `pane::profile` and
-`session` — not the ones that spend one: `app`, `forms` and `frame`
-each render a sentence composed elsewhere and add no shape.
-`AtRestBadge` used to sit OUTSIDE this count, named beside it as a
-separate fact; it is a shape like the other five and is counted here,
-so the population moved even where the digit did not. Naming ONE shape
-for the whole family is still a separate question, and the move above
-neither answers nor forecloses it.
+The four modules are the ones a shape is COMPOSED in —
+`session::refuse`, `platform`, `pane::create` and `pane::profile` —
+not the ones that spend one: `app`, `forms` and `frame` each render a
+sentence composed elsewhere and add no shape. Naming ONE shape for the
+whole family is still a separate question.
 
 ## Rustdoc posture: the host all-features pass is the link gate
 
@@ -2534,7 +2527,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
+(`DocumentDerived::fit_delta` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`

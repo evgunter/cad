@@ -50,10 +50,10 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, an arc leaves two coincident arcs the census does not read, and
-//! a ring of no area in a curved face is not measured
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
-//! [`EdgeInFaceGap::CurvedRing`]). The reading
+//! built, an arc leaves two coincident arcs the census does not read,
+//! and a curved face would carry a slit or a ring that is neither meshed
+//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
 //! a line on a plane, cylinder or cone and a conic on a plane or a
 //! quadric, where an edge-on-face record names the pair or the face holds
@@ -156,8 +156,15 @@ pub enum EdgeInFaceGap {
     Tangent,
     /// The edge is an arc: the parting would leave two coincident arcs
     /// that no contact record backs
-    /// (`work/splitdoor/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
+    /// The face is no plane: the parting would leave a slit or a
+    /// zero-area ring in a curved face, which the chart walk does not
+    /// mesh and the curved mass-properties lane does not measure
+    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
+    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when both read it: the parting itself builds there.
+    CurvedFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -190,11 +197,6 @@ pub enum EdgeInFaceGap {
     /// An end of the edge touches the face's boundary inside one of its
     /// edges.
     EndOnBoundary,
-    /// Neither end of the edge lies on the boundary of the curved face
-    /// it lies in, so the parting would leave a ring of no area in it,
-    /// which the measure of a curved face does not read
-    /// (`work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`).
-    CurvedRing,
     /// Both ends of the edge lie on one hole of the face, which the
     /// parting would divide into a hole and a piece of face.
     Pocket,
@@ -248,7 +250,11 @@ impl EdgeInFaceGap {
             }
             Self::Curved => {
                 "the edge is an arc, which would leave two coincident arcs that no contact record \
-                 backs (`work/splitdoor/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+                 backs (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            }
+            Self::CurvedFace => {
+                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
+                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -270,10 +276,6 @@ impl EdgeInFaceGap {
                  boundary or where a vertex rests on it, lie at one point"
             }
             Self::EndOnBoundary => "an end of the edge touches the inside of an edge of the face",
-            Self::CurvedRing => {
-                "neither end of the edge lies on the boundary of the curved face, and a ring of no \
-                 area in a curved face is not measured (`work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`)"
-            }
             Self::Pocket => "both ends of the edge lie on one hole of the face",
             Self::Recorded => "a contact record names the face the parting would divide",
             Self::Crossed => "the edge's faces leave the line on opposite sides of the face",
@@ -397,6 +399,22 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
         }
+        // A slit or a zero-area ring in a curved face is neither meshed
+        // nor measured, so the parting refuses on any face it would part
+        // that is no plane.
+        let plane = |f: FaceKey| {
+            matches!(
+                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+                Some(geom::Surface::Plane { .. })
+            )
+        };
+        if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
+            return Err(BooleanError::EdgeInFace {
+                edge,
+                face: curved,
+                gap: EdgeInFaceGap::CurvedFace,
+            });
+        }
         if divides {
             if pieces.contains(&(edge, face)) {
                 return Err(refused(EdgeInFaceGap::Redivided));
@@ -438,19 +456,6 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 [w] => joined.push((v, w)),
                 _ => return Err(refused(EdgeInFaceGap::Shared)),
             }
-        }
-        let curved = super::sectors::FaceShape::of_face(
-            body,
-            face,
-            "a face an edge lies in lost its carrier",
-        )? == super::sectors::FaceShape::Curved;
-        if curved
-            && joined.is_empty()
-            && ![start, end]
-                .into_iter()
-                .any(|v| on_face_loops(body, face, v))
-        {
-            return Err(refused(EdgeInFaceGap::CurvedRing));
         }
         let p = part(body, edge, face, &joined, tol)?;
         fused.extend(&p.parted.fused)?;
@@ -703,11 +708,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
-    let one_face = |body: &Body<T>, edge: EdgeKey| {
-        let e = body.get_edge(edge)?;
-        let face = body.face_of_half_edge(e.he_plus)?;
-        (body.face_of_half_edge(e.he_minus)? == face).then_some(face)
-    };
+    let one_face = |body: &Body<T>, edge: EdgeKey| body.both_sides_face(edge).flatten();
     let mut closed = Vec::new();
     loop {
         let open: Vec<(EdgeKey, FaceKey)> = candidates
@@ -1100,16 +1101,14 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 enum Samples {
     /// Its ends.
     Ends,
-    /// Its ends and its midpoint.
-    Three,
     /// Its ends, its midpoint and its quarter points.
     Five,
 }
 
 /// **Whether edge carrier `carrier`, over `(t0, t1)`, lies on face `f`'s
 /// surface**: a line on a plane at both its ends, and on a cylinder or
-/// cone at its ends and midpoint (a line meets a quadric at two points
-/// unless it lies on it); a conic in a plane by its own plane's offset
+/// cone by [`crate::census::line_on_quadric_carrier`]
+/// (`bool_line_face_carrier_offset`); a conic in a plane by its own plane's offset
 /// from it (`bool_conic_face_plane_offset`), and on a sphere, cylinder
 /// or cone at five points along it (two conics of one plane meet at
 /// four unless they are one). Each point's offset from the surface is
@@ -1161,10 +1160,28 @@ fn carrier_on_surface<T: Decide>(
                 _ => Ok(false),
             };
         }
+        // A line on a cylinder or a cone: the one reading of it
+        // ([`crate::census::line_on_quadric_carrier`]).
         (
             geom::Curve3::Line { .. },
             geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. },
-        ) => (Samples::Three, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
+        ) => {
+            return match crate::census::line_on_quadric_carrier(
+                surface,
+                carrier.eval(t0),
+                carrier.eval(t1),
+                "bool_line_face_carrier_offset",
+                band,
+            ) {
+                Some(Ok(on)) => Ok(on),
+                None => Ok(false),
+                Some(Err(diag)) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnCurvedFace,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+            };
+        }
         (
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
             geom::Surface::Sphere { .. }
@@ -1176,7 +1193,6 @@ fn carrier_on_surface<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at: &[T] = match samples {
         Samples::Ends => &[t0, t1],
-        Samples::Three => &[t0, mid, t1],
         Samples::Five => &[
             t0,
             geom::mid_param(t0, mid),
@@ -1224,10 +1240,11 @@ fn carrier_on_surface<T: Decide>(
 /// [`BooleanError::EdgeInFace`] ([`EdgeInFaceGap::Crossed`]) where they
 /// go to opposite sides, ([`EdgeInFaceGap::NoNormal`]) where `f` or a
 /// face of the edge has no normal there, or ([`EdgeInFaceGap::Tangent`]) where a face is
-/// tangent along the line to `f` and goes into its material, or where
-/// `f` is curved and the face's bend across the edge is not read
-/// ([`bend_across`]); [`BooleanError::Escalated`] where a side, or a
-/// normal, is in band.
+/// tangent along the line to `f` and goes into its material, or
+/// ([`EdgeInFaceGap::CurvedFace`]) where `f` is curved and a face is
+/// tangent to it along the line and does not bend away from its
+/// material ([`bend_across`]); [`BooleanError::Escalated`] where a side,
+/// a bend, or a normal, is in band.
 fn walls_inside<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
@@ -1322,24 +1339,25 @@ fn walls_inside<T: Decide>(
             // normal sections' bends across the line, against the face's
             // outward normal, is the second-order gap between the two
             // sheets, `Δκ·s²/2` at arc length `s` off the line, read at
-            // the wall's reach, in metres.
+            // the wall's reach, in metres. A wall going in, or bent as
+            // the face is, would part the edge on a curved face, which is
+            // neither meshed nor measured: it refuses `CurvedFace`. A wall
+            // bending away leaves the face's material alone.
             Sign::Zero if !floor_flat => {
-                flat[k] = true;
                 let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line { .. }) = (
                     bend_across(surface(wall)?, mid, tangent),
                     bend_across(surface(f)?, mid, tangent),
                     curve.carrier(),
                 ) else {
-                    return Err(refused(EdgeInFaceGap::Tangent));
+                    return Err(refused(EdgeInFaceGap::CurvedFace));
                 };
                 let apart =
                     (floor_bend - wall_bend).dot(floor) * arm.powi(2) / (T::one() + T::one());
                 match crate::validate::decide(RIDER_WALL_BEND_ACROSS, Margin::of(apart), band)
                     .map_err(sectors)?
                 {
-                    Sign::Positive => true,
                     Sign::Negative => false,
-                    Sign::Zero => coplanar()?,
+                    Sign::Positive | Sign::Zero => return Err(refused(EdgeInFaceGap::CurvedFace)),
                 }
             }
             // Tangent to a plane face along the line: the side its sheet
@@ -2058,7 +2076,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// not settle it.
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
     match fault {
-        MeetFault::Escalated(diag) => crossing_escalated(diag),
+        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
         MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => unread,
         MeetFault::Desync | MeetFault::Contradiction { .. } => {
             BooleanError::ClassificationInvariant {

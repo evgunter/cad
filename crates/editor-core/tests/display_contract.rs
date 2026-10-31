@@ -19,14 +19,14 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
-    UnnamedEntity, VarName,
+    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
+use topo::construction::Construct;
 
 /// The `Debug` field-name punctuation **this binary can ban**, which is
 /// far short of what its refusal payloads carry.
@@ -1021,10 +1021,7 @@ test_utils::f6_variants! {
         ProductRead,
         PickPath,
         ConstraintNotMinted,
-        PlacementNonFinite,
-        PlacementNonRigid,
         MateRefused,
-        PlacementRule,
         InputList,
         AssertionBound,
         ObservedRead,
@@ -1071,11 +1068,9 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`PlacementRuleFault`, `InputFault`, `MetaVersionError`) rather
-/// than restating it, and the
-/// two placement-frame arms forward the frame rule's clause — so each
-/// case below asks for the payload's words, which is what proves the
-/// forwarding happened.
+/// (`InputFault`, `MetaVersionError`) rather than restating it — so
+/// each case below asks for the payload's words, which is what proves
+/// the forwarding happened.
 #[test]
 fn snapshot_error_display_names_its_content_not_its_struct() {
     // The node a document holds, labelled, and one it does not.
@@ -1425,28 +1420,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::PlacementNonFinite {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "non-finite coordinate",
-            ],
-        ),
-        (
-            SnapshotError::PlacementNonRigid {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-                check: "transform_rigid_col01_orth",
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "not definitely rigid",
-                "may shear",
-            ],
-        ),
-        (
             SnapshotError::MateRefused {
                 node: held(5, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(
@@ -1470,13 +1443,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "equates an `on` pose of kind plane with a `to` pose of kind frame; a mate's two poses \
                  are of one kind",
             ],
-        ),
-        (
-            SnapshotError::PlacementRule {
-                node: held(5, "Pattern"),
-                fault: PlacementRuleFault::NoPlacements,
-            },
-            vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
             SnapshotError::InputList {
@@ -1976,7 +1942,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
 fn the_path_and_upstream_scopes_state_which_one_answered() {
     use editor_core::{RecipeEditRef, UpstreamCause};
     use geom_core::predicate::Sign;
-    let count = SlotId::Count.label();
+    let count = SlotId::Stations.label();
     let path = [
         (
             Diagnosis::PredicateFlip {
@@ -1991,11 +1957,20 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             Diagnosis::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(9)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             },
             format!(
                 "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
             ),
+        ),
+        (
+            Diagnosis::IndexCount {
+                node: RecipeNodeId::new(0, tagged(9)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            },
+            "the count of read 000000000002, an index node 000000000009 on the derivation path \
+             is repeated over, changed"
+                .to_owned(),
         ),
         (
             Diagnosis::RecipeEdit {
@@ -2030,9 +2005,18 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             upstream(UpstreamCause::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(10)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             }),
             format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
+        ),
+        (
+            upstream(UpstreamCause::IndexCount {
+                node: RecipeNodeId::new(0, tagged(10)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            }),
+            format!(
+                "the count of read 000000000002, an index node 00000000000a is repeated over, changed{tail}"
+            ),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {
@@ -2053,6 +2037,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 "UpstreamCause",
                 "PredicateFlip",
                 "StructuralParam",
+                "IndexCount",
                 "RecipeEdit",
             ],
         );
@@ -2267,6 +2252,7 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
+        UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
         BandVerdictsDisagree,
@@ -2285,7 +2271,7 @@ fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
         .expect("mvfs births a solid, shell, face and lone vertex");
     let edge = body
         .mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Point3::new(1.0, 0.0, 0.0),
@@ -2503,6 +2489,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
             vec!["two pieces of one member line", "longer than the band"],
+        ),
+        (
+            NamingError::UnsupportedTurnedCell {
+                read: editor_core::VarId::new(0, tagged(38)),
+                cell: topo::Cell::Edge(topo::EdgeKey::default()),
+            },
+            vec![
+                "turned a sphere",
+                "a piece of its seam",
+                "descends from no cell",
+            ],
         ),
         (
             NamingError::SharedRim {

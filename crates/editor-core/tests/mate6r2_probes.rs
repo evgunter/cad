@@ -18,11 +18,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::{
-    AssemblyError, CapEnd, ChecksConfig, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef,
-    Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble, run_checks,
+    CapEnd, ChecksConfig, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, TargetAxis, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
@@ -120,8 +121,11 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         seat.mate,
         &[
             (Coord::Slide(TargetAxis::X), len(seat.apart)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, m)
@@ -192,13 +196,15 @@ fn row_of(
     (crate::fixture::assemble_world_copies(doc), ids)
 }
 
-/// A one-line, cross-tree-comparable rendering of an assemble error.
-fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String {
+/// A one-line, cross-tree-comparable rendering of the at-rest check's
+/// answer.
+fn headline(result: &Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>) -> String {
     match result {
-        Ok(_) => "Ok".to_string(),
-        Err(AssemblyError::AtRest { findings }) => {
-            format!("AtRest findings={}", findings.len())
-        }
+        Ok(findings) => format!(
+            "at rest: findings={} could-not-look={}",
+            findings.len(),
+            crate::fixture::could_not_look(findings).len()
+        ),
         Err(other) => format!("{other:?}").chars().take(80).collect(),
     }
 }
@@ -237,7 +243,7 @@ fn stand_with_two_bad_mates(
     (doc, badref)
 }
 
-/// The gate's answer over a document whose bad reference failed its
+/// The gather's answer over a document whose bad reference failed its
 /// placement: the gather refuses the product's `⊔`, poisoned through
 /// that placement, typed, ahead of the at-rest census, and the
 /// placement's own refusal is the mate's.
@@ -246,19 +252,19 @@ fn refuses_the_failed_placement(
     ev: &editor_core::Evaluation<f64>,
     badref: RecipeNodeId,
 ) {
-    let result = assemble(doc, ev, Tol::witness());
+    let result = editor_core::product_recorded(doc, ev, Tol::witness()).map(|_| ());
     match &result {
-        Err(AssemblyError::Product(refusal)) => assert!(
+        Err(refusal) => assert!(
             matches!(
-                **refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                *refusal,
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == badref
             ),
             "the failed placement is the gate's answer: {refusal:?}"
         ),
-        _ => panic!("expected the failed placement, got {}", headline(&result)),
+        Ok(()) => panic!("expected the failed placement, got a product"),
     }
     assert!(
         ev.node_error(badref).is_some(),
@@ -274,7 +280,7 @@ fn p1_badref_first_refuses_its_failed_placement() {
     let mut store = PartStore::default();
     let (doc, badref) = stand_with_two_bad_mates("m6r2-p1", &mut store, true);
     let ev = run(&doc, &with_resolver(store));
-    println!("P1: {}", headline(&assemble(&doc, &ev, Tol::witness())));
+    println!("P1: {}", headline(&crate::fixture::at_rest(&doc, &ev)));
     refuses_the_failed_placement(&doc, &ev, badref);
 }
 
@@ -327,13 +333,15 @@ fn p6_carried_penetration_is_loud() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p6-row", inner_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
-    let result = assemble(&outer, &ev, Tol::witness());
+    let result = crate::fixture::at_rest(&outer, &ev);
     println!("P6: {}", headline(&result));
-    let assembly = result.expect("a carried overlap is a finding, not a refusal");
-    let carried: Vec<_> = assembly
-        .carried_interference
+    let findings = result.expect("a carried overlap is a finding, not a refusal");
+    let carried: Vec<_> = findings
         .iter()
-        .map(|c| &c.finding)
+        .filter_map(|f| match &f.evidence {
+            editor_core::CheckEvidence::CarriedInterference { finding } => Some(&finding.finding),
+            _ => None,
+        })
         .collect();
     assert!(
         !carried.is_empty()
@@ -346,8 +354,7 @@ fn p6_carried_penetration_is_loud() {
 }
 
 /// P7: the outer gate over the ×3-stand seam document, counted by arm.
-/// On the merge base this printed `AtRest findings=24 undeclared=24`;
-/// on the MATE-6 head it must be green.
+/// It prints what the at-rest check could not look at, by arm.
 #[test]
 fn p7_seam_gate_by_arm() {
     let mut store = PartStore::default();
@@ -357,17 +364,16 @@ fn p7_seam_gate_by_arm() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
-    let result = assemble(&outer, &ev, Tol::witness());
-    match &result {
-        Ok(_) => println!("P7: Ok"),
-        Err(AssemblyError::AtRest { findings }) => {
-            let undeclared = findings
+    match crate::fixture::at_rest(&outer, &ev) {
+        Ok(findings) => {
+            let blind = crate::fixture::could_not_look(&findings);
+            let undeclared = blind
                 .iter()
-                .filter(|f| format!("{:?}", f.error).contains("UnrecordedContact"))
+                .filter(|f| format!("{f:?}").contains("UnrecordedContact"))
                 .count();
             println!(
-                "P7: AtRest findings={} undeclared={}",
-                findings.len(),
+                "P7: could-not-look={} undeclared={}",
+                blind.len(),
                 undeclared
             );
         }

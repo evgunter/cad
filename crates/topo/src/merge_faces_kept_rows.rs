@@ -100,7 +100,7 @@ fn a_declared_merge_on_distinct_keys_returns_no_strand() {
     );
 
     let outcome = body
-        .merge_coplanar_faces_declared(&[(ks, ka)], tol)
+        .merge_coplanar_faces_glued(&[(ks, ka)], tol)
         .expect("the declared coplanar pair merges");
 
     assert_one_group(&outcome, kept, absorbed);
@@ -231,7 +231,7 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
             spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             };
             body.set_edge_curve(key, spec, tol).unwrap();
         }
@@ -253,7 +253,7 @@ fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
     let before = crate::fixtures::deep_snapshot(&body);
     let pair = (surface_of(&body, kept), surface_of(&body, absorbed));
     let refusal = body
-        .merge_coplanar_faces_declared(&[pair], tol)
+        .merge_coplanar_faces_glued(&[pair], tol)
         .expect_err("the leaning neighbour's dihedral is in band");
     assert!(
         matches!(

@@ -752,9 +752,8 @@ fn the_fit_seam_answers_with_the_key_it_was_asked_with() {
 /// **The gathering arm gathers behind the seam, and answers the same
 /// δ.**
 ///
-/// [`FitSubject::Ungathered`] is the landing shape with no body to
-/// share — an assembly whose A5 gate consumed the product it judged —
-/// and the point of the arm is that the gather it needs is paid on the
+/// [`FitSubject::Ungathered`] is a pair with no body to share, and the
+/// point of the arm is that the gather it needs is paid on the
 /// worker rather than on the frame. Driven here by handing the seam
 /// the pair directly, because what is under test is the arm, not the
 /// landing that produces it.

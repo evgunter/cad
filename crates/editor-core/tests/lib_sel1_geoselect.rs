@@ -428,6 +428,7 @@ fn a_face_that_is_no_plane_refuses() {
         Node::Profile(editor_core::ProfileProgram {
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, cylinder) = insert(
@@ -788,4 +789,45 @@ fn a_tied_name_meets_geometry_as_a_trilean() {
         .expect("exact atoms are total, ties included")
         .is_empty()
     );
+}
+
+/// **A distance is decided in the body's own frame** (D10
+/// `[placement.frame]`): a selection reads the model, so it composes
+/// nothing into a space. A copy turned about x and stood far out (a
+/// frame `Map`, its translation near 1e8) finds its bottom cap's four
+/// corners ON the cap's plane, exactly, because plane and corners are
+/// read in the copy's own coordinates. Composing both into the world
+/// rounds a corner off the composed plane by about 7.5e-9 (an ulp of
+/// 1e8 is 1.5e-8), inside the band: the world-composed read refuses
+/// `InBand` here.
+#[test]
+fn a_far_turned_copys_corners_sit_on_its_own_plane() {
+    let (doc, cube, floor) = box_doc();
+    let (c, s) = (0.6_f64, 0.8_f64);
+    let far = editor_core::Frame {
+        columns: [[1.0, 0.0, 0.0], [0.0, c, s], [0.0, -s, c]],
+        translation: [1.0e8 + 0.3, -3.0e7 - 0.7, 2.0e7 + 0.1],
+    };
+    let (doc, copy) = fixture::in_world(doc, cube, &far);
+    let ev = eval(&doc);
+    let on = select_where(
+        &ev,
+        copy,
+        &all(EntityKind::Vertex),
+        &at(&floor, Cmp::Approx, 0.0),
+        &no_params(),
+        Tol::witness(),
+    )
+    .expect("decided in the copy's own frame, nothing is in band");
+    assert_eq!(on.len(), 4, "the bottom cap's corners sit ON its plane");
+    let inside = select_where(
+        &ev,
+        copy,
+        &all(EntityKind::Vertex),
+        &at(&floor, Cmp::Approx, -1.0),
+        &no_params(),
+        Tol::witness(),
+    )
+    .expect("and the top cap's are one metre inside");
+    assert_eq!(inside.len(), 4);
 }

@@ -17,7 +17,9 @@
 //!   is the one-face seamed statement of the cap, and meshes; one that
 //!   stops short leaves the pole interior — the state the guard
 //!   refuses, in disguise — and is caught only by the deviation
-//!   certificate.
+//!   certificate. A STEP file stating either never reaches this lane:
+//!   import makes the pole a vertex in the two-meridian pole form
+//!   (`step-import/tests/chart_singularity_vertex.rs`).
 //!
 //! Every outcome here is read where debug assertions run, which is
 //! every profile this workspace builds; the census is a `debug_assert`,
@@ -32,7 +34,9 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
-use topo::{Body, MevSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::MevSite;
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {

@@ -8,7 +8,7 @@ pr: 4650
 opened: 2026-10-05
 priority: P1
 cost: M
-refs: [3790, d10-one-way-to-say-intent-is-unbuilt]
+refs: [3790, 6103]
 closed: 2026-10-11
 ---
 

@@ -150,7 +150,7 @@ impl crate::spoken::Say for InterrogateError {
                 f,
                 "{candidates} entities answer to that name equally well, so there is no single \
                  geometry to report — a tie is recorded, never broken silently. {}",
-                Recourse("refine the reference until one candidate remains")
+                Recourse(crate::sentence::REFINE_THE_TIE)
             ),
             Self::WrongKind { wanted, found } => write!(
                 f,
@@ -171,9 +171,8 @@ impl crate::spoken::Say for InterrogateError {
             ),
             Self::NoBodies { payload } => write!(
                 f,
-                "this node's value is {} {payload} value and carries no bodies at all, \
-                 so there is no geometry to read. {}",
-                crate::sentence::article(payload),
+                "this node's value {}, so there is no geometry to read. {}",
+                crate::sentence::CarriesNoBodies(payload),
                 Recourse("name an entity of a node whose value is a body")
             ),
             Self::NoSuchBody { index } => write!(
@@ -402,7 +401,7 @@ pub(crate) fn entity_point<T: Decide>(
 /// The node's standing, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
 /// through [`key_in`], which asks them in that order, then the output
 /// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
-fn read<T: Decide, K: Denoted, R>(
+fn read<T: Decide, K: Denoted, R: InItsSpace<T>>(
     ev: &Evaluation<T>,
     at: crate::At,
     name: &StableName,
@@ -410,7 +409,51 @@ fn read<T: Decide, K: Denoted, R>(
 ) -> Result<R, InterrogateError> {
     let (var, table) = table_at(ev, at)?;
     let (index, key) = key_in::<K>(table, name).map_err(|refusal| refusal.at(K::KIND))?;
-    Ok(door(ev.read_body(var, index)??, key)?)
+    let body = ev.read_body(var, index)??;
+    let answer = door(body.body(), key)?;
+    Ok(match body.frame().map() {
+        None => answer,
+        Some(map) => answer.moved_by(map),
+    })
+}
+
+/// **A readback's answer in its variable's space**: a position or a pose
+/// moved by the body's frame, a kind as it is. A door answers where the
+/// variable's body stands, whatever frame it computed in.
+pub(crate) trait InItsSpace<T: geom_core::Real> {
+    /// The answer, read in the body's coordinates, moved by `map` into
+    /// its space's.
+    #[must_use]
+    fn moved_by(self, map: &geom_core::RigidMotion<T>) -> Self;
+}
+
+impl<T: geom_core::Real> InItsSpace<T> for geom_core::Point3<T> {
+    fn moved_by(self, map: &geom_core::RigidMotion<T>) -> Self {
+        map.transform_point(self)
+    }
+}
+
+impl<T: geom_core::Real> InItsSpace<T> for Pose<T> {
+    fn moved_by(self, map: &geom_core::RigidMotion<T>) -> Self {
+        Self {
+            origin: map.transform_point(self.origin),
+            axis: map.transform_vec(self.axis),
+            u_ref: self.u_ref.map(|u| map.transform_vec(u)),
+            sense: self.sense,
+        }
+    }
+}
+
+impl<T: geom_core::Real> InItsSpace<T> for SurfaceKind {
+    fn moved_by(self, _: &geom_core::RigidMotion<T>) -> Self {
+        self
+    }
+}
+
+impl<T: geom_core::Real> InItsSpace<T> for CurveKind {
+    fn moved_by(self, _: &geom_core::RigidMotion<T>) -> Self {
+        self
+    }
 }
 
 /// **The table `at` names, and its variable** — the readers' one way
@@ -598,12 +641,11 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
 
 /// The node's output body at `index` — the same body ordering the
 /// naming emission used (single-body ops: 0; a split's halves by
-/// [`SplitHalf::output_body`]; a pattern's instances by instance
-/// index).
+/// [`SplitHalf::output_body`]; a family's members by member index).
 pub(crate) fn output_body<T: Decide>(
     payload: &ValuePayload<T>,
     index: u32,
-) -> Result<&Body<T>, InterrogateError> {
+) -> Result<&crate::eval::Framed<T>, InterrogateError> {
     let missing = || InterrogateError::NoSuchBody { index };
     let none = |payload| Err(InterrogateError::NoBodies { payload });
     match payload {
@@ -635,7 +677,7 @@ pub(crate) fn output_body<T: Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
+        ValuePayload::Instances(v) => v.get(index as usize).ok_or_else(missing),
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a
@@ -645,6 +687,7 @@ pub(crate) fn output_body<T: Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
-        | ValuePayload::Assertion(_) => none(payload.kind_name()),
+        | ValuePayload::Assertion(_)
+        | ValuePayload::Family => none(payload.kind_name()),
     }
 }

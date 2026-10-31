@@ -4,7 +4,6 @@ kind: issue
 title: kernel ask from RECIPE-DOORS D5 - shell/shell_open need a ShellNaming birth channel before Node::Shell can exist
 status: closed
 opened: 2026-08-29
-github: 1202
 refs: [LIB-G17]
 closed: 2026-09-04
 ---

@@ -4,6 +4,8 @@ kind: issue
 title: Nothing holds a gesture vocabulary to the target its own panel row is drawing
 status: open
 opened: 2026-09-21
+priority: P3
+cost: E
 ---
 
 
@@ -61,3 +63,15 @@ Closing this means a headless harness over `ViewerBehavior`'s panel
 methods, sited inside `crates/viewer/src/` where `pub(crate)` reaches —
 a facility, not a row — and `pane/properties.rs` is ground VNEWS also
 works.
+
+## 2026-10-31 — banded P3, priced E
+
+It is a guard that cannot go red, so it is banded P3 as tooling that
+prevents a silent bug. A guard does not take the band of the ground it
+guards. **The blocker recorded above no longer stands.** AUTH-12
+(PR 3573) gave `crates/viewer/src/app.rs` the whole-app harness
+`properties_pane_tests` inside the crate, where `pub(crate)` reaches.
+So the row is now a test: select one of two instances, drag its
+free-move probe through that harness, and assert that every op it
+emits names the selected instance. The `instance.0 + 1` mutation
+above is the check that the test can go red.

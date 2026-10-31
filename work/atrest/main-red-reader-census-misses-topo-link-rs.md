@@ -2,7 +2,8 @@
 id: main-red-reader-census-misses-topo-link-rs
 kind: issue
 title: Main red: reader_census's ledger has no entry for crates/topo/src/link.rs, which PR 5773 added reading its own source
-status: open
+status: closed
+closed: 2026-10-27
 opened: 2026-10-27
 priority: P1
 cost: E
@@ -26,3 +27,7 @@ The same census is also red on a second, unrelated entry, the deleted `crates/to
 ## Done when
 
 `link.rs` has a ledger entry with its disposition (`Shared` if it reads through the shared lexer, code view) and `reader_census` is green on main.
+
+## Closed (2026-10-27, ATREST orchestrator)
+
+`crates/test-utils/tests/reader_census.rs` lists `crates/topo/src/link.rs` as `Shared`: its one-door guard reads `link.rs` and `census.rs`'s touch section through `test_utils::source::{balanced_end, code_only}`. The same PR drops the ledger's dead `a_given_pair_is_made_from_a_kernel_verdict.rs` entry (FLUSH's row). `reader_census::` is 7/7.

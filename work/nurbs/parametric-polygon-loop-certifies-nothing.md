@@ -2,11 +2,10 @@
 id: parametric-polygon-loop-certifies-nothing
 kind: issue
 title: A profile loop with a document parameter in a polygon vertex certifies nothing at any box width
-status: parked
+status: open
 opened: 2026-09-13
 priority: P1
 cost: H
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -96,3 +95,5 @@ blames. The measurements were taken on the old representation, so the
 first step when the hold fires is to re-take them. Its fix site is
 `drive.rs`, FLUX's ground, not the spline layer; re-home it there if
 the re-measurement still reproduces. (NURBS orchestrator)
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Both halves of its ground are built: stage 1 took the parameter table and floats out of the vertex (`LoopProgram::polygon_expr` takes `[Formula; 2]`, `crates/editor-core/src/program.rs:3104`), and stage 4 rebuilt the symbolic tier (`the-door-s-third-rung-is-the-symbolic-tier`, `carriers-compare-in-canonical-form`, both closed). First step, as above: re-take the measurements on the new representation.

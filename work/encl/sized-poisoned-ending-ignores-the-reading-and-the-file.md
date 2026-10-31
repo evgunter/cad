@@ -45,6 +45,6 @@ Make the unreadable arm of the sized ending reading-aware, so it names the file 
 **Moved texts:** every poisoned note. The poison→note rule has one home, so `too-close-to-call-remainder`'s (c) is dropped.
 
 **Follow-ups:**
-- `work/exch/import-door-pcurve-escalation-ends-in-the-build-note.md`.
+- `work/importgate/import-door-pcurve-escalation-ends-in-the-build-note.md`.
 - The import door's poisoned undecided-join text has no pin; this is noted on that EXCH row.
 - `"{JOIN_SUBJECT} is undecided ({payload}). {ending}"` is spelled at three readers on purpose: each reader composes its own text, per fork-log row 9.

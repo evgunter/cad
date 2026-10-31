@@ -34,13 +34,13 @@ pub fn assert_certificates_fresh(
         let start = p(body.get_half_edge(e.he_plus).unwrap().start);
         let end = p(body.half_edge_end(e.he_plus).unwrap());
         let fresh = c
-            .recertify_via(
+            .recertify(
                 start,
                 end,
                 |k| body.get_surface(k).cloned(),
                 1.0,
                 band,
-                Some(geom_brep::NurbsLane::certified()),
+                geom_brep::NurbsLane::certified(),
             )
             .unwrap_or_else(|e| panic!("{label}: edge {dk:?} re-certifies, got {e:?}"));
         assert_eq!(

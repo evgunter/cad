@@ -14,10 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::prism_z;
 use geom_core::{Point3, Tol};
-use topo::{Body, MefSite, MevSite, validate_closed, validate_geometric};
+use topo::construction::{MefSite, MevSite};
+use topo::{Body, validate_closed, validate_geometric};
 
 /// A prism whose top face is split by a chord from (0,0) to (2,2)
 /// through an interior vertex at `mid` (the PR's own split_top shape,

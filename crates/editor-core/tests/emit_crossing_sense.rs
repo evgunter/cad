@@ -36,7 +36,7 @@ fn sense_against(
         panic!("{edge:?} names an edge");
     };
     let body = body_of(ev, node);
-    let [p, q] = ends(body, e).map(|w| point(body, w));
+    let [p, q] = ends(&body, e).map(|w| point(&body, w));
     let (dx, dy) = (q.x - p.x, q.y - p.y);
     let k = 0.01 / (dx * dx + dy * dy).sqrt();
     let inside = |s: f64| {
@@ -75,7 +75,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
         let EntityKey::Vertex(v) = r.key else {
             panic!("a crossing names a vertex: {name:?}");
         };
-        let p = point(body, v);
+        let p = point(&body, v);
         let at = [p.x, p.y];
         // Each side names a member's edge in the union's space,
         // `From` the member's read: read against the OTHER block.
@@ -113,7 +113,7 @@ fn names_at(
         .iter()
         .filter(|(_, e)| {
             matches!(e, Entry::Unique(r) if matches!(r.key, EntityKey::Vertex(v) if {
-                let p = point(body, v);
+                let p = point(&body, v);
                 (p.x - at[0]).abs() < 1e-9 && (p.y - at[1]).abs() < 1e-9 && (p.z - at[2]).abs() < 1e-9
             }))
         })
@@ -160,10 +160,10 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
         };
         match name.path.as_slice() {
             [RoleSeg::Crossing { sense, .. }] if !sense.crosses() => {
-                touches.push((name.clone(), sense.clone(), point(body, v)));
+                touches.push((name.clone(), sense.clone(), point(&body, v)));
             }
             [RoleSeg::EdgeCrossing(run)] => {
-                crossings.push((run.clone(), point(body, v)));
+                crossings.push((run.clone(), point(&body, v)));
             }
             _ => {}
         }
@@ -394,8 +394,8 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
             panic!("{of:?} names an edge");
         };
         let xb = body_of(&ev, x);
-        let [v0, v1] = ends(xb, k);
-        let dir = point(xb, v1) - point(xb, v0);
+        let [v0, v1] = ends(&xb, k);
+        let dir = point(&xb, v1) - point(&xb, v0);
         let dir = dir / dir.norm();
         let dir = [dir.x, dir.y, dir.z];
         let side = |t: f64| inside([0, 1, 2].map(|i| t.mul_add(dir[i], meet[i])));

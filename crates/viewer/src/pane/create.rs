@@ -4,7 +4,9 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, VarKind};
+use pncad::document::{
+    Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, TracePassage, TraceSense, VarKind,
+};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -13,7 +15,7 @@ use crate::blend::{BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternKindChoice, ShapeKind,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
@@ -32,9 +34,9 @@ use crate::widgets::{
 
 /// **The smallest instance index the part form offers.**
 ///
-/// A pattern's instances are indexed from zero, and an index below it
-/// refuses at evaluation (`InstanceOutOfRange`, typed, on the node's
-/// own badge), so the form declines to author one — the same rule
+/// A family's members are indexed from zero, and an index below it
+/// refuses at evaluation (`MemberOutOfRange`, typed, on the node's own
+/// badge), so the form declines to author one — the same rule
 /// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
 /// bound: how many instances the pattern has is a fact about its
 /// VALUE, not about the document, so a cap here would be a limit read
@@ -286,6 +288,27 @@ pub(crate) const ADD_PROFILE: &str = "Add profile";
 /// What the add-profile form asks for while it draws on a face and
 /// holds none.
 pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
+
+/// The traced path's latch for the plane face the sketch is drawn in:
+/// square to the traced face's axis.
+pub(crate) const TRACE_PLANE: &str = "sketch plane on";
+
+/// The traced path's latch for the face it traces.
+pub(crate) const TRACE_FACE: &str = "trace";
+
+/// What the add-profile form says while no frame reads off the traced
+/// path's picks.
+pub(crate) const NO_TRACED_FRAME: &str =
+    "pick a traced face with an axis and a plane face square to it";
+
+/// The highest crossing the traced path's row offers: a line meets a
+/// quadric's trace twice and a torus's four times, so a count past this
+/// names a crossing no piece makes.
+const MAX_TRACE_CROSSING: u32 = 4;
+
+/// What a traced path's latch button says: it takes the viewport's face
+/// pick.
+pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a form's proposed label counts by.
@@ -769,7 +792,7 @@ impl ViewerBehavior<'_> {
                     ui,
                     "path",
                     self.session.tol(),
-                    (self.notation.length.def(), self.notation.angle.def()),
+                    &mut crate::widgets::WrittenIn::of(*self.notation),
                     &mut self.drafts.profile_path,
                 ) {
                     row.apply(&mut self.drafts.profile_path);
@@ -780,6 +803,15 @@ impl ViewerBehavior<'_> {
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
                     withholds.push(Withheld::Waiting("add a step to the chain"));
+                }
+                if !self.drafts.sketch_on_face {
+                    ui.checkbox(
+                        &mut self.drafts.trace_on,
+                        "continue tangent to a face's trace",
+                    );
+                }
+                if self.drafts.traces() {
+                    withholds.extend(self.trace_rows(ui));
                 }
             }
         }
@@ -799,7 +831,11 @@ impl ViewerBehavior<'_> {
         // said. `blocked` already carries that sentence, and it is
         // what disables the commit; this only keeps a second one from
         // contradicting it.
-        let at_rest = shape.is_none() || self.drafts.profile_path.is_empty() && blocked.is_some();
+        // A traced chain is drawn by the evaluation, which the preview
+        // does not run: the trace rows say what it shows instead.
+        let at_rest = shape.is_none()
+            || self.drafts.profile_path.is_empty() && blocked.is_some()
+            || self.drafts.traces();
         let refused = preview_verdict(
             ui,
             self.theme,
@@ -833,6 +869,109 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
+    /// two latches — the face whose body's plane the sketch is drawn on,
+    /// and the face it traces — each taking the viewport's face pick on
+    /// its button; the trace the two show, or the trace's own refusal;
+    /// and the gesture's row and branches. Answers what the commit still
+    /// waits for.
+    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
+        let picked = match self.session.selection() {
+            Selection::Face(face) => Some(face.clone()),
+            _ => None,
+        };
+        let speaker = self
+            .session
+            .landed_pair()
+            .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed));
+        let mut withholds = Vec::new();
+        for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                let held = if plane {
+                    &mut self.drafts.trace_plane
+                } else {
+                    &mut self.drafts.trace_face
+                };
+                match held.as_ref() {
+                    Some(face) => ui.weak(Said(&BlendTarget::of_face(face), speaker).to_string()),
+                    None => ui.weak("none picked"),
+                };
+                if ui
+                    .add_enabled(picked.is_some(), egui::Button::new(USE_THE_PICKED_FACE))
+                    .clicked()
+                {
+                    held.clone_from(&picked);
+                }
+            });
+        }
+        if self.drafts.trace_plane.is_none() {
+            withholds.push(Withheld::Waiting(
+                "pick the face whose plane the sketch is on",
+            ));
+        }
+        if self.drafts.trace_face.is_none() {
+            withholds.push(Withheld::Waiting("pick the face to trace"));
+        }
+        match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
+            Some(Ok(marks)) => {
+                crate::widgets::message(
+                    ui,
+                    format!(
+                        "the trace: {} points drawn, {} rays refused",
+                        marks.marks.len(),
+                        marks.refused
+                    ),
+                );
+            }
+            Some(Err(fault)) => {
+                crate::widgets::message_toned(
+                    ui,
+                    format!("the trace: {fault}"),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+                // A frame that does not read is refused before Add: the
+                // insert would refuse it in the same words.
+                if matches!(fault, crate::session::SketchTraceFault::Frame(_)) {
+                    withholds.push(Withheld::Refused(NO_TRACED_FRAME));
+                }
+            }
+            None => {}
+        }
+        let rows = self.drafts.profile_path.len().max(1);
+        let gesture = &mut self.drafts.trace_gesture;
+        ui.horizontal(|ui| {
+            ui.label("after row");
+            let mut row = gesture.after + 1;
+            ui.add(number_field(&mut row, COUNT_DRAG_SPEED).range(1..=rows));
+            gesture.after = row.saturating_sub(1);
+        });
+        ui.horizontal(|ui| {
+            ui.label("to crossing");
+            ui.add(
+                number_field(&mut gesture.crossing.nth, COUNT_DRAG_SPEED)
+                    .range(1..=MAX_TRACE_CROSSING),
+            );
+            for passage in [TracePassage::Leave, TracePassage::Enter] {
+                ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("then along the trace");
+            for (sense, word) in [(TraceSense::With, "with"), (TraceSense::Against, "against")] {
+                ui.radio_value(&mut gesture.sense, sense, word);
+            }
+        });
+        crate::widgets::message(
+            ui,
+            "the piece after that row runs to the crossing, counted along it from the pen, and \
+             the chain heads along the trace there: both are read off the traced face at every \
+             evaluation, and a crossing the piece does not make refuses on the profile",
+        );
+        withholds
     }
 
     /// **The on-face rows**: the held face pick, the depth the sketch is
@@ -1192,9 +1331,8 @@ impl ViewerBehavior<'_> {
     /// choice, and the one committed edit.
     ///
     /// The output row is what fuses a pattern into the part: `fused`
-    /// commits `Node::PlacedUnion`, whose ONE body every downstream
-    /// seat consumes, where `instances` commits the several bodies a
-    /// boolean seat refuses.
+    /// commits the family with a `Union` over it, ONE body, where
+    /// `instances` commits the family of several bodies.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
             if ui.button(ToolKind::Pattern.button()).clicked() {
@@ -1212,7 +1350,7 @@ impl ViewerBehavior<'_> {
         }
         ui.horizontal(|ui| {
             ui.label("rule");
-            for (kind, label) in PatternKindChoice::ALL {
+            for (kind, label) in PatternLayoutChoice::ALL {
                 ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
             }
         });
@@ -1233,7 +1371,7 @@ impl ViewerBehavior<'_> {
             );
         });
         match self.drafts.pattern_kind {
-            PatternKindChoice::Linear => {
+            PatternLayoutChoice::Linear => {
                 vec3_row(
                     ui,
                     "direction",
@@ -1251,7 +1389,7 @@ impl ViewerBehavior<'_> {
                     length_picker(ui, "pattern_spacing", &mut self.notation.length);
                 });
             }
-            PatternKindChoice::Circular => {
+            PatternLayoutChoice::Circular => {
                 ui.horizontal(|ui| {
                     unit_vec3_row(
                         ui,
@@ -1282,13 +1420,13 @@ impl ViewerBehavior<'_> {
         }
         self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
             match drafts.pattern_kind {
-                PatternKindChoice::Linear => Ok(tool.linear_op(
+                PatternLayoutChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
                     scalars(drafts.pattern_direction)?,
                     notation.length_literal(drafts.pattern_spacing)?,
                 )?),
-                PatternKindChoice::Circular => Ok(tool.circular_op(
+                PatternLayoutChoice::Circular => Ok(tool.circular_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
                     notation.length_literals(drafts.pattern_through)?,
@@ -1543,8 +1681,8 @@ impl ViewerBehavior<'_> {
             },
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
-                PatternOutputChoice::Instances => "Pattern",
-                PatternOutputChoice::Fused => "PlacedUnion",
+                PatternOutputChoice::Instances => "Place",
+                PatternOutputChoice::Fused => "Union",
             },
             ToolKind::Blend => match self.drafts.blend_kind {
                 BlendKindChoice::Fillet => "Fillet",
@@ -2361,7 +2499,18 @@ mod tools_respeak {
             .into_iter()
             .map(SessionOp::Select)
             .collect();
-        let declined = tools.feed(session.doc(), &picks);
+        let index = {
+            let (doc, eval) = session.landed_pair().expect("the block landed");
+            let generation = session.landed_generation().expect("a landed generation");
+            crate::pickindex::PickIndex::build(
+                doc,
+                eval,
+                crate::pickindex::PictureKey::of(generation, crate::test_support::plate_delta()),
+                session.tol(),
+            )
+            .expect("the block indexes")
+        };
+        let declined = tools.feed(session.doc(), Ok(&index), &picks);
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);

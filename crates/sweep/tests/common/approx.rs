@@ -45,6 +45,7 @@
 use profile::SketchPlane;
 use std::collections::HashMap;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
@@ -52,7 +53,8 @@ use geom_brep::keys::SurfaceKey;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Lofted;
-use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, CurveGeom, EdgeKey, FaceKey};
 
 /// The offset fit door's degree — the spline space every wall carrier
 /// is elevated into (`geom_brep::offset_fit::OFFSET_FIT_DEGREE`).
@@ -590,6 +592,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
         |k| body.get_surface(k).cloned(),
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
     .is_ok()
 }

@@ -47,3 +47,15 @@ reaches a torus face meets one of these two doors.
 A clearance certificate for an oblique torus × plane and torus × wall
 pair in the extent scan (the clear poses), and the general plane ×
 torus and cylinder × torus sections for the join (the crossing ones).
+
+## The clear pose builds (SECT, 2026-10-29)
+
+`sect/components-by-foot` (`work/sect/a-general-torus-pose-lists-no-components.md`)
+lets the section certificate read a general cylinder × torus pose from
+its march. The first row's pose (the tube 1e-4 down to 100ε clear of the
+rim) now builds every op: ∪ the assembly, ∩ empty, each difference its
+first operand, held to tier 3 and to the closed-form volumes `π/8` and
+`2π²Rr²` (`ellipse_torus::a_torus_just_clear_of_the_rim_is_decided_by_its_roots`).
+The two crossing poses stop at the plane × torus germ's spiric
+(`GermSectionSpiric`), the oblique plane pair's door, which is what this
+row has left.

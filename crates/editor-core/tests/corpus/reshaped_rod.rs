@@ -125,6 +125,7 @@ pub fn document() -> CorpusDoc {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![rod_loop(false)],
         ids: Vec::new(),
+        on: None,
     }));
     let rod = r.insert(Node::Extrude {
         profile: profile.into(),

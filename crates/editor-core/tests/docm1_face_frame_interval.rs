@@ -48,7 +48,7 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
         corpus::failures(&ev)
     );
     let body = corpus::body_of(&ev, boss);
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate_closed(&body), Ok(()));
     let bottom = body
         .points()
         .map(|(_, p)| p.z.lo())

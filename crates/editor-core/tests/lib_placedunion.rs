@@ -1,31 +1,20 @@
-//! LIB-PLACEDUNION — the ratified A′ group boolean, pinned.
+//! LIB-PLACEDUNION — the group boolean as an index and a union
+//! (`placed-union-places-and-fuses-in-one-node`, D10 `[repetition]`).
 //!
-//! `crates/editor-core/README.md`'s acceptance list, row for row: the
-//! die tour's tool collapses to one node; a cavity face's name is one
-//! `Instance(i)` segment instead of a twenty-deep `FromA`/`FromB`
-//! stack; the heat sink's fin union moves INTO the document with its
-//! memoized recompute intact; and the disjointness gate refuses BOTH
-//! an overlapping arrangement and a box-touching-but-genuinely-disjoint
-//! one, each with its typed posture.
-//!
-//! The two register payoffs live in the corpus (`heat_sink_fins`,
-//! `die_tool`), so they carry every standard row by membership — every
-//! ε, the Interval lane, persistence round-trip, latency. What is here
-//! is what the corpus rows do not say: the twin equalities against the
-//! chains these documents replace, and the refusals.
+//! The heat sink's fin group is one placement over an index and one
+//! union reading its family whole; the die tour's tool is six
+//! placements and one union over them. What is here is what the corpus
+//! rows do not say: the twin equality against the chain the family
+//! replaces, the memoized recompute, and that copies whose
+//! arrangement the certificate cannot separate fuse rather than refuse.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::AuthoredNode;
 
-use editor_core::{
-    CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
-    PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
-    apply,
-};
-use fixture::{ang, len, scl};
+use editor_core::{DocEdit, Node, ProfileDoc, RecipeNodeId, TargetAxis, ValuePayload, apply};
+use fixture::len;
 
 use corpus::{body_of, documents, eval, failures};
 use geom_core::Tol;
@@ -60,50 +49,72 @@ fn doc_named(name: &str) -> corpus::CorpusDoc {
         .unwrap_or_else(|| panic!("corpus document {name}"))
 }
 
+/// `doc`'s union and placement nodes, counted.
+fn unions_and_places(doc: &ProfileDoc) -> (usize, usize) {
+    let mut out = (0, 0);
+    for id in doc.ids() {
+        match doc.node(id) {
+            Some(Node::Union { .. }) => out.0 += 1,
+            Some(Node::Place { .. }) => out.1 += 1,
+            _ => {}
+        }
+    }
+    out
+}
+
+/// The union of `members`, inserted.
+fn union_of(
+    doc: ProfileDoc,
+    members: editor_core::Bodies<editor_core::BodyRead<editor_core::Formula>>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Union { members }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("insert union");
+    let id = applied.record.minted.expect("minted");
+    (applied.doc, id)
+}
+
 // ---------------------------------------------------------------------
-// Payoff 1 — the heat sink's fin union, in the document
+// The heat sink's fin union, in the document
 // ---------------------------------------------------------------------
 
-/// **One node, one body.** The grouped document says with ONE
-/// `PlacedUnion` what `heat_sink` says with a `Pattern` plus five
-/// placements + five `Boolean` nodes — and the group's value is an
-/// ordinary `Body`, which is precisely what a boolean operand refuses a
-/// `Pattern`'s `Instances` for (the F4 note).
+/// **One placement, one union, one body.** The grouped document says
+/// with one placement over `k = index(fins)` and one union reading its
+/// family what `heat_sink` says the same way beside its base — and the
+/// union's value is an ordinary `Body`. Five disjoint fins are five
+/// solids. Red if the fins need a placement each, or the union of a
+/// family is not a body.
 #[test]
-fn the_fin_group_is_one_node_and_one_body() {
+fn the_fin_group_is_one_placement_and_one_union() {
     let d = doc_named("heat_sink_fins");
-    let groups = d
-        .doc
-        .ids()
-        .iter()
-        .filter(|&&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
-        .count();
-    assert_eq!(groups, 1, "the whole fin group is one node");
+    // The fins' placement and the world placement of their union.
+    assert_eq!(
+        unions_and_places(&d.doc),
+        (1, 2),
+        "one union over one family"
+    );
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let root = d.result.expect("the group is the document's result");
-    let payload = &ev.value(root).expect("the group evaluated").payload;
-    assert!(
-        matches!(payload, ValuePayload::Body(_)),
-        "a group is body-denoting, not Instances: {}",
-        payload.kind_name()
-    );
     let body = body_of(&ev, root);
-    // Five disjoint fins are five pieces, so five solids — what the
-    // pairwise-union chain this replaces also produces, and a boolean
-    // operand like any other body.
     assert_eq!(body.solids().count(), 5, "one solid per fin");
-    assert_eq!(body.shells().count(), 5, "five shells, one per placement");
+    assert_eq!(body.shells().count(), 5, "five shells, one per member");
     assert!(
-        topo::validate_geometric(body, Tol::witness()).is_ok(),
+        topo::validate_geometric(&body, Tol::witness()).is_ok(),
         "the group validates"
     );
 }
 
-/// **The twin equality.** The group and the placement + Boolean chain
-/// it replaces are the same solid, bit for bit on both mass oracles —
-/// the design's "same oracles, byte-level" promise, asserted with `==`
-/// against a chain built here from the SAME prototype.
+/// **The twin equality.** The union of the family and the placement +
+/// union chain it replaces are the same solid, bit for bit on both mass
+/// oracles, against a chain built here from the same prototype. Red if
+/// the family's members are not the chain's copies.
 #[test]
 fn the_fin_group_equals_the_placement_union_chain() {
     const PITCH: f64 = 0.3125;
@@ -125,74 +136,47 @@ fn the_fin_group_equals_the_placement_union_chain() {
         acc = Some(match acc {
             None => placed,
             Some(a) => {
-                let u = apply(
-                    &chain,
-                    &DocEdit::InsertNode {
-                        node: Box::new(Node::Union {
-                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
-                        }),
-                        fresh: Vec::new(),
-                    },
-                    Tol::witness(),
-                )
-                .expect("insert union");
-                let id = u.record.minted.expect("minted");
-                chain = u.doc;
+                let (doc, id) = union_of(
+                    chain,
+                    editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
+                );
+                chain = doc;
                 id
             }
         });
     }
 
-    // The group: one node, same prototype, same rule.
-    let grouped = apply(
-        &base_doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::placed_union(
-                    fin,
-                    Formula::count(5),
-                    PatternKind::Linear {
-                        direction: [scl(1.0), scl(0.0), scl(0.0)],
-                        spacing: len(PITCH),
-                    },
-                )
-                .expect("a stepped rule takes a count"),
-            ),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect("insert group");
-    let group = grouped.record.minted.expect("minted");
+    // The family: one placement over an index, one union reading it.
+    let (doc, _, row) = fixture::row(base_doc, fin, ("k", 5), TargetAxis::X, PITCH);
+    let (grouped, group) = union_of(doc, editor_core::Bodies::Family(row.into()));
 
     let ev_chain = eval::<f64>(&chain);
-    let ev_group = eval::<f64>(&grouped.doc);
+    let ev_group = eval::<f64>(&grouped);
     assert!(failures(&ev_chain).is_empty(), "{:?}", failures(&ev_chain));
     assert!(failures(&ev_group).is_empty(), "{:?}", failures(&ev_group));
+    assert!(matches!(
+        ev_group.value(group).map(|v| &v.payload),
+        Some(ValuePayload::Boolean(_))
+    ));
     let a = topo::test_support::finished(
         "a",
-        topo::Body::clone(body_of(&ev_chain, acc.expect("the chain's root"))),
+        topo::Body::clone(&(body_of(&ev_chain, acc.expect("the chain's root")))),
         Tol::witness(),
     );
     let b = topo::test_support::finished(
         "b",
-        topo::Body::clone(body_of(&ev_group, group)),
+        topo::Body::clone(&(body_of(&ev_group, group))),
         Tol::witness(),
     );
-    let (ma, mb) = (
+    let mass = |body| {
         topo::mass_properties(
-            &a,
+            body,
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("chain mass"),
-        topo::mass_properties(
-            &b,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .expect("group mass"),
-    );
+        .expect("mass")
+    };
+    let (ma, mb) = (mass(&a), mass(&b));
     assert_eq!(
         ma.enclosure.volume, mb.enclosure.volume,
         "same volume, bit for bit"
@@ -212,7 +196,7 @@ fn the_fin_group_equals_the_placement_union_chain() {
 /// **The memoized recompute survives the collapse.** A parameter edit
 /// upstream of the group recomputes the group and nothing else; an
 /// edit that touches nothing the group depends on reuses it. The
-/// group's content key covers the rule, so neither answer is luck.
+/// family's content key covers its values, so neither answer is luck.
 #[test]
 fn the_group_recomputes_exactly_when_its_inputs_move() {
     let d = doc_named("heat_sink_fins");
@@ -248,79 +232,58 @@ fn the_group_recomputes_exactly_when_its_inputs_move() {
 }
 
 // ---------------------------------------------------------------------
-// Payoff 2 — the die tour's tool, in one node
+// The die tour's tool
 // ---------------------------------------------------------------------
 
-/// **The tool collapses.** `die_tool` carries ONE group node and NOT
-/// ONE union node, where the tour's recipe spends N−1 unions and N
-/// placements on the same shape — and the collapsed tool is still a
-/// legal boolean operand: the document subtracts it from the cube.
+/// **The tool is six placements and one union, and still cuts.** Each
+/// pip says where it is (D10 `[repetition]`: an irregular family is its
+/// members written out), and the union of the six is a legal boolean
+/// operand: the document subtracts it from the cube. Red if the tool
+/// needs a union per pip.
 #[test]
-fn the_die_tool_is_one_node_and_still_cuts() {
+fn the_die_tool_is_one_union_and_still_cuts() {
     let d = doc_named("die_tool");
-    let mut groups = 0;
-    let mut unions = 0;
-    for id in d.doc.ids() {
-        match d.doc.node(id) {
-            Some(Node::PlacedUnion { .. }) => groups += 1,
-            Some(Node::Union { .. }) => unions += 1,
-            _ => {}
-        }
-    }
-    assert_eq!((groups, unions), (1, 0));
+    let (unions, places) = unions_and_places(&d.doc);
+    assert_eq!(unions, 1, "one union over the six pips");
+    assert!(places >= 6, "a placement per pip: {places}");
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let pipped = body_of(&ev, d.result.expect("the pipped die"));
-    assert!(topo::validate_geometric(pipped, Tol::witness()).is_ok());
-    // Six cavities: each contributes its own faces to the one solid.
+    assert!(topo::validate_geometric(&pipped, Tol::witness()).is_ok());
     assert_eq!(pipped.solids().count(), 1);
-}
-
-/// **A cavity face's name is one segment deep.** The tour's pairwise
-/// tool buries the FIRST ball's faces under one `FromA`/`FromB`
-/// segment per union; the group gives every instance the SAME
-/// one-segment `Instance(i)` qualifier, whatever the placement count,
-/// and a name row addresses "instance i's face" directly.
-#[test]
-fn every_instance_is_one_instance_segment_deep() {
-    let d = doc_named("die_tool");
-    let ev = eval::<f64>(&d.doc);
-    let tool = d
-        .doc
-        .ids()
-        .iter()
-        .copied()
-        .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
-        .expect("the group node");
-    let table = ev.table_at(tool).expect("the group evaluated");
-    let mut per_instance = [0usize; 6];
-    for (name, _) in table.iter() {
-        match name.path.as_slice() {
-            // The group's OWN output body, minted like every other
-            // body-producing op's.
-            [RoleSeg::OutputBody] => {}
-            [RoleSeg::Instance { i, of }] => {
-                per_instance[*i as usize] += 1;
-                assert!(
-                    of.path.len() <= 2,
-                    "the wrapped ball-local name stays shallow: {of:?}"
-                );
-            }
-            other => panic!("a group name is one Instance segment: {other:?}"),
-        }
-    }
+    // Every pip cuts its cap: the die is the cube less six caps of
+    // height `PIP_H` off balls of radius `PIP_R`.
+    let (l, r, h) = (
+        corpus::die_pips::DIE_L,
+        corpus::die_pips::PIP_R,
+        corpus::die_pips::PIP_H,
+    );
+    let cap = std::f64::consts::PI * h * h * (3.0 * r - h) / 3.0;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("pipped", topo::Body::clone(&pipped), Tol::witness()),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass")
+    .enclosure
+    .volume;
+    let want = l * l * l - 6.0 * cap;
     assert!(
-        per_instance.iter().all(|&n| n > 0 && n == per_instance[0]),
-        "every instance carries the same rows: {per_instance:?}"
+        (volume - want).abs() < 1e-3 * cap,
+        "six caps cut: {volume} against {want}"
     );
 }
 
 // ---------------------------------------------------------------------
-// The disjointness gate — both postures
+// An arrangement the certificate cannot separate
 // ---------------------------------------------------------------------
 
-/// Builds a one-node document: a unit box, grouped at `frames`.
-fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
+/// **Overlapping copies fuse.** Two unit boxes half a unit apart are a
+/// pair the separation certificate cannot hold apart, so the union
+/// judges them and fuses them: one solid of volume 1.5. Red if an
+/// uncertified pair refuses, as the group boolean's certificate did.
+#[test]
+fn overlapping_copies_fuse_rather_than_refuse() {
     let mut r = corpus::Recorder::new();
     let p = r.profile(
         [0.0, 0.0, 0.0],
@@ -328,703 +291,23 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let solid = r.insert(Node::Extrude {
+    let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
     });
-    let group = r.insert(Node::placed_union_at(solid, frames));
-    (r.doc, group)
-}
-
-/// The `(i, j)` a group's disjointness refusal named.
-fn uncertified_pair(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> (usize, usize) {
-    match eval::<f64>(doc).nodes.get(&id) {
-        Some(NodeResult::Failed(e)) => match e.kind {
-            NodeErrorKind::PlacementsUncertified { i, j } => (i, j),
-            ref other => panic!("expected an uncertified-placements refusal, got {other:?}"),
-        },
-        other => panic!("the group must refuse, got {other:?}"),
-    }
-}
-
-/// **Overlap refuses, typed, naming the pair.** Two placements of one
-/// unit box a quarter apart interpenetrate; nothing is built, and the
-/// refusal names `(0, 1)`.
-#[test]
-fn overlapping_placements_refuse_typed() {
-    let (doc, group) = boxes_at(vec![Frame::IDENTITY, Frame::translation([0.25, 0.0, 0.0])]);
-    assert_eq!(uncertified_pair(&doc, group), (0, 1));
-}
-
-/// **Box-touching-but-genuinely-disjoint refuses too — and that is the
-/// posture, not a bug.** The second box is rotated 45° about `z` and
-/// pushed along `x` far enough that the two solids do not meet, but
-/// its axis-aligned box still overlaps the first's. The certificate is
-/// sufficient-not-necessary, so the honest answer is the SAME typed
-/// refusal, refinable by a sharper predicate later — never a silent
-/// maybe on a door that asserts nothing about its operands.
-#[test]
-fn touching_boxes_over_disjoint_solids_refuse_the_same_way() {
-    use std::f64::consts::FRAC_PI_4;
-    // The unit square turned 45° about the origin becomes the diamond
-    // with corners (0,0), (√2/2, √2/2), (0, √2), (−√2/2, √2/2); shifted
-    // to (1.6, 0.5) its leftmost corner is (0.893, 1.207) and its
-    // lower-left edge is the line y = 2.1 − x, which sits at y = 1.1
-    // where it reaches x = 1. The first box tops out at y = 1, so the
-    // two solids are clear of each other by 0.1 — while their
-    // axis-aligned boxes overlap over x ∈ [0.893, 1], y ∈ [0.5, 1].
-    let rotated =
-        Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [1.6, 0.5, 0.0], fixture::band())
-            .expect("a literal axis has a definite direction");
-    let (doc, group) = boxes_at(vec![Frame::IDENTITY, rotated]);
-    assert_eq!(
-        uncertified_pair(&doc, group),
-        (0, 1),
-        "a box overlap refuses even when the solids are clear"
-    );
-    // Pushed further out, the same arrangement certifies — so the
-    // refusal above is the BOX test speaking, not a broken predicate.
-    let clear =
-        Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [3.0, 0.5, 0.0], fixture::band())
-            .expect("a literal axis has a definite direction");
-    let (doc, group) = boxes_at(vec![Frame::IDENTITY, clear]);
+    let (doc, _, row) = fixture::row(r.doc, cube, ("k", 2), TargetAxis::X, 0.5);
+    let (doc, fused) = union_of(doc, editor_core::Bodies::Family(row.into()));
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    assert_eq!(body_of(&ev, group).shells().count(), 2);
-}
-
-// ---------------------------------------------------------------------
-// The rule vocabulary
-// ---------------------------------------------------------------------
-
-/// **The circular rule places around an axis read off the prototype**
-/// — the rule
-/// vocabulary is `PatternKind`'s, reused whole, and the stepped map is
-/// literally the pattern node's (`stepped_map`).
-#[test]
-fn a_circular_group_places_around_an_axis() {
-    let mut r = corpus::Recorder::new();
-    let p = r.profile(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(4.0, -0.5), (5.0, -0.5), (5.0, 0.5), (4.0, 0.5)]],
-    );
-    let solid = r.insert(Node::Extrude {
-        profile: p.into(),
-        distance: len(1.0),
-    });
-    let axis = fixture::axis_on(&r.doc, solid, [0.0; 3], [0.0, 0.0, 1.0]);
-    let group = r.insert(
-        Node::placed_union(
-            solid,
-            Formula::count(4),
-            PatternKind::Circular {
-                axis,
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
-        )
-        .expect("a stepped rule takes a count"),
-    );
-    let ev = eval::<f64>(&r.doc);
-    assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, group);
-    assert_eq!(body.shells().count(), 4);
-    assert!(topo::validate_geometric(body, Tol::witness()).is_ok());
-}
-
-/// **"How many placements" has exactly one spelling.** The edit door
-/// refuses both two-answer states: an explicit rule paired with a
-/// count slot, and an explicit rule on `Pattern` at all (whose count
-/// is a non-optional field).
-#[test]
-fn the_edit_door_refuses_a_two_spelling_count() {
-    let (doc, fin) = fin_only();
-    let with_count = Node::PlacedUnion {
-        input: fin.into(),
-        count: Some(Formula::count(2)),
-        kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
-    };
-    assert!(matches!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(with_count),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        ),
-        Err(EditError::PlacementRuleMismatch { .. })
-    ));
-    let pattern_explicit = Node::Pattern {
-        input: fin.into(),
-        count: Formula::count(2),
-        kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
-    };
-    assert!(matches!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(pattern_explicit),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        ),
-        Err(EditError::PlacementRuleMismatch { .. })
-    ));
-    // …and the constructor cannot build the first state at all.
-    assert!(
-        <editor_core::AuthoredNode>::placed_union(
-            fin,
-            Formula::count(2),
-            PatternKind::Explicit(vec![Frame::IDENTITY]),
-        )
-        .is_none()
-    );
-}
-
-/// **Each placement-rule refusal's recourse gets through.** A rule's
-/// shape is written only by the insert that authors its node, so the
-/// recourse is that insert's: each refused shape below is refused with
-/// its own recourse, and the node it names, changed exactly as that
-/// recourse says, applies.
-#[test]
-fn a_placement_rule_refusals_recourse_gets_through() {
-    let (doc, fin) = fin_only();
-    let insert = |node: AuthoredNode| {
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-    };
-    let linear = || PatternKind::Linear {
-        direction: [scl(1.0), scl(0.0), scl(0.0)],
-        spacing: len(2.0),
-    };
-    let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
-    let rows = [
-        (
-            "a placed union's list, with a count",
-            Node::PlacedUnion {
-                input: fin.into(),
-                count: Some(Formula::count(1)),
-                kind: listed(),
-            },
-            Some(CountMismatch::ListedWithCount),
-            "insert it without a count, since the list is the count",
-            vec![Node::PlacedUnion {
-                input: fin.into(),
-                count: None,
-                kind: listed(),
-            }],
-        ),
-        (
-            "a placed union's stepped rule, without a count",
-            Node::PlacedUnion {
-                input: fin.into(),
-                count: None,
-                kind: linear(),
-            },
-            Some(CountMismatch::SteppedWithoutCount),
-            "insert it with a count",
-            vec![Node::PlacedUnion {
-                input: fin.into(),
-                count: Some(Formula::count(2)),
-                kind: linear(),
-            }],
-        ),
-        (
-            "a pattern given a list",
-            Node::Pattern {
-                input: fin.into(),
-                count: Formula::count(1),
-                kind: listed(),
-            },
-            Some(CountMismatch::ListedOnPattern),
-            "keep a pattern of separate copies by giving it a stepped rule, or insert a placed union to list the placements, fusing the copies into one body",
-            // Both routes: the pattern kept, and the union that fuses.
-            vec![
-                Node::Pattern {
-                    input: fin.into(),
-                    count: Formula::count(1),
-                    kind: linear(),
-                },
-                Node::PlacedUnion {
-                    input: fin.into(),
-                    count: None,
-                    kind: listed(),
-                },
-            ],
-        ),
-        (
-            "a placed union's empty list",
-            Node::placed_union_at(fin, Vec::new()),
-            None,
-            "list at least one placement",
-            vec![Node::placed_union_at(fin, vec![Frame::IDENTITY])],
-        ),
-    ];
-    // Each row's shape: the count mismatch it is, or `None` for an
-    // empty list.
-    for (label, refused, shape, recourse, routes) in rows {
-        let error = insert(refused).expect_err(label);
-        let refused_as = match &error {
-            EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
-            EditError::EmptyPlacementList { .. } => None,
-            other => panic!("{label} refuses as a placement rule: {other:?}"),
-        };
-        assert_eq!(refused_as, shape, "{label} refuses as its shape");
-        let line = error.to_string();
-        assert!(
-            line.ends_with(&format!("Recourse: {recourse}")),
-            "{label} states its own recourse, {recourse:?}: {line}"
-        );
-        for followed in routes {
-            assert!(insert(followed).is_ok(), "{label}, followed, applies");
-        }
-    }
-}
-
-/// **An explicit rule has no expression slots**, and a stepped one has
-/// exactly the pattern node's — the slot API is the one place the two
-/// nodes could have drifted, so it is pinned directly.
-#[test]
-fn the_slot_surface_follows_the_rule() {
-    let (_, fin) = fin_only();
-    let explicit: AuthoredNode = Node::placed_union_at(fin, vec![Frame::IDENTITY]);
-    assert!(explicit.slots().is_empty());
-    assert!(explicit.expr(SlotId::Count).is_none());
-    let stepped: AuthoredNode = Node::placed_union(
-        fin,
-        Formula::count(3),
-        PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
+    let body = body_of(&ev, fused);
+    assert_eq!(body.solids().count(), 1, "the two boxes fuse");
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("fused", topo::Body::clone(&body), Tol::witness()),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .expect("a stepped rule takes a count");
-    let pattern: AuthoredNode = Node::Pattern {
-        input: fin.into(),
-        count: Formula::count(3),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-    };
-    assert_eq!(stepped.slots(), pattern.slots(), "one rule, one slot set");
-}
-
-/// **An EMPTY placement list is the explicit rule's `count < 1`** —
-/// refused, never a body with no solids in it (review MAJOR-1).
-///
-/// Three doors read ONE rule check ([`Node::placement_rule_fault`]):
-/// the edit gate refuses first with the best diagnostics, the snapshot
-/// check re-refuses on the wire, and `wire_placed_union` backstops a
-/// document that reached evaluation some other way. The rows below
-/// exercise the first two directly and the shared door itself, which
-/// is what the third reads.
-#[test]
-fn an_empty_placement_list_refuses_like_a_zero_count() {
-    let (doc, fin) = fin_only();
-    let empty: AuthoredNode = Node::placed_union_at(fin, Vec::new());
-    assert_eq!(
-        empty.placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::NoPlacements),
-        "the shared door names it — this is what eval backstops on"
-    );
-    assert!(matches!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(empty),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        ),
-        Err(EditError::EmptyPlacementList { .. })
-    ));
-    // The stepped rule it mirrors refuses at eval the same way: an
-    // empty list and a zero count are the SAME statement.
-    let zero = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::placed_union(
-                    fin,
-                    Formula::count(0),
-                    PatternKind::Linear {
-                        direction: [scl(1.0), scl(0.0), scl(0.0)],
-                        spacing: len(2.0),
-                    },
-                )
-                .expect("a stepped rule takes a count"),
-            ),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect("a zero count is legal to WRITE; it refuses at evaluation");
-    let id = zero.record.minted.expect("minted");
-    match eval::<f64>(&zero.doc).nodes.get(&id) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::CountOutOfRange {
-                slot: editor_core::SlotId::Count,
-                count: 0,
-                ..
-            }
-        )),
-        other => panic!("a zero count must refuse, got {other:?}"),
-    }
-}
-
-/// **A hand-edited file cannot smuggle an empty list past `load`** —
-/// the snapshot check re-refuses every rule the edit door would have,
-/// which is the A11 registry's own posture applied to the rule.
-#[test]
-fn the_wire_refuses_an_emptied_placement_list() {
-    let (doc, fin) = fin_only();
-    let one = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::placed_union_at(fin, vec![Frame::IDENTITY])),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect("one placement is legal");
-    let text = editor_core::save(&one.doc, &[], Tol::witness()).expect("saves");
-    // Empty the frame list on the wire, exactly as a hand edit would.
-    // Bracket-matched rather than "next `]`": a frame's own `columns`
-    // nest, so the naive scan would cut inside one and produce a parse
-    // error instead of the refusal under test.
-    let start = text
-        .find("\"Explicit\"")
-        .expect("the explicit rule is on the wire");
-    let open = text[start..].find('[').expect("its list") + start;
-    let mut depth = 0i32;
-    let mut close = open;
-    for (i, c) in text[open..].char_indices() {
-        match c {
-            '[' => depth += 1,
-            ']' => {
-                depth -= 1;
-                if depth == 0 {
-                    close = open + i;
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    assert!(close > open, "the frame list's brackets must match");
-    let tampered = format!("{}[]{}", &text[..open], &text[close + 1..]);
-    match editor_core::load(&tampered, Tol::witness()) {
-        Err(editor_core::PersistError::Snapshot(_)) => {}
-        other => panic!("an emptied placement list must refuse at load, got {other:?}"),
-    }
-}
-
-/// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test a literal constraint frame is held to, and
-/// the same typed refusals (review MINOR-2). A non-finite frame no
-/// longer reads as a separation failure; it says what it is.
-#[test]
-fn placement_frames_are_held_to_the_group_frame_bar() {
-    let (doc, fin) = fin_only();
-    let with = |f: Frame| <editor_core::AuthoredNode>::placed_union_at(fin, vec![f]);
-
-    let nan = Frame::translation([f64::NAN, 0.0, 0.0]);
-    assert_eq!(
-        with(nan).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::NonFiniteFrame { index: 0 }),
-        "named for what it is, not as an uncertified separation"
-    );
-    assert!(matches!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(with(nan)),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        ),
-        Err(EditError::NonFinitePlacement { .. })
-    ));
-
-    // A mirror: the identity with one basis column negated (det = −1).
-    let mut mirror = Frame::IDENTITY;
-    mirror.columns[0] = [-1.0, 0.0, 0.0];
-    assert!(matches!(
-        with(mirror).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::NonRigidFrame {
-            index: 0,
-            check: "transform_rigid_det_plus_one"
-        })
-    ));
-    assert!(matches!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(with(mirror)),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        ),
-        Err(EditError::NonRigidPlacement {
-            check: "transform_rigid_det_plus_one",
-            ..
-        })
-    ));
-
-    // A proper frame that scales an axis: refused at the edit door by
-    // the predicate the evaluation moves a body by, naming the listed
-    // placement, rather than by the evaluation as `NotRigid` (or as an
-    // uncertified separation, when the scaled copy overlaps another).
-    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
-    stretched.columns[0] = [2.0, 0.0, 0.0];
-    assert!(matches!(
-        with(stretched).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::NonRigidFrame { index: 0, .. })
-    ));
-    let two = <editor_core::AuthoredNode>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
-    match apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(two),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    ) {
-        Err(error @ EditError::NonRigidPlacement { at, .. }) => {
-            assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
-            let text = error.to_string();
-            assert!(
-                text.contains("placement 1 of PlacedUnion ") && text.contains("Recourse:"),
-                "names the listed placement and its recourse: {text}"
-            );
-        }
-        other => panic!("a scaled listed frame must refuse typed, got {other:?}"),
-    }
-
-    // A proper frame at the same site still goes through — the gate
-    // refuses the two states, not rotations in general.
-    let turned = Frame::rotate_then_translate(
-        [0.0, 0.0, 1.0],
-        std::f64::consts::FRAC_PI_2,
-        [0.0; 3],
-        fixture::band(),
-    )
-    .expect("a literal axis has a definite direction");
-    assert_eq!(with(turned).placement_rule_fault(Tol::witness()), None);
-    assert!(
-        apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(with(turned)),
-                fresh: Vec::new()
-            },
-            Tol::witness()
-        )
-        .is_ok()
-    );
-}
-
-/// **The Explicit path is bit-compatible with the chain too** — three
-/// ROTATED placements against the placement + Union chain of the same
-/// motions (each a copy placed against the prototype at
-/// `Frame::rotate_then_translate`), on both mass oracles with
-/// `==` plus census. The shipped fin row covers only the Linear rule
-/// and only translations, so the onto-door claim was untested exactly
-/// where a rotation could have broken it.
-///
-/// Adopted from the LIB-PLACEDUNION review's probe
-/// `probe_explicit_group_equals_rotated_transform_chain` (reviewer's
-/// lane) — credit to the review.
-#[test]
-fn the_rotated_explicit_group_equals_the_placement_union_chain() {
-    use std::f64::consts::FRAC_PI_2;
-
-    let prototype = |mut r: corpus::Recorder| -> (ProfileDoc, RecipeNodeId) {
-        let p = r.profile(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
-        );
-        let solid = r.insert(Node::Extrude {
-            profile: p.into(),
-            distance: len(1.0),
-        });
-        (r.doc, solid)
-    };
-    // (axis, angle, translation) — two genuine rotations about
-    // different axes, placed clear of each other.
-    let places: [([f64; 3], f64, [f64; 3]); 3] = [
-        ([0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0]),
-        ([0.0, 0.0, 1.0], FRAC_PI_2, [6.0, 0.0, 0.0]),
-        ([1.0, 0.0, 0.0], -FRAC_PI_2, [0.0, 6.0, 0.0]),
-    ];
-
-    let (gdoc, gsolid) = prototype(corpus::Recorder::new());
-    let grouped = apply(
-        &gdoc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::placed_union_at(
-                gsolid,
-                places
-                    .iter()
-                    .map(|&(ax, an, t)| {
-                        Frame::rotate_then_translate(ax, an, t, fixture::band())
-                            .expect("a literal axis has a definite direction")
-                    })
-                    .collect(),
-            )),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .expect("insert the group");
-    let group = grouped.record.minted.expect("minted");
-
-    let (mut cdoc, csolid) = prototype(corpus::Recorder::new());
-    let mut acc: Option<RecipeNodeId> = None;
-    for &(ax, an, t) in &places {
-        let (doc, placed) = fixture::xform(cdoc, csolid, t, ax, an);
-        cdoc = doc;
-        acc = Some(match acc {
-            None => placed,
-            Some(a) => {
-                let u = apply(
-                    &cdoc,
-                    &DocEdit::InsertNode {
-                        node: Box::new(Node::Union {
-                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
-                        }),
-                        fresh: Vec::new(),
-                    },
-                    Tol::witness(),
-                )
-                .expect("insert union");
-                let id = u.record.minted.expect("minted");
-                cdoc = u.doc;
-                id
-            }
-        });
-    }
-
-    let ev_g = eval::<f64>(&grouped.doc);
-    let ev_c = eval::<f64>(&cdoc);
-    assert!(failures(&ev_g).is_empty(), "{:?}", failures(&ev_g));
-    assert!(failures(&ev_c).is_empty(), "{:?}", failures(&ev_c));
-    let g = topo::test_support::finished(
-        "g",
-        topo::Body::clone(body_of(&ev_g, group)),
-        Tol::witness(),
-    );
-    let c = topo::test_support::finished(
-        "c",
-        topo::Body::clone(body_of(&ev_c, acc.expect("the chain's root"))),
-        Tol::witness(),
-    );
-    let (mg, mc) = (
-        topo::mass_properties(
-            &g,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .expect("group mass"),
-        topo::mass_properties(
-            &c,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .expect("chain mass"),
-    );
-    assert_eq!(
-        mg.enclosure.volume, mc.enclosure.volume,
-        "volume, bit for bit"
-    );
-    assert_eq!(
-        mg.enclosure.surface_area, mc.enclosure.surface_area,
-        "area, bit for bit"
-    );
-    assert_eq!(
-        (g.faces().count(), g.edges().count(), g.vertices().count()),
-        (c.faces().count(), c.edges().count(), c.vertices().count()),
-        "same census"
-    );
-    assert_eq!(g.solids().count(), c.solids().count(), "same solid count");
-    assert_eq!(g.shells().count(), c.shells().count(), "same shell count");
-}
-
-/// **The typed insert answers to the same backstops as `apply`**: in
-/// the middle of an action, [`editor_core::Recording::insert`] refuses an
-/// empty placement list, a non-finite frame, a mirror and a stretched
-/// frame with exactly the error `apply` gives the same insert against
-/// the same document, records nothing for it, and ends the action on it.
-/// The placement rule is checked by the whole-document backstop every
-/// edit passes through after it is written, not by the insert's own
-/// arm, so an insert that skipped that backstop would land here.
-#[test]
-fn the_typed_insert_answers_to_the_placement_backstops() {
-    let (doc, fin) = fin_only();
-    let with = |frames: Vec<Frame>| <editor_core::AuthoredNode>::placed_union_at(fin, frames);
-    let mut mirror = Frame::IDENTITY;
-    mirror.columns[0] = [-1.0, 0.0, 0.0];
-    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
-    stretched.columns[0] = [2.0, 0.0, 0.0];
-
-    for (what, node) in [
-        ("an empty placement list", with(Vec::new())),
-        (
-            "a non-finite frame",
-            with(vec![Frame::translation([f64::NAN, 0.0, 0.0])]),
-        ),
-        ("a mirror", with(vec![mirror])),
-        ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
-    ] {
-        let mut action = editor_core::Recording::start(&doc, Tol::witness());
-        let first = action
-            .insert(with(vec![Frame::IDENTITY]))
-            .expect("one placement is legal");
-        let before = action.doc().clone();
-        let want = apply(
-            &before,
-            &DocEdit::InsertNode {
-                node: Box::new(node.clone()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect_err(what);
-        assert!(
-            matches!(
-                want,
-                EditError::EmptyPlacementList { .. }
-                    | EditError::NonFinitePlacement { .. }
-                    | EditError::NonRigidPlacement { .. }
-            ),
-            "the premise: `apply` refuses {what} at the placement backstop: {want:?}"
-        );
-        assert_eq!(
-            action.insert(node),
-            Err(want.clone()),
-            "the typed insert refuses {what} as `apply` does"
-        );
-        assert!(
-            action.doc().bit_eq(&before),
-            "a refused insert of {what} leaves the action where it stood"
-        );
-        assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
-        assert_eq!(
-            action.finish().map(|done| done.minted),
-            Err(want),
-            "the refused insert of {what} ends the action"
-        );
-    }
+    .expect("mass")
+    .enclosure
+    .volume;
+    assert!((volume - 1.5).abs() < 1e-9, "{volume}");
 }

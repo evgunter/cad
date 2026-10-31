@@ -38,8 +38,10 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCertifyError};
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::pcurves::validate_pcurves;
-use topo::{Body, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
+use topo::{Body, FaceKey, LoopKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -428,7 +430,7 @@ fn on_a_key_of_its_own(
     surface: Surface<f64>,
     sense: bool,
 ) -> Result<topo::SurfaceKey, topo::EulerOpError> {
-    let charts = vec![topo::Rechart::new(surface, face, sense)];
+    let charts = vec![topo::construction::Rechart::new(surface, face, sense)];
     let specs = body.carried_redescriptions(&charts)?;
     // Lifts RechartUnvouched: the edge between the panels names the lower panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
     let keys = body.lifting_rechart_refusals_for_tests(|body| {
@@ -575,7 +577,7 @@ fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
         s.body
             .mev_null(
                 MevSite::Fan { he1: h0, he2: h0 },
-                topo::NewVertexSide::Above,
+                topo::construction::NewVertexSide::Above,
             )
             .unwrap();
         let (up_rows, _) = rows_of(&s.body, up);
@@ -1265,7 +1267,7 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
 /// the run `[m1→b, b→c, c→m2]` — three rim-and-meridian rows — moves
 /// into the new face's loop with the minted `m2→m1`, and the old face
 /// keeps `m2→f`, `f→a`, `a→m1` and the minted `m1→m2`.
-fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::construction::MefCreated {
     let (he1, he2, chord) = ruling_site(s);
     // Lifts RechartStrandsDescriptions: the run's lower rim names the cylinder's key, which neither of its faces wears once the new face leaves it, and the run's rows are the subject wherever the new face lands.
     s.body
@@ -1277,7 +1279,11 @@ fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
 
 /// The rows of `face` other than those of `made`'s two new halves —
 /// the rows a `mef` found rather than minted.
-fn found_rows(body: &Body<f64>, face: FaceKey, made: &topo::MefCreated) -> Vec<String> {
+fn found_rows(
+    body: &Body<f64>,
+    face: FaceKey,
+    made: &topo::construction::MefCreated,
+) -> Vec<String> {
     let minted = [
         format!("{:?} ", made.he_plus),
         format!("{:?} ", made.he_minus),
@@ -1811,7 +1817,7 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
         .unwrap();
     assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
 
-    let charts = vec![topo::Rechart::shared(second, s.low, true)];
+    let charts = vec![topo::construction::Rechart::shared(second, s.low, true)];
     let specs = s.body.carried_redescriptions(&charts).unwrap();
     // Lifts RechartUnvouched: the edge between the panels names the upper panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
     s.body
@@ -2242,7 +2248,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         s.body
             .lifting_rechart_refusals_for_tests(|b| {
                 b.set_face_surfaces_describing(
-                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    vec![topo::construction::Rechart::shared(keys[0], s.up, true)],
                     &[],
                     tol(),
                 )
@@ -2266,7 +2272,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         s.body
             .lifting_rechart_refusals_for_tests(|b| {
                 b.set_face_surfaces_describing(
-                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    vec![topo::construction::Rechart::shared(keys[0], s.up, true)],
                     &[],
                     tol(),
                 )

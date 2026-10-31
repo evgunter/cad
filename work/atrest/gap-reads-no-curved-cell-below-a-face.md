@@ -3,7 +3,7 @@ id: gap-reads-no-curved-cell-below-a-face
 kind: issue
 title: Gap has no arm for a curved edge, a cell beside a curved face, or a cell against a cone, torus or NURBS face
 status: open
-priority: P1
+priority: P2
 cost: M
 opened: 2026-10-26
 refs: [gap-reads-vertex-and-edge-cells, material-and-convexity-are-read-three-ways]
@@ -34,3 +34,7 @@ The link build landed with `material-and-convexity-are-read-three-ways`: the sad
 The curved arm is built. `topo::link::Round` is a sphere or cylinder face's material read by its carrier, and `metric::Distance::off` is its constructor in the door. `Gap` reads a vertex or a line edge against a sphere or cylinder face through it, in either seat. An edge is read at its lowest point, so a line edge against a sphere, or across a cylinder at any angle, no longer refuses. The census reads the same arm (`rest::by_round`): at a touch point strictly inside a sphere or cylinder face, where the face is all its solid holds there, it judges the other solid's planar link against it. Backstop arm 1 refuses every such cross-solid pair as a curved pair within reach before the touch is read, so no census verdict moves yet. That is `restread/census-cross-solid-curved-pairs-undecidable-on-shell-results`, and its evidence section names this reader.
 
 The bullet for a line edge against a sphere face, or against a cylinder whose axis does not run along it, is closed and removed. What stays on this row is every bullet above: a curved edge in any pair, a cell whose own link holds a curved face (`NO_WEDGE`, `NO_CORNER`), a cone, torus or NURBS face in either seat, a link refusing for another reason, and an edge whose ends do not read.
+
+## Re-prioritised (2026-10-27, ATREST orchestrator): P1 → P2
+
+The row's core ask merged (#5853 / #5827). What stays is residue that needs machinery not yet built: exact coincidence or metric rungs for cone, torus and NURBS carriers, a curved inner edge's extremal points, and the in-band and rim-pair readings. Each case stays loud and could-not-look, never a wrong verdict, so it is P2 work rather than a P1 defect.

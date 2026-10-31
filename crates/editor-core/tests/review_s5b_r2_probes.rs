@@ -157,8 +157,8 @@ mod interference {
     use crate::corpus;
     use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
     use editor_core::{
-        Assembly, AssertionRelation, Formula, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
-        RoleSeg, SitedRef, StableName, assemble,
+        AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, ProfileDoc,
+        RecipeNodeId, RoleSeg, SitedRef, StableName,
     };
     use geom_core::Tol;
 
@@ -201,9 +201,11 @@ mod interference {
         crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
     }
 
-    fn assembled(doc: &ProfileDoc) -> Assembly<f64> {
+    fn assembled(doc: &ProfileDoc) -> Vec<InterferenceFinding> {
         let run = corpus::eval::<f64>(doc);
-        assemble(doc, &run, Tol::witness()).unwrap_or_else(|e| panic!("the gate refused: {e}"))
+        let findings = crate::fixture::at_rest(doc, &run)
+            .unwrap_or_else(|e| panic!("the check could not run: {e}"));
+        crate::fixture::interference(&findings)
     }
 
     /// A `Gap` over two faces read at `sites`, and an assertion bounding it
@@ -285,6 +287,7 @@ mod interference {
                 Node::Profile(ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(
@@ -316,9 +319,8 @@ mod interference {
 
     fn report(doc: &ProfileDoc) -> Vec<(bool, String)> {
         let run = corpus::eval::<f64>(doc);
-        match assemble(doc, &run, Tol::witness()) {
-            Ok(a) => a
-                .interference
+        match crate::fixture::at_rest(doc, &run) {
+            Ok(findings) => crate::fixture::interference(&findings)
                 .iter()
                 .map(|f| (f.is_loud(), format!("{:?}", f.overlap)))
                 .collect(),
@@ -326,9 +328,11 @@ mod interference {
         }
     }
 
-    /// Roles swapped on the press fit: Gap(pin, bore). Must stay loud.
+    /// Roles swapped on the press fit: Gap(pin, bore). A pin and a bore
+    /// are opposed, so the fit reads −0.005 in either order, and the
+    /// swapped assertion says the interference: quiet.
     #[test]
-    fn r2_press_fit_roles_swapped_is_loud() {
+    fn r2_press_fit_roles_swapped_is_quiet() {
         let (doc, p, q, _, bore, pinwall) = bore_and_pin(0.505);
         let (doc, _) = gap_at_copies(
             doc,
@@ -338,7 +342,7 @@ mod interference {
             -0.001,
         );
         let r = report(&doc);
-        assert!(r.iter().all(|(loud, _)| *loud), "{r:?}");
+        assert!(!r.is_empty() && r.iter().all(|(loud, _)| !*loud), "{r:?}");
     }
 
     /// Back-to-back planes: b runs through a's -x wall (b: x in [-0.7, 0.3]).
@@ -385,21 +389,26 @@ mod interference {
     }
 
     /// Two parallel convex shafts side by side, clashing: A r=1 at the
-    /// origin, B r=0.3 at x=1.2, both 1 long. Gap(A, B) = 1 - 0.3 - 1.2 =
-    /// -0.5, which holds under <= -0.01, though the clash is 0.1 deep and
-    /// neither face is a socket. Both lateral faces bound the crescent
-    /// overlap, and it lies between their carriers. Only `opposed`'s sense
-    /// test (outer concave, inner convex) keeps it loud.
+    /// origin, B r=0.3 at 1.2 from it, both standing on one base. Gap(A, B)
+    /// = 1 - 0.3 - 1.2 = -0.5, which holds under <= -0.01, though the clash
+    /// is 0.1 deep and neither face is a socket. Both lateral faces bound
+    /// the crescent overlap, and it lies between their carriers. What
+    /// keeps it loud is `opposed`: two cylinders off one axis pair their
+    /// materials differently from point to point, so no single reading
+    /// answers for the pair, and it is not opposed at any bearing of B
+    /// about A (a reading at one point of A's wall was quiet at one
+    /// bearing in eight).
     #[test]
     fn r2_two_convex_shafts_side_by_side_stay_loud() {
         use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
-        let rod = |doc: ProfileDoc, cx: f64, r: f64, long: bool| {
+        let rod = |doc: ProfileDoc, (cx, cy): (f64, f64), r: f64, long: bool| {
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    loops: vec![LoopProgram::<Formula>::circle(cx, 0.0, r).expect("a circle")],
+                    loops: vec![LoopProgram::<Formula>::circle(cx, cy, r).expect("a circle")],
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(
@@ -410,31 +419,34 @@ mod interference {
                 },
             )
         };
-        let doc = ProfileDoc::empty_derived("r2-shafts", Tol::witness());
-        let (doc, a) = rod(doc, 0.0, 1.0, true);
-        let (doc, b) = rod(doc, 1.2, 0.3, false);
-        let (doc, p) = place(doc, a);
-        let (doc, q) = stand(doc, b, 0.25);
-        let lateral =
-            |doc: &ProfileDoc, node| fname(node, RoleSeg::Lateral(piece(doc, node, 0, 0).into()));
-        let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
-        let unasserted = report(&doc);
-        assert!(
-            !unasserted.is_empty() && unasserted.iter().all(|(l, _)| *l),
-            "{unasserted:?}"
-        );
-        let (doc, assertion) =
-            gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
-        let run = corpus::eval::<f64>(&doc);
-        eprintln!(
-            "assertion verdict: {:?}",
-            run.value(assertion).map(|v| &v.payload)
-        );
-        let r = report(&doc);
-        assert!(
-            r.iter().all(|(l, _)| *l),
-            "side-by-side shafts quieted: {r:?}"
-        );
+        let mut decided = 0;
+        for k in 0..8u32 {
+            let bearing = f64::from(k) * std::f64::consts::FRAC_PI_4;
+            let doc = ProfileDoc::empty_derived("r2-shafts", Tol::witness());
+            let (doc, a) = rod(doc, (0.0, 0.0), 1.0, true);
+            let (doc, b) = rod(doc, (1.2 * bearing.cos(), 1.2 * bearing.sin()), 0.3, false);
+            let (doc, p) = place(doc, a);
+            let (doc, q) = stand(doc, b, 0.25);
+            let lateral = |doc: &ProfileDoc, node| {
+                fname(node, RoleSeg::Lateral(piece(doc, node, 0, 0).into()))
+            };
+            let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
+            // At some bearings the census leaves the curved pair undecided
+            // (a could-not-look finding), and there is no overlap to quiet.
+            let unasserted = report(&doc);
+            assert!(
+                unasserted.iter().all(|(l, _)| *l),
+                "bearing {k}/8: {unasserted:?}"
+            );
+            decided += usize::from(!unasserted.is_empty());
+            let (doc, _) = gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
+            let r = report(&doc);
+            assert!(
+                r.iter().all(|(l, _)| *l),
+                "side-by-side shafts quieted at bearing {k}/8: {r:?}"
+            );
+        }
+        assert!(decided > 0, "the premise: an overlap at some bearing");
     }
 
     /// The sunk flange with the `Gap`'s roles swapped (a plane pair's gap
@@ -505,6 +517,7 @@ mod interference {
                 Node::Profile(ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             insert(
@@ -525,8 +538,8 @@ mod interference {
         let (doc, _) = place(doc, pin);
         let _ = piece;
         let run = corpus::eval::<f64>(&doc);
-        match assemble(&doc, &run, Tol::witness()) {
-            Ok(a) => eprintln!("FLUSH: Ok, {} finding(s)", a.interference.len()),
+        match crate::fixture::at_rest(&doc, &run) {
+            Ok(a) => eprintln!("FLUSH: Ok, {} finding(s)", a.len()),
             Err(e) => eprintln!(
                 "FLUSH: refused: {}",
                 e.to_string()

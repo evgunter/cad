@@ -1,6 +1,12 @@
 //! **The E7 clearance engine** — the trichotomy, the receipt, the
-//! witness, the wedge rule, the accelerator seam, and the VERBS
+//! witness, the metric pairing, the accelerator seam, and the VERBS
 //! acceptance fixtures.
+//!
+//! **A clearance is metric** (ERROR-DESIGN E7, *Self-intersection
+//! scope*): two scopes that meet — one face in both, or two faces that
+//! share an edge or a vertex — are at distance 0, named on the shared
+//! cell. So a row about the walk between two faces of one body names
+//! each face as its own scope, and the body against itself reads 0.
 //!
 //! Everything here goes through the public doors a consumer has:
 //! `clearance` / `self_intersection` / `clearance_with` for the answer,
@@ -82,13 +88,20 @@
 //!
 //! # Which refusal arms have a row, and which cannot
 //!
-//! `ClearanceRefusal` has ELEVEN arms since M10-6 (`NoAdmittedPair`
-//! joined, for the minimum-separation door: two selections whose only
-//! candidate pairs the wedge rule drops). Rows below cover
+//! A clearance refusal is one of FOURTEEN classes: nine the engine
+//! raises (`EngineRefusal`, inside `ClearanceRefusal::Engine`) and five
+//! the document door does. Rows below cover
 //! `Budget(Pairs)`,
-//! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
-//! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! `Budget(Depth)`, `Selection` (two shapes), `NotADistance` and
+//! `EmptyScope`; `NothingCertified` is covered by the adopted probe
+//! suites, `Unsupported` at the engine
+//! (`topo/tests/clearance_windows_on_a_spline_chart.rs`): a loft's
+//! walls, the one free-form face these fixtures build, now have
+//! windows. The injectivity question's own three — `Uncertified`,
+//! `CollapsedChart`, `TorusNotRing` — are pinned at the engine
+//! (`sweep/tests/self_intersection_proves_injectivity.rs`), and
+//! `RecordedContact` needs a body that carries a contact record, which
+//! these fixtures do not build.
 //! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.
@@ -108,7 +121,7 @@
 //!   definite.
 //!
 //! Absence of a row is not evidence the arm is dead code — each is
-//! constructed at exactly one site in `clearance.rs` and reachable in
+//! constructed at exactly one site of the engine or the door and reachable in
 //! principle — but it IS a gap, stated here rather than papered over.
 //!
 //! The basename carries `interval` because the suite's subject is the
@@ -122,9 +135,10 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
-    ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection,
-    clearance, clearance_over, clearance_with, self_intersection,
+    Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
+    ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
+    NoTangents, Pruning, Selection, Which, clearance, clearance_over, clearance_with,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -243,7 +257,16 @@ pub(crate) fn slid_by(
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
 fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
-    slid_by(r, input, input, [by, len(0.0), len(0.0)])
+    slid_by(
+        r,
+        input,
+        input,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
@@ -251,6 +274,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -267,9 +291,9 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 /// self-intersecting cavity at `t = 0.3` because two 0.3 walls need 0.6
 /// of neck and have 0.4.
 ///
-/// The two neck walls share no vertex, so the wedge rule does not
-/// exclude them: this pair is precisely the one a wall-clearance
-/// certificate has to see.
+/// The two neck walls share no cell of the boundary, so they do not
+/// meet and the walk measures them: this pair is precisely the one a
+/// wall-clearance certificate has to see.
 fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
@@ -304,35 +328,36 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 ///
 /// Selecting them by name is what keeps the acceptance rows' cost
 /// honest AND small: one candidate pair, the one the certificate is
-/// about, rather than every pair of a fourteen-face body.
+/// about, rather than every pair of a fourteen-face body. Each wall is
+/// its own scope: one scope holding both would meet itself, and read 0.
 fn neck_walls(
     doc: &editor_core::ProfileDoc,
     minted_at: RecipeNodeId,
     read_at: RecipeNodeId,
-) -> Selection {
-    Selection {
+) -> (Selection, Selection) {
+    let wall = |k: u32| Selection {
         at: read_at,
         body: 0,
-        faces: FaceScope::Named(vec![
-            fixture::fname(minted_at, fixture::wall(doc, minted_at, 2)),
-            fixture::fname(minted_at, fixture::wall(doc, minted_at, 9)),
-        ]),
-    }
+        faces: FaceScope::Named(vec![fixture::fname(
+            minted_at,
+            fixture::wall(doc, minted_at, k),
+        )]),
+    };
+    (wall(2), wall(9))
 }
 
 /// The hexagon's two OPPOSITE flats, by the names the extrude minted.
 /// Slanted, so their axis-aligned boxes are 2/sqrt(3) apart where the
 /// faces are 2 m apart — the pair the tree cannot exclude and only the
 /// subdivision can discharge.
-fn opposite_flats(doc: &editor_core::ProfileDoc, minted: RecipeNodeId) -> Selection {
-    Selection {
+/// Each flat is its own scope, as [`neck_walls`]'.
+fn opposite_flats(doc: &editor_core::ProfileDoc, minted: RecipeNodeId) -> (Selection, Selection) {
+    let flat = |k: u32| Selection {
         at: minted,
         body: 0,
-        faces: FaceScope::Named(vec![
-            fixture::fname(minted, fixture::wall(doc, minted, 0)),
-            fixture::fname(minted, fixture::wall(doc, minted, 3)),
-        ]),
-    }
+        faces: FaceScope::Named(vec![fixture::fname(minted, fixture::wall(doc, minted, k))]),
+    };
+    (flat(0), flat(3))
 }
 
 /// **The hexagon family**: a regular hexagonal prism of unit apothem —
@@ -405,6 +430,7 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -415,23 +441,36 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
 ///
 /// It holds with NOTHING subdivided, and that is worth stating: the
 /// dumbbell's walls are axis-aligned, so each face's interval box IS
-/// its face, the tree's certified separation bound is exact, and every
-/// non-adjacent pair is excluded before the engine looks at it. The
-/// pruning is a certificate here rather than a heuristic — and
+/// its face, the tree's certified separation bound is exact, and the
+/// pair is answered before the engine refines it. The pruning is a
+/// certificate here rather than a heuristic — and
 /// `a_slanted_pair_is_discharged_by_refining_it` is the row where it is
 /// not enough and the subdivision does the work.
+///
+/// The question is the two neck walls, each its own scope. The whole
+/// body against itself is a different question now: its scopes meet,
+/// so it reads 0 on the cell they share, whatever the bound.
 #[test]
 fn a_generous_wall_clearance_holds_over_the_dumbbell() {
     let (doc, minted, _at) = dumbbell();
-    let sel = Selection::body_of(minted);
-    let report = clearance(
+    let whole = Selection::body_of(minted);
+    let itself = clearance(
         &doc,
         &box_of(&doc, "place"),
-        &sel,
-        &sel,
+        &whole,
+        &whole,
         0.2,
         Tol::witness(),
     );
+    assert_eq!(
+        itself.verdict().label(),
+        "Violated",
+        "the body against itself meets itself: {}",
+        itself.serialize()
+    );
+    assert_eq!(witness_distance(&itself), 0.0, "{}", itself.serialize());
+    let (wa, wb) = neck_walls(&doc, minted, minted);
+    let report = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.2, Tol::witness());
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -453,15 +492,8 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
 #[test]
 fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(&doc, minted, minted);
-    let report = clearance(
-        &doc,
-        &box_of(&doc, "place"),
-        &sel,
-        &sel,
-        0.6,
-        Tol::witness(),
-    );
+    let (wa, wb) = neck_walls(&doc, minted, minted);
+    let report = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.6, Tol::witness());
     let ClearanceVerdict::Violated(v) = report.verdict() else {
         panic!("expected a violation at c = 0.6: {}", report.serialize());
     };
@@ -501,19 +533,23 @@ fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
 #[test]
 fn a_starved_cell_budget_refuses_typed() {
     let (doc, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
+    let (fa, fb) = opposite_flats(&doc, minted);
     let q = query(
         1.99,
         ClearanceConfig {
-            max_cell_pairs: 1,
+            budgets: Budgets {
+                max_cell_pairs: 1,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
+    let report = clearance_with(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs {
-            max_cell_pairs,
-        })) => assert_eq!(*max_cell_pairs, 1),
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Budget(CellBudget::Pairs { max_cell_pairs }),
+            ..
+        }) => assert_eq!(*max_cell_pairs, 1),
         other => panic!("expected a priced budget refusal, got {other:?}"),
     }
     let r = report.receipt();
@@ -526,19 +562,23 @@ fn a_starved_cell_budget_refuses_typed() {
 #[test]
 fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let (doc, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
+    let (fa, fb) = opposite_flats(&doc, minted);
     let q = query(
         1.5,
         ClearanceConfig {
-            max_cell_depth: 0,
+            budgets: Budgets {
+                max_cell_depth: 0,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
+    let report = clearance_with(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Depth {
-            max_cell_depth,
-        })) => assert_eq!(*max_cell_depth, 0),
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Budget(CellBudget::Depth { max_cell_depth }),
+            ..
+        }) => assert_eq!(*max_cell_depth, 0),
         other => panic!("expected a depth refusal, got {other:?}"),
     }
     assert!(report.receipt().holds());
@@ -554,18 +594,21 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
 #[test]
 fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(&doc, minted, minted);
+    let (wa, wb) = neck_walls(&doc, minted, minted);
     let leaf = box_of(&doc, "place");
     for c in [0.0, 0.1, 0.39, 0.6, 5.0] {
         for pairs in [4, 64, 4_096] {
             let q = query(
                 c,
                 ClearanceConfig {
-                    max_cell_pairs: pairs,
+                    budgets: Budgets {
+                        max_cell_pairs: pairs,
+                        ..ClearanceConfig::default().budgets
+                    },
                     ..ClearanceConfig::default()
                 },
             );
-            let report = clearance_with(&doc, &leaf, &sel, &sel, &q);
+            let report = clearance_with(&doc, &leaf, &wa, &wb, &q);
             let r = report.receipt();
             assert!(
                 r.holds(),
@@ -589,22 +632,8 @@ fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
 #[test]
 fn a_slanted_pair_the_tree_cannot_exclude_is_discharged_by_refining_it() {
     let (doc, minted, _at) = hexagon();
-    let sel = Selection {
-        at: minted,
-        body: 0,
-        faces: FaceScope::Named(vec![
-            fixture::fname(minted, fixture::wall(&doc, minted, 0)),
-            fixture::fname(minted, fixture::wall(&doc, minted, 3)),
-        ]),
-    };
-    let report = clearance(
-        &doc,
-        &box_of(&doc, "place"),
-        &sel,
-        &sel,
-        1.5,
-        Tol::witness(),
-    );
+    let (fa, fb) = opposite_flats(&doc, minted);
+    let report = clearance(&doc, &box_of(&doc, "place"), &fa, &fb, 1.5, Tol::witness());
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -623,14 +652,14 @@ fn a_slanted_pair_the_tree_cannot_exclude_is_discharged_by_refining_it() {
 
 // -------------------------------------------- the self-intersection
 
-/// A sound prism is certified strictly positive between every
-/// NON-ADJACENT face pair — which is only possible because the wedge
-/// rule excludes the adjacent ones: every side wall touches its
-/// neighbours and both caps at distance exactly zero, and a query that
-/// examined those pairs would report a well-formed body as
-/// self-intersecting.
+/// A sound prism's boundary is certified injective: every face pair is
+/// examined, a face against itself included. The pairs that do not
+/// touch are strictly positive apart; the side walls touch their
+/// neighbours and both caps at distance exactly zero, and each of those
+/// is discharged by a local certificate rather than read as a
+/// violation.
 #[test]
-fn a_sound_prism_certifies_strictly_positive_between_non_adjacent_faces() {
+fn a_sound_prism_certifies_its_boundary_injective() {
     for (doc, at) in [
         {
             let (d, m, _) = hexagon();
@@ -653,6 +682,7 @@ fn a_sound_prism_certifies_strictly_positive_between_non_adjacent_faces() {
         assert!(r.holds());
         assert_eq!(r.violated, 0);
         assert_eq!(r.refused, 0);
+        assert!(r.certified > 0, "the touching pairs certified: {r:?}");
     }
 }
 
@@ -768,16 +798,16 @@ fn a_node_that_does_not_exist_refuses_at_the_selection() {
 #[test]
 fn the_answer_is_deterministic_across_repeats() {
     let (hex, hex_minted, _hex_at) = hexagon();
-    let slanted = opposite_flats(&hex, hex_minted);
+    let (fa, fb) = opposite_flats(&hex, hex_minted);
     let (doc, minted, _at) = dumbbell();
-    let sel = Selection::body_of(minted);
+    let (wa, wb) = neck_walls(&doc, minted, minted);
     let leaf = box_of(&doc, "place");
     // The stable answer is the claim, and the run that has to be stable
     // is the EXPENSIVE one: a bound that holds only by refining, which
     // is the slanted pair a hair under its own separation — thousands
     // of cell pairs classified in a level-synchronous order that must
     // not drift.
-    let first = clearance(&hex, &leaf, &slanted, &slanted, 1.99, Tol::witness());
+    let first = clearance(&hex, &leaf, &fa, &fb, 1.99, Tol::witness());
     let r = first.receipt();
     let cells = r.discharged + r.violated + r.refused;
     assert!(
@@ -785,17 +815,17 @@ fn the_answer_is_deterministic_across_repeats() {
         "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
     );
     for _ in 0..3 {
-        let again = clearance(&hex, &leaf, &slanted, &slanted, 1.99, Tol::witness());
+        let again = clearance(&hex, &leaf, &fa, &fb, 1.99, Tol::witness());
         assert_eq!(again.serialize(), first.serialize());
     }
     // And a violated run is stable too, witness and all — the goldening
     // form carries the witness's points and chart, so a drift in WHERE
     // the witness sits is visible here rather than silent.
-    let violated = clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness());
+    let violated = clearance(&doc, &leaf, &wa, &wb, 0.6, Tol::witness());
     assert_eq!(violated.verdict().label(), "Violated");
     for _ in 0..3 {
         assert_eq!(
-            clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness()).serialize(),
+            clearance(&doc, &leaf, &wa, &wb, 0.6, Tol::witness()).serialize(),
             violated.serialize()
         );
     }
@@ -838,11 +868,14 @@ fn gap_run(
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
-            max_cell_pairs: 4_096,
-            ..ClearanceConfig::default()
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
         },
         oracle,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     clearance_with(doc, &box_of(doc, "gap"), sa, sb, &q)
 }
@@ -887,11 +920,14 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
-            max_cell_pairs: 4_096,
-            ..ClearanceConfig::default()
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
         },
         oracle,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     let on = clearance_with(
         &doc,
@@ -942,13 +978,13 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         "the driver certifies this box: {}",
         verdict.serialize()
     );
-    let sel = Selection::body_of(minted);
+    let (wa, wb) = neck_walls(&doc, minted, minted);
     let fold = clearance_over(
         &doc,
         &analyzed,
         &verdict,
-        &sel,
-        &sel,
+        &wa,
+        &wb,
         &ClearanceQuery::at_least(0.2, Tol::witness()),
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
@@ -978,6 +1014,72 @@ fn a_driver_certified_leaf_carries_the_certificate() {
     assert!(fold.mass.refused.is_empty());
 }
 
+/// **A leaf is replayed on the lane the drive certified it on.** The
+/// two-hole plate at `1e3·ε` of its real study certifies in one leaf
+/// only with the symbolic tier on (`m10_10_the_plate_needs_no_door`),
+/// so its `Interval` replay is not the build the leaf's verdict is
+/// about. The fold over that leaf answers the holes' clearance, and so
+/// does the per-leaf door asked at the drive's tier; the same leaf on
+/// the numeric replay (the replay both used before they read a lane)
+/// does not hold.
+#[test]
+fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
+    let tol = Tol::witness();
+    let s = 1.0e3 * tol.eps();
+    let plate = crate::m10_7_plate::plate_with_holes(5.0e-5 * s, 1.0e-5 * s, tol);
+    let analyzed = analyzed_box(&plate.doc, &AnalysisPolicy::default());
+    let verdict = drive(
+        &plate.doc,
+        &analyzed,
+        &DriveConfig {
+            max_depth: 0,
+            max_leaves: 1,
+            ..DriveConfig::default()
+        },
+        tol,
+    )
+    .expect("the plate builds at its nominal");
+    let [leaf] = verdict.certified() else {
+        panic!(
+            "the tier certifies the whole box in one leaf: {}",
+            verdict.serialize()
+        );
+    };
+    let [a, b] = plate.holes.map(Selection::body_of);
+    let query = ClearanceQuery::at_least(0.3e-3, tol);
+    let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
+    assert_eq!(
+        fold.verdict,
+        ClearanceVerdict::Holds,
+        "the holes clear 0.3 mm over the leaf, read on its own lane"
+    );
+    let numeric = clearance_with(
+        &plate.doc,
+        &leaf.box_,
+        &a,
+        &b,
+        &ClearanceQuery::at_least(0.3e-3, tol)
+            .certified_at(editor_core::drive::SymbolicDials::off()),
+    );
+    assert_eq!(
+        *clearance_with(
+            &plate.doc,
+            &leaf.box_,
+            &a,
+            &b,
+            &query.certified_at(verdict.symbolic())
+        )
+        .verdict(),
+        ClearanceVerdict::Holds,
+        "the per-leaf door at the drive's tier answers as the fold does"
+    );
+    assert_ne!(
+        *numeric.verdict(),
+        ClearanceVerdict::Holds,
+        "the numeric replay of a symbolic-tier leaf is not the build it certified"
+    );
+}
+
 // --------------------------------------------------- the honest limit
 
 /// **The measured cost curve, executed rather than described.**
@@ -1005,11 +1107,11 @@ fn a_driver_certified_leaf_carries_the_certificate() {
 #[test]
 fn the_cost_curve_is_measured_at_both_ends() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(&doc, minted, minted);
+    let (wa, wb) = neck_walls(&doc, minted, minted);
     let leaf = box_of(&doc, "place");
     let mut violated_cells = Vec::new();
     for c in [0.9, 0.8, 0.7, 0.6, 0.5, 0.41] {
-        let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
+        let report = clearance(&doc, &leaf, &wa, &wb, c, Tol::witness());
         let r = report.receipt();
         assert!(r.holds(), "{r:?}");
         assert_eq!(
@@ -1038,9 +1140,9 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(&hex, minted);
+    let (fa, fb) = opposite_flats(&hex, minted);
     let leaf = box_of(&doc, "place");
-    let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
+    let held = clearance(&hex, &leaf, &fa, &fb, 1.5, Tol::witness());
     let hr = held.receipt();
     assert_eq!(
         held.verdict(),
@@ -1064,11 +1166,14 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // inside the pair's own separation range leaves cell pairs whose
     // enclosures straddle it at EVERY depth. 1.99 against a 2 m
     // separation spends the whole dial and refuses, priced.
-    let frontier = clearance(&hex, &leaf, &sel, &sel, 1.99, Tol::witness());
+    let frontier = clearance(&hex, &leaf, &fa, &fb, 1.99, Tol::witness());
     let fr = frontier.receipt();
     assert!(fr.holds());
     match frontier.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) => {}
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Budget(_),
+            ..
+        }) => {}
         other => panic!("expected the frontier to exhaust its budget, got {other:?}"),
     }
     let frontier_cells = fr.discharged + fr.violated + fr.refused;
@@ -1121,15 +1226,10 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
         r.splits + r.candidates,
         "spelled out: the four buckets cover the forest's leaves"
     );
-    // A query that runs to completion abandons nothing.
-    let held = clearance(
-        &doc,
-        &box_of(&doc, "place"),
-        &sel,
-        &sel,
-        0.2,
-        Tol::witness(),
-    );
+    // A query that runs to completion abandons nothing: the two neck
+    // walls, which do not meet.
+    let (wa, wb) = neck_walls(&doc, minted, minted);
+    let held = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.2, Tol::witness());
     assert_eq!(held.verdict(), &ClearanceVerdict::Holds);
     assert_eq!(held.receipt().abandoned, 0, "{:?}", held.receipt());
 }
@@ -1157,19 +1257,23 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
         faces: FaceScope::Named(Vec::new()),
     };
     match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope) => {}
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::EmptyScope { side: Which::First },
+            ..
+        }) => {}
         other => panic!("expected EmptyScope, got {other:?}"),
     }
 }
 
-/// **The refusal arms that had no row.** A sliver and a poison
-/// enclosure are not reachable on any fixture this suite can build (the
-/// module door says why), so what is pinned here is the two that ARE:
-/// the resolution floor, and an unsupported carrier.
+/// **A loft's walls have windows.** Each wall is bounded by its chart's
+/// own isos, so it is the whole patch and the engine answers about it:
+/// the loft's boundary is injective — its faces are apart wherever they
+/// do not meet, and certified where they do.
+/// The refusal of a NURBS face the engine has no window for (trimmed,
+/// or bounded off its isos) is pinned at the engine
+/// (`topo/tests/clearance_windows_on_a_spline_chart.rs`).
 #[test]
-fn the_unsupported_carrier_arm_refuses_naming_the_class() {
-    // A loft's walls are free-form patches, which the window door
-    // admits no chart for.
+fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let mut profiles = Vec::new();
@@ -1199,24 +1303,20 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);
-    let report = clearance(
+    // On the numeric lane by name: at the symbolic tier this loft does
+    // not build (work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md).
+    let report = clearance_with(
         &doc,
         &box_of(&doc, "place"),
         &sel,
         &sel,
-        0.1,
-        Tol::witness(),
+        &ClearanceQuery::strictly_positive(Tol::witness())
+            .certified_at(editor_core::drive::SymbolicDials::off()),
     );
-    match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, .. }) => {
-            println!("[unsupported] {carrier}");
-        }
-        // A loft that does not build at the interval scalar refuses at
-        // the selection instead, which is the other honest answer and
-        // is not this row's subject.
-        ClearanceVerdict::Refused(ClearanceRefusal::Selection(e)) => {
-            println!("[unsupported] the loft did not build at Interval: {e}");
-        }
-        other => panic!("expected a typed refusal, got {other:?}"),
-    }
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the loft's boundary is injective: {}",
+        report.serialize()
+    );
 }

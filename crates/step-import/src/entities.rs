@@ -245,6 +245,9 @@ pub(crate) struct Resolver<'a> {
     eps_in: f64,
     /// The band a chart is read at ([`chart::file_band`] of `eps_in`).
     chart_band: Option<geom_core::Band>,
+    /// The run's own linear band: where two points are one to the
+    /// kernel that will certify the body, whatever the file claims.
+    run_band: Option<geom_core::Band>,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -1359,8 +1362,8 @@ impl<'a> Resolver<'a> {
                        planes import; this reader adopts a ring on no curved chart \
                        yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
-                       normalize; a cone or sphere-zone band would take the same \
-                       seam-generator re-mint, extended to its chart)",
+                       normalize; a cone or sphere zone stated as its two rims \
+                       has no re-mint)",
             });
         }
         let outer = self.outer_bound_index(id, &surface, &loops, &bound_specs, edges)?;
@@ -1568,26 +1571,24 @@ impl<'a> Resolver<'a> {
         }
 
         // The canonical splitting, in the kernel's own sphere chart:
-        // the two poles (v = ±π/2) joined by the two half-meridians
-        // through u = 0 and u = π. `v_ref` is the chart's second
-        // in-plane basis vector (`azimuth_frame`'s), so a circle with
-        // axis ∓v_ref and reference direction the sphere's own axis
-        // starts AT the north pole (angle 0) and reaches the south at
-        // angle π, sweeping through u = π and u = 0 respectively.
-        let v_ref = signed_zero::plus_zero(axis.cross(u_ref));
-        let north = signed_zero::plus_zero_point(center + axis * radius);
-        let south = signed_zero::plus_zero_point(center - axis * radius);
+        // the two poles (v = ±π/2) joined by the pole form's two
+        // meridians (`geom::pole_form`), through u = 0 and u = π, each
+        // starting AT the north pole (angle 0) and reaching the south
+        // at angle π.
+        let [(_, north), (_, south)] =
+            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let (north, south) = (
+            signed_zero::plus_zero_point(north),
+            signed_zero::plus_zero_point(south),
+        );
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);
-        let mut meridian = |circle_axis: Vec3<f64>| -> Result<u64, StepImportError> {
+        let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
-            let carrier = Curve3::Circle {
-                center,
-                axis: signed_zero::plus_zero(circle_axis),
-                radius,
-                u_ref: axis,
-            };
+            let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
+                center, radius, axis, d,
+            ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(
                 eid,
@@ -1604,8 +1605,9 @@ impl<'a> Resolver<'a> {
             );
             Ok(eid)
         };
-        let through_pi = meridian(-v_ref)?;
-        let through_seam = meridian(v_ref)?;
+        let [seam_azimuth, pi_azimuth] = geom::pole_form::azimuths(u_ref);
+        let through_pi = meridian(pi_azimuth)?;
+        let through_seam = meridian(seam_azimuth)?;
 
         let lune = |a: u64, a_fwd: bool, b: u64, b_fwd: bool| FaceSpec {
             id,
@@ -1914,6 +1916,7 @@ impl<'a> Resolver<'a> {
             &mut solid,
             self.eps_in,
             self.chart_band,
+            self.run_band,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -3147,6 +3150,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         angle_scale: 1.0,
         eps_in: 0.0,
         chart_band: None,
+        run_band: None,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
@@ -3199,6 +3203,7 @@ pub(crate) fn resolve(
         // after it, when a body really was on the table.
         eps_in,
         chart_band: chart::file_band(eps_in, tol),
+        run_band: geom_core::Band::linear(tol).ok(),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

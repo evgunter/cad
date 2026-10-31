@@ -582,11 +582,13 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// axis-aligned frame cancel as `X − X` — and the boss's side plane,
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
-/// placement solve. With every rule off, the plain
-/// tier freezes twelve forms and refuses earlier, at the boss extrude's
-/// start-endpoint certification over an enclosure of [0, 0.32]; whether
-/// those freezes are what widens it is
-/// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
+/// placement solve. With every rule off, the plain tier freezes no form
+/// and refuses nothing: a copy shares its source's body under its
+/// frame, so the boss is never rebuilt over the box, and the
+/// start-endpoint certification of the mapped extrude that refused over
+/// an enclosure of [0, 0.32] is not run
+/// (`work/lathe/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`
+/// measured it). The ten forms that used to freeze at A0's rung sat
 /// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
 /// CONSTANTS — and A0 decides those exactly now
 /// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
@@ -602,27 +604,18 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
-    // With the profile elaborated at the lane the plain tier no longer
-    // reaches the side plane: it freezes twelve
-    // forms on the way and refuses earlier, at the boss extrude's
-    // start-endpoint certification, over an enclosure of [0, 0.32] —
-    // filed as a kernel defect reachable by input, with whether the
-    // freezes widen it the open question
-    // (`work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`).
+    // A copy shares its source's body under its frame (D10
+    // `[placement.frame]`), so the boss is never rebuilt over the box:
+    // the plain tier reaches no start-endpoint certification of a mapped
+    // extrude and refuses nothing, freezing no form on the way.
     let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
-    assert_eq!(
-        plain_fails.len(),
-        1,
-        "plain form alone refuses: {plain_fails:?}"
-    );
     assert!(
-        plain_fails[0].contains("EndpointStart")
-            && plain_fails[0].contains("carrier_endpoint_start"),
-        "with no rule, the guided boss refuses its start-endpoint certification: {plain_fails:?}"
+        plain_fails.is_empty(),
+        "plain form alone certifies: {plain_fails:?}"
     );
     assert_eq!(
-        plain_counts.frozen, 12,
-        "and freezes twelve forms getting there: {plain_counts:?}"
+        plain_counts.frozen, 0,
+        "and freezes no form getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {

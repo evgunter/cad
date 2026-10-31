@@ -30,7 +30,7 @@
 //! whatever scope the destination is inside (`SurgeryDepth`'s
 //! `Clone`), so the staging door's own scope on it is outermost and
 //! its close DOES sweep — once per call, not once per setter.
-//! `merge_coplanar_faces_declared` is the same shape: one scope over
+//! `merge_coplanar_faces` is the same shape: one scope over
 //! its staged clone for the whole run, and one more over each
 //! recorded-skip group's trial clone. That is correct rather than
 //! unfortunate: no outer door ever promised to sweep that clone, and
@@ -52,7 +52,7 @@
 //! - a door whose typed gate is tier 3 (the boolean, `shell`, the
 //!   split, STEP import) runs the sweep at its close and the at-rest
 //!   gate later, over a body it has changed since;
-//! - `merge_coplanar_faces_declared` closes gated and then
+//! - `merge_coplanar_faces` closes gated and then
 //!   re-describes the kept faces' boundaries in a second, sweeping
 //!   scope — the describer needs a body that has passed the gate
 //!   before it can walk it, and it writes edge descriptions the sweep
@@ -60,7 +60,7 @@
 //!
 //! # The spellings, and what each claims
 //!
-//! - [`Body::begin_surgery`] opens the scope and hands back a
+//! - [`Body::begin_surgery`](crate::construction::Construct::begin_surgery) opens the scope and hands back a
 //!   [`Surgery`] guard that borrows the body. Every operator reached
 //!   through the guard is inside the scope.
 //! - [`Surgery::sweep_and_close`] closes it and, at the outermost
@@ -299,21 +299,10 @@ impl SurgeryDepth {
 }
 
 impl<T: Real> Body<T> {
-    /// **Opens a surgery scope on this body** — the door's declaration
-    /// that it, and not the operators it runs, owns the tier-1
-    /// postcondition.
-    ///
-    /// The returned guard derefs to the body, so the door's operator
-    /// sequence is written through it unchanged. Close it with
-    /// [`Surgery::sweep_and_close`] on the success path; an `Err`
-    /// returned mid-sequence drops the guard instead, which closes
-    /// the scope and sweeps nothing.
-    ///
-    /// See the [module docs](self) for what the scope claims and for
-    /// the per-operator scalpel that recovers the failing operator's
-    /// name.
+    /// The door [`Construct::begin_surgery`](crate::construction::Construct::begin_surgery) forwards to;
+    /// documented there.
     #[must_use = "a scope that is opened and immediately dropped silences nothing"]
-    pub fn begin_surgery(&mut self) -> Surgery<'_, T> {
+    pub(crate) fn begin_surgery(&mut self) -> Surgery<'_, T> {
         #[cfg(debug_assertions)]
         self.surgery.open();
         Surgery { body: self }
@@ -339,7 +328,7 @@ impl<T: Real> Body<T> {
     }
 
     /// **Opens a surgery scope on a body a test tore on purpose** —
-    /// [`Body::begin_surgery`], and the `per-op-postcondition` scalpel
+    /// [`Body::begin_surgery`](crate::construction::Construct::begin_surgery), and the `per-op-postcondition` scalpel
     /// sweeps nothing inside it either.
     ///
     /// A row that tears a body to read what an operator does with it
@@ -430,7 +419,7 @@ impl<T: Real> Body<T> {
 
     /// **Opens a surgery scope without a guard.**
     ///
-    /// [`Body::begin_surgery`] is the spelling for every site that can
+    /// [`Body::begin_surgery`](crate::construction::Construct::begin_surgery) is the spelling for every site that can
     /// take it, and almost every site can: the guard cannot leak a
     /// scope, because the only way to release the borrow it holds is
     /// to drop it or to consume it in a close. **This pair exists for
@@ -816,7 +805,7 @@ pub(crate) mod tests {
     /// reds this row.
     ///
     /// **The arms this replaced were vacuous** and worth naming so
-    /// they are not written again: `merge_coplanar_faces_declared` on
+    /// they are not written again: `merge_coplanar_faces` on
     /// an empty declaration list over a prism returns before any group
     /// is staged, and with an unresolvable declared key it refuses at
     /// the entry gate — neither reached a `begin_surgery` at all, so

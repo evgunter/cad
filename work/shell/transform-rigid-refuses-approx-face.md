@@ -4,7 +4,6 @@ kind: issue
 title: transform - map an Approx face; the composition law holds, the mapped certificate needs a re-derivation lane (OFF-D)
 status: closed
 opened: 2026-08-26
-github: 1020
 refs: [1012]
 closed: 2026-09-04
 ---

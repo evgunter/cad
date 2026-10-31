@@ -61,23 +61,23 @@ pub enum Provenance {
         /// `"test:tiny-body"`).
         op: &'static str,
     },
-    /// Created by [`Body::mvfs`](crate::Body::mvfs) (which consumes
+    /// Created by [`Body::mvfs`](crate::construction::Construct::mvfs) (which consumes
     /// nothing, so there are no argument keys to record): the skeletal
     /// body's solid, shell, face, empty loop, and lone vertex.
     Mvfs,
-    /// Created by [`Body::mev`](crate::Body::mev): the new vertex, edge,
+    /// Created by [`Body::mev`](crate::construction::Construct::mev): the new vertex, edge,
     /// and both half-edges.
     Mev {
         /// The site the operator was applied at (its argument keys).
         site: MevSite,
     },
-    /// Created by [`Body::mef`](crate::Body::mef): the new face, loop,
+    /// Created by [`Body::mef`](crate::construction::Construct::mef): the new face, loop,
     /// edge, and both half-edges.
     Mef {
         /// The site the operator was applied at (its argument keys).
         site: MefSite,
     },
-    /// Created by [`Body::kemr`](crate::Body::kemr): the new ring loop
+    /// Created by [`Body::kemr`](crate::construction::Construct::kemr): the new ring loop
     /// (the only entity `kemr` mints). The recorded half-edges are the
     /// killed edge's two halves and no longer resolve (see the type
     /// docs: records are historical).
@@ -89,13 +89,13 @@ pub enum Provenance {
         /// loop.
         he2: HalfEdgeKey,
     },
-    /// Created by [`Body::mekr`](crate::Body::mekr): the new edge and
+    /// Created by [`Body::mekr`](crate::construction::Construct::mekr): the new edge and
     /// both half-edges.
     Mekr {
         /// The site the operator was applied at (its argument keys).
         site: MekrSite,
     },
-    /// Created by [`Body::mfkrh`](crate::Body::mfkrh): the new face (the
+    /// Created by [`Body::mfkrh`](crate::construction::Construct::mfkrh): the new face (the
     /// only topology entity `mfkrh` mints — the promoted loop survives
     /// with its own birth record).
     Mfkrh {
@@ -105,7 +105,7 @@ pub enum Provenance {
         /// course retire it; records are historical either way.
         ring: LoopKey,
     },
-    /// Created by [`Body::mev_null`](crate::Body::mev_null) (M3 PR 1):
+    /// Created by [`Body::mev_null`](crate::construction::Construct::mev_null) (M3 PR 1):
     /// the new coincident vertex, the null edge, and both half-edges.
     MevNull {
         /// The site the operator was applied at (its argument keys).
@@ -113,7 +113,7 @@ pub enum Provenance {
         /// The declared F9 side of the new vertex.
         new_side: crate::null::NewVertexSide,
     },
-    /// Created by [`Body::split_edge`](crate::Body::split_edge) (M3
+    /// Created by [`Body::split_edge`](crate::construction::Construct::split_edge) (M3
     /// PR 1): the new interior vertex, the new (second-child) edge, and
     /// both its half-edges.
     ///
@@ -137,14 +137,14 @@ pub enum Provenance {
         /// first child).
         edge: crate::entity::EdgeKey,
     },
-    /// Created by [`Body::movefac`](crate::Body::movefac) (M3 PR 1):
+    /// Created by [`Body::movefac`](crate::construction::Construct::movefac) (M3 PR 1):
     /// a new shell minted to re-home one connected component.
     Movefac {
         /// The shell that was partitioned.
         shell: crate::entity::ShellKey,
     },
     /// Created by
-    /// [`Body::move_shells_to_new_solid`](crate::Body::move_shells_to_new_solid):
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid):
     /// a new solid minted to own shells moved out of another.
     MoveShells {
         /// The solid the shells were moved out of.

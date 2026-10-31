@@ -142,16 +142,16 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
             tool: RoleRead::through(Operand::Var(frame), PoseRole::Zx),
         },
     );
-    let (doc, ring) = fixture::insert(
+    // The frame's y runs along the world's z.
+    let (doc, _, ring) = fixture::circular(
         doc,
-        Node::Pattern {
-            input: Operand::output(cube, 0),
-            count: Formula::count(2),
-            kind: editor_core::PatternKind::Circular {
-                axis: RoleRead::through(Operand::Var(frame), PoseRole::Y),
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
-        },
+        cube,
+        (
+            RoleRead::through(Operand::Var(frame), PoseRole::Y),
+            editor_core::TargetAxis::Z,
+        ),
+        std::f64::consts::FRAC_PI_2,
+        2,
     );
     let (doc, through) = fixture::insert(
         doc,
@@ -208,20 +208,16 @@ fn a_role_the_seat_does_not_admit_refuses() {
     let (doc, frame) = turned_frame(doc, cube);
     let refused = fixture::insert_refused(
         &doc,
-        Node::Pattern {
-            input: Operand::output(cube, 0),
-            count: Formula::count(2),
-            kind: editor_core::PatternKind::Circular {
-                axis: RoleRead::through(Operand::Var(frame), PoseRole::Xy),
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: RoleRead::through(Operand::Var(frame), PoseRole::X),
         },
     );
     assert!(
         matches!(
             &refused,
             EditError::SlotVarKind {
-                found: editor_core::VarKind::Plane,
+                found: editor_core::VarKind::Axis,
                 ..
             }
         ),
@@ -490,35 +486,12 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
 }
 
 /// **A lone `0` is the constant at every door** (VR6): written at a
-/// length slot or a count slot of a node the insert door lowers, and at
-/// a slide's length inside a pose definition, a count `0` is the
-/// constant of the slot's dimension.
+/// slide's length inside a pose definition, a count `0` is the constant
+/// of the slot's dimension.
 #[test]
 fn a_lone_zero_is_the_constant_at_the_insert_door() {
     let (doc, cube) = unit_box();
     let (doc, frame) = turned_frame(doc, cube);
-    let (doc, pattern) = fixture::insert(
-        doc,
-        Node::Pattern {
-            input: Operand::output(cube, 0),
-            count: Formula::count(0),
-            kind: editor_core::PatternKind::Circular {
-                axis: RoleRead::through(Operand::Var(frame), PoseRole::Y),
-                step: Formula::count(0),
-            },
-        },
-    );
-    for (slot, dim) in [
-        (SlotId::Count, Dimension::Count),
-        (SlotId::Step, Dimension::Angle),
-    ] {
-        let var = doc.slot(pattern, slot).expect("the slot");
-        assert!(doc.lowers_to_constant(var), "{slot:?}: a constant");
-        let Some(VarDef::Defined(expr)) = doc.var(var).map(|v| v.def()) else {
-            panic!("{slot:?}: a defined variable");
-        };
-        assert_eq!(expr.dim(), dim, "{slot:?}: at the slot's dimension");
-    }
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {

@@ -1,8 +1,8 @@
-//! **A sheath grafted on its blade at their shared section**: the lily
-//! tour's wall 8 in miniature. Two lens lofts stand on one base section,
-//! in one plane, running away from it in opposite directions, so each
-//! one's base rim arcs ARE the other's, and each arc rises into a NURBS
-//! wall of its own body.
+//! **A sheath grafted on its blade at their shared section**: the
+//! witness that a rim tangent at two points refuses. Two lens lofts
+//! stand on one base section, in one plane, running away from it in
+//! opposite directions, so each one's base rim arcs ARE the other's, and
+//! each arc rises into a NURBS wall of its own body.
 //!
 //! The boolean reads each rim arc against the other body's spline walls
 //! by their boundary first (C5's curve × face clause): along the wall it
@@ -13,19 +13,26 @@
 //! seam rising from the shared plane is read against the other body's
 //! base cap there by the curve × face table's ring-composite arm, which
 //! finds no crossing inside it: its start on the cap is its end vertex's
-//! meeting. The union stops one step on, at a seam of A against a NURBS
-//! wall of B whose boundary leaves it undecided, where the table's
-//! spline-face door has no interior reading
-//! (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
-//! This row is that door's tripwire: it reds when the door lands.
+//! meeting. Each NURBS seam of one body is read against the other's
+//! NURBS walls by the table's spline-face arm, its end at a tip accounted
+//! for as the end vertex's meeting. At the result, the shared rim, a
+//! seam between the two bodies' NURBS walls, reads transverse: each
+//! wall's normal off the rim's image in its chart, levered over each
+//! chart's certified curvature. The rim is the `v = 0` row of both walls,
+//! a curve known in advance, so it is described by that shared row (D2's
+//! structural selector), certified per wall with no uniqueness tube. Its
+//! certificate then bounds the walls' crossing over the whole rim, and on
+//! one of the lens's two rims the walls are tangent at two points,
+//! symmetric about the rim's middle: their crossing reading changes sign
+//! across each. The union refuses there. This row is that site's
+//! tripwire: it reds when the rim certifies.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::loft_body;
-use topo::{BooleanError, Operand};
+use topo::{BooleanError, EdgeDescribeFailure, EulerOpError};
 
 /// The lens on chord `width`, rising `ridge` above it and dropping
 /// `keel` below, run counterclockwise from the `+s` margin.
@@ -71,22 +78,31 @@ fn blade(
     topo::test_support::finished("a lens blade", lofted, tol)
 }
 
-/// **Both orders get past the contact and the shared cap**, and stop
-/// where an edge of operand A meets B's ridge wall, a NURBS wall its
-/// boundary leaves undecided: the spline-face door's refusal. The row
-/// pins the operand and the wall; it cannot tell that door from another
-/// site raising the same variant on the same wall (the sector walk's, at
-/// a vertex on it), since the refusal names no site. Before the
-/// boundary pass, each refused at the contact,
-/// `CurvedBooleanUnsupported { kind: Nurbs }` on a wall of B; before the
-/// ring-composite arm, at the planar lane, `EdgeCarrierUnsupported` on a
-/// tip seam of A against the cap of B. The shared rim takes the `Along`
-/// reading: read `Clear`, it would be an edge of B bounding the face it
-/// is read against, which the twin-edge reading refuses as a
-/// contradiction.
+/// **Both orders stop where the walls touch on the rim.** Each rim is
+/// each wall's `v = 0` row, recovered as the walls' shared row. On one of
+/// them (rim 1) the walls are tangent at two points symmetric about
+/// `u = ½`, near `u ≈ 0.3024` and `u ≈ 0.6977` (the PR 5959 re-review's
+/// reading off the walls' own derivatives), and the crossing reading
+/// changes sign across each. The rim's certificate reads the whole row's
+/// cover, where zero-free pieces of opposite signs with the walls' first
+/// partials continuous between them hold a tangency, and refuses it
+/// definitely: `NotTransverse` with no sample (`NOT_A_SAMPLE`, the
+/// whole-row reading's verdict, where a sample's would name its index) and
+/// an exact zero. The row runs at `Tol::witness()`, the run's ε, so its
+/// three ε come from the CI matrix's `CAD_TOLERANCE_EPS` rows; it refuses
+/// alike at 1e-9, 1e-6 and 1e-12. A certificate that read the
+/// crossing at its samples alone stepped over both points and passed the
+/// rim; before the shared row, the rim's witness refused at limb 3
+/// (`TubeNotOneArc`).
+/// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
+/// miss; before the seam's spline entry, the seam's dihedral arm
+/// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
+/// span × spline face arm, `CurvedBooleanUnsupported { operand: B, kind:
+/// Nurbs }`; before the boundary pass, the contact on a wall of B; before
+/// the ring-composite arm, `EdgeCarrierUnsupported` on a tip seam of A
+/// against the cap of B.
 #[test]
-#[allow(clippy::cast_precision_loss)]
-fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
+fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
     let tol = Tol::witness();
     let base = [0.170, 0.028, 0.020];
     let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
@@ -103,33 +119,26 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
         let err = topo::union(a, b, tol).expect_err(what);
-        let BooleanError::CurvedBooleanUnsupported {
-            operand: Operand::B,
-            face,
-            kind: SurfaceKind::Nurbs,
-        } = err
-        else {
-            panic!("{what}: past the cap, at a NURBS wall of B: {err:?}");
-        };
-        let surface = b
-            .get_face(face)
-            .and_then(|f| b.get_surface(f.surface))
-            .map(geom::Surface::kind);
-        assert_eq!(surface, Some(SurfaceKind::Nurbs), "{what}: a wall of B");
-        // Which wall: B's ridge wall, the higher of its two by the mean
-        // height of its control net, in either order.
-        let height = |f: &topo::entity::Face| match b.get_surface(f.surface) {
-            Some(geom::Surface::Nurbs(n)) => {
-                Some(n.control().iter().map(|p| p.z).sum::<f64>() / n.control().len() as f64)
-            }
-            _ => None,
-        };
-        let ridge = b
-            .faces()
-            .filter_map(|(k, f)| height(f).map(|h| (k, h)))
-            .max_by(|x, y| x.1.total_cmp(&y.1))
-            .map(|(k, _)| k);
-        assert_eq!(ridge, Some(face), "{what}: B's ridge wall");
+        assert!(
+            matches!(
+                &err,
+                BooleanError::EdgeUndescribed {
+                    failure: EdgeDescribeFailure::Intersection,
+                    cause: Some(cause),
+                    ..
+                } if matches!(
+                    **cause,
+                    EulerOpError::Certification {
+                        error: geom_brep::CertifyError::NotTransverse {
+                            sample: geom_brep::certify::NOT_A_SAMPLE,
+                            lever: None,
+                            verdict: geom_brep::recourse::Refused::Zero(_),
+                        },
+                    }
+                )
+            ),
+            "{what}: at the rim, where its walls touch: {err:?}"
+        );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.

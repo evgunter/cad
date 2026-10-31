@@ -1274,7 +1274,7 @@ fn subdivided<T: Decide>(
         Ok(Roots::Certified(found)) => Ok(Pose::Generic(
             found.roots().iter().map(|&t| place(t)).collect(),
         )),
-        Err(why) => Err(MeetFault::Unsettled(why)),
+        Err(why) => Err(why.into()),
     }
 }
 

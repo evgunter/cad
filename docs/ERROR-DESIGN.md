@@ -187,7 +187,8 @@ content-key cached like everything.
   all of its faces, a face reference is that one); the value is the
   minimum over the pairs A × B and the closest pair is the OUTPUT
   (the witness), never an input. The same body on both sides is its
-  self-clearance (adjacent pairs excluded by the wedge rule). The
+  self-clearance, metric like every clearance: scopes that meet read
+  0, named on the shared cell (*Self-intersection scope*, E7). The
   earlier `min_clearance(sel)` spelling read as "this selection
   against the rest of the document" — the assembly consumer's
   question — which the binary door asks only pairwise; a complement
@@ -361,11 +362,28 @@ splits when indeterminate, reports on a definite violation.
 Probability never enters *inside* a leaf — no "probabilistically
 clear" verdict; mass accounting applies to leaves (E6), full stop.
 
-**Self-intersection scope**: the tier-3′ census made global and
-parametric — non-adjacent face pairs certified strictly positive
-distance; adjacent pairs are covered locally by the wedge predicates
-(their distance is legitimately 0). v1 geometry scope = the
-carriers the kernel has interval evaluators for; carriers without
+**Self-intersection scope**: the check proves injectivity of the
+boundary, and so that it is embedded. Let M be the boundary as an abstract surface: the faces'
+parameter domains glued along their shared edges and vertices, with
+each chart's own identifications. The carriers define f : M → ℝ³, and
+*Holds* certifies that f is injective. M is compact, so f is then an
+embedding. The proof covers M by the sweep's cells and calls two cells
+*touching* when they share a point of M. f is injective iff (1) on
+every touching pair, f is injective on their union, and (2) every
+non-touching pair has images at strictly positive distance. (2) is
+the interval distance test. (1) is a local certificate:
+- a strongly monotone projection within one face;
+- departure to opposite sides across a shared edge or vertex;
+- second order at a declared wedge-0/2π edge.
+
+A face on an analytic carrier is injective by its kind; a torus needs
+R > r decided first. A pair that is neither certified nor separated
+refuses typed. A non-touching pair at distance 0 is a violation, with
+a witness. The clearance question between two scopes is metric only:
+scopes that meet are at distance 0, with the witness named on the
+shared cell.
+
+The v1 geometry scope is the carriers the kernel has interval evaluators for; carriers without
 interval evaluation refuse typed (`Unsupported`), never downgrade
 to sampling.
 

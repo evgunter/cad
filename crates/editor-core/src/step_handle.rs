@@ -32,6 +32,12 @@ pub enum TargetShape {
     Start,
     /// The entry vertex, with the seam's tangent joint declared.
     StartArriving,
+    /// A crossing of a face's trace.
+    OnTrace,
+    /// The point along the heading at a written `x`.
+    AtX,
+    /// The point along the heading at a written `y`.
+    AtY,
 }
 
 /// An arc spec's mode and structural tags, values erased.
@@ -91,6 +97,9 @@ pub enum StepShape {
     FarEndTo,
     /// `to(Start)`, the seam-fillet close.
     CloseTo,
+    /// The heading along a face's trace: the `toward` director it
+    /// lowers to.
+    AlongTrace,
     /// `circle`.
     Circle,
     /// `circle_split`, and its count.
@@ -123,6 +132,7 @@ impl StepShape {
             Self::ArcFilletArc(..) => Verb::ArcFilletArc,
             Self::FarEndTo => Verb::FarEndTo,
             Self::CloseTo => Verb::CloseTo,
+            Self::AlongTrace => Verb::Toward,
             Self::Circle => Verb::Circle,
             Self::CircleSplit { .. } => Verb::CircleSplit,
         }
@@ -202,6 +212,7 @@ impl StepShape {
             }
             ProgramStep::FarEndTo(_) => Self::FarEndTo,
             ProgramStep::CloseTo => Self::CloseTo,
+            ProgramStep::AlongTrace { .. } => Self::AlongTrace,
         }
     }
 }
@@ -219,6 +230,9 @@ fn target_of_program<S>(t: &ProgramTarget<S>) -> TargetShape {
         ProgramTarget::Point(_) => TargetShape::Point,
         ProgramTarget::Start => TargetShape::Start,
         ProgramTarget::StartArriving => TargetShape::StartArriving,
+        ProgramTarget::OnTrace { .. } => TargetShape::OnTrace,
+        ProgramTarget::AtX(_) => TargetShape::AtX,
+        ProgramTarget::AtY(_) => TargetShape::AtY,
     }
 }
 

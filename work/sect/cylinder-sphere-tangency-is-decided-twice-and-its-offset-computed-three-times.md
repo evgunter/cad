@@ -2,11 +2,13 @@
 id: cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times
 kind: issue
 title: The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-to-centre offset is computed three times
-status: open
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [4025]
+rides_with: the-section-of-a-surface-pair-is-one-object
+closed: 2026-10-27
 ---
 
 Found by the single FULL review of PR 4025 (its style finding Q1, with
@@ -41,3 +43,31 @@ reach past each side) that the frame, the SSI door and the section table
 read, so their verdicts agree by construction; and one ruling on the
 radius sign at the frame dispatch (magnitude, or refuse as the section
 table does), applied to every arm.
+
+## More sites (SECT step 1 designers, 2026-10-27)
+
+The count is higher than measured above. The tangency is also decided by
+the interior-loop guard, `boolean/section_cert.rs` `sphere_cylinder`
+(`section_sphere_cylinder_reach`, `section_sphere_cylinder_girdle`), and
+by the coaxial `cs_wall_reach`. The offset is also computed by
+`boolean/glue.rs` `frame_rows`, INTENT E's record site, which calls
+`cylinder_sphere_section` per overlapping face pair, and again through
+`cs_pair_frame`. That makes five computations. The same shape on the crossing
+cylinders: `frame_rows` reaches into `join::crossing_cylinder_margins`
+(step 2's). Rides with `the-section-of-a-surface-pair-is-one-object`,
+whose one pose value closes it.
+
+## Closed
+
+2026-10-27, with `the-section-of-a-surface-pair-is-one-object`. The
+pose (`geom_brep::CylinderSpherePose`) computes the offset and decides
+the radii, the coaxiality and the reach once (`cs_cylinder_radius`,
+`cs_sphere_radius`, `cs_coaxial`, `cs_wall_reach`, `cs_near_reach`,
+`cs_far_reach`); the C5 coaxial arm, the ℝ³ march, the section table's
+records and the interior-loop guard read it. `ssi_cs_tangency`,
+`bool_germ_frame_cs_offset`, `bool_germ_frame_cs_reach`,
+`section_sphere_cylinder_reach` and `section_sphere_cylinder_girdle`
+are gone. A radius not definitely positive refuses `DegenerateOperand`
+(the march: `SsiError::RadiusNotPositive`) on every reading of the
+pair. The radius reads of the arms the value does not hold yet are
+`section-arms-off-the-value-read-radii-unguarded`.

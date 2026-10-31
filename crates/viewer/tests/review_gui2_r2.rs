@@ -42,9 +42,9 @@ use pncad::document::AuthoredNode;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
-use crate::common::{len, scl};
+use crate::common::len;
 
-use pncad::document::{Doc, Evaluation, Formula, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
@@ -109,11 +109,11 @@ fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     (doc, left, right)
 }
 
-/// A linear pattern of `count` small blocks, each copy projected and
-/// placed in place of the slab (A10) — several drawn bodies of one
-/// feature, and a structural slot that can consume one of them. The
-/// copies' placements are `doc.placements()`, in instance order.
-fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
+/// A row of `count` small blocks, each member read and placed in place
+/// of the slab (A10, D10) — several drawn bodies of one feature, and a
+/// count that can consume one of them. Answers the document, the
+/// family's placement and the members' world copies, in member order.
+fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, extrude) = slab(0.015, 0.015, 0.010, "r2-pattern");
     let slab_copy = common::copy_of(&doc, extrude);
     let (doc, _) = common::edited(
@@ -121,28 +121,20 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
         pncad::document::DocEdit::DeleteNode { id: slab_copy },
         tol(),
     );
-    let (doc, pattern) = inserted(
+    let (doc, pattern) = common::row_of_copies(
         &doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::count(count),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(0.04),
-            },
-        },
+        extrude,
+        count,
+        (pncad::document::TargetAxis::X, 0.04),
+        tol(),
     );
-    let doc = (0..count).fold(doc, |doc, index| {
-        let (doc, copy) = inserted(
-            &doc,
-            Node::Part {
-                of: pattern.into(),
-                select: pncad::document::PartSelect::Instance(Formula::count(index)),
-            },
-        );
-        common::placed(&doc, copy, tol()).0
+    let (doc, copies) = (0..count).fold((doc, Vec::new()), |(doc, mut copies), at| {
+        let (doc, member) = common::member_read(&doc, pattern, at, tol());
+        let (doc, copy) = common::placed(&doc, member, tol());
+        copies.push(copy);
+        (doc, copies)
     });
-    (doc, pattern)
+    (doc, pattern, copies)
 }
 
 fn landed_index(session: &DocSession) -> PickIndex {
@@ -614,8 +606,7 @@ fn keys_differing_in_any_single_field_never_share_an_id() {
 /// has.
 #[test]
 fn a_three_instance_pattern_gives_every_instance_its_own_ids() {
-    let (doc, _pattern) = pattern_of(3);
-    let copies = doc.placements();
+    let (doc, _pattern, copies) = pattern_of(3);
     let mut session = DocSession::inline(doc, tol());
     session.pump();
     let index = landed_index(&session);
@@ -1206,7 +1197,7 @@ fn deleting_the_owning_feature_leaves_a_typed_unresolved_selection() {
 /// selection unresolved, and undoing it makes it live again.
 #[test]
 fn a_consumed_instance_leaves_the_selection_unresolved_until_undone() {
-    let (doc, pattern) = pattern_of(3);
+    let (doc, pattern, copies) = pattern_of(3);
     let mut session = DocSession::inline(doc, tol());
     session.pump();
     let index = landed_index(&session);
@@ -1215,19 +1206,11 @@ fn a_consumed_instance_leaves_the_selection_unresolved_until_undone() {
         .face_at(evaluation(&session), &down_at(0.0875, 0.0075))
         .expect("no refusal")
         .expect("the third instance is hit");
-    assert_eq!(
-        face.node,
-        session.committed_doc().placements()[2],
-        "the picked face is on the last copy"
-    );
+    assert_eq!(face.node, copies[2], "the picked face is on the last copy");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    let outcome = session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: pncad::document::SlotId::Count,
-        value: viewer::props::SlotValue::Count(2),
-    });
+    let outcome = session.perform(common::recount_op(&session, pattern, 2));
     assert!(
         outcome.refusal.is_none(),
         "the count edit applied: {outcome:?}"
@@ -1255,14 +1238,10 @@ fn a_consumed_instance_leaves_the_selection_unresolved_until_undone() {
 /// redo makes it live again without re-picking.
 #[test]
 fn undo_across_the_selections_birth_and_back() {
-    let (doc, pattern) = pattern_of(2);
+    let (doc, pattern, _copies) = pattern_of(2);
     let mut session = DocSession::inline(doc, tol());
     session.pump();
-    session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: pncad::document::SlotId::Count,
-        value: viewer::props::SlotValue::Count(3),
-    });
+    session.perform(common::recount_op(&session, pattern, 3));
     let third = common::session_insert(
         &mut session,
         SessionOp::AddPart {
@@ -1621,7 +1600,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
 /// under, and `None` (no run) is never current.
 #[test]
 fn an_index_is_current_for_exactly_one_generation_and_delta() {
-    let (doc, pattern) = pattern_of(2);
+    let (doc, pattern, _copies) = pattern_of(2);
     let mut session = DocSession::inline(doc, tol());
     session.pump();
     let index = landed_index(&session);
@@ -1655,11 +1634,7 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
         "and so does the δ half"
     );
 
-    session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: pncad::document::SlotId::Count,
-        value: viewer::props::SlotValue::Count(3),
-    });
+    session.perform(common::recount_op(&session, pattern, 3));
     common::session_insert(
         &mut session,
         SessionOp::AddPart {
@@ -1689,7 +1664,7 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
 /// assigned.
 #[test]
 fn the_drawn_scene_carries_exactly_the_indexs_ids() {
-    let (doc, _) = pattern_of(2);
+    let (doc, _, _) = pattern_of(2);
     let mut session = DocSession::inline(doc, tol());
     session.pump();
     let index = landed_index(&session);
@@ -1741,6 +1716,7 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
                 mesh: part.mesh(),
                 ids,
                 probe: None,
+                placed: None,
             }],
             delta(),
         );
@@ -1761,7 +1737,8 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
             &[viewer::scene::ScenePart {
                 mesh: part.mesh(),
                 ids: &[],
-                probe: None
+                probe: None,
+                placed: None,
             }],
             delta()
         )

@@ -23,7 +23,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    ArcRimRefusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneNurbsRefusal, SurfacePair,
 };
 use geom_core::test_support::upper;
@@ -55,7 +55,6 @@ fn on_pair(
     plane: Surface<f64>,
     wall: Surface<f64>,
     carrier: NurbsCurve3<f64>,
-    lane: Option<geom_brep::NurbsLane<f64>>,
 ) -> Result<EdgeCurve<f64>, CertifyError> {
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let (s1, s2) = (arena.insert(plane), arena.insert(wall));
@@ -66,14 +65,14 @@ fn on_pair(
         param_start: 0.0,
         param_end: 1.0,
     };
-    EdgeCurve::certify_via(
+    EdgeCurve::certify(
         spec,
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
         1.0,
         band(),
-        lane,
+        geom_brep::NurbsLane::certified(),
     )
 }
 
@@ -98,13 +97,7 @@ fn assert_on_pair(edge: &EdgeCurve<f64>, what: &str) {
 /// recorded residual the lane's certified sup.
 #[test]
 fn a_ruling_on_a_transverse_plane_certifies_on_the_pair() {
-    let edge = on_pair(
-        transverse_plane(),
-        wall(),
-        ruling(0.0),
-        Some(geom_brep::NurbsLane::certified()),
-    )
-    .expect("the ruling lies on both");
+    let edge = on_pair(transverse_plane(), wall(), ruling(0.0)).expect("the ruling lies on both");
     assert_on_pair(&edge, "the transverse plane");
 }
 
@@ -117,13 +110,7 @@ fn a_ruling_on_a_transverse_plane_certifies_on_the_pair() {
 /// of it is tier 3's must-carry check, which no door here is asking.
 #[test]
 fn a_ruling_on_the_tangent_plane_certifies_incidence_alone() {
-    let edge = on_pair(
-        tangent_plane(),
-        wall(),
-        ruling(0.0),
-        Some(geom_brep::NurbsLane::certified()),
-    )
-    .expect("the ruling lies on both");
+    let edge = on_pair(tangent_plane(), wall(), ruling(0.0)).expect("the ruling lies on both");
     assert_on_pair(&edge, "the tangent plane");
 }
 
@@ -133,12 +120,7 @@ fn a_ruling_on_the_tangent_plane_certifies_incidence_alone() {
 #[test]
 fn a_carrier_off_the_wall_refuses_with_the_measured_miss() {
     let off = 1e3 * Tol::witness().get().eps;
-    match on_pair(
-        transverse_plane(),
-        wall(),
-        ruling(off),
-        Some(geom_brep::NurbsLane::certified()),
-    ) {
+    match on_pair(transverse_plane(), wall(), ruling(off)) {
         Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { margin, .. })) => {
             let value = upper(margin);
             assert!(value >= 0.5 * off, "the measured miss: {value:e}");
@@ -161,7 +143,6 @@ fn a_side_a_flat_patch_shares_with_its_plane_certifies_on_the_pair() {
         },
         Surface::Nurbs(Arc::new(flat_patch())),
         segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)),
-        Some(geom_brep::NurbsLane::certified()),
     )
     .expect("the side lies on both");
     assert_on_pair(&edge, "the coincident flat patch");
@@ -184,16 +165,6 @@ fn flat_patch() -> NurbsSurface<f64> {
     .unwrap()
 }
 
-/// With no lane in hand the pair refuses typed, before any check of the
-/// edge, as the plane × NURBS `Intersection` does.
-#[test]
-fn the_pair_with_no_lane_refuses_typed() {
-    assert!(matches!(
-        on_pair(transverse_plane(), wall(), ruling(0.0), None),
-        Err(CertifyError::NurbsLaneNotSupplied)
-    ));
-}
-
 /// **An `Approx` wall is metered against its fit.** The flat patch
 /// `x = 0` over `y, z ∈ [0, 1]` offset by `d`: its fit is the plane
 /// `x = ±d` itself, and its `y = 0` side lies on the `y = 0` plane.
@@ -208,13 +179,7 @@ fn a_side_of_an_approx_wall_certifies_on_the_pair() {
         (0.0, 0.0),
         "the side lies on the y = 0 plane"
     );
-    let edge = on_pair(
-        transverse_plane(),
-        approx,
-        side,
-        Some(geom_brep::NurbsLane::certified()),
-    )
-    .expect("the side lies on both");
+    let edge = on_pair(transverse_plane(), approx, side).expect("the side lies on both");
     assert_on_pair(&edge, "the Approx wall");
 }
 
@@ -225,8 +190,7 @@ fn two_spline_charts_still_refuse_the_pair() {
         on_pair(
             wall(),
             Surface::Nurbs(Arc::new(quarter_cylinder_wall())),
-            ruling(0.0),
-            Some(geom_brep::NurbsLane::certified()),
+            ruling(0.0)
         ),
         Err(CertifyError::Unimplemented)
     ));
@@ -281,7 +245,7 @@ fn an_approx_wall_is_metered_against_its_fit() {
         normal: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let got = on_pair(plane, approx, line, Some(geom_brep::NurbsLane::certified()));
+    let got = on_pair(plane, approx, line);
     println!("the fit lies {miss:e} off the description's line");
     if miss > 2.0 * band().zero() {
         match got {
@@ -367,14 +331,14 @@ fn arc_on_pair(
         surface: wall_key,
         pcurve,
     });
-    EdgeCurve::certify_via_stated(
+    EdgeCurve::certify_stated(
         spec,
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
         1.0,
         band(),
-        Some(geom_brep::NurbsLane::certified()),
+        geom_brep::NurbsLane::certified(),
         stated.as_ref(),
     )
 }
@@ -410,16 +374,18 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     assert!(
         matches!(
             arc_on_pair(carrier.clone(), None),
-            Err(CertifyError::OnPairArcRim { iso: None, .. })
+            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
+                ArcRimRefusal::Refused { iso: None, .. }
+            )))
         ),
         "no image of the wall's rows holds a rim {off:e} off it"
     );
     let refused = arc_on_pair(carrier, Some(quarter_image()));
     let Err(
-        e @ CertifyError::OnPairArcRim {
+        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             ..
-        },
+        })),
     ) = &refused
     else {
         panic!("the stated image refuses at its map residual: {refused:?}");
@@ -609,7 +575,10 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
         })
         .expect("a candidate that is not the rim's row");
     match arc_on_pair(quarter, Some(wrong)) {
-        Err(CertifyError::OnPairArcRim { iso: Some(_), .. }) => {}
+        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+            iso: Some(_),
+            ..
+        }))) => {}
         other => panic!("a wrong stated image refuses as itself: {other:?}"),
     }
 }
@@ -619,7 +588,7 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
 /// stated — whose arc covers it — certifies, and so does the child
 /// alone, through the image the pick measures for it, which is the
 /// parent's. Re-certification reads the stored image as the op did
-/// (`recertify_via_stated`, tier 3's).
+/// (`recertify_stated`, tier 3's).
 #[test]
 fn a_split_child_recertifies_through_its_parents_stored_image() {
     let (carrier, _) = rim(1.0, core::f64::consts::FRAC_PI_2);
@@ -630,8 +599,8 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         pcurve: quarter_image(),
     };
     let surfaces = |k| arena.get(k).cloned();
-    let lane = || Some(geom_brep::NurbsLane::certified());
-    let child = EdgeCurve::certify_via_stated(
+    let lane = geom_brep::NurbsLane::<f64>::certified;
+    let child = EdgeCurve::certify_stated(
         spec.clone(),
         ends.0,
         ends.1,
@@ -642,7 +611,7 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         Some(&stated),
     )
     .expect("the child certifies through its parent's image");
-    let alone = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane())
+    let alone = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, 1.0, band(), lane())
         .expect("the child alone certifies through the image picked for it");
     assert!(
         (alone.certificate().max_residual - child.certificate().max_residual).abs() < 1e-12,
@@ -651,6 +620,6 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         child.certificate().max_residual
     );
     child
-        .recertify_via_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))
+        .recertify_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))
         .expect("the child re-certifies through the stored image");
 }

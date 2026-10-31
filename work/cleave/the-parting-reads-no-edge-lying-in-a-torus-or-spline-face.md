@@ -27,7 +27,7 @@ circle) or in a spline face is never read as lying in it, and
 either. Where both the edge's faces go into such a face's material,
 the Boolean keeps one edge. The edge-carrier half (a spline or spiric
 edge in a plane face) is SPLICE's
-`work/splice/a-spline-rider-reads-as-lying-in-no-plane-face.md`.
+`work/spliceseam/a-spline-rider-reads-as-lying-in-no-plane-face.md`.
 
 ## Fix
 

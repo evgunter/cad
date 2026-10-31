@@ -2,11 +2,14 @@
 id: clearance-window-selection-asks-how-many-before-what
 kind: issue
 title: clearance::windows_of refuses Unresolved for a tied face name before it can answer NotAFace
-status: open
+status: closed
 opened: 2026-09-15
 refs: [named-face-scope-refuses-not-a-face-without-naming-what-it-found]
 priority: P1
-cost: D
+cost: M
+branch: clear/cleartext
+pr: 5977
+closed: 2026-10-29
 ---
 
 
@@ -80,3 +83,13 @@ should read both, because the repair for this row (ask the kind before
 splitting on `Unique`/`Tied`) changes which arm the wrong-body case
 reaches, and the repair for that one decides what it says when it gets
 there.
+
+## Closed
+CLEARTEXT (#5977), with this commit last. The clearance refusals now
+name each face by its side, and editor-core names each side by its
+selection. They carry their causes: `NoBodies` and `ToleranceHasNoBand`
+keep the error, and `KeyOfAnotherKind` ends in the kernel-defect line.
+A named scope asks what a name denotes before how many things answer
+to it. A single STYLE review at `25f81b1897` returned
+APPROVE-WITH-FIXES. Its fix pass (`7bc8900b`) was read and accepted
+by the orchestrator.

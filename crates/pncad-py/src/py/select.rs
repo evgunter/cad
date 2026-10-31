@@ -115,6 +115,10 @@ pub(crate) enum SegTag {
     // Loft
     LoftWall,
     LoftSeam,
+    LoftSlabWall,
+    LoftSlabSeam,
+    LoftSectionEdge,
+    LoftSectionVertex,
     // Revolve
     Band,
     BandRim,
@@ -156,8 +160,8 @@ pub(crate) enum SegTag {
     Inner,
     Rim,
     HoleRim,
-    // Pattern
-    Instance,
+    // Repetition
+    Member,
 }
 
 impl SegTag {
@@ -172,6 +176,10 @@ impl SegTag {
             Self::CapVertex => s::SegTag::CapVertex,
             Self::LoftWall => s::SegTag::LoftWall,
             Self::LoftSeam => s::SegTag::LoftSeam,
+            Self::LoftSlabWall => s::SegTag::LoftSlabWall,
+            Self::LoftSlabSeam => s::SegTag::LoftSlabSeam,
+            Self::LoftSectionEdge => s::SegTag::LoftSectionEdge,
+            Self::LoftSectionVertex => s::SegTag::LoftSectionVertex,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
             Self::BandRimPi => s::SegTag::BandRimPi,
@@ -208,7 +216,7 @@ impl SegTag {
             Self::Inner => s::SegTag::Inner,
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
-            Self::Instance => s::SegTag::Instance,
+            Self::Member => s::SegTag::Member,
         }
     }
 }
@@ -227,7 +235,7 @@ pub(crate) enum OpGroup {
     Boolean,
     Split,
     Fillet,
-    Pattern,
+    Repetition,
     Shell,
 }
 
@@ -240,8 +248,8 @@ impl OpGroup {
             Self::Boolean => s::OpGroup::Boolean,
             Self::Split => s::OpGroup::Split,
             Self::Fillet => s::OpGroup::Fillet,
-            Self::Pattern => s::OpGroup::Pattern,
             Self::Shell => s::OpGroup::Shell,
+            Self::Repetition => s::OpGroup::Repetition,
         }
     }
 }
@@ -513,8 +521,11 @@ impl SegPat {
         Self(self.0.clone().side(side.to_kernel()))
     }
 
-    /// Constrains the segment's sub-name arguments, positionally, as
-    /// a PREFIX: `[p]` constrains the first argument only.
+    /// Constrains the segment's sub-name arguments: the slotted ones
+    /// as a PREFIX (`[p]` on a `Crossing` constrains its edge only),
+    /// then each pattern past them a DISTINCT member of the segment's
+    /// set, in any order (a seam's sides, `Merged` constituents, an
+    /// `EdgeCrossing`'s lines, a band's chain).
     fn of(&self, args: Vec<NamePat>) -> Self {
         Self(self.0.clone().of(args.into_iter().map(|p| p.0)))
     }
@@ -549,7 +560,8 @@ impl NamePat {
         Self(self.0.clone().node(node.0))
     }
 
-    /// Constrains the role path (exact length, segment-for-segment).
+    /// Constrains the role path (exact length, segment-for-segment; a
+    /// seam junction's lines, a set, in any order).
     fn path(&self, path: Vec<SegPat>) -> Self {
         Self(self.0.clone().path(path.into_iter().map(|p| p.0)))
     }
@@ -814,6 +826,14 @@ pub(crate) fn select_refusal(
                 error.spoken(doc)
             )
         }
+        R::Frame { name, .. } => {
+            let name = match crate::py::doc::name_text(py, name) {
+                Ok(t) => t,
+                Err(failed) => return failed,
+            };
+            fill(&mut fields, "name", text(&name));
+            err.spoken(doc, evaluation)
+        }
         R::NotAPlane { face } => {
             let face = match crate::py::doc::name_text(py, face) {
                 Ok(t) => t,
@@ -903,6 +923,10 @@ mod growth_tripwire {
             s::SegTag::CapVertex => SegTag::CapVertex,
             s::SegTag::LoftWall => SegTag::LoftWall,
             s::SegTag::LoftSeam => SegTag::LoftSeam,
+            s::SegTag::LoftSlabWall => SegTag::LoftSlabWall,
+            s::SegTag::LoftSlabSeam => SegTag::LoftSlabSeam,
+            s::SegTag::LoftSectionEdge => SegTag::LoftSectionEdge,
+            s::SegTag::LoftSectionVertex => SegTag::LoftSectionVertex,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
             s::SegTag::BandRimPi => SegTag::BandRimPi,
@@ -939,7 +963,7 @@ mod growth_tripwire {
             s::SegTag::Inner => SegTag::Inner,
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
-            s::SegTag::Instance => SegTag::Instance,
+            s::SegTag::Member => SegTag::Member,
         }
     }
 
@@ -951,8 +975,8 @@ mod growth_tripwire {
             s::OpGroup::Boolean => OpGroup::Boolean,
             s::OpGroup::Split => OpGroup::Split,
             s::OpGroup::Fillet => OpGroup::Fillet,
-            s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::Shell => OpGroup::Shell,
+            s::OpGroup::Repetition => OpGroup::Repetition,
         }
     }
 

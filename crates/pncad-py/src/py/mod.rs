@@ -19,6 +19,7 @@ mod resolve;
 mod select;
 mod step;
 mod store;
+mod trace;
 mod value;
 
 use pyo3::prelude::*;
@@ -323,22 +324,6 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
-    AssemblyError,
-    PncadError,
-    "The at-rest assembly gate refused. Carries `variant`, the stable \
-     tag of the refusing arm, plus the arm's payload as attributes \
-     (`node`, `through`, `of`, `via`, `name`, `findings`), each \
-     present on every arm and `None` where that arm does not carry \
-     it.\n\n\
-     `at_rest` is the census's verdict against the product, \
-     `findings` every one of its findings; `carried_at_rest` is the \
-     same for a document below this one.\n\n\
-     A gather refusal arrives here under the gather's OWN tag \
-     (`empty_product`, `root_poisoned`, ...), not a wrapper tag: which \
-     invariant broke is what a caller branches on."
-);
-pyo3::create_exception!(
-    pncad,
     ProductError,
     PncadError,
     "The whole-document gather refused. Carries `variant`, the stable \
@@ -482,8 +467,8 @@ pyo3::create_exception!(
     ChecksError,
     PncadError,
     "The advisory-check registry could not RUN. Carries `variant`, the \
-     stable tag of the refusing arm (`root_without_value`, `band`, \
-     `product_unavailable`), and `node` — the root without a value, \
+     stable tag of the refusing arm (`placement_without_value`, `band`, \
+     `product_unavailable`), and `node` — the placement without a value, \
      `None` on the other arms. Its message names each node as the \
      evaluation's own document holds it, the gather's included.\n\n\
      NOT a finding. A check that ran and disagreed is a value in the \
@@ -498,7 +483,7 @@ pyo3::create_exception!(
      every refusing `CheckFinding` in report order.\n\n\
      The registry's one refusing path, and it refuses on nothing the \
      caller did not ask to be refused on — no default severity is \
-     `Error`, and the separation resident cannot be set to it at all."
+     `Error`."
 );
 pyo3::create_exception!(
     pncad,
@@ -741,7 +726,6 @@ fn raise_typed(
         ErrorClass::Identity => IdentityError::new_err(message),
         ErrorClass::Workspace => WorkspaceError::new_err(message),
         ErrorClass::Mate => MateError::new_err(message),
-        ErrorClass::Assembly => AssemblyError::new_err(message),
         ErrorClass::Product => ProductError::new_err(message),
         ErrorClass::Split => SplitError::new_err(message),
         ErrorClass::Inline => InlineError::new_err(message),
@@ -849,7 +833,6 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Identity
         | ErrorClass::Workspace
         | ErrorClass::Mate
-        | ErrorClass::Assembly
         | ErrorClass::Product
         | ErrorClass::Split
         | ErrorClass::Inline
@@ -916,7 +899,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("IdentityError", py.get_type::<IdentityError>())?;
     m.add("WorkspaceError", py.get_type::<WorkspaceError>())?;
     m.add("MateError", py.get_type::<MateError>())?;
-    m.add("AssemblyError", py.get_type::<AssemblyError>())?;
     m.add("ProductError", py.get_type::<ProductError>())?;
     m.add("SplitError", py.get_type::<SplitError>())?;
     m.add("InlineError", py.get_type::<InlineError>())?;
@@ -957,6 +939,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     value::register(m)?;
     analysis::register(m)?;
     measure::register(m)?;
+    trace::register(m)?;
 
     // Build-provenance surface. The persistence format carries no
     // schema version to publish here (the persist module docs say

@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::{
@@ -43,7 +44,12 @@ fn bumped(bump: f64) -> NurbsCurve3<f64> {
 }
 
 /// `mev` of the carrier between a cylinder face and a plane face.
-fn build(c: &Arc<NurbsCurve3<f64>>) -> (Body<f64>, Result<topo::MevCreated, EulerOpError>) {
+fn build(
+    c: &Arc<NurbsCurve3<f64>>,
+) -> (
+    Body<f64>,
+    Result<topo::construction::MevCreated, EulerOpError>,
+) {
     let plane = Surface::Plane {
         origin: Point3::origin(),
         normal: Vec3::unit_z(),
@@ -61,7 +67,7 @@ fn build(c: &Arc<NurbsCurve3<f64>>) -> (Body<f64>, Result<topo::MevCreated, Eule
     let ck = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: cylinder,
                 sense: true,
             },
@@ -71,21 +77,21 @@ fn build(c: &Arc<NurbsCurve3<f64>>) -> (Body<f64>, Result<topo::MevCreated, Eule
     let pk = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: plane,
                 sense: true,
             },
         )
         .unwrap();
     let made = body.mev(
-        topo::MevSite::Lone {
+        topo::construction::MevSite::Lone {
             r#loop: seed.r#loop,
         },
         p1,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(ck, pk),
-                witness: c.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(c.eval(0.5)),
             },
             carrier: Curve3::Nurbs(Arc::clone(c)),
             param_start: 0.0,
@@ -122,7 +128,6 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
                 Err(EulerOpError::Certification {
                     error: CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::Rung3Limb::HullValue,
                         margin,
                     }),
                 }) if (0.99 * between..=1.01 * between).contains(&upper(*margin))

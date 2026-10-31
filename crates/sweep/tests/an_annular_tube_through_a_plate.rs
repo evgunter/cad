@@ -96,19 +96,9 @@ fn plate() -> Body<f64> {
     brick((-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0), tol())
 }
 
-/// What a row's result is held to besides its closed form.
-#[derive(Clone, Copy, Default)]
-struct Known<'a> {
-    /// The runs whose result the mesher refuses `Triangulation`: a
-    /// thin annulus whose two circles' vertices are opposed
-    /// (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
-    untriangulated: &'a [&'a str],
-}
-
 /// Every op in both orders between `tube` (profile area `area`, over
-/// `z`) and the plate, each `SOUND` at its closed form and meshed, but
-/// for the runs `known` names.
-fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<'_>) {
+/// `z`) and the plate, each `SOUND` at its closed form and meshed.
+fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64)) {
     let (va, vb, vab) = (
         area * (z.1 - z.0),
         36.0,
@@ -122,12 +112,12 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<
         let res = r.as_ref().unwrap_or_else(|e| panic!("{row}: {e:?}"));
         let body = &res.body().unwrap_or_else(|| panic!("{row}: empty")).body;
         match mesh::tessellate(body, 5e-3, tol()) {
-            Ok(m) if !known.untriangulated.contains(&op) => {
-                mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"));
+            Ok(m) => {
+                if let Err(e) = mesh::validate::check_mesh(&m) {
+                    bad.push(format!("{row}: mesh {e:?}"));
+                }
             }
-            Err(mesh::TessellateError::Triangulation { .. })
-                if known.untriangulated.contains(&op) => {}
-            m => bad.push(format!("{row}: the mesh {:?}", m.map(|_| "meshed"))),
+            Err(e) => bad.push(format!("{row}: the mesh {e:?}")),
         }
         // The closed form within the quadrature's own certified pad,
         // which grows with ε; `outcome` reads the volume too.
@@ -149,7 +139,7 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<
 
 /// The tubes over `z`, each two rings about the origin, nested and
 /// united (a profile holds no island in a hole), run by [`every_op`].
-fn nested(what: &str, annuli: &[[Ring; 2]], z: (f64, f64), known: Known<'_>) {
+fn nested(what: &str, annuli: &[[Ring; 2]], z: (f64, f64)) {
     let fin = |w, b| topo::test_support::finished(w, b, tol());
     let mut all = tube((0.0, 0.0), &annuli[0], z);
     for a in &annuli[1..] {
@@ -162,12 +152,12 @@ fn nested(what: &str, annuli: &[[Ring; 2]], z: (f64, f64), known: Known<'_>) {
         all = r.body().expect("the tubes unite").body.clone().into_body();
     }
     let area = annuli.iter().map(|a| area(a)).sum();
-    every_op(what, all, area, z, known);
+    every_op(what, all, area, z);
 }
 
 /// `rings` about `c` as a tube over `z`, run by [`every_op`].
-fn every_op_on(what: &str, c: (f64, f64), rings: &[Ring], z: (f64, f64), known: Known<'_>) {
-    every_op(what, tube(c, rings, z), area(rings), z, known);
+fn every_op_on(what: &str, c: (f64, f64), rings: &[Ring], z: (f64, f64)) {
+    every_op(what, tube(c, rings, z), area(rings), z);
 }
 
 /// The witness tube: `r ∈ [0.5, 1]`, its walls' vertices at `ao` and
@@ -178,7 +168,6 @@ fn witness(ao: f64, ai: f64) {
         (0.0, 0.0),
         &[ring(1.0, ao), ring(0.5, ai)],
         (0.5, 2.5),
-        Known::default(),
     );
 }
 
@@ -218,7 +207,6 @@ fn two_nested_annuli_build() {
             [ring(0.5, 0.0), ring(0.25, PI)],
         ],
         (0.5, 2.5),
-        Known::default(),
     );
 }
 
@@ -239,15 +227,9 @@ fn thin_nested_rings_build() {
                 ]
             })
             .collect();
-        let known = Known {
-            untriangulated: &ALL_OPS,
-        };
-        nested(&format!("thin rings w = {w}"), &annuli, (0.5, 2.5), known);
+        nested(&format!("thin rings w = {w}"), &annuli, (0.5, 2.5));
     }
 }
-
-/// The six runs' names, as `every_op_both_orders` gives them.
-const ALL_OPS: [&str; 6] = ["A ∪ B", "B ∪ A", "A ∩ B", "B ∩ A", "A ∖ B", "B ∖ A"];
 
 /// **The annulus off the plate's centre**, its vertices opposed.
 #[test]
@@ -257,7 +239,6 @@ fn an_off_centre_annulus_builds() {
         (1.2, -0.7),
         &[ring(1.0, 2.0), ring(0.5, 2.0 + PI)],
         (0.5, 2.5),
-        Known::default(),
     );
 }
 
@@ -271,7 +252,6 @@ fn an_annulus_through_the_plate_builds() {
         (0.0, 0.0),
         &[ring(1.0, 0.0), ring(0.5, PI)],
         (-0.5, 1.5),
-        Known::default(),
     );
 }
 
@@ -285,7 +265,7 @@ fn two_arc_circles_agree_with_one_segment_ones() {
         ("outer two-arc", [two(1.0, 0.0), ring(0.5, PI)]),
         ("inner two-arc", [ring(1.0, 0.0), two(0.5, PI)]),
     ] {
-        every_op_on(what, (0.0, 0.0), &rings, (0.5, 2.5), Known::default());
+        every_op_on(what, (0.0, 0.0), &rings, (0.5, 2.5));
     }
 }
 

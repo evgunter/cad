@@ -6,8 +6,8 @@ status: closed
 opened: 2026-10-18
 priority: P3
 cost: M
-parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 closed: 2026-10-23
+refs: [5613]
 ---
 
 `value::settle` sets a slide as `gap = v.by − chart.slide(&m, axis)` and then translates the folded map by `gap` along the axis (`crates/editor-core/src/mate/value.rs:279-284`; `chart.slide` at `:157-159` reads `(m.translation − origin)·axis`). On a box lane, `gap` carries the map translation's width, and the translation then adds it again, so the result is about twice the width the value and the target justify. The INTENT stage 3 D m10 lane measured it. It is the translational twin of the spin's width, which D fixed by setting the turn from the two charts' frames (`Chart::turned`).

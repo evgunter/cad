@@ -507,6 +507,8 @@ impl Real for Interval {
 
     const NAME: &'static str = "interval";
 
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
@@ -882,6 +884,14 @@ impl Bounds for Interval {
 impl crate::real::CertifiedEnclosure for Interval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
+    }
+
+    fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
+        record
+    }
+
+    fn held<C: Copy + core::fmt::Debug + Send + Sync + 'static>(held: &C) -> &C {
+        held
     }
 }
 

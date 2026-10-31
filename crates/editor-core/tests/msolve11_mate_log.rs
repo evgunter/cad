@@ -7,7 +7,7 @@
 //! mates read decide about themselves is theirs. That nothing is
 //! recorded outside a node is checked for every mate document a suite
 //! evaluates through `fixture::run`; the rows here pin WHICH node, the
-//! memo, and the lever and `Part`-index rows beside them.
+//! memo, and the lever and member-index rows beside them.
 //!
 //! Every row goes through ordinary doors — `DocEdit::InsertNode`,
 //! `DocEdit::SetConstraints`, `evaluate` with or
@@ -16,15 +16,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Mate,
-    MateRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, SitedRef, StableName, TargetAxis, VarId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, in_copy, insert, len, on_frame, scl};
+use fixture::{in_copy, insert, len, on_frame};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -64,10 +65,10 @@ fn standoff(face: SitedFace, h: f64) -> Operand {
     })))
 }
 
-/// A base slab and a block, each pinned to the world, a linear pattern
-/// of the block, and two blocks with empty bundles for the constraints
-/// to place: `cap`, seated on the pattern's copy 1, and `other`, seated
-/// on the base.
+/// A base slab and a block, each pinned to the world, a row of the
+/// block in the world, and two blocks with empty bundles for the
+/// constraints to place: `cap`, seated on the row's member 1, and
+/// `other`, seated on the base.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -81,9 +82,11 @@ struct Scene {
     /// the part's own spelling.
     edge: StableName,
     pattern: RecipeNodeId,
-    /// The pattern's copy 1, projected out of its instances by a
-    /// `Part`: a pose is read off one body, and a pattern's value is
-    /// many.
+    /// The row's index.
+    k: VarId,
+    /// The row's member 1, copied out of its family by a read of
+    /// `pattern[1]`: a pose is read off one body, and a family's value
+    /// is many.
     copy1: RecipeNodeId,
 }
 
@@ -106,24 +109,8 @@ fn scene(label: &str) -> Scene {
         fixture::insert_pinned(doc, crate::fixture::mated_instance(block_ref), &opts);
     let (doc, other) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, cap) = insert(doc, fixture::mated_instance(block_ref));
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: block.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    let (doc, copy1) = insert(
-        doc,
-        Node::Part {
-            of: pattern.into(),
-            select: editor_core::PartSelect::Instance(Formula::count(1)),
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, block, [1.0, 0.0, 0.0], 3.0, 2);
+    let (doc, copy1) = fixture::member(doc, pattern, 1);
     Scene {
         doc,
         opts,
@@ -135,6 +122,7 @@ fn scene(label: &str) -> Scene {
         block_body,
         edge,
         pattern,
+        k,
         copy1,
     }
 }
@@ -145,12 +133,11 @@ impl Scene {
         fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End))
     }
 
-    /// Copy 1's lateral edge, as an axis read at the `Part` that
-    /// projects it.
+    /// Member 1's lateral edge, as an axis read at the copy of it.
     fn copy_edge(&self) -> Operand {
         fixture::axis(SitedRef::new(
             self.copy1,
-            in_copy(self.pattern, 1, self.edge.clone()),
+            in_copy(self.pattern, self.k, 1, self.edge.clone()),
         ))
     }
 
@@ -199,7 +186,7 @@ impl Scene {
             fixture::mate(self.block_edge(self.cap), self.copy_edge()),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
-                (Coord::SPIN, ang(0.0)),
+                (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
     }
@@ -213,7 +200,7 @@ impl Scene {
             &[
                 (Coord::Slide(TargetAxis::X), len(x)),
                 (Coord::Slide(TargetAxis::Y), len(y)),
-                (Coord::SPIN, ang(0.0)),
+                (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         )
     }
@@ -250,22 +237,16 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 
 // ---- one home per decision ----
 
-/// The decisions a pattern makes about its own rule.
-const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
-
 /// **Each decision is on the node that made it.** Two placements: the
-/// cap, held by a coaxial mate against copy 1 of a pattern (read at a
-/// `Part` that projects it) and its slide and spin, and the other
-/// block, held by a rest and three values against the base.
+/// cap, held by a coaxial mate against member 1 of a row (read at a
+/// copy of `row[1]`) and its slide and spin, and the other block, held
+/// by a rest and three values against the base.
 ///
 /// - Each placement's chart (`mate_chart_pole`) is on its
 ///   own log.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
 ///   is minted (`mate_axes_parallel`) on either log.
-/// - The pattern's rule — its direction and the sign of its spacing —
-///   is decided where the pattern evaluates, on its own log, and on
-///   neither placement's though the cap reads its copy through it.
 ///
 /// *Breaks if* a placement's decision lands on another node's row, or a
 /// placement re-decides what the copy it reads decided.
@@ -277,7 +258,7 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let ev = fixture::run(&s.doc, &s.opts);
     let names =
         |node| -> Vec<&'static str> { log(&ev, node).iter().map(|v| v.predicate).collect() };
-    let (cap_log, other_log, pattern_log) = (names(s.cap), names(s.other), names(s.pattern));
+    let (cap_log, other_log) = (names(s.cap), names(s.other));
     let on = |got: &[&str], p: &str| got.contains(&p);
     for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
@@ -289,18 +270,6 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
         !on(&other_log, "mate_axes_parallel") && !on(&cap_log, "mate_axes_parallel"),
         "no slide mints a line: {other_log:?}, cap {cap_log:?}"
     );
-    for p in PATTERN_RULE {
-        assert!(
-            on(&pattern_log, p),
-            "the pattern decides its {p}: {pattern_log:?}"
-        );
-        for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
-            assert!(
-                !on(got, p),
-                "the pattern's {p} is on no placement's log, the {what}'s included: {got:?}"
-            );
-        }
-    }
 }
 
 // ---- the memo ----
@@ -310,14 +279,14 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
 /// the same allocation, and every op that runs mints a fresh one.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.contacts, &b.contacts),
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
         _ => false,
     }
 }
 
 /// **A reused placement carries the log a fresh evaluation of it
-/// carries.** The cap's bundle is a coaxial mate against a pattern
-/// copy and its slide and spin values, so its log holds the values'
+/// carries.** The cap's bundle is a coaxial mate against a family's
+/// member and its slide and spin values, so its log holds the values'
 /// charts. A constraint added to ANOTHER placement leaves the
 /// cap's reads and key as they were, so the memo serves it, and the
 /// served row carries the decisions its fold recorded — the ones a
@@ -467,65 +436,67 @@ fn a_lever_whose_distance_overflows_is_admitted_and_refused_at_evaluation() {
     );
 }
 
-// ---- the `Part`'s own index ----
+// ---- a member read's own index ----
 
-/// The cap resting on the copy a `Part` over the pattern carries,
-/// read at the `Part` under copy 1's name.
+/// The cap resting on the member a read of the row carries, read at
+/// that copy under member 1's name.
 fn rest_on_part(s: &mut Scene, part: RecipeNodeId) -> MateRef {
     let read_at_part = fixture::head_at(
         part,
-        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
+        in_copy(
+            s.pattern,
+            s.k,
+            1,
+            in_part(s.block, s.block_body, CapEnd::End),
+        ),
     );
     s.add(s.cap, fixture::rest(s.bottom(s.cap), read_at_part))
 }
 
-/// **A `Part`'s index that does not evaluate is refused at the
-/// `Part`**, the node the evaluation fails, and not at the healthy
-/// pattern below it; the cap whose mate reads the `Part` is poisoned
-/// through it. The index `k · i64::MAX + 1` selects copy 1 at `k = 0`,
-/// where the cap rests on it, and overflows the count's range at
-/// `k = 1`.
+/// **A member read's index that does not evaluate is refused at the
+/// read**, the node the evaluation fails, and not at the healthy family
+/// below it; the cap whose mate reads the copy is poisoned through it.
+/// The index `which · i64::MAX + 1` reads member 1 at `which = 0`, where
+/// the cap rests on it, and overflows the count's range at `which = 1`.
 ///
-/// *Breaks if* the refusal lands on the pattern, or the cap evaluates
-/// over a copy that no longer exists.
+/// *Breaks if* the refusal lands on the family, or the cap evaluates
+/// over a member that no longer exists.
 #[test]
-fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
-    use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
+fn a_member_reads_index_that_does_not_evaluate_is_refused_at_the_read() {
+    use editor_core::{Dimension, FreeValue, FreeVar, VarName};
     let mut s = scene("msolve11-part-index");
-    let k = VarName::from_static("k");
+    let which = VarName::from_static("which");
     let (doc, _) = fixture::step(
         s.doc.clone(),
         DocEdit::DeclareVar {
-            name: k.clone(),
+            name: which.clone(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
     let index = Formula::add(
         Formula::mul(
-            Formula::named(k.clone(), Dimension::Count),
+            Formula::named(which.clone(), Dimension::Count),
             Formula::count(i64::MAX),
         )
         .unwrap(),
         Formula::count(1),
     )
     .unwrap();
-    let part = s.insert(Node::Part {
-        of: s.pattern.into(),
-        select: PartSelect::Instance(index),
-    });
+    let node = fixture::member_node(&s.doc, s.pattern, vec![index]);
+    let part = s.insert(node);
     rest_on_part(&mut s, part);
     let ev = fixture::run(&s.doc, &s.opts);
     assert!(
         matches!(ev.result(s.cap), Some(NodeResult::Ok(_))),
-        "the index selects the named copy at k = 0: {:?}",
+        "the index reads the named member at which = 0: {:?}",
         ev.result(s.cap)
     );
 
     let (doc, _) = fixture::step(
         s.doc.clone(),
         DocEdit::SetVarValue {
-            var: k.into(),
+            var: which.into(),
             value: FreeValue::Count(1),
         },
     );
@@ -536,15 +507,21 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
             ev.result(part),
             Some(NodeResult::Failed(e)) if matches!(
                 e.kind,
-                NodeErrorKind::Expr { slot: editor_core::SlotId::Instance, .. }
+                NodeErrorKind::Expr {
+                    slot: editor_core::SlotId::Index {
+                        seat: editor_core::OperandSlot::Source,
+                        k: 0
+                    },
+                    ..
+                }
             )
         ),
-        "the `Part` fails on its own index: {:?}",
+        "the read fails on its own index: {:?}",
         ev.result(part)
     );
     assert!(
         matches!(ev.result(s.pattern), Some(NodeResult::Ok(_))),
-        "the pattern below it is healthy: {:?}",
+        "the family below it is healthy: {:?}",
         ev.result(s.pattern)
     );
     assert!(
@@ -552,40 +529,34 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
             ev.result(s.cap),
             Some(NodeResult::Poisoned { through }) if *through == part
         ),
-        "the cap is poisoned through the `Part`: {:?}",
+        "the cap is poisoned through the read: {:?}",
         ev.result(s.cap)
     );
 }
 
-/// **A `Part`'s index outside its value is refused as the evaluation
-/// refuses it, at the `Part`.** The index 5 over a two-copy pattern
-/// selects no copy: the evaluation fails the `Part` with
-/// `InstanceOutOfRange`, and the cap whose mate reads it is poisoned
-/// through it rather than refused in words that name a copy that does
+/// **A member read's index outside the family is refused as the
+/// evaluation refuses it, at the read.** The index 5 over a two-member
+/// row reads no member: the evaluation fails the read with
+/// `MemberOutOfRange`, and the cap whose mate reads it is poisoned
+/// through it rather than refused in words that name a member that does
 /// not exist.
 ///
-/// *Breaks if* the cap carries a refusal of its own for the `Part`'s.
+/// *Breaks if* the cap carries a refusal of its own for the read's.
 #[test]
-fn a_parts_index_outside_its_value_is_refused_at_the_part() {
-    use editor_core::PartSelect;
+fn a_member_reads_index_outside_its_family_is_refused_at_the_read() {
     let mut s = scene("msolve11-part-out-of-range");
-    let part = s.insert(Node::Part {
-        of: s.pattern.into(),
-        select: PartSelect::Instance(Formula::count(5)),
-    });
+    let node = fixture::member_node(&s.doc, s.pattern, vec![Formula::count(5)]);
+    let part = s.insert(node);
     rest_on_part(&mut s, part);
     let ev = fixture::run(&s.doc, &s.opts);
     let Some(NodeResult::Failed(failed)) = ev.result(part) else {
-        panic!("the evaluation fails the `Part`: {:?}", ev.result(part));
+        panic!("the evaluation fails the read: {:?}", ev.result(part));
     };
     assert!(
         matches!(
-            failed.kind,
-            NodeErrorKind::InstanceOutOfRange {
-                index: 5,
-                count: 2,
-                ..
-            }
+            &failed.kind,
+            NodeErrorKind::MemberOutOfRange { input, at }
+                if *input == s.pattern && at.as_slice() == [5]
         ),
         "{:?}",
         failed.kind
@@ -595,7 +566,7 @@ fn a_parts_index_outside_its_value_is_refused_at_the_part() {
             ev.result(s.cap),
             Some(NodeResult::Poisoned { through }) if *through == part
         ),
-        "the cap is poisoned through the `Part`: {:?}",
+        "the cap is poisoned through the read: {:?}",
         ev.result(s.cap)
     );
 }

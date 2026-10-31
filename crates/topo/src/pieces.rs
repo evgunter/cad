@@ -48,7 +48,7 @@
 //!
 //! The first `Outer` of the solid, in its own order, keeps the solid;
 //! every other `Outer` moves into a new solid
-//! ([`Body::move_shells_to_new_solid`]) with its voids, outer shell
+//! ([`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)) with its voids, outer shell
 //! first. Ownership moves and nothing else: every face, edge and vertex
 //! keeps its key, so contact and lineage records keyed by them stand.
 //!

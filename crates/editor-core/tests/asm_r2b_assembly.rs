@@ -10,15 +10,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 use test_utils::refusal::tagged;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, EntityKey, EntityKind, EntityRef, Entry,
-    EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide, Node,
-    NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, assemble, content_pin, inline, product_recorded,
+    CapEnd, Coord, DocEdit, DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions,
+    FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide, Node, NodeErrorClass,
+    NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, content_pin,
+    inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, solve, split_world as split, step};
@@ -90,7 +91,7 @@ struct Seat {
 /// bare planar rest leaves a positive-dimensional residual, and a
 /// bundle that pins less than the copy needs leaves `b` a loose copy
 /// outside the product — the pair must be DETERMINED for `b` to join
-/// the world at all, and this unit is about the at-rest gate, not about
+/// the world at all, and this unit is about the at-rest check, not about
 /// re-testing the coset fold.
 /// `seat = 1.0` puts `b`'s bottom exactly on `a`'s top (the unit cube
 /// is z ∈ [0,1]); any other height is a standoff, a plane constructed
@@ -133,7 +134,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
         &[
             (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
             (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -245,25 +246,60 @@ fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
     doc
 }
 
-/// The kernel findings the gate raised; the empty vector for a gate
-/// that passed.
-fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<String> {
+/// **What the at-rest check reports over a document**, beside the
+/// product it read.
+#[derive(Debug)]
+struct AtRest {
+    product: editor_core::Product<f64>,
+    findings: Vec<editor_core::CheckFinding>,
+}
+
+/// The at-rest check over `doc`, or the gather's refusal.
+fn at_rest(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+) -> Result<AtRest, editor_core::ProductError> {
+    let product = product_recorded(doc, ev, Tol::witness())?;
+    let findings = fixture::at_rest(doc, ev).expect("the check runs over a product that gathers");
+    Ok(AtRest { product, findings })
+}
+
+/// The census's own verdicts among what the at-rest check could not
+/// look at, typed.
+fn could_not_look_errors(at_rest: &AtRest) -> Vec<topo::ValidationError> {
+    fixture::could_not_look(&at_rest.findings)
+        .into_iter()
+        .filter_map(|evidence| match evidence {
+            editor_core::AtRestEvidence::NoLane(e)
+            | editor_core::AtRestEvidence::Malformed(e)
+            | editor_core::AtRestEvidence::InsideArrival(e) => Some(e),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The census verdicts the at-rest check could not look at; the empty
+/// vector where it judged every pair.
+fn findings(result: &Result<AtRest, editor_core::ProductError>) -> Vec<String> {
     match result {
-        Ok(_) => Vec::new(),
-        Err(AssemblyError::AtRest { findings }) => {
-            findings.iter().map(|f| format!("{:?}", f.error)).collect()
-        }
-        Err(other) => panic!("expected an at-rest verdict, got {other}"),
+        Ok(at_rest) => fixture::could_not_look(&at_rest.findings)
+            .into_iter()
+            .map(|evidence| match evidence {
+                editor_core::AtRestEvidence::NoLane(e)
+                | editor_core::AtRestEvidence::Malformed(e)
+                | editor_core::AtRestEvidence::InsideArrival(e) => format!("{e:?}"),
+                other => format!("{other:?}"),
+            })
+            .collect(),
+        Err(other) => panic!("expected the product to gather, got {other}"),
     }
 }
 
-/// **The record set of an assembly the gate certified.**
-fn gate_records(
-    result: &Result<editor_core::Assembly<f64>, AssemblyError>,
-) -> &topo::ContactRecords {
+/// **The record set of a gathered product.**
+fn gate_records(result: &Result<AtRest, editor_core::ProductError>) -> &topo::ContactRecords {
     match result {
-        Ok(assembly) => &assembly.contacts,
-        Err(other) => panic!("the gate certifies: {other}"),
+        Ok(at_rest) => &at_rest.product.contacts,
+        Err(other) => panic!("the product gathers: {other}"),
     }
 }
 
@@ -382,7 +418,7 @@ fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
         "each record cites one of those rows: {:?}",
         product.contacts
     );
-    assemble(&doc, &ev, Tol::witness()).expect("an unmated touching pair assembles");
+    at_rest(&doc, &ev).expect("an unmated touching pair assembles");
 }
 
 /// INVARIANT (the mated direction): the same geometry seated by its
@@ -393,7 +429,7 @@ fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
 fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
     let (doc, ids, _, store, body) = stacked("asm-r2b-row3b", 1.0);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
+    let result = at_rest(&doc, &ev);
     let errs = findings(&result);
     assert!(errs.is_empty(), "the mated seat assembles: {errs:?}");
     let contacts = gate_records(&result);
@@ -407,7 +443,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
     // The product's `⊔` keys each copy's names by the read it came
     // through; what each wraps is the instance's copy's own name.
     let named = [fa, fb].map(|f| {
-        names_of(&assembly.names, EntityKey::Face(f)).map(|n| match n.path.as_slice() {
+        names_of(&assembly.product.names, EntityKey::Face(f)).map(|n| match n.path.as_slice() {
             [RoleSeg::From { of, .. }] => (**of).clone(),
             _ => n,
         })
@@ -428,7 +464,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// the cube and declares nothing — is neither certified nor
 /// contradicted. The two caps read one carrier in band, so they are one
 /// face pair the census cannot look at (`[assertions]`), which hides no
-/// overlap: the gate refuses on that pair's typed finding, once. Each
+/// overlap: one could-not-look finding, typed, once. Each
 /// pair of side walls lies flush with its boundaries a band apart, the
 /// flush door's finding, once; and the cube's vertical edges lying
 /// along those walls escalate where they end in band of the base's top,
@@ -444,7 +480,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// (Row adopted from the review's probe; the band-relative derivation
 /// is the repo's own precedent for literal-ε rows.)
 #[test]
-fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
+fn row4_b_an_in_band_authored_gap_is_its_in_band_pairs() {
     let band =
         geom_core::predicate::Band::linear(Tol::witness()).expect("the committed band builds");
     let gap = (band.zero() * band.escalate()).sqrt();
@@ -457,12 +493,11 @@ fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
     );
     let (doc, _, _, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
     let ev = run(&doc, &with_resolver(store));
-    let Err(AssemblyError::AtRest { findings }) = assemble(&doc, &ev, Tol::witness()) else {
-        panic!("an in-band authored gap refuses at rest");
-    };
+    let checked = at_rest(&doc, &ev).expect("the seat gathers");
+    let findings = could_not_look_errors(&checked);
     let mut pairs: Vec<[topo::FaceKey; 2]> = findings
         .iter()
-        .filter_map(|f| match f.error {
+        .filter_map(|f| match *f {
             topo::ValidationError::CensusUndecidable {
                 a: topo::EntityId::Face(a),
                 b: topo::EntityId::Face(b),
@@ -473,7 +508,7 @@ fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
         .collect();
     assert!(
         findings.iter().any(|f| matches!(
-            f.error,
+            f,
             topo::ValidationError::CensusUndecidable {
                 reason: topo::Undecidable::ThinInBand,
                 ..
@@ -483,7 +518,7 @@ fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
     );
     assert!(
         findings.iter().all(|f| matches!(
-            f.error,
+            f,
             topo::ValidationError::CensusUndecidable { .. }
                 | topo::ValidationError::CensusEscalated { .. }
         )),
@@ -727,7 +762,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 ///
 /// Both halves stated together so the boundary is not a gap: `row5_b`
 /// pins the structural half at the wire, and this row pins the
-/// geometric half at `assemble` and at the solve. A crossing
+/// geometric half at the at-rest check and at the solve. A crossing
 /// declaration on a WIRE record has no geometric gate today, which is
 /// the honest limit of D-5 and is stated in `wire_instantiate_part`'s
 /// own docs.
@@ -755,7 +790,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
 
     // Pre-move: the seat assembles.
     let ev = run(&doc, &with_resolver(store.clone()));
-    let before = findings(&assemble(&doc, &ev, Tol::witness()));
+    let before = findings(&at_rest(&doc, &ev));
     assert!(before.is_empty(), "pre-move the seat assembles: {before:?}");
 
     // The move: SAME node layout, different geometry — a value edit
@@ -806,7 +841,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
         seated.translation
     );
     let ev2 = run(&moved, &o);
-    let after = findings(&assemble(&moved, &ev2, Tol::witness()));
+    let after = findings(&at_rest(&moved, &ev2));
     assert!(after.is_empty(), "the moved seat assembles: {after:?}");
     let product = product_recorded(&moved, &ev2, Tol::witness()).expect("the pair gathers");
     assert_eq!(
@@ -926,15 +961,18 @@ fn row7_the_recorded_set_is_deterministic() {
     let pa = product_recorded(&doc, &a, Tol::witness()).expect("gathers");
     let pb = product_recorded(&doc, &b, Tol::witness()).expect("gathers");
     assert_eq!(pa.contacts, pb.contacts, "the carried records replay");
-    let ra = assemble(&doc, &a, Tol::witness());
-    let rb = assemble(&doc, &b, Tol::witness());
+    let ra = at_rest(&doc, &a);
+    let rb = at_rest(&doc, &b);
     assert_eq!(
         findings(&ra),
         findings(&rb),
         "the at-rest verdict replays, finding for finding"
     );
     match (&ra, &rb) {
-        (Ok(x), Ok(y)) => assert_eq!(x.contacts, y.contacts, "and so does the recorded set"),
+        (Ok(x), Ok(y)) => assert_eq!(
+            x.product.contacts, y.product.contacts,
+            "and so does the recorded set"
+        ),
         (Err(_), Err(_)) => {}
         _ => panic!("two evaluations of one document disagreed on the verdict"),
     }
@@ -985,11 +1023,11 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     // The product's `⊔` reads the copy the constraint's placement would
     // place, so the gather meets the `⊔` poisoned through the failed
     // placement and refuses it typed.
-    match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Product(refusal)) => assert!(
+    match at_rest(&doc, &ev) {
+        Err(refusal) => assert!(
             matches!(
-                *refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                refusal,
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement
@@ -1105,7 +1143,7 @@ fn seat_off_the_end(label: &str, off: f64) -> (ProfileDoc, MateRef, PartStore) {
 fn a_flush_seat_certifies_at_the_gate() {
     let (doc, _, store) = flush_seat("asm-r2b-flush");
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
+    let result = at_rest(&doc, &ev);
     assert!(
         findings(&result).is_empty(),
         "nothing is left unanswered: {:?}",
@@ -1121,37 +1159,29 @@ fn a_flush_seat_certifies_at_the_gate() {
 /// **A near-flush end is one finding.** The same seat with the post's
 /// end standing in from the shelf's by a distance inside the band: the
 /// two ends read one carrier in band, so they are one face pair the
-/// census cannot look at (`[assertions]`), and the gate, which refuses
-/// every census verdict that is not an interference, refuses on that
-/// one finding. Nothing of the two ends' cells escalates beside it, and
-/// the seat's own pair is recorded. Red if the gate certifies, or
-/// refuses on anything but the one in-band pair.
+/// census cannot look at (`[assertions]`): one could-not-look finding,
+/// which refuses nothing. Nothing of the two ends' cells escalates
+/// beside it, and the seat's own pair is recorded. Red if the check
+/// reports anything but the one in-band pair.
 #[test]
-fn a_near_flush_seat_refuses_on_its_one_in_band_pair() {
+fn a_near_flush_seat_is_one_in_band_pair_it_could_not_look_at() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let off = 0.5 * (band.zero() + band.escalate());
     let (doc, _, store) = seat_off_the_end("asm-r2b-near-flush", off);
     let ev = run(&doc, &with_resolver(store));
-    match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::AtRest { findings }) => {
-            let [
-                editor_core::AtRestFinding {
-                    error:
-                        topo::ValidationError::CensusUndecidable {
-                            a: topo::EntityId::Face(_),
-                            b: topo::EntityId::Face(_),
-                            reason: topo::Undecidable::ThinInBand,
-                            ..
-                        },
-                },
-            ] = findings.as_slice()
-            else {
-                panic!("one finding, the in-band pair's: {findings:?}");
-            };
-        }
-        Ok(_) => panic!("the near-flush seat refuses at rest"),
-        Err(other) => panic!("expected an at-rest verdict, got {other}"),
-    }
+    let checked = at_rest(&doc, &ev).expect("the seat gathers");
+    let [
+        editor_core::AtRestEvidence::NoLane(topo::ValidationError::CensusUndecidable {
+            a: topo::EntityId::Face(_),
+            b: topo::EntityId::Face(_),
+            reason: topo::Undecidable::ThinInBand,
+            ..
+        }),
+    ] = fixture::could_not_look(&checked.findings).as_slice()
+    else {
+        panic!("one finding, the in-band pair's: {:?}", checked.findings);
+    };
+    assert_eq!(checked.findings.len(), 1, "{:?}", checked.findings);
 }
 
 /// **Discovery is never a record** (F1/F2(iii)), and between copies
@@ -1160,9 +1190,9 @@ fn a_near_flush_seat_refuses_on_its_one_in_band_pair() {
 /// contact the census finds between the two instances as a row of the
 /// product, and the `unproven-coincidence` check reports every one,
 /// against the two copies; the records citing those rows quiet no
-/// `Separation` finding, since no mate stated the touch. Red if the
-/// seat refuses, if a contact reaches the product with no row, if the
-/// check proves one, or if a census-minted record quiets Separation.
+/// at-rest finding, which reports no contact. Red if the seat refuses,
+/// if a contact reaches the product with no row, if the check proves
+/// one, or if the at-rest check reports the touch.
 #[test]
 fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
@@ -1194,7 +1224,7 @@ fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
         product.coincidences
     );
     let rows = product.coincidences.len();
-    assemble(&doc, &ev, Tol::witness()).expect("an unmated seat assembles");
+    at_rest(&doc, &ev).expect("an unmated seat assembles");
     let report = editor_core::run_checks(
         &doc,
         &ev,
@@ -1211,44 +1241,33 @@ fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
         })
         .count();
     assert_eq!(reported, rows, "each row is reported: {report}");
-    // The records the census minted for those rows back no mate, so
-    // they quiet no separation finding: the two copies still touch
-    // where nobody said they would.
+    // A contact is the lint's, and only the lint's.
     assert!(
         report
             .findings
             .iter()
-            .any(|f| f.check == editor_core::CheckId::Separation),
-        "a census-minted record does not quiet Separation: {report}"
+            .all(|f| f.check != editor_core::CheckId::AtRest),
+        "the at-rest check reports no contact: {report}"
     );
 }
 
-/// **The refusal's rendering forwards each kernel finding verbatim**:
-/// the kernel's own `Display`, one line per finding, and never a `Debug`
-/// dump. The kernel's tier-3′ messages end in their own recourse, so the
-/// document layer appends none.
+/// **A could-not-look finding forwards the kernel's verdict verbatim**:
+/// the kernel's own `Display`, never a `Debug` dump. The kernel's
+/// tier-3′ messages end in their own recourse, so the document layer
+/// appends none.
 #[test]
-fn the_refusal_renders_the_kernels_prose_never_debug_guts() {
-    let finding = editor_core::AtRestFinding {
-        error: topo::ValidationError::NegativeVolume {
-            solid: topo::SolidKey::default(),
-        },
-    };
-    let msg = AssemblyError::AtRest {
-        findings: vec![finding.clone(), finding],
-    }
+fn a_could_not_look_finding_renders_the_kernels_prose_never_debug_guts() {
+    let msg = editor_core::AtRestEvidence::Malformed(topo::ValidationError::NegativeVolume {
+        solid: topo::SolidKey::default(),
+    })
     .to_string();
-    assert!(
-        msg.starts_with("2 finding(s) against this assembly:"),
-        "{msg}"
-    );
     assert_eq!(
         msg.matches("a solid encloses negative volume, so it is inside-out")
             .count(),
-        2,
+        1,
         "{msg}"
     );
-    for guts in ["{", "NegativeVolume", "AtRestFinding", "ValidationError"] {
+    for guts in ["{", "NegativeVolume", "Malformed", "ValidationError"] {
         assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
     }
 }
@@ -1256,9 +1275,7 @@ fn the_refusal_renders_the_kernels_prose_never_debug_guts() {
 /// **The gather's own refusals render as prose too** — `ProductError`
 /// forwards its payloads' `Display`s (the kernel refusal, each
 /// validity finding on its own indented line, names as kind + minting
-/// node), and `AssemblyError::Product` forwards the whole rendering,
-/// so the assembly surface leaks no `Debug` structure through this
-/// arm either.
+/// node), so a gather refusal leaks no `Debug` structure.
 ///
 /// A key spelled `SolidKey(1v1)` in that prose is NOT what this row
 /// bans: naming the entity a finding is about is `ValidationError`'s
@@ -1272,7 +1289,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
 
     let cases = vec![
-        ProductError::RootInvalid {
+        ProductError::PieceInvalid {
             findings: vec![editor_core::SourceFinding {
                 node: RecipeNodeId::new(0, tagged(3)),
                 output: 1,
@@ -1299,23 +1316,22 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: 1 placement not valid at rest:",
-            "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
+            "product: 1 piece not valid at rest:",
+            "\n  piece 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
         &["the product reads", "a body that is gone"],
-        &["the kernel could not graft placement 000000000005's body: the band's "],
+        &["the kernel could not graft piece 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
-        // Through the assembly surface, exactly as a caller sees it.
-        let msg = AssemblyError::Product(Box::new(error)).to_string();
+        let msg = error.to_string();
         assert!(msg.starts_with("product:"), "{msg}");
         for needle in needles {
             assert!(msg.contains(needle), "{needle:?} not in: {msg}");
         }
         for guts in [
             "{",
-            "RootInvalid",
+            "PieceInvalid",
             "SourceFinding",
             "NegativeVolume",
             "ProductError",
@@ -1329,36 +1345,20 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     }
 }
 
-/// INVARIANT: the separation resident (`CheckId::Separation`) is
-/// SILENT on a correctly-mated assembly, and it is the MATE that
-/// silences it — not the geometry.
-///
-/// The two halves matter together. A seated pair TOUCHES, so the
-/// box-level certificate is withheld: asked directly, the kernel door
-/// denies the pair. What makes the check say nothing anyway is that the
-/// census recorded the touch and the coincidence door's first rung
-/// proves its row by the mate; the same touch unmated is reported
+/// INVARIANT: a correctly-mated assembly reports nothing at rest, and
+/// it is the MATE that makes it so: the census recorded the touch, and
+/// the coincidence door's first rung proves its row by the mate; the
+/// same touch unmated is the lint's finding
 /// (`the_same_flush_seat_unmated_is_a_finding_not_a_refusal`).
 #[test]
 fn a_mated_assembly_is_silent_and_the_mate_is_why() {
-    let (doc, _ids, _mate, store, _) = stacked("asm-r2b-separation", 1.0);
+    let (doc, _ids, _mate, store, _) = stacked("asm-r2b-mated-silent", 1.0);
     let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-
-    // The geometry alone does NOT certify: the two instances are
-    // seated flush, so their padded boxes meet and the kernel door
-    // denies the pair. This is the half that would make the resident
-    // fire if the mate were not consulted.
-    assert_eq!(product.solid_copies.len(), 2, "two placed solids");
-    let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
-    let (a, b) = (product.solid_copies[0].solid, product.solid_copies[1].solid);
     assert!(
-        sep.certify(a, b).is_err(),
-        "a flush-seated pair is not box-separable — if this ever passes, \
-         the row below stops proving anything about mates"
+        !product.coincidences.is_empty(),
+        "the premise: the census recorded the seat as a row"
     );
-
-    // And the resident is silent anyway, because the mate said so.
     let report = editor_core::run_checks(
         &doc,
         &ev,
@@ -1366,12 +1366,15 @@ fn a_mated_assembly_is_silent_and_the_mate_is_why() {
         Tol::witness(),
     )
     .expect("checks run over a completed evaluation");
+    // The flush pairs the seat's side walls make are the lint's, and a
+    // mate establishes no flush pair: only the rest is the mate's.
     assert!(
-        report
-            .findings
-            .iter()
-            .all(|f| f.check != editor_core::CheckId::Separation),
-        "a mated assembly must not be reported as unseparated: {report}"
+        report.findings.iter().all(|f| match &f.evidence {
+            editor_core::CheckEvidence::UnprovenCoincidence { row, .. } =>
+                row.relation == topo::Relation::SameOriented,
+            _ => f.check != editor_core::CheckId::AtRest,
+        }),
+        "a mated assembly reports no rest and nothing at rest: {report}"
     );
 }
 
@@ -1387,25 +1390,17 @@ fn twinned_part(label: &str) -> ProfileDoc {
     crate::fixture::place_all(doc, &[a, b])
 }
 
-/// INVARIANT: the separation resident says nothing about two solids the
-/// gather took from ONE placement subject, and the same-subject guard is
-/// what makes that true — not the geometry, and not a declaration.
-///
-/// The other same-subject row (`dsc_checks`'s disjoint union) cannot
-/// prove this: its two solids are 3.0 apart, so `certify` grants and
-/// the guard never runs. That row goes green against a build with the
-/// guard deleted, which is how a deletion of it once survived a full
-/// local suite. This row is the one that reds.
+/// INVARIANT: the census reads nothing inside one arrival: two solids an
+/// instance's one copy brings in are the part's own meeting, decided by
+/// the part's census, and the host reports none of it as its own.
 ///
 /// The fixture is an instantiated part whose own product has two
 /// co-located copies, so the instance — itself the one placement — is a
-/// single `(placement, output)` subject carrying two COINCIDENT solids. Nothing else can suppress:
-/// the only records are the part's own, carried up from its gather (the
-/// touches between its two copies, which its census recorded), and a
-/// carried record suppresses no separation finding, so no mate's record
-/// is here — which the row asserts rather than assumes.
+/// single arrival carrying two COINCIDENT solids, and the only records
+/// are the part's own, carried up from its gather — which the row
+/// asserts rather than assumes.
 #[test]
-fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
+fn two_solids_of_one_arrival_are_the_parts_own_meeting() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(twinned_part("asm-r2b-twinned-part"), Tol::witness());
     let o = with_resolver(store);
@@ -1429,17 +1424,6 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
         product.solid_copies
     );
 
-    // The geometry does NOT grant: coincident solids are the case the
-    // box rule most emphatically cannot separate. Without the guard
-    // this pair reaches the finding.
-    let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
-    let (a, b) = (product.solid_copies[0].solid, product.solid_copies[1].solid);
-    assert!(
-        sep.certify(a, b).is_err(),
-        "coincident solids must not be box-separable — if this ever \
-         passes, this row stops proving anything about the guard"
-    );
-
     // And no mate's record relates them either: every record rode up
     // from the part, so the suppression under test is the subject check
     // and only the subject check.
@@ -1452,7 +1436,7 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
         "every record is the part's, carried: {contacts:?}"
     );
 
-    // Therefore: silent, and the guard is the only reason.
+    // Therefore: nothing of the host's own; a part's finding is carried.
     let report = editor_core::run_checks(
         &doc,
         &ev,
@@ -1464,9 +1448,15 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
         report
             .findings
             .iter()
-            .all(|f| f.check != editor_core::CheckId::Separation),
-        "two solids of one subject are that node's own contract, not \
-         the gather's: {report}"
+            .all(|f| f.check != editor_core::CheckId::AtRest
+                || matches!(
+                    &f.evidence,
+                    editor_core::CheckEvidence::CarriedInterference { .. }
+                        | editor_core::CheckEvidence::AtRest {
+                            evidence: editor_core::AtRestEvidence::Carried(_)
+                        }
+                )),
+        "two solids of one arrival are the part's meeting, not the host's: {report}"
     );
 }
 
@@ -1575,11 +1565,11 @@ fn a_seat_without_its_flip_turns_the_copy_over_beside_its_base() {
             (1, 4),
             "{label}: the y = 0 walls rest, and the caps and x walls lie flush"
         );
-        let assembly = assemble(&doc, &ev, Tol::witness()).expect("abutting copies certify");
+        let assembly = at_rest(&doc, &ev).expect("abutting copies gather");
+        let interference = fixture::interference(&assembly.findings);
         assert!(
-            assembly.interference.is_empty(),
-            "{label}: abutting copies do not interfere: {:?}",
-            assembly.interference
+            interference.is_empty(),
+            "{label}: abutting copies do not interfere: {interference:?}"
         );
     }
 }
@@ -1590,7 +1580,7 @@ fn a_seat_without_its_flip_turns_the_copy_over_beside_its_base() {
 /// strictly inside the other and nothing piercing, mated or pinned where
 /// it solved. The seat without its flip at (0.5, 0.5, 1) turns the copy
 /// over half across the base, the two caps of each sharing a quarter.
-/// Each pair is one finding on `Assembly::interference`, bounded by the
+/// Each pair is one at-rest interference finding, bounded by the
 /// intersection of the two copies, loud, and its evidence carries the
 /// census's decided `SameSideInterference` and no `CensusUndecidable`.
 /// Red if the census reports such a pair as could-not-look.
@@ -1607,10 +1597,11 @@ fn copies_filling_one_volume_are_one_interference() {
         ("overhang", overhang, &overhang_o),
     ] {
         let ev = run(&doc, o);
-        let assembly = assemble(&doc, &ev, Tol::witness())
+        let assembly = at_rest(&doc, &ev)
             .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
-        let [finding] = &assembly.interference[..] else {
-            panic!("{label}: one interference: {:?}", assembly.interference);
+        let interference = fixture::interference(&assembly.findings);
+        let [finding] = &interference[..] else {
+            panic!("{label}: one interference: {interference:?}");
         };
         assert!(
             matches!(finding.overlap, editor_core::Overlap::Bounded { .. }) && finding.is_loud(),
@@ -1626,6 +1617,104 @@ fn copies_filling_one_volume_are_one_interference() {
                     .iter()
                     .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
             "{label}: decided by the coincident faces: {:?}",
+            finding.evidence
+        );
+    }
+}
+
+/// A one-revolve part document: the unit square on its own `xy`
+/// revolved a full turn about its `y`, a cylinder of radius 1 and
+/// height 1 whose walls are two half-bands and whose caps are two discs.
+fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    insert(
+        doc,
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            fixture::along_y(),
+            fixture::ang(core::f64::consts::TAU),
+        ),
+    )
+}
+
+/// **Two copies of one revolved cylinder pinned at one pose fill one
+/// volume, and the gate reads them as one interference**, at the
+/// identity (the item's probe) and at a pose turned off every world axis
+/// and moved off the origin. The copies' discs, bounded by an arc, and
+/// their walls, on two keys, each lie on one carrier facing the same way
+/// sharing interior: the finding carries the `SameSideInterference`. Its
+/// overlap is bounded by the copies' intersection, the one cylinder,
+/// and named by the first copy's four faces, the ones it keeps. It
+/// is loud, and unquietable, since no face of one copy opposes a face of
+/// the other for a gap to hold over, so stage 5's check never refuses
+/// it. What the census leaves undecidable between
+/// the two copies rides the finding as evidence and is never refused on
+/// its own: a disc against the other copy's wall, two carriers meeting
+/// along the rim. The two half-bands, one of each copy, that share a seam
+/// ruling and no interior are certified apart, and ride it no longer.
+///
+/// Red if the copies read as could-not-look again (a refusal, or a
+/// finding with no same-side evidence), if the overlap goes unbounded,
+/// or if the undecidable pairs stop riding the decided pair.
+#[test]
+fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
+    let tilted = editor_core::Frame::rotate_then_translate(
+        [0.3, 0.2, 1.0],
+        0.7,
+        [0.31, -0.17, 0.42],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    for (label, pose) in [
+        ("identity", editor_core::Frame::IDENTITY),
+        ("tilted", tilted),
+    ] {
+        let mut store = PartStore::default();
+        let (doc_ref, _) =
+            store.insert_part(cylinder_part(&format!("{label}-part")), Tol::witness());
+        let o = with_resolver(store);
+        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
+        let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+        let doc = fixture::pin(doc, a, &pose, &o);
+        let doc = fixture::assemble_world_copies(fixture::pin(doc, b, &pose, &o));
+        let ev = run(&doc, &o);
+        let assembly = at_rest(&doc, &ev)
+            .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
+        let interference = fixture::interference(&assembly.findings);
+        let [finding] = &interference[..] else {
+            panic!("{label}: one interference: {interference:?}");
+        };
+        let editor_core::Overlap::Bounded { faces } = &finding.overlap else {
+            panic!("{label}: the overlap is bounded: {finding:?}");
+        };
+        assert!(
+            finding.is_loud() && !finding.quietable && !finding.refusable(),
+            "{label}: loud and unquietable: {finding:?}"
+        );
+        // Each copy's faces lie on the other's, and the intersection keeps
+        // the first copy's (Eq. 15.3): the overlap is named by those four,
+        // the two discs and the two half-bands.
+        assert!(
+            faces.len() == 4 && faces.iter().all(|f| f.copy == finding.a),
+            "{label}: the first copy's four faces name the overlap: {faces:?}"
+        );
+        let count = |f: fn(&topo::ValidationError) -> bool| {
+            finding.evidence.iter().filter(|&e| f(e)).count()
+        };
+        let same_side = count(|e| matches!(e, topo::ValidationError::SameSideInterference { .. }));
+        let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
+        assert_eq!(
+            (same_side, undecided, finding.evidence.len()),
+            (1, 8, 9),
+            "{label}: one decided pair, and the rim pairs riding it: {:?}",
             finding.evidence
         );
     }

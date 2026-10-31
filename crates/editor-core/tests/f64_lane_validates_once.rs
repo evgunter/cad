@@ -173,6 +173,7 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

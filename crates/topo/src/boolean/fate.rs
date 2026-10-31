@@ -34,8 +34,10 @@
 //! along, which the carve reads for the removed fragment's border
 //! (`finish::discarded`).
 
+use geom_brep::LeverBounds;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
+use super::sectors::reading_lever;
 use super::{BooleanError, BooleanReduction, NullCopies, Operand};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -410,21 +412,35 @@ enum Place {
 }
 
 /// The unit direction `he` leaves its start along, with the edge's
-/// chord length; `None` for null scaffolding.
-fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<(Vec3<T>, T)> {
+/// reach from that start ([`geom_brep::edge_reach_bounds`]): a corner's
+/// reading acts on every sign, so its lever is the region's own measure
+/// from where it is read, and where that is known only from both sides
+/// (a curve other than a line or circle, whose bound from above can pass
+/// it many times over) the corner reads at both and acts only on a sign
+/// they share ([`corner_holds`]). `None` for null scaffolding.
+fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<(Vec3<T>, LeverBounds<T>)> {
     leaving(body, he, false)
 }
 
 /// As [`departure`], or with `secant` the unit chord from `he`'s start
 /// to its edge's midpoint, which tells apart two curves leaving one
 /// point tangent to each other.
-fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(Vec3<T>, T)> {
+fn leaving<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    secant: bool,
+) -> Option<(Vec3<T>, LeverBounds<T>)> {
     let h = body.get_half_edge(he)?;
     let edge = body.get_edge(h.edge)?;
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
-    let len = (end - base).norm();
+    let chord = (end - base).norm();
+    let (t0, t1) = curve.params();
+    let len = match curve.carrier() {
+        geom::Curve3::Line { .. } => LeverBounds::Exact(chord),
+        carrier => geom_brep::edge_reach_bounds(carrier, t0, t1, base),
+    };
     let dir = match curve.carrier() {
         _ if secant => curve.mid_point() - base,
         geom::Curve3::Line { .. } => end - base,
@@ -432,7 +448,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
-            geom_brep::ConicDeparture::of(curve, he == edge.he_plus, len).dir
+            geom_brep::ConicDeparture::of(curve, he == edge.he_plus, chord).dir
         }
     };
     Some((dir / dir.norm(), len))
@@ -440,9 +456,29 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
 
 /// The sign of `x`, a dimensionless reading levered at `arm`.
 fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
-    crate::validate::decide("bool_fate_corner", Margin::levered(x, arm), band).map_err(|diag| {
-        BooleanError::coincidence(super::Coincide::Sectors, super::DeclarationRead::Moot, diag)
-    })
+    crate::validate::decide("bool_fate_corner", Margin::levered(x, arm), band)
+        .map_err(corner_refused)
+}
+
+/// The sign of `x`, a dimensionless reading levered at `arm`, known
+/// exactly or from both sides: read once where exact, else at both
+/// bounds, a verdict only where the two agree and their straddle of the
+/// band (`bool_fate_corner_straddle`) refused as an in-band sign is
+/// ([`crate::validate::decide_levered`]).
+fn sign_at<T: Decide>(x: T, arm: LeverBounds<T>, band: Band) -> Result<Sign, BooleanError> {
+    crate::validate::decide_levered(
+        ("bool_fate_corner", "bool_fate_corner_straddle"),
+        x,
+        arm,
+        band,
+    )
+    .map_err(corner_refused)
+}
+
+/// A corner's sign that did not decide: the sectors' coincidence, the
+/// refusal an in-band corner reading has always been.
+fn corner_refused(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::coincidence(super::Coincide::Sectors, super::DeclarationRead::Moot, diag)
 }
 
 /// A unit direction strictly inside `s`: its bounds' bisector. The
@@ -489,24 +525,34 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 /// `out` (`None`). Where the two bounds leave along one ray, `wraps`
 /// says whether the face wraps round it, the corner then the whole
 /// turn but the ray itself, or holds no direction.
+///
+/// Every sign acts on its verdict, so each is levered at the shorter of
+/// the two directions' own reaches ([`reading_lever`]): `d`'s side of
+/// each bound at that bound's reach and `d`'s own, `d_len` (the kept
+/// edge's, or `None` for a bisector, which has none), and the bounds'
+/// turn against each other at the lesser of theirs. Where a reach is
+/// known only from both sides its signs are read at both and acted on
+/// only where they agree ([`sign_at`]).
 fn corner_holds<T: Decide>(
-    d: Vec3<T>,
+    (d, d_len): (Vec3<T>, Option<LeverBounds<T>>),
     (out, back): (Vec3<T>, Vec3<T>),
     wraps: impl FnOnce() -> Result<bool, BooleanError>,
     n: Vec3<T>,
-    arm: T,
+    (out_len, back_len): (LeverBounds<T>, LeverBounds<T>),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let s1 = sign(n.dot(out.cross(d)), arm, band)?;
-    if s1 == Sign::Zero && sign(out.dot(d), arm, band)? == Sign::Positive {
+    let at_out = reading_lever(out_len, d_len);
+    let s1 = sign_at(n.dot(out.cross(d)), at_out, band)?;
+    if s1 == Sign::Zero && sign_at(out.dot(d), at_out, band)? == Sign::Positive {
         return Ok(None);
     }
-    let s2 = sign(n.dot(d.cross(back)), arm, band)?;
-    let turn = sign(n.dot(out.cross(back)), arm, band)?;
+    let s2 = sign_at(n.dot(d.cross(back)), reading_lever(back_len, d_len), band)?;
+    let arm = reading_lever(back_len, Some(out_len));
+    let turn = sign_at(n.dot(out.cross(back)), arm, band)?;
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
         Sign::Negative => s1 == Sign::Positive || s2 == Sign::Positive,
-        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => wraps()?,
+        Sign::Zero if sign_at(out.dot(back), arm, band)? == Sign::Positive => wraps()?,
         Sign::Zero => s1 == Sign::Positive,
     };
     Ok(Some(holds))
@@ -524,7 +570,7 @@ fn places<T: Decide>(
     at: &[VertexKey],
     root: FaceKey,
     divisions: &FaceDivisions,
-    (d, secant): (Vec3<T>, bool),
+    (d, d_len, secant): (Vec3<T>, Option<LeverBounds<T>>, bool),
     band: Band,
 ) -> Result<Option<Vec<Place>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -597,7 +643,7 @@ fn places<T: Decide>(
                 }
                 Ok(None) | Err(_) => return Err(no_normal),
             };
-            let arm = out_len.min(back.1);
+            let reaches = (out_len, back.1);
             let wraps = || {
                 let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
                 if bounds[0] == bounds[1] {
@@ -611,7 +657,14 @@ fn places<T: Decide>(
                 }
                 tip_wraps((body, operand), (f, h), band)
             };
-            match corner_holds(d, (out, back.0), wraps, normal.vec(), arm, band)? {
+            match corner_holds(
+                (d, d_len),
+                (out, back.0),
+                wraps,
+                normal.vec(),
+                reaches,
+                band,
+            )? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}
@@ -634,7 +687,7 @@ fn places<T: Decide>(
 /// sliver's outline (`slit::sliver_halves`) turns at two spurs, a
 /// zero-area ring at two tips, an outline with a slit at the tip.
 /// This reads the body as the join left it, not the operand at rest
-/// (`sectors::SlitTips`): the join cuts a slit's two edges into the
+/// ([`crate::sector_shape::SlitTips`]): the join cuts a slit's two edges into the
 /// other operand's flush face too.
 ///
 /// # Errors
@@ -680,8 +733,9 @@ fn tip_wraps<T: Decide>(
     for (k, &(b, b_len)) in runs.iter().enumerate() {
         let (a, a_len) = runs[(k + runs.len() - 1) % runs.len()];
         let (across, ahead) = (n.dot(a.cross(b)), a.dot(b));
-        let arm = a_len.min(b_len);
-        if sign(across, arm, band)? == Sign::Zero && sign(ahead, arm, band)? == Sign::Negative {
+        let arm = reading_lever(b_len, Some(a_len));
+        if sign_at(across, arm, band)? == Sign::Zero && sign_at(ahead, arm, band)? == Sign::Negative
+        {
             halves = halves + T::one();
             any = true;
         } else {
@@ -715,6 +769,9 @@ struct Leaving<T: geom_core::Real> {
     /// boundary lies in the corner its chord does. A direction with no
     /// edge behind it (a sector's bisector) is its own.
     secant: Vec3<T>,
+    /// How far the leaving edge reaches from the vertex; `None` for a
+    /// direction with no edge behind it.
+    reach: Option<LeverBounds<T>>,
 }
 
 impl<T: geom_core::Real> Leaving<T> {
@@ -723,6 +780,7 @@ impl<T: geom_core::Real> Leaving<T> {
         Self {
             tangent: d,
             secant: d,
+            reach: None,
         }
     }
 }
@@ -745,7 +803,8 @@ fn place<T: Decide>(
     let mut corners = Vec::new();
     let readings = [(leaving.tangent, false), (leaving.secant, true)];
     for (k, (d, secant)) in readings.into_iter().enumerate() {
-        let Some(found) = places((body, operand), at, root, divisions, (d, secant), band)? else {
+        let leaving_d = (d, leaving.reach, secant);
+        let Some(found) = places((body, operand), at, root, divisions, leaving_d, band)? else {
             return Ok(None);
         };
         if k == 0
@@ -1618,7 +1677,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .map(|h| h.start)
                 .zip(departure(kept_body, he))
         });
-        let [Some((x0, (d0, _))), Some((x1, (d1, _)))] = ends else {
+        let [Some((x0, (d0, l0))), Some((x1, (d1, l1)))] = ends else {
             return Err(desync("a fate edge has no direction").into());
         };
         // Each end's chord to the kept edge's midpoint.
@@ -1667,6 +1726,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Leaving {
                     tangent: d0,
                     secant: s0,
+                    reach: Some(l0),
                 },
                 band,
             )?,
@@ -1678,6 +1738,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Leaving {
                     tangent: d1,
                     secant: s1,
+                    reach: Some(l1),
                 },
                 band,
             )?,
@@ -1855,6 +1916,115 @@ mod tests {
     }
 }
 
+/// **A fate corner whose arm is known only from both sides refuses
+/// where its two readings disagree**: the arm a spline edge's reach from
+/// its start gives, on a window where its parameter crawls (clustered
+/// knots, weights 1e±3), read from below by the samples and from above
+/// through the whole carrier's speed bound about 90 times over. A cut
+/// `θ = 1e-6` off the corner's first bound reads along it at the bound
+/// from below and strictly inside at the bound from above, so the corner
+/// places it neither way: it refuses as the sectors' coincidence, its
+/// diagnosis the straddle, as an in-band corner reading refuses.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod corner_bounds_rows {
+    use geom_brep::LeverBounds;
+    use geom_core::{Band, Point3, Vec3};
+
+    use crate::boolean::{BooleanDecision, BooleanError};
+
+    #[test]
+    fn a_corner_whose_arm_is_known_from_both_sides_refuses_where_they_disagree() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = Point3::new;
+        let wild = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.5,
+                        0.500_000_1,
+                        0.500_000_2,
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                    ],
+                    3,
+                )
+                .unwrap(),
+                vec![
+                    p(0.0, 0.0, 0.0),
+                    p(1.0, 2.0, 0.0),
+                    p(2.0, -1.0, 1.0),
+                    p(3.0, 0.5, 0.0),
+                    p(4.0, 1.0, 0.0),
+                    p(5.0, 0.0, 2.0),
+                    p(6.0, 0.0, 0.0),
+                ],
+                vec![1.0, 1e3, 1e-3, 1e3, 1e-3, 1e3, 1.0],
+            )
+            .unwrap(),
+        ));
+        let (t0, t1) = (0.2, 0.2001);
+        let arm = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        let LeverBounds::Between { below, above } = arm else {
+            panic!("a spline's reach is known from both sides, got {arm:?}");
+        };
+        let theta = 1e-6_f64;
+        let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let at = |arm| super::corner_holds((d, None), bounds, || Ok(false), n, (arm, arm), band);
+        // Each bound alone places the cut, and they differ.
+        assert!(matches!(at(LeverBounds::Exact(above)), Ok(Some(true))));
+        assert!(matches!(at(LeverBounds::Exact(below)), Ok(None)));
+        // Read at both, the corner refuses with the straddle.
+        match at(arm) {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(..),
+                diag,
+            }) => assert_eq!(diag.predicate, Some("bool_fate_corner_straddle")),
+            other => panic!("the corner refuses with the straddle, got {other:?}"),
+        }
+    }
+
+    /// **A cut `θ` inside a corner beside its long bound**, the short
+    /// bound setting the corner's arm: `θ` times the short bound reads
+    /// Zero, `θ` times the long one definite. Read at the long bound's
+    /// reach, a cut with no reach of its own or a long one lies in the
+    /// corner, where the arm would read it along the bound; a cut no
+    /// longer than the short bound lies along it.
+    #[test]
+    fn a_cut_beside_a_long_bound_is_read_at_the_shorter_of_their_reaches() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (long, short) = (LeverBounds::Exact(1.0), LeverBounds::Exact(1e-6));
+        let theta = 1e-4_f64;
+        let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let at = |d_len, reaches| {
+            super::corner_holds((d, d_len), bounds, || Ok(false), n, reaches, band)
+        };
+        assert!(
+            matches!(at(None, (long, short)), Ok(Some(true))),
+            "no reach of its own"
+        );
+        assert!(
+            matches!(at(Some(long), (long, short)), Ok(Some(true))),
+            "a long cut"
+        );
+        assert!(
+            matches!(at(Some(short), (long, short)), Ok(None)),
+            "a short cut"
+        );
+        assert!(matches!(at(None, (short, short)), Ok(None)), "at the arm");
+    }
+}
+
 /// **A spline leaves a vertex along its tangent, not its chord**: the
 /// sweep rows' Bézier sheet, whose arc leaves `(0, 0, 0)` along
 /// `(1, 2, 0)` while its chord runs along `x̂`
@@ -1875,9 +2045,16 @@ mod spline_departure_rows {
             (dir - tangent).norm() < 1e-12,
             "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
         );
+        // The arc's farthest point from its start is its end, 2 off: the
+        // samples read it from below (the end is one), and the reach from
+        // above passes it by its samples' Lipschitz slack, short of the
+        // control net's reach √5.
+        let geom_brep::LeverBounds::Between { below, above } = len else {
+            panic!("a spline's reach is known from both sides, got {len:?}");
+        };
         assert!(
-            (len - 2.0).abs() < 1e-12,
-            "with its chord's length 2: {len}"
+            (below - 2.0).abs() < 1e-12 && (2.0..2.2).contains(&above),
+            "with its reach from the start between 2 and the bound's slack: {below}, {above}"
         );
     }
 }

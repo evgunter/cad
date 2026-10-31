@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use topo::construction::Construct;
 
 use crate::common::approx::band;
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -370,11 +371,9 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
                     declared: None,
                 }
             }
-            geom_brep::EdgeDescription::Intersection { pair, witness } if pair.contains(old) => {
-                geom_brep::EdgeDescriptionSpec::Intersection {
-                    pair: pair.map(swap),
-                    witness: *witness,
-                }
+            geom_brep::EdgeDescription::Intersection { pair, selector } if pair.contains(old) => {
+                let (pair, selector) = selector.remapped(*pair, |k| Some(swap(k))).unwrap();
+                geom_brep::EdgeDescriptionSpec::Intersection { pair, selector }
             }
             _ => continue,
         };
@@ -388,7 +387,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     }
     let sense = |f: FaceKey| body.get_face(f).unwrap().sense;
     let chart = bands[1..].iter().fold(
-        topo::Rechart::shared(key, bands[0], sense(bands[0])),
+        topo::construction::Rechart::shared(key, bands[0], sense(bands[0])),
         |chart, &f| chart.with(f, sense(f)),
     );
     body.set_face_surfaces_describing(vec![chart], &specs, tol)

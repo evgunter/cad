@@ -23,7 +23,7 @@ use super::{
     AXIS_DIRECTION_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, frame_axes,
     pose_direction_escalated, pose_unit, refusal, select_one, slots, value_of,
 };
-use crate::eval::{NodeErrorKind, ValuePayload};
+use crate::eval::{Frame, NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
 use crate::mate::PoseSymmetry;
 use crate::names;
@@ -79,17 +79,59 @@ fn carried<T: Decide>(
     })
 }
 
+/// **A pose in the coordinates of a frame** (D10 `[placement.frame]`):
+/// one read off a body is in that body's, and a definition computes in
+/// its first read's frame, reading every other through `relative`, as
+/// an operation reads its operands.
+pub(crate) struct Posed<T: Decide> {
+    value: PoseValue<T>,
+    frame: Frame<T>,
+}
+
+impl<T: Decide> Posed<T> {
+    /// **The pose in `into`'s coordinates**: itself where the two are one
+    /// frame, else moved once by the relative map.
+    ///
+    /// # Errors
+    ///
+    /// The relative map's overflow; the direction door's refusal of a
+    /// moved direction.
+    pub(crate) fn read_into(
+        self,
+        into: &Frame<T>,
+        b: geom_core::Band,
+    ) -> Result<PoseValue<T>, NodeErrorKind> {
+        match into.relative(&self.frame).map_err(NodeErrorKind::Motion)? {
+            None => Ok(self.value),
+            Some(map) => carried(self.value, &map, b),
+        }
+    }
+
+    /// **The pose in its space's coordinates**: what a mate equates, and
+    /// what a report reads.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read_into`].
+    pub(crate) fn in_its_space(self, b: geom_core::Band) -> Result<PoseValue<T>, NodeErrorKind> {
+        self.read_into(&Frame::Own, b)
+    }
+
+    /// The same pose read through `role`, in the same frame.
+    fn through(self, role: Option<crate::pose::PoseRole>) -> Self {
+        Self {
+            value: through(self.value, role),
+            frame: self.frame,
+        }
+    }
+}
+
 /// **The pose the node reads at `slot`, evaluated** at the lane
-/// scalar: an operation's pose output read off its value, or a pose
-/// definition bound here, read through its role where it carries one.
-/// Its symmetry is its kind's (the door asserts the two tables agree).
+/// scalar, in its space's coordinates ([`Posed::in_its_space`]).
 ///
 /// # Errors
 ///
-/// The read unresolved or of no pose; a pose read off geometry that
-/// finds none ([`NodeErrorKind::PoseRead`]); a construction's
-/// degenerate case ([`NodeErrorKind::PoseDegenerate`]); a direction the
-/// direction door refuses; a scalar that does not evaluate.
+/// As [`eval_posed`].
 pub(crate) fn eval_pose<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -98,9 +140,32 @@ pub(crate) fn eval_pose<T: crate::mate::SolveScalar>(
     env: &VarEnv<T>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
+    eval_posed(doc, results, slot, read, env, tol)?.in_its_space(band(tol)?)
+}
+
+/// **The pose the node reads at `slot`, evaluated** at the lane
+/// scalar: an operation's pose output read off its value, or a pose
+/// definition bound here, read through its role where it carries one,
+/// in the frame it computed in. Its symmetry is its kind's (the door
+/// asserts the two tables agree).
+///
+/// # Errors
+///
+/// The read unresolved or of no pose; a pose read off geometry that
+/// finds none ([`NodeErrorKind::PoseRead`]); a construction's
+/// degenerate case ([`NodeErrorKind::PoseDegenerate`]); a direction the
+/// direction door refuses; a scalar that does not evaluate.
+pub(crate) fn eval_posed<T: crate::mate::SolveScalar>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: OperandSlot,
+    read: RoleRead<VarId>,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<Posed<T>, NodeErrorKind> {
     let admits = read.admits(slot.kind());
     let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol)?;
-    Ok(through(value, read.role))
+    Ok(value.through(read.role))
 }
 
 /// **A pose read bound against an evaluation's results**, with no
@@ -123,7 +188,8 @@ pub(crate) fn read_pose<T: crate::mate::SolveScalar>(
         read.read,
         env,
         tol,
-    )?;
+    )?
+    .in_its_space(band(tol)?)?;
     Ok(match read.role {
         None => value,
         Some(role) => role.read(&value).ok_or(NodeErrorKind::UnresolvedRead {
@@ -157,19 +223,23 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
     var: VarId,
     env: &VarEnv<T>,
     tol: Tol,
-) -> Result<PoseValue<T>, NodeErrorKind> {
+) -> Result<Posed<T>, NodeErrorKind> {
     let Some(held) = doc.var(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let value = match held.def() {
         VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pick(_) => {
+        VarDef::Free(_)
+        | VarDef::Defined(_)
+        | VarDef::Select(_)
+        | VarDef::Pick(_)
+        | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
     assert_eq!(
-        Some(value.symmetry().family()),
+        Some(value.value.symmetry().family()),
         held.kind().symmetry(),
         "a pose value's subgroup is its kind's"
     );
@@ -185,7 +255,7 @@ fn output<T: crate::mate::SolveScalar>(
     port: u8,
     env: &VarEnv<T>,
     tol: Tol,
-) -> Result<PoseValue<T>, NodeErrorKind> {
+) -> Result<Posed<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
     match (&value.payload, doc.node(node)) {
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
@@ -208,10 +278,13 @@ fn output<T: crate::mate::SolveScalar>(
                 band(tol)?,
             )
             .map_err(DirectionRefusal::node_error)?;
-            Ok(PoseValue::axis_through(
-                plane.to_world(origin),
-                plane.frame().turn(sketch),
-            ))
+            // In the revolve's own coordinates, the ones its profile is
+            // drawn in, whatever frame its body was then read into: the
+            // frame the profile is drawn on, where it is drawn on one.
+            Ok(Posed {
+                value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
+                frame: drawn.frame.clone().unwrap_or(Frame::Own),
+            })
         }
         // A read the door would have refused, in a document built past
         // it: the pose the seat asks for, in the operand door's words.
@@ -236,18 +309,21 @@ fn definition<T: crate::mate::SolveScalar>(
     def: &PoseDef,
     env: &VarEnv<T>,
     tol: Tol,
-) -> Result<PoseValue<T>, NodeErrorKind> {
+) -> Result<Posed<T>, NodeErrorKind> {
     // A read inside the definition admits its own kind: the door checked
     // it against what the definition reads there.
     let pose = |read: &RoleRead<VarId>| {
         let admits = crate::SlotKind::Is(doc.var(read.read).map_or(K::Scalar, crate::Var::kind));
         let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol)?;
-        Ok::<_, NodeErrorKind>(through(value, read.role))
+        Ok::<_, NodeErrorKind>(value.through(read.role))
     };
     let scalar = |var: VarId, dim| {
         eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
     };
     let b = band(tol)?;
+    // A definition computes in its first read's frame and reads every
+    // other into it.
+    let in_frame = |frame: Frame<T>, value| Posed { value, frame };
     Ok(match def {
         PoseDef::Plane { face } => read_off(doc, results, slot, *face, K::Plane, b)?,
         PoseDef::Axis { of } => read_off(doc, results, slot, *of, K::Axis, b)?,
@@ -258,11 +334,12 @@ fn definition<T: crate::mate::SolveScalar>(
             along,
             by,
         } => {
-            let Some(dir) = pose(along)?.heading() else {
+            let first = pose(read)?;
+            let Some(dir) = pose(along)?.read_into(&first.frame, b)?.heading() else {
                 unreachable!("the door admits a direction or an axis alone at a slide's direction")
             };
             let by = scalar(*by, crate::expr::Dimension::Length)?;
-            slide(pose(read)?, dir, by)?
+            in_frame(first.frame, slide(first.value, dir, by)?)
         }
         // The pose turned about the line by the right-hand rule: a rigid
         // motion, so each direction is the motion's turn of a unit one.
@@ -271,16 +348,21 @@ fn definition<T: crate::mate::SolveScalar>(
             about,
             by,
         } => {
-            let PoseValue::Axis(about) = pose(about)? else {
+            let first = pose(read)?;
+            let PoseValue::Axis(about) = pose(about)?.read_into(&first.frame, b)? else {
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
             let angle = crate::expr::eval_angle(*by, env)
                 .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
-            spin(pose(read)?, about.foot(), about.dir(), angle)?
+            in_frame(
+                first.frame,
+                spin(first.value, about.foot(), about.dir(), angle)?,
+            )
         }
         PoseDef::Through { axis, point } => {
+            let first = pose(axis)?;
             let (PoseValue::Axis(axis), PoseValue::Point { position }) =
-                (pose(axis)?, pose(point)?)
+                (first.value, pose(point)?.read_into(&first.frame, b)?)
             else {
                 unreachable!("the door admits an axis and a point at a frame through them")
             };
@@ -288,11 +370,15 @@ fn definition<T: crate::mate::SolveScalar>(
             let a = dir.get();
             let along = (position - foot).dot(a);
             let at = foot + a * along;
-            RigidMotion::from_aim_and_reference(at, dir, position - foot, POSE_UNIT_NORM, b)
-                .map(PoseValue::Frame)
-                .map_err(|e| degenerate(e.error, PoseConstruction::Through))?
+            in_frame(
+                first.frame,
+                RigidMotion::from_aim_and_reference(at, dir, position - foot, POSE_UNIT_NORM, b)
+                    .map(PoseValue::Frame)
+                    .map_err(|e| degenerate(e.error, PoseConstruction::Through))?,
+            )
         }
         PoseDef::Meet { a, b: second } => {
+            let first = pose(a)?;
             let (
                 PoseValue::Plane {
                     normal: na,
@@ -302,7 +388,7 @@ fn definition<T: crate::mate::SolveScalar>(
                     normal: nb,
                     offset: cb,
                 },
-            ) = (pose(a)?, pose(second)?)
+            ) = (first.value, pose(second)?.read_into(&first.frame, b)?)
             else {
                 unreachable!("the door admits two planes at a meeting line")
             };
@@ -314,18 +400,26 @@ fn definition<T: crate::mate::SolveScalar>(
             // (`na · (nb × d) = nb · (d × na) = |d|²`) and is
             // perpendicular to `d`; `|d|` is decided nonzero above.
             let foot = (nb.get().cross(d) * ca + d.cross(na.get()) * cb) / d.norm_squared();
-            PoseValue::axis_through(Point3::origin() + foot, dir)
+            in_frame(
+                first.frame,
+                PoseValue::axis_through(Point3::origin() + foot, dir),
+            )
         }
-        PoseDef::Flip { pose: read } => flip(pose(read)?, b)?,
-        // The pose moved by the motion its copy's placement solved to:
-        // a rigid map, so a direction stays unit up to the direction
-        // door's own decision, which normalizes it again.
+        PoseDef::Flip { pose: read } => {
+            let first = pose(read)?;
+            in_frame(first.frame, flip(first.value, b)?)
+        }
+        // The pose as its copy carries it: its frame moved by the motion
+        // the copy's placement solved to, the pose itself unchanged.
         PoseDef::Carried { copy, pose: read } => {
             let placement = super::super::read_at(doc, slot, *copy)?;
             let value = pose(read)?;
             match value_of(results, placement)?.motion {
                 None => value,
-                Some(motion) => carried(value, &motion, b)?,
+                Some(motion) => Posed {
+                    frame: value.frame.moved(&motion).map_err(NodeErrorKind::Motion)?,
+                    value: value.value,
+                },
             }
         }
     })
@@ -455,15 +549,71 @@ fn read_off<T: crate::mate::SolveScalar>(
     of: VarId,
     pose: VarKind,
     band: geom_core::Band,
-) -> Result<PoseValue<T>, NodeErrorKind> {
+) -> Result<Posed<T>, NodeErrorKind> {
     // The half of a split a selection reads is projected here, for the
     // pose's own reads: `results` are its reader's, unprojected.
     let body_var = doc.selection(of).map_or(of, |select| select.body);
     let projected = super::project_ports(&[body_var], doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
     let (at, ent) = select_one(doc, results, slot, of)?;
-    let key = ent.key;
-    let body = super::read_named_body(results, at, ent.body)?;
+    let whole = doc
+        .selection(of)
+        .is_some_and(|select| crate::repetition::names_members(doc, select));
+    let framed = super::read_named_body(results, at, ent.body, whole)?;
+    // In the coordinates of the body it is read off.
+    Ok(Posed {
+        value: read_off_body(framed.body(), ent.key, pose, band)?,
+        frame: framed.frame().clone(),
+    })
+}
+
+/// **The cell a pose is read directly off**: the selection a point, an
+/// axis or a plane definition reads, and the pose's kind. `None` for
+/// any other variable. A measure reads such a pose off its cell
+/// ([`read_off_cell`]), and the quieting rule sees it as that cell.
+pub(crate) fn read_directly_off<P>(
+    doc: &crate::doc::Doc<P>,
+    var: VarId,
+) -> Option<(VarId, VarKind)> {
+    let held = doc.var(var)?;
+    let VarDef::Pose(PoseDef::Axis { of } | PoseDef::Point { of } | PoseDef::Plane { face: of }) =
+        held.def()
+    else {
+        return None;
+    };
+    doc.selection(*of).map(|_| (*of, held.kind()))
+}
+
+/// **The pose `kind` read off the entity `ent` of `body`**, as a
+/// measure's reference: [`read_off_body`]'s table, with the reach of the
+/// face it is read off as the lever a tilt between two axes is priced
+/// over (`None` off an edge or a vertex).
+///
+/// # Errors
+///
+/// [`read_off_body`]'s, where the cell has no such pose.
+pub(crate) fn read_off_cell<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    ent: names::EntityRef,
+    kind: VarKind,
+    band: geom_core::Band,
+) -> Result<crate::eval::measure::Carrier<'_, T>, NodeErrorKind> {
+    let value = read_off_body(body, ent.key, kind, band)?;
+    let pose = crate::eval::measure::Pose::of(&value)
+        .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"));
+    let reach = names::EntityKey::face(ent.key)
+        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at()));
+    Ok(crate::eval::measure::Carrier::Pose { pose, reach })
+}
+
+/// [`read_off`]'s read of the entity `key` of `body`, in the body's
+/// coordinates.
+fn read_off_body<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    key: names::EntityKey,
+    pose: VarKind,
+    band: geom_core::Band,
+) -> Result<PoseValue<T>, NodeErrorKind> {
     let fault = |fault| NodeErrorKind::PoseRead { pose, fault };
     let readback = |error| fault(PoseReadFault::Readback { error });
     // A carrier's stored direction is unit up to its rounding, and is
@@ -478,15 +628,15 @@ fn read_off<T: crate::mate::SolveScalar>(
     if let Some(vertex) = names::EntityKey::vertex(key) {
         return match pose {
             K::Point => Ok(PoseValue::Point {
-                position: topo::readback::vertex_point(&body, vertex).map_err(readback)?,
+                position: topo::readback::vertex_point(body, vertex).map_err(readback)?,
             }),
             _ => unreachable!("the door admits a vertex at a point read alone"),
         };
     }
     if let Some(edge) = names::EntityKey::edge(key) {
-        let kind = topo::readback::edge_carrier_kind(&body, edge).map_err(readback)?;
+        let kind = topo::readback::edge_carrier_kind(body, edge).map_err(readback)?;
         let carrier = Carrier::Curve(kind);
-        let pose_of = topo::readback::edge_pose(&body, edge).map_err(readback)?;
+        let pose_of = topo::readback::edge_pose(body, edge).map_err(readback)?;
         let has = |kinds: &[geom::CurveKind]| kinds.contains(&kind);
         return match pose {
             K::Axis
@@ -514,12 +664,12 @@ fn read_off<T: crate::mate::SolveScalar>(
     let Some(face) = names::EntityKey::face(key) else {
         unreachable!("a selection names a face, an edge or a vertex")
     };
-    let kind = topo::readback::face_carrier_kind(&body, face).map_err(readback)?;
+    let kind = topo::readback::face_carrier_kind(body, face).map_err(readback)?;
     let carrier = Carrier::Surface(kind);
     use geom::SurfaceKind as S;
     match (pose, kind) {
         (K::Plane, S::Plane) => {
-            let face_pose = topo::readback::face_pose(&body, face).map_err(readback)?;
+            let face_pose = topo::readback::face_pose(body, face).map_err(readback)?;
             // DM1a: the outward normal is the chart axis folded through
             // the face's sense — the bit selects, nothing is computed.
             let normal = OutwardNormal::from_chart(face_pose.axis, face_pose.sense).vec();
@@ -530,7 +680,7 @@ fn read_off<T: crate::mate::SolveScalar>(
         }
         (K::Plane, _) => Err(fault(PoseReadFault::NotPlanar { carrier: kind })),
         (K::Axis, S::Cylinder | S::Cone | S::Torus) => {
-            let face_pose = topo::readback::face_pose(&body, face).map_err(readback)?;
+            let face_pose = topo::readback::face_pose(body, face).map_err(readback)?;
             Ok(PoseValue::axis_through(
                 face_pose.origin,
                 unit(face_pose.axis, AXIS_DIRECTION_ROLE)?,
@@ -538,7 +688,7 @@ fn read_off<T: crate::mate::SolveScalar>(
         }
         (K::Axis, _) => Err(fault(PoseReadFault::NoAxis { carrier })),
         (K::Point, S::Sphere | S::Torus | S::Cone) => Ok(PoseValue::Point {
-            position: topo::readback::face_pose(&body, face)
+            position: topo::readback::face_pose(body, face)
                 .map_err(readback)?
                 .origin,
         }),
@@ -660,7 +810,7 @@ fn walk<T: Decide>(
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_)) | None => {
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

@@ -133,6 +133,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
                     .expect("a literal recording lifts"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -245,12 +246,13 @@ fn half_at(ev: &Evaluation<f64>, split: RecipeNodeId, half: SplitHalf) -> Body<f
         .payload
         .output_body(u32::from(half.port()))
         .unwrap_or_else(|e| panic!("the {half:?} half holds material: {e}"))
+        .body()
         .clone()
 }
 
-fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
+fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId, tol: Tol) -> Body<S> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -281,7 +283,7 @@ pub(crate) fn probe_body(tol: Tol) -> Body<pncad::geom_core::k_stats::Probe> {
         &EvalOptions::default(),
         tol,
     );
-    body_at(&ev, body)
+    body_at(&ev, body, tol)
 }
 
 /// The trim and the break: asserts what the split builds, the chamfer
@@ -302,7 +304,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
 
     // The halves partition the body: each offcut is a trapezoid of
     // parallel sides 3 − CUT and 4 − CUT across a unit-wide leg.
-    let whole = volume(&body_at(&ev, body), tol);
+    let whole = volume(&body_at(&ev, body, tol), tol);
     let off = volume(&half_at(&ev, split, SplitHalf::Above), tol);
     let kept = volume(&half_at(&ev, split, SplitHalf::Below), tol);
     assert_volume("the offcuts", off, 2.0 * DEPTH * ((3.0 - CUT) + 0.5));
@@ -339,7 +341,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
     // fillet's tangent points, d·√2 < CUT − 2.5. Each end is cut off in
     // its side wall, oblique to the chord.
     let delta_v = 4.0 * SETBACK * SETBACK / 2.0 * SQRT_2;
-    let broken = volume(&body_at(&ev, chamfer), tol);
+    let broken = volume(&body_at(&ev, chamfer, tol), tol);
     assert_volume("the chamfered corner piece", broken, kept - delta_v);
     // The offcuts' chords likewise: two solids, each chord's band carved
     // inside its own and cut off at its leg's side walls.
@@ -349,7 +351,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
         Node::chamfer(offcuts.clone(), len(SETBACK), off_chords.clone()),
         tol,
     );
-    let off_broken = volume(&body_at(&eval(&off_doc, tol), off_chamfer), tol);
+    let off_broken = volume(&body_at(&eval(&off_doc, tol), off_chamfer, tol), tol);
     assert_volume("the chamfered offcuts", off_broken, off - delta_v);
 
     // Filleted, each band's section is the region between a right
@@ -359,7 +361,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
     let rounded = |doc: &Doc<ProfileProgram>, of: Operand, chords: Vec<StableName>| {
         let mut doc = doc.clone();
         let fillet = insert(&mut doc, Node::fillet(of, len(SETBACK), chords), tol);
-        volume(&body_at(&eval(&doc, tol), fillet), tol)
+        volume(&body_at(&eval(&doc, tol), fillet, tol), tol)
     };
     let filleted = rounded(doc, corner.clone(), chords.clone());
     assert_volume("the filleted corner piece", filleted, kept - delta_f);
@@ -373,7 +375,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> Broken {
     // the other band's face there (the overrun).
     let mut rims_doc = doc.clone();
     let rims = insert(&mut rims_doc, Node::chamfer(corner, len(SETBACK), rim), tol);
-    let rimmed = volume(&body_at(&eval(&rims_doc, tol), rims), tol);
+    let rimmed = volume(&body_at(&eval(&rims_doc, tol), rims, tol), tol);
     assert_volume(
         "the corner piece, both section faces' rims chamfered",
         rimmed,
@@ -430,13 +432,13 @@ pub fn stop(tol: Tol) -> TourStop {
     let ev = eval(&doc, tol);
     assert_volume(
         "the bracket",
-        volume(&body_at(&ev, node), tol),
+        volume(&body_at(&ev, node, tol), tol),
         DEPTH * (5.0 + R * R * (1.0 - PI / 4.0)),
     );
     let trimmed = trimmed_and_broken(&doc, node, tol);
     let Broken { note, doc, rims } = split_and_break(&trimmed, node, tol);
     let ev = eval(&doc, tol);
-    let body = body_at(&ev, rims);
+    let body = body_at(&ev, rims, tol);
     TourStop {
         name: "bracket",
         caption: String::new(),
@@ -453,18 +455,5 @@ pub fn stop(tol: Tol) -> TourStop {
             up: 'z',
         },
         bodies: vec![SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, rims)],
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    /// The stop builds: the bracket and its halves at their closed
-    /// forms, the corner piece's cap chords chamfered at `4·(d²/2)·√2`
-    /// less, and both section faces' whole rims chamfered at
-    /// `rim_taken` less per face.
-    #[test]
-    fn the_stop_builds_its_chamfered_corner_piece() {
-        let stop = super::stop(pncad::geom_core::Tol::witness());
-        assert_eq!(stop.bodies.len(), 1, "the chamfered corner piece");
     }
 }

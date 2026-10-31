@@ -15,7 +15,9 @@ use geom::Curve3;
 use geom_brep::recourse::SpanDecision;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, StatedSpan};
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, EulerOpError, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{MefSite, MevSite};
+use topo::{Body, EulerOpError};
 
 const TAU: f64 = core::f64::consts::TAU;
 
@@ -177,8 +179,16 @@ fn every_door_refuses_a_callers_interval_typed() {
 
     // The certifier's own minting door.
     let band = Band::linear(Tol::witness()).unwrap();
-    let direct = EdgeCurve::certify(EdgeCurveSpec::line_between(a, a), a, a, |_| None, 1.0, band)
-        .unwrap_err();
+    let direct = EdgeCurve::certify(
+        EdgeCurveSpec::line_between(a, a),
+        a,
+        a,
+        |_| None,
+        1.0,
+        band,
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap_err();
     assert!(
         matches!(
             direct,

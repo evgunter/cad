@@ -54,6 +54,7 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = fixture::insert(
@@ -148,11 +149,11 @@ fn a_bore_vanishes_after_the_size_edit(chamfer: bool) {
         "{verb}: at 0.1 the carve takes the bore's wall"
     );
     let out = corpus::body_of(&ev2, fillet);
-    topo::validate_geometric(out, tol()).unwrap_or_else(|e| panic!("{verb}: tier 3, {e:?}"));
-    topo::validate_pseudomanifold(out, &topo::ContactRecords::default(), tol())
+    topo::validate_geometric(&out, tol()).unwrap_or_else(|e| panic!("{verb}: tier 3, {e:?}"));
+    topo::validate_pseudomanifold(&out, &topo::ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{verb}: tier 3′, {e:?}"));
     let pi = core::f64::consts::PI;
-    let dv = volume(out) - volume(corpus::body_of(&ev2, block));
+    let dv = volume(&out) - volume(&(corpus::body_of(&ev2, block)));
     let section = if chamfer {
         r * r / 2.0
     } else {

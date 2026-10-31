@@ -2,7 +2,8 @@
 id: an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction
 kind: issue
 title: An arc of one operand lying in a curved face's interior of the other refuses CurvedPierceUnsupported at the reduction, so its slit form is never reached
-status: open
+status: closed
+closed: 2026-10-31
 opened: 2026-10-26
 priority: P1
 cost: M
@@ -31,7 +32,7 @@ Past the reduction, the parting reads the arc as lying in the wall
 (`topo::boolean::slit::on_carrier`, a conic on a quadric at five points)
 and refuses it `EdgeInFace` (`Curved`): two coincident arcs no record
 backs, the same gap as the planar curved keel
-(`work/splitdoor/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+(`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
 So the rider form does not ship either way; the body is never built.
 
 ## Fix
@@ -41,3 +42,14 @@ certified on the carrier, as `lying_on` does a covered arc, so the op
 reaches the parting; then the arc's slit form waits on the curved-slit
 row above. The witness's pin moves from `CurvedPierceUnsupported` to
 `EdgeInFace` (`Curved`) at the first step.
+
+## Closed (2026-10-31, CLEAVE, PR 5793)
+
+Main's reduction now places the witness's arc: merged into PR 5793,
+every op of both scenes but `A ∖ B` builds, valid at tiers 3 and 3′
+(`B ∖ A` empty where the V turned 60° lies inside the slab), and
+`A ∖ B` reaches the parting, which refuses `EdgeInFace` (`Curved`), as
+this row's Fix asked. The witness is re-pinned and renamed
+(`an_arc_resting_in_a_cylinder_or_sphere_face_refuses_only_its_slit`).
+The slit form waits on
+`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`.

@@ -4,7 +4,6 @@ kind: issue
 title: design - pinch-carrying machinery to support the intersecting equal-radius boolean family (valence-4 section vertices)
 status: open
 opened: 2026-08-31
-github: 1377
 refs: [1353, 1372]
 priority: P1
 cost: H

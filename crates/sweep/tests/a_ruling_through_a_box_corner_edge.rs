@@ -10,8 +10,8 @@
 //!   wall material beside the box touching along the edge. The material
 //!   parts the edge into two, a ring of no area in the near piece, which
 //!   the measure of a curved face does not read: it refuses
-//!   `EdgeInFace` (`CurvedRing`,
-//!   `work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`).
+//!   `EdgeInFace` (`CurvedFace`,
+//!   `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
 //! - `∪` and box `∖` wall lose the edge, and record nothing.
 //!
 //! A cone's ruling along a square prism's edge is the same pose on a
@@ -127,21 +127,21 @@ fn six(w: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
     ]
 }
 
-/// **`w ∖ b` refuses `EdgeInFace` (`CurvedRing`)**: the box's faces at
+/// **`w ∖ b` refuses `EdgeInFace` (`CurvedFace`)**: the box's faces at
 /// the corner edge both leave it into the near wall piece's material,
 /// so the edge is two, a ring of no area in that piece
-/// (`work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`,
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`,
 /// whose Fix lists what these rows owe back).
 fn refuses_the_ring(what: &str, r: Result<BooleanResult<f64>, BooleanError>) {
     assert!(
         matches!(
             r,
             Err(BooleanError::EdgeInFace {
-                gap: topo::EdgeInFaceGap::CurvedRing,
+                gap: topo::EdgeInFaceGap::CurvedFace,
                 ..
             })
         ),
-        "{what}: refuses the curved ring: {:?}",
+        "{what}: refuses the parting on the curved wall: {:?}",
         r.map(|_| ())
     );
 }

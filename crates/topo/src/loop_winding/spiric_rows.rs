@@ -168,7 +168,7 @@ fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
     let spec = |(t0, t1): (f64, f64)| geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(plane, torus),
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier: carrier.clone(),
         param_start: t0,
@@ -176,7 +176,7 @@ fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
     };
     let first = body
         .mev(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             carrier.eval(PI),
