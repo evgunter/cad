@@ -158,6 +158,58 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
     )
 }
 
+/// **The ball about the overlap of two overlapping boxes**: its centre,
+/// out to its half-diagonal. The boxes are `f64` hulls the face walk
+/// computed, so the ball enters as computed values.
+pub(super) fn overlap_ball<T: geom_core::Real>(
+    a: &bvh::Aabb,
+    b: &bvh::Aabb,
+) -> geom_brep::ExtentBall<T> {
+    use geom_core::{Point3, Vec3};
+    let lo = Vec3::new(
+        a.min_x.max(b.min_x),
+        a.min_y.max(b.min_y),
+        a.min_z.max(b.min_z),
+    );
+    let hi = Vec3::new(
+        a.max_x.min(b.max_x),
+        a.max_y.min(b.max_y),
+        a.max_z.min(b.max_z),
+    );
+    geom_brep::ExtentBall::new(
+        Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
+        T::from_computed((hi - lo).norm() * 0.5),
+    )
+}
+
+/// **The operation's region** (C5): the ball about the overlap of the
+/// two operands' boxes, each the hull of its faces' boxes at the sweep's
+/// pad, which holds every section point the operation can use. `None`
+/// where the operands' boxes do not overlap, so that no face pair does.
+///
+/// # Errors
+///
+/// A face box's own refusal.
+pub(crate) fn operation_region<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+) -> Result<Option<geom_brep::ExtentBall<T>>, BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    let hull = |body: &Body<T>| -> Result<Option<bvh::Aabb>, BooleanError> {
+        let mut out: Option<bvh::Aabb> = None;
+        for (f, _) in body.faces() {
+            let b = boxes::face_box(body, f, pad, band)?;
+            out = Some(out.map_or(b, |h| h.hull(&b)));
+        }
+        Ok(out)
+    };
+    Ok(match (hull(a)?, hull(b)?) {
+        (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
+        _ => None,
+    })
+}
+
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
 /// each face of `b` that `keep` admits, in `a`'s face order and `b`'s
 /// within each — the candidates both of this door's scans read.
@@ -203,18 +255,17 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 /// **The section door**: the operation's section table
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
-/// ([`geom_brep::pair_section::serves`]), and the coincidences the join
-/// reads, per face pair of the two operands: a pair whose section stands
-/// on a coincidence decided `Zero` (a sphere's centre on a cylinder's or
-/// a torus's axis, a cylinder or a torus coaxial with a torus) one row,
-/// read from the table, at the coincidence's own site; and a crossing
-/// cylinder pair's two rows, its radii decided equal and its axes decided
-/// meeting ([`super::join::crossing_cylinder_margins`]), the
-/// classification the join's bisector lane reads. The rows in A's face
-/// order and B's within each, none where the operation's verdicts are
-/// given; the table is built either way, carrying through `lane`. The
-/// crossing cylinder pairs are among the pairs the filter keeps, since
-/// it keeps every cylinder.
+/// ([`geom_brep::pair_section::serves`]) at the operation's band and
+/// region ([`operation_region`]), and the coincidences the join reads,
+/// per face pair of the two operands: each coincidence decided `Zero`
+/// that the pair's section stands on one row, read from the table, at
+/// the coincidence's own site. A sphere's centre on a cylinder's or a
+/// torus's axis, and a cylinder or a torus coaxial with a torus, are one
+/// row each; two cylinders at their bisector pose are two, the radii
+/// decided equal and the axes decided meeting, the classification the
+/// join's bisector lane reads. The rows in A's face order and B's within
+/// each, none where the operation's verdicts are given; the table is
+/// built either way, carrying through `lane`.
 ///
 /// # Errors
 ///
@@ -249,32 +300,22 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    let mut table = SectionTable::reader(lane, band);
+    let mut table = SectionTable::reader(lane, operation_region(a, b, band)?, band);
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, read, band)? {
         let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
             continue;
         };
-        if let (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) = (&sa, &sb) {
-            if recorded
-                && let Some([radii, meet]) =
-                    super::join::crossing_cylinder_margins((a, fa), (b, fb), band)
-            {
-                let site = crate::DecisionSite::CrossingCylinders;
-                rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
-                rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
-            }
-            continue;
-        }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
-        let coincidence = match table.read((ka, &sa), (kb, &sb)) {
-            Some(Ok(section)) => section.coincidence(),
-            Some(Err(_)) | None => None,
+        let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {
+            continue;
         };
-        if let (true, Some((decided, margin))) = (recorded, coincidence) {
-            let (relation, site) = coincidence_site(decided);
-            rows.push(row((fa, fb), relation, site, margin));
+        if recorded {
+            for (decided, margin) in section.coincidences() {
+                let (relation, site) = coincidence_site(decided);
+                rows.push(row((fa, fb), relation, site, margin));
+            }
         }
     }
     Ok((table.finish(), rows))
@@ -353,4 +394,37 @@ pub(crate) fn touched<T: geom_core::Real>(
         })
         .map(|(i, _)| i)
         .collect()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod region_rows {
+    use geom_core::{Band, Point3, Tol};
+
+    use crate::test_support_fixtures::brick;
+
+    /// **The operation's region is the ball about the operands' box
+    /// overlap**: two unit-high bricks overlapping in `[0.5, 1]` along
+    /// `x` read a ball about the overlap's centre, out to its
+    /// half-diagonal and the pad, which holds the overlap and is far
+    /// short of either brick's own ball; bricks apart read none.
+    #[test]
+    fn the_region_is_the_ball_about_the_operands_box_overlap() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let b = brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let region = super::operation_region(&a, &b, band)
+            .unwrap()
+            .expect("the boxes overlap");
+        let centre = Point3::new(0.75, 0.5, 0.5);
+        assert!((region.center() - centre).norm() < 1e-6, "{region:?}");
+        let half_diagonal = (0.25f64 * 0.25 + 0.5 * 0.5 + 0.5 * 0.5).sqrt();
+        assert!(
+            region.radius() >= half_diagonal && region.radius() < half_diagonal + 1e-3,
+            "{region:?}"
+        );
+        let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert!(super::operation_region(&a, &far, band).unwrap().is_none());
+    }
 }

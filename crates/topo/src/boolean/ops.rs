@@ -1871,24 +1871,12 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 }
 
 /// The section certificate's [`Reach`](super::section_cert::Reach) of
-/// two overlapping face boxes, which are `f64` hulls the face walk
-/// computed: the ball enters as computed values.
+/// two overlapping face boxes ([`super::glue::overlap_ball`]).
 fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
-    let (lo, hi) = (
-        Vec3::new(
-            box_a.min_x.max(box_b.min_x),
-            box_a.min_y.max(box_b.min_y),
-            box_a.min_z.max(box_b.min_z),
-        ),
-        Vec3::new(
-            box_a.max_x.min(box_b.max_x),
-            box_a.max_y.min(box_b.max_y),
-            box_a.max_z.min(box_b.max_z),
-        ),
-    );
+    let ball = super::glue::overlap_ball(box_a, box_b);
     super::section_cert::Reach {
-        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
-        radius: T::from_computed((hi - lo).norm() * 0.5),
+        centre: ball.center(),
+        radius: ball.radius(),
     }
 }
 
@@ -1916,19 +1904,24 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => of_pair_section(held, |_| {
-            match sections.carried((a, fa.face), (b, fb.face)) {
-                Some(Ok(carried)) => of_carried(Ok(carried)),
-                Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
-                Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
-                    super::section_cert::Section::Unmarched
-                }
-            }
-        }),
+        Some(held) => {
+            of_pair_section(
+                held,
+                (fa.surface.kind(), fb.surface.kind()),
+                |_| match sections.carried((a, fa.face), (b, fb.face)) {
+                    Some(Ok(carried)) => of_carried(Ok(carried)),
+                    Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
+                    Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
+                        super::section_cert::Section::Unmarched
+                    }
+                },
+            )
+        }
         None => classify(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
+            sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
         ),

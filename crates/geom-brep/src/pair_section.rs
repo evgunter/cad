@@ -623,7 +623,9 @@ pub struct SectionComponent<T: Real> {
     /// Whether the arm proves it winds about each surface's carrier (it
     /// is essential there), in the order the section was asked of:
     /// `false` claims nothing, since an arm that does not read
-    /// essentiality lists none.
+    /// essentiality lists none. An arc that ends at nodes claims it of
+    /// its node-joined set, the arcs that share its nodes, which is the
+    /// connected component.
     pub winds: [bool; 2],
     /// One point of it, in closed form, where the arm names one.
     pub witness: Option<Point3<T>>,
