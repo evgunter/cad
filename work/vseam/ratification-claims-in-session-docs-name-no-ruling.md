@@ -55,3 +55,11 @@ holds the searches. This row is the list of members on VSEAM's ground.
 **The fix is a word, not a design.** Say whose decision each one is,
 or cite the clause that holds. None of these needs Ev: the claims that
 turn out FALSE only stop asserting a gate that never existed.
+
+## 2026-10-31 — the NewDocument member is resolved
+
+The first FALSE member (`SessionOp::NewDocument` and
+`DocSession::new_document` citing "the identity ruling") is resolved by
+`new-document-derives-its-id-from-the-typed-name`. A new document's id
+is now random, and both docs state that rule with no citation. The
+other members stand.
