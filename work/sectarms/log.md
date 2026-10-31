@@ -59,3 +59,17 @@ and bodies unchanged. No orchestrator yet.
 - 2026-10-31 — **Next:** the builds.
   - The NURBS arm is staged behind SPLICE's PR 6026, open and idle since 10-29. That PR adds `ComponentShape::Open { reaches }` and the `(Plane, Nurbs)` arm, and the W5 row follows it.
   - The cylinder × cylinder build depends on nothing open, but it shares the component-ends type with 6026, so its spec reuses whatever 6026 lands rather than adding a second.
+- 2026-10-31 — **Cylinder × cylinder: phase 0 plan accepted; stage 1 dispatched** (`sectarms/cylinder-pair-on-the-value`).
+  - **Measured:** the ℝ³ march already handles two cylinders. Seeding is cheap at the current floor.
+  - **The stages:**
+    - **1** (geom-brep, H, **dual**): the pose with the region and the shared end type, which folds `BranchEnd::Slab`/`SlabInBand` into one cut end.
+    - **2** (M, single full): the region at the glue door, plus `section_door` and `section_cert` reading the value.
+    - **3** (topo, H, dual): the join reads the value, and the frame's cylinder arm retires.
+    - **4** (conditional): chart seeding, only if a witness row shows region-scale seeding misses a loop.
+  - **Not waiting on SPLICE's PR 6026** (590 commits behind, idle). Stage 1 builds the end type in a shape 6026 adopts mechanically; a coupling note is on SPLICE's log.
+  - **Adjudication of the plan's findings:**
+    - **(1)** The accounting cost grows with the region, and 6127's worked example refuses `CellBudget` rather than listing arcs. Filed `a-near-parallel-pairs-accounting-grows-with-the-operation-region` (P1 H, design). It goes to designers, and to Ev if it moves C3. Ev is told the example overclaimed.
+    - **(2)** Count components only when the pose's ball lies inside the region, else march. Accepted.
+    - **(3)** `cylinder_cylinder_section` becomes the pose's closed-form constructor. Accepted.
+    - **(4)** `section_cert::Reach` also serves the cone and torus arms. This unit removes only the cylinder use, and the rest goes to the cone row (noted there).
+    - **(5)** The march domain is the meet of two boxes, a sound superset. Stage 1 adds that evidence to SSIEDGE's `ssi-r3-slab-is-not-geometry`.

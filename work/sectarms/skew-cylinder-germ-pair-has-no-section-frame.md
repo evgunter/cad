@@ -2,11 +2,12 @@
 id: skew-cylinder-germ-pair-has-no-section-frame
 kind: issue
 title: Two cylinder walls with skew axes, or coplanar axes and unequal radii, refuse GermFrameUnsupported: cylinder x cylinder is not on the section value
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P1
 cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
+branch: sectarms/cylinder-pair-on-the-value
 ---
 
 Found by the cylinder × sphere frame lane's sweep of the germ pairs that
