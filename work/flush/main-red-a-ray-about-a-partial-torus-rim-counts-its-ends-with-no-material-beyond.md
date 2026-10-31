@@ -2,11 +2,12 @@
 id: main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond
 kind: issue
 title: Main red (fuzz): a ray in band of a 1.5-turn revolved torus's plane|torus rim counts its ends but reads no material beyond, at ε 1e-6
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
+branch: flush/partial-torus-rim-ray
 ---
 
 
