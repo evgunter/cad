@@ -2,10 +2,13 @@
 id: the-profile-editors-fields-carry-no-per-argument-affordances
 kind: issue
 title: The profile editor's number fields carry no per-argument affordances (expression, unit, range); a driven profile cannot be held
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-10-31
 priority: P1
 cost: H
+pr: 6144
+branch: vseam/the-profile-editors-fields-carry-their-arguments
 ---
 
 
@@ -60,3 +63,19 @@ is written above, so no design question is open. The cost is in
 holding an expression beside each number through `sketch::held_loops`,
 the pane and `carry_unmoved`. `dragging-a-profile-argument-freezes-its-outline`
 is a symptom of the second door, and this row would retire it.
+
+## 2026-10-31 — closed (PR 6144)
+
+Built as written above. Each step field names its `StepArg`
+(`widgets::ArgDoors`), and at the edit door a kept step's field is its
+committed slot's field (`pane::profile` `HeldArgs`, `PaneSlots`). That field
+is `ViewerBehavior::held_slot_field_ui`, the slot row's own `value_field_ops`
+over a held number, with `slot_unit_ui` beside it and `range_button`,
+`name_button` and `slot_notes_ui` under the row. `sketch::held_loops` holds a
+driven argument beside its reading (`HeldLoops::driven`), and
+`ProfileEdit::programs_noted` writes the expression back at a kept step, so
+`carry_unmoved` keeps it and its notation. A kept argument lands in its
+slot's unit. The folded slot rows under the editor are gone.
+
+The expression door is refused while the draft holds edits. That residue is
+`an-expression-typed-over-held-profile-edits-is-refused`.

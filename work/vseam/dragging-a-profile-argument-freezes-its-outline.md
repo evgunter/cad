@@ -2,10 +2,13 @@
 id: dragging-a-profile-argument-freezes-its-outline
 kind: issue
 title: Dragging a profile argument in the folded argument rows freezes the profile's outline
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-10-31
 priority: P1
 cost: E
+pr: 6144
+branch: vseam/the-profile-editors-fields-carry-their-arguments
 ---
 
 
@@ -47,3 +50,16 @@ remove the second door altogether.
 A preview defect for the duration of a drag. Nothing is committed wrong,
 and the row was filed as likely rather than seen on screen. P1's GUI
 band, not P0's.
+
+## 2026-10-31 — closed (PR 6144): the second door is gone
+
+Retired by `the-profile-editors-fields-carry-no-per-argument-affordances`:
+the folded slot rows under the editor no longer exist. The editor's own field
+moves the held draft every frame of a drag, and the outline is drawn from
+that draft (`app::properties_pane_tests::profile_editor_fields::a_drag_in_the_editor_moves_the_outline_live`).
+
+The sibling a held driven profile opened, a variable dragged in its row
+freezing the arguments that read it, is closed too. Over a gesture's scratch
+an untouched draft takes no preview, so the committed pass draws the node
+from the scratch (`Drafts::edit_previewed`,
+`drafts::tests::an_untouched_edit_draft_gives_way_to_a_gestures_scratch`).
