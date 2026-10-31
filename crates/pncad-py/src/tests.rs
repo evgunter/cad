@@ -4485,6 +4485,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_along_face",
             "pcurves",
             "pieces",
+            "pierce_lever_unread",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",

@@ -2953,8 +2953,9 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// A vertex the sector walk reads sits within the band of a crease
-    /// or an irregular point of a spline face of `operand`: a line its
+    /// A vertex the sector walk reads, or a point the pierce pass reads a
+    /// pierced face's normal at, sits within the band of a crease or an
+    /// irregular point of a spline face of `operand`: a line its
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam), where
     /// the face has a normal on each side and the sector's side of the
@@ -2966,7 +2967,8 @@ pub enum BooleanError {
     /// No operand the boolean builds today reaches it: a crossing on a
     /// spline edge's own crease refuses first, at the crossing rung, and
     /// an at-rest body carries no pole. `sectors`' `spline_refusal_rows`
-    /// pins the mapping on the shared walk's fixture.
+    /// pins the mapping on the shared walk's fixture, and `vtxfac`'s
+    /// spline pierce rows on the pierce's.
     NormalAtSplineCrease {
         /// The operand the spline face belongs to.
         operand: Operand,
@@ -2975,6 +2977,22 @@ pub enum BooleanError {
         /// The band the vertex's distance from the crease was classified
         /// against.
         band: Band,
+    },
+    /// A pierce of a spline face of `operand` read no bound on how
+    /// sharply the face bends round the pierce point: the chart's
+    /// certified arm ([`geom_brep::NurbsLane::chart_arm`]) refused, for
+    /// the reason `cause` names. The side each sector bound reads is
+    /// charged for the face's bend over that arm, so with no arm no side
+    /// is read. A patch bound that refuses a whole integral chart with a
+    /// C⁰ crease anywhere refuses here too, however far the crease lies
+    /// (`work/encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`).
+    PierceLeverUnread {
+        /// The operand the spline face belongs to.
+        operand: Operand,
+        /// The spline face.
+        face: FaceKey,
+        /// Why no arm was read.
+        cause: geom_brep::ChartArmRefusal,
     },
     /// A lane met an edge whose carrier is a spiric or a spline, and has
     /// no row for either kind; `site` names the lane. At a crossing lane
@@ -4216,6 +4234,8 @@ pub enum BooleanErrorKind {
     NormalAtConeApex,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
+    /// [`BooleanError::PierceLeverUnread`].
+    PierceLeverUnread,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
     /// [`BooleanError::SplineCrossingUnsettled`].
@@ -4482,6 +4502,14 @@ impl BooleanError {
                 face,
                 band,
             },
+            // Decided and in band alike, as the sector walk's crease
+            // refuses: the arm has no escalating half.
+            NormalAtError::SplineCrease { band, .. }
+            | NormalAtError::SplineIrregular { band, .. } => Self::NormalAtSplineCrease {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -4503,6 +4531,7 @@ impl BooleanError {
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
+            Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -4747,6 +4776,25 @@ impl core::fmt::Display for BooleanError {
                  other part's side by. Recourse: move the parts so the corner lies \
                  clear of the crease",
                 operand_word(*operand),
+            ),
+            Self::PierceLeverUnread { operand, cause, .. } => write!(
+                f,
+                "a corner of one part sits on a curved face of the {} operand whose bend \
+                 near the corner could not be bounded ({}), so the other part's side of \
+                 it is not read. Recourse: move the parts so the corner lies clear of \
+                 the face's creases and pinches",
+                operand_word(*operand),
+                match cause {
+                    geom_brep::ChartArmRefusal::PatchBound =>
+                        "the face's curvature bound refuses its whole surface",
+                    geom_brep::ChartArmRefusal::CreaseWithinReach => "a crease lies nearby",
+                    geom_brep::ChartArmRefusal::Unbounded =>
+                        "the face's bend at the corner has no bound",
+                    geom_brep::ChartArmRefusal::Poisoned =>
+                        "the corner's position is not one point",
+                    geom_brep::ChartArmRefusal::NoLane =>
+                        "this number type reads no curvature bound",
+                },
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -5966,6 +6014,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
     }
+    let charts = acc.take_charts();
     let (mut contacts, mut pending) = acc.finish();
     let mut glued = Vec::with_capacity(declared.verified.touches.len());
     for touch in &declared.verified.touches {
@@ -6023,6 +6072,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 branches.get(&(operand, c.vertex)).copied(),
+                charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
             ) {
@@ -6060,6 +6110,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
                             branches.get(&(operand, c.vertex)).copied(),
+                            charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,
                         ) {
@@ -8964,6 +9015,11 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::PierceLeverUnread {
+                operand: Operand::B,
+                face,
+                cause: geom_brep::ChartArmRefusal::PatchBound,
+            },
             BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
@@ -9308,6 +9364,7 @@ mod tests {
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
+                BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
