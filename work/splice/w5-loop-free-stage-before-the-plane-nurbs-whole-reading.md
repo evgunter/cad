@@ -7,6 +7,7 @@ opened: 2026-10-29
 closed: 2026-10-31
 priority: P1
 cost: M
+pr: 6150
 branch: splice/w5-loop-free-sweep
 ---
 
