@@ -14,7 +14,7 @@ cost: M
 `crates/geom-brep/src/props/quad/` reads a vector norm as the root of
 the sum of per-coordinate squares of a BOX in several certified places:
 `rational_patch_face`'s area cell (`g_hull: (ch[0].sqr() + ch[1].sqr() +
-ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num(&w, over…)`),
+ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num_at(&w, column, over…)`),
 `trimmed_patch_face_rounds`' `sup_g` over the trim box
 (`(cross[0].sqr() + …).sqrt()`), the helper `norm_hi`, `area_at` and
 `area_cell` (their `‖S_u × S_v‖` and pad readings), and the corresponding
@@ -34,7 +34,7 @@ folded into a norm (`geom_core::spline::compose::tensor`'s
 `coefficient_norm_bound` / `coefficient_norm_sup`, and
 `PatchSpans::cell_norm_sup` for a tensor-product cell).
 
-**Inferred from the code, not reproduced.** Whether `cross_num` over a
+**Inferred from the code, not reproduced.** Whether `cross_num_at` over a
 cell is available in coefficient form (it is a hull evaluation here),
 and which of these sites are upper bounds the sentence covers rather
 than midpoint estimates (`g_mid` is a point reading and is not), is
@@ -100,3 +100,18 @@ gone. The rest of the list stands: `trimmed_patch_face_rounds`' `sup_g`,
 `norm_hi` (still read by the integral and trimmed lanes), `area_at`,
 `area_cell`, and the `p_bound` L1 folds. The rotation probe was not
 re-run.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds at the sites the 2026-10-22 section left. Their homes after
+PR 5815 are:
+- `norm_hi`, `crates/geom-brep/src/props/quad/net.rs:764`;
+- `area_at` and `area_cell`, `props/quad/trimmed.rs:681` and `:703`;
+- `trimmed_patch_face_rounds`' `sup_g`, `trimmed.rs:1543`;
+- the integral lane's area cell, `props/quad/patch.rs:288`–`293`;
+- the `p_bound` L1 folds, `patch.rs:218` and `trimmed.rs:1534`.
+
+The lower-bound readers are `norm_lo` (`trimmed.rs:343`) and
+`boundary_chord_perimeter_lo` (`props/quad/area.rs:92`). The rational
+lane's `g_mid` (`props/quad/rational.rs:467`) is a point reading. The
+rotation probe was not re-run.

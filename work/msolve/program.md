@@ -4,7 +4,7 @@ kind: program
 title: MSOLVE — the mate solve's correctness residue
 status: ready
 opened: 2026-09-04
-area: kernel
+group: api/assembly
 prefix: msolve/
 tag: (MSOLVE orchestrator)
 ab_band: 2600-2699

@@ -2,8 +2,7 @@
 id: circle-lowers-to-one-segment
 kind: unit
 title: circle and circle_split(n ≥ 1) lower to one full-turn segment per arc; lily migrates; re-baseline
-status: parked
-blocked_on: [one-segment-tangent-rims-refuse-where-their-two-arc-forms-build]
+status: open
 opened: 2026-09-25
 priority: P1
 cost: H

@@ -11,7 +11,17 @@
 fail-fast = false
 default-filter = """
 not (
-  (binary_id(demo-tour::bin/demo-tour) & (test(=chaintol::tests::the_certified_tip_box_is_half_the_pin_radius) | test(=chaintol::tests::the_published_certifiable_fractions_are_the_measured_ones) | test(=chaintol::tests::the_wall_is_the_wedge_not_the_arm) | test(=gallery::tests::the_die_document_produces_one_die) | test(=klein::loop_volume_grid::the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place) | test(=klein::verbs_gate_r1_probes::the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims) | test(=projectbox::tests::the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids) | test(=teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite))) |
-  (binary_id(demo-tour::eps_regression) & (test(=tour_runs_green_at_default_eps) | test(=tour_runs_green_at_eps_1e_6)))
+  binary_id(demo-tour::all) & (
+    test(=chaintol::tests::the_certified_tip_box_is_half_the_pin_radius) |
+    test(=chaintol::tests::the_published_certifiable_fractions_are_the_measured_ones) |
+    test(=chaintol::tests::the_wall_is_the_wedge_not_the_arm) |
+    test(=eps_regression::tour_runs_green_at_default_eps) |
+    test(=eps_regression::tour_runs_green_at_eps_1e_6) |
+    test(=gallery::tests::the_die_document_produces_one_die) |
+    test(=klein::loop_volume_grid::the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place) |
+    test(=klein::verbs_gate_r1_probes::the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims) |
+    test(=projectbox::tests::the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids) |
+    test(=teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite)
+  )
 )
 """

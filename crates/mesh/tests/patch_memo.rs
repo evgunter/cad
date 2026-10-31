@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom_brep::{FocalImage, Pcurve, PcurveCache};
@@ -27,7 +28,8 @@ use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey, Rechart, SurfaceKey};
+use topo::construction::{FaceSurface, Rechart};
+use topo::{Body, FaceKey, HalfEdgeKey, SurfaceKey};
 
 use crate::common;
 use crate::d9_mesh_goldens;

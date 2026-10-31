@@ -42,3 +42,10 @@ wrong answer.
 over `cell_midpoint(p, q).1`). Then pad the column by
 `hull(g)·width(top)`, or integrate the last cell up to the enclosure's
 far end and widen by the near-end gap.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `chord_polygon_area`
+(`crates/geom-brep/src/props/quad/trimmed.rs:1291`) reads `slope` at
+`:1315`, and `hu`, `um` and `top` at `:1326`–`1328`, all in f64. The
+`mismatch` pad is at `:1387`.

@@ -53,7 +53,8 @@ use crate::node::RecipeNodeId;
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
-    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, StableName, name_free_seg,
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, RunLine, StableName,
+    name_free_seg,
 };
 use super::table::EntityRef;
 
@@ -85,8 +86,8 @@ pub enum OpGroup {
     /// fenced by the ratified verb-vocabulary decision
     /// (`crates/sweep/README.md`, settled ground).
     Fillet,
-    /// Pattern.
-    Pattern,
+    /// Repetition: a family's member (D10 `[repetition]`).
+    Repetition,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::From`], which groups under
     /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
@@ -137,6 +138,10 @@ seg_tags! {
     // Loft
     LoftWall,
     LoftSeam,
+    LoftSlabWall,
+    LoftSlabSeam,
+    LoftSectionEdge,
+    LoftSectionVertex,
     // Revolve
     Band,
     BandRim,
@@ -179,7 +184,7 @@ seg_tags! {
     Rim,
     HoleRim,
     // Pattern
-    Instance,
+    Member,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -226,6 +231,10 @@ impl SegTag {
             RoleSeg::CapVertex(..) => Self::CapVertex,
             RoleSeg::LoftWall(..) => Self::LoftWall,
             RoleSeg::LoftSeam(..) => Self::LoftSeam,
+            RoleSeg::LoftSlabWall(..) => Self::LoftSlabWall,
+            RoleSeg::LoftSlabSeam(..) => Self::LoftSlabSeam,
+            RoleSeg::LoftSectionEdge(..) => Self::LoftSectionEdge,
+            RoleSeg::LoftSectionVertex(..) => Self::LoftSectionVertex,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::BandRimPi(..) => Self::BandRimPi,
@@ -263,7 +272,7 @@ impl SegTag {
             RoleSeg::Inner(..) => Self::Inner,
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
-            RoleSeg::Instance { .. } => Self::Instance,
+            RoleSeg::Member { .. } => Self::Member,
         }
     }
 
@@ -277,7 +286,11 @@ impl SegTag {
             | Self::LateralEdge
             | Self::CapVertex
             | Self::LoftWall
-            | Self::LoftSeam => OpGroup::Extrude,
+            | Self::LoftSeam
+            | Self::LoftSlabWall
+            | Self::LoftSlabSeam
+            | Self::LoftSectionEdge
+            | Self::LoftSectionVertex => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::BandRimPi
@@ -310,7 +323,7 @@ impl SegTag {
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
-            Self::Instance => OpGroup::Pattern,
+            Self::Member => OpGroup::Repetition,
         }
     }
 }
@@ -339,6 +352,10 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::LateralEdge(_)
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::BandRimPi(_)
@@ -366,32 +383,58 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. } => None,
+        | RoleSeg::Member { .. } => None,
     }
 }
 
-/// A segment's sub-NAME arguments, in declaration order (the set-
-/// valued [`RoleSeg::Merged`] and [`RoleSeg::BandFace`], and the
-/// `band` set of [`RoleSeg::BandCross`] and [`RoleSeg::BandSlit`]
-/// after their `edge`, contribute their members in the canonical name
-/// order they are stored in). [`RoleSeg::Fragment`]'s [`Qualifier`]
-/// carries verdicts rather than a role argument and contributes none.
-/// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
-/// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
-/// classified here or the compile breaks — or, if it embeds no name,
-/// added to [`crate::names::name_free_seg`], which is the one place
-/// that answer is written for every match that shares it.
+/// A segment's sub-NAME arguments: a SEQUENCE, each argument in a slot
+/// of its own, then a SET, whose members are spelled in name order and
+/// fill no slot (N0 NS1).
+struct Args<'a> {
+    /// The slotted arguments, in declaration order.
+    seq: Vec<&'a StableName>,
+    /// The set's members.
+    set: Vec<&'a StableName>,
+}
+
+/// A segment's sub-NAME [`Args`]. The sets are [`RoleSeg::Seam`]'s two
+/// sides, [`RoleSeg::Merged`]'s constituents, [`RoleSeg::EdgeCrossing`]'s
+/// lines, [`RoleSeg::BandFace`]'s chain, and the `band` chain of
+/// [`RoleSeg::BandCross`] and [`RoleSeg::BandSlit`] after their slotted
+/// `edge`; every other argument has a slot. [`RoleSeg::Fragment`]'s
+/// [`Qualifier`] and a crossing's [`Sense`](super::role::Sense) carry
+/// verdicts rather than role arguments and contribute none: a pattern
+/// has no axis for a sense, so a `Through`'s things are no more an
+/// argument than `Enters` is. The match is EXHAUSTIVE on purpose (the
+/// `walk_names` rule), field by field: a future [`RoleSeg`] or
+/// [`Qualifier`] variant or field embedding names must be classified
+/// here or the compile breaks — or,
+/// if it embeds no name, added to [`crate::names::name_free_seg`], which
+/// is the one place that answer is written for every match that shares
+/// it.
 ///
 /// **Only NAMES.** [`RoleSeg::From`] contributes its `of` and not its
-/// `read`, exactly as [`RoleSeg::Instance`] contributes its `of` and not
-/// its `i`: a bare [`crate::VarId`] is not a name and a walk over names
+/// `read`, exactly as [`RoleSeg::Member`] contributes its `of` and not
+/// its `at`: a bare [`crate::VarId`] is not a name and a walk over names
 /// cannot see it. The consumers that need the read — the content key,
 /// the re-map, and `derivation_nodes` — reach it through
 /// [`crate::names::read_edge`], which is where "which segments carry a
 /// bare id" is answered.
-fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
+fn name_args(seg: &RoleSeg) -> Args<'_> {
+    fn seq(seq: Vec<&StableName>) -> Args<'_> {
+        Args {
+            seq,
+            set: Vec::new(),
+        }
+    }
+    fn set(set: Vec<&StableName>) -> Args<'_> {
+        Args {
+            seq: Vec::new(),
+            set,
+        }
+    }
     match seg {
-        RoleSeg::From { of: n, .. }
+        RoleSeg::From { of: n, read: _ }
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
         | RoleSeg::Mitre { vertex: n }
@@ -400,28 +443,39 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
         | RoleSeg::Rim(n)
-        | RoleSeg::HoleRim { of: n, .. }
-        | RoleSeg::SectionEdge { face: n, .. }
-        | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::CrossingVertex { edge: n, .. }
-        | RoleSeg::OnToolVertex { of: n, .. }
-        | RoleSeg::BandTrim { edge: n, .. }
-        | RoleSeg::Instance { of: n, .. } => vec![n],
-        RoleSeg::Seam { a, b } => vec![a, b],
-        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| &*l.line).collect(),
-        RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
-        RoleSeg::TrimEdge { edge, support } => vec![edge, support],
-        RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
-        RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
-        RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
-        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
-            std::iter::once(&**edge).chain(band).collect()
+        | RoleSeg::HoleRim { of: n, hole: _ }
+        | RoleSeg::SectionEdge { face: n }
+        | RoleSeg::SplitFragment { parent: n }
+        | RoleSeg::CrossingVertex { edge: n, sense: _ }
+        | RoleSeg::OnToolVertex { of: n }
+        | RoleSeg::BandTrim {
+            edge: n,
+            support: _,
         }
+        | RoleSeg::Member { of: n, at: _ } => seq(vec![n]),
+        RoleSeg::Crossing {
+            edge,
+            face,
+            sense: _,
+        } => seq(vec![edge, face]),
+        RoleSeg::TrimEdge { edge, support } => seq(vec![edge, support]),
+        RoleSeg::FootVertex { vertex, support } => seq(vec![vertex, support]),
+        RoleSeg::EndArc { vertex, edge } => seq(vec![vertex, edge]),
+        RoleSeg::Seam { a, b } => set(vec![a, b]),
+        RoleSeg::EdgeCrossing(run) => set(run
+            .iter()
+            .map(|RunLine { line, sense: _ }| &**line)
+            .collect()),
+        RoleSeg::Merged(members) | RoleSeg::BandFace(members) => set(members.iter().collect()),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => Args {
+            seq: vec![edge],
+            set: band.iter().collect(),
+        },
         // A qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)) => {
-            Vec::new()
+            seq(Vec::new())
         }
-        name_free_seg!() => Vec::new(),
+        name_free_seg!() => seq(Vec::new()),
     }
 }
 
@@ -447,10 +501,17 @@ pub struct SegPat {
     /// If set, the segment's end/side tag must be exactly this (a
     /// segment carrying no side tag never matches a set `side`).
     pub side: Option<Side>,
-    /// Constraints on the segment's sub-name arguments, positionally
-    /// in declaration order. A PREFIX: an empty vec constrains
-    /// nothing, `[p]` constrains the first argument only. Longer than
-    /// the segment's argument list never matches.
+    /// Constraints on the segment's sub-name arguments. The patterns
+    /// fill the segment's slotted arguments first, slot for slot and as
+    /// a PREFIX: an empty vec constrains nothing, and on a `Crossing`
+    /// `[p]` constrains the edge only. Each pattern past the slots
+    /// matches a DISTINCT member of the segment's set, in any order: on
+    /// a `Seam`, `[p, q]` matches whichever way round the two sides
+    /// fit, and `[p]` matches a seam where either side does. The sets
+    /// are a seam's sides, `Merged` constituents, an `EdgeCrossing`'s
+    /// lines and a band's chain (`BandFace`, and `BandCross` and
+    /// `BandSlit` after their edge). More patterns than arguments never
+    /// match.
     pub args: Vec<NamePat>,
 }
 
@@ -486,7 +547,8 @@ impl SegPat {
         self
     }
 
-    /// Constrains the sub-name arguments (positional prefix).
+    /// Constrains the sub-name arguments: the slots as a prefix, then
+    /// distinct members of the set ([`SegPat::args`]).
     #[must_use]
     pub fn of(mut self, args: impl IntoIterator<Item = NamePat>) -> Self {
         self.args = args.into_iter().collect();
@@ -496,17 +558,13 @@ impl SegPat {
     /// Whether `seg` matches.
     #[must_use]
     pub fn matches(&self, seg: &RoleSeg) -> bool {
-        let mut pending = Vec::new();
-        self.level_matches(seg, &mut pending) && all_match(pending)
+        let mut needs = Vec::new();
+        self.level_matches(seg, &mut needs) && needs.iter().all(|need| need.holds(&all_match))
     }
 
-    /// Whether `seg` matches this pattern's own axes, its argument
-    /// patterns set aside in `pending` with the names they must match.
-    fn level_matches<'a>(
-        &'a self,
-        seg: &'a RoleSeg,
-        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
-    ) -> bool {
+    /// Whether `seg` matches this pattern's own axes, what its argument
+    /// patterns ask of the segment's names set aside in `needs`.
+    fn level_matches<'a>(&'a self, seg: &'a RoleSeg, needs: &mut Vec<Need<'a>>) -> bool {
         let tag = SegTag::of(seg);
         let tag_ok = match self.tag {
             TagPat::Any => true,
@@ -516,25 +574,167 @@ impl SegPat {
         if !tag_ok || (self.side.is_some() && self.side != side_of(seg)) {
             return false;
         }
-        let args = name_args(seg);
-        if self.args.len() > args.len() {
+        let Args { seq, set } = name_args(seg);
+        if self.args.len() > seq.len() + set.len() {
             return false;
         }
-        pending.extend(self.args.iter().zip(args));
+        let (slotted, members) = self.args.split_at(self.args.len().min(seq.len()));
+        needs.extend(slotted.iter().zip(seq).map(Need::One));
+        if !members.is_empty() {
+            needs.push(Need::Distinct(members, set));
+        }
         true
     }
 }
 
-/// Whether every pattern in `pending` matches its name, and every
-/// pattern those set aside, as deep as they nest — from this walk's own
-/// stack.
-fn all_match<'a>(mut pending: Vec<(&'a NamePat, &'a StableName)>) -> bool {
-    while let Some((pat, name)) = pending.pop() {
-        if !pat.level_matches(name, &mut pending) {
-            return false;
+/// One question the matcher answers: whether this pattern matches this
+/// name, every level of both.
+type Ask<'a> = (&'a NamePat, &'a StableName);
+
+/// What a level that matched still needs of the levels below it.
+enum Need<'a> {
+    /// This pattern matches this name.
+    One(Ask<'a>),
+    /// Each of these patterns matches a distinct one of these members.
+    Distinct(&'a [NamePat], Vec<&'a StableName>),
+    /// Each of these segment patterns matches a distinct one of these
+    /// segments: a seam junction's run of lines, a set (N0) whose order
+    /// is only its name order (`canonical::is_junction`).
+    Segments(&'a [SegPat], &'a [RoleSeg]),
+}
+
+impl<'a> Need<'a> {
+    /// The questions whose answers decide this need.
+    fn asks(&self) -> Vec<Ask<'a>> {
+        match self {
+            Self::One(ask) => vec![*ask],
+            Self::Distinct(pats, members) => pats
+                .iter()
+                .flat_map(|pat| members.iter().map(move |&member| (pat, member)))
+                .collect(),
+            Self::Segments(pats, segs) => pats
+                .iter()
+                .flat_map(|pat| segs.iter().map(move |seg| (pat, seg)))
+                .flat_map(|(pat, seg)| {
+                    let mut needs = Vec::new();
+                    if pat.level_matches(seg, &mut needs) {
+                        needs.iter().flat_map(Need::asks).collect()
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect(),
         }
     }
-    true
+
+    /// Whether this need holds, given the answers to its [`Need::asks`].
+    fn holds(&self, answer: &dyn Fn(Ask<'a>) -> bool) -> bool {
+        match self {
+            Self::One(ask) => answer(*ask),
+            Self::Distinct(pats, members) => {
+                let fits: Vec<Vec<bool>> = pats
+                    .iter()
+                    .map(|pat| {
+                        members
+                            .iter()
+                            .map(|&member| answer((pat, member)))
+                            .collect()
+                    })
+                    .collect();
+                each_fits_a_distinct_member(&fits)
+            }
+            Self::Segments(pats, segs) => {
+                let fits: Vec<Vec<bool>> = pats
+                    .iter()
+                    .map(|pat| {
+                        segs.iter()
+                            .map(|seg| {
+                                let mut needs = Vec::new();
+                                pat.level_matches(seg, &mut needs)
+                                    && needs.iter().all(|need| need.holds(answer))
+                            })
+                            .collect()
+                    })
+                    .collect();
+                each_fits_a_distinct_member(&fits)
+            }
+        }
+    }
+}
+
+/// Whether every pattern can be given a member of its own that it fits,
+/// `fits[i][j]` saying whether pattern `i` fits member `j`: a bipartite
+/// matching, grown one pattern at a time along augmenting paths. Which
+/// member a pattern is given is never an answer — only whether every
+/// pattern can be given one.
+fn each_fits_a_distinct_member(fits: &[Vec<bool>]) -> bool {
+    /// Gives pattern `i` a member, moving the patterns already given
+    /// one where that frees one up; `seen` marks the members this
+    /// search has tried. Recurses at most once per pattern.
+    fn give(i: usize, fits: &[Vec<bool>], seen: &mut [bool], holder: &mut [Option<usize>]) -> bool {
+        for (j, &fit) in fits[i].iter().enumerate() {
+            if fit && !seen[j] {
+                seen[j] = true;
+                if holder[j].is_none_or(|k| give(k, fits, seen, holder)) {
+                    holder[j] = Some(i);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    let members = fits.first().map_or(0, Vec::len);
+    let mut holder = vec![None; members];
+    (0..fits.len()).all(|i| give(i, fits, &mut vec![false; members], &mut holder))
+}
+
+/// The key an [`Ask`] is answered under: the two values it asks about,
+/// by address, so a name two handles share is asked about once — the
+/// name by the address `names::nest`'s walks key their answers by.
+fn ask_key((pat, name): Ask<'_>) -> (usize, usize) {
+    (
+        core::ptr::from_ref(pat) as usize,
+        super::nest::address(name),
+    )
+}
+
+/// Whether `root`'s pattern matches its name, as deep as they nest —
+/// from this walk's own stack. A level that matches leaves the questions
+/// its needs ask on the stack above its own answer, so each answer is
+/// taken after the answers it reads; a set need asks every pattern of
+/// every member, so one question can come up twice, and is answered
+/// once.
+fn all_match(root: Ask<'_>) -> bool {
+    enum Step<'a> {
+        Ask(Ask<'a>),
+        Answer(Ask<'a>, Vec<Need<'a>>),
+    }
+    let mut answers = std::collections::HashMap::new();
+    let mut steps = vec![Step::Ask(root)];
+    while let Some(step) = steps.pop() {
+        match step {
+            Step::Ask(ask) => {
+                if answers.contains_key(&ask_key(ask)) {
+                    continue;
+                }
+                let mut needs = Vec::new();
+                if !ask.0.level_matches(ask.1, &mut needs) {
+                    answers.insert(ask_key(ask), false);
+                    continue;
+                }
+                let below: Vec<Ask<'_>> = needs.iter().flat_map(Need::asks).collect();
+                steps.push(Step::Answer(ask, needs));
+                steps.extend(below.into_iter().map(Step::Ask));
+            }
+            Step::Answer(ask, needs) => {
+                let held = needs
+                    .iter()
+                    .all(|need| need.holds(&|below| answers[&ask_key(below)]));
+                answers.insert(ask_key(ask), held);
+            }
+        }
+    }
+    answers[&ask_key(root)]
 }
 
 /// A pattern over a whole [`StableName`]: kind, minting node, and the
@@ -557,7 +757,9 @@ pub struct NamePat {
     /// If set, the name's minting node must be exactly this.
     pub node: Option<RecipeNodeId>,
     /// If set, the role path must have EXACTLY this length and match
-    /// segment-for-segment. `None` matches any path — which is what
+    /// segment-for-segment — but for a seam junction's run of lines, a
+    /// set, where each segment pattern matches a distinct line in any
+    /// order. `None` matches any path — which is what
     /// makes a sub-name pattern like "any face of the A operand"
     /// sayable without spelling that operand's whole derivation.
     pub path: Option<Vec<SegPat>>,
@@ -587,7 +789,8 @@ impl NamePat {
         self
     }
 
-    /// Constrains the role path (exact length, segment-for-segment).
+    /// Constrains the role path (exact length, segment-for-segment; a
+    /// seam junction's lines in any order, [`NamePat::path`]'s field).
     #[must_use]
     pub fn path(mut self, path: impl IntoIterator<Item = SegPat>) -> Self {
         self.path = Some(path.into_iter().collect());
@@ -603,28 +806,26 @@ impl NamePat {
     /// Whether `name` matches.
     #[must_use]
     pub fn matches(&self, name: &StableName) -> bool {
-        all_match(vec![(self, name)])
+        all_match((self, name))
     }
 
-    /// Whether `name` matches this pattern's own level, its segment
-    /// patterns' argument patterns set aside in `pending`.
-    fn level_matches<'a>(
-        &'a self,
-        name: &'a StableName,
-        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
-    ) -> bool {
+    /// Whether `name` matches this pattern's own level, what its segment
+    /// patterns' argument patterns ask set aside in `needs`.
+    fn level_matches<'a>(&'a self, name: &'a StableName, needs: &mut Vec<Need<'a>>) -> bool {
         if self.kind.is_some_and(|k| k != name.kind) || self.node.is_some_and(|n| n != name.node) {
             return false;
         }
         match &self.path {
             None => true,
-            Some(pats) => {
-                pats.len() == name.path.len()
-                    && pats
-                        .iter()
-                        .zip(&name.path)
-                        .all(|(p, s)| p.level_matches(s, pending))
+            Some(pats) if pats.len() != name.path.len() => false,
+            Some(pats) if super::canonical::is_junction(name) => {
+                needs.push(Need::Segments(pats, &name.path));
+                true
             }
+            Some(pats) => pats
+                .iter()
+                .zip(&name.path)
+                .all(|(p, s)| p.level_matches(s, needs)),
         }
     }
 

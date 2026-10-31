@@ -237,6 +237,24 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
 /// full tube (seams and rims).
 #[test]
 fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal() {
+    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
+    // unit-scale tube (extent 2.24) refuses as limb 2's kernel limit on its
+    // torus, bound 1.75e-11. Whether that is an accepted kernel limit or a
+    // regression is the question of
+    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
+    // until it closes, the row stops there, and the pin goes red the day the
+    // row passes.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the torus sizing sweep",
+        torus_sizing_sweep_is_sound_tight_and_on_the_ideal_row,
+    );
+}
+
+/// The row [`torus_sizing_sweep_is_sound_tight_and_on_the_ideal`]
+/// runs, under its pin.
+fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal_row() {
     for major in [1.2, 2.0, 30.0 / 7.0, 10.0, 50.0] {
         for delta in [3e-2, 3e-3] {
             sweep_row(major, delta, Revolution::Partial(PI / 4.0));

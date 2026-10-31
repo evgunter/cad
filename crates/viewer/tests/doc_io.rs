@@ -15,10 +15,11 @@ use crate::common;
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName};
+use pncad::workspace::WorkspaceError;
 use viewer::docio::{self, DocIoError};
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+    BoundsTarget, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp, Step,
 };
 
 fn distance(
@@ -57,8 +58,8 @@ fn a_document_round_trips_through_save_and_open() {
     );
     assert_eq!(session.path(), Some(file.as_path()));
 
-    // Opening into a fresh session reproduces the document AND its
-    // history: the file's log is the reopened session's current path.
+    // Opening into a fresh session reproduces the document; the file
+    // is the document's state, so the history starts at the open.
     let mut reopened = DocSession::inline(common::parametric_plate(tol).0, tol);
     assert!(
         reopened
@@ -70,17 +71,29 @@ fn a_document_round_trips_through_save_and_open() {
         distance(reopened.committed_doc(), extrude),
         SlotValue::Continuous(0.010)
     );
-    assert_eq!(reopened.history().path_edits().len(), 1);
     assert_eq!(reopened.path(), Some(file.as_path()));
 
-    // And the reopened session can still undo the edit the file
-    // carried, because the log became history rather than being
-    // flattened into the snapshot.
-    reopened.perform(SessionOp::Undo);
+    // Undo ends at an open: the edit made before the save is not in
+    // the file, so there is nothing to undo.
+    let undone = reopened.perform(SessionOp::Undo);
+    assert!(
+        matches!(
+            undone.refusal,
+            Some(Refusal::NothingToDo {
+                direction: Step::Undo
+            })
+        ),
+        "nothing to undo after a reopen: {:?}",
+        undone.refusal
+    );
     assert_eq!(
         distance(reopened.committed_doc(), extrude),
-        SlotValue::Continuous(0.004)
+        SlotValue::Continuous(0.010),
+        "the refused undo moved nothing"
     );
+    let text = std::fs::read_to_string(&file).expect("the saved file reads");
+    let loaded = pncad::document::load(&text, tol).expect("the saved file loads");
+    assert!(loaded.edits.is_empty(), "the file carries no edit log");
 
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
@@ -261,7 +274,11 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     );
 
     // Round-trip: opened, saved, and opened again is the same document.
-    let out = dir.join("ring-again.pncad");
+    // Into another folder: beside the original, the same identity
+    // under a second name is refused.
+    let again = dir.join("again");
+    std::fs::create_dir_all(&again).expect("the second folder is creatable");
+    let out = again.join("ring-again.pncad");
     assert!(
         session
             .perform(SessionOp::Save(out.clone()))
@@ -279,9 +296,9 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
 
 #[test]
 fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
-    // Save is a function of the history's current path, so saving the
-    // same path twice must produce the same bytes — the property that
-    // makes "did this document change" answerable at all.
+    // Save is a function of the committed document, so saving it twice
+    // must produce the same bytes — the property that makes "did this
+    // document change" answerable at all.
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -291,13 +308,12 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     });
     let dir = common::tempdir("gui3-stable-save");
     let a = dir.join("a.pncad");
-    let b = dir.join("b.pncad");
-    session.perform(SessionOp::Save(a.clone()));
-    session.perform(SessionOp::Save(b.clone()));
-    assert_eq!(
-        std::fs::read_to_string(&a).expect("a is readable"),
-        std::fs::read_to_string(&b).expect("b is readable")
-    );
+    let first = session.perform(SessionOp::Save(a.clone()));
+    assert!(first.refusal.is_none(), "{:?}", first.refusal);
+    let before = std::fs::read_to_string(&a).expect("a is readable");
+    let second = session.perform(SessionOp::Save(a.clone()));
+    assert!(second.refusal.is_none(), "a resave: {:?}", second.refusal);
+    assert_eq!(before, std::fs::read_to_string(&a).expect("a is readable"));
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
@@ -353,19 +369,24 @@ fn overlapping_copies_still_draw_and_land_a_finding() {
 
     // And the finding landed with it, naming both copies.
     let report = session.checks().expect("the registry ran");
-    let separation: Vec<_> = report
+    let overlaps: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| f.check == pncad::document::CheckId::Separation)
+        .filter_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::Interference { finding } => Some(finding),
+            _ => None,
+        })
         .collect();
-    assert_eq!(separation.len(), 1, "one pair, one finding: {report}");
-    let rendered = separation[0].to_string();
-    for copy in &copies {
-        assert!(
-            rendered.contains(&test_utils::refusal::tag(copy.0.digest())),
-            "the finding names both copies: {rendered}"
-        );
-    }
+    let [overlap] = overlaps.as_slice() else {
+        panic!("one pair, one interference finding: {report}")
+    };
+    let doc = session.committed_doc();
+    let reads: Vec<_> = copies.iter().map(|&copy| doc.output(copy, 0)).collect();
+    assert_eq!(
+        vec![Some(overlap.a.var), Some(overlap.b.var)],
+        reads,
+        "the finding names both copies: {report}"
+    );
 }
 
 /// **A declaration authored in millimetres comes back in
@@ -408,5 +429,175 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
         .expect("the variable survived the round trip");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// A plate saved at `plate.pncad` in a folder of its own, then edited
+/// once more, so the session has an undo the file does not hold.
+fn saved_plate(
+    label: &str,
+    tol: Tol,
+) -> (
+    DocSession,
+    pncad::document::RecipeNodeId,
+    std::path::PathBuf,
+    std::path::PathBuf,
+) {
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let dir = common::tempdir(label);
+    let file = dir.join("plate.pncad");
+    let saved = session.perform(SessionOp::Save(file.clone()));
+    assert!(
+        saved.refusal.is_none(),
+        "the plate saves: {:?}",
+        saved.refusal
+    );
+    let edited = session.perform(SessionOp::SetVariable {
+        var: common::thickness_var(session.committed_doc()),
+        value: SlotValue::Continuous(0.020),
+    });
+    assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
+    (session, extrude, dir, file)
+}
+
+/// **Save As beside the original refuses, and writes nothing**: one
+/// document under two names would make the folder's scan refuse for
+/// every document in it.
+#[test]
+fn save_as_beside_the_original_refuses_and_the_folder_still_scans() {
+    let tol = Tol::witness();
+    let (mut session, _extrude, dir, file) = saved_plate("vseam-save-beside", tol);
+    let original = std::fs::read_to_string(&file).expect("the original reads");
+    let copy = dir.join("copy.pncad");
+    let refused = session.perform(SessionOp::Save(copy.clone()));
+    match refused.refusal {
+        Some(Refusal::Workspace(ref error)) => match **error {
+            WorkspaceError::SaveWouldDuplicateId {
+                ref existing,
+                ref requested,
+                ..
+            } => {
+                assert_eq!(existing, &file, "the refusal names the original");
+                assert_eq!(requested, &copy, "and the name asked for");
+            }
+            ref other => panic!("expected SaveWouldDuplicateId, got {other:?}"),
+        },
+        ref other => panic!("expected a store refusal, got {other:?}"),
+    }
+    assert!(!copy.exists(), "nothing was written at the copy");
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the original reads"),
+        original,
+        "and the original is as it was"
+    );
+    assert_eq!(
+        session.path(),
+        Some(file.as_path()),
+        "the session stays on the original"
+    );
+    let store = pncad::workspace::Workspace::open(&dir).expect("the folder still scans");
+    assert_eq!(store.documents().len(), 1);
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **The refusal's choice, taken as a new document**: a fresh id at
+/// the chosen name, the original untouched, and the session's undo
+/// still working, under the new identity.
+#[test]
+fn saving_as_a_new_document_from_the_refusal_forks_at_the_chosen_name() {
+    let tol = Tol::witness();
+    let (mut session, extrude, dir, file) = saved_plate("vseam-save-fork", tol);
+    let original_id = session.committed_doc().id();
+    let original = std::fs::read_to_string(&file).expect("the original reads");
+    let copy = dir.join("copy.pncad");
+    let refusal = session
+        .perform(SessionOp::Save(copy.clone()))
+        .refusal
+        .expect("beside the original, a save refuses");
+    let choice = refusal.save_choice().expect("the refusal offers a choice");
+    assert!(
+        matches!(choice.over(), SessionOp::Save(ref path) if *path == file),
+        "one way on saves over the original"
+    );
+    assert_eq!(choice.over_label(), "Save over plate.pncad");
+    assert_eq!(choice.fork_label(), "Save copy.pncad as a new document");
+
+    let forked = session.perform(choice.fork());
+    assert!(
+        forked.refusal.is_none(),
+        "the fork lands: {:?}",
+        forked.refusal
+    );
+    let fork_id = session.committed_doc().id();
+    assert_ne!(fork_id, original_id, "a fork is a new identity");
+    assert_eq!(
+        session.path(),
+        Some(copy.as_path()),
+        "the session follows the fork"
+    );
+
+    let written = docio::open(&copy, tol).expect("the fork opens");
+    assert_eq!(written.doc().id(), fork_id, "the file carries the new id");
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the original reads"),
+        original,
+        "the original is untouched"
+    );
+    let store = pncad::workspace::Workspace::open(&dir).expect("the folder still scans");
+    assert_eq!(store.documents().len(), 2, "two documents, one file each");
+
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert_eq!(
+        distance(session.committed_doc(), extrude),
+        SlotValue::Continuous(0.004),
+        "undo still steps the session's history"
+    );
+    assert_eq!(
+        session.committed_doc().id(),
+        fork_id,
+        "and never returns to the original's identity"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A save into another folder rebinds the resolver** to it: the
+/// directory rule follows the file.
+#[test]
+fn a_save_into_another_folder_rebinds_the_resolver() {
+    let tol = Tol::witness();
+    let (mut session, _extrude, dir, _file) = saved_plate("vseam-save-rebind", tol);
+    assert_eq!(session.resolve_dir(), Some(dir.as_path()));
+    let other = common::tempdir("vseam-save-rebind-other");
+    let moved = session.perform(SessionOp::Save(other.join("plate.pncad")));
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert_eq!(session.resolve_dir(), Some(other.as_path()));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    std::fs::remove_dir_all(&other).expect("the fixture directory is removable");
+}
+
+/// **A save into a folder whose scan refuses gives that refusal**, and
+/// writes nothing: the store has to scan before it can say what the
+/// save is.
+#[test]
+fn a_save_into_a_folder_with_a_broken_document_refuses() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let dir = common::tempdir("vseam-save-broken");
+    let broken = dir.join("broken.pncad");
+    std::fs::write(&broken, "not a document").expect("the fixture file is writable");
+    let file = dir.join("plate.pncad");
+    let refused = session.perform(SessionOp::Save(file.clone()));
+    match refused.refusal {
+        Some(Refusal::Workspace(ref error)) => assert!(
+            matches!(**error, WorkspaceError::Header { ref path, .. } if *path == broken),
+            "the scan's refusal names the broken file: {error:?}"
+        ),
+        ref other => panic!("expected the scan's refusal, got {other:?}"),
+    }
+    assert!(!file.exists(), "nothing was written");
+    assert!(session.path().is_none(), "the session is not backed by it");
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }

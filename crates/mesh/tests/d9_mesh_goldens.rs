@@ -273,11 +273,11 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
-        [0x3a84_79e2_e635_5611, 0xf45e_3f28_7334_d55b],
+        [0x1fd6_c8d6_2e75_9cbd, 0xda7f_6147_8130_19b5],
     ),
     (
         "tilted_below",
-        [0xb816_ab62_c059_8ee5, 0x9d61_923e_69b1_b1d2],
+        [0xaacf_ddca_2204_4c35, 0x894d_8ffa_544f_68c4],
     ),
     ("keyway", [0x9d8e_44fd_e323_88de, 0x9d8e_44fd_e323_88de]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
@@ -293,10 +293,10 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "apex_crossing_bowtie",
         [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
-    ("loft_prism", [0x84ea_8af9_132d_1d06, 0xbd35_489f_9efc_97ed]),
+    ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
     (
         "swept_elbow",
-        [0xf07d_e654_3244_c4e5, 0x2f93_ed62_bd09_29f7],
+        [0xc4b9_ed98_6ad4_3719, 0x7bf1_2263_63b2_d17c],
     ),
 ];
 

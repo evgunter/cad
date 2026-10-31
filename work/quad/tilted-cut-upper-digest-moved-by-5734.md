@@ -53,7 +53,7 @@ holds the closed form at every ε:
 | 1e-12 | 9.6e-16 | 2.48e-10 | 5.9e-15 | 1.49e-9 |
 
 The rows `work/tcost/tilted-cut-upper-pads-moved-in-the-thread-count-digest-at-1e-12`
-and `work/flux/main-red-the-mass-props-thread-golden-since-4938` describe an
+and `main-red-the-mass-props-thread-golden-since-4938`, closed by PR 5369 describe an
 earlier move (PR 4952) and are already closed. This is a new move.
 
 ## Closed (2026-10-27)

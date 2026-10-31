@@ -592,11 +592,11 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
         let mut arena = slotmap::SlotMap::<SurfaceKey, Surface<f64>>::with_key();
         let s1 = arena.insert(plane.clone());
         let s2 = arena.insert(wall);
-        EdgeCurve::certify_via(
+        EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s1, s2),
-                    witness: m,
+                    selector: geom_brep::CurveSelector::Witness(m),
                 },
                 carrier: carrier.clone(),
                 param_start: t0,
@@ -607,7 +607,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             move |k| arena.get(k).cloned(),
             1.0,
             band(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         )
     };
     let fitted = certify(s.clone()).expect("the plane × Approx edge certifies over the fit");

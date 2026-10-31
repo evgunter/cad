@@ -33,6 +33,24 @@ fn c() -> Point3<f64> {
     Point3::new(0.0, 0.0, 0.0)
 }
 
+/// The ε rows a case is pinned to refuse at as limb 2's kernel limit: on
+/// a ring fifty times its thinnest tube (`tube`, the inner wall's radius
+/// for a hollow tube) or more, an arc window's ends put meridian circles
+/// on the torus walls, which limb 2 bounds past the finest band — the
+/// torus composite's conditioning over the circles' own rounding
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// Fifty is a threshold chosen between the rows measured, not one the
+/// kernel reads: the probes' rings at 25 times their tube build at
+/// `ε = 1e-12`, and those at 52.6 times refuse; no probe ring lies
+/// between. A full period has no such circle, and builds.
+fn kernel_limit_rows(major: f64, tube: f64, arc: bool) -> &'static [f64] {
+    if arc && major >= 50.0 * tube {
+        &[1e-12]
+    } else {
+        &[]
+    }
+}
+
 fn build(
     major: f64,
     window: TubeWindow<f64>,
@@ -110,7 +128,18 @@ fn r2_inner_radius_is_the_callers_own_rounding() {
             "sanity: the probe's own arithmetic"
         );
         for window in [TubeWindow::Full, TubeWindow::Arc { t0: 0.25, t1: 1.75 }] {
-            let t = build(major, window, minor, wall).expect("builds");
+            let Some(t) = test_utils::kernel_limit::pinned(
+                build(major, window, minor, wall),
+                Tol::witness().eps(),
+                kernel_limit_rows(
+                    major,
+                    minor - wall,
+                    matches!(window, TubeWindow::Arc { .. }),
+                ),
+                &format!("R {major} ro {minor} wall {wall} {window:?}"),
+            ) else {
+                continue;
+            };
             let got = minors(&t.body);
             let mut want = vec![
                 inner.to_bits(),
@@ -331,9 +360,15 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
             None => TubeWindow::Full,
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
-        let t = build(major, window, minor, wall)
-            .unwrap_or_else(|e| panic!("R {major} ro {minor} wall {wall} arc {arc:?}: {e}"));
         let what = format!("R {major} ro {minor} wall {wall} arc {arc:?}");
+        let Some(t) = test_utils::kernel_limit::pinned(
+            build(major, window, minor, wall),
+            Tol::witness().eps(),
+            kernel_limit_rows(major, minor - wall, arc.is_some()),
+            &what,
+        ) else {
+            continue;
+        };
         tiers(&t.body, &what);
 
         let area_sec = PI * (minor * minor - inner * inner);
@@ -798,9 +833,16 @@ mod certified {
                     t1: iv(t1),
                 },
             };
-            let t = hollow_iv(major, window, minor, wall)
-                .unwrap_or_else(|e| panic!("R {major} ro {minor} wall {wall} arc {arc:?}: {e}"));
             let what = format!("interval R {major} ro {minor} wall {wall} arc {arc:?}");
+            let Some(t) = test_utils::kernel_limit::pinned_at(
+                test_utils::kernel_limit::Scalar::Enclosure,
+                hollow_iv(major, window, minor, wall),
+                Tol::witness().eps(),
+                super::kernel_limit_rows(major, minor - wall, arc.is_some()),
+                &what,
+            ) else {
+                continue;
+            };
             assert_eq!(
                 topo::validate_geometric(&t.body, Tol::witness()),
                 Ok(()),

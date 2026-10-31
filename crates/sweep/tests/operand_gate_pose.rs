@@ -184,7 +184,8 @@ fn a_cone_wall_clear_of_a_bar_builds_at_every_pose_and_scale() {
 /// past it reads `Out`, and the one over the cap near a corner is past
 /// the hull only along the box's `z` normal — inside it along the
 /// anchor axis — so it reads `Out` through the planar-normal candidate
-/// alone.
+/// alone. A probe near a face stands off it by a multiple of the
+/// run's band, past the cap's fit, so it means the same at every ε.
 ///
 /// Every third pose, and every turn about `z` and about the skew axis,
 /// which are where a world-axis reading refused: re-certifying the fit
@@ -195,11 +196,13 @@ fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
     let tol = Tol::witness();
     let band = crate::common::approx::band();
     let eps = tol.eps();
-    let (capped, _) = box_with_approx_cap(0.05, 1e-9);
+    let fit = 1e-9;
+    let (capped, _) = box_with_approx_cap(0.05, fit);
+    let clear = fit + 4.0 * band.escalate();
     let bar = brick::<f64>((2.3, 2.8), (0.5, 1.5), (0.2, 0.8), tol);
     let unread = [
         ("the centre", Point3::new(1.0, 1.0, 0.5)),
-        ("just under the cap", Point3::new(1.0, 1.0, 1.0 - 1e-6)),
+        ("just under the cap", Point3::new(1.0, 1.0, 1.0 - clear)),
         ("on the cap", Point3::new(1.0, 1.0, 1.0)),
         (
             "in band over the cap",
@@ -211,14 +214,14 @@ fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
         ),
         (
             "inside, near a side face",
-            Point3::new(1.999_999, 0.000_001, 0.000_001),
+            Point3::new(2.0 - clear, clear, clear),
         ),
     ];
     let outside = [
         ("over the cap", Point3::new(1.0, 1.0, 1.5)),
         ("beside", Point3::new(2.5, 1.0, 0.5)),
         ("far on the diagonal", Point3::new(3.0, 3.0, 3.0)),
-        ("just over the cap", Point3::new(1.0, 1.0, 1.0 + 1e-6)),
+        ("just over the cap", Point3::new(1.0, 1.0, 1.0 + clear)),
         ("over the cap near a corner", Point3::new(1.9, 1.9, 1.05)),
     ];
     let walked = poses().into_iter().enumerate().filter(|(i, (pose, _))| {

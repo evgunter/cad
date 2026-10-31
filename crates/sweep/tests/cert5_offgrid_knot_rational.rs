@@ -115,45 +115,59 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 }
 
 /// The hypothesis of every row here, asserted on the fixture itself:
-/// the skin really does carry interior knots in the section direction,
-/// and they really are off any grid the composite could cut at.
+/// the body's walls really do carry interior knots in the section
+/// direction, and they really are off any grid the composite could cut
+/// at.
 ///
-/// **What this reads, and what it does not.** It re-derives the knots
-/// the averaging rule would produce from the parameters the loft
-/// reports, which is a hand-copy of `skin.rs`'s Eq 9.8 rather than a
-/// reading of the vector the built surface actually carries. Nothing
-/// public on `Lofted` exposes that vector, and walking the body to its
-/// wall surface to fetch it would couple these rows to the topology
-/// layer for a hypothesis check. The cost of the copy is stated rather
-/// than hidden: if the skin ever changes its knot rule, this helper
-/// keeps agreeing with itself while describing a vector the kernel no
-/// longer builds. What would still be true in that case is everything
-/// the rows actually assert — the measured widths, the postures, and
-/// the containment of the analytic oracle — because those come from
-/// the body, not from here.
+/// It reads the knot vectors the built walls carry, not the loft's
+/// `section_params`: those are the skin's parameters, and at v-degree 1
+/// through three or more sections the body's walls are one slab each,
+/// with no interior v knot at all (`sweep::Lofted::section_params`). A
+/// fixture whose walls stopped carrying the knots fails here rather than
+/// passing by testing nothing. Every wall must carry the same interior
+/// knots: the sections are one skin.
 ///
-/// "Off-grid" is tested against the coarsest cut the rounds make
-/// (`AXIS_INIT_PIECES = 8`) and every doubling of it up to the last
-/// round's `1024`: a knot that coincided with a cell edge at any of
-/// those resolutions would never have straddled, and the row would be
-/// measuring the on-grid case by accident.
-fn offgrid_interior_v_knots(row: &str, params: &[f64], v_degree: usize) -> usize {
-    // The averaged-parameter knot vector `skin.rs` fits: interior
-    // knots are the running means of `v_degree` consecutive params
-    // (Book Eq. 9.8).
-    let n = params.len();
-    assert!(
-        n > v_degree + 1,
-        "{row}: a fixture with no interior knots tests nothing ({n} stations at \
-         degree {v_degree})"
-    );
-    #[allow(clippy::cast_precision_loss)]
-    let interior: Vec<f64> = (1..n - v_degree)
-        .map(|j| params[j..j + v_degree].iter().sum::<f64>() / v_degree as f64)
+/// "Off-grid" is tested against the dyadic grid of the domain at 8 and
+/// every doubling of it up to `1024`: the cut lists restart at every
+/// knot, so an off-grid knot makes spans of unequal, non-dyadic length,
+/// and a knot on that grid would be measuring the even-span case by
+/// accident.
+fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
+    let body = &lofted.body;
+    let interior_of = |face: topo::FaceKey| -> Vec<f64> {
+        let face = body.get_face(face).expect("a wall face");
+        let Some(geom::Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+            panic!("{row}: a loft wall is a spline")
+        };
+        let knots = net.knot_values_v();
+        let (lo, hi) = knots.domain();
+        let mut interior: Vec<f64> = knots
+            .values()
+            .iter()
+            .copied()
+            .filter(|k| *k > lo && *k < hi)
+            .collect();
+        interior.dedup();
+        interior
+    };
+    let walls: Vec<topo::FaceKey> = lofted
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
         .collect();
+    let interior = interior_of(walls[0]);
+    for &w in &walls[1..] {
+        assert_eq!(
+            interior_of(w),
+            interior,
+            "{row}: every wall carries the skin's interior v knots"
+        );
+    }
     assert!(
         !interior.is_empty(),
-        "{row}: the fixture must have interior v knots"
+        "{row}: a fixture whose walls carry no interior v knots tests nothing"
     );
     let mut off = 0usize;
     for k in &interior {
@@ -217,7 +231,8 @@ const DEFAULT_EPS: f64 = 1e-9;
 /// One row.
 ///
 /// `pre_fix_floor` is the width this exact body refused at before
-/// knot-aligned cells, and `retired_below` the ceiling the enclosure
+/// knot-aligned cells, where that was measured (`None` for a body first
+/// built after them), and `retired_below` the ceiling the enclosure
 /// must now sit under. The pair is what makes this row ε-honest
 /// WITHOUT going slack: at any ε the enclosure must be under
 /// `retired_below`, so a regression to the straddle floor fails here
@@ -229,11 +244,15 @@ fn row(
     n: usize,
     v_degree: usize,
     want_offgrid: usize,
-    pre_fix_floor: f64,
+    pre_fix_floor: Option<f64>,
     retired_below: f64,
 ) {
+    let before = pre_fix_floor.map_or_else(
+        || "the straddle floor".to_owned(),
+        |w| format!("the {w:e} m floor this body used to sit on"),
+    );
     let lofted = blade(n, v_degree);
-    let off = offgrid_interior_v_knots(name, &lofted.section_params, v_degree);
+    let off = offgrid_interior_v_knots(name, &lofted);
     assert_eq!(
         off, want_offgrid,
         "{name}: the fixture must carry exactly {want_offgrid} OFF-GRID interior v \
@@ -259,8 +278,8 @@ fn row(
         assert!(
             w < retired_below,
             "{name}: the straddle floor is retired — a refusal may only carry a \
-             width the SCHEDULE could not close, not the {pre_fix_floor:e} m floor \
-             this body used to sit on (got {w:e}, ceiling {retired_below:e})"
+             width the SCHEDULE could not close, not {before} (got {w:e}, ceiling \
+             {retired_below:e})"
         );
     }
     if eps < DEFAULT_EPS {
@@ -272,8 +291,8 @@ fn row(
     assert_eq!(
         posture,
         EpsPosture::Certified,
-        "{name}: this wall must certify at the default ε (it refused at \
-         {pre_fix_floor:e} m against a 1.024e-6 m target before knot-aligned cells)"
+        "{name}: this wall must certify at the default ε, not refuse at {before} \
+         against a 1.024e-6 m target"
     );
     let got = got.0;
     // ACCURACY: the certified enclosure contains the analytic volume.
@@ -292,7 +311,7 @@ fn row(
     // `shell_reference`), so on these walls, centred on the world
     // origin, a quadrature face's lever is their diameter where the
     // origin's was their radius (`m8_3_rational_volume`'s ceiling).
-    // blade-8 measured 2.21e-6 at 1e-9, 2.16 times the target: the
+    // blade-10 measured 1.11e-6 at 1e-9, 1.08 times the target: the
     // ceiling is the measure with headroom, not a bound the rule
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
@@ -302,19 +321,20 @@ fn row(
         got.enclosure.volume_pad
     );
     // The measure the ceiling's comment cites, held where it was taken.
-    if name == "blade-8 (deg 1)" && eps == DEFAULT_EPS {
+    if name == "blade-10 (deg 3)" && eps == DEFAULT_EPS {
         assert!(
-            (got.enclosure.volume_pad / BLADE_8_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
-            "MEASURED {name}: volume pad {} moved from the {BLADE_8_PAD_AT_DEFAULT_EPS} the \
+            (got.enclosure.volume_pad / BLADE_10_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            "MEASURED {name}: volume pad {} moved from the {BLADE_10_PAD_AT_DEFAULT_EPS} the \
              ceiling's comment cites",
             got.enclosure.volume_pad
         );
     }
 }
 
-/// blade-8's volume pad at the default ε, the measure the ceiling's
-/// comment cites.
-const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
+/// blade-10's volume pad at the default ε, the measure the ceiling's
+/// comment cites (blade-8 at v-degree 1 read the same pad, before its
+/// walls became one slab each).
+const BLADE_10_PAD_AT_DEFAULT_EPS: f64 = 1.106_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's
@@ -326,24 +346,29 @@ const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
 /// the seven-round schedule could not close it at any budget.
 #[test]
 fn six_stations_with_offgrid_knots_certify() {
-    row("blade-6 (deg 2)", 6, 2, 2, 2.143e-4, 3.0e-7);
+    row("blade-6 (deg 2)", 6, 2, 2, Some(2.143e-4), 3.0e-7);
 }
 
-/// The same solid at EIGHT stations on a linear skin: six interior v
-/// knots, all but none of them off-grid, and a floor that was three
-/// times the six-station one (6.425e-4) because it is proportional to
-/// the off-grid count. Certifying here says the fix scales with knot
-/// count rather than tolerating a fixed few.
+/// The same solid at TEN stations on a cubic skin: six interior v
+/// knots, `2/9 … 7/9`, all of them off-grid, twice the six-station
+/// row's count and three times its off-grid count. Certifying here says
+/// the fix scales with knot count rather than tolerating a fixed few.
+///
+/// This row was blade-8 at v-degree 1, whose six knots were `k/7` and
+/// whose pre-fix floor was 6.425e-4 m. A degree-1 loft through three or
+/// more sections is now one wall per slab, each a single span in `v`
+/// (`work/tess/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`),
+/// so its walls carry no interior knot. Degree 3 is the lowest degree
+/// at which ten even stations put six knots in one wall, all off-grid
+/// (at degree 2, nine stations' knots land on sixteenths). No pre-fix
+/// floor was measured on this body.
 ///
 /// **What this row does NOT exercise, stated so it is not read for
-/// more than it is.** Every interior knot of a degree-1 skin has
-/// multiplicity equal to the degree, so the REPRESENTATION is only C0
-/// there — but the locus is not. The stations here are identical
-/// sections evenly stacked, so `z(v)` is globally linear, the control
-/// points are collinear, and `S_v` is continuous across every one of
-/// those knots: the surface is a plain extrusion said in a knotty way.
-/// What the row pins is therefore the enclosure the knot STRUCTURE
-/// used to cost, not the enclosure a genuine jump costs.
+/// more than it is.** The stations here are identical sections evenly
+/// stacked, so `z(v)` is globally linear, the control points are
+/// collinear, and the surface is a plain extrusion said in a knotty
+/// way. What the row pins is therefore the enclosure the knot
+/// STRUCTURE used to cost, not the enclosure a genuine jump costs.
 ///
 /// A cell rule that ignored the knots entirely would still contain the
 /// truth on this body. The row that is lethal to that mutation is
@@ -353,6 +378,6 @@ fn six_stations_with_offgrid_knots_certify() {
 /// floor is gone, and that one is the rule-level evidence that the
 /// cells are the reason.
 #[test]
-fn a_linear_skin_with_six_offgrid_knots_certifies() {
-    row("blade-8 (deg 1)", 8, 1, 6, 6.425e-4, 3.0e-7);
+fn a_cubic_skin_with_six_offgrid_knots_certifies() {
+    row("blade-10 (deg 3)", 10, 3, 6, None, 3.0e-7);
 }

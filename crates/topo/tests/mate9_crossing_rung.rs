@@ -184,12 +184,26 @@ fn a_transverse_crossing_is_the_aligned_pairs_interference() {
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
 
+    // One overlap: the aligned pair decides it, beside the pierces of
+    // the shelf's edges through the post that decide the same pair, and
+    // nothing refuses the pair as undecidable.
     let one_overlap = |found: &[ValidationError]| {
+        let placements = common::placement_findings(&body, found);
+        let pairs: std::collections::BTreeSet<_> = placements
+            .iter()
+            .filter_map(|e| topo::census_interference_solids(&body, e))
+            .map(|(x, y)| (x.min(y), x.max(y)))
+            .collect();
         crossings(found).is_empty()
-            && common::placement_findings(found)
+            && pairs.len() == 1
+            && placements
                 .iter()
-                .all(|e| matches!(e, ValidationError::SameSideInterference { .. }))
-            && common::placement_findings(found).len() == 1
+                .all(|e| topo::census_interference_solids(&body, e).is_some())
+            && placements
+                .iter()
+                .filter(|e| matches!(e, ValidationError::SameSideInterference { .. }))
+                .count()
+                == 1
     };
     let bare = errors(&body, &ContactRecords::default());
     assert!(one_overlap(&bare), "{bare:?}");

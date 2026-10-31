@@ -4,7 +4,7 @@ kind: program
 title: INSTR — the instrument crates and the documents they feed
 status: ready
 opened: 2026-09-08
-area: infra
+group: infra/measure
 prefix: instr/
 tag: (INSTR orchestrator)
 ab_band: 3300-3399

@@ -165,7 +165,8 @@ stand (`find_ref_sector(records, …)`, ~:1544) and returns `Ok(None)`,
 rewrites every On of a germ record, by design so as to fold a grazing
 bisector on the record's other side into that germ. Where the
 bisector's ray and the germ's are read apart by `parallel_same_dir`
-(~:719), as the vee300 edges are, the graze is a second event whose
+(~:719; since 2026-10-29 `sectors::parallel_same` passed
+`RAY_COLLINEAR`, PR 5983), as the vee300 edges are, the graze is a second event whose
 On an earlier germ consumed, and the `Ok(None)` is a silent skip, not
 a resolution. Both On codes of one record lie On the other sector's
 plane, so both lie on the pair's one common line to the band, and a

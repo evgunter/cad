@@ -55,7 +55,7 @@ question, answer it.
 2026-10-23 (ISO, `iso/vase-cap-moves-alone`): since PR 5629 the vase's
 cap moved alone no longer refuses at limb 2. Its rims are rows of the
 walls and certify, and tier 3 stops at the moved cap's volume
-(`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+(`a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area`, closed by PR 5689).
 The pin is renamed
 `shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`.
 Its shell half still refuses at a wall's `Fit { PatchBound(Crease) }`.

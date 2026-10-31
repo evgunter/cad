@@ -17,6 +17,8 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
+use crate::Body;
+use crate::construction::{MefSite, MevSite};
 use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
 use crate::policy_lane::KernelSite;
@@ -24,7 +26,6 @@ use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
     validate_geometric,
 };
-use crate::{Body, MefSite, MevSite};
 use geom_brep::MaterialWedge;
 use geom_core::Indeterminate;
 use geom_core::Tol;
@@ -32,7 +33,7 @@ use geom_core::Tol;
 /// A geometric digon pillow: two vertices, two chord edges, two
 /// coplanar faces (the z = 0 plane on both sides) — the minimal body
 /// checks 1–6 pass clean, and the coplanar-split smooth-dihedral case.
-pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
+pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::construction::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
@@ -1428,8 +1429,16 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
     let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
     let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
     let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
-    let planted = geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, coarse)
-        .expect("a headroom the coarse band reads as zero passes");
+    let planted = geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |_| None,
+        1.0,
+        coarse,
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("a headroom the coarse band reads as zero passes");
     let curve_key = body.get_edge(split.edge).unwrap().curve;
     *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
 
@@ -1454,7 +1463,10 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
 /// unit circle over `[0, τ + past]`, described in the split face's chart
 /// and minted at a band coarse enough to read its headroom to a full
 /// turn as zero (a state no door produces).
-fn pillow_with_an_arc_past_a_turn(tol: Tol, past: f64) -> (crate::Body<f64>, crate::MefCreated) {
+fn pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+    past: f64,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     pillow_with_an_arc_past_a_turn_in(tol, past, ArcChart::Face)
 }
 
@@ -1476,7 +1488,7 @@ fn pillow_with_an_arc_past_a_turn_in(
     tol: Tol,
     past: f64,
     named: ArcChart,
-) -> (crate::Body<f64>, crate::MefCreated) {
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     let (mut body, split) = coplanar_pillow(tol);
     let face_chart = body.get_face(split.face).unwrap().surface;
     let (chart, wrap) = match named {
@@ -1514,6 +1526,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         |k| body.get_surface(k).cloned(),
         1.0,
         coarse,
+        geom_brep::NurbsLane::certified(),
     )
     .expect("a headroom the coarse band reads as zero passes");
     let curve_key = body.get_edge(split.edge).unwrap().curve;
@@ -1597,7 +1610,10 @@ fn a_re_based_arc_past_a_turn_is_a_kernel_bug() {
 }
 
 /// The pillow's face that is not `split`'s.
-fn other_face(body: &crate::Body<f64>, split: &crate::MefCreated) -> crate::entity::FaceKey {
+fn other_face(
+    body: &crate::Body<f64>,
+    split: &crate::construction::MefCreated,
+) -> crate::entity::FaceKey {
     [split.he_plus, split.he_minus]
         .into_iter()
         .filter_map(|he| body.face_of_half_edge(he))
@@ -1608,7 +1624,9 @@ fn other_face(body: &crate::Body<f64>, split: &crate::MefCreated) -> crate::enti
 /// The planted pillow with its other face's plane turned about the
 /// x axis, so the arc's midpoint (on that axis) reads a transverse
 /// dihedral.
-fn tilted_pillow_with_an_arc_past_a_turn(tol: Tol) -> (crate::Body<f64>, crate::MefCreated) {
+fn tilted_pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let other = other_face(&body, &split);
     let key = body.get_face(other).unwrap().surface;
@@ -1803,7 +1821,7 @@ fn a_drafted_chord_refused_its_span_is_typed() {
     let chord = EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(own, theirs),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         },
         carrier: geom::Curve3::Line {
             origin: Point3::origin(),
@@ -1896,7 +1914,7 @@ fn dangling_description_is_a_tier1_error() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     // NB: coincident planes would fail transversality — so tilt the
     // split face definitively first (a legal corner), then upgrade.
@@ -1937,7 +1955,7 @@ fn description_references_keep_a_surface_alive() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
@@ -2137,7 +2155,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     } else {
         geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         }
     };
     EdgeCurveSpec {
@@ -3823,7 +3841,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let spec = EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: 0.0,
@@ -4034,7 +4052,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
     let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
     // The far-anchored disc's `f64` sum is the filed measurement
-    // (`work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+    // (`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
     // not this row's subject; the sign is read off the certified walk.
     if !far {
         let read = crate::mass_properties(

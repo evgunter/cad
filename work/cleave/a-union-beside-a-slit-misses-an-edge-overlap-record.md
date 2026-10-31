@@ -32,6 +32,20 @@ parked on REACHHOLD
 (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`), so
 the body is an Ok whose 3′ is unproven, disclosed here.
 
+## The ring's form
+
+The same holds on the ringed plate (the plate less the pyramid lying
+under its top, its ray a zero-area ring from `MEET` of length 0.5): a
+pyramid standing on the top beside the ray, its apex on the ray at 0.1
+or 0.2 and its edge along it to 0.3, 0.4, 0.5 or 0.8, its base
+`[bearing(60, r, 0), bearing(150, 0.6, 0), bearing(20, 0.6, 0.7)]`
+relative to its apex. `x ∪ y` and `y ∪ x` build right through tier 3
+and the closed-form volume, alike, but tier 3′ refuses
+`UnrecordedContact` `VertexOnEdge` and `EdgeEdgeOverlap` along the ray,
+at ε default, 1e-6 and 1e-12, at rest, turned, and flipped and turned,
+on main `be2b7a139c` and on `cleave/flush-partners-at-a-slit-build`
+alike.
+
 ## Witness
 
 `a_keel_on_the_floor_subtracts_as_a_slit::a_partner_flush_beside_the_keel_unions_with_the_slit_at_tier_three`

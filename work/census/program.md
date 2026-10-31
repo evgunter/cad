@@ -4,7 +4,7 @@ kind: program
 title: CENSUS — one vocabulary, spelled by hand in several places
 status: ready
 opened: 2026-09-11
-area: api
+group: api/python
 prefix: census/
 tag: (CENSUS orchestrator)
 ab_band: 3900-3999

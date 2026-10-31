@@ -658,12 +658,31 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let tol = Tol::witness();
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
+    // Pinned at what main measures (2026-10-28), every ε row alike, not
+    // explained: the plate [1253, 979] -> [1149, 832], the annulus
+    // [632, 557] -> [654, 555], the boss [625, 533] -> [651, 531], the
+    // bracket [1625, 1325] -> [1535, 1167], the link [924, 813] ->
+    // [954, 813]. The first move was #5542's merge (the plate's numeric
+    // 979 -> 991 there); the rest is unbisected, and the same documents'
+    // counts moved with PR 5728 and PR 5811
+    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
+    // `work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // With the ladder and without it still read alike. Then PR 5952
+    // (the profile's simplicity pass reads no gap on a line pair that
+    // shares a vertex) took 8 numeric decisions off the plate and 10 off
+    // the bracket. PR 5954's rule H proves the bracket +2 and the link +8
+    // (its cost table): bare [1535, 1157] -> [1537, 1155], the link
+    // [954, 813] -> [962, 805] both ways. With the ladder the bracket is
+    // +8 and retries 6: rule G under H costs `carrier_matches_mapped_source`
+    // four per attempt and the ladder recovers them and two more, the
+    // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
+    // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1253, 979], [1253, 979], 0),
-        ("r1_annulus", [632, 557], [632, 557], 0),
-        ("r1_segment_boss", [625, 533], [625, 533], 0),
-        ("r2_filleted_bracket", [1625, 1325], [1625, 1325], 0),
-        ("r2_link", [924, 813], [924, 813], 0),
+        ("two_hole_plate", [1149, 824], [1149, 824], 0),
+        ("r1_annulus", [654, 555], [654, 555], 0),
+        ("r1_segment_boss", [651, 531], [651, 531], 0),
+        ("r2_filleted_bracket", [1537, 1155], [1543, 1149], 6),
+        ("r2_link", [962, 805], [962, 805], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -812,9 +831,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "with the ladder and without it"
     );
     let d = shipped.decisions();
+    // Pinned at what main measures (2026-10-28), every ε row alike, not
+    // explained: [1421, 1386, 34] -> [1463, 1380, 34]. #5542's merge
+    // moved it first, to [1421, 1378, 34]; the rest is unbisected
+    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+    // Then PR 5954's rule H took two (`symbolic` -2, `retried` holds):
+    // the leg's rounded `π/2` is a symbolic angle, its products linearise
+    // into multiple-angle atoms, and one square in each of a
+    // `carrier_on_surface_1` and a `carrier_on_surface_2` residual freezes
+    // on the coefficient bound. Pinned at that loss, a defect
+    // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1421, 1386, 34],
+        [1461, 1382, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -826,7 +855,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the thirty-four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1387, 1420, 0]);
+    // Pinned with the shipped receipt above: [1387, 1420, 0] ->
+    // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
+    // (`SymRules::without_angle_sum` reads [1429, 1414, 0]).
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1427, 1416, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

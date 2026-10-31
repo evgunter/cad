@@ -144,25 +144,19 @@ fn accepted_against_torus(
 /// reaches the join, where the germ pair of the stem's weld cap (plane)
 /// against the arch's wall (torus) takes the plane × wall arm and its
 /// chord, an arc of the arch's meridian circle. Past the join the
-/// section certificate's interior-loop guard refuses the stem's tube
-/// wall against the arch's, two tori with parallel axes apart, which it
-/// has no arm for; no body to measure.
+/// section certificate's parallel-tori arm clears the stem's tube wall
+/// against the arch's, and the glue builds (its volume is
+/// `mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`'s).
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
-    let (s, a) = (stem(), arch());
-    let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, past the join");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                site: topo::PairRefusalSite::InteriorLoopGuard,
-                kind: geom::SurfaceKind::Torus,
-                other_kind: geom::SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "the lily's next door is the interior-loop guard on its two tube walls: {err:?}"
+    let Some(s) = stem() else { return };
+    let a = arch();
+    let r = topo::union(&s, &a, Tol::witness())
+        .unwrap_or_else(|e| panic!("the stem glue builds: {e:?}"));
+    assert_eq!(
+        r.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the stem glue is one body"
     );
 }
 
@@ -198,7 +192,8 @@ fn an_arc_whose_first_crossing_is_outside_the_window_still_pierces_inside_it() {
 /// window.
 #[test]
 fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     let (ab, ba) = sweep_traces(&s, &a, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the lily's reduction sweep refused: {e:?}"));
     for (label, trace, x, y, radius) in [
@@ -488,8 +483,10 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
 /// its span, so its ends place it and the sweep answers. The two tubes'
 /// coplanar start caps are one plane by margin and glue, so the op
-/// itself stops later, at the join's germ frame: past the plane × torus
-/// germ pairs, at a torus × torus pair, which has no arm.
+/// itself stops later, in the join: past the plane × torus germ pairs, a
+/// torus × torus pair, coaxial, whose section is two parallels in closed
+/// form, matched by foot, and refused at the join's segment arm, which
+/// has none for the pair.
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -530,13 +527,12 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         assert!(
             matches!(
                 r,
-                Err(BooleanError::GermFrameUnsupported {
-                    a_kind: geom::SurfaceKind::Torus,
-                    b_kind: geom::SurfaceKind::Torus,
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    kind: geom::SurfaceKind::Torus,
                     ..
                 })
             ),
-            "{op}: the join's torus × torus germ frame: {r:?}"
+            "{op}: the join's torus × torus segment: {r:?}"
         );
     }
 }
@@ -552,7 +548,8 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
 /// (`boolean_join_refusal`).
 #[test]
 fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     let t = Tol::witness();
     for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
         let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)

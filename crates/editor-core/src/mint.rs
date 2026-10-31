@@ -283,6 +283,8 @@ pub(crate) enum Held {
     Pose(crate::pose::PoseDef),
     /// A pick: the copy read and the path.
     Pick(crate::var::Pick),
+    /// An index: its count and what it is within.
+    Index(crate::var::Index),
 }
 
 impl Held {
@@ -301,6 +303,7 @@ impl Held {
             },
             WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
             WrittenDef::Pick(pick) => Self::Pick(pick.clone()),
+            WrittenDef::Index(index) => Self::Index(index.clone()),
         }
     }
 }
@@ -888,6 +891,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         });
         let mut m = Mint::empty();
         let id = m.insert(&node);

@@ -48,8 +48,10 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, and an arc leaves two coincident arcs the census does not read
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]). The reading
+//! built, an arc leaves two coincident arcs the census does not read,
+//! and a curved face would carry a slit or a ring that is neither meshed
+//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! finds an edge only where its ends lie on the face, by structure or by
 //! a record, or an edge-on-face record names the pair and the face holds
 //! the edge's midpoint. An edge it does not find stays one edge: the
@@ -95,11 +97,16 @@
 //! strut survives with F on both sides and a free end that bounds
 //! nothing. [`close_struts`] runs in the output stage, before the
 //! coplanar merge, whose entry gate refuses a strut, and deletes the
-//! struts the zip reported that F lies on both sides of, each with its
-//! free end, a ring closed whole with its lone vertex too
-//! ([`crate::strut`], the delete the merge runs on its own dangling seam
-//! edges). F's region is unchanged by each step. A strut the zip kept
-//! between two walls is a reflex edge of the result, and stays.
+//! struts the zip reported, and its seam edges, that F lies on both
+//! sides of, each with its free end, a ring closed whole with its lone
+//! vertex too ([`crate::strut`], the delete the merge runs on its own
+//! dangling seam edges). Where the slit runs on past both ends of the
+//! stretch the other operand fills, the edge F lies on both sides of
+//! there has no free end: it is no strut but a stretch of the slit
+//! closed across, and deleting it parts the slit's loop in two (`kemr`,
+//! [`part_mid_slit`]). F's region is unchanged by each step. A strut
+//! the zip kept between two walls is a reflex edge of the result, and
+//! stays.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -147,6 +154,13 @@ pub enum EdgeInFaceGap {
     /// that no contact record backs
     /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
+    /// The face is no plane: the parting would leave a slit or a
+    /// zero-area ring in a curved face, which the chart walk does not
+    /// mesh and the curved mass-properties lane does not measure
+    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
+    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when both read it: the parting itself builds there.
+    CurvedFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -227,6 +241,10 @@ impl EdgeInFaceGap {
             Self::Curved => {
                 "the edge is an arc, which would leave two coincident arcs that no contact record \
                  backs (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            }
+            Self::CurvedFace => {
+                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
+                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -365,6 +383,13 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
+        }
+        if !matches!(
+            body.get_face(face)
+                .and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. })
+        ) {
+            return Err(refused(EdgeInFaceGap::CurvedFace));
         }
         if partly {
             if pieces.contains(&(edge, face)) {
@@ -604,16 +629,18 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// One strut the output stage closed its face across
-/// ([`close_struts`]).
+/// One edge the output stage closed its face across ([`close_struts`]):
+/// a strut, deleted with its free end, or a slit's stretch, deleted by
+/// parting its loop ([`part_mid_slit`]).
 #[derive(Clone, Debug)]
 pub(super) struct ClosedStrut {
-    /// The face on both sides of the strut.
+    /// The face on both sides of the edge.
     pub(super) face: FaceKey,
-    /// The strut's edge.
+    /// The edge.
     pub(super) edge: EdgeKey,
-    /// The vertices deleted with it: its free end, then, where both its
-    /// ends were free, the other.
+    /// The vertices deleted with it: a strut's free end, then, where both
+    /// its ends were free, the other; none for a slit's stretch, whose
+    /// delete parts its loop ([`part_mid_slit`]).
     pub(super) vertices: Vec<VertexKey>,
 }
 
@@ -627,34 +654,34 @@ impl ClosedStrut {
     }
 }
 
-/// **Closes a face across each of `struts` it lies on both sides of**
-/// (module docs, *Closing*): `struts` are the section struts the zip kept
-/// (`zip::ZipReport::struts`), and each whose two halves bound one face
-/// is deleted with its free end ([`crate::strut`]), in the order given
-/// and again after each, so a chain goes one free end at a time. A strut
-/// between two faces is left as it is.
+/// **Closes a face across each of `candidates` it lies on both sides
+/// of** (module docs, *Closing*): `candidates` are the zip's section
+/// struts and seam edges (`ops::finish_output`). Each whose two halves
+/// bound one face and that has a free end is a strut, deleted with its
+/// free end ([`crate::strut`]), in the order given and again after each,
+/// so a chain goes one free end at a time. Once none is left, one with
+/// no free end, the slit's edges running on past both its ends, is a
+/// stretch of the slit closed across, and its delete parts the slit in
+/// two ([`part_mid_slit`]). An edge between two faces is left as it is.
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where the face is not a
-/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where a strut so held
-/// has no free end, the slit's edges running on past both its ends;
-/// [`BooleanError::JoinDesync`] where one with both ends free is its
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a strut's face is
+/// not a plane ([`crate::strut::StrutRefusal::Curved`]);
+/// [`BooleanError::SlitFaceClosesMidSlit`] where a stretch does not part
+/// its loop into a ring of the slit ([`part_mid_slit`]);
+/// [`BooleanError::JoinDesync`] where a strut with both ends free is its
 /// face's outline, which the zip never leaves; the Euler operators'
 /// refusals.
 pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    struts: &[EdgeKey],
+    candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
-    let one_face = |body: &Body<T>, edge: EdgeKey| {
-        let e = body.get_edge(edge)?;
-        let face = body.face_of_half_edge(e.he_plus)?;
-        (body.face_of_half_edge(e.he_minus)? == face).then_some(face)
-    };
+    let one_face = |body: &Body<T>, edge: EdgeKey| body.both_sides_face(edge).flatten();
     let mut closed = Vec::new();
     loop {
-        let open: Vec<(EdgeKey, FaceKey)> = struts
+        let open: Vec<(EdgeKey, FaceKey)> = candidates
             .iter()
             .filter_map(|&edge| one_face(body, edge).map(|face| (edge, face)))
             .collect();
@@ -662,10 +689,16 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .find_map(|&(edge, face)| body.toward_free_end(edge).map(|t| (edge, face, t)));
         let Some((edge, face, toward_free)) = next else {
-            return match open.first() {
-                None => Ok(closed),
-                Some(&(edge, face)) => Err(BooleanError::SlitFaceClosesMidSlit { face, edge }),
+            let Some(&(edge, face)) = open.first() else {
+                return Ok(closed);
             };
+            part_mid_slit(body, face, edge, tol)?;
+            closed.push(ClosedStrut {
+                face,
+                edge,
+                vertices: Vec::new(),
+            });
+            continue;
         };
         let plan = body
             .plan_strut_prune(face, toward_free)
@@ -684,6 +717,67 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
             vertices,
         });
     }
+}
+
+/// **Deletes a slit's stretch closed across**: `edge`, both of whose
+/// halves bound `face` in one loop and neither of whose ends is free,
+/// deleted with `kemr`. The loop parts in two, and `kemr` makes one part
+/// a new ring of `face`: the part that is a slit's run, each of its
+/// halves run back by another of its halves between the same two
+/// vertices. Of the outline, the other part keeps the outline, so
+/// neither part being a run refuses; of a ring, both parts are rings of
+/// `face` whichever is new, so a part that is no run is taken too. No
+/// edge is minted, so the face's surface does not matter.
+///
+/// # Errors
+///
+/// [`BooleanError::SlitFaceClosesMidSlit`] where the halves lie in two
+/// loops, or where neither part of the outline is a run; `kemr`'s
+/// refusals.
+fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    edge: EdgeKey,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let gap = BooleanError::SlitFaceClosesMidSlit { face, edge };
+    let outline = proven(&body.faces, face, EntityId::Face).outer;
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (plus, minus) = (e.he_plus, e.he_minus);
+    let half = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge);
+    let lp = half(plus).parent_loop;
+    if half(minus).parent_loop != lp {
+        return Err(gap);
+    }
+    let cycle = body.loop_cycle(plus).ok_or(BooleanError::JoinDesync {
+        what: "a slit's stretch's loop does not walk",
+    })?;
+    let at = cycle
+        .iter()
+        .position(|&h| h == minus)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a slit's stretch's two halves in one loop do not walk to each other",
+        })?;
+    // Each side: the halves strictly between one half and the other, in
+    // `next` order.
+    let (after_plus, after_minus) = (&cycle[1..at], &cycle[at + 1..]);
+    let ends = |h: HalfEdgeKey| (half(h).start, body.proven_half_edge_end(h));
+    let run_back = |hs: &[HalfEdgeKey]| {
+        !hs.is_empty()
+            && hs.iter().all(|&h| {
+                let (a, b) = ends(h);
+                hs.iter().any(|&k| k != h && ends(k) == (b, a))
+            })
+    };
+    let (he1, he2) = if run_back(after_plus) {
+        (plus, minus)
+    } else if lp != outline || run_back(after_minus) {
+        (minus, plus)
+    } else {
+        return Err(gap);
+    };
+    body.kemr_minting(he1, he2, tol)?;
+    Ok(())
 }
 
 /// A face an edge lies in, and whether the edge runs on past it
@@ -738,19 +832,19 @@ fn riders<T: Decide>(
     Ok(out)
 }
 
-/// Whether edge `e`, both of whose ends lie on the plane face `f`, lies
-/// in it: a line whose midpoint `f` holds (two points of a plane hold
-/// the line between them), or a conic in `f`'s plane whose midpoint `f`
-/// holds. A face that is no plane holds nothing here.
+/// Whether edge `e`, both of whose ends lie on face `f`, lies in it,
+/// its midpoint held by `f`: on a plane, a line (two points of a plane
+/// hold the line between them) or a conic in `f`'s plane; on a cylinder
+/// or a cone, a line on the carrier
+/// ([`crate::census::line_on_quadric_carrier`]), whatever its walls. A
+/// face on any other carrier holds nothing here.
 fn lies_in<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     f: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let Some(&geom::Surface::Plane { origin, normal, .. }) =
-        body.get_face(f).and_then(|d| body.get_surface(d.surface))
-    else {
+    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Ok(false);
     };
     let Some(curve) = body
@@ -759,6 +853,35 @@ fn lies_in<T: Decide>(
         .and_then(|c| c.certified())
     else {
         return Ok(false);
+    };
+    let (origin, normal) = match *surface {
+        geom::Surface::Plane { origin, normal, .. } => (origin, normal),
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+            if matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
+        {
+            let (t0, t1) = curve.params();
+            let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
+            let mid = curve.mid_point();
+            return match crate::census::line_on_quadric_carrier(
+                surface,
+                p0,
+                p1,
+                "bool_line_face_carrier_offset",
+                band,
+            ) {
+                Some(Ok(true)) => Ok(matches!(
+                    piece_reading(body, f, mid, band, DoorInBand::Containment)?,
+                    PieceRead::In
+                )),
+                None | Some(Ok(false)) => Ok(false),
+                Some(Err(diag)) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnCurvedFace,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+            };
+        }
+        _ => return Ok(false),
     };
     let mid = match curve.carrier() {
         geom::Curve3::Line { .. } => curve.mid_point(),
@@ -835,9 +958,33 @@ fn walls_inside<T: Decide>(
         .carrier()
         .deriv((t0 + t1) * T::from_f64(0.5))
         .normalize();
-    let floor = crate::face_normal::face_outward_normal(body, f)
-        .ok_or_else(desync)?
-        .vec();
+    let normal_at =
+        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
+            Ok(Some(n)) => Ok(n.vec()),
+            Ok(None) => Err(desync()),
+            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::of_normal(decision),
+                    diag,
+                })
+            }
+            Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+        };
+    let floor = normal_at(f)?;
+    let floor_surface = body
+        .get_face(f)
+        .and_then(|d| body.get_surface(d.surface))
+        .ok_or_else(desync)?;
+    // The direction from `mid` toward a curved carrier's centre of
+    // curvature; `None` on a plane.
+    let bend = |surface: &geom::Surface<T>| match *surface {
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            Some(origin + axis * (mid - origin).dot(axis) - mid)
+        }
+        geom::Surface::Cone { apex, axis, .. } => Some(apex + axis * (mid - apex).dot(axis) - mid),
+        geom::Surface::Sphere { center, .. } => Some(center - mid),
+        _ => None,
+    };
     let mut inside = [false; 2];
     let mut flat = [false; 2];
     for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
@@ -845,17 +992,7 @@ fn walls_inside<T: Decide>(
         .enumerate()
     {
         let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
-        let normal = match crate::face_normal::face_outward_normal_at(body, wall, mid, band) {
-            Ok(Some(n)) => n.vec(),
-            Ok(None) => return Err(desync()),
-            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::of_normal(decision),
-                    diag,
-                });
-            }
-            Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
-        };
+        let normal = normal_at(wall)?;
         let into = normal.cross(dir);
         // How far the wall leaves the floor grows across the line: the
         // lever is the wall's own reach from the line's middle, as a
@@ -881,14 +1018,12 @@ fn walls_inside<T: Decide>(
                     .get_face(wall)
                     .and_then(|d| body.get_surface(d.surface))
                     .ok_or_else(desync)?;
-                let toward = match *surface {
-                    geom::Surface::Cylinder { origin, axis, .. } => {
-                        origin + axis * (mid - origin).dot(axis) - mid
-                    }
-                    geom::Surface::Cone { apex, axis, .. } => {
-                        apex + axis * (mid - apex).dot(axis) - mid
-                    }
-                    geom::Surface::Sphere { center, .. } => center - mid,
+                // A wall tangent to a curved floor: whichever side its sheet
+                // bends to, the parting is one on a curved face.
+                if bend(floor_surface).is_some() {
+                    return Err(refused(EdgeInFaceGap::CurvedFace));
+                }
+                let toward = match surface {
                     // A plane wall tangent along the line lies in the
                     // floor's plane. Glued to the floor from outside
                     // (outward normals opposed), its material is across
@@ -916,7 +1051,10 @@ fn walls_inside<T: Decide>(
                             }
                         }
                     }
-                    _ => return Err(refused(EdgeInFaceGap::Tangent)),
+                    curved => match bend(curved) {
+                        Some(toward) => toward,
+                        None => return Err(refused(EdgeInFaceGap::Tangent)),
+                    },
                 };
                 match crate::validate::decide_nonzero(
                     "bool_rider_wall_bend",
@@ -1455,7 +1593,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// [`divide`]'s refusal of a meeting of two lines.
 fn meet_refused(fault: MeetFault) -> BooleanError {
     match fault {
-        MeetFault::Escalated(diag) => crossing_escalated(diag),
+        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
         // Two lines meet in closed form, with no root finder or walk.
         MeetFault::Unsettled(_)
         | MeetFault::Unsupported { .. }

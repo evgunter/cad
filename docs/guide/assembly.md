@@ -14,7 +14,7 @@ This kernel answers all three the same way it answers everything else
 
 This page is the assembly surface end to end: the store and the
 identity/pin/reference split, authoring an assembly, evaluating one
-across the document seam, the solve and the at-rest gate that together
+across the document seam, the solve and the at-rest check that together
 are its validity story, and the two refactorings that move a part in
 or out of a document.
 
@@ -165,7 +165,7 @@ stand's is the `⊔` of its three instances.
 
 `Mate(on, to)` is a placement constraint the solve folds: it says where
 a copy sits, and declares nothing about contact — whether two copies
-touch is the geometry's to say, and the at-rest gate records every
+touch is the geometry's to say, and the at-rest census records every
 touch between copies it finds (section 4). A mate is not a node. It is a
 constraint in the bundle of the copy it places, and it equates two
 poses of one kind: `on`, read off that copy's geometry, and `to`, a
@@ -645,14 +645,17 @@ operator's result in the space its operands share. Nothing in one
 space is compared with another's, and the product slot reads a body in
 the world.
 
-`assemble(doc, evaluation)` is the **at-rest gate**: it gathers the
-product, records every touch between two copies the census finds — a
-seat a mate set up and a touch no mate relates alike, each a row of
-the product proven from the copies' own cells — and runs the kernel's
-own at-rest door over the product and those records together. A
-mate declares nothing: whether two faces meet is the geometry's to
-say, and an overlap between two copies' material is reported as
-interference, never recorded as a touch.
+The **at-rest check** is a check like any other, run by
+`run_checks(doc, evaluation)` (`CheckId.AtRest`): at each `⊔` the
+census examines every pair of copies, records every touch between two
+of them — a seat a mate set up and a touch no mate relates alike, each a
+row the `unproven-coincidence` check reports unless the coincidence
+door proves it from the copies' own cells — and the at-rest check
+reports each overlap between two copies' material as an interference
+finding, and each pair it could not look at. Nothing at rest refuses: a
+caller that wants a gate runs `enforce_checks` with the check at
+`Severity.Error`, which refuses a loud interference and nothing else. A
+mate declares nothing: whether two faces meet is the geometry's to say.
 
 ```python
 import tempfile
@@ -673,12 +676,13 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
+    CheckId,
     Workspace,
-    assemble,
     content_pin,
     evaluate,
     m,
     product,
+    run_checks,
     solve_document,
     Settle,
 )
@@ -780,18 +784,14 @@ columns = solved.placement(stand, post_b).columns
 identity = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 assert all(abs(g - w) < 1e-12 for c, i in zip(columns, identity) for g, w in zip(c, i))
 
-# The gate: the flush-seated stand CERTIFIES. Its two seats are
-# touches between copies, recorded at the door; nothing overlaps.
-assembly = assemble(stand, ev)
-assert assembly.interference == []
+# The at-rest check: the flush-seated stand reports nothing. Its two
+# seats are touches between copies, recorded at the door and proven by
+# their mates; nothing overlaps, and the census looked at every pair.
+report = run_checks(stand, ev)
+assert [f for f in report.findings if f.check == CheckId.AtRest] == []
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
             + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
-assert abs(assembly.body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - expected) < 1e-12
-
-# `assemble` IS the gather plus the check, so its body is the gathered
-# body.
-gathered = product(stand, ev)
-assert gathered.mass_properties(Settle.resolution(1e-6 * m)).met().volume == assembly.body.mass_properties(Settle.resolution(1e-6 * m)).met().volume
+assert abs(product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume - expected) < 1e-12
 ```
 
 ## 5. The refusals an assembly author actually meets
@@ -804,8 +804,8 @@ pose off what does not carry one.
 import tempfile
 
 from pncad import (
-    AssemblyError,
     CapEnd,
+    ChecksError,
     Coord,
     Doc,
     DocRef,
@@ -826,11 +826,11 @@ from pncad import (
     Selector,
     UNPINNED_RECOURSE,
     Workspace,
-    assemble,
     content_pin,
     evaluate,
     m,
     product,
+    run_checks,
     solve_document,
 )
 
@@ -973,36 +973,38 @@ else:
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instances
 #    produced no copies, so the `⊔` the product slot reads is poisoned
-#    through them and the GATHER refuses before the gate runs — and it
-#    refuses under the gather's own tag, not a wrapper's, because which
-#    invariant broke is what you branch on. `node` is the `⊔`, and
+#    through them and the GATHER refuses — under its own tag, because
+#    which invariant broke is what you branch on. `node` is the `⊔`, and
 #    `through` the first instance that failed, in document order: the
-#    post, the node you repair.
+#    post, the node you repair. The checks cannot run over it either:
+#    the post produced no value.
 doc, post_i, _ = two_instances()
 try:
-    assemble(doc, evaluate(doc))
+    run_checks(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
-except AssemblyError as refusal:
-    assert refusal.variant == "root_poisoned"
-    assert refusal.through == post_i
+except ChecksError as refusal:
+    assert refusal.variant == "placement_without_value"
+    assert refusal.node == post_i
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
-    assert refusal.variant == "root_poisoned"
+    assert refusal.variant == "read_poisoned"
     assert refusal.through == post_i
 ```
 
-Read an `AssemblyError`'s `variant` first, and read it as three
-groups. `at_rest` is a verdict **against** the document, and it
-carries the findings: `str(finding)` is the kernel's own finding, with
-its recourse — a pair the census could not decide, or a touch it could
-not record. Two copies that touch refuse nothing: the touch is a row of
-the product, mated or not, and two copies whose material overlaps are
-reported on `Assembly.interference`, never raised. `carried_at_rest`
-is the same verdict from a document BELOW this one, crossing whole and
-raised first, because that part is the file to open. Everything else is
-the gather's own tag, refusing before any verdict exists.
+Nothing at rest refuses. Read the at-rest check's findings
+(`CheckId.AtRest`) by their evidence's `variant`: `interference` is an
+overlap of two copies' material, quiet when an assertion says so;
+`carried_interference` is one a document BELOW this one reported
+between its own copies; `at_rest` is a pair the census could not look
+at, whose `AtRestEvidence` says why (`no_lane`, `malformed`,
+`inside_arrival`, `not_gathered`, `not_run`, or `carried` from a part,
+the file to open). Two copies that touch are no at-rest finding: the
+touch is a row of the product, mated or not, which the
+`unproven-coincidence` check reports unless the door proves it. A
+document whose product does not gather is the gather's own tag,
+refusing before any finding exists.
 
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 

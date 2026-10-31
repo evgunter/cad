@@ -5,7 +5,7 @@ title: step-import recognize.rs normalizes a plane normal with no length decisio
 status: open
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: M
 ---
 
 ## Where this came from

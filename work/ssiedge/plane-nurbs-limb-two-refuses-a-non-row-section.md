@@ -133,7 +133,7 @@ rim mints on that row and certifies: the vase's cap now moves alone.
 The shipped vase row is renamed
 `shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
 and it now stops at tier 3's volume check
-(`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+(`a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area`, closed by PR 5689).
 The rational-wall measurements above are history. The row's live pin
 is the polynomial tilted prism
 (`a_tilted_caps_marched_rim_refuses_at_its_certificate`), a marched

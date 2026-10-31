@@ -55,6 +55,28 @@ pub(crate) fn torus<T: Real>(major: f64, minor: f64) -> Surface<T> {
     }
 }
 
+/// The sphere of radius `radius` centred at `c`, polar axis `+z`,
+/// `u_ref = +x`.
+pub(crate) fn sphere_at<T: Real>(c: [f64; 3], radius: f64) -> Surface<T> {
+    Surface::Sphere {
+        center: p3(c[0], c[1], c[2]),
+        radius: T::from_f64(radius),
+        axis: v3(0.0, 0.0, 1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    }
+}
+
+/// [`torus`] centred at `c`.
+pub(crate) fn torus_at<T: Real>(c: [f64; 3], major: f64, minor: f64) -> Surface<T> {
+    Surface::Torus {
+        center: p3(c[0], c[1], c[2]),
+        axis: v3(0.0, 0.0, 1.0),
+        major_radius: T::from_f64(major),
+        minor_radius: T::from_f64(minor),
+        u_ref: v3(1.0, 0.0, 0.0),
+    }
+}
+
 /// A surface table and its resolver: the keys, in the order the
 /// surfaces were given, and the injected lookup the `geom-brep` doors
 /// take (keys never resolve inside `geom-brep`).

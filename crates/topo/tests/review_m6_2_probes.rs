@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use topo::construction::Construct;
 
 use std::sync::Arc;
 
@@ -44,6 +45,7 @@ fn the_foreign_arc_row_fails_on_the_carriers_structure() {
                     image: geom_brep::PcurveKind::Projected,
                     ..
                 },
+                ..
             } if *half_edge == built.he_plus
         )),
         "the identity mismatch must surface on the corrupted half-edge: {findings:?}"

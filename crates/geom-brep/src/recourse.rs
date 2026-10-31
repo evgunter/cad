@@ -347,12 +347,29 @@ pub struct LeverOnly {
     pub lever: &'static str,
 }
 
+/// **An edge's curve read, within the band, at a pose where its face
+/// holds no curve of its kind** ([`crate::OffMargin::InBand`]): a reading
+/// of the geometry's pose, not shown off the face, so its lever moves the
+/// pose at every door ([`crate::IncidenceRead::ending`]).
+pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
+    lever: "move the geometry so the edge sits clear of that pose by more than the tolerance, \
+            or so no piece of it sits there",
+};
+
+/// **An edge's curve whose incidence on its face is undecided**: not
+/// shown on the face and not shown off it, so its lever moves the
+/// geometry until the reading decides, at every door.
+pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
+    lever: "the edge's curve is not shown on the face it bounds at this tolerance: move the \
+            geometry so it lies clearly on that face",
+};
+
 impl LeverOnly {
     /// The one ending a refusal of this decision carries on `arm`, read
     /// at `reading`.
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
-        lever_recourse(self.lever, arm.unreadable_note(reading))
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        lever_recourse(self.lever, arm.unreadable_note(at))
     }
 }
 
@@ -674,6 +691,7 @@ mod tests {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                 SizedPass::NonZero | SizedPass::AnySign => v != 0.0,
                 SizedPass::Negative => v < 0.0,
+                SizedPass::Zero => false,
             };
             match margin.diagnostic_f64_for_error_text() {
                 geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k),
@@ -700,6 +718,7 @@ mod tests {
             SizedPass::NonZero,
             SizedPass::Negative,
             SizedPass::AnySign,
+            SizedPass::Zero,
         ] {
             for side in SIDES {
                 for no_size in [None, Some("a note")] {

@@ -41,6 +41,7 @@ fn upright_rod(doc: ProfileDoc, cx: f64, length: f64) -> (ProfileDoc, RecipeNode
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle_split(cx, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -133,15 +134,16 @@ fn touches(
         let failed: Vec<_> = members.iter().filter_map(|&m| failure(&ev, m)).collect();
         panic!("{what}: the union did not evaluate; a member refused: {failed:?}");
     };
-    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
-    assert_eq!(body.solids().count(), solids, "{what}: solids");
+    let contacts = &value.carry.contacts;
+    assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -152,8 +154,8 @@ fn touches(
         "{what}: volume {v}, want {volume}"
     );
     let kind = |f: topo::FaceKey| {
-        let face = body.get_face(f).unwrap();
-        body.get_surface(face.surface).unwrap().kind()
+        let face = body.body().get_face(f).unwrap();
+        body.body().get_surface(face.surface).unwrap().kind()
     };
     let ff: Vec<_> = contacts
         .rows()
@@ -297,7 +299,7 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -470,7 +472,7 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),

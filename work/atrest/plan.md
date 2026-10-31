@@ -32,6 +32,7 @@ Steps 1 and 2 are done (PRs #5605 and #5637). Stage 4 is built.
    - `an-instance-carries-its-parts-coincidences`.
    - `carried-census-rows-left-unshared`.
    - `a-product-whose-copies-overlap-may-double-count-its-mass`.
+   - `declared-only-meetings-clear-at-the-census-gate-unread` (P2; it carries the closed `CONTACT-13`, both moved in from CONTACTHOLD on 2026-10-27). It is a re-read: can an op mint records that hide an overlap at the census's `records_on_their_word` reading? Its top section has the steps.
    - `an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds`: the
      cost of replaying a node row on a part. It shares ground with
      COINCIDE.

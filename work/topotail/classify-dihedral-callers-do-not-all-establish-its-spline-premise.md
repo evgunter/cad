@@ -10,7 +10,7 @@ cost: M
 
 
 (PROPS' recourse-grammar lane, from the reach sweep
-`work/flux/invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs.md`
+`work/scalar/invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs.md`
 asks for.)
 
 ## What

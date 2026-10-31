@@ -227,9 +227,9 @@ struct Sample {
 }
 
 /// The body a node evaluated to.
-fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
+fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
         other => panic!("a placed link evaluates to a body, got {other:?}"),
     }
 }
@@ -314,12 +314,12 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
             let bars = base
                 .bars
                 .iter()
-                .map(|id| bar_outline(&body_at(&ev, *id)))
+                .map(|id| bar_outline(&body_at(&ev, *id, tol)))
                 .collect();
             let pins = base
                 .pins
                 .iter()
-                .map(|id| pin_axis(&body_at(&ev, *id)))
+                .map(|id| pin_axis(&body_at(&ev, *id, tol)))
                 .collect();
             let position = match &ev
                 .value(base.measure)

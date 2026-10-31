@@ -15,19 +15,15 @@
 //! the band it was minted at, and the refusal is a kernel bug: it panics
 //! naming the site.
 //!
-//! **The plane × NURBS lane is the scalar's policy** in [`certify`],
-//! [`certify_stated`] and [`recertify`], through
-//! [`AtRestPolicy::nurbs_lane`]. `geom_brep` answers
-//! [`CertifyError::NurbsLaneNotSupplied`] when handed `None`, which is all
-//! that layer can know; here the `None` is the policy's answer, so the
-//! absence is the scalar's, and the result type says so:
-//! [`ByPolicy::NoLane`] is not a [`CertifyError`], so a door cannot pass
-//! it on as a certification failure without naming it. [`certify_via`]
-//! and [`recertify_via_stated`] take the lane as their caller holds it.
+//! **The edge door is the scalar's policy** ([`AtRestPolicy::attach_edge`],
+//! [`AtRestPolicy::reattach_edge`]): a certifying scalar's door mints and
+//! certifies in full, a tangent-transport scalar's only mints, and no
+//! entry here takes a lane, so no caller can certify at a scalar whose
+//! policy does not, or omit the certificate at one whose policy does.
 
 use geom::Surface;
 use geom_brep::{Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane, StatedImage};
-use geom_core::{Band, Decide, Point3, Real};
+use geom_core::{Band, Decide, Point3, TangentTransport};
 
 use crate::geometry::SurfaceKey;
 use crate::props::AtRestPolicy;
@@ -56,7 +52,7 @@ pub(crate) enum Origin {
 pub(crate) enum KernelSite {
     /// [`crate::transform_rigid`]'s re-mint of each moved edge.
     RigidTransform,
-    /// [`crate::Body::split_edge`]'s two children.
+    /// [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s two children.
     SplitChild,
     /// A graft's re-certification of the source body's edges.
     Graft,
@@ -83,11 +79,11 @@ pub(crate) enum KernelSite {
     SectionRechart,
     /// A shell's re-chart of a promoted rim face, its edges restated.
     RimRechart,
-    /// [`crate::Body::describe_at_rest`]'s restatement.
+    /// [`crate::Body::describe_at_rest`](crate::construction::Construct::describe_at_rest)'s restatement.
     AtRest,
     /// The restatement of a wrap edge whose halves an operation parted.
     PartedWrap,
-    /// [`crate::Body::restate_stored_edge`]'s restatement.
+    /// [`crate::Body::restate_stored_edge`](crate::construction::Construct::restate_stored_edge)'s restatement.
     StoredRestatement,
 }
 
@@ -126,31 +122,8 @@ impl Origin {
     }
 }
 
-/// Why a certification through the scalar's policy did not certify.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ByPolicy {
-    /// The edge's certificate needs the NURBS lane and `scalar`'s
-    /// policy holds none (a dual, DL1).
-    NoLane {
-        /// [`Real::NAME`] of the scalar the door ran at.
-        scalar: &'static str,
-    },
-    /// Every other refusal, as the certifier raised it.
-    Refused(CertifyError),
-}
-
-impl ByPolicy {
-    fn of<T: Real>(error: CertifyError) -> Self {
-        if error == CertifyError::NurbsLaneNotSupplied {
-            Self::NoLane { scalar: T::NAME }
-        } else {
-            Self::Refused(error)
-        }
-    }
-}
-
-/// [`EdgeCurve::certify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`fn@crate::wedge_reach`]).
+/// [`AtRestPolicy::attach_edge`], the wedge levered at `reach`
+/// ([`fn@crate::wedge_reach`]).
 pub(crate) fn certify<T: AtRestPolicy>(
     origin: Origin,
     spec: EdgeCurveSpec<T>,
@@ -159,13 +132,13 @@ pub(crate) fn certify<T: AtRestPolicy>(
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
     reach: T,
     band: Band,
-) -> Result<EdgeCurve<T>, ByPolicy> {
+) -> Result<EdgeCurve<T>, CertifyError> {
     certify_stated(origin, spec, start, end, surfaces, reach, band, None)
 }
 
-/// [`EdgeCurve::certify_via_stated`] with `T`'s lane: `stated` is a chart
-/// image the body already holds for the edge on one of its surfaces, and
-/// the wedge is levered at `reach` ([`fn@crate::wedge_reach`]).
+/// [`AtRestPolicy::attach_edge`] with a chart image the body already
+/// holds for the edge on one of its surfaces, the wedge levered at
+/// `reach` ([`fn@crate::wedge_reach`]).
 #[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     origin: Origin,
@@ -176,55 +149,13 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     reach: T,
     band: Band,
     stated: Option<&StatedImage<T>>,
-) -> Result<EdgeCurve<T>, ByPolicy> {
-    certify_via_stated(
-        origin,
-        spec,
-        start,
-        end,
-        surfaces,
-        reach,
-        band,
-        T::nurbs_lane(),
-        stated,
-    )
-    .map_err(ByPolicy::of::<T>)
-}
-
-/// [`EdgeCurve::certify_via`] with the lane its caller holds.
-#[allow(clippy::too_many_arguments)] // the door's, plus the origin
-pub(crate) fn certify_via<T: Decide>(
-    origin: Origin,
-    spec: EdgeCurveSpec<T>,
-    start: Point3<T>,
-    end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
-    band: Band,
-    lane: Option<NurbsLane<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_via_stated(origin, spec, start, end, surfaces, reach, band, lane, None)
-}
-
-/// [`EdgeCurve::certify_via_stated`] with the lane its caller holds.
-#[allow(clippy::too_many_arguments)] // the door's, plus the origin
-fn certify_via_stated<T: Decide>(
-    origin: Origin,
-    spec: EdgeCurveSpec<T>,
-    start: Point3<T>,
-    end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
-    band: Band,
-    lane: Option<NurbsLane<T>>,
-    stated: Option<&StatedImage<T>>,
-) -> Result<EdgeCurve<T>, CertifyError> {
-    EdgeCurve::certify_via_stated(spec, start, end, surfaces, reach, band, lane, stated)
+    T::attach_edge(spec, start, end, surfaces, reach, band, stated)
         .map_err(|error| origin.read(error))
 }
 
-/// [`EdgeCurve::recertify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`fn@crate::wedge_reach`]).
+/// [`AtRestPolicy::reattach_edge`], the wedge levered at `reach`
+/// ([`fn@crate::wedge_reach`]).
 pub(crate) fn recertify<T: AtRestPolicy>(
     origin: Origin,
     curve: &EdgeCurve<T>,
@@ -233,24 +164,14 @@ pub(crate) fn recertify<T: AtRestPolicy>(
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
     reach: T,
     band: Band,
-) -> Result<Certificate<T>, ByPolicy> {
-    recertify_via_stated(
-        origin,
-        curve,
-        start,
-        end,
-        surfaces,
-        reach,
-        band,
-        T::nurbs_lane(),
-        None,
-    )
-    .map_err(ByPolicy::of::<T>)
+) -> Result<T::Carries<Certificate<T>>, CertifyError> {
+    recertify_stated(origin, curve, start, end, surfaces, reach, band, None)
 }
 
-/// [`EdgeCurve::recertify_via_stated`] with the lane its caller holds.
-#[allow(clippy::too_many_arguments)] // the door's, plus the origin
-pub(crate) fn recertify_via_stated<T: Decide>(
+/// [`AtRestPolicy::reattach_edge`] with the chart image the body stores
+/// for the edge.
+#[allow(clippy::too_many_arguments)] // `recertify`'s, plus the stated image
+pub(crate) fn recertify_stated<T: AtRestPolicy>(
     origin: Origin,
     curve: &EdgeCurve<T>,
     start: Point3<T>,
@@ -258,12 +179,66 @@ pub(crate) fn recertify_via_stated<T: Decide>(
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
     reach: T,
     band: Band,
-    lane: Option<NurbsLane<T>>,
     stated: Option<&StatedImage<T>>,
-) -> Result<Certificate<T>, CertifyError> {
-    curve
-        .recertify_via_stated(start, end, surfaces, reach, band, lane, stated)
+) -> Result<T::Carries<Certificate<T>>, CertifyError> {
+    T::reattach_edge(curve, start, end, surfaces, reach, band, stated)
         .map_err(|error| origin.read(error))
+}
+
+/// **A certifying scalar's edge door** ([`AtRestPolicy::attach_edge`]):
+/// the mint and every check of the certificate, C2's limbs through the
+/// certification lane.
+#[allow(clippy::too_many_arguments)] // the door's own inputs
+pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
+    spec: EdgeCurveSpec<T>,
+    start: Point3<T>,
+    end: Point3<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
+    band: Band,
+    stated: Option<&StatedImage<T>>,
+) -> Result<EdgeCurve<T>, CertifyError> {
+    let lane = NurbsLane::certified();
+    EdgeCurve::certify_stated(spec, start, end, surfaces, reach, band, lane, stated)
+}
+
+/// **A certifying scalar's edge door at rest**
+/// ([`AtRestPolicy::reattach_edge`]): the certificate re-derived in full.
+#[allow(clippy::too_many_arguments)] // the door's own inputs
+pub(crate) fn certifying_reattach<T: Decide + geom_core::CertifiedBounds>(
+    curve: &EdgeCurve<T>,
+    start: Point3<T>,
+    end: Point3<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
+    band: Band,
+    stated: Option<&StatedImage<T>>,
+) -> Result<T::Carries<Certificate<T>>, CertifyError> {
+    let lane = NurbsLane::certified();
+    curve
+        .recertify_stated(start, end, surfaces, reach, band, lane, stated)
+        .map(<T as geom_core::CertifiedEnclosure>::carried)
+}
+
+/// **A tangent-transport scalar's edge door** ([`AtRestPolicy::attach_edge`]):
+/// the mint, held with no certificate (DUAL-DESIGN DL1, DL3).
+pub(crate) fn minting_attach<T: Decide + TangentTransport>(
+    spec: EdgeCurveSpec<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    band: Band,
+) -> Result<EdgeCurve<T>, CertifyError> {
+    EdgeCurve::mint(spec, surfaces, band).map(EdgeCurve::uncertified)
+}
+
+/// **A tangent-transport scalar's edge door at rest**
+/// ([`AtRestPolicy::reattach_edge`]): the mint, run again on the edge as
+/// it stands.
+pub(crate) fn minting_reattach<T: Decide + TangentTransport>(
+    curve: &EdgeCurve<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    band: Band,
+) -> Result<T::Carries<Certificate<T>>, CertifyError> {
+    EdgeCurve::mint(curve.restated_spec(), surfaces, band).map(|_| T::uncertified())
 }
 
 #[cfg(test)]
@@ -274,7 +249,7 @@ mod tests {
     use geom::{Curve3, NurbsCurve3};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::spline::KnotVector;
-    use geom_core::{Dual64, Real, Tol};
+    use geom_core::{Dual64, Tol};
 
     use crate::props::AtRestPolicy;
     use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
@@ -316,7 +291,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(T::from_f64(0.5)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(T::from_f64(0.5))),
             },
             carrier: Curve3::Nurbs(Arc::new(carrier)),
             param_start: T::zero(),
@@ -337,10 +312,7 @@ mod tests {
             refused: StatedSpan::Winding(WindingReading::Exceeded),
         };
         assert_eq!(Origin::Callers.read(span), span, "a caller's span refusal");
-        for other in [
-            CertifyError::NurbsLaneNotSupplied,
-            CertifyError::WindingExceeded,
-        ] {
+        for other in [CertifyError::Unimplemented, CertifyError::WindingExceeded] {
             assert_eq!(
                 Origin::Kernels(KernelSite::Graft).read(other),
                 other,
@@ -349,23 +321,12 @@ mod tests {
         }
     }
 
-    /// **The attach door takes the scalar's lane**: an analytic rung-3
-    /// edge attaches at `f64`, and at the dual — whose policy holds no
-    /// lane — refuses naming the edge and the scalar.
+    /// **The attach door is the scalar's**: an analytic rung-3 edge
+    /// attaches at `f64`, certified, and at the dual, minted.
     #[test]
-    fn the_attach_door_refuses_an_analytic_rung3_edge_at_the_dual() {
-        respec_as_spline::<f64>().expect("f64 holds the lane");
-        let dual = respec_as_spline::<Dual64>();
-        assert!(
-            matches!(
-                dual,
-                Err(EulerOpError::NurbsLaneUnsupported {
-                    edge: Some(_),
-                    scalar,
-                }) if scalar == <Dual64 as Real>::NAME
-            ),
-            "{dual:?}"
-        );
+    fn the_attach_door_attaches_an_analytic_rung3_edge_at_every_scalar() {
+        respec_as_spline::<f64>().expect("f64's door certifies the edge");
+        respec_as_spline::<Dual64>().expect("the dual's door mints the edge");
     }
 }
 
@@ -375,13 +336,13 @@ mod tests {
 /// `geom_brep`'s doors, so a new kernel re-mint cannot skip the choice.
 ///
 /// **What it matches.** A door named by path (`EdgeCurve::certify`,
-/// `geom_brep::EdgeCurve::recertify_via`, an alias `E::certify`, a
+/// `geom_brep::EdgeCurve::recertify_stated`, an alias `E::certify`, a
 /// function value with no call) whatever its qualifier, unless the
 /// qualifier is one of [`origin_census::NOT_DOORS`], the types and modules
 /// whose own `certify`/`recertify` is not an edge door (a path that
 /// continues, `geom_brep::certify::NOT_A_SAMPLE`, names the module). A method call
-/// `.recertify_via(` or `.recertify_via_stated(`, and `.recertify(` with
-/// five arguments or more, the door's arity: the other `recertify`
+/// `.recertify_stated(`, and `.recertify(` with five arguments or more,
+/// short of the door's six: the other `recertify`
 /// methods `topo` calls take two (`OffsetFitLane`) or four
 /// (`PcurveCache`), and a counted argument list only over-counts (a
 /// closure's `|a, b|`), so the arity reading errs loud.
@@ -399,7 +360,9 @@ mod tests {
 /// mounts; a `.recertify(` of fewer than five arguments on an
 /// [`EdgeCurve`] reached through a trait or a wrapper that renames it;
 /// a `geom_brep` door other than the six (none other returns a
-/// [`CertifyError`] today). It reads spelling, not types, so a site's
+/// [`CertifyError`] today). The door bodies the scalars' policies run
+/// are this module's own ([`certifying_attach`], [`minting_attach`] and
+/// their re-attach twins), so the policy impls name no door either. It reads spelling, not types, so a site's
 /// [`Origin`] being the right one is a reviewer's call and the panic
 /// rows' (`crate::tier3_tests`).
 #[cfg(test)]
@@ -411,17 +374,23 @@ mod origin_census {
     /// `geom_brep`'s edge certification doors.
     const DOORS: [&str; 6] = [
         "certify",
-        "certify_via",
-        "certify_via_stated",
+        "certify_stated",
+        "mint",
         "recertify",
-        "recertify_via",
-        "recertify_via_stated",
+        "recertify_stated",
+        "uncertified",
     ];
 
-    /// Qualifiers whose `certify`/`recertify` by path is not an edge
-    /// door: this module, whose entries share the doors' names, and the
-    /// two other types with a `certify`/`recertify` of their own.
-    pub(super) const NOT_DOORS: [&str; 3] = ["policy_lane", "PcurveCache", "ApproxSurface"];
+    /// Qualifiers whose door-named function by path is not an edge door:
+    /// this module, whose entries share the doors' names, the two other
+    /// types with a `certify`/`recertify` of their own, and the offset
+    /// derivation's chart, which has a `mint`.
+    pub(super) const NOT_DOORS: [&str; 4] = [
+        "policy_lane",
+        "PcurveCache",
+        "ApproxSurface",
+        "ChartedNurbs",
+    ];
 
     /// Whether `attr` (`#[cfg(..)]`, as written) gates its item to test
     /// builds.
@@ -527,7 +496,7 @@ mod origin_census {
                     args + usize::from(filled)
                 };
                 let reached = match door {
-                    "recertify_via" | "recertify_via_stated" => true,
+                    "recertify_stated" => true,
                     "recertify" => arity() >= 5,
                     _ => false,
                 };
@@ -599,11 +568,11 @@ pub(crate) mod support;
 #[cfg(debug_assertions)]
 mod kept;
 fn site(c: &EdgeCurve<f64>) {
-    let a = geom_brep::EdgeCurve::certify_via(spec, s, e, f, 1.0, band, None);
-    let b = E::certify(spec, s, e, f, 1.0, band);
+    let a = geom_brep::EdgeCurve::certify_stated(spec, s, e, f, 1.0, band, lane, None);
+    let b = E::certify(spec, s, e, f, 1.0, band, lane);
     let d = specs.map(EdgeCurve::recertify);
-    let g = c.recertify(s, e, |k| lookup(k, x), 1.0, band);
-    let h = c.recertify_via_stated(s, e, f, 1.0, band, lane, None);
+    let g = c.recertify(s, e, |k| lookup(k, x), 1.0, band, lane);
+    let h = c.recertify_stated(s, e, f, 1.0, band, lane, None);
     let fine = crate::policy_lane::certify(Origin::Callers, spec, s, e, f, 1.0, band);
     let cache = PcurveCache::certify(p, t0, t1, &carrier, surface, band);
     let lane = lane.recertify(approx, tol);
@@ -614,26 +583,26 @@ fn site(c: &EdgeCurve<f64>) {
 }
 #[cfg(test)]
 mod tests {
-    fn plant() { let _ = EdgeCurve::certify(spec, s, e, f, 1.0, band); }
+    fn plant() { let _ = EdgeCurve::certify(spec, s, e, f, 1.0, band, lane); }
 }
 #[cfg(any(test, feature = "sweep-testing"))]
-fn injector() { let _ = EdgeCurve::recertify_via(c, s, e, f, 1.0, band, None); }
+fn injector() { let _ = EdgeCurve::recertify_stated(c, s, e, f, 1.0, band, lane, None); }
 struct Depth {
     depth: u32,
     #[cfg(test)]
     torn: bool,
 }
-impl Clone for Depth { fn clone(&self) -> Self { EdgeCurve::recertify_via(c, s, e, f, 1.0, band, None) } }
+impl Clone for Depth { fn clone(&self) -> Self { EdgeCurve::mint(spec, f, band) } }
 enum Exempt {
     #[cfg(any(test, feature = "test-support"))]
     Nothing,
 }
-impl Exempt { fn f() { E::certify_via(spec, s, e, f, 1.0, band, None); } }
+impl Exempt { fn f() { E::uncertified(minted); } }
 fn arms(x: u8) {
     match x {
         #[cfg(test)]
-        0 => EdgeCurve::certify(spec, s, e, f, 1.0, band),
-        _ => EdgeCurve::certify_via_stated(spec, s, e, f, 1.0, band, None, None),
+        0 => EdgeCurve::certify(spec, s, e, f, 1.0, band, lane),
+        _ => EdgeCurve::certify_stated(spec, s, e, f, 1.0, band, lane, None),
     }
 }
 struct Last {
@@ -648,13 +617,13 @@ mod later;
             bypasses(&code),
             [
                 "11: E::certify",
-                "10: EdgeCurve::certify_via",
-                "39: E::certify_via",
-                "44: EdgeCurve::certify_via_stated",
+                "10: EdgeCurve::certify_stated",
+                "44: EdgeCurve::certify_stated",
+                "34: EdgeCurve::mint",
                 "12: EdgeCurve::recertify",
                 "13: .recertify(",
-                "34: EdgeCurve::recertify_via",
-                "14: .recertify_via_stated(",
+                "14: .recertify_stated(",
+                "39: E::uncertified",
             ]
             .map(String::from)
             .into_iter()

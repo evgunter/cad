@@ -199,3 +199,10 @@ weld says nothing about other files' rows, `#[bench]` or no-harness
 targets. A `#[test]` under a nested `mod` is a **violation** rather than
 a silent exemption — the fix pass took that shape so the guard's name,
 which is what CI prints, would be true.
+
+## Note (CLEAR, 2026-10-29)
+
+TIGHTEN (#5998) renamed `min_clearance_between_two_separated_bodies_reads_zero`
+to `min_clearance_between_two_separated_bodies_brackets_their_gap`,
+because the bracket now contains the true 0.1. The tables above keep
+the old name, as they were measured. The roster finding is unchanged.

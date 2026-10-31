@@ -26,6 +26,7 @@ use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use sweep::ExtrudeSide;
 use topo::Body;
+use topo::construction::Construct;
 
 /// The tour donut with its seam meridian (edge 0) split at `fracs`.
 fn split_seam_donut(fracs: &[f64]) -> (Body<f64>, topo::EdgeKey, Vec<topo::EdgeKey>) {

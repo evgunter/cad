@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P4
 cost: M
-refs: [the-interpolating-fit-solves-a-banded-collocation-system-densely]
+refs: [4023]
 ---
 
 

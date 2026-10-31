@@ -4,7 +4,6 @@ kind: issue
 title: chamfer_edges has no recipe-layer door - no Node::chamfer, so no rebuild, no names, no selectors
 status: closed
 opened: 2026-08-22
-github: 918
 refs: [708]
 closed: 2026-09-04
 ---

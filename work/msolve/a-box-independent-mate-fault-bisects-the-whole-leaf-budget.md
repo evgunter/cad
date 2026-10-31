@@ -101,7 +101,7 @@ holds unchanged (`WitnessDoesNotBuild`, the mate `Unleverable` for want
 of a resolver). The analysis doors that evaluate an assembly directly
 now take one (`stackup::sensitivities` and `stackup::stackup`'s
 `resolver`, `ClearanceQuery::resolver`); the driver is the remaining
-door (`work/flux/the-box-driver-carries-no-part-resolver.md`), and
+door (`work/scalar/the-box-driver-carries-no-part-resolver.md`), and
 closing this row waits on it.
 
 ## Re-pointed from the D10 hold (2026-10-08)

@@ -38,3 +38,19 @@ neither is measured to fire.
    documented extreme-weight bilinear square, pad ≈ 1.7e20 against
    1 m²), where a later round's pads are smaller. Whether a later
    round answers on that fixture is unmeasured.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Both halves still hold, at new homes.
+
+1. The extent gate is one function now, `run::face_extent`
+   (`crates/geom-brep/src/props/quad/run.rs:210`), since PR 5815.
+   `Run::ask` (`:323`) asks it once, on the round the caller accepts,
+   and a refusal there ends the call. "Converged" now reads "accepted
+   by the caller's predicate" (PRs 5589 and 5628).
+2. `displacement_len` is now `mean_boundary_displacement` (`run.rs:493`).
+   Its lever guard (`denom <= 0.0`, `:508`) is unchanged. It is read
+   at EVERY round by topo's resolution comparison
+   (`crates/topo/src/props/quad_lane.rs:513`, `?` on its error), so a
+   `DegenerateFace` from a cancelled lever still ends a sizing walk at
+   the round it fires.

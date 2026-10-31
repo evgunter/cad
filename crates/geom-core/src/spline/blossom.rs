@@ -244,7 +244,7 @@ pub fn restrict_segment(
     if row.is_empty() || !(s0 <= a && a <= b && b <= s1 && s0 < s1) {
         return vec![Interval::refused(); row.len()];
     }
-    if row.len() == 1 || (a == s0 && b == s1) {
+    if row.len() == 1 || (a == s0 && b == s1 && row.iter().all(|c| c.is_certified())) {
         return row.to_vec();
     }
     // `KnotVector::bezier(p, (s0, s1))` refuses only a non-finite end
@@ -375,12 +375,18 @@ fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, Bl
 
 /// The span's closure and its level ratio: at level `r`, entry `j` of
 /// the window combines at `(u − U_i)/(U_{i+p+1−r} − U_i)`, `i = s − p + j`.
-fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
-    let (p, s, t) = (
+/// A span's degree, index and knot list, the one read both the ratio
+/// and the Bézier test take.
+fn span_knots(span: Span<'_>) -> (usize, usize, &[f64]) {
+    (
         span.degree(),
         span.index(),
         span.knots_f64_interim().knots(),
-    );
+    )
+}
+
+fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
+    let (p, s, t) = span_knots(span);
     // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`.
     ((t[s], t[s + 1]), slice_ratio(t, p, s))
 }
@@ -477,7 +483,39 @@ fn span_restrict(
     let p = span.degree();
     let (closure, ratio) = span_ratio(span);
     let (a, b) = (admit(a, 0, closure)?, admit(b, p - 1, closure)?);
+    if whole_bezier_span(span, (a, b)) && row.iter().all(|c| c.is_certified()) {
+        return Ok(row.to_vec());
+    }
     Ok(pyramid(row, (a, b), ratio))
+}
+
+/// Whether `(a, b)` restricts a Bézier segment to its own whole span:
+/// both ends exact points on the span's two knots, and the span's
+/// window reading the left knot `p` times and the right `p` times. The
+/// restriction is then the identity in exact arithmetic — the blossom
+/// `B(a^{p−k}, b^k)` of a Bézier segment over `[a, b]` is its `k`-th
+/// coefficient — so the window's own coefficients are the restriction,
+/// with none of the pyramid's rounding. A closed form's enclosing net
+/// (`ORDER`-fold interior knots) and every span the composite has cut
+/// at its own breaks is such a segment.
+///
+/// **The shortcut is taken only on a row whose every coefficient is
+/// certified.** It is not the pyramid bit for bit: it is tighter at the
+/// ulp, and the pyramid mixes every coefficient into every output, so a
+/// row holding a refused (uncertified) coefficient comes back refused
+/// in every output, where the window returned whole would keep its
+/// certified neighbours certified. Such a row runs the pyramid, so the
+/// shortcut never changes what refuses
+/// (`a_whole_span_restriction_refuses_as_the_pyramid_does`).
+fn whole_bezier_span(span: Span<'_>, (a, b): (Interval, Interval)) -> bool {
+    use crate::real::Bounds as _;
+    let (p, s, t) = span_knots(span);
+    let point_at = |x: Interval, k: f64| x.is_certified() && x.lo() == k && x.hi() == k;
+    // Indexing justified as `span_ratio`'s: `p ≤ s` and `s + p < t.len()`.
+    point_at(a, t[s])
+        && point_at(b, t[s + 1])
+        && t[s + 1 - p..=s].iter().all(|&k| k == t[s])
+        && t[s + 1..=s + p].iter().all(|&k| k == t[s + 1])
 }
 
 /// The restriction to `[a, b]` of the row: the pyramid of `a` levels,
@@ -530,6 +568,92 @@ mod tests {
         v.iter()
             .map(|c| (c.lo().to_bits(), c.hi().to_bits()))
             .collect()
+    }
+
+    /// **The whole-span shortcut changes no refusal**
+    /// (`whole_bezier_span`): a certified row restricted to its own whole
+    /// span comes back as it came, bit for bit, through both doors (the
+    /// span row and the bare segment); a row holding one refused
+    /// coefficient runs the pyramid instead, and comes back as the
+    /// pyramid gives it — every output refused, no certified neighbour
+    /// kept. Red under a shortcut taken whatever the row's decoration.
+    #[test]
+    fn a_whole_span_restriction_refuses_as_the_pyramid_does() {
+        let p = 3usize;
+        let kv = KnotVector::bezier(p, (2.0, 6.0)).unwrap();
+        let certified: Vec<Interval> = [0.5, 0.75, 1.0, 1.25].map(Interval::point).to_vec();
+        let mut holed = certified.clone();
+        holed[1] = Interval::from_bounds(-1.0, 1.44).sqrt();
+        assert!(
+            !holed[1].is_certified(),
+            "the plant is refused: {:?}",
+            holed[1]
+        );
+        let ends = (Interval::point(2.0), Interval::point(6.0));
+        let span = kv.with_coeffs(&certified).unwrap().span(p).unwrap();
+        let whole = span.restrict(ends).unwrap();
+        assert_eq!(
+            bits(&whole),
+            bits(&certified),
+            "a certified row comes back as it came"
+        );
+        assert!(whole.iter().all(|c| c.is_certified()));
+        assert_eq!(
+            bits(&restrict_segment(&certified, (2.0, 6.0), (2.0, 6.0))),
+            bits(&certified),
+            "the bare segment's door takes the same shortcut"
+        );
+        let held = kv.with_coeffs(&holed).unwrap().span(p).unwrap();
+        let got = held.restrict(ends).unwrap();
+        let (closure, ratio) = span_ratio(held.span());
+        let (a, b) = (
+            admit(ends.0, 0, closure).unwrap(),
+            admit(ends.1, p - 1, closure).unwrap(),
+        );
+        let pyramid_row = pyramid(&holed, (a, b), ratio);
+        assert_eq!(
+            bits(&got),
+            bits(&pyramid_row),
+            "a holed row is the pyramid's"
+        );
+        assert_eq!(
+            got.iter().map(|c| c.is_certified()).collect::<Vec<_>>(),
+            pyramid_row
+                .iter()
+                .map(|c| c.is_certified())
+                .collect::<Vec<_>>(),
+            "the pyramid's decoration, output for output"
+        );
+        assert!(
+            got.iter().all(|c| !c.is_certified()),
+            "the pyramid refuses every output of a holed row: {got:?}"
+        );
+        let bare = restrict_segment(&holed, (2.0, 6.0), (2.0, 6.0));
+        assert!(
+            bare.iter().all(|c| !c.is_certified()),
+            "the bare segment's door refuses a holed row whole: {bare:?}"
+        );
+        // A refused end whose ordinary ends sit on the knot is no exact
+        // point: the certified row restricted at it is the pyramid's, and
+        // the first output, read at that end alone, refuses. Red under a
+        // shortcut that reads the end's bounds alone.
+        let refused_end = crate::test_support::refused_point(2.0);
+        let at_refused = span.restrict((refused_end, ends.1)).unwrap();
+        let (closure, ratio) = span_ratio(span.span());
+        let pyramid_at = pyramid(
+            &certified,
+            (admit(refused_end, 0, closure).unwrap(), ends.1),
+            ratio,
+        );
+        assert_eq!(
+            bits(&at_refused),
+            bits(&pyramid_at),
+            "a refused end is the pyramid's"
+        );
+        assert!(
+            !at_refused[0].is_certified(),
+            "the output at the refused end refuses: {at_refused:?}"
+        );
     }
 
     /// **The doors are one arithmetic, bit for bit.** The restriction's

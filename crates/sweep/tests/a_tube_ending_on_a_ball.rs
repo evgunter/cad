@@ -127,24 +127,23 @@ fn every_op_builds_at_its_closed_form() {
 }
 
 /// **A tilted tube builds**: its rim is no latitude of the ball's chart
-/// and crosses the seam meridians askew. Every op is sound at its closed
-/// form, read without a mesh: a sphere face bounded by a circle off its
-/// chart's latitudes has no tessellation lane
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+/// and crosses the seam meridians askew. Every op is sound, meshed and at
+/// its closed form: the sphere faces its rim bounds mesh through the
+/// trimmed lane's sphere arm.
 #[test]
 fn a_tilted_tube_builds_at_its_closed_form() {
-    let tol = Tol::witness();
     for (label, r, want) in runs("tilted", &Pose::new(0.7, 2.0, 0.5, 0.3)) {
-        let line = outcome(r, want, tol);
-        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+        assert_sound_and_meshed(&label, r, want, Tol::witness());
     }
 }
 
 /// **A rim inside one ball face holes it.** Tilted far enough, the rim
 /// crosses neither seam meridian, so the ball face keeps it as a ring.
 /// The sphere arm measures a face over every loop, so every op builds
-/// sound at its closed form, read without a mesh as the tilted tube's
-/// are (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+/// sound at its closed form (`sphere-face-with-a-hole-has-no-closed-form`,
+/// closed by PR 4573), read without a mesh: the mesher has no lane for a
+/// curved face with a ring
+/// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();

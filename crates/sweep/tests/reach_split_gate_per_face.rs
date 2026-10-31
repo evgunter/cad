@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
@@ -402,7 +403,7 @@ impl Rim {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness: self.mid,
+                selector: geom_brep::CurveSelector::Witness(self.mid),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline.clone())),
             param_start: domain.0,
@@ -577,7 +578,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     reverted
         .set_face_surface_unvouched_for_tests(
             zone,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface,
                 sense: !sense,
             },

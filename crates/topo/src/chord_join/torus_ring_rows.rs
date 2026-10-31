@@ -10,7 +10,7 @@
 //! ([`crate::ring_path::torus_islands`]).
 
 use super::*;
-use crate::MevSite;
+use crate::construction::MevSite;
 use crate::ring_path::cone_islands::{Frame, band, frames, plane, scales};
 use crate::ring_path::torus_islands::{
     Island, IslandEdge, crest_islands, islands, meridian, on_torus, parallel, spiric_islands, torus,
@@ -54,7 +54,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     } else {
         geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(surface, body.add_surface(plane(o, n))),
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         }
     };
     EdgeCurveSpec {
@@ -172,7 +172,7 @@ fn run_from(
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
     let n = island.edges.len();
     let ring = empty_ring(body, face, island.corners[r]);
-    let mut halves: Vec<crate::MevCreated> = Vec::new();
+    let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
         let e = &island.edges[(r + k) % n];
         let spec = edge_spec(body, surface, e);

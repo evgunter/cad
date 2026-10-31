@@ -21,8 +21,9 @@ use super::section_cert_rows::{
 };
 use super::*;
 use crate::boolean::ops;
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite};
+use crate::{Body, FaceKey};
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
@@ -244,15 +245,15 @@ fn a_ball_on_the_lateral_face_is_one_null_loop() {
             "the loop's witness {w:?} is on the ball's nappe"
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::One, at(IN, IN)),
+            certify(&s, false, band(), |_| Sheet::One, at(IN, IN)),
             Err(Refusal::Loop)
         );
         assert_eq!(
-            certify(&s, true, |_| Sheet::One, at(IN, IN)),
+            certify(&s, true, band(), |_| Sheet::One, at(IN, IN)),
             Ok(vec![Cleared::LoneEvented])
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::One, at(OUT, IN)),
+            certify(&s, false, band(), |_| Sheet::One, at(OUT, IN)),
             Ok(vec![Cleared::Out(Side::F)])
         );
     }
@@ -411,7 +412,7 @@ fn cone_rim(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cone, rim_plane),
-            witness: p(-z, 0.0, z),
+            selector: geom_brep::CurveSelector::Witness(p(-z, 0.0, z)),
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),
@@ -514,6 +515,7 @@ fn scan_with(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,

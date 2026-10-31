@@ -2,18 +2,28 @@
 id: a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop
 kind: issue
 title: A union of a block resting a Zero-band gap above another refuses ResultVolumeImplausible: the glue closes the gap and the backstop has no slack for it
-status: review
+status: dispatched
 opened: 2026-10-13
 priority: P0
 cost: M
-branch: cleave/backstop-admits-the-glues-zero-band
-needs_ev: true
-design: true
+branch: cleave/volume-relations-a-test-oracle
 ---
 
 
 Found by FLUSH's given-gate lane (`flush/given-gate`, 2026-10-13) while
 measuring a pair boolean's inputs. Measured on main `3ad2c1bf`.
+
+## Ruled (Ev, `[ev]` PR 5780, 2026-10-27)
+
+The boolean's volume relations (vol(A ∪ B) ≤ vol(A) + vol(B) and its
+siblings) become a test oracle, checked on the suite's fixtures, not a
+check every operation runs. Ev: "(b) sounds good!", after the record
+showed one recorded catch, which an operand gate caught better, against
+about a dozen open rows refusing correct bodies. That removes this
+refusal; no B′ is built and the glued boundary is not re-derived
+("tidier but strays more from the original"). DESIGN.md
+`[simple.checks]`: no representation, stage or decision exists only so
+a check can read it. PR 5757's volume allowance is closed unmerged.
 
 ## What
 
@@ -49,10 +59,12 @@ resting blocks refusing.
 
 ## Owed
 
-The backstop's bound admits the displacement the glue's own Zero
-verdicts allow (the band's zero width times the glued area, or the
-same read off the verdict margins), or the glue keeps the volume it
-closes; a pin over the table above.
+The volume backstop leaves the boolean's operation path, and its
+relations move into the test suite as an oracle over fixtures.
+`BooleanError::ResultVolumeImplausible` and the backstop's other
+refusal arms go with it, if nothing else raises them. The table above
+then builds. Pin it over the table, and close or re-point every row
+whose only defect is a backstop refusal.
 
 ## Evidence from FLUSH (PR 5008's review, 2026-10-14)
 

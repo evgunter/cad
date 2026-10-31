@@ -2,9 +2,9 @@
 id: vseam
 kind: program
 title: VSEAM — the viewer's seams and session vocabulary
-status: ready
+status: active
 opened: 2026-09-17
-area: gui
+group: gui/author
 prefix: vseam/
 tag: (VSEAM orchestrator)
 ab_band: 5400-5499

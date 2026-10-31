@@ -134,3 +134,20 @@ The kilometre pipe at 1e-12:
 `a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval`,
 run on main at `CAD_TOLERANCE_EPS=1e-12`, passes: every frame and pose, the (1e3, −7e2, 4e2) one included, encloses at `Interval`. **Gone**
 (#5442), as the 2026-10-20 section says.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds, in kind. The premise of the first section is gone:
+`LAST_ROUND_EVERY_LANE_RUNS` and `PastTarget::refine` went in PRs 5589
+and 5628. Each face now refines to its own `Floor` or `Wall` in one
+`walk_set` (`crates/topo/src/props.rs:826`), and `bound_holds` is at
+`crates/topo/src/boolean/ops.rs:2802`. The scale dependence remains.
+`crates/sweep/tests/reach_volume_backstop.rs:315`–`336`
+(`last_round_open`) now states the open range as ≈ 1.2e-13·s. The
+right answer stops deciding between 6e13·ε and 1e14·ε at ε = 1e-9,
+where it was 3e12·ε to 4e12·ε under the round caps.
+`an_open_sign_beyond_the_band_at_the_last_round_refuses` (`:594`)
+still pins the refusal and cites this row. The threshold moved about
+20× outward, but it still exists and still grows with the body, so
+the band is kept at P2. The `row2_backstop_right_answer_by_scale` probe
+(`crates/sweep/tests/quad_frame_remeasure.rs:165`) was not re-run.

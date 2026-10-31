@@ -58,15 +58,41 @@ this order:
 - **E1b**: incidence ends by `EdgeAuthority`. It threads the authority
   into topo's ending function and the mint's routes. E1 keeps today's
   `CarrierOffChart` / `ChartIncidence` endings.
-- **E1c**: the plane and cylinder mints read incidence. Today the plane
-  mint images any carrier, and the cylinder mint reads incidence only
-  where its orientation reading is in band (E1's general lane), so
-  elsewhere both meter a carrier's miss as a residual at the samples. A
-  carrier off a plane or cylinder face ends as `ChartResidual`'s defect
-  whoever placed it, and E1b's authority routing never sees it
+- **E1d**: incidence ends by the door that reads it (Ev, `[ev]` PR 5838; the ruling is in
+  `work/pcert/who-placed-it-is-read-off-the-description-not-the-door.md`). Topo's construction
+  tier becomes kernel-internal: pncad stops re-exporting the Euler operators, the description
+  setters and their spec types. That is a seam with the `lib` program's pncad surface. E1b's
+  authority routing comes out: `AuthorityKind`, `DeclaredOffChart`, `DeclaredIncidence` and
+  `render_by`. A definite miss at a build is a kernel defect, and at rest a stored
+  contradiction. A read in band ends in the decision's lever at every door. At the import door,
+  the damaged-file ending applies until EXCH's ε_in healing lands (this fixes E1b's import
+  regression).
+- **E1d2**: the construction tier is sealed. The Euler operators and setters are
+  inherent methods on `topo::Body`, so a re-export cannot hide them: they move into a
+  pub trait `topo::construction::Construct`, and the inherent methods become
+  `pub(crate)`. pncad's `topo` becomes a curated module that omits `construction` and its
+  spec/result types, as `pncad::profile` already does. Kernel crates import the trait.
+  E1d lands the endings first; this unit makes the ruling's "not public" true.
+- **E1c**: every mint reads incidence before it meters a carrier's miss.
+  Today the plane mint images any carrier; the cylinder mint reads
+  incidence only where its orientation reading is in band (E1's general
+  lane); and the CLASS arms of the sphere, cone and torus mints (the
+  sphere's polar circle, the cone's rim, the torus's parallel) image a
+  carrier their class gates accept without an incidence read (review A on
+  E1d); and the sphere and torus refuse an ellipse by kind, before any
+  incidence read (review on PR 5844). Each then meters the carrier's miss as a residual at the samples,
+  so a carrier off its face ends `ChartResidual`'s defect, and at the
+  import door its ε_in offer, where E1d's door rule would end it: a
+  definite miss by the door, a read in band by its lever
   (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`;
-  its cylinder half touches the arm E2 re-reads). D3's incidence clause is finished only on the charts
-  whose mint reads incidence (sphere, cone, torus) until it lands.
+  its cylinder half touches the arm E2 re-reads). D3's incidence clause
+  is not finished on any chart until it lands: on the sphere, cone and
+  torus it holds only on the carriers their class gates send to the
+  incidence test. It lands before E1e, so the incidence clause is whole
+  before the `Display` work.
+- **E1e**: a refusal's `Display` carries only its payload, and its ending exists only
+  through `render(at)`. A gate counts the production spelling sites per door. Before cutting
+  E1e, check whether the refusal-shape guard and the step-import fixtures read `Display`.
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
   `chart_iso_family`'s re-read. D3's "own envelope carries the miss"

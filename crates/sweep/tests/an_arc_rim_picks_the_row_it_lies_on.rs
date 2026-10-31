@@ -24,8 +24,10 @@ use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{stacked_at, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
 use topo::pcurves::PcurveMintError;
-use topo::{Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -219,7 +221,7 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     let mut spec = geom.restated_spec();
     spec.description = EdgeDescriptionSpec::Intersection {
         pair: SurfacePair::new(s1, s2),
-        witness: geom.carrier().eval(0.5 * (t0 + t1)),
+        selector: geom_brep::CurveSelector::Witness(geom.carrier().eval(0.5 * (t0 + t1))),
     };
     let before = format!("{body:?}");
     let refused = body.set_edge_curve(edge, spec, tol());

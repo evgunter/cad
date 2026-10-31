@@ -4,9 +4,7 @@ kind: issue
 title: Origin-anchored fan/volume oracle copies remain across test and doc templates - post-issue-1362 enumeration
 status: open
 opened: 2026-08-31
-github: 1401
 refs: [1362, 1389, sign-asserts-on-structurally-zero-measurements]
-track: W
 priority: P4
 cost: E
 ---

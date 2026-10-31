@@ -8,7 +8,7 @@ opened: 2026-10-12
 closed: 2026-10-13
 priority: P2
 cost: M
-refs: [periodic-branch-floor-remains-at-three-sites, loop-walk-branch-is-an-opaque-floor-atom, the-period-jump-has-no-ruling, props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor]
+refs: [periodic-branch-floor-remains-at-three-sites, loop-walk-branch-is-an-opaque-floor-atom, the-period-jump-has-no-ruling, 5375]
 ---
 
 
@@ -148,7 +148,7 @@ there because no identity reads the root.
 
 **Moved:**
 - FLUX's two `props::curved` sites:
-  `work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor.md`.
+  `props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor`, closed by PR 5375.
 - The pole's strict branch, `reduce_periodic` and sugar's ±π:
   `the-period-jump-has-no-ruling`.
 - Found reading the readers: the section ruling's seam-blind root order,

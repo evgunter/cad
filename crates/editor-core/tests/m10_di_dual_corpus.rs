@@ -207,41 +207,56 @@ fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
 }
 
 /// The census arm at `Interval` (the certifying scalar the hosted
-/// interval lane gates): `assemble` refuses and accepts on exactly the
+/// interval lane gates): the at-rest check could not look at exactly the
 /// same corpus documents as at `f64`. This is the corpus-level pin of
 /// `Interval::gate_at_rest_declared` actually validating — gutting it
-/// flips the refusing documents green and reds this row. (The f64
-/// side of the same pin is `r2_m10_di_probes`'s divergence row; the
+/// leaves the could-not-look documents clean and reds this row. (The
 /// refusing-subject pins for every certifying arm are `topo`'s
 /// `at_rest_policy_tests`.)
 #[test]
-fn assemble_census_verdicts_match_f64_at_interval() {
-    use editor_core::assemble;
+fn at_rest_census_verdicts_match_f64_at_interval() {
+    // Pinned red: at ε = 1e-12 `reshaped_rod`'s census reads f64 `Some(false)`
+    // against Interval `Some(true)`
+    // (`work/scalar/main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the at-rest census across scalars",
+        &[
+            "reshaped_rod: the census disagreed across certifying scalars (f64 None vs Interval None)\n  left: Some(false)\n right: Some(true)",
+        ],
+        at_rest_census_verdicts_match_f64_at_interval_row,
+    );
+}
+
+/// The row [`at_rest_census_verdicts_match_f64_at_interval`] runs, under its pin.
+fn at_rest_census_verdicts_match_f64_at_interval_row() {
     use geom_core::Interval;
-    let tol = Tol::witness();
-    let mut refused: Vec<&'static str> = Vec::new();
+    let blind = |findings: Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>| {
+        findings.map(|f| !crate::fixture::could_not_look(&f).is_empty())
+    };
+    let mut blinded: Vec<&'static str> = Vec::new();
     for doc in documents() {
         let ev_f = eval::<f64>(&doc.doc);
         let ev_i = eval::<Interval>(&doc.doc);
-        let f = assemble(&doc.doc, &ev_f, tol);
-        let i = assemble(&doc.doc, &ev_i, tol);
+        let f = blind(crate::fixture::at_rest(&doc.doc, &ev_f));
+        let i = blind(crate::fixture::at_rest(&doc.doc, &ev_i));
         assert_eq!(
-            f.is_ok(),
-            i.is_ok(),
-            "{}: the census door disagreed across certifying scalars \
-             (f64 {:?} vs Interval {:?})",
+            f.as_ref().ok(),
+            i.as_ref().ok(),
+            "{}: the census disagreed across certifying scalars (f64 {:?} vs Interval {:?})",
             doc.name,
-            f.as_ref().err().map(|e| e.to_string()),
-            i.as_ref().err().map(|e| e.to_string())
+            f.as_ref().err().map(ToString::to_string),
+            i.as_ref().err().map(ToString::to_string)
         );
-        if i.is_err() {
-            refused.push(doc.name);
+        if i == Ok(true) {
+            blinded.push(doc.name);
         }
     }
     assert!(
-        !refused.is_empty(),
-        "no corpus document refuses the census at Interval — this row \
-         no longer pins the Interval census arm; find a refusing witness"
+        !blinded.is_empty(),
+        "no corpus document's census could not look at Interval — this row \
+         no longer pins the Interval census arm; find a witness"
     );
 }
 

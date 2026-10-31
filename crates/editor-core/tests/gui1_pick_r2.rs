@@ -84,7 +84,7 @@ fn box_node(doc: ProfileDoc, ox: f64, oy: f64, w: f64, h: f64) -> (ProfileDoc, R
 
 fn mesh_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Mesh {
     let body: &Body<f64> = match &ev.value(node).expect("node evaluates").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("expected a body, got {}", other.kind_name()),
     };
     mesh::tessellate(body, DELTA, Tol::witness()).expect("body tessellates")

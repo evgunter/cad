@@ -4,7 +4,6 @@ kind: issue
 title: perf - tier 3's per-face Approx re-derivation is a grid per face, measure it on a real shell body
 status: open
 opened: 2026-08-26
-github: 1019
 refs: [1012, 1048]
 priority: P4
 cost: D

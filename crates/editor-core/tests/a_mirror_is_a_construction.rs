@@ -57,7 +57,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId) {
 
 fn body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
     match ev.nodes.get(&id) {
-        Some(NodeResult::Ok(v)) => v.payload.output_body(0).expect("one body"),
+        Some(NodeResult::Ok(v)) => (v.payload.output_body(0).expect("one body")).body(),
         other => panic!("node {id:?} did not build: {other:?}"),
     }
 }

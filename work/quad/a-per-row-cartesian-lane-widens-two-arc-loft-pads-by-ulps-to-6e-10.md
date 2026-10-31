@@ -54,3 +54,11 @@ decisions. That move was not bisected separately.
 The vpad widening at 1e-6 is explained, which the ulp-level apad moves
 do not need, and is either fixed or shown to be the price of the
 Cartesian lane's exact arithmetic on that row.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. PRs 5589, 5628, 5741 and 5815 moved no reading on this
+line: `crates/sweep/tests/thread-count-digest/eps-1e-6.txt:7` still reads
+`arc_loft_1e9eps vpad=40a1452432655556` (2.2105706969896955e3), the
+widened value. The digest re-cuts since changed verdict counts and
+hashes only. The widening is still unexplained.

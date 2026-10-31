@@ -369,3 +369,65 @@ bottom edges. Its 3′ refuses `CensusUndecidable` on the rod's wall
 against a plate face that it meets only at a cap circle's recorded
 edge–edge point. The n-ary union row that uses it
 (`editor_core` `union_fold_face_face_touch`) does not run 3′.
+
+## 2026-10-26 — two more apart readings (RESTREAD, `restread/curved-pairs-apart`)
+
+Re-measured on main `ed68a59e` before building:
+- **ZIP's plug** passes (both splits tried).
+- **REACH's door classes**: the boolean door's gate (`door-tier3-meter`,
+  every `sweep` result in the `ci` profile, release) refuses 0 of 3794
+  gated results.
+- **TANG's tilted stubs** pass: every pose of `planar_ring_arc_closure`
+  decides.
+- **Still refusing on main:**
+  - TANG's ball-cut lumps (`a_ring_on_a_sphere_face`, 3 rows);
+  - JOIN-2's grid, 850 `BAD`;
+  - FLUSH's pocket, 12 `BAD`;
+  - a box off a rod's wall within about 0.04 of it.
+
+Arm 1's turned-direction test now reads two more things:
+- **The offset from an axis or centre** either face proposes to the
+  other's nearest boundary segment point (`census::depth_gap::toward`),
+  where a curved face lies within its carrier's radius of that axis or
+  centre.
+- **A sphere face's held reach** (`census::held_reach_in`): along each
+  direction, no further than its boundary's reach at an end whose pole
+  the face places `Out`.
+
+Moved:
+- **The ball-cut lumps pass** (`a_ring_on_a_sphere_face` re-baselined
+  to tier 3′ `Ok`; `cross_solid_apart::a_bar_through_a_ball_…`).
+- **A box off a rod passes at 0.04 and 1e-3**, and touching still
+  refuses (`cross_solid_apart::a_box_off_a_rod_…`).
+- **The tilted stubs' `Undecided` acceptance is retired**
+  (`planar_ring_arc_closure`).
+- **JOIN-2's grid: 850 → 794 `BAD`.** All 48 rounded-plate poses apart
+  in plan clear. The 544 rounded-plate lines left all touch or overlap
+  in plan. In the L grid, 258 → 250.
+- **FLUSH's pocket stays at 12.**
+
+What is left of the certify-apart half:
+- **A sliver or a lens** that only a third face's normal or a chord
+  parts: `census-arm-1-reads-directions-from-the-pairs-own-faces-only`.
+- **Coplanar faces no line separates** (the L's notch):
+  `census-arm-1-cannot-part-coplanar-faces-no-line-separates`.
+
+Touches keep `CurvedWithinReach` under the D10 hold, as above. JOIN's
+delta-arc battery reads 346 lines failing 3′ alone on the branch;
+nothing measured it on today's main, and this change only adds clears.
+
+## 2026-10-27 — the touch behind it now reads (ATREST, `atrest/gap-reads-a-cell-against-a-curved-face`)
+
+The touch analysis now reads a vertex resting strictly inside a sphere or cylinder face of another solid, where that face is all the other solid holds at the point. It judges the vertex's planar link against the face's carrier (`topo::link::rest::by_round`, through `Germ::touch_at_point` in `census.rs`). This arm still refuses such a pair (`CurvedWithinReach`) before any record site is read: the pair is the vertex's planar faces against the round face. So no verdict moves, and the instrumented topo, sweep, step-import and editor-core suites never reach the new reading. When this row clears a curved × planar pair down to its touches, a recorded vertex-on-sphere or vertex-on-cylinder touch reads Rest or Crossing, not `TouchUnreadable`. A plain deferral of the pair to its recorded touches is not sound. This arm is the only reader of a curved × planar pair, because the exact sweeps hold planar boundaries only. The two faces can also meet away from every record, for example where the vertex's planar face cuts the sphere elsewhere, and a deferral would hide that meeting. The clear needs the pair's whole meeting accounted for: its separation off a neighbourhood of each recorded touch, or a meeting set the touches cover.
+
+## Also measured: two lumps touching along a line, one a disc slab (2026-10-30)
+
+PR 6053's review (`crates/sweep/tests/review_arm_vs_reach_probes.rs`
+`review_curved`): the disc slab of radius `r` (`0.5`, `0.05`, `2.0`)
+through the origin, centred below it, beside a quad slab whose long
+edge leaves the origin `θ` off the disc's tangent. Where the two touch
+along a line, the union is two lumps and fails tier 3′ on
+`CensusUndecidable { MayOverlap }` (curved faces of two lumps in
+reach), on main as on that PR's head, at `θ = −0.1` too. PR 6053 makes
+more of these unions build where main refused (`θ = ±10⁻²`), so the
+finding now shows at more poses; the census reading is unchanged.

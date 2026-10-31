@@ -16,7 +16,9 @@ use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
 use sweep::test_support::{disc_of_arcs, extruded, finished, sketch_from_axes};
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceSurface};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()

@@ -7,7 +7,7 @@ opened: 2026-10-09
 closed: 2026-10-10
 branch: germ/cone-ring-volume
 pr: 4484
-refs: [an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane]
+refs: [4557]
 ---
 
 

@@ -118,6 +118,7 @@ impl Cone {
                     .map(|w| (p0 + c(w[0]), p0 + c(w[1])))
                     .collect(),
                 closed: false,
+                clear: None,
             })
             .collect();
         Link::of(p0, sectors).unwrap_or_else(|_| panic!("a link"))

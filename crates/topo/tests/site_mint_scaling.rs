@@ -13,11 +13,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::time::Instant;
+use topo::construction::Construct;
 
 use geom_core::{Band, Tol};
+use topo::construction::MevSite;
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
-use topo::{Body, HalfEdgeKey, MevSite};
+use topo::{Body, HalfEdgeKey};
 
 #[test]
 #[ignore = "timing evidence; run with --run-ignored only --no-capture"]

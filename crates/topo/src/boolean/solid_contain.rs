@@ -1428,7 +1428,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             let half = T::from_f64(0.5);
             let width = t1 - t0;
             // The edge's own turn, as its certificate decided it.
-            let Some(turn) = curve.certificate().turn else {
+            let Some(turn) = curve.turn().copied() else {
                 unreachable!("check 2 mints a turn for every circle")
             };
             match turn.turn() {
@@ -3799,6 +3799,11 @@ fn carrier_roots<T: Decide>(
                         Ok(roots) => Ok(roots),
                         Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                        // A touch of the ray is this ray's; a fault grazes too
+                        // (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
+                        Err(RootRefusal::Touch(_) | RootRefusal::Fault(_)) => {
+                            return Err(RayFault::Graze);
+                        }
                     };
                     match torus_crossings(face, found)? {
                         Some(found) => {
@@ -4479,6 +4484,11 @@ pub(crate) fn ray_crossings<T: Decide>(
                         Ok(roots) => Ok(roots),
                         Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                        // A touch of the ray is this ray's; a fault grazes too
+                        // (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
+                        Err(RootRefusal::Touch(_) | RootRefusal::Fault(_)) => {
+                            return Err(RayFault::Graze);
+                        }
                     };
                 let Some(found) = torus_crossings(face, roots)? else {
                     continue;

@@ -4,7 +4,6 @@ kind: issue
 title: Purchasable area tightness - a demand-triggered valve on the patch lanes' area enclosure (caller-requested target, typed refusal)
 status: deferred
 opened: 2026-08-31
-github: 1367
 refs: [870, 873, 472, 1315, 1366, S230]
 priority: P2
 cost: H
@@ -18,11 +17,11 @@ Opened 2026-08-31; 0 comments.
 
 **The ruling this sits under.** S-CERT **Q1** (Ev, in-chat 2026-08-29) declined always-on area metering: any realized geometry everywhere within ε of correct is valid, so the wide-but-sound default bracket stands and no funnel target is built — independently supported by the cost arithmetic, since an ε-scale area target is a ~10³–10⁴× piece-count multiplier under an O(h) rule. Purchasable tightness was explicitly deferred to a **demand-triggered valve, filed not built**. This is that filing.
 
-**What the default gives.** Both patch lanes fix `AREA_CELLS_PER_AXIS = 64` *before* the refinement rounds and no round recomputes it, so the area bracket is resolution-driven, not tolerance-driven: bit-identical at every ε and on `Interval`. Measured post-CERT-5 on shape (iii)'s loft: `area_pad` = 0.189612 m² on a 25.3214 m² surface (7.5e-3 relative) beside a `volume_pad` of 1.07e-13 m³ — eleven orders apart, because one is metered and the other is a denominator at a frozen resolution.
+**What the default gives.** Both patch lanes fix `AREA_CELLS_PER_SPAN = 32` cells a knot span *before* the refinement rounds and no round recomputes it, so the area bracket is resolution-driven, not tolerance-driven: bit-identical at every ε and on `Interval`. Measured post-CERT-5 on shape (iii)'s loft: `area_pad` = 0.189612 m² on a 25.3214 m² surface (7.5e-3 relative) beside a `volume_pad` of 1.07e-13 m³ — eleven orders apart, because one is metered and the other is a denominator at a frozen resolution.
 
 **The sketch.**
 1. An optional caller-supplied area target on the patch-lane entry points, defaulting to absent — absent must keep today's numbers bit-identical (D9), so the valve cannot be a change of default behaviour.
-2. `AREA_CELLS_PER_AXIS` recomputed per round when a target is present. It is currently pre-refinement and therefore *cannot* respond; this is the structural change, and it is why the valve is not a small patch.
+2. `AREA_CELLS_PER_SPAN` recomputed per round when a target is present. It is currently pre-refinement and therefore *cannot* respond; this is the structural change, and it is why the valve is not a small patch.
 3. A typed area-side refusal when the target is unreachable in budget — the analogue of `PropsError::QuadratureBudget` on the flux side. **Minting it changes which faces certify**, so it needs its own D2-addendum classification and a row-by-row argument over the shipped refusal set, exactly as `QUAD2_RATIONAL_MAX_ROUNDS` does (issue 1315).
 4. Re-cost the round budget against an O(h) rule: 2× the cells per halving of the width, per axis.
 

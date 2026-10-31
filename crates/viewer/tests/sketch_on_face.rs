@@ -16,6 +16,7 @@
 
 use crate::common;
 use common::{inserted, len};
+use pncad::document::{Dimension, Formula};
 
 use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
@@ -66,7 +67,7 @@ fn boss_on(face: FaceSelection) -> SessionOp {
         face,
         loops: vec![common::rectangle_loop([0.0, 0.0], BOSS[0], BOSS[1])],
         distance: len(BOSS[2]),
-        spin: common::ang(0.0),
+        spin: Formula::zero(Dimension::Angle),
     }
 }
 

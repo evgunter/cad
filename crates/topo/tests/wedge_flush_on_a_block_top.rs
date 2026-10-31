@@ -60,7 +60,6 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
             face_facing(&block, 1.0),
             &tool,
             face_facing(&tool, facing),
-            false,
             band,
         );
         let door = match glue {

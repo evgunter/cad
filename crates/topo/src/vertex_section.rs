@@ -17,7 +17,7 @@
 //!
 //! Which faces a section enters from the vertex is the neighbourhood
 //! walk's reading of the vertex's edges and sectors
-//! ([`crate::splitting::entry_side`], [`crate::splitting::wide_entry`]):
+//! ([`crate::splitting::entry_side`], [`crate::splitting::wide_entries`]):
 //! a face's sector holds the plane's trace where its two bounds leave on
 //! opposite sides of the plane, or where it is wide and its subdivision
 //! direction leaves on the side its bounds do not. A sector with a bound
@@ -43,8 +43,9 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_shape::SlitTips;
 use crate::splitting::{
-    EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entry,
+    EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
 };
 use crate::validate::decide_reported;
 
@@ -99,8 +100,9 @@ pub(crate) enum VertexRefusal {
     Plane(&'static str),
 }
 
-/// Decides `vertex`, at point `at` and `offset` from `plane`, ON the
-/// plane, above it or below it.
+/// Decides `vertex` of `body`, whose slit tips at rest are `tips`, at
+/// point `at` and `offset` from `plane`, ON the plane, above it or
+/// below it.
 ///
 /// The offset is decided first, under the door's own `name`, as it
 /// always was: an in-band offset escalates and a definite one is the
@@ -114,7 +116,7 @@ pub(crate) enum VertexRefusal {
 /// [`VertexRefusal`].
 pub(crate) fn decide_vertex_on_plane<T: Decide>(
     name: &'static str,
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     plane: impl FnOnce() -> Result<SectionPlane<T>, VertexRefusal>,
     (offset, far): (
@@ -128,7 +130,13 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
     if on_plane.sign != Sign::Zero {
         return Ok(on_plane);
     }
-    read_sections(body, (vertex, at), plane, (offset, on_plane, far), band)
+    read_sections(
+        (body, tips),
+        (vertex, at),
+        plane,
+        (offset, on_plane, far),
+        band,
+    )
 }
 
 /// [`decide_vertex_on_plane`] past the offset: `on_plane` is the
@@ -144,7 +152,7 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
 ///
 /// [`VertexRefusal`].
 pub(crate) fn read_sections<T: Decide>(
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     plane: impl FnOnce() -> Result<SectionPlane<T>, VertexRefusal>,
     (offset, on_plane, far): (
@@ -159,11 +167,18 @@ pub(crate) fn read_sections<T: Decide>(
         .iter()
         .map(|&he| crate::sector_face::face_of(body, vertex, he))
         .collect();
-    if !faces.iter().any(|&face| read_kind(body, face, at)) {
+    if !faces.iter().any(|&face| read_kind(body, face, at, band)) {
         return Ok(on_plane);
     }
     let plane = plane()?;
-    let entered = entered_faces(body, (vertex, at), (&orbit, &faces), plane, &far, band)?;
+    let entered = entered_faces(
+        (body, tips),
+        (vertex, at),
+        (&orbit, &faces),
+        plane,
+        &far,
+        band,
+    )?;
     let Some(sine) = entered
         .into_iter()
         .filter_map(|face| section_sine(body, (vertex, at), face, plane, band))
@@ -204,35 +219,38 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// and a tangent plane there. A planar face's section is a line through
 /// its ends; a fitted face has no implicit normal to read `ψ` from, and
 /// the section the join fits in it is certified at the fit's own
-/// resolution; at a cone's apex the wall has no normal, and a plane
-/// through it cuts the cone along rulings or at the apex alone, which
-/// the apex's own refusals answer.
+/// resolution. At a cone's apex (decided as the sector walk decides it,
+/// [`crate::face_normal::cone_point`]) the wall has no tangent plane,
+/// and a plane through the apex cuts the cone along rulings, which are
+/// minted straight, or meets it at the apex alone. A vertex near the
+/// axis but not at the apex is read; one whose apex reading escalates
+/// is read, and its sector's resolution refuses it.
 ///
 /// The split's walk refuses a sphere's or a torus's sector
 /// (`neighborhood::sector_face`) because the split's gate refuses those
 /// kinds wherever the plane may meet them; the Boolean serves them, so
 /// this reading resolves sectors through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.
-fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>) -> bool {
+fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    let wall = body.face_surface_linked(face, f);
-    matches!(
-        wall,
+    match *body.face_surface_linked(face, f) {
+        geom::Surface::Cone { apex, axis, .. } => !matches!(
+            crate::face_normal::cone_point(apex, axis, at, band),
+            Ok(crate::face_normal::ConePoint::Apex)
+        ),
         geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-    ) && {
-        let g = geom_brep::implicit_gradient(wall, at);
-        !(g.x.is_poison() || g.y.is_poison() || g.z.is_poison())
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Torus { .. } => true,
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => false,
     }
 }
 
 /// The read faces ([`read_kind`]) whose sector at the vertex holds the
 /// plane's trace (module docs). `orbit` and `faces` are the vertex's
-/// orbit and each orbit half-edge's sector face.
+/// orbit and each orbit half-edge's sector face; a sector at one of
+/// `tips` is the face's full turn round the slit's tip.
 fn entered_faces<T: Decide>(
-    body: &Body<T>,
+    (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
     (orbit, faces): (&[HalfEdgeKey], &[FaceKey]),
     plane: SectionPlane<T>,
@@ -261,7 +279,7 @@ fn entered_faces<T: Decide>(
         .collect::<Result<Vec<_>, _>>()?;
     let mut entered = Vec::new();
     for (i, (&he, &face)) in orbit.iter().zip(faces).enumerate() {
-        if !read_kind(body, face, at) || entered.contains(&face) {
+        if !read_kind(body, face, at, band) || entered.contains(&face) {
             continue;
         }
         let next = (i + 1) % orbit.len();
@@ -269,20 +287,26 @@ fn entered_faces<T: Decide>(
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
-                let resolved =
-                    crate::sector_face::resolve(body, vertex, he, band).unwrap_or_else(|e| {
+                let resolved = match crate::sector_face::resolve(body, vertex, he, band) {
+                    Ok(resolved) => resolved,
+                    Err(crate::sector_face::SectorFaceError::ApexUndecided { diag, .. }) => {
+                        return Err(VertexRefusal::Undecided(diag));
+                    }
+                    Err(e) => {
                         unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")
-                    });
-                wide_entry(
+                    }
+                };
+                wide_entries(
                     (vertex, face),
                     (dir_a, dir_b),
-                    resolved.normal,
-                    he == orbit[next],
+                    resolved.at_vertex,
+                    tips.bounds(vertex, face, he == orbit[next]),
                     n,
                     band,
                 )
                 .map_err(VertexRefusal::Walk)?
-                .is_some_and(|(_, _, side)| opposes(side, a))
+                .iter()
+                .any(|&(_, _, side)| opposes(side, a))
             }
             _ => false,
         };

@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use topo::construction::Construct;
 
 use profile::RawLoop;
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
@@ -829,7 +830,11 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
     for r in &t.rims[0] {
         let e = t.body.get_edge(r.unwrap()).unwrap();
         let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        let EdgeDescription::Intersection { witness, .. } = *c.description() else {
+        let EdgeDescription::Intersection {
+            selector: geom_brep::CurveSelector::Witness(witness),
+            ..
+        } = *c.description()
+        else {
             panic!("washer rims are Intersections");
         };
         let (t0, t1) = c.params();
@@ -884,7 +889,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair,
-            witness: start,
+            selector: geom_brep::CurveSelector::Witness(start),
         },
         carrier,
         param_start: t0,
@@ -1145,7 +1150,7 @@ fn survives_near_full_period_rim_span_escalates() {
     // coincide, so the only honest failure is the span headroom band.
     let err = body
         .mev(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             q,

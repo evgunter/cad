@@ -1,13 +1,13 @@
 //! Euler operators — the sanctioned construction path for topology (D1).
 //!
-//! This module implements the make-direction operators [`Body::mvfs`],
-//! [`Body::mev`], and [`Body::mef`] (Mäntylä ch. 9 semantics, ch. 11
+//! This module implements the make-direction operators [`Body::mvfs`](crate::construction::Construct::mvfs),
+//! [`Body::mev`](crate::construction::Construct::mev), and [`Body::mef`](crate::construction::Construct::mef) (Mäntylä ch. 9 semantics, ch. 11
 //! surgeries re-derived under our orientation convention), plus the
 //! addressing helper [`Body::find_half_edge`]. The ring/genus operators
-//! ([`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`]) and the `ring_move`
+//! ([`Body::kemr`](crate::construction::Construct::kemr), [`Body::mekr`](crate::construction::Construct::mekr), [`Body::kfmrh`](crate::construction::Construct::kfmrh)) and the `ring_move`
 //! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3),
-//! the kill-direction duals ([`Body::kvfs`], [`Body::kev`],
-//! [`Body::kef`], [`Body::mfkrh`]) in [`crate::euler_kill`] (M1 PR 4);
+//! the kill-direction duals ([`Body::kvfs`](crate::construction::Construct::kvfs), [`Body::kev`](crate::construction::Construct::kev),
+//! [`Body::kef`](crate::construction::Construct::kef), [`Body::mfkrh`](crate::construction::Construct::mfkrh)) in [`crate::euler_kill`] (M1 PR 4);
 //! all share this module's contracts and [`EulerOpError`]. Since M1
 //! PR 5 the raw-insertion builder is `pub(crate)`: these operators are
 //! the **only** public construction path (D1).
@@ -73,12 +73,12 @@
 //!   **preserves tier 1, checked at every observable boundary**: the
 //!   Euler operators with their chord/line sugar, and the non-operator
 //!   structural mutators
-//!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
+//!   ([`Body::ring_move`](crate::construction::Construct::ring_move), [`Body::split_edge`](crate::construction::Construct::split_edge), [`Body::movefac`](crate::construction::Construct::movefac),
 //!   [`Body::merge_coplanar_faces`]) declare the same debug
 //!   postcondition, or open a surgery scope and close it with the
 //!   sweep, or are composed of doors that do; the
 //!   attach/metadata setters re-certify under the same tier-1
-//!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
+//!   assertion ([`Body::set_face_surface`](crate::construction::Construct::set_face_surface), [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve))
 //!   or write fields tier 1 does not constrain. **The closure property
 //!   is the claim; a count of the doors is not** — an enumeration
 //!   frozen into this sentence is what rots as doors are added, and
@@ -135,15 +135,11 @@
 //! **uncertified spec** ([`geom_brep::EdgeCurveSpec`]: D2 intensional
 //! description + carrier cache + parameter interval) and run the D4 ¶2
 //! certification gate *before mutating*: the spec is certified against
-//! the edge's endpoint points and the body's surfaces, with the plane ×
-//! NURBS lane the scalar's policy holds
-//! ([`crate::AtRestPolicy::nurbs_lane`]), and a failure is a typed
-//! [`EulerOpError::Certification`] with the body untouched (atomicity
-//! extends over the geometry gate). A spec of that class at a scalar
-//! holding no lane is [`EulerOpError::NurbsLaneUnsupported`] instead,
-//! at every door, the new-edge mints included: the operators accept any
-//! spec that certifies, so `mef` onto a shared chart or a strut `mev`
-//! can mint the class. Face-minting operators take the new
+//! the edge's endpoint points and the body's surfaces through the
+//! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified
+//! in full where the scalar certifies, minted where it never does), and
+//! a failure is a typed [`EulerOpError::Certification`] with the body
+//! untouched (atomicity extends over the geometry gate). Face-minting operators take the new
 //! face's surface as a [`FaceSurface`] spec (inherit the split face's
 //! key / mint a new [`Surface`] / share an existing key); the new
 //! face's `sense` is derived on the parent's chart and stated by the
@@ -155,7 +151,7 @@
 //!   representable-unimplemented placeholder — the honest "no
 //!   description yet" state (a sweep's seed face becomes a cap whose
 //!   plane exists only later; attach it via
-//!   [`Body::set_face_surface`]). Legal mid-construction; the tier-3
+//!   [`Body::set_face_surface`](crate::construction::Construct::set_face_surface)). Legal mid-construction; the tier-3
 //!   validator rejects it at rest.
 //! - `mev`/`mef`/`mekr` certify their curve spec with `he_plus`'s
 //!   endpoints in the `he_plus` forward order (increasing carrier
@@ -164,15 +160,15 @@
 //! - Intrinsic (`Intersection`) descriptions typically attach **after**
 //!   the adjacent faces' surfaces exist (a swept edge is minted before
 //!   its side faces): mint with a conventional spec, then upgrade via
-//!   [`Body::set_edge_curve`], which also enforces
+//!   [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), which also enforces
 //!   description-adjacency coherence. The operators themselves accept
 //!   any spec that certifies, save `mef` minting a face on another
 //!   key: the chord's two faces then wear the old face's key and the
 //!   one it mints, both known in its plan phase, so it asks the same
 //!   adjacency question of the chord.
 //! - Chord-line sugar for polyhedral construction and the migrated M1
-//!   suites: [`Body::mev_line`], [`Body::mef_chord`],
-//!   [`Body::mekr_chord`] derive the spec from the site's endpoint
+//!   suites: [`Body::mev_line`](crate::construction::Construct::mev_line), [`Body::mef_chord`](crate::construction::Construct::mef_chord),
+//!   [`Body::mekr_chord`](crate::construction::Construct::mekr_chord) derive the spec from the site's endpoint
 //!   points ([`geom_brep::EdgeCurveSpec::line_between`]; self-loop
 //!   sites use the canonical scaffolding circle,
 //!   [`geom_brep::EdgeCurveSpec::self_loop_circle_at`]).
@@ -209,7 +205,8 @@
 //!
 //! ```
 //! use geom_core::Point3;
-//! use topo::{Body, MefSite, MevSite};
+//! use topo::Body;
+//! use topo::construction::{Construct, MefSite, MevSite};
 //! use geom_core::Tol;
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
@@ -250,7 +247,7 @@ use geom::Surface;
 use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
-use crate::policy_lane::{ByPolicy, KernelSite, Origin};
+use crate::policy_lane::{KernelSite, Origin};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -310,40 +307,40 @@ pub enum FaceSurface<T: Real> {
 /// strand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RechartDoor {
-    /// [`Body::set_face_surface`]: re-charts a face in place.
+    /// [`Body::set_face_surface`](crate::construction::Construct::set_face_surface): re-charts a face in place.
     SetFaceSurface,
-    /// [`Body::mef`] and [`Body::mef_chord`]: mints a face from part of
+    /// [`Body::mef`](crate::construction::Construct::mef) and [`Body::mef_chord`](crate::construction::Construct::mef_chord): mints a face from part of
     /// a loop (the run `[he1 .. he2)` and the chord's `he_minus`).
     Mef,
-    /// [`Body::mfkrh`] and [`Body::mfkrh_minting`]: mints a face from a
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh) and [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting): mints a face from a
     /// ring.
     Mfkrh,
-    /// [`Body::mfkrh_plug`]: mints a face from a ring on a fresh
+    /// [`Body::mfkrh_plug`](crate::construction::Construct::mfkrh_plug): mints a face from a ring on a fresh
     /// placeholder chart, which asks only the strand. Its caller picks
-    /// no chart, so its lever is the door: [`Body::mfkrh`], which takes
+    /// no chart, so its lever is the door: [`Body::mfkrh`](crate::construction::Construct::mfkrh), which takes
     /// one.
     MfkrhPlug,
-    /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
+    /// [`Body::ring_move`](crate::construction::Construct::ring_move) and [`Body::ring_move_minting`](crate::construction::Construct::ring_move_minting): moves a
     /// ring onto another face.
     RingMove,
-    /// [`Body::set_face_surfaces_describing`]: re-charts faces with the
+    /// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing): re-charts faces with the
     /// re-descriptions it is handed. It refuses a stranded edge as
     /// [`EulerOpError::RechartUndescribed`], so it raises only
     /// [`EulerOpError::RechartUnvouched`]: onto a curved chart, where
     /// no residual is read.
     SetFaceSurfacesDescribing,
-    /// [`Body::kef`]: moves the dying face's remnant onto the surviving
+    /// [`Body::kef`](crate::construction::Construct::kef): moves the dying face's remnant onto the surviving
     /// face.
     Kef,
-    /// [`Body::kef_describing`]: [`RechartDoor::Kef`]'s move with the
+    /// [`Body::kef_describing`](crate::construction::Construct::kef_describing): [`RechartDoor::Kef`]'s move with the
     /// re-descriptions it is handed, under a band. Like
     /// [`RechartDoor::SetFaceSurfacesDescribing`], it raises only
     /// [`EulerOpError::RechartUnvouched`] of the two keys-only refusals.
     KefDescribing,
-    /// [`Body::kfmrh`]: moves the killed face's outer loop onto the
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh): moves the killed face's outer loop onto the
     /// surviving face as a ring.
     Kfmrh,
-    /// [`Body::kfmrh_describing`]: [`RechartDoor::Kfmrh`]'s move with
+    /// [`Body::kfmrh_describing`](crate::construction::Construct::kfmrh_describing): [`RechartDoor::Kfmrh`]'s move with
     /// the re-descriptions it is handed, under a band; as
     /// [`RechartDoor::KefDescribing`].
     KfmrhDescribing,
@@ -511,7 +508,7 @@ pub(crate) struct ResolvedFace {
     pub(crate) sense: bool,
 }
 
-/// Where [`Body::mev`] acts: the site addressing for "make edge,
+/// Where [`Body::mev`](crate::construction::Construct::mev) acts: the site addressing for "make edge,
 /// vertex".
 ///
 /// The ratified typed-`Empty` loop state ([`LoopBoundary::Empty`]) means
@@ -606,7 +603,7 @@ impl RunSite {
     }
 }
 
-/// Where [`Body::mef`] acts: the site addressing for "make edge, face".
+/// Where [`Body::mef`](crate::construction::Construct::mef) acts: the site addressing for "make edge, face".
 ///
 /// Same design as [`MevSite`]: the degenerate lone-vertex case is a
 /// typed variant, not a placeholder half-edge.
@@ -646,7 +643,7 @@ pub enum MefSite {
     },
 }
 
-/// Every key minted by one [`Body::mvfs`] call.
+/// Every key minted by one [`Body::mvfs`](crate::construction::Construct::mvfs) call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MvfsCreated {
     /// The new solid.
@@ -663,11 +660,11 @@ pub struct MvfsCreated {
     pub point: PointKey,
     /// The face's surface: the `Surface::Nurbs` "no description yet"
     /// placeholder (module docs, geometry policy) — attach the real
-    /// surface via [`Body::set_face_surface`] before rest.
+    /// surface via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest.
     pub surface: SurfaceKey,
 }
 
-/// Every key minted by one [`Body::mev`] call.
+/// Every key minted by one [`Body::mev`](crate::construction::Construct::mev) call.
 ///
 /// Direction convention (deviation from Mäntylä's `lmev`, documented in
 /// the [module docs](self)): `he_plus` runs **old vertex → new vertex**.
@@ -688,14 +685,14 @@ pub struct MevCreated {
     /// (`Fan`) or as the plus half's cycle partner (`Lone`).
     pub he_minus: HalfEdgeKey,
     /// The new vertex's point: minted with the given coordinates by
-    /// [`Body::mev`]; the old vertex's own under [`Body::mev_null`].
+    /// [`Body::mev`](crate::construction::Construct::mev); the old vertex's own under [`Body::mev_null`](crate::construction::Construct::mev_null).
     pub point: PointKey,
     /// The edge's certified curve (the attachment-gated `EdgeCurve`
     /// built from the given spec — M2 geometry policy, module docs).
     pub curve: CurveKey,
 }
 
-/// Every key minted by one [`Body::mef`] call.
+/// Every key minted by one [`Body::mef`](crate::construction::Construct::mef) call.
 ///
 /// Direction convention (Mäntylä's, kept): `he_plus` runs
 /// `start(he1) → start(he2)` and lands in the **old** loop; `he_minus`
@@ -724,7 +721,7 @@ pub struct MefCreated {
 /// output of the shared precondition block
 /// ([`Body::mev_fan_plan`]), consumed by the shared surgery
 /// ([`Body::mev_fan_execute`]). Crate-internal plumbing between
-/// [`Body::mev`] and [`Body::mev_null`].
+/// [`Body::mev`](crate::construction::Construct::mev) and [`Body::mev_null`](crate::construction::Construct::mev_null).
 pub(crate) struct MevFanPlan {
     /// The shared start vertex of `he1`/`he2`.
     pub(crate) v: VertexKey,
@@ -747,8 +744,8 @@ pub(crate) struct MevFanPlan {
 }
 
 /// What the shared mev surgery mints into the curve arena — a
-/// certified carrier ([`Body::mev`]) or the F9 null-scaffold entry
-/// ([`Body::mev_null`]). Selects the documented minting order (see
+/// certified carrier ([`Body::mev`](crate::construction::Construct::mev)) or the F9 null-scaffold entry
+/// ([`Body::mev_null`](crate::construction::Construct::mev_null)). Selects the documented minting order (see
 /// [`Body::mev_fan_execute`]).
 pub(crate) enum MevCurveMint<T: Real> {
     /// A certified carrier (the gate already ran).
@@ -761,7 +758,7 @@ pub(crate) enum MevCurveMint<T: Real> {
 /// The curve a make operator certifies for its new edge: the caller's
 /// spec, or the scaffolding its chord sugar derives from the endpoints
 /// the operator's own plan resolved, so the sugar
-/// ([`Body::mev_line`], [`Body::mef_chord`], `Body::mekr_chord`) keeps
+/// ([`Body::mev_line`](crate::construction::Construct::mev_line), [`Body::mef_chord`](crate::construction::Construct::mef_chord), `Body::mekr_chord`) keeps
 /// the operator's precondition order.
 pub(crate) enum NewCurve<T: Real> {
     /// The caller's spec.
@@ -789,7 +786,7 @@ impl<T: Real> NewCurve<T> {
     }
 }
 
-/// [`require_description_adjacent`] for the chord [`Body::mef`] mints,
+/// [`require_description_adjacent`] for the chord [`Body::mef`](crate::construction::Construct::mef) mints,
 /// whose faces wear `old`, the parent's key, and `after`, the new
 /// face's: asked where `after` is not `old`. Where it is, nothing is
 /// asked — the boolean pipeline's chord joins mint a chord with the
@@ -850,9 +847,9 @@ pub enum EulerOpError {
         error: CertifyError,
     },
     /// A re-based edge would carry a carrier that does not describe it
-    /// at the endpoints the move gives it: [`Body::mev`]'s fan site
+    /// at the endpoints the move gives it: [`Body::mev`](crate::construction::Construct::mev)'s fan site
     /// re-certifying the moved run's stored description, or
-    /// [`Body::kev_describing`] re-certifying a merged member it was
+    /// [`Body::kev_describing`](crate::construction::Construct::kev_describing) re-certifying a merged member it was
     /// not handed a spec for, or certifying the spec it was handed.
     /// Raised in the plan phase, so the body is untouched.
     ///
@@ -860,7 +857,7 @@ pub enum EulerOpError {
     /// certified cache (D2/D4 ¶2), so an operator that cannot certify
     /// the moved edge has nothing honest to write: re-describing it is
     /// the caller's decision, made with a spec of its own
-    /// ([`Body::set_edge_curve`], or the list [`Body::kev_describing`]
+    /// ([`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), or the list [`Body::kev_describing`](crate::construction::Construct::kev_describing)
     /// takes).
     RebasedCarrier {
         /// The re-based edge whose carrier no longer describes it.
@@ -868,22 +865,8 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec's certificate needs the NURBS lane (the classes are
-    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
-    /// scalar's policy holds no lane
-    /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
-    /// DL1). Every Euler door takes its lane from that policy, so a lane
-    /// missing there is the scalar's. The body is untouched.
-    NurbsLaneUnsupported {
-        /// The existing edge whose description is of the class; `None`
-        /// where the door was minting a new edge (`mev`, `mef`, `mekr`
-        /// and the ring doors), which has no key yet.
-        edge: Option<EdgeKey>,
-        /// The scalar the door ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
-    /// [`Body::mev`]'s fan site, or either kill door's fan merge
-    /// ([`Body::kev`], [`Body::kev_describing`]), would move one end of
+    /// [`Body::mev`](crate::construction::Construct::mev)'s fan site, or either kill door's fan merge
+    /// ([`Body::kev`](crate::construction::Construct::kev), [`Body::kev_describing`](crate::construction::Construct::kev_describing)), would move one end of
     /// a **null edge**
     /// ([`crate::CurveGeom::NullScaffold`]) onto another vertex and not
     /// the other: the moved run holds exactly one of its half-edges.
@@ -893,7 +876,7 @@ pub enum EulerOpError {
     /// `Body::certify_rebased_run`'s docs). Raised in the plan phase,
     /// so the body is untouched. A run holding both halves moves both
     /// ends onto the one vertex and is not refused; a fan split that
-    /// moves nothing is [`Body::mev_null`], and a merge that moves
+    /// moves nothing is [`Body::mev_null`](crate::construction::Construct::mev_null), and a merge that moves
     /// nothing is a kill of a null edge.
     ///
     /// Not [`EulerOpError::NullScaffoldCurve`], which is an operation
@@ -905,7 +888,7 @@ pub enum EulerOpError {
         /// The null edge the run would re-base.
         edge: EdgeKey,
     },
-    /// [`Body::kev`]'s fan merge would re-base these certified edges —
+    /// [`Body::kev`](crate::construction::Construct::kev)'s fan merge would re-base these certified edges —
     /// the members of the dying vertex's surviving fan — onto the
     /// surviving vertex, and the keys-only kill cannot certify a
     /// carrier there: it takes no band, so it asks no question a band
@@ -913,7 +896,7 @@ pub enum EulerOpError {
     /// member, one whose two vertices hold one point included. Raised
     /// in the plan phase, so the body is untouched.
     ///
-    /// The kill that can is [`Body::kev_describing`], which takes a
+    /// The kill that can is [`Body::kev_describing`](crate::construction::Construct::kev_describing), which takes a
     /// band, and a re-description for any member whose stored carrier
     /// does not describe it at the merged endpoints. Every certified
     /// member is named, in the dying vertex's clockwise orbit order
@@ -923,7 +906,7 @@ pub enum EulerOpError {
         /// The certified merged members, in orbit order.
         edges: Vec<EdgeKey>,
     },
-    /// [`Body::kev_describing`] was handed a re-description for an edge
+    /// [`Body::kev_describing`](crate::construction::Construct::kev_describing) was handed a re-description for an edge
     /// that is not a member of the merged fan: no half of it starts at
     /// the dying vertex once the killed edge is gone, so the merge does
     /// not re-base it (the killed edge itself included).
@@ -931,15 +914,15 @@ pub enum EulerOpError {
         /// The listed edge.
         edge: EdgeKey,
     },
-    /// [`Body::kev_describing`] or [`Body::set_face_surfaces_describing`]
+    /// [`Body::kev_describing`](crate::construction::Construct::kev_describing) or [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing)
     /// was handed two re-descriptions for one edge. Named at the second
     /// entry.
     DuplicateRedescription {
         /// The edge listed twice.
         edge: EdgeKey,
     },
-    /// A door writing a description ([`Body::set_edge_curve`], the
-    /// describing doors' listed specs, and the chord [`Body::mef`]
+    /// A door writing a description ([`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), the
+    /// describing doors' listed specs, and the chord [`Body::mef`](crate::construction::Construct::mef)
     /// mints): an intrinsic (`Intersection`) or `Seam` description's
     /// surface keys do not match the edge's two adjacent faces'
     /// surfaces, or a chart image names neither — the description does
@@ -957,11 +940,11 @@ pub enum EulerOpError {
     /// each description is adjacency-coherent now and would not be once
     /// the face, loop or run moves, which tier 3 reports at rest as
     /// `DescriptionNotAdjacent`. Every one is named — in edge-arena
-    /// order at [`Body::set_face_surface`], in the order the door moves
+    /// order at [`Body::set_face_surface`](crate::construction::Construct::set_face_surface), in the order the door moves
     /// them at the Euler doors — because the caller re-describes the
     /// whole list. The lever is the door's own ([`RechartDoor`]): the
     /// chart a face is re-charted or minted onto, or the face a loop
-    /// moves onto; [`Body::set_face_surfaces_describing`] takes a band
+    /// moves onto; [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing) takes a band
     /// and the re-descriptions. Raised in the plan phase, so the body is
     /// untouched.
     RechartStrandsDescriptions {
@@ -977,7 +960,7 @@ pub enum EulerOpError {
     /// vertices they end at, lie on its chart: on a plane, tier 3's
     /// `PlanarBoundaryResidual` / `PlanarFaceResidual` at rest. A
     /// keys-only door reads no residual; the describing door,
-    /// [`Body::set_face_surfaces_describing`], reads them on a plane
+    /// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing), reads them on a plane
     /// ([`EulerOpError::RechartOffBoundary`]) and not on a curved chart
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
     /// #638). Every one is named, in the order
@@ -999,8 +982,8 @@ pub enum EulerOpError {
         /// no key before the mutation phase.
         chord: bool,
     },
-    /// A describing door ([`Body::set_face_surfaces_describing`],
-    /// [`Body::kef_describing`], [`Body::kfmrh_describing`]) was handed
+    /// A describing door ([`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing),
+    /// [`Body::kef_describing`](crate::construction::Construct::kef_describing), [`Body::kfmrh_describing`](crate::construction::Construct::kfmrh_describing)) was handed
     /// no re-description for these edges, and the move would strand
     /// them as [`EulerOpError::RechartStrandsDescriptions`] names: the
     /// door re-describes nothing by default. Every one is named, in
@@ -1050,8 +1033,8 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
-    /// A describing kill ([`Body::kef_describing`],
-    /// [`Body::kfmrh_describing`]) was handed a re-description for an
+    /// A describing kill ([`Body::kef_describing`](crate::construction::Construct::kef_describing),
+    /// [`Body::kfmrh_describing`](crate::construction::Construct::kfmrh_describing)) was handed a re-description for an
     /// edge the kill does not move: none of its halves is in the moved
     /// remnant or ring. Raised in the plan phase, so the body is
     /// untouched.
@@ -1061,7 +1044,7 @@ pub enum EulerOpError {
         /// The listed edge.
         edge: EdgeKey,
     },
-    /// [`Body::set_face_surfaces_describing`] was handed one face
+    /// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing) was handed one face
     /// twice. Named at the second entry.
     FaceMovedTwice {
         /// The face listed twice.
@@ -1082,8 +1065,8 @@ pub enum EulerOpError {
     },
     /// The two half-edge arguments belong to different loops where one
     /// loop is required: [`MefSite::Chords`] splits one loop, and
-    /// [`Body::kemr`] kills an edge occurring twice in one loop (joining
-    /// two loops of a face is [`Body::mekr`]; joining two faces' loops
+    /// [`Body::kemr`](crate::construction::Construct::kemr) kills an edge occurring twice in one loop (joining
+    /// two loops of a face is [`Body::mekr`](crate::construction::Construct::mekr); joining two faces' loops
     /// is not an Euler op at all).
     NotSameLoop {
         /// The first half-edge.
@@ -1093,17 +1076,17 @@ pub enum EulerOpError {
     },
     /// A site named a loop that must be [`LoopBoundary::Empty`] but is
     /// not: the `Lone` sites of `mev`/`mef` and the `Empty*` sites of
-    /// [`Body::mekr`] apply to empty loops only, and [`Body::kvfs`]'s
+    /// [`Body::mekr`](crate::construction::Construct::mekr) apply to empty loops only, and [`Body::kvfs`](crate::construction::Construct::kvfs)'s
     /// skeletal face must have an empty outer loop.
     LoopNotEmpty {
         /// The non-empty loop.
         r#loop: LoopKey,
     },
-    /// [`Body::kev`]'s edge is a self-loop — both endpoints are one
+    /// [`Body::kev`](crate::construction::Construct::kev)'s edge is a self-loop — both endpoints are one
     /// vertex, so there is no far vertex to kill and no fan to merge.
     /// `kev` requires distinct end vertices (Mäntylä §9.2.3); a
-    /// self-loop edge is killed by [`Body::kef`] (its two sides border
-    /// distinct faces) or [`Body::kemr`] (it occurs twice in one loop).
+    /// self-loop edge is killed by [`Body::kef`](crate::construction::Construct::kef) (its two sides border
+    /// distinct faces) or [`Body::kemr`](crate::construction::Construct::kemr) (it occurs twice in one loop).
     SelfLoopEdge {
         /// The self-loop edge.
         edge: EdgeKey,
@@ -1111,16 +1094,16 @@ pub enum EulerOpError {
         vertex: VertexKey,
     },
     /// Two distinct loops are required but one loop was found:
-    /// [`Body::mekr`]'s target and ring anchors name the same loop
+    /// [`Body::mekr`](crate::construction::Construct::mekr)'s target and ring anchors name the same loop
     /// (`mekr` joins two *distinct* loops of a face), or
-    /// [`Body::kef`]'s edge occurs twice in one loop — killing such an
+    /// [`Body::kef`](crate::construction::Construct::kef)'s edge occurs twice in one loop — killing such an
     /// edge splits the loop instead of merging two faces, which is
-    /// [`Body::kemr`]'s job.
+    /// [`Body::kemr`](crate::construction::Construct::kemr)'s job.
     SameLoop {
         /// The loop named twice.
         r#loop: LoopKey,
     },
-    /// [`Body::mekr`]'s two loops belong to different faces — `mekr`
+    /// [`Body::mekr`](crate::construction::Construct::mekr)'s two loops belong to different faces — `mekr`
     /// merges loops of a single face.
     NotSameFace {
         /// The target-side loop.
@@ -1128,7 +1111,7 @@ pub enum EulerOpError {
         /// The ring-side loop, in a different face.
         ring: LoopKey,
     },
-    /// [`Body::set_null_face_pair`]'s record names a loop that is not
+    /// [`Body::set_null_face_pair`](crate::construction::Construct::set_null_face_pair)'s record names a loop that is not
     /// the marked face's own — neither its outer loop nor one of its
     /// rings. A null face is one face's two coincident loops
     /// ([`crate::null`]), so such a record describes none.
@@ -1140,33 +1123,33 @@ pub enum EulerOpError {
         r#loop: LoopKey,
     },
     /// A loop named as a ring is its face's outer loop:
-    /// [`Body::mekr`]'s ring argument, [`Body::ring_move`]'s ring, and
-    /// [`Body::mfkrh`]'s ring must be interior loops (members of
+    /// [`Body::mekr`](crate::construction::Construct::mekr)'s ring argument, [`Body::ring_move`](crate::construction::Construct::ring_move)'s ring, and
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s ring must be interior loops (members of
     /// [`crate::Face::rings`]).
     RingIsOuter {
         /// The loop that is an outer loop, not a ring.
         r#loop: LoopKey,
     },
     /// Two distinct faces are required but one face was found:
-    /// [`Body::kfmrh`]'s two face arguments are the same face (the
-    /// connected sum needs two distinct faces), or [`Body::kef`]'s
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s two face arguments are the same face (the
+    /// connected sum needs two distinct faces), or [`Body::kef`](crate::construction::Construct::kef)'s
     /// edge's two halves lie in different loops of ONE face — there is
     /// no second face to kill. (That configuration is what
-    /// [`Body::kfmrh`] on two ADJACENT faces leaves behind: the shared
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh) on two ADJACENT faces leaves behind: the shared
     /// edge's other half ends up in the demoted ring. Kill such an edge
-    /// with [`Body::kev`] when its endpoints are distinct — or
-    /// [`Body::kev_describing`], where the far vertex's merged fan
+    /// with [`Body::kev`](crate::construction::Construct::kev) when its endpoints are distinct — or
+    /// [`Body::kev_describing`](crate::construction::Construct::kev_describing), where the far vertex's merged fan
     /// carries certified edges; the
     /// self-loop variant has no direct one-op killer — promote the ring
-    /// back out with [`Body::mfkrh`], then [`Body::kef`].)
+    /// back out with [`Body::mfkrh`](crate::construction::Construct::mfkrh), then [`Body::kef`](crate::construction::Construct::kef).)
     SameFace {
         /// The face named twice.
         face: FaceKey,
     },
     /// The two faces lie in different shells where one shell is
-    /// required. Since M3 PR 1 [`Body::kfmrh`] **accepts** cross-shell
+    /// required. Since M3 PR 1 [`Body::kfmrh`](crate::construction::Construct::kfmrh) **accepts** cross-shell
     /// faces (same solid) as its shell-fusion form and no longer fires
-    /// this; [`Body::ring_move`] still only reparents within one shell
+    /// this; [`Body::ring_move`](crate::construction::Construct::ring_move) still only reparents within one shell
     /// (cross-shell ring re-homing has no ch. 14/15 consumer — a ring
     /// moves between faces of one shell after splits change
     /// containment).
@@ -1176,17 +1159,17 @@ pub enum EulerOpError {
         /// The second face, in a different shell.
         f2: FaceKey,
     },
-    /// A face that must be ring-free still has rings: [`Body::kfmrh`]'s
-    /// `f2` and [`Body::kef`]'s dying face are demoted/killed whole, and
-    /// [`Body::kvfs`]'s single face must be the bare skeletal face — in
+    /// A face that must be ring-free still has rings: [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s
+    /// `f2` and [`Body::kef`](crate::construction::Construct::kef)'s dying face are demoted/killed whole, and
+    /// [`Body::kvfs`](crate::construction::Construct::kvfs)'s single face must be the bare skeletal face — in
     /// every case the caller must move rings off first (via
-    /// [`Body::ring_move`]; for `kef`, killing the mate half kills the
+    /// [`Body::ring_move`](crate::construction::Construct::ring_move); for `kef`, killing the mate half kills the
     /// other side instead, which may already be ring-free).
     FaceHasRings {
         /// The face with rings.
         face: FaceKey,
     },
-    /// [`Body::kvfs`]'s solid does not have exactly one shell — the
+    /// [`Body::kvfs`](crate::construction::Construct::kvfs)'s solid does not have exactly one shell — the
     /// skeletal `mvfs` state it inverts has one.
     SolidNotSingleShell {
         /// The non-skeletal solid.
@@ -1194,7 +1177,7 @@ pub enum EulerOpError {
         /// How many shells it has (≠ 1).
         shells: usize,
     },
-    /// [`Body::kvfs`]'s solid's shell does not have exactly one face —
+    /// [`Body::kvfs`](crate::construction::Construct::kvfs)'s solid's shell does not have exactly one face —
     /// the skeletal `mvfs` state it inverts has one.
     ShellNotSingleFace {
         /// The non-skeletal shell.
@@ -1205,16 +1188,16 @@ pub enum EulerOpError {
     /// An operation requiring a certified carrier met M3 null-edge
     /// scaffolding ([`crate::null`]): the referenced curve entry is
     /// [`crate::CurveGeom::NullScaffold`], which has no carrier by
-    /// type. Fired by [`Body::split_edge`] (nothing to split), by
+    /// type. Fired by [`Body::split_edge`](crate::construction::Construct::split_edge) (nothing to split), by
     /// the sweep upgrade paths (nothing to upgrade), and by
-    /// [`Body::set_face_surfaces_describing`] on a listed null edge (a
+    /// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing) on a listed null edge (a
     /// null edge's first description mints its rows, which is
-    /// [`Body::set_edge_curve`]'s).
+    /// [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)'s).
     NullScaffoldCurve {
         /// The scaffolding curve entry.
         curve: CurveKey,
     },
-    /// [`Body::split_edge`]'s parameter is **definitely not interior**
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s parameter is **definitely not interior**
     /// to the edge's certified interval: one of the two sub-spans
     /// `t − t₀` / `t₁ − t` classified non-positive (metered in meters,
     /// like the certification span gate). Splitting at an endpoint (or
@@ -1227,7 +1210,7 @@ pub enum EulerOpError {
         /// the margin it classified, or definitely outside the edge.
         verdict: geom_brep::recourse::Refused,
     },
-    /// [`Body::split_edge`]'s interiority test escalated: a sub-span
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s interiority test escalated: a sub-span
     /// margin fell in the tolerance band (the split point is
     /// indistinguishable from an endpoint at this ε) or was poisoned.
     /// Q1 trilean discipline — in-band never silently rounds to either
@@ -1238,7 +1221,7 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a smooth edge — a tangency, or a pair its
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge) of a smooth edge — a tangency, or a pair its
     /// faces under-determine (`OnPair`): whether a child stays smooth
     /// along its own span is in band, at a station of the must-carry
     /// rule over the child
@@ -1257,7 +1240,7 @@ pub enum EulerOpError {
         /// The deciding station's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair):
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge) of a smooth edge (a tangency or a pair):
     /// whether the two faces curve apart along a child or share their
     /// curvature there is in band (`"tangent_second_order"`,
     /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
@@ -1270,7 +1253,7 @@ pub enum EulerOpError {
         /// The sagitta's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair): a
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge) of a smooth edge (a tangency or a pair): a
     /// station of the must-carry rule over a child reads the two faces
     /// at a corner ([`geom_brep::MustCarryRefusal::Refuted`]), against
     /// the smooth join the parent's description states.
@@ -1288,7 +1271,7 @@ pub enum EulerOpError {
         /// `None` where every station reads a corner.
         mixed: Option<geom_brep::MixedStations>,
     },
-    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// [`Body::describe_at_rest`](crate::construction::Construct::describe_at_rest) of an edge between two distinct
     /// surfaces: a station of the must-carry rule over it is in band
     /// ([`geom_brep::reask_pair`]), certifiable as neither the pair nor
     /// what its surfaces would determine.
@@ -1298,7 +1281,7 @@ pub enum EulerOpError {
         /// The deciding station's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// [`Body::describe_at_rest`](crate::construction::Construct::describe_at_rest) of an edge between two distinct
     /// surfaces: the must-carry rule over it reads a corner at one
     /// station and smooth at its neighbour (D2's mixed edge).
     RestJoinMixed {
@@ -1307,7 +1290,7 @@ pub enum EulerOpError {
         /// The two neighbouring stations that disagree.
         stations: geom_brep::MixedStations,
     },
-    /// [`Body::split_edge`] could not carry a parent half-edge's stored
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge) could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
@@ -1325,7 +1308,7 @@ pub enum EulerOpError {
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
     },
-    /// [`Body::split_edge`]: the one joint decision
+    /// [`Body::split_edge`](crate::construction::Construct::split_edge): the one joint decision
     /// (`crate::pcurves::decide_joint`) decided no element for the joint
     /// between the two children of a half-edge's row. The gap there is
     /// zero, and a zero gap meets the image's own orbit point at any
@@ -1344,7 +1327,7 @@ pub enum EulerOpError {
         /// where one escalated.
         diag: Option<geom_core::Indeterminate>,
     },
-    /// [`Body::kev_describing`]: the turn a general unsplice crosses a
+    /// [`Body::kev_describing`](crate::construction::Construct::kev_describing): the turn a general unsplice crosses a
     /// killed half whole by is not decided at the door's band, so the
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
@@ -1360,7 +1343,7 @@ pub enum EulerOpError {
         /// miss.
         diag: Option<geom_core::Indeterminate>,
     },
-    /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
+    /// [`Body::mev`](crate::construction::Construct::mev), [`Body::mef`](crate::construction::Construct::mef) or [`Body::mekr`](crate::construction::Construct::mekr) would add a
     /// half-edge to a face the site mint re-mints — one whose **pcurve
     /// rows are complete**, or complete but for the loops a null edge
     /// holds open — and a row it needs cannot be minted under the
@@ -1368,7 +1351,7 @@ pub enum EulerOpError {
     /// complete face on a spline chart, the fitted frontier, or a
     /// half-edge of a loop the op re-mints does not resolve). Raised
     /// before any mutation, so the body is untouched — these three
-    /// operators leave no complete face half-minted. Also raised by [`Body::set_edge_curve`] on a
+    /// operators leave no complete face half-minted. Also raised by [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) on a
     /// null edge's first description, which re-mints the faces the
     /// edge's halves are on through the same site mint, where a
     /// half-edge of such a face does not resolve.
@@ -1380,7 +1363,7 @@ pub enum EulerOpError {
         /// Why the row cannot be minted.
         refusal: crate::pcurves::SiteRowRefusal,
     },
-    /// [`Body::kfmrh`]'s two faces lie in different **solids**. The
+    /// [`Body::kfmrh`](crate::construction::Construct::kfmrh)'s two faces lie in different **solids**. The
     /// cross-shell form (M3 PR 1) fuses two shells of one solid; fusing
     /// across solids is the boolean pipeline's combine step (M3 PRs
     /// 4–5), not an Euler surgery.
@@ -1390,18 +1373,18 @@ pub enum EulerOpError {
         /// The second face, in a different solid.
         f2: FaceKey,
     },
-    /// [`Body::move_shells_to_new_solid`]'s list is empty: a solid
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)'s list is empty: a solid
     /// with no shells is not a solid (tier 1's arity floor), so there
     /// is nothing to mint.
     NoShellsNamed,
-    /// [`Body::move_shells_to_new_solid`]'s list names one shell
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)'s list names one shell
     /// twice — a caller desync, refused rather than resolved by list
     /// order.
     ShellRepeated {
         /// The shell named more than once.
         shell: ShellKey,
     },
-    /// [`Body::move_shells_to_new_solid`]'s shells do not all belong
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)'s shells do not all belong
     /// to one solid: the op re-partitions ONE solid's shells, and a
     /// list spanning two has no single source solid to split from.
     ShellsAcrossSolids {
@@ -1410,7 +1393,7 @@ pub enum EulerOpError {
         /// A later shell, in a different solid.
         other: ShellKey,
     },
-    /// [`Body::move_shells_to_new_solid`] would move EVERY shell of
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid) would move EVERY shell of
     /// its source solid, leaving it with none — tier 1's arity floor
     /// again, on the solid that stays behind.
     SolidWouldEmpty {
@@ -1420,8 +1403,8 @@ pub enum EulerOpError {
     /// A [`FaceSurface`] spec on `face`'s own chart states a
     /// [`crate::entity::Face::sense`] other than the one
     /// [`Body::resolve_face_surface`] derives there. Raised in the plan
-    /// phase of [`Body::mef`], [`Body::mfkrh`] and
-    /// [`Body::set_face_surface`], so the body is untouched.
+    /// phase of [`Body::mef`](crate::construction::Construct::mef), [`Body::mfkrh`](crate::construction::Construct::mfkrh) and
+    /// [`Body::set_face_surface`](crate::construction::Construct::set_face_surface), so the body is untouched.
     SenseContradictsChart {
         /// The face whose chart the spec lands on: the parent of a
         /// minted face, or the face re-charted in place.
@@ -1449,12 +1432,6 @@ impl EulerOpError {
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
                 error.render(at)
-            ),
-            Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{}'s certificate needs the NURBS lane, which only a scalar with \
-                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
-                 operation at a certifying scalar",
-                edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
@@ -1662,7 +1639,8 @@ impl EulerOpError {
                 error,
             } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
-                 row does not re-certify over a child's sub-interval: {error}"
+                 row does not re-certify over a child's sub-interval: {}",
+                error.render(geom_brep::recourse::Reading::Build)
             ),
             Self::SplitJointUndecided {
                 edge,
@@ -1747,7 +1725,7 @@ pub enum BadArgument {
         /// The key, wrapped with its kind.
         key: GeomRef,
     },
-    /// [`Body::kemr`]'s two half-edges are not the two halves of one
+    /// [`Body::kemr`](crate::construction::Construct::kemr)'s two half-edges are not the two halves of one
     /// edge: they are equal, or name two edges.
     NotMates {
         /// The first half-edge.
@@ -1839,10 +1817,6 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::RebasedCarrier {
             edge: ek,
             error: CertifyError::Unimplemented,
-        },
-        EulerOpError::NurbsLaneUnsupported {
-            edge: Some(ek),
-            scalar: <geom_core::Dual64 as Real>::NAME,
         },
         EulerOpError::RebasedNullEdge { edge: ek },
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
@@ -2002,11 +1976,16 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
+            // Read in band at a pose: the geometry's lever. A definite miss
+            // names the kernel's defect, the one exception
+            // `no_refusal_names_a_defect` pins.
             error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
+                chart: geom::SurfaceKind::Cone,
+                carrier: geom::CurveKind::Circle,
+                why: "the circle sits at the apex's height",
+                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                    5e-10,
+                ))),
             },
         },
         EulerOpError::PcurveMint {
@@ -2082,7 +2061,7 @@ impl ArenaDelta {
         vertices: 0,
     };
 
-    /// [`Body::mev`]'s shift, and its chord sugar's.
+    /// [`Body::mev`](crate::construction::Construct::mev)'s shift, and its chord sugar's.
     pub(crate) const MEV: Self = Self {
         half_edges: 2,
         edges: 1,
@@ -2090,7 +2069,7 @@ impl ArenaDelta {
         ..Self::ZERO
     };
 
-    /// [`Body::mef`]'s shift, and its chord sugar's.
+    /// [`Body::mef`](crate::construction::Construct::mef)'s shift, and its chord sugar's.
     pub(crate) const MEF: Self = Self {
         faces: 1,
         loops: 1,
@@ -2099,7 +2078,7 @@ impl ArenaDelta {
         ..Self::ZERO
     };
 
-    /// [`Body::mekr`]'s shift, and its chord sugar's.
+    /// [`Body::mekr`](crate::construction::Construct::mekr)'s shift, and its chord sugar's.
     pub(crate) const MEKR: Self = Self {
         loops: -1,
         half_edges: 2,
@@ -2146,37 +2125,13 @@ fn is_endpoint_residual(error: CertifyError) -> bool {
 }
 
 impl<T: Decide> Body<T> {
-    /// MVFS — *make vertex, face, solid*: the initialization operator.
-    ///
-    /// Creates the skeletal body from scratch: a new solid with one
-    /// shell, one face whose outer loop is an **empty loop**
-    /// ([`LoopBoundary::Empty`]) holding one lone vertex at `point`.
-    /// This is the boundary-model form of the skeletal plane model
-    /// (Mäntylä §9.2.2) — the start state of every Euler construction.
-    ///
-    /// Euler vector: `(v +1, e 0, f +1, h 0, r 0, s +1)` — arena deltas
-    /// +1 solid, +1 shell, +1 face, +1 loop, +1 vertex. (The shell is
-    /// our entity, absent in GWB, where a "solid" is one connected
-    /// boundary; a solid here may hold several, and does whenever a
-    /// boolean leaves a void shell — [`crate::Solid`].)
-    ///
-    /// **Minting order** (D9, exact): point, surface, vertex, solid,
-    /// shell, loop, face. The seed face's surface is the
-    /// [`Surface::Nurbs`] representable-unimplemented placeholder —
-    /// the honest "no description yet" state (module docs, geometry
-    /// policy): a construction attaches the real surface via
-    /// [`Body::set_face_surface`] once it exists; a body reaching rest
-    /// with it fails tier 3.
-    ///
-    /// `sense` is the seed face's [`crate::Face::sense`], stated by the
-    /// caller and provisional until it charts the face
-    /// ([`Body::resolve_face_surface`]).
-    ///
-    /// # Errors
-    ///
-    /// None today — `mvfs` has no preconditions (it consumes nothing).
-    /// The `Result` keeps the operator signatures uniform.
-    pub fn mvfs(&mut self, point: Point3<T>, sense: bool) -> Result<MvfsCreated, EulerOpError> {
+    /// The door [`Construct::mvfs`](crate::construction::Construct::mvfs) forwards to;
+    /// documented there.
+    pub(crate) fn mvfs(
+        &mut self,
+        point: Point3<T>,
+        sense: bool,
+    ) -> Result<MvfsCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -2255,146 +2210,9 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// MEV — *make edge, vertex*: split a vertex's edge fan (or grow a
-    /// lone vertex) with a new vertex at `point` joined to the old
-    /// vertex by a new edge.
-    ///
-    /// Site semantics, run direction (clockwise), and the degenerate
-    /// strut/segment cases: [`MevSite`]. Direction convention:
-    /// `he_plus` runs **old → new** (deviation from Mäntylä's `lmev`,
-    /// see the [module docs](self)).
-    ///
-    /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — arena deltas
-    /// +1 vertex, +1 edge, +2 half-edges.
-    ///
-    /// **Geometry** (module docs, M2 policy): `curve` is certified
-    /// against the endpoints **old vertex's point → `point`** (the
-    /// `he_plus` forward order — `he_plus` runs old → new) before any
-    /// mutation; failure is [`EulerOpError::Certification`], body
-    /// untouched. Chord-line sugar: [`Body::mev_line`].
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): a face the new halves join
-    /// whose rows are COMPLETE is not left half-minted. The loops the
-    /// halves join are re-minted with them, before any mutation — the
-    /// rows the minting pass would store — and its other loops keep
-    /// theirs; or, where the closed-form lane cannot mint the face as
-    /// the surgery leaves it, it stores nothing; on a spline chart the
-    /// op refuses [`EulerOpError::PcurveMint`]. A face whose only gaps
-    /// are on loops a null edge holds open is taken the same way, and a
-    /// loop the null edge still holds keeps what it had, its new halves
-    /// rowless; on a spline chart that face is left as found. A face
-    /// storing no row stays rowless, and one half-minted any other way
-    /// is left as found (`crate::pcurves::site_rows` carries the rule). The cost is one
-    /// walk and one certification per half-edge of the rewired loops,
-    /// one presence read per half-edge of the face's other loops, and on
-    /// a face missing a row three lookups per half-edge for which loops
-    /// a null edge holds open.
-    ///
-    /// **The moved run's carriers are re-certified, never
-    /// re-described.** At a fan site the run `[he1 .. he2)` is
-    /// re-based onto the new vertex `w`, and each of those edges keeps
-    /// the curve it was certified with. So the gate asks whether that
-    /// curve still describes the edge `w` gives it, against the
-    /// endpoints of the re-based edge, and **refuses**
-    /// [`EulerOpError::RebasedCarrier`] naming the edge where THIS
-    /// MOVE is what makes the answer no — body untouched, like every
-    /// other precondition. A carrier that already missed its own
-    /// endpoint before the call is carried rather than refused: it
-    /// names a defect this operation did not create. Re-describing a
-    /// run is [`Body::set_edge_curve`]'s decision, with the caller's own
-    /// spec; the gate's own docs carry the argument for why an
-    /// operator re-certifies exactly rather than re-fitting. A **null
-    /// edge** the run moves one end of (one of its halves in the run,
-    /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
-    /// whose two halves are both in the run moves whole and is carried.
-    /// The one-half refusal, and at a scalar holding no plane × NURBS
-    /// lane that class's [`EulerOpError::NurbsLaneUnsupported`], stand
-    /// even where `point` is the old vertex's own: the gate does not ask whether `point` is
-    /// that point, and its docs (the crate-internal
-    /// `Body::certify_rebased_run`) say why. A fan split that moves
-    /// nothing is [`Body::mev_null`], which copies the old point; it
-    /// leaves a null edge, and describing that edge is a second call,
-    /// [`Body::set_edge_curve`], which can fail on its own and leave
-    /// the null edge in place. The two calls are the no-move split, not
-    /// one atomic door.
-    ///
-    /// **The variant family.** `mev` takes the new edge's spec;
-    /// [`Body::mev_line`] derives the chord; [`Body::mev_null`] takes no
-    /// geometry and moves nothing. The kill side mirrors it: [`Body::kev`]
-    /// is keys-only and refuses every merge with a certified member,
-    /// one that moves no point included, and [`Body::kev_describing`]
-    /// takes a band and the merged fan's re-descriptions, as this door
-    /// takes its spec and band — `kev_describing(he, &[], tol)` is the
-    /// merge that moves nothing, or moves within band.
-    ///
-    /// **Minting order** (D9, exact): point, curve (the certified
-    /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
-    ///
-    /// **Emanating rule** (deterministic, unconditional): after `mev`,
-    /// the old vertex's `emanating` is `he_plus` and the new vertex's is
-    /// `he_minus` — whether or not the fan move stripped the old
-    /// vertex's previous anchor. (Which half-edge `emanating` names is
-    /// documented as arbitrary; the unconditional overwrite keeps the
-    /// rule branch-free and replay-deterministic.)
-    ///
-    /// # Surgery (Fan, `he1 != he2`)
-    ///
-    /// Everything in the clockwise orbit run `[he1 .. he2)` is
-    /// reassigned to start at the new vertex `w`; `he_plus` is spliced
-    /// immediately before `he1` (in `he1`'s loop), `he_minus`
-    /// immediately before `he2` (in `he2`'s loop):
-    ///
-    /// ```text
-    ///        before                          after
-    ///     \  |  /                        \  |  /
-    ///      \ | /  ← run [he1..he2)        \ | /
-    ///        v                              w  ← new vertex
-    ///       / \                        minus↓↑plus  ← new edge
-    ///    he2   (rest of fan)                v
-    ///                                      / \
-    ///                                   he2   (rest of fan)
-    /// ```
-    ///
-    /// For a strut (`he1 == he2`, empty run) both new halves land
-    /// before `he1`, plus first: `… → he_plus → he_minus → he1 → …`
-    /// (`v → w → v`, the edge traversed twice by one loop).
-    ///
-    /// # Precondition check order
-    ///
-    /// `Fan`: `he1` resolves, `he2` resolves ([`BadArgument::Stale`]);
-    /// equal start vertices ([`EulerOpError::FanStartMismatch`]).
-    /// `Lone`: the loop resolves ([`BadArgument::Stale`]); it is empty
-    /// ([`EulerOpError::LoopNotEmpty`]). Then, for both sites, the
-    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`];
-    /// an interval that runs no clear length forward or past a full turn
-    /// is the caller's, [`geom_brep::CertifyError::StatedInterval`]);
-    /// and at a `Fan` site, per edge of the moved run in run order: the
-    /// edge is not a null edge the run moves one end of
-    /// ([`EulerOpError::RebasedNullEdge`]), and its carrier re-certifies
-    /// against the endpoints the move gives it
-    /// ([`EulerOpError::RebasedCarrier`]). The first edge of the run to
-    /// fail names the refusal. Last, the pcurve rows, for both sites:
-    /// where the site mint selects a face the new halves join, its row
-    /// plan is minted ([`EulerOpError::PcurveMint`]).
-    ///
-    /// # Panics
-    ///
-    /// Where a record the plan reads past the arguments does not resolve
-    /// or a walk of it does not close: the orbit walk from `he1` (which
-    /// must reach `he2` and walk back by `mate(prev(·))`), the `prev`
-    /// links, the start vertex and its point, the moved run's edges and
-    /// their curves, the loops, faces and surfaces the rows read. Every
-    /// public door keeps the body tier-1-valid, where all of these hold.
-    ///
-    /// Also on a kernel bug: an edge the body stores, re-minted or
-    /// restated on its own carrier and interval, whose span or winding
-    /// reads certainly refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    pub fn mev(
+    /// The door [`Construct::mev`](crate::construction::Construct::mev) forwards to;
+    /// documented there.
+    pub(crate) fn mev(
         &mut self,
         site: MevSite,
         point: Point3<T>,
@@ -2412,7 +2230,7 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// [`Body::mev`]'s plan and surgery, with its curve as a
+    /// [`Body::mev`](crate::construction::Construct::mev)'s plan and surgery, with its curve as a
     /// [`NewCurve`], which the chord sugar derives inside the plan. The
     /// door that calls it declares the postcondition.
     fn mev_with(
@@ -2431,24 +2249,9 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// [`Body::mev`] with the chord-line spec derived from the site:
-    /// the new edge's carrier is the straight chord from the old
-    /// vertex's point to `point`
-    /// ([`EdgeCurveSpec::line_between`] — the caller asserts the locus
-    /// *is* that chord; module docs, geometry policy). Coincident
-    /// endpoints give a chord of no length, refused typed
-    /// ([`geom_brep::CertifyError::StatedInterval`]).
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::mev`].
-    pub fn mev_line(
+    /// The door [`Construct::mev_line`](crate::construction::Construct::mev_line) forwards to;
+    /// documented there.
+    pub(crate) fn mev_line(
         &mut self,
         site: MevSite,
         point: Point3<T>,
@@ -2465,150 +2268,9 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// MEF — *make edge, face*: split a loop (or an empty loop) with a
-    /// new edge, creating a new face.
-    ///
-    /// Site semantics, the `he1`-side-becomes-new-face association, and
-    /// the degenerate self-loop/circular cases: [`MefSite`]. Direction
-    /// convention: `he_plus` runs `start(he1) → start(he2)` and stays in
-    /// the old loop (Mäntylä's association, kept).
-    ///
-    /// Euler vector: `(v 0, e +1, f +1, h 0, r 0, s 0)` — arena deltas
-    /// +1 edge, +1 face, +1 loop, +2 half-edges.
-    ///
-    /// **Geometry** (module docs, M2 policy): `curve` is certified
-    /// against the endpoints `start(he1)`'s point → `start(he2)`'s
-    /// point (the `he_plus` forward order) before any mutation;
-    /// `surface` supplies the new face's surface per [`FaceSurface`]
-    /// (`Inherit` keeps the M1 face-split semantics — two regions of
-    /// one surface). Chord-line sugar: [`Body::mef_chord`].
-    ///
-    /// **Sense** ([`crate::Face::sense`]): `mef` passes
-    /// [`ParentSide::With`], derived on the old face's chart and stated
-    /// on any other ([`Body::resolve_face_surface`]).
-    ///
-    /// **Minting order** (D9, exact): surface (only for
-    /// [`FaceSurface::New`]), curve (the certified [`EdgeCurve`]),
-    /// edge, loop, face, `he_plus`, `he_minus`.
-    ///
-    /// The new face joins the old face's shell
-    /// (membership plus back-pointer). `mef` does **not** reclassify
-    /// the old face's rings (they all stay on the old face — Mäntylä
-    /// p. 192; the `ring_move` helper is PR 3), and it touches
-    /// `emanating` only in the `Lone` case (the lone vertex gains
-    /// `he_plus`); in the `Chords` case every vertex keeps its anchor
-    /// (no half-edge changes its start vertex).
-    ///
-    /// Both loops are re-anchored deterministically: the old loop's
-    /// `Cycle::first` becomes `he_plus` (its previous first may have
-    /// moved to the new loop), the new loop's is `he_minus`.
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): the moved run's stored
-    /// rows are curves stated in the OLD face's chart. Where the new
-    /// face is on the same chart — [`FaceSurface::Inherit`], a
-    /// [`FaceSurface::Shared`] naming the old key or one sharing its
-    /// payload ([`Body::same_chart`]) — they stand; under any other
-    /// surface the run's rows are DROPPED ([`Body::drop_rows`]). The
-    /// old face's remaining rows are untouched either way. The two
-    /// halves this op mints get their rows at the site, as
-    /// [`Body::mev`]'s do: when the site mint selects the old face, it
-    /// is re-minted with `he_plus` in it, and the new face is minted
-    /// with `he_minus` and the run walked in the new face's chart —
-    /// whichever chart that is, so a run whose rows were dropped is
-    /// derived there again — on the terms [`Body::mev`] states. On a
-    /// spline chart other than the old face's, the new face keeps the
-    /// drop and is left unminted. A face that takes the old face's
-    /// last null edge off it is re-minted whatever the old face missed:
-    /// its loops the cut rewires leave complete, and a ring it keeps
-    /// keeps what it had.
-    ///
-    /// **A chord bounding a face minted on another key describes the
-    /// edge it is, or is refused.** Where `surface` is not the old
-    /// face's key, the chord's two faces wear the old face's key and the
-    /// new face's, and `curve`'s description is asked the adjacency
-    /// question [`Body::set_edge_curve`] asks
-    /// ([`EulerOpError::DescriptionNotAdjacent`], naming no edge: the
-    /// chord has no key yet).
-    ///
-    /// **What it does not ask:** where the new face keeps the old
-    /// face's key, whether the chord's description names it. The
-    /// boolean pipeline's chord joins rely on that: they mint the chord
-    /// with the description of the face glued along it afterwards
-    /// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
-    ///
-    /// **A face minted on another chart is vouched for by the edges it
-    /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
-    /// not the old face's key, the run's edges and the chord change the
-    /// key one of their faces wears, and this keys-only door asks
-    /// [`Body::vouch_move`]'s questions of them. A `New` key is one no
-    /// description names, so onto a `New` chart off the old face's
-    /// payload only scaffold and null edges pass. The lever is the chart the face is minted on: mint it
-    /// on a key its certified edges name, or on the old face's and move
-    /// it with [`Body::set_face_surfaces_describing`].
-    ///
-    /// # Surgery (Chords, `he1 != he2`)
-    ///
-    /// The run `[he1 .. he2)` in `next` order moves to the new loop;
-    /// `he_minus` is spliced before `he1`, `he_plus` before `he2`, and
-    /// the cycle splits in two:
-    ///
-    /// ```text
-    ///          before                            after
-    ///    ┌── he1 ──────┐                  ┌── he1 ──────┐
-    ///    │             ↓                  │             ↓
-    ///    │  (one loop) │            he_minus  NEW LOOP  │
-    ///    ↑             │                  ↑             │
-    ///    └────── he2 ──┘                  └─────────────┘
-    ///                                     ┌── he2 ──────┐
-    ///                                     │             ↓
-    ///                                he_plus   OLD LOOP │
-    ///                                     ↑             │
-    ///                                     └─────────────┘
-    /// ```
-    ///
-    /// For `he1 == he2` (empty run) the new loop is the single
-    /// self-cycled `he_minus`, and `he_plus` is spliced before `he1` in
-    /// the old loop — the one-edge circular face. For [`MefSite::Lone`]
-    /// both halves are self-cycled one-half-edge loops at the lone
-    /// vertex: the old loop keeps `he_plus`, the new loop `he_minus`.
-    ///
-    /// # Precondition check order
-    ///
-    /// `Chords`: `he1` resolves, `he2` resolves ([`BadArgument::Stale`]);
-    /// same parent loop ([`EulerOpError::NotSameLoop`]). `Lone`: the loop
-    /// resolves ([`BadArgument::Stale`]); it is empty
-    /// ([`EulerOpError::LoopNotEmpty`]). Then, for both sites, the
-    /// geometry gates: a [`FaceSurface::Shared`] key resolves
-    /// ([`BadArgument::StaleGeometry`]), a stated sense agrees with the
-    /// derived one on the old face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]), where the new face's
-    /// key is not the old one's `curve`'s description is
-    /// adjacency-coherent with the two
-    /// ([`EulerOpError::DescriptionNotAdjacent`], `edge: None`), and
-    /// `curve` certifies ([`EulerOpError::Certification`]) — the order
-    /// [`Body::set_edge_curve`] asks them in. Then, where the new face's key
-    /// is not the old one's, no edge of the run is stranded
-    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
-    /// in run order), then every certified edge of the run and a
-    /// certified chord name it ([`EulerOpError::RechartUnvouched`], the
-    /// same). Last, the pcurve rows, as [`Body::mev`] states them
-    /// ([`EulerOpError::PcurveMint`]).
-    ///
-    /// # Panics
-    ///
-    /// Where a record the plan reads past the arguments does not resolve
-    /// or a walk of it does not close: the loop (which must be a cycle,
-    /// and whose walk from `he1` must reach `he2` through members that
-    /// claim it), the `prev` links, the face and its shell, the start
-    /// vertices and their points, the surfaces and loops the rows read.
-    /// Every public door keeps the body tier-1-valid, where all of these
-    /// hold.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
-    pub fn mef(
+    /// The door [`Construct::mef`](crate::construction::Construct::mef) forwards to;
+    /// documented there.
+    pub(crate) fn mef(
         &mut self,
         site: MefSite,
         curve: EdgeCurveSpec<T>,
@@ -2626,7 +2288,7 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// [`Body::mef`]'s plan and surgery, with its curve as a
+    /// [`Body::mef`](crate::construction::Construct::mef)'s plan and surgery, with its curve as a
     /// [`NewCurve`], which the chord sugar derives inside the plan. The
     /// door that calls it declares the postcondition.
     fn mef_with(
@@ -2645,26 +2307,9 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// [`Body::mef`] with derived scaffolding geometry and
-    /// [`FaceSurface::Inherit`] — the polyhedral/migration sugar
-    /// (module docs, geometry policy):
-    ///
-    /// - distinct end vertices ⇒ the chord line between their points
-    ///   ([`EdgeCurveSpec::line_between`]);
-    /// - a self-loop site (`Lone`, `Chords` with `he1 == he2`, or both
-    ///   halves starting at one vertex) ⇒ the canonical scaffolding
-    ///   circle at the shared point
-    ///   ([`EdgeCurveSpec::self_loop_circle_at`]).
-    ///
-    /// The dispatch is **structural** (key equality, never a scalar
-    /// comparison); two *distinct* vertices at coincident coordinates
-    /// still take the chord path, and their chord of no length is
-    /// refused typed ([`geom_brep::CertifyError::StatedInterval`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::mef`].
-    pub fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError>
+    /// The door [`Construct::mef_chord`](crate::construction::Construct::mef_chord) forwards to;
+    /// documented there.
+    pub(crate) fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
@@ -2819,8 +2464,8 @@ impl<T: Decide> Body<T> {
         faces
     }
 
-    /// [`MevSite::Fan`]'s precondition block, shared by [`Body::mev`]
-    /// and [`Body::mev_null`] (which replaces the geometry gate with a
+    /// [`MevSite::Fan`]'s precondition block, shared by [`Body::mev`](crate::construction::Construct::mev)
+    /// and [`Body::mev_null`](crate::construction::Construct::mev_null) (which replaces the geometry gate with a
     /// null-scaffold mint). Pure — no mutation.
     ///
     /// Beyond resolving every key the split writes, it takes the orbit
@@ -2884,7 +2529,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// The fan surgery (infallible mutation phase), shared by
-    /// [`Body::mev`] and [`Body::mev_null`]. The new vertex sits on
+    /// [`Body::mev`](crate::construction::Construct::mev) and [`Body::mev_null`](crate::construction::Construct::mev_null). The new vertex sits on
     /// `point_key`: a point `mev` minted, or the old vertex's own for
     /// `mev_null`. Past the point, the minting order follows the
     /// payload: `Certified` mints curve, vertex (mev's documented
@@ -3031,8 +2676,8 @@ impl<T: Decide> Body<T> {
         ))
     }
 
-    /// [`MevSite::Lone`]'s precondition block, shared by [`Body::mev`]
-    /// and [`Body::mev_null`]: the loop resolves and is empty; its
+    /// [`MevSite::Lone`]'s precondition block, shared by [`Body::mev`](crate::construction::Construct::mev)
+    /// and [`Body::mev_null`](crate::construction::Construct::mev_null): the loop resolves and is empty; its
     /// vertex and point resolve. Pure — no mutation. Returns the lone
     /// vertex and its point.
     pub(crate) fn mev_lone_plan(
@@ -3050,7 +2695,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// The lone-site surgery (infallible mutation phase), shared by
-    /// [`Body::mev`] and [`Body::mev_null`]. The new vertex's point and
+    /// [`Body::mev`](crate::construction::Construct::mev) and [`Body::mev_null`](crate::construction::Construct::mev_null). The new vertex's point and
     /// the minting order as on [`Body::mev_fan_execute`].
     pub(crate) fn mev_lone_execute(
         &mut self,
@@ -3947,9 +3592,9 @@ impl<T: Decide> Body<T> {
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
-    /// resolved from this body's arena and the plane × NURBS lane read
-    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]), as
-    /// `origin`'s data ([`Origin`]).
+    /// resolved from this body's arena, through the scalar's edge door
+    /// ([`crate::AtRestPolicy::attach_edge`]), as `origin`'s data
+    /// ([`Origin`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
     /// edge; `faces` are the two faces the edge bounds as this door
@@ -3965,9 +3610,7 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
-    /// spec is of the plane × NURBS class and the scalar holds no lane;
-    /// [`EulerOpError::Certification`] on every other refusal.
+    /// [`EulerOpError::Certification`] on the door's refusal.
     #[allow(clippy::too_many_arguments)] // the certification's, plus whose data it is
     pub(crate) fn certify_edge_spec(
         &self,
@@ -4007,10 +3650,7 @@ impl<T: Decide> Body<T> {
             band,
             stated.as_ref(),
         )
-        .map_err(|refusal| match refusal {
-            ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },
-            ByPolicy::Refused(error) => EulerOpError::Certification { error },
-        })
+        .map_err(|error| EulerOpError::Certification { error })
     }
 
     /// The image `edge` already carries on the spline side of its
@@ -4101,7 +3741,7 @@ impl<T: Decide> Body<T> {
     /// one vertex by structure; and [`EulerOpError::RebasedNullEdge`]
     /// for a null edge with one half in it
     /// ([`Body::certify_rebased_run`] says why). The null arm of both
-    /// re-basing gates and of [`Body::kev`]'s keys-only one. Pure.
+    /// re-basing gates and of [`Body::kev`](crate::construction::Construct::kev)'s keys-only one. Pure.
     pub(crate) fn rebased_carrier(
         &self,
         edge: EdgeKey,
@@ -4144,8 +3784,8 @@ impl<T: Decide> Body<T> {
     /// image's pcurve IS the authority record, a `Scaffold` names a
     /// mapped source, and even a conventional line or circle would
     /// have its direction and interval recomputed — the silent
-    /// geometry move [`Body::describe_at_rest`] refuses to make. A
-    /// re-description is [`Body::set_edge_curve`]'s, with the caller's
+    /// geometry move [`Body::describe_at_rest`](crate::construction::Construct::describe_at_rest) refuses to make. A
+    /// re-description is [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)'s, with the caller's
     /// own spec.
     ///
     /// **A pre-existing staleness is carried, not refused.** Where the
@@ -4164,7 +3804,7 @@ impl<T: Decide> Body<T> {
     /// **A null edge is refused where the run moves one of its ends and
     /// not the other** ([`EulerOpError::RebasedNullEdge`]). It carries
     /// no certificate ([`crate::CurveGeom::NullScaffold`]); what it has
-    /// instead is the F9 shape [`Body::mev_null`] minted, a zero-length
+    /// instead is the F9 shape [`Body::mev_null`](crate::construction::Construct::mev_null) minted, a zero-length
     /// edge at ONE point. Where the run holds BOTH its halves (a null
     /// self-loop at the moved vertex), both ends move onto the one new
     /// vertex, so the edge stays one vertex and one point by structure
@@ -4194,23 +3834,18 @@ impl<T: Decide> Body<T> {
     /// `work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`.
     /// Every other doc that meets this question points here.
     ///
-    /// **The plane × NURBS class (M7-8) is re-derived through the lane
-    /// the scalar's policy holds** ([`crate::AtRestPolicy::nurbs_lane`]).
-    /// A scalar holding none (a dual) refuses an edge of the class in
-    /// the run with [`EulerOpError::NurbsLaneUnsupported`]: an operator
-    /// makes no claim it cannot derive, and a claim it cannot derive is
-    /// not a licence to move the edge. That refusal comes before any
-    /// endpoint check, so there the gate refuses where the new point is
-    /// the old vertex's own too; and a run moving one half of a null
-    /// edge is refused at the old point at every scalar. Both are
-    /// over-refusals of a move that moves nothing. A fan split that
-    /// keeps the old point is [`Body::mev_null`]'s, which copies the old
+    /// **Each edge is re-derived through the scalar's edge door**
+    /// ([`crate::AtRestPolicy::reattach_edge`]): its certificate in full
+    /// where the scalar certifies, its mint where it never does. A run
+    /// moving one half of a null edge is refused at the old point at
+    /// every scalar, an over-refusal of a move that moves nothing. A fan split that
+    /// keeps the old point is [`Body::mev_null`](crate::construction::Construct::mev_null)'s, which copies the old
     /// point and so skips this gate structurally; every kernel run site
     /// (the splitting and boolean pipelines' null-edge insertion) goes
     /// through it. That is the no-move SPLIT, not an atomic or an
     /// at-rest-certified door: its new edge is a null edge, which tier 2
     /// refuses at rest; describing it afterwards through
-    /// [`Body::set_edge_curve`] is a second call, which can fail on its
+    /// [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) is a second call, which can fail on its
     /// own and leave that null edge behind; and on the M7-8 pillow the
     /// only spec that certifies there (a closed circle at the point)
     /// passes tiers 1 and 2 and not tier 3, since the edge lies where
@@ -4247,15 +3882,8 @@ impl<T: Decide> Body<T> {
                 let origin = Origin::Kernels(KernelSite::ReBasedRun);
                 crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)
             };
-            let error = match recertify(p_start, p_end) {
-                Ok(_) => continue,
-                Err(ByPolicy::NoLane { scalar }) => {
-                    return Err(EulerOpError::NurbsLaneUnsupported {
-                        edge: Some(edge_key),
-                        scalar,
-                    });
-                }
-                Err(ByPolicy::Refused(error)) => error,
+            let Err(error) = recertify(p_start, p_end) else {
+                continue;
             };
             if is_endpoint_residual(error) {
                 // The carrier misses an endpoint AFTER the move. Ask
@@ -4263,7 +3891,7 @@ impl<T: Decide> Body<T> {
                 // identical answer means it already missed one, so
                 // this move is not what made it false.
                 let (now_start, now_end) = self.rebased_endpoints(edge_key, &[], p_new);
-                if recertify(now_start, now_end).err() == Some(ByPolicy::Refused(error)) {
+                if recertify(now_start, now_end).err() == Some(error) {
                     continue;
                 }
             }
@@ -5026,8 +4654,8 @@ impl KillAnchor {
 
 /// The loop both half-edges claim, `None` where they claim two: the one
 /// comparison behind [`EulerOpError::NotSameLoop`] (a caller's pair that
-/// [`MefSite::Chords`] or [`Body::kemr`] needs in one loop) and
-/// [`Body::kev`]'s adjacent-arm proof (a torn `next` that reads two
+/// [`MefSite::Chords`] or [`Body::kemr`](crate::construction::Construct::kemr) needs in one loop) and
+/// [`Body::kev`](crate::construction::Construct::kev)'s adjacent-arm proof (a torn `next` that reads two
 /// loops' halves as adjacent panics).
 pub(crate) fn shared_loop(a: &HalfEdge, b: &HalfEdge) -> Option<LoopKey> {
     (a.parent_loop == b.parent_loop).then_some(a.parent_loop)
@@ -5392,7 +5020,7 @@ mod tests {
                 he1: b.he_plus,
                 he2: d.he_plus,
             },
-            crate::NewVertexSide::Above,
+            crate::construction::NewVertexSide::Above,
         )
         .unwrap();
         let after = [carrier_bits(&body, b.edge), carrier_bits(&body, c.edge)];
@@ -5417,7 +5045,7 @@ mod tests {
 
     /// A digon pillow whose second face carries a plane: the smallest
     /// body that can hold a `Chart` or an `Intersection` description.
-    fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::MefCreated) {
+    fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::construction::MefCreated) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
@@ -5512,7 +5140,7 @@ mod tests {
         );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -5573,7 +5201,7 @@ mod tests {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         (body, seg, nul)
@@ -5669,7 +5297,7 @@ mod tests {
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let circle = body
@@ -5861,7 +5489,7 @@ mod tests {
                     he1: nul.he_plus,
                     he2: seg.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         assert_eq!(
@@ -5967,7 +5595,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),
             param_start: 0.0,
@@ -6043,7 +5671,9 @@ mod tests {
 
         let mut body = pillow.clone();
         let carrier_before = carrier_bits(&body, edge);
-        let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let created = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(
             body.get_half_edge(hp).unwrap().start,
             created.vertex,
@@ -6128,7 +5758,9 @@ mod tests {
         let tol = Tol::witness();
         let (mut body, edge) = m7_8_pillow(tol);
         let (site, _hp, here) = m7_8_site(&body, edge);
-        let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let created = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         let off = Point3::new(here.x + 1.0, here.y, here.z);
         let err = body.set_edge_curve(
             created.edge,
@@ -6252,7 +5884,9 @@ mod tests {
             body.clone().mev_line(site, p(5.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == b.edge
         ));
-        let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let split = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -6327,7 +5961,9 @@ mod tests {
             body.clone().mev_line(site, p(2.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
         ));
-        let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let fan = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // The run [seg.he_plus] moved to the new vertex.
@@ -6878,7 +6514,7 @@ mod tests {
         let v = body.get_half_edge(he1).unwrap().start;
         let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         assert_torn_op_panics("mev_null", body, premise, |b| {
-            b.mev_null(site, crate::NewVertexSide::Above)
+            b.mev_null(site, crate::construction::NewVertexSide::Above)
         });
         assert_torn_op_panics("mev_line", body, premise, |b| {
             b.mev_line(site, at + geom_core::Vec3::new(0.5, 0.0, 0.0), tol)
@@ -7017,7 +6653,7 @@ mod tests {
             let mut scope = trial.begin_surgery_on_a_torn_body();
             let site = MevSite::Fan { he1, he2 };
             let created = scope
-                .mev_null(site, crate::NewVertexSide::Above)
+                .mev_null(site, crate::construction::NewVertexSide::Above)
                 .unwrap_or_else(|err| panic!("{site:?} refused {err:?}"));
             drop(scope);
             let errors = validate(&trial).unwrap_err();
@@ -7083,7 +6719,8 @@ mod tests {
             for door in ["mev_null", "mev"] {
                 let mut body = cube.clone();
                 let created = if door == "mev_null" {
-                    body.mev_null(site, crate::NewVertexSide::Above).unwrap()
+                    body.mev_null(site, crate::construction::NewVertexSide::Above)
+                        .unwrap()
                 } else {
                     body.mev(site, at, EdgeCurveSpec::self_loop_circle_at(at), tol)
                         .unwrap()
@@ -7345,7 +6982,9 @@ mod tests {
     }
 
     /// **No refusal names a defect** (D2 row 4): a torn body panics
-    /// rather than refuse, so no variant claims a kernel defect, and a
+    /// rather than refuse, so no variant claims a kernel defect, but for
+    /// a stored row's definite incidence miss read at a build, which D3
+    /// makes the kernel's (pinned last); and a
     /// caller's bad [`EulerOpError::Argument`] states the fact and
     /// claims neither a recourse nor a defect. `PcurveMint` answers by
     /// its payload and `Argument` by its [`BadArgument`], so each side
@@ -7381,6 +7020,21 @@ mod tests {
             }
         }
         assert_eq!(arguments, 3, "the argument samples this row reads");
+        // The one exception (D3, D4 ¶1 (iv)): a definite incidence miss
+        // read at a build is a contradiction the kernel built, so its
+        // split names the defect, where the in-band twin in the array ends
+        // in the geometry's lever.
+        let split = EulerOpError::PcurveSplit {
+            edge: EdgeKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Spiric,
+                why: "the spiric lies on neither its own torus nor that torus's mirror",
+                margin: None,
+            },
+        };
+        assert!(split.to_string().contains("kernel defect"), "{split}");
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),

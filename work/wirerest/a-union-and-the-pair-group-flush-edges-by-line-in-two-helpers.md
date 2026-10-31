@@ -2,10 +2,11 @@
 id: a-union-and-the-pair-group-flush-edges-by-line-in-two-helpers
 kind: issue
 title: The union's Flush::sets_per_line and the pair's least_per_line group flush edges by line twice, and least_per_line's 'one home' doc is now false
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 Filed by WIRE's `wire-mintfirst` lane (branch
@@ -36,3 +37,5 @@ lands first) and `sets_per_line` both read; the doc corrected.
 ## Moved to WIREREST (2026-10-20)
 
 WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
+
+Closed by PR 5778 (2026-10-26): one `emit_topo::sets_per_line`, and the union's adapter is dropped.

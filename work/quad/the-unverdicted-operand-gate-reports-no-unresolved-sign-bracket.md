@@ -36,3 +36,10 @@ bound costs no caller.
 Fix: ratify the entry, then pass `outward_volume!()` from
 `wound_negative` as the other two doors do, and pin a dual operand's
 unresolved sign reporting `volume: Some(..)`.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `wound_negative` (`crates/topo/src/validate.rs:5891`)
+passes `&|_| None` to `plus_v_by_sign` (`:5790`). The two doors that
+report pass `outward_volume!()` (`:5739`, `:7933`). `gate_unverdicted`
+is at `:10026`.

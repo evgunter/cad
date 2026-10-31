@@ -6,19 +6,23 @@
 //!
 //! Every pose tilts the partner in the plane of its offset, so the two
 //! terms add at first order where the section lies, and checks the served
-//! verdict against the closed form: the wall's or the second tube's true
-//! stand-off from the torus's tube, per meridian.
+//! verdict against the closed form: the second tube's true stand-off from
+//! the torus's tube, per meridian. The torus pair reads its pose over
+//! the smaller torus's ball (`geom_brep::pair_section::torus`), so the
+//! pose's pivot is the foot of the donut's centre on the second axis, and
+//! its lever twice that foot's distance from the centre plus the donut's
+//! `R + r`; a wall near-parallel to the torus axis meets the tube within
+//! `r` of the pivot's height, where no tilt moves it by the swing, so the
+//! pose is a second torus whose section lies a ball's radius out.
 //!
 //! - **split**, `0.9 + 0.9` and `0.75 + 0.75` zero bands (offset at the
-//!   pivot, tilt at its lever): each row alone reads Zero, and main
-//!   served the coaxial reading; the swing is half the tilt's reading, so
-//!   the offset reads `1.35` and `1.125` bands far, and the pose refuses
-//!   on the offset row;
+//!   pivot, tilt at its lever): each row alone reads Zero; the swing is
+//!   half the tilt's reading, so the offset reads `1.35` and `1.125` bands
+//!   far, and the pose refuses on the offset row;
 //! - **inside**, `0.4 + 0.4`: coaxial, its rows read beside a slack of
 //!   `0.6`;
-//! - **narrow**, `K = 1.2` and `0.95 + 0.95`: main served two essential
-//!   parallels, or nothing, where the closed form puts the partner across
-//!   the tube on one side and clear of it on the other.
+//! - **narrow**, `K = 1.2` and `0.95 + 0.95`: the offset's floor
+//!   straddles.
 //!
 //! The straddles sit between the floor of the whole swing and that of
 //! half of it, so an under-read swing serves them; and the turn rows read
@@ -34,16 +38,8 @@ use core::f64::consts::TAU;
 use geom::Surface;
 use geom_core::{Band, Point3, Vec3};
 
-/// The fat torus, `R = 1`, `r = 0.9`: its inner equator at `ρ = 0.1`.
-const FAT: (f64, f64) = (1.0, 0.9);
-/// The wall poses' reach, about `(0, 0, WALL_H)`: the pivot stands that
-/// high over the inner equator, where the wall's section lies, so the
-/// tilt moves the wall there by nearly the whole swing.
-const WALL_H: f64 = 0.45;
-const WALL_REACH: f64 = 0.5;
-/// The torus pair's reach, about `(0, 0, TORI_H)`.
-const TORI_H: f64 = 2.5;
-const TORI_REACH: f64 = 3.6;
+/// The donut's ball, `R + r`: the lever's reach from its centre.
+const BALL: f64 = 2.5;
 
 fn zero() -> f64 {
     band().zero()
@@ -54,59 +50,18 @@ fn tilted(s: f64) -> Vec3<f64> {
     Vec3::new(-s, 0.0, (1.0 - s * s).sqrt())
 }
 
-/// A wall of radius `R − r + m` about an axis through the pivot
-/// `(e, 0, WALL_H)`, tilted in the `xz` plane so that its tilt reads
-/// `tilt` at `axis_pose`'s lever: the coaxial wall row's datum is `m`.
-fn wall_pose(e: f64, tilt: f64, m: f64) -> (Surface<f64>, Reach<f64>) {
-    let (big_r, r) = FAT;
-    let d = tilted(tilt / (2.0 * (e + WALL_REACH)));
-    (
-        cylinder(p(e, 0.0, WALL_H), d, big_r - r + m),
-        Reach {
-            centre: p(0.0, 0.0, WALL_H),
-            radius: WALL_REACH,
-        },
-    )
-}
-
-/// The wall's true margin at the fat torus's inner equator, least and
-/// greatest over the azimuth: its radius less the equator point's
-/// distance from its axis. Both positive, the wall crosses the tube in
-/// every meridian; both negative, in none.
-fn wall_truth(wall: &Surface<f64>) -> (f64, f64) {
-    let &Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    } = wall
-    else {
-        panic!("a wall pose is a cylinder")
-    };
-    let rho = FAT.0 - FAT.1;
-    extremes(|u| radius - perp_to(p(rho * u.cos(), rho * u.sin(), 0.0) - origin, axis).1)
-}
-
 /// The donut and a second torus, `R₂ = 3 − m`, `r₂ = 0.5`, standing
 /// outside its tube by the overlap `m` (the coaxial reach row's datum),
-/// its axis through the pivot `(e, 0, TORI_H)` tilted in the `xz` plane
-/// so that the tilt reads `tilt` at the lever, its centre at height zero.
-fn tori_pose(e: f64, tilt: f64, m: f64) -> (Surface<f64>, Reach<f64>) {
-    let at = p(e, 0.0, TORI_H);
-    let d = tilted(tilt / (2.0 * (e + TORI_REACH)));
-    (
-        Surface::Torus {
-            center: at - d * (TORI_H / d.z),
-            axis: d,
-            major_radius: 3.0 - m,
-            minor_radius: 0.5,
-            u_ref: Vec3::unit_y(),
-        },
-        Reach {
-            centre: p(0.0, 0.0, TORI_H),
-            radius: TORI_REACH,
-        },
-    )
+/// centred at the pivot `(e, 0, 0)` with its axis tilted in the `xz`
+/// plane so that the tilt reads `tilt` at the lever over the donut's ball.
+fn tori_pose(e: f64, tilt: f64, m: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: p(e, 0.0, 0.0),
+        axis: tilted(tilt / (2.0 * (e + BALL))),
+        major_radius: 3.0 - m,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_y(),
+    }
 }
 
 /// The tubes' true overlap `r + r₂ − D` per meridian of the donut, least
@@ -139,18 +94,22 @@ fn extremes(f: impl Fn(f64) -> f64) -> (f64, f64) {
         })
 }
 
-/// Both poses at `(e, tilt, m)` in zero bands, each classified at `b`
+/// The torus pose at `(e, tilt, m)` in zero bands, classified at `b`
 /// beside its closed form.
-fn both(e: f64, tilt: f64, m: f64, b: Band) -> [(&'static str, Section<f64>, (f64, f64)); 2] {
+fn tori(e: f64, tilt: f64, m: f64, b: Band) -> (Section<f64>, (f64, f64)) {
     let z = zero();
-    let (wall, reach) = wall_pose(e * z, tilt * z, m * z);
-    let fat = torus(p(0.0, 0.0, 0.0), FAT.0, FAT.1);
-    let (t2, reach2) = tori_pose(e * z, tilt * z, m * z);
+    let t2 = tori_pose(e * z, tilt * z, m * z);
     let donut = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
-    [
-        ("wall", classify(&fat, &wall, reach, b), wall_truth(&wall)),
-        ("tori", classify(&donut, &t2, reach2, b), tori_truth(&t2)),
-    ]
+    // The classifier takes a reach for every pair; two tori read their
+    // own ball and not this one, so it is the donut's, the rows' lever.
+    let reach = Reach {
+        centre: p(0.0, 0.0, 0.0),
+        radius: BALL,
+    };
+    (
+        classify(&donut, &t2, reach, Some(geom_brep::SsiLane::marched()), b),
+        tori_truth(&t2),
+    )
 }
 
 /// The run's `K`, in zero bands.
@@ -169,23 +128,19 @@ fn offset_row(s: &Section<f64>) -> &'static str {
     name
 }
 
-/// **Split: no reading.** At `0.9 + 0.9` the partner stands `1.2` to
-/// `1.3` bands off the coaxial reading in the closed form, and at
-/// `0.75 + 0.75` just over one; main served it whatever the row read: two
-/// essential parallels or nothing past `K`, R-tan inside it.
+/// **Split: no reading.** At `0.9 + 0.9` and `0.75 + 0.75` each term
+/// alone reads Zero and their sum does not, so the pose refuses on the
+/// offset whatever the tube rows would read: two essential parallels or
+/// nothing past `K`, R-tan inside it. (Over the ball the pivot stands at
+/// the second torus's centre, and the tilt moves the section only at
+/// second order, so the closed form here stands within the offset of the
+/// coaxial reading; the sum is what is read.)
 #[test]
 fn a_split_pose_refuses_on_the_offset() {
     for split in [0.9, 0.75] {
         for m in [0.5, -0.5, k() + 1.0, -(k() + 1.0), 20.0, -20.0] {
-            for (label, s, (lo, hi)) in both(split, split, m, band()) {
-                let z = zero();
-                assert!(
-                    hi - lo > 2.0 * z,
-                    "{label} {split} m = {m}: the partner stands {} bands off the coaxial reading",
-                    (hi - lo) / (2.0 * z)
-                );
-                offset_row(&s);
-            }
+            let (s, _) = tori(split, split, m, band());
+            offset_row(&s);
         }
     }
 }
@@ -197,66 +152,45 @@ fn a_split_pose_refuses_on_the_offset() {
 /// row.
 #[test]
 fn inside_the_band_the_coaxial_reading_serves_across() {
-    let rows = [
-        ("wall", "section_torus_coaxial_wall"),
-        ("tori", "section_torus_coaxial_tube_reach"),
-    ];
+    let row = "section_torus_coaxial_tube_reach";
     for side in [1.0, -1.0] {
-        for ((label, s, (lo, hi)), (_, row)) in both(0.4, 0.4, side * (k() + 1.0), band())
-            .into_iter()
-            .zip(rows)
-        {
-            let parallels = (
-                2,
-                false,
-                vec![true, true],
-                vec![true, true],
-                vec![false, false],
-            );
-            if side > 0.0 {
-                assert!(lo > 0.0, "{label}: the closed form crosses every meridian");
-                assert_eq!(shape(&s), parallels, "{label} {row}: two parallels");
-            } else {
-                assert!(hi < 0.0, "{label}: the closed form crosses none");
-                assert_eq!(shape(&s).0, 0, "{label} {row}: apart");
-            }
+        let (s, (lo, hi)) = tori(0.4, 0.4, side * (k() + 1.0), band());
+        let parallels = (
+            2,
+            false,
+            vec![true, true],
+            vec![true, true],
+            vec![false, false],
+        );
+        if side > 0.0 {
+            assert!(lo > 0.0, "the closed form crosses every meridian");
+            assert_eq!(shape(&s), parallels, "{row}: two parallels");
+        } else {
+            assert!(hi < 0.0, "the closed form crosses none");
+            assert_eq!(shape(&s).0, 0, "{row}: apart");
         }
-        for ((label, s, _), (_, row)) in both(0.4, 0.4, side * (k() + 0.55), band())
-            .into_iter()
-            .zip(rows)
-        {
-            assert_eq!(tangent(&s), format!("{row}_floor"), "{label}: straddles");
-        }
-        for ((label, s, _), (_, row)) in both(0.4, 0.4, side * 0.3, band()).into_iter().zip(rows) {
-            assert_eq!(tangent(&s), row, "{label}: tangent");
-        }
+        let (s, _) = tori(0.4, 0.4, side * (k() + 0.55), band());
+        assert_eq!(tangent(&s), format!("{row}_floor"), "straddles");
+        let (s, _) = tori(0.4, 0.4, side * 0.3, band());
+        assert_eq!(tangent(&s), row, "tangent");
     }
 }
 
-/// **Narrow: what main served wrong.** At `K = 1.2` a row `1.25` bands
-/// past the flip is definite; at `0.95 + 0.95` the closed form puts the
-/// partner across the tube in some meridians and clear of it in others,
-/// so neither two parallels nor nothing is the section. Main served one;
-/// the offset's far row now reads `1.425` bands, definite, and its floor
-/// `0.475`, a straddle.
+/// **Narrow: the offset's floor straddles.** At `K = 1.2` a row `1.25`
+/// bands past the flip is definite; at `0.95 + 0.95` the offset's far row
+/// reads `1.425` bands, definite, and its floor `0.475`, a straddle, so
+/// the pose serves neither the coaxial nor the parallel reading.
 #[test]
-fn a_narrow_band_serves_no_section_the_closed_form_contradicts() {
+fn a_narrow_band_straddles_on_the_offset_floor() {
     let z = zero();
     let narrow = Band::new(z, 1.2 * z).expect("a well-ordered band");
     for m in [1.25, -1.25] {
-        for (label, s, (lo, hi)) in both(0.95, 0.95, m, narrow) {
-            assert!(
-                lo < 0.0 && hi > 0.0,
-                "{label} m = {m}: the closed form straddles, [{}, {}] bands",
-                lo / z,
-                hi / z
-            );
-            assert_eq!(
-                tangent(&s),
-                "section_axes_offset_floor",
-                "{label} m = {m}: a straddle"
-            );
-        }
+        let (s, _) = tori(0.95, 0.95, m, narrow);
+        assert_eq!(
+            tangent(&s),
+            "section_axes_offset_floor",
+            "m = {m}: a straddle"
+        );
     }
 }
 
@@ -271,19 +205,21 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
         centre: at,
         radius: 1.0,
     };
-    // A pin of radius 0.2 clear of the donut's outer equator by `gap`.
+    // A pin of radius 0.2 clear of the donut's outer equator by `gap`,
+    // its tilt levered over the donut's ball from the pivot `(e, 0, 0)`.
     let e = 2.7 + gap;
-    let pin = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);
-    let torus_pin = classify(
-        &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
-        &pin,
-        one(p(e, 0.0, 0.0)),
-        band(),
-    );
+    let pin = cylinder(p(e, 0.0, 0.0), tilted(swing / (e + BALL)), 0.2);
+    let torus_pin = super::section_cert_rows::classify(&torus(p(0.0, 0.0, 0.0), 2.0, 0.5), &pin);
     // A wall of radius 0.2 standing `gap` off the cone's axis.
     let e = 0.2 + gap;
     let wall = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);
-    let cone_wall = classify(&unit_cone(), &wall, one(p(e, 0.0, 0.0)), band());
+    let cone_wall = classify(
+        &unit_cone(),
+        &wall,
+        one(p(e, 0.0, 0.0)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     // Two walls on one axis, radii `gap` apart; between walls the tilt's
     // lever is the reach's diameter and the swing its radius.
     let reach = Reach {
@@ -294,6 +230,7 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
         &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0),
         &cylinder(p(0.0, 0.0, 0.0), tilted(swing / 2.0), 1.0 + gap),
         reach,
+        Some(geom_brep::SsiLane::marched()),
         band(),
     );
     [
@@ -355,6 +292,7 @@ fn wide_walls_clearly_apart_serve_their_rulings() {
                 centre: p(r, 0.0, 0.0),
                 radius: 1.0,
             },
+            Some(geom_brep::SsiLane::marched()),
             band(),
         );
         rulings("section_cylinder_pair_coincident", &s);
@@ -374,14 +312,15 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 
 /// **The turn of a point read off the pivot counts.** A cone whose apex
 /// is the pivot, on the torus axis, against a torus whose centre stands
-/// `0.5` m up the axis from it; and a second torus whose centre stands
-/// `0.5` m down its own axis from the pivot. Neither has an offset, and
+/// `0.5` m up the axis from it. (A torus pair reads its turn over a
+/// torus's ball, where `sin²` of a tilt in the band times a station
+/// inside the ball is far below it.) It has no offset, and
 /// the swing is `0.425` bands; the arm's coaxial reading reads the height
 /// at the centre or the apex, which the turn moves by `0.9` bands more,
 /// so each refuses on the offset; so does a second cone whose apex stands
 /// `0.5` m off the pivot along its axis. The same pose with the read point
-/// at the pivot is served: two parallels apart from the cone, two crossing
-/// the second tube, the coaxial cones' two parallels.
+/// at the pivot is served: two parallels apart from the cone, the coaxial
+/// cones' two parallels.
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);
@@ -394,7 +333,13 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         u_ref: Vec3::unit_y(),
     };
     for (rise, refuses) in [(0.5, true), (0.0, false)] {
-        let s = classify(&torus(p(0.0, 0.0, rise), 2.0, 0.5), &cone, reach, band());
+        let s = classify(
+            &torus(p(0.0, 0.0, rise), 2.0, 0.5),
+            &cone,
+            reach,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
         if refuses {
             offset_row(&s);
         } else {
@@ -402,23 +347,6 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
                 shape(&s).0,
                 0,
                 "cone at the pivot's height: apart, got {s:?}"
-            );
-        }
-        let t2 = Surface::Torus {
-            center: at - d * rise,
-            axis: d,
-            major_radius: 2.3,
-            minor_radius: 0.5,
-            u_ref: Vec3::unit_y(),
-        };
-        let s = classify(&torus(p(0.0, 0.0, 0.5), 2.0, 0.5), &t2, reach, band());
-        if refuses {
-            offset_row(&s);
-        } else {
-            assert_eq!(
-                (shape(&s).0, shape(&s).2),
-                (2, vec![true, true]),
-                "torus at the pivot: two parallels, got {s:?}"
             );
         }
         // A second cone whose apex stands `0.5` m along its own axis from
@@ -436,7 +364,13 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::unit_x(),
         };
-        let s = classify(&first, &apexes, reach, band());
+        let s = classify(
+            &first,
+            &apexes,
+            reach,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
         let coaxial = matches!(
             &s,
             Section::Components { parts, .. } if parts.len() == 2

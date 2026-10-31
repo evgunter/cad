@@ -36,28 +36,23 @@ fn m2r1_structural_dual_matches_f64_structural_and_shows_what_the_dual_loses() {
     }
 }
 
-/// Bitwise pin of the dual's structural-half certificates against f64's
-/// (the geometric_cube claim, on curved bodies).
+/// Bitwise pin of what the dual's edges compute against f64's (the
+/// geometric_cube claim, on curved bodies): a dual edge carries no
+/// certificate (DL3) and its interval is the vertices' own, so the row
+/// compares what each edge computes at its scalar — its carrier, the
+/// carrier at its interval's middle, and check 2's turn, minted at both
+/// (`topo::test_support::computed_edge_channels`).
 #[test]
 fn m2r1_dual_structural_value_channel_is_f64s() {
     let f = cert_corpus::corpus::<f64>();
     let d = cert_corpus::corpus::<Dual64>();
+    let mut turns = 0;
     for ((n, fb), (_, db)) in f.iter().zip(d.iter()) {
-        let fr: Vec<u64> = fb
-            .curves()
-            .filter_map(|(_, c)| {
-                c.certified()
-                    .map(|c| c.certificate().max_residual.to_bits())
-            })
-            .collect();
-        let dr: Vec<u64> = db
-            .curves()
-            .filter_map(|(_, c)| {
-                c.certified()
-                    .map(|c| c.certificate().max_residual.value.to_bits())
-            })
-            .collect();
-        assert_eq!(fr, dr, "{n}: certificate value channel");
+        let fc = topo::test_support::computed_edge_channels(fb, |x| x);
+        let dc = topo::test_support::computed_edge_channels(db, |x| x.value);
+        assert_eq!(fc, dc, "{n}: what the edges compute, value channel");
+        turns += fc.iter().filter(|l| !l.ends_with("| None")).count();
         let _ = Body::<f64>::new;
     }
+    assert!(turns > 0, "the corpus holds edges with a turn to compare");
 }

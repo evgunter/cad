@@ -94,12 +94,12 @@ three, worst 0.043 of the slack, and the probe's 40 flips are 0.
 
 Sibling filed, not fixed here: a cone wall sums about its apex, the
 same shape with the apex as the lever
-(`work/fluxtail/a-cone-wall-far-from-its-apex-measures-its-rounding-at-the-apex-lever`,
+(`work/nearpoint/a-cone-wall-far-from-its-apex-measures-its-rounding-at-the-apex-lever`,
 P1: a drafted revolve turned reads 2.6 % wrong with pad 0). Its cure
 has to decide what a loop's gap means, which the arc's does not: the
 arc's new form equals the old one edge by edge in ℝ.
 
 Sibling, already filed and not fixed here:
-`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`
+`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`
 (the same rounding-times-lever shape, with the stored plane origin as
 the lever); this branch adds a public-door witness to it.

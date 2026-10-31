@@ -257,7 +257,7 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
     let (d1, u1) = crate::fixture::union_over(doc.clone(), &ab);
     let ev1 = run(&d1);
     assert!(failure(&ev1, u1).is_none(), "the inner union refused");
-    let corner = vertical_edge_at(crate::corpus::body_of(&ev1, u1), 0.0, 0.0);
+    let corner = vertical_edge_at(&(crate::corpus::body_of(&ev1, u1)), 0.0, 0.0);
     let corner_name = table(&ev1, u1)
         .name_of(&editor_core::EntityRef {
             body: 0,

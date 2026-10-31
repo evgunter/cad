@@ -48,3 +48,18 @@ with rounds remaining, carrying no enclosure and the round to resume
 at; the walks then treat the face as unsettled at that round (no sum
 can settle without it) and resume it, and the reporting walk
 escalates only at the schedule's end.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `RoundOutcome`, `OpenEnd` and `target_walk` are gone
+(PR 5628), but the gap is unchanged. `Run::ringed`
+(`crates/geom-brep/src/props/quad/run.rs:391`) refines an undecided
+ring only while `round < self.window.last`, and its doc (`:385`) cites
+this row: `LaneRun` has no end for an enclosure whose rings are
+undecided. The one-round windows are now `walk_set`'s
+(`crates/topo/src/props.rs:877`, `RoundWindow::at(round)`) and round
+0's (`:982`). The ringed lanes are `cylinder_cut_face_rounds`
+(`props/quad/cylinder.rs:303`) and `rim_face_rounds`
+(`props/spiric.rs:841`). The fix's shape now reads: a `LaneEnd`
+for a window that ends undecided on its rings with rounds left, which
+`walk_set` resumes.

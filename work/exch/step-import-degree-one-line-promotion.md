@@ -4,7 +4,6 @@ kind: issue
 title: step-import — promote degree-1 NURBS carriers to Curve3::Line, needs an ExtrudedPoint rung in the NURBS-chart pcurve lane first
 status: closed
 opened: 2026-08-11
-github: 388
 refs: [327, 389, 390, 391]
 closed: 2026-09-17
 ---

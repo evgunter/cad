@@ -62,8 +62,11 @@
 //! reversed parameterization (which would move bits).
 
 use std::collections::BTreeMap;
+use topo::construction::Construct;
 
-use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+
+use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
 use crate::entities::SolidSpec;
@@ -962,10 +965,11 @@ pub(crate) fn build_one_solid(
 /// never silent, as a [`NormalizationKind::JoinedEdges`] record keyed
 /// by the least `ADVANCED_FACE` the joined edge bounds.
 ///
-/// A file finer than the run can state such a vertex inside the band
-/// (the halfcap files: a split vertex 1e-8 m off a pole, read at the
-/// default ε), and the join refuses that typed, with the tighten-ε
-/// recourse, rather than guessing.
+/// A file finer than the run can state such a vertex inside the band,
+/// and the join refuses that typed, with the tighten-ε recourse, rather
+/// than guessing. (A vertex in the band of a chart pole or apex is
+/// refused before the join, by the normalization that makes the pole a
+/// vertex: `NormalizationKind::ChartSingularityVertex`.)
 fn join(
     body: &mut Body<f64>,
     solid: u64,

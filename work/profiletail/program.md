@@ -4,12 +4,12 @@ kind: program
 title: PROFILETAIL — the profile lattice's P3 and P4 tail: the path door's gaps, the lift, the coverage and the refusal text, behind PROFILEREST
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/sketch
 prefix: profiletail/
 budget: 35
 tag: (PROFILETAIL orchestrator)
 paths: [crates/profile/*, docs/PATHS-DESIGN.md]
-keep_out: [opened at PATHS's close (docs/doc-ledger/paths-leaves-the-tracker.md) - PATHS's 46 profile rows were cut along their priority seam into PROFILE PROFILEREST PROFILETAIL and PROFILEPROSE (work/README.md Track size) - the four share crates/profile and docs/PATHS-DESIGN.md by design and ids were kept with a dated Re-homed at PATHS's close section on each row, crates/profile/src/validate.rs and crates/profile/src/fillet_select.rs are shared with ROUND (the profile fillet family cut from PATHS on 2026-09-20) by design - run scripts/work.py territory on your branch and announce the seam in the PR, the Python façade over the lattice (pncad-py's path bindings and .pyi) is LIB's - a vocabulary change announces there before landing, docs/PATHS-DESIGN.md is a RATIFIED design page - a change to what a clause decides is an [ev] PR and a re-word forced by an approved change lands with it, the persist schema is contended ground - announce on the away channel before landing, ENCL holds the kernel-defect census (a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids) that one refusal-text row is a child of and CHROME holds the refusal standard - announce on their logs]
+keep_out: [opened at PATHS's close (docs/doc-ledger/paths-leaves-the-tracker.md) - PATHS's 46 profile rows were cut along their priority seam into PROFILE PROFILEREST PROFILETAIL and PROFILEPROSE (work/README.md Track size) - the four share crates/profile and docs/PATHS-DESIGN.md by design and ids were kept with a dated Re-homed at PATHS's close section on each row, crates/profile/src/validate.rs and crates/profile/src/fillet_select.rs are shared with ROUND (the profile fillet family cut from PATHS on 2026-09-20) by design - run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled, the Python façade over the lattice (pncad-py's path bindings and .pyi) is LIB's - a vocabulary change announces there before landing, docs/PATHS-DESIGN.md is a RATIFIED design page - a change to what a clause decides is an [ev] PR and a re-word forced by an approved change lands with it, the persist schema is contended ground - announce on the away channel before landing, ENCL holds the kernel-defect census (a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids) that one refusal-text row is a child of and CHROME holds the refusal standard - announce on their logs]
 ---
 
 The third of four tracks cut from PATHS's rows at PATHS's close

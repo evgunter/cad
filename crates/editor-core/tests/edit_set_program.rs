@@ -85,6 +85,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
         Node::Profile(ProfileProgram {
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = insert(
@@ -231,7 +232,7 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "closed-form mass properties",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(corpus::body_of(&ev, node)),
+            topo::Body::clone(&(corpus::body_of(&ev, node))),
             tol(),
         ),
         tol(),
@@ -245,8 +246,8 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
 fn strut_at(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, name: &StableName) -> (f64, f64) {
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, rod);
-    let [a, b] = ends(body, edge_of(table(&ev, rod), "strut", name));
-    let (pa, pb) = (point(body, a), point(body, b));
+    let [a, b] = ends(&body, edge_of(table(&ev, rod), "strut", name));
+    let (pa, pb) = (point(&body, a), point(&body, b));
     assert!(
         (pa.x - pb.x).abs() < 1e-12 && (pa.y - pb.y).abs() < 1e-12,
         "a strut edge runs along z: {pa:?} and {pb:?}"
@@ -269,10 +270,10 @@ fn corners_of(
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, node);
     let mut out: Vec<(f64, f64, f64)> =
-        fixture::face_vertices(body, fixture::face_of(table(&ev, node), "wall", name))
+        fixture::face_vertices(&body, fixture::face_of(table(&ev, node), "wall", name))
             .into_iter()
             .map(|v| {
-                let p = point(body, v);
+                let p = point(&body, v);
                 (p.x, p.y, p.z)
             })
             .collect();
@@ -912,6 +913,7 @@ fn extruded(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -940,6 +942,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -1438,6 +1441,7 @@ fn extrude_of(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2048,7 +2052,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
             &doc,
             &DocEdit::SetStructuralParam {
                 node: profile,
-                slot: SlotId::Count,
+                slot: SlotId::Stations,
                 expr: Formula::count(3),
                 fresh: Vec::new(),
             },
@@ -2402,6 +2406,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
                 },
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, a) = insert(
@@ -2458,6 +2463,7 @@ fn lofted(
         Node::Profile(ProfileProgram {
             loops: vec![lower],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, sec1) = insert(
@@ -2465,6 +2471,7 @@ fn lofted(
         Node::Profile(ProfileProgram {
             loops: vec![upper],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, loft) = insert(

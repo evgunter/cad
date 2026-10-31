@@ -66,7 +66,7 @@ fn geometry(
                     .map(|&he| point(body.get_half_edge(he).unwrap().start))
                     .collect()
             }
-            EntityKey::Face(f) => face_vertices(body, f).into_iter().map(point).collect(),
+            EntityKey::Face(f) => face_vertices(&body, f).into_iter().map(point).collect(),
             _ => continue,
         };
         sig.sort_unstable();
@@ -109,7 +109,7 @@ pub(crate) fn signature(
                     .map(|&he| vertex(body.get_half_edge(he).unwrap().start))
                     .collect()
             }
-            EntityKey::Face(f) => face_vertices(body, f)
+            EntityKey::Face(f) => face_vertices(&body, f)
                 .into_iter()
                 .map(|v| format!("{:?}", point(v)))
                 .collect(),
@@ -723,7 +723,7 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                     let EntityKey::Vertex(v) = e.key else {
                         panic!("{name:?} names no vertex")
                     };
-                    let p = point(body, v);
+                    let p = point(&body, v);
                     for seg in &name.path {
                         let sides: Vec<&StableName> = match seg {
                             RoleSeg::Seam { a, b }
@@ -763,7 +763,7 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                             };
                             let mb = body_of(ev, *member);
                             let edge = mb.get_edge(k).unwrap();
-                            let end = |he| point(mb, mb.get_half_edge(he).unwrap().start);
+                            let end = |he| point(&mb, mb.get_half_edge(he).unwrap().start);
                             let (q0, q1) = (end(edge.he_plus), end(edge.he_minus));
                             let d = q1 - q0;
                             let off = (p - q0).cross(d).norm() / d.norm();

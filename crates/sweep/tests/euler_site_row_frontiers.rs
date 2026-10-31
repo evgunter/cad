@@ -23,8 +23,10 @@ use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
+use topo::construction::Construct;
+use topo::construction::MevSite;
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -108,7 +110,10 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
 /// a right circular cone, so the strut does not lie on its face; left
 /// at rest without a closing mint, the wall reads loud at tier 3, which
 /// re-derives a rowless face and reports why it stores nothing, and the
-/// minting pass, re-run, refuses it the same way.
+/// minting pass, re-run, refuses it the same way. The strut and the
+/// wall are both the kernel's, so the build door ends the miss as the
+/// kernel's defect and tier 3 as the stored culprit's, though the strut
+/// is scaffolding (a declaration, which no ending reads; D3).
 #[test]
 fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -152,6 +157,7 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
                     chart: geom::SurfaceKind::Cone,
                     ..
                 },
+                ..
             } if half_edge == made.he_plus || half_edge == made.he_minus
         )
     };
@@ -167,10 +173,17 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     );
     assert_eq!(
         findings,
-        vec![refused],
+        vec![refused.clone()],
         "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
+    let built = refused.to_string();
+    let at_rest = topo::ValidationError::Pcurve { finding: refused }.to_string();
+    assert!(built.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{built}");
+    assert!(
+        at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        "{at_rest}"
+    );
 }
 
 /// **The fitted frontier refuses last.** On the lofted prism's minted
@@ -189,9 +202,9 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
     let before = format!("{body:?}");
     let refused = body
         .mef(
-            topo::MefSite::Chords { he1, he2 },
+            topo::construction::MefSite::Chords { he1, he2 },
             EdgeCurveSpec::line_between(p1, p1 + Vec3::new(0.3, 0.3, 0.3)),
-            topo::FaceSurface::Inherit,
+            topo::construction::FaceSurface::Inherit,
             tol(),
         )
         .unwrap_err();
@@ -220,7 +233,7 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     let rows = |b: &Body<f64>| {
@@ -243,6 +256,7 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::PcurveMintError::Certify {
                 half_edge,
                 error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+                ..
             } => why.push(half_edge),
             ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
         }
@@ -275,7 +289,7 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     // The strut is spliced before `he`, so the joint into `he` is

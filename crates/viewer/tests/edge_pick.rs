@@ -1273,6 +1273,7 @@ fn with_prism(
         pncad::document::Node::Profile(pncad::document::ProfileProgram {
             loops: vec![outline],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

@@ -36,10 +36,9 @@
 //! with it (`kev`).
 
 use geom_core::{Decide, Tol};
-use topo::{
-    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopBoundary, LoopKey, MekrSite,
-    VertexKey,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MekrSite};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use super::BlendError;
 use super::naming::BlendNaming;

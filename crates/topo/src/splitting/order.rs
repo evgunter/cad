@@ -96,6 +96,7 @@ use geom_core::{
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
 ///
@@ -289,20 +290,12 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     }
     let frame = in_plane_frame(plane, arm, band, exact)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
-    for i in 1..order.len() {
-        let mut j = i;
-        while j > 0 {
-            let (a, b) = (order[j - 1], order[j]);
-            if lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
-                == core::cmp::Ordering::Less
-            {
-                order.swap(j - 1, j);
-                j -= 1;
-            } else {
-                break;
-            }
-        }
-    }
+    insertion_sort_by(&mut order, |&a, &b| {
+        Ok(
+            lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
+                == core::cmp::Ordering::Less,
+        )
+    })?;
     Ok(order)
 }
 
@@ -332,7 +325,7 @@ pub(super) fn sort_along_line<T: Decide>(
 /// second kind by rounding or, on the interval lane, escalate on it. An
 /// insertion sort that stops at the first predecessor not definitely
 /// after leaves coincident crossings in insertion order; then
-/// [`group_coincident`] puts every run of Zero gaps back in insertion
+/// [`coincident_runs`] puts every run of Zero gaps back in insertion
 /// order, so the result is a function of the verdicts.
 ///
 /// **Residual: a chain of sub-ε gaps.** The comparator is banded, so
@@ -354,47 +347,57 @@ pub(super) fn sort_along<T: Decide>(
     gap: impl Fn(usize, usize) -> T,
     band: Band,
 ) -> Result<Vec<usize>, Indeterminate> {
-    let mut sorted: Vec<usize> = (0..n).collect();
-    for i in 1..sorted.len() {
-        let mut j = i;
-        while j > 0 {
-            let margin = Margin::of(gap(sorted[j], sorted[j - 1]));
-            if decide("split_join_line_order", margin, band)? != Sign::Negative {
-                break;
-            }
-            sorted.swap(j - 1, j);
-            j -= 1;
-        }
-    }
-    group_coincident(sorted, gap, band)
+    sort_along_runs(n, gap, band).map(|runs| runs.concat())
 }
 
-/// `sorted` with every run of successive crossings one point apart
-/// (**`split_join_line_gap`** Zero on `gap(next, previous)`) put back
-/// in insertion (index) order.
+/// [`sort_along`], its crossings left in their runs at one point.
+///
+/// # Errors
+///
+/// [`sort_along`]'s.
+pub(super) fn sort_along_runs<T: Decide>(
+    n: usize,
+    gap: impl Fn(usize, usize) -> T,
+    band: Band,
+) -> Result<Vec<Vec<usize>>, Indeterminate> {
+    let mut sorted: Vec<usize> = (0..n).collect();
+    insertion_sort_by(&mut sorted, |&before, &at| {
+        Ok(decide("split_join_line_order", Margin::of(gap(at, before)), band)? == Sign::Negative)
+    })?;
+    coincident_runs(sorted, gap, band)
+}
+
+/// `sorted` cut into its runs of successive crossings one point apart
+/// (**`split_join_line_gap`** Zero on `gap(next, previous)`), each in
+/// insertion (index) order.
 ///
 /// # Errors
 ///
 /// A gap in the band's ambiguity window.
-pub(super) fn group_coincident<T: Decide>(
+pub(super) fn coincident_runs<T: Decide>(
     sorted: Vec<usize>,
     gap: impl Fn(usize, usize) -> T,
     band: Band,
-) -> Result<Vec<usize>, Indeterminate> {
-    let mut order = Vec::with_capacity(sorted.len());
-    let mut run: Vec<usize> = Vec::new();
+) -> Result<Vec<Vec<usize>>, Indeterminate> {
+    let mut runs: Vec<Vec<usize>> = Vec::new();
     for i in sorted {
-        if let Some(&last) = run.last()
-            && decide("split_join_line_gap", Margin::of(gap(i, last)), band)? != Sign::Zero
-        {
-            run.sort_unstable();
-            order.append(&mut run);
+        match runs.last_mut() {
+            Some(run)
+                if decide(
+                    "split_join_line_gap",
+                    Margin::of(gap(i, run[run.len() - 1])),
+                    band,
+                )? == Sign::Zero =>
+            {
+                run.push(i);
+            }
+            _ => runs.push(vec![i]),
         }
-        run.push(i);
     }
-    run.sort_unstable();
-    order.append(&mut run);
-    Ok(order)
+    for run in &mut runs {
+        run.sort_unstable();
+    }
+    Ok(runs)
 }
 
 #[cfg(test)]

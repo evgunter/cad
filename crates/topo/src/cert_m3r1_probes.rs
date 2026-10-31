@@ -27,10 +27,11 @@
     clippy::too_many_lines
 )]
 
+use crate::Body;
 use crate::boolean::ContactRecords;
+use crate::construction::FaceSurface;
 use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
-use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
@@ -121,7 +122,7 @@ pub(crate) fn m7_8_cube() -> (
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: 0.0,
@@ -188,14 +189,14 @@ fn six_doors(body: &Body<f64>) -> [String; 6] {
 /// time; the wall then bows 0.05 under its own key, so every one of those
 /// certificates is false. Check 2 is the check that re-derives them.
 ///
-/// The row asserts the WHOLE table rather than one door, because the
-/// split's content is which side of the line each door falls on: the
-/// three doors bounded on the certification right catch it, the three
-/// `_structural` twins do not — at `f64` as much as at a dual, since
-/// what decides is the BOUND and not the scalar.
+/// The row asserts the WHOLE table rather than one door: check 2 runs
+/// through the scalar's edge door at every at-rest door (C2:
+/// certification is a property of the scalar's type, never an argument a
+/// door may omit), so at `f64` the three `_structural` twins catch it
+/// as the three certified doors do.
 #[test]
-fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() {
-    let (mut body, wall, lane_edges) = m7_8_cube();
+fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_at_f64() {
+    let (mut body, wall, _) = m7_8_cube();
     let before = six_doors(&body);
     for (name, d) in DOOR_NAMES.iter().zip(&before) {
         eprintln!("[m3 door table] certified body  {name:34} {d}");
@@ -210,34 +211,6 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
             "the certified body must raise no EdgeCertification anywhere: {d}"
         );
     }
-    // The lane-free re-derivation names the lane's absence on exactly
-    // the four wall edges.
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let mut needs = 0;
-    for (k, e) in body.edges() {
-        let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
-            continue;
-        };
-        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let start = point(body.get_half_edge(e.he_plus).unwrap().start);
-        let end = point(body.half_edge_end(e.he_plus).unwrap());
-        if let Err(geom_brep::CertifyError::NurbsLaneNotSupplied) = c.recertify_via(
-            start,
-            end,
-            |s| body.surfaces.get(s).cloned(),
-            1.0,
-            band,
-            None,
-        ) {
-            needs += 1;
-            assert!(
-                lane_edges.contains(&k),
-                "only the wall's edges need the lane"
-            );
-        }
-    }
-    assert_eq!(needs, 4, "the front wall has four M7-8 edges");
-
     // CORRUPT: the wall bows 0.05 at its centre, under its own key.
     body.surfaces[wall] = nurbs_wall(0.05);
     let after = six_doors(&body);
@@ -249,21 +222,10 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
             caught(d)
         );
     }
-    for i in 0..3 {
+    for (name, d) in DOOR_NAMES.iter().zip(&after) {
         assert!(
-            caught(&after[i]),
-            "{} names the certification right, so check 2 re-derives the class: {}",
-            DOOR_NAMES[i],
-            after[i]
-        );
-    }
-    for i in 3..6 {
-        assert!(
-            !caught(&after[i]),
-            "{} holds no lane and makes no check-2 claim about this class — a change here is \
-             a coverage change and wants its own argument: {}",
-            DOOR_NAMES[i],
-            after[i]
+            caught(d),
+            "{name} re-derives the class through the scalar's edge door: {d}"
         );
     }
 }
@@ -335,6 +297,7 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
                         crate::pcurves::PcurveMintError::Certify {
                             half_edge,
                             error: geom_brep::PcurveCertifyError::ResidualExceeded { .. },
+                            ..
                         },
                 } if on_wall(*half_edge) => None,
                 other => panic!(

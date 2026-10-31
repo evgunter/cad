@@ -4,7 +4,6 @@ kind: issue
 title: mesh: tessellate panics at the issue-897 census on a rim-only sphere cap the shape door admits (even at f = 0)
 status: closed
 opened: 2026-09-03
-github: 1615
 refs: [897, 1571]
 priority: P0
 cost: H

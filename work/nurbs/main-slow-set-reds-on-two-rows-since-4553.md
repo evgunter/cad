@@ -145,7 +145,7 @@ Summing in the shells' stored face order was tried and backed out: it
 reddened two sweep composition rows that agree in arena order and not
 in shell order. Whether the fold should be order-independent is FLUX's
 design row,
-`work/flux/the-whole-body-property-fold-depends-on-face-order.md`. That
+`the-whole-body-property-fold-depends-on-face-order`, closed by PR 5402. That
 row also carries the note on PR 4551's
 `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`: the
 same fold, with its "inputs differ" premise refuted.

@@ -403,7 +403,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
         topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(before_body),
+                topo::Body::clone(&before_body),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -413,7 +413,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
         topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(after_body),
+                topo::Body::clone(&after_body),
                 Tol::witness(),
             ),
             Tol::witness(),

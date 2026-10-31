@@ -21,10 +21,16 @@
 //!   `h` the face's grid step in the edge's own direction —
 //!   `sizing::grid_boundary_step` names each surface's `h` and says
 //!   what refuses.
-//! - Unproved headroom: an edge of a trimmed cylinder face (the one
-//!   lane without its theorem, `trimmed::UNPROVED_HEADROOM`) is chorded
-//!   at that headroom's share of δ, so the lane's trim polygon is the
-//!   one its lattice was sized beside.
+//! - Unproved headroom: an edge of a trimmed cylinder or trimmed sphere
+//!   face (the two arms without their theorem,
+//!   `trimmed::UNPROVED_HEADROOM`) is chorded at that headroom's share
+//!   of δ, so the arm's trim polygon is the one its lattice was sized
+//!   beside.
+//! - Adjacent-sphere-arm tightening: a trimmed sphere face's lattice
+//!   runs in the chart, which its tilted circles cross, so each such
+//!   face adds `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉` from closed-form
+//!   speed bounds of the half-edge's image and the arm's lattice steps
+//!   ([`sphere_arm_tighten`]).
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -50,18 +56,22 @@
 //! An adjacent face reaches a chord count only through the
 //! tightenings above (not the crease joints, which round a count
 //! already tightened): the `Circle` arm's
-//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`])
-//! and [`nurbs_tighten`]. Each reads the face through
-//! `tessellate::face_surface`, and the first two through the dispatch
-//! itself (`tessellate::lane_of`), so a face tightens an edge only for
-//! the lane that will mesh it. **Nothing in the tree checks that these
-//! are the only three**: a fourth caller compiles green, and it would
-//! be a fourth way for a neighbour to enter the count.
+//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`]),
+//! [`nurbs_tighten`] and [`sphere_arm_tighten`]. Each reads the face
+//! through `tessellate::face_surface`; the `Circle` arm and the
+//! headroom target read the dispatch itself (`tessellate::lane_of`),
+//! `sphere_arm_tighten` reads `trimmed::takes_sphere_arm`, the predicate
+//! `lane_of` routes a sphere face by, and `nurbs_tighten` reads the
+//! surface's spline chart, so a face tightens an edge only for the lane
+//! that will mesh it. **This list is not enforced**: nothing in the
+//! tree checks that these are the only four, and a fifth caller
+//! compiles green as a fifth way for a neighbour to enter the count.
 //!
 //! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, an adjacent
-//! cone face's largest rim radius, whether an adjacent cylinder face is
-//! trimmed, δ).
+//! cone face's largest rim radius, whether an adjacent cylinder or
+//! sphere face is trimmed, an adjacent trimmed sphere face's latitude
+//! window and the half-edge's image on it, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
 //! (never `carrier(t₀)`, which is only within ε of them) so every
@@ -180,6 +190,7 @@ pub(crate) fn compute_chords(
             bounds,
             n,
         )?;
+        let n = sphere_arm_tighten(body, ek, (t0, t1), delta, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -347,22 +358,19 @@ fn nurbs_tighten(
     params: (f64, f64),
     budget: f64,
     bounds: &mut FaceBounds,
-    mut n: usize,
+    n: usize,
 ) -> Result<usize, TessellateError> {
     let (t0, t1) = params;
     let span = t1 - t0;
-    let sides = sides_of(body, ek)?;
     // The sub-arc count every adjacent arc rim needs the schedule to
     // be a multiple of (the `IsoArc` arm below).
     let mut joints = 1;
-    for side in [sides.plus, sides.minus] {
-        let (hek, fk) = (side.half_edge, side.face);
-        let surface = crate::tessellate::face_surface(body, fk)?;
+    let n = tighten_by_sides(body, ek, span, n, |hek, fk, surface| {
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
         // its fit's.
         let Some(payload) = surface.spline_chart() else {
-            continue;
+            return Ok(None);
         };
         if payload.is_placeholder() {
             return Err(TessellateError::UnsupportedSurface { face: fk });
@@ -377,9 +385,9 @@ fn nurbs_tighten(
             });
         };
         // Per-axis UV speed bounds (module docs): exact for the iso
-        // line, the amplitude sum |pa|+|pb|+|pl| componentwise for the
-        // harmonic form (|P′| = |−pa·sin t + pb·cos t + pl|), the
-        // derivative net's hull for the general spline image.
+        // line, the supremum `√(pa² + pb²) + |pl|` per axis for the
+        // harmonic form ([`harmonic_uv_speeds`]), the derivative net's
+        // hull for the general spline image.
         let (su, sv) = match cache.pcurve() {
             Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
             // The ARC rim (M8-3). With `s = ½ + tan(φ/2)/(2·tan(h/4))`
@@ -429,13 +437,7 @@ fn nurbs_tighten(
                 let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
                 (pd.x.abs() * rate, pd.y.abs() * rate)
             }
-            Pcurve::Harmonic { u, v } => {
-                let (_, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
-                (
-                    pa.x.abs() + pb.x.abs() + pl.x.abs(),
-                    pa.y.abs() + pb.y.abs() + pl.y.abs(),
-                )
-            }
+            Pcurve::Harmonic { u, v } => harmonic_uv_speeds(*u, *v),
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
@@ -483,10 +485,8 @@ fn nurbs_tighten(
                 });
             }
         };
-        n = n
-            .max(ceil_count(su * span, hu)?)
-            .max(ceil_count(sv * span, hv)?);
-    }
+        Ok(Some(((hu, hv), (su, sv))))
+    })?;
     Ok(n.div_ceil(joints) * joints)
 }
 
@@ -502,7 +502,7 @@ fn lcm(a: usize, b: usize) -> usize {
 /// The per-axis UV speed sups `(s_u, s_v)` of a **general
 /// curve-in-UV** chart image — what [`nurbs_tighten`] reads where the
 /// `IsoLine` arm reads its exact `|pl|` components and the `Harmonic`
-/// arm its amplitude sum `|pa| + |pb| + |pl|`. Those two are closed
+/// arm its supremum `√(pa² + pb²) + |pl|`. Those two are closed
 /// forms of the image; this one is a CONVEXITY fact about its control
 /// net, which is the only shape a spline image admits.
 ///
@@ -604,15 +604,196 @@ fn general_uv_speeds(
 
 /// The deviation target an edge's own carrier is chorded at: δ, or
 /// [`crate::trimmed::UNPROVED_HEADROOM`]·δ when either adjacent face is
-/// a trimmed cylinder — the lane whose theorem is not yet written sizes
-/// its lattice at that headroom, and its trim polygon is these chords.
+/// a trimmed cylinder or a trimmed sphere — the arms whose theorem is
+/// not yet written size their lattice at that headroom, and their trim
+/// polygon is these chords.
 fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
     for fk in adjacent_faces(body, ek)? {
-        if crate::trimmed::is_trimmed_cylinder(body, fk)? {
+        if crate::trimmed::sizes_at_headroom(body, fk)? {
             return Ok(delta * crate::trimmed::UNPROVED_HEADROOM);
         }
     }
     Ok(delta)
+}
+
+/// **Adjacent-sphere-arm tightening**: for each side whose face the
+/// trimmed lane's sphere arm meshes, raise `n` until every chord's UV
+/// step fits inside that face's lattice steps,
+/// `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the arm's
+/// own ([`crate::trimmed::sphere_lattice_steps`]) and `(s_u, s_v)` the
+/// half-edge image's per-axis speed bounds ([`sphere_uv_speeds`]). A
+/// chord's UV step is at most its speed bound times its parameter
+/// step, so no boundary chord spans more than one lattice step in
+/// either direction — the curved lanes' rule that rims are chorded at
+/// the face's grid step, on a lattice the boundary does not run along.
+fn sphere_arm_tighten(
+    body: &Body<f64>,
+    ek: EdgeKey,
+    params: (f64, f64),
+    delta: f64,
+    n: usize,
+) -> Result<usize, TessellateError> {
+    let span = params.1 - params.0;
+    tighten_by_sides(body, ek, span, n, |hek, fk, surface| {
+        if !crate::trimmed::takes_sphere_arm(body, fk, surface)? {
+            return Ok(None);
+        }
+        let (hu, hv) = crate::trimmed::sphere_lattice_steps(body, fk, surface, delta)?;
+        let Some(cache) = body.pcurve(hek) else {
+            return Err(TessellateError::UnsupportedCurve {
+                edge: ek,
+                note: "trimmed sphere face half-edge carries no stored pcurve cache — \
+                       without one the chord schedule has no UV step bound",
+            });
+        };
+        let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, fk)?;
+        // An arc passing near a pole asks about `ρ_c·Δt/(r·d·h_u)`
+        // chords at polar distance `d` (the schedule is uniform, so as
+        // fine everywhere as at the closest approach). Past the arm's
+        // per-edge work budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`, whose
+        // doc states it) it refuses typed, read on the raw ratios so that
+        // an arc through or near the pole refuses by its own cause before
+        // `ceil_count`'s `MAX_COUNT` (whose sentence is about δ) would.
+        #[allow(clippy::cast_precision_loss)]
+        let budget = crate::trimmed::MAX_SPHERE_EDGE_CHORDS as f64;
+        if !(su * span / hu <= budget && sv * span / hv <= budget) {
+            return Err(TessellateError::SphereTrimShape {
+                face: fk,
+                edge: ek,
+                cause: crate::types::SphereTrimCause::ChordBudget,
+            });
+        }
+        Ok(Some(((hu, hv), (su, sv))))
+    })
+}
+
+/// **The side walk both UV tightenings share** ([`nurbs_tighten`],
+/// [`sphere_arm_tighten`]): for each side of the edge, `side` reads the
+/// face's lattice steps `(h_u, h_v)` and the half-edge image's per-axis
+/// speed bounds `(s_u, s_v)` — `None` for a face the tightening is not
+/// about — and the count rises to `⌈s·Δt/h⌉` on each axis.
+fn tighten_by_sides(
+    body: &Body<f64>,
+    ek: EdgeKey,
+    span: f64,
+    mut n: usize,
+    mut side: impl FnMut(
+        topo::HalfEdgeKey,
+        topo::FaceKey,
+        &geom::Surface<f64>,
+    ) -> Result<Option<((f64, f64), (f64, f64))>, TessellateError>,
+) -> Result<usize, TessellateError> {
+    let sides = sides_of(body, ek)?;
+    for s in [sides.plus, sides.minus] {
+        let surface = crate::tessellate::face_surface(body, s.face)?;
+        if let Some(((hu, hv), (su, sv))) = side(s.half_edge, s.face, surface)? {
+            n = n
+                .max(ceil_count(su * span, hu)?)
+                .max(ceil_count(sv * span, hv)?);
+        }
+    }
+    Ok(n)
+}
+
+/// A harmonic chart image's per-axis speed bounds: with
+/// `P′(t) = −pa·sin t + pb·cos t + pl`, each axis' supremum
+/// `√(pa² + pb²) + |pl|`. The one spelling the NURBS and sphere
+/// tightenings read.
+fn harmonic_uv_speeds(u: geom_brep::Channel<f64>, v: geom_brep::Channel<f64>) -> (f64, f64) {
+    let (_, pa, pb, pl) = geom_brep::harmonic_form_of(u, v);
+    (pa.x.hypot(pb.x) + pl.x.abs(), pa.y.hypot(pb.y) + pl.y.abs())
+}
+
+/// Per-axis speed bounds `(sup|u′|, sup|v′|)` of a sphere chart image
+/// over `[t₀, t₁]`, for the two forms a sphere face's circles carry.
+///
+/// - **Harmonic** (a parallel or a meridian):
+///   `|P′| = |−pa·sin t + pb·cos t + pl|`, so per axis
+///   `√(pa² + pb²) + |pl|`.
+/// - **Projected circle** `p(t) = c + a·cos t + b·sin t` in the chart
+///   frame (`z` on the axis), with `u = atan2(y, x)` and
+///   `v = atan2(z, ρ)`, `ρ = √(x² + y²)`: `u′ = (x·y′ − y·x′)/ρ²` and
+///   `v′ = p′·ê_v/|p|`, so `|u′| ≤ |p′|/ρ` and `|v′| ≤ |p′|/|p|`, on any
+///   point, on the sphere or off it. `sup|p′|²` is the largest
+///   eigenvalue of the Gram matrix of `(a, b)`; `|p|²` is
+///   `K + 2(c·a)·cos t + 2(c·b)·sin t + ½(|a|² − |b|²)·cos 2t + (a·b)·sin 2t`
+///   with `K = |c|² + ½(|a|² + |b|²)`, bounded below by `K` less its two
+///   harmonics' amplitudes; and `ρ² = |p|² − z²` with `z`'s range over
+///   the interval closed form ([`crate::trimmed::harmonic_range`]). On
+///   an exact circle of the sphere `|p|` is the radius `r` and `ρ` is
+///   `r·cos v`, so the bounds read `ρ_c/r` and `ρ_c/(r·cos v)`, and
+///   the second is attained where the arc turns in latitude.
+///
+/// **How near a pole an arc may pass is decided by what its schedule
+/// asks.** The azimuth bound grows as `1/ρ` toward a pole, and the
+/// uniform schedule [`sphere_arm_tighten`] sizes from it is as fine
+/// everywhere as at the arc's closest approach: `⌈s_u·Δt/h_u⌉` chords,
+/// which [`ceil_count`] refuses typed (`ResolutionOverflow`) past
+/// `sizing::MAX_COUNT`, the allocation cap every count in the crate is
+/// held to. Only where the bound itself fails — `ρ² ≤ 0` on the arc's
+/// closed-form lower bound, an arc through or numerically on the pole —
+/// is there no count to ask, and that refuses
+/// [`SphereTrimCause::ThroughPole`](crate::types::SphereTrimCause::ThroughPole).
+///
+/// The deck map moves an image by a translation and a sign, which no
+/// speed sees. A spline carrier's projected image, or any other form,
+/// refuses typed: the arm meshes circle-bounded faces.
+pub(crate) fn sphere_uv_speeds(
+    pcurve: &Pcurve<f64>,
+    params: (f64, f64),
+    ek: EdgeKey,
+    fk: topo::FaceKey,
+) -> Result<(f64, f64), TessellateError> {
+    let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
+    match pcurve {
+        Pcurve::Harmonic { u, v } => Ok(harmonic_uv_speeds(*u, *v)),
+        Pcurve::Projected(image) => {
+            let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
+                return Err(refuse(
+                    "trimmed sphere face bounded by the projected image of a spline carrier — \
+                     the sphere arm bounds the UV speed of a circle's image only",
+                ));
+            };
+            projected_circle_speeds((*centre, *a, *b), params).ok_or(
+                TessellateError::SphereTrimShape {
+                    face: fk,
+                    edge: ek,
+                    cause: crate::types::SphereTrimCause::ThroughPole,
+                },
+            )
+        }
+        _ => Err(refuse(
+            "trimmed sphere face half-edge carries an image that is neither harmonic nor a \
+             projected circle — no sphere mint produces one",
+        )),
+    }
+}
+
+/// The per-axis speed bounds of a projected circle
+/// `p(t) = c + a·cos t + b·sin t` in its chart's frame over `params`
+/// ([`sphere_uv_speeds`]' doc), or `None` where the azimuth bound fails:
+/// `ρ² ≤ 0` on its closed-form lower bound, an arc through or
+/// numerically on the chart's pole.
+pub(crate) fn projected_circle_speeds(
+    (c, a, b): (
+        geom_core::Vec3<f64>,
+        geom_core::Vec3<f64>,
+        geom_core::Vec3<f64>,
+    ),
+    params: (f64, f64),
+) -> Option<(f64, f64)> {
+    let (aa, bb, ab) = (a.dot(a), b.dot(b), a.dot(b));
+    let speed_sq = 0.5 * (aa + bb) + (0.5 * (aa - bb)).hypot(ab);
+    let p_sq_min = 0.5f64.mul_add(aa + bb, c.dot(c))
+        - 2.0 * c.dot(a).hypot(c.dot(b))
+        - (0.5 * (aa - bb)).hypot(ab);
+    let (z_lo, z_hi) = crate::trimmed::harmonic_range(c.z, a.z, b.z, params);
+    let rho_sq_min = p_sq_min - z_lo.abs().max(z_hi.abs()).powi(2);
+    if !(rho_sq_min > 0.0 && speed_sq.is_finite()) {
+        return None;
+    }
+    let speed = speed_sq.sqrt();
+    Some((speed / rho_sq_min.sqrt(), speed / p_sq_min.sqrt()))
 }
 
 /// The radius of a circle carrier (caller guarantees the variant).

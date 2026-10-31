@@ -19,11 +19,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::finished;
-use topo::{Body, CurveGeom, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, CurveGeom, FaceKey};
 
 use crate::common;
 use common::approx::{

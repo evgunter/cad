@@ -187,9 +187,9 @@ A sweep that works turns up defects that are not yours. **File them, on the
 slate of the program whose ground they land on, in the same PR that found
 them** — no permission, no routing through anyone. `work/README.md` settles
 it: *"a finding goes straight onto the slate of the program whose ground it
-lands on"* (`:117`), and *"a lane does not need the owner's permission to put
-a finding where it belongs"* (`:146`). `work/issues/` is the last resort it
-has always been, for a finding with no obvious owner.
+lands on"*, and *"a lane does not need the owner's permission to put a
+finding where it belongs"* (Rules, "Filing and ownership"). `work/issues/` is
+the last resort, for a finding with no obvious owner.
 
 `python3 scripts/work.py territory --files -` says who owns a path. Grep that
 program's directory first: if a row already covers your finding, add your
@@ -210,6 +210,12 @@ Say in your report which rows you filed and where.
 name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.
 
 ## 8. Writing tests
+
+**Tests and CI are tools, not a ritual.** Write, run and keep a test because
+it can catch a defect you care about, not because a change is expected to carry
+one. Never make the code worse to support a test or a debug check
+(DESIGN.md [simple.checks]): if a check needs a representation, stage or hook the
+code would not otherwise have, change the check or drop it.
 
 **First ask which SHAPE a randomized test is.** Three shapes; only the first
 wants a varying seed:

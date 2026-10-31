@@ -33,7 +33,9 @@ use geom_core::{Point2, Point3, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, Pcurve, PcurveMintError};
 
 /// The integral mixed prism (`recognize_pins`'s `offset_square_prism`,
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`
@@ -176,7 +178,7 @@ fn intrinsic_seam_at(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,
@@ -738,7 +740,7 @@ fn redescribe_against(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, wall),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,
@@ -1207,7 +1209,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cap, wall),
-                    witness: carrier.eval((t0 + t1) * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
                 },
                 carrier: carrier.clone(),
                 param_start: t0,
@@ -1417,7 +1419,7 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cap, wall),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier: carrier.clone(),
             param_start: t0,

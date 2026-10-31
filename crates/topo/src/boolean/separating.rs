@@ -201,11 +201,35 @@ impl<T: Decide> OperandAxes<T> {
 /// As [`crate::census::face_reach_in`]: each item is one the caller
 /// read out of its body, and a torn hop past it is a kernel bug.
 pub(crate) fn apart<T: Decide>(
+    x: (&Body<T>, Item<T>),
+    y: (&Body<T>, Item<T>),
+    axes: &[UnitVec3<T>],
+    pad: f64,
+    band: Band,
+) -> bool {
+    apart_by(x, y, axes, pad, band, &|body, f, frame| {
+        crate::census::face_reach_in(body, f, band, frame)
+    })
+}
+
+/// A face's reach in a frame: [`crate::census::face_reach_in`], or a
+/// sharper superset of the face's locus a caller reads.
+pub(crate) type FaceReach<'r, T> =
+    dyn Fn(&Body<T>, FaceKey, &BoxFrame<T>) -> Option<(Point3<T>, Point3<T>)> + 'r;
+
+/// [`apart`], with each face's reach read by `face_reach`, which holds
+/// the face's locus in every frame it is handed.
+///
+/// # Panics
+///
+/// As [`apart`], and as `face_reach`.
+pub(crate) fn apart_by<T: Decide>(
     (x, xi): (&Body<T>, Item<T>),
     (y, yi): (&Body<T>, Item<T>),
     axes: &[UnitVec3<T>],
     pad: f64,
     band: Band,
+    face_reach: &FaceReach<'_, T>,
 ) -> bool {
     let between = match (anchor(x, xi), anchor(y, yi)) {
         (Some(p), Some(q)) => UnitVec3::new(q - p, PAIR_AXIS, band).ok(),
@@ -214,10 +238,11 @@ pub(crate) fn apart<T: Decide>(
     between
         .iter()
         .chain(axes)
-        .any(|&dir| apart_along(x, xi, y, yi, dir, pad, band))
+        .any(|&dir| apart_along(x, xi, y, yi, dir, pad, band, face_reach))
 }
 
-/// [`apart`] along one direction.
+/// [`apart_by`] along one direction.
+#[allow(clippy::too_many_arguments)] // the pair, the direction, the pad, the band and the reach rule
 fn apart_along<T: Decide>(
     x: &Body<T>,
     xi: Item<T>,
@@ -226,10 +251,11 @@ fn apart_along<T: Decide>(
     dir: UnitVec3<T>,
     pad: f64,
     band: Band,
+    face_reach: &FaceReach<'_, T>,
 ) -> bool {
     let (Some((xl, xh)), Some((yl, yh))) = (
-        support_along(x, [xi], dir, band),
-        support_along(y, [yi], dir, band),
+        span_by(x, [xi], dir, face_reach),
+        span_by(y, [yi], dir, face_reach),
     ) else {
         return false;
     };
@@ -247,25 +273,37 @@ pub(crate) fn support_along<T: Decide>(
     dir: UnitVec3<T>,
     band: Band,
 ) -> Option<(T, T)> {
+    span_by(body, items, dir, &|body, f, frame| {
+        crate::census::face_reach_in(body, f, band, frame)
+    })
+}
+
+/// [`support_along`], with each face's reach read by `face_reach`.
+fn span_by<T: Decide>(
+    body: &Body<T>,
+    items: impl IntoIterator<Item = Item<T>>,
+    dir: UnitVec3<T>,
+    face_reach: &FaceReach<'_, T>,
+) -> Option<(T, T)> {
     let frame = BoxFrame::aimed(dir);
     let mut span: Option<(T, T)> = None;
     for item in items {
-        let (lo, hi) = reach(body, item, band, &frame)?;
+        let (lo, hi) = reach(body, item, &frame, face_reach)?;
         span = Some(span.map_or((lo.x, hi.x), |(l, h)| (l.min(lo.x), h.max(hi.x))));
     }
     span
 }
 
-/// An item's reach in `frame`.
+/// An item's reach in `frame`, a face's by `face_reach`.
 fn reach<T: Decide>(
     body: &Body<T>,
     item: Item<T>,
-    band: Band,
     frame: &BoxFrame<T>,
+    face_reach: &FaceReach<'_, T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     use super::boxes::{SpanBox, ball_extent, conic_extent};
     match item {
-        Item::Face(f) => crate::census::face_reach_in(body, f, band, frame),
+        Item::Face(f) => face_reach(body, f, frame),
         Item::Edge(e) => crate::census::edge_reach_in(body, e, frame),
         Item::Circle(Circle {
             center,

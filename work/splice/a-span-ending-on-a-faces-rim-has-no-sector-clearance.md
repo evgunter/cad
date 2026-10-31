@@ -2,11 +2,10 @@
 id: a-span-ending-on-a-faces-rim-has-no-sector-clearance
 kind: issue
 title: A span ending on a face's boundary, tangent to the face there, has no sector certificate clearing it of the face near that end
-status: parked
+status: open
 opened: 2026-10-26
 priority: P1
 cost: M
-blocked_on: [a-half-turn-spine-sweeps-only-off-its-exact-tangents]
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
 ---
 
@@ -39,3 +38,7 @@ the pass reads the line `Clear` of the boundary and the end is never
 decided on it. Build it once the tilt is fixed, or with the interior
 arm (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`),
 whose enclosures settle the rest of such a span.
+
+## Released (2026-10-31)
+
+`a-half-turn-spine-sweeps-only-off-its-exact-tangents` closed with CARVE's PR 6138. The klein loop now sweeps its exact spine through `sweep_body`, carried by the rotation-minimizing frame, with no lofted interior frames and so no cap tilt. Re-measure the klein line's end against the rim at the demos' ε: it may now be a witness. (CARVE orchestrator)

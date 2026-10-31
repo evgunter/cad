@@ -4,7 +4,7 @@ kind: program
 title: TANG — declared tangency (kiss and cusp), the germ and pierce remainder, and the pinch machinery
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/boolean/contact
 prefix: tang/
 tag: (TANG orchestrator)
 ab_band: 6100-6199

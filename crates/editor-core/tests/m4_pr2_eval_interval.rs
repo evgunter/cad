@@ -79,12 +79,12 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     else {
         panic!("expected boolean body");
     };
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate(body.body()), Ok(()));
+    assert_eq!(validate_closed(body.body()), Ok(()));
     let vol = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -122,12 +122,12 @@ fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     else {
         panic!("expected boolean body");
     };
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate(body.body()), Ok(()));
+    assert_eq!(validate_closed(body.body()), Ok(()));
     let vol = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),

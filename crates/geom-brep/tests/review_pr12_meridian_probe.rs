@@ -65,7 +65,15 @@ fn probe_meridian_sphere_torus() {
         param_end: quarter,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(quarter));
-    match EdgeCurve::certify(spec, p0, p1, |k| surfaces.get(k).cloned(), 1.0, band()) {
+    match EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |k| surfaces.get(k).cloned(),
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    ) {
         Ok(c) => println!(
             "MERIDIAN PROBE: certifies; max_residual {:e}",
             c.certificate().max_residual

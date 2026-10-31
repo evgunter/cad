@@ -61,7 +61,7 @@ fn exact_mass_pins_hold() {
         let ev = eval::<f64>(&d.doc);
         let body = topo::test_support::finished(
             "body",
-            topo::Body::clone(body_of(&ev, result)),
+            topo::Body::clone(&(body_of(&ev, result))),
             Tol::witness(),
         );
         assert_eq!(validate(&body), Ok(()), "{}: tier 1", d.name);

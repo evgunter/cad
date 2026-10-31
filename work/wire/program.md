@@ -4,7 +4,7 @@ kind: program
 title: WIRE — the evaluation seat: wiring, the placement lift and the verb vocabulary
 status: active
 opened: 2026-09-11
-area: api
+group: api/eval
 prefix: wire/
 tag: (WIRE orchestrator)
 ab_band: 3700-3799

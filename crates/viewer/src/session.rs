@@ -57,12 +57,12 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
-    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    Frame, FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand,
-    OperandSlot, PartResolver, PatternKind, ProductError, ProfileProgram, RecipeNodeId, Recorded,
-    Recording, SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered,
-    cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
+    AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver,
+    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
+    VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
+    run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -101,7 +101,7 @@ pub use op::{
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    GestureFrameFault, NodeKindWanted, Refusal, Step, VersionOffer, admits, admits_read,
+    GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -329,6 +329,7 @@ fn carry_unmoved(
     let mut new = Node::Profile(ProfileProgram {
         loops,
         ids: Vec::new(),
+        on: None,
     });
     for slot in old.slots() {
         let SlotId::Profile { loop_, step, arg } = slot else {
@@ -608,10 +609,8 @@ impl core::fmt::Debug for Derived {
 /// forgotten at the other.
 ///
 /// The gather's outcome is one `Result`: a refusal carries nothing
-/// the gather would have produced, so no A5 verdict and no body can
+/// the gather would have produced, so no at-rest badge and no body can
 /// sit beside a gather refusal. That is all the shape rules out.
-/// [`Gathered`] can still spell pairs only `land` keeps out — a
-/// `Certified` badge with no body, a `Refused` one with a body.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
     /// The resolver [`LandedRun::evaluation`] resolved through.
@@ -648,54 +647,23 @@ struct LandedRun {
 }
 
 /// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
-/// `Ok`): the A5 verdict taken over the product, and the product's body
-/// where the gate did not consume it.
+/// `Ok`): the at-rest badge read off the checks report, and the
+/// product's body.
 struct Gathered {
-    /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
+    /// The at-rest badge for this pair ([`DocSession::at_rest`]);
     /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
-    /// **The aggregate the landing's own gather produced**, kept so
+    /// **The aggregate the landing's own gather produced**, in the
+    /// world's coordinates ([`crate::scene::product_in_world`]), kept so
     /// that a consumer which needs the product does not gather it a
     /// second time ([`DocSession::landed_body`]). Written once, by
     /// `land`.
     ///
-    /// `None` when the A5 gate CONSUMED it. The gate takes the product
-    /// by value, and its refusal is the one exit that does not hand
-    /// the body back (a certification returns it on `Assembly`).
-    /// Nothing is cloned to close that gap: on this lane's measurement
-    /// a body clone is 2.7% of a gather but is paid per LANDING, while
-    /// the gather it would save is paid per opened document — the
-    /// wrong trade for an edit session. The display fit gathers its
-    /// own, on the fit worker ([`DocSession::fit_request`]'s
-    /// `Ungathered`).
-    ///
-    /// **What those numbers are load-bearing for, and why they carry
-    /// no guard.** They chose between two designs that are both
-    /// CORRECT — gather again where it is wanted, or clone at every
-    /// gate — so nothing here breaks if the ratio drifts; what would
-    /// break is the TRADE, and a trade is re-decided by re-measuring,
-    /// not by a failing assertion. A wall-clock guard in the gate
-    /// would be a flake rather than a witness, and a scheduled
-    /// re-measure would be a standing chore over a number no
-    /// behaviour reads.
-    ///
-    /// Half of it is re-taken anyway, and by someone else: the gather
-    /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)
-    /// runs on the nightly register, so the 87 ms side has a standing
-    /// witness this crate does not maintain. What has none is the
-    /// clone denominator — nothing in the tree times a `Body::clone`.
-    ///
-    /// **What this file's rows do and do not guard.**
     /// `viewer/tests/landing_gathers.rs` counts the gathers of every
     /// path that must not pay one, so a change that made
     /// [`DocSession::landed_body`] gather, or that stopped `land`
-    /// keeping the body, reds there. It does NOT see the doors:
-    /// restoring [`crate::scene::fit_delta`]'s or [`crate::scene::scene_of_body`]'s old
-    /// pair-taking signatures reds nothing, because those gathers
-    /// would run inside `scene` where no row counts. Re-measure before
-    /// changing the shape; do not trust the figures to have stayed
-    /// true.
-    body: Option<Arc<Body<f64>>>,
+    /// keeping the body, reds there.
+    body: Arc<Body<f64>>,
 }
 
 /// Exhaustive by destructuring, through [`Gathered`] too; the shared
@@ -706,11 +674,10 @@ struct Gathered {
 /// here is a verdict ABOUT that pair. The gather renders as the arm it
 /// took: its refusal as `fault`, or what it left as `at_rest` and
 /// `body`. `checks` is a `Vec` per finding and is carried as its two
-/// counts; `body` is a gathered aggregate and is carried as its
-/// presence, which is whether the gate left it. Both render as
-/// SUMMARIES — two counts, and the elision `Some(<Body>)` — so neither
-/// can be read as the field's own value; `finish_non_exhaustive` here
-/// is about the `_` arms and says nothing about them.
+/// counts; `body` is a gathered aggregate and is carried as the elision
+/// `<Body>`. Both render as SUMMARIES, so neither can be read as the
+/// field's own value; `finish_non_exhaustive` here is about the `_`
+/// arms and says nothing about them.
 impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -725,9 +692,9 @@ impl core::fmt::Debug for LandedRun {
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation);
         match gather {
-            Ok(Gathered { at_rest, body }) => out
+            Ok(Gathered { at_rest, body: _ }) => out
                 .field("at_rest", at_rest)
-                .field("body", &body.as_ref().map(|_| format_args!("<Body>"))),
+                .field("body", &format_args!("<Body>")),
             Err(fault) => out.field("fault", fault),
         };
         out.field("files", files);
@@ -746,37 +713,52 @@ impl core::fmt::Debug for LandedRun {
     }
 }
 
-/// The A5 at-rest verdict for the landed pair — a mated document's
-/// declarations run through the kernel's own verification door
-/// (`assemble`), once per landed evaluation, so a committed mate's
-/// class verdict does not die at the commit: a `Tangent` that solves
-/// green still shows the gate refusing it, and an unrecorded contact
-/// between instances surfaces on the draw path instead of waiting for
-/// an export.
+/// **The at-rest badge for the landed pair**: the at-rest check's
+/// findings over the landed product and every `⊔` beside it, counted
+/// (`CheckId::AtRest` in the landing's checks report). Nothing at rest
+/// refuses, so the badge says what the check found: overlaps between
+/// copies, loud and quiet, and the findings the census could not look at.
 ///
-/// Taken only when the gate ran: an assembly-shaped document (one
-/// holding at least one `InstantiatePart`) whose product gathered. A
-/// part document's tiers are not this badge's subject, and the gate's
-/// cost is not spent where it answers nothing the badges do not
-/// already say. A gather refusal, of any class, leaves no product for
-/// the gate to judge, so it takes no badge: it is
-/// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AtRestBadge {
-    /// The gate certified the assembled product, and how many overlaps
-    /// between copies it reported, loud and quiet.
-    Certified {
-        /// The interference findings no assertion quiets.
-        loud: usize,
-        /// The interference findings an assertion quiets.
-        quiet: usize,
-    },
-    /// The gate's own refusal of the product it judged, in its own
-    /// rendering, never a sentence composed here.
-    Refused {
-        /// The typed refusal's `Display`.
-        message: String,
-    },
+/// Taken only for an assembly-shaped document (one holding at least
+/// one `InstantiatePart`) whose product gathered and whose checks ran.
+/// A part document's tiers are not this badge's subject. A gather
+/// refusal, of any class, leaves no product to read, so it takes no
+/// badge: it is [`DocSession::product_fault`]'s, and
+/// `frame::badge_site` routes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AtRestBadge {
+    /// The interference findings no assertion quiets.
+    pub loud: usize,
+    /// The interference findings an assertion quiets.
+    pub quiet: usize,
+    /// The findings the census could not look at, which nothing quiets.
+    pub could_not_look: usize,
+}
+
+impl AtRestBadge {
+    /// The badge `report`'s at-rest findings make.
+    #[must_use]
+    pub fn of(report: &ChecksReport) -> Self {
+        let mut badge = Self {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        };
+        for finding in report
+            .findings
+            .iter()
+            .filter(|f| f.check == CheckId::AtRest)
+        {
+            if finding.evidence.could_not_look() {
+                badge.could_not_look += 1;
+            } else if finding.quiet.is_some() {
+                badge.quiet += 1;
+            } else {
+                badge.loud += 1;
+            }
+        }
+        badge
+    }
 }
 
 /// What happened to a result the seam handed back.
@@ -1098,7 +1080,7 @@ impl DocSession {
         self.derived.landed.as_ref()?.gather.as_ref().err()
     }
 
-    /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
+    /// The at-rest badge for the landed pair ([`AtRestBadge`]),
     /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
     /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
@@ -1154,25 +1136,11 @@ impl DocSession {
     /// work has filed against this probe. A read that a background
     /// thread cannot make is a read that forecloses its own future.
     ///
-    /// `None` has three causes and they are not the same question:
-    /// nothing has landed; the gather REFUSED, so no product exists
-    /// ([`DocSession::product_fault`] says so); or the gather
-    /// succeeded and the A5 gate consumed the body in refusing
-    /// ([`Gathered::body`] carries that case). A caller that needs a
-    /// body in the third case gathers one for itself and pays for it
-    /// where the payment is visible — [`crate::scene::product_of_evaluation`]
-    /// is that door.
+    /// `None` has two causes and they are not the same question:
+    /// nothing has landed, or the gather REFUSED, so no product exists
+    /// ([`DocSession::product_fault`] says so).
     pub fn landed_body(&self) -> Option<&Body<f64>> {
-        Some(
-            self.derived
-                .landed
-                .as_ref()?
-                .gather
-                .as_ref()
-                .ok()?
-                .body
-                .as_ref()?,
-        )
+        Some(&self.derived.landed.as_ref()?.gather.as_ref().ok()?.body)
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -1440,19 +1408,14 @@ impl DocSession {
         // **ONE gather, feeding all four of the landing's consumers.**
         // Computed HERE because here is the one place a result becomes
         // the session's, so it cannot be run twice or skipped — and
-        // ONCE because the ORDER below is what makes one enough: the
-        // product's own verdict reads the refusal, the registry
-        // BORROWS the product, and the A5 badge CONSUMES it last.
-        //
-        // The fourth consumer is the SESSION, which keeps the body for
-        // the display fit ([`Gathered::body`]) — and it is why the
-        // sentence that used to end this paragraph ("nothing after the
-        // badge wants a product") no longer holds. Nothing is cloned
-        // for it either: it takes what the gate did not eat.
+        // ONCE: the product's own verdict reads the refusal, the
+        // registry BORROWS the product, the at-rest badge reads the
+        // registry's report, and the SESSION keeps the body for the
+        // display fit ([`Gathered::body`]).
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
         // Whether the document is assembly-shaped is a fact about its
-        // nodes: the `Ok` arm reads it for the gate, and the part-file
+        // nodes: the `Ok` arm reads it for the badge, and the part-file
         // scan below reads it too.
         let assembly_shaped = assembly_shaped(doc);
         let (gather, checks) = match product_recorded(doc, &done.evaluation, self.tol) {
@@ -1473,26 +1436,26 @@ impl DocSession {
                     self.tol,
                 )
                 .ok();
-                // **The gate is still last, and still the only
-                // consumer** (DOCM-5's order). What changed is that
-                // the body it does not consume is kept rather than
-                // dropped: a certification hands the aggregate back on
-                // `Assembly`, and a document with no gate to run never
-                // gave it away.
-                let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
-                    (Some(verdict), kept)
-                } else {
-                    (None, Some(Arc::new(product.body.into_body())))
-                };
-                (Ok(Gathered { at_rest, body }), checks)
+                let at_rest = checks
+                    .as_ref()
+                    .filter(|_| assembly_shaped)
+                    .map(|(report, _)| AtRestBadge::of(report));
+                // Kept as the picture draws it: in the world, composed
+                // by the scene's door, never in the gather's computing
+                // frame.
+                let gather =
+                    crate::scene::product_in_world(product, doc, self.tol).map(|body| Gathered {
+                        at_rest,
+                        body: Arc::new(body),
+                    });
+                (gather, checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
                 // formed", so every class of refusal is kept here; which
-                // channel reports which is `frame::badge_site`'s. The
-                // gate never ran, so no A5 badge is taken.
+                // channel reports which is `frame::badge_site`'s. There
+                // is no product to read, so no at-rest badge is taken.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
@@ -1603,7 +1566,7 @@ impl DocSession {
     /// table plus that one rule, held once for both drags rather than
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
-        let outcome = self.perform_op(op);
+        let outcome = self.perform_op(op, None);
         // Every document change is an operation, so this is the one
         // place the kept nodes follow the newest document that holds
         // them. A landing changes only the landed run, an earlier
@@ -1619,15 +1582,22 @@ impl DocSession {
     }
 
     /// [`DocSession::perform`]'s operation, before the selection's kept
-    /// nodes are spoken again.
-    fn perform_op(&mut self, op: SessionOp) -> OpOutcome {
+    /// nodes are spoken again — labelled `labelled` where it is a
+    /// [`SessionOp::CreateLabelled`]'s creation.
+    ///
+    /// **The one dispatch.** A creating op's arm hands its door's
+    /// [`Creating`] run, with the label, to [`Self::create`]; the label
+    /// reaches no door. The match is exhaustive over [`SessionOp`], and a
+    /// creating door answers a [`Creating`] rather than an outcome, so a
+    /// creation that bypasses [`Self::create`] does not compile.
+    fn perform_op(&mut self, op: SessionOp, mut labelled: Option<Label>) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
         if self.display.probing().is_some() && !op.permitted_during_free_move() {
             return OpOutcome::refused(Refusal::Display(DisplayFault::FreeMoveInFlight));
         }
-        match op {
+        let outcome = match op {
             SessionOp::Select(selection) => {
                 self.derived.said = self.spoken_now(&selection);
                 self.derived.selection = selection;
@@ -1710,6 +1680,7 @@ impl DocSession {
             }
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
+            SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
             SessionOp::SetInstanceHidden { instance, hidden } => {
                 match self
                     .display
@@ -1802,101 +1773,106 @@ impl DocSession {
                 into_space(run, placement, space)
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
-            SessionOp::AddProfile { loops } => self.add_profile(loops),
-            SessionOp::SketchOnFace {
-                face,
-                loops,
-                distance,
-                spin,
-            } => self.sketch_on_face(&face, loops, distance, spin),
             SessionOp::EditProfile {
                 node,
                 base,
                 loops,
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
-            SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
+            SessionOp::AddProfile { loops } => {
+                self.create(labelled.take(), self.add_profile(loops))
+            }
+            SessionOp::SketchOnFace {
+                face,
+                loops,
+                distance,
+                spin,
+            } => self.create(
+                labelled.take(),
+                self.sketch_on_face(&face, loops, distance, spin),
+            ),
+            SessionOp::AddDrawnProfile {
+                plane,
+                traced,
+                chains,
+            } => self.create(
+                labelled.take(),
+                self.add_drawn_profile(&plane, &traced, chains),
+            ),
+            SessionOp::AddExtrude { profile, distance } => {
+                self.create(labelled.take(), self.add_extrude(profile, distance))
+            }
             SessionOp::AddRevolve {
                 profile,
                 axis_through,
                 axis_heading,
                 angle,
-            } => self.add_revolve(profile, axis_through, axis_heading, angle),
-            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
+            } => self.create(
+                labelled.take(),
+                self.add_revolve(profile, axis_through, axis_heading, angle),
+            ),
+            SessionOp::AddBoolean { spec } => self.create(labelled.take(), self.add_boolean(spec)),
             SessionOp::AddSplit {
                 target,
                 origin,
                 normal,
-            } => self.add_split(target, &origin, &normal),
-            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
+            } => self.create(labelled.take(), self.add_split(target, &origin, &normal)),
+            SessionOp::AddMirror { body, plane } => {
+                self.create(labelled.take(), self.add_mirror(body, &plane))
+            }
             SessionOp::AddTransform {
                 input,
                 translation,
                 rotation_axis,
                 rotation_angle,
-            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
-            SessionOp::AddPattern { input, count, rule } => {
-                self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
-            }
-            SessionOp::AddPlacedUnion { input, count, rule } => {
-                self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
-            }
+            } => self.create(
+                labelled.take(),
+                self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
+            ),
+            SessionOp::AddPattern { input, count, rule } => self.create(
+                labelled.take(),
+                self.add_pattern(input, count, rule, PatternOutputChoice::Instances),
+            ),
+            SessionOp::AddFusedPattern { input, count, rule } => self.create(
+                labelled.take(),
+                self.add_pattern(input, count, rule, PatternOutputChoice::Fused),
+            ),
             SessionOp::AddFillet {
                 target,
                 radius,
                 selection,
-            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
+            } => self.create(
+                labelled.take(),
+                self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
+            ),
             SessionOp::AddChamfer {
                 target,
                 distance,
                 selection,
-            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
-            SessionOp::AddPart { of, select } => self.add_part(of, select),
-            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside),
-            SessionOp::AddInstance { id } => self.add_instance(id),
+            } => self.create(
+                labelled.take(),
+                self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
+            ),
+            SessionOp::AddPart { of, select } => {
+                self.create(labelled.take(), self.add_part(of, select))
+            }
+            SessionOp::Duplicate { input, beside } => {
+                self.create(labelled.take(), self.add_duplicate(input, beside))
+            }
+            SessionOp::AddInstance { id } => self.create(labelled.take(), self.add_instance(id)),
             SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
             SessionOp::SetLabel { node, label } => {
                 self.commit_written(DocEdit::SetLabel { node, label })
             }
             SessionOp::SetProduct { bodies } => self.set_product(bodies),
-            SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
-        }
-    }
-
-    /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
-    ///
-    /// The creation is performed as it would be alone, through
-    /// whichever commit door it takes. Once it has recorded its state,
-    /// a `SetLabel` on the last node it minted that is not a world
-    /// placement is applied to that
-    /// state's document and joins that state's group
-    /// ([`History::extend_current`]), so the insert and the label are
-    /// one undo whatever door recorded the insert. A creation that
-    /// recorded nothing (refused, or declined) is answered as it is,
-    /// and its label is not applied.
-    fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
-        let before = self.history.current();
-        let mut outcome = self.perform(creation.into_op());
-        let recorded = self.history.current();
-        let Some(node) = crate::world::made(self.history.doc(), &outcome.minted) else {
-            return outcome;
-        };
-        if recorded == before || outcome.refusal.is_some() {
-            return outcome;
-        }
-        let edit = DocEdit::SetLabel {
-            node,
-            label: Some(label),
-        };
-        match apply(self.history.doc(), &edit, self.tol) {
-            Ok(applied) => {
-                self.history
-                    .extend_current(recorded, edit.clone(), applied.doc);
-                outcome.committed.push(edit);
-                self.request_eval();
+            SessionOp::CreateLabelled { creation, label } => {
+                self.perform_op(creation.into_op(), Some(label))
             }
-            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
-        }
+        };
+        assert!(
+            labelled.is_none(),
+            "a labelled op's arm handed its label to no creation's run"
+        );
         outcome
     }
 
@@ -1968,14 +1944,7 @@ impl DocSession {
     /// here is where that shape is known.
     /// [`crate::evalseam::FitSubject::Landed`] hands on the body the
     /// landing already gathered — an `Arc` clone, per
-    /// [`DocSession::landed_body`]. `Ungathered` is the third `None`
-    /// cause that accessor names: the gather succeeded and the A5 gate
-    /// consumed the body in refusing, so there is a product to be had
-    /// and nobody holding it. That arm names the pair rather than
-    /// gathering from it, and the gather is paid on the fit worker —
-    /// which is why this is a getter again and not a spelled-out
-    /// choice at the call site: neither arm costs this thread
-    /// anything.
+    /// [`DocSession::landed_body`] — so this costs this thread nothing.
     ///
     /// `None` before anything lands, and for a landing whose gather
     /// REFUSED ([`DocSession::product_fault`]) — a document with no
@@ -1988,13 +1957,7 @@ impl DocSession {
         let run = self.derived.landed.as_ref()?;
         let subject = match &run.gather {
             Err(_) => return None,
-            Ok(Gathered {
-                body: Some(body), ..
-            }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
-            Ok(Gathered { body: None, .. }) => crate::evalseam::FitSubject::Ungathered {
-                doc: Arc::clone(&run.doc),
-                evaluation: Arc::clone(&run.evaluation),
-            },
+            Ok(Gathered { body, .. }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
         };
         Some(crate::evalseam::FitRequest {
             generation: run.generation,
@@ -2024,24 +1987,21 @@ impl DocSession {
     /// self-instance refusal is the one that survives saving, and
     /// naming the recoverable problem first would send a user off to
     /// save for nothing.
-    fn add_instance(&mut self, id: DocumentId) -> OpOutcome {
+    fn add_instance(&self, id: DocumentId) -> Result<Creating, Refusal> {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
-            return OpOutcome::refused(refusal);
+            return Err(refusal);
         }
-        let pin = match self.read_store(|ws| ws.current_pin(id, self.tol)) {
-            Ok(pin) => pin,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
+        let pin = self.read_store(|ws| ws.current_pin(id, self.tol))?;
         // A creation: the instance, which is a placement, placed into
         // the world at the identity over its own copies.
-        self.commit_run(|run| {
+        Ok(creating(move |run| {
             run.insert(Node::instantiate_part(
                 DocRef { id, pin },
                 Operand::Var(VarId::WORLD),
                 pncad::document::stand().bundle(),
             ))
             .map(drop)
-        })
+        }))
     }
 
     /// Move every reference to the part `id` onto the version its file
@@ -2071,7 +2031,7 @@ impl DocSession {
         resolver
             .workspace()
             .and_then(|ws| read(&ws))
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+            .map_err(Refusal::from)
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
@@ -2300,7 +2260,16 @@ impl DocSession {
     /// the typed refusal comes from the door rather than from here —
     /// `DocEdit::SetVarValue` carries an existing definition forward
     /// and refuses `EditError::UnknownVar` when there is none.
+    ///
+    /// A count written to an index redefines its count
+    /// ([`props::index_count_edit`]).
     fn set_variable(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        if let SlotValue::Count(count) = value
+            && let Some(edit) =
+                props::index_count_edit(self.committed_doc(), var, Formula::count(count))
+        {
+            return self.commit_written(edit);
+        }
         self.commit_written(props::variable_edit(var, value))
     }
 
@@ -2352,6 +2321,10 @@ impl DocSession {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
+        // Text typed over an index is its count.
+        if let Some(edit) = props::index_count_edit(self.committed_doc(), var, expr.clone()) {
+            return self.commit(edit);
+        }
         // Text that reads a variable defines this one by it.
         if reads_a_variable(&expr) {
             return self.commit(DocEdit::DefineVar {
@@ -2668,7 +2641,7 @@ impl DocSession {
                 // The directory rule: the resolver is the opened
                 // file's own directory, consulted lazily at each
                 // resolution (DirResolver's docs carry the posture).
-                self.resolver = Some(Arc::new(DirResolver::new(session_dir(path))));
+                self.resolver = Some(Arc::new(DirResolver::new(docio::file_dir(path))));
                 self.history = history;
                 self.path = Some(path.to_path_buf());
                 self.clear_for_new_document();
@@ -2679,39 +2652,73 @@ impl DocSession {
         }
     }
 
+    /// Write the committed document at `path` through that folder's
+    /// store ([`docio::save`]), identity kept.
     fn save(&mut self, path: &Path) -> OpOutcome {
-        match docio::save_path(path, &self.history, self.tol) {
-            Ok(()) => {
-                self.path = Some(path.to_path_buf());
-                // Save-as moves the backing file, and the directory
-                // rule follows the file: rebind the resolver to the
-                // new parent and re-evaluate, since references may
-                // resolve differently there.
-                let dir = session_dir(path);
-                if self.resolver.as_deref().map(DirResolver::dir) != Some(dir.as_path()) {
-                    self.resolver = Some(Arc::new(DirResolver::new(dir)));
+        match docio::save(path, self.history.doc(), self.tol) {
+            Ok(_) => {
+                self.bind_file(path);
+                OpOutcome::default()
+            }
+            Err(error) => OpOutcome::refused(error.into()),
+        }
+    }
+
+    /// The fork (DI4): the committed document under a fresh random
+    /// id, written at `path` through that folder's store
+    /// ([`docio::save_as_new_document`]), and then the whole history
+    /// re-identified under the new id. The write comes first, so a
+    /// refused one leaves the session as it was.
+    fn save_as_new_document(&mut self, path: &Path) -> OpOutcome {
+        match docio::save_as_new_document(path, self.history.doc(), self.tol) {
+            Ok(id) => {
+                self.history.under_identity(id);
+                // The landed run is of the old identity, so a run is
+                // owed whether or not the folder moved.
+                if !self.bind_file(path) {
                     self.request_eval();
                 }
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
+            Err(error) => OpOutcome::refused(error.into()),
         }
     }
 
-    /// Replace the session with a fresh empty document — the
-    /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
-    /// the identity ruling and what is cleared).
+    /// **The session is now backed by `path`.** The directory rule
+    /// follows the file: a save into another folder rebinds the
+    /// resolver to it and re-evaluates, since references may resolve
+    /// differently there. Answers whether it did.
+    fn bind_file(&mut self, path: &Path) -> bool {
+        self.path = Some(path.to_path_buf());
+        let dir = docio::file_dir(path);
+        let rebinds = self.resolver.as_deref().map(DirResolver::dir) != Some(dir.as_path());
+        if rebinds {
+            self.resolver = Some(Arc::new(DirResolver::new(dir)));
+            self.request_eval();
+        }
+        rebinds
+    }
+
+    /// Replace the session with a fresh empty document under a fresh
+    /// random id — the [`SessionOp::NewDocument`] semantics (that arm's
+    /// docs say what is cleared). Both refusals, a blank name and
+    /// unavailable randomness, come before anything is replaced.
     ///
     /// The same two doors as [`DocSession::open`] — a new history and
     /// [`DocSession::clear_for_new_document`] — with the file-shaped
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        let name = match Refusal::new_document_name(name) {
-            Ok(name) => name,
-            Err(refusal) => return OpOutcome::refused(refusal),
+        if let Err(refusal) = Refusal::new_document_name(name) {
+            return OpOutcome::refused(refusal);
+        }
+        // The `Err` arm is UNTESTED, and labelled as such: `getrandom`
+        // has no injection seam.
+        let id = match pncad::workspace::random_document_id() {
+            Ok(id) => id,
+            Err(error) => return OpOutcome::refused(error.into()),
         };
-        self.history = History::new(Doc::empty_derived(name, self.tol));
+        self.history = History::new(Doc::empty(id, self.tol));
         self.path = None;
         self.resolver = None;
         self.clear_for_new_document();
@@ -2776,14 +2783,15 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
+    fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
+        Ok(creating(move |run| {
+            run.insert(Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
-            })),
-            fresh: Vec::new(),
-        })
+                on: None,
+            }))
+            .map(drop)
+        }))
     }
 
     /// **"Sketch on this face"** ([`SessionOp::SketchOnFace`]): the
@@ -2791,36 +2799,27 @@ impl DocSession {
     /// the face is on, and that body's world placements re-pointed to
     /// the union, in one action.
     fn sketch_on_face(
-        &mut self,
+        &self,
         face: &FaceSelection,
         loops: Vec<LoopProgram<Formula>>,
         distance: Formula,
         spin: Formula,
-    ) -> OpOutcome {
+    ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        // The body the face is on: the node's output by its port where
-        // it holds several.
-        let body = match crate::world::seat_read(doc, at, Some(port)) {
-            (at, Some(port)) => Operand::output(at, port),
-            (at, None) => body_of(doc, at),
-        };
-        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
-            return OpOutcome::refused(refusal);
-        }
+        let (body, name) = picked_body(doc, face);
+        self.require_read(&body, NodeKindWanted::Body)?;
         let over = self.placements_of(&body);
         let opts = self.eval_options();
         let taken = crate::world::read_var(doc, &body);
-        if let Err(refusal) = stranded_pick(doc, &over, taken) {
-            return OpOutcome::refused(refusal);
-        }
-        self.commit_run(|run| {
+        stranded_pick(doc, &over, taken)?;
+        Ok(creating(move |run| {
             let sketched = run.sketch_on_face(
                 body,
                 name,
                 ProfileProgram {
                     loops,
                     ids: Vec::new(),
+                    on: None,
                 },
                 distance,
                 spin,
@@ -2828,7 +2827,78 @@ impl DocSession {
                 &opts,
             )?;
             repoint(run, over, taken, sketched.union)
-        })
+        }))
+    }
+
+    /// **A profile drawn on the frame of `plane` and the first traced
+    /// face, tracing `traced`** ([`SessionOp::AddDrawnProfile`]): the
+    /// frame read against an evaluation of the committed document
+    /// ([`drawn_frame`]), the program built by the façade's door
+    /// ([`pncad::trace::drawn_profile`], which checks each argument's
+    /// dimension), and one `InsertNode`.
+    fn add_drawn_profile(
+        &self,
+        plane: &FaceSelection,
+        traced: &[FaceSelection],
+        chains: Vec<pncad::trace::Chain>,
+    ) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        let Some(first) = traced.first() else {
+            return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
+                Arc::new(pncad::trace::TracedFrameFault::NotAFace),
+            ))));
+        };
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &self.eval_options(),
+            self.tol,
+        );
+        let frame = match drawn_frame(doc, &ev, plane, first, self.tol) {
+            Ok(frame) => frame,
+            Err(fault) => {
+                return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
+                    Arc::new(fault),
+                ))));
+            }
+        };
+        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        match pncad::trace::drawn_profile(frame, faces, chains) {
+            Ok(node) => Ok(creating(move |run| run.insert(node).map(drop))),
+            Err(error) => Err(Refusal::Edit(Box::new(error))),
+        }
+    }
+
+    /// **`face`'s trace in the plane of `plane`, for display**
+    /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
+    /// on the frame a profile drawn there tracing `face` stands on
+    /// ([`drawn_frame`]), read as that profile would read it, and
+    /// sampled across a square the traced body spans. Nothing is
+    /// written.
+    ///
+    /// # Errors
+    ///
+    /// [`SketchTraceFault`].
+    pub fn sketch_trace(
+        &self,
+        plane: &FaceSelection,
+        face: &FaceSelection,
+    ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
+        let (doc, ev) = self.landed_pair().ok_or(SketchTraceFault::Unevaluated)?;
+        let frame = drawn_frame(doc, ev, plane, face, self.tol)
+            .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
+        let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
+        pncad::trace::sketch_trace(
+            doc,
+            ev,
+            frame,
+            face_read(doc, face),
+            (pncad::geom_core::Point2::origin(), half),
+            SKETCH_TRACE_RAYS,
+            self.tol,
+        )
+        .map_err(|fault| SketchTraceFault::Trace(Arc::new(fault)))
     }
 
     /// Write the path editor's program over a committed profile's
@@ -2918,6 +2988,7 @@ impl DocSession {
         let authored = ProfileProgram {
             loops: current.loops.iter().map(LoopProgram::authored).collect(),
             ids: current.ids.clone(),
+            on: None,
         };
         let unchanged = sketch::is_committed(&authored, &loops, &ids);
         Ok((!unchanged).then_some(DocEdit::SetProgram {
@@ -2930,65 +3001,51 @@ impl DocSession {
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
-            return OpOutcome::refused(refusal);
-        }
-        self.create_placed(Node::Extrude {
+    fn add_extrude(&self, profile: RecipeNodeId, distance: Formula) -> Result<Creating, Refusal> {
+        self.require_kind(profile, NodeKindWanted::Profile)?;
+        Ok(create_placed(Node::Extrude {
             profile: profile.into(),
             distance,
-        })
+        }))
     }
 
     /// Insert one revolve of an existing profile about an axis line in
     /// its own plane ([`SessionOp::AddRevolve`]).
     fn add_revolve(
-        &mut self,
+        &self,
         profile: RecipeNodeId,
         axis_through: [Formula; 2],
         axis_heading: Formula,
         angle: Formula,
-    ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
-            return OpOutcome::refused(refusal);
-        }
-        self.create_placed(Node::Revolve {
+    ) -> Result<Creating, Refusal> {
+        self.require_kind(profile, NodeKindWanted::Profile)?;
+        Ok(create_placed(Node::Revolve {
             profile: profile.into(),
             axis_through,
             axis_heading,
             angle,
-        })
+        }))
     }
 
     /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, spec: BooleanSpec) -> OpOutcome {
+    fn add_boolean(&self, spec: BooleanSpec) -> Result<Creating, Refusal> {
         for seat in spec.operands() {
-            if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
-                return OpOutcome::refused(refusal);
-            }
+            self.require_read(&seat, NodeKindWanted::Body)?;
         }
         // The first operand's copies are taken over by the combine.
         if let Some(first) = spec.operands().first() {
             let doc = self.committed_doc();
             let over = crate::world::placements_of_read(doc, first);
-            if let Err(refusal) = stranded_pick(doc, &over, crate::world::read_var(doc, first)) {
-                return OpOutcome::refused(refusal);
-            }
+            stranded_pick(doc, &over, crate::world::read_var(doc, first))?;
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        let staged = self.stage_run(|run| {
+        Ok(creating(move |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            combine_in_world(run, &spec.operands(), node)?;
-            Ok(node)
-        });
-        let (staged, _) = match staged {
-            Ok(staged) => staged,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        self.record_run(staged)
+            combine_in_world(run, &spec.operands(), node).map(drop)
+        }))
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
@@ -2996,25 +3053,20 @@ impl DocSession {
     /// target's own coordinates, read off the target's geometry
     /// ([`frame_off`] through its `xy`) at the numbers' nominal values.
     fn add_split(
-        &mut self,
+        &self,
         target: Operand,
         origin: &[Formula; 3],
         normal: &[Formula; 3],
-    ) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&target, NodeKindWanted::Body) {
-            return OpOutcome::refused(refusal);
-        }
-        let tool = match self.read_off(&target, origin, normal, "split plane", PoseRole::Xy) {
-            Ok(tool) => tool,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Split {
+    ) -> Result<Creating, Refusal> {
+        self.require_read(&target, NodeKindWanted::Body)?;
+        let tool = self.read_off(&target, origin, normal, "split plane", PoseRole::Xy)?;
+        Ok(creating(move |run| {
+            run.insert(Node::Split {
                 target: target.into(),
                 tool,
-            }),
-            fresh: Vec::new(),
-        })
+            })
+            .map(drop)
+        }))
     }
 
     /// **Mirror a body across the plane of a picked face**
@@ -3023,30 +3075,22 @@ impl DocSession {
     /// unioned, taking over the body's drawn copies through the feature
     /// takeover's re-point ([`repoint`]). An unplaced body's image is
     /// written alone.
-    fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
-            return OpOutcome::refused(refusal);
-        }
+    fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
+        self.require_read(&body, NodeKindWanted::Body)?;
         let doc = self.committed_doc();
-        let (at, port, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
-        let on = match crate::world::seat_read(doc, at, Some(port)) {
-            (at, Some(port)) => Operand::output(at, port),
-            (at, None) => body_of(doc, at),
-        };
+        let (on, face) = picked_body(doc, plane);
         let over = self.placements_of(&body);
         let taken = crate::world::read_var(doc, &body);
-        if let Err(refusal) = stranded_pick(doc, &over, taken) {
-            return OpOutcome::refused(refusal);
-        }
+        stranded_pick(doc, &over, taken)?;
         let node = combine::mirror_node(body.clone(), on, face);
-        self.commit_run(|run| {
+        Ok(creating(move |run| {
             let image = run.insert(node)?;
             if over.is_empty() {
                 return Ok(());
             }
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
             repoint(run, over, taken, part).map(drop)
-        })
+        }))
     }
 
     /// **A pose read off the geometry of `body`'s space**: the frame
@@ -3069,13 +3113,13 @@ impl DocSession {
         let origin = nominals(doc, what, origin, Dimension::Length)?;
         let direction = nominals(doc, what, direction, Dimension::Scalar)?;
         let at = frame_along(origin, direction, what, self.tol)?;
-        let root = crate::world::read_output(doc, body)
+        let construction = crate::world::read_output(doc, body)
             .filter(|&(node, _)| matches!(doc.node(node), Some(Node::Place { .. })))
             .and_then(|(node, _)| {
                 crate::world::construction_of_space(doc, node).filter(|&r| r != node)
             })
-            .map(|root| body_of(doc, root));
-        let body = root.as_ref().unwrap_or(body);
+            .map(|construction| body_of(doc, construction));
+        let body = construction.as_ref().unwrap_or(body);
         // `frame_off` takes a placed copy's frame in the copy's own
         // coordinates and carries it by the copy's motion; the numbers
         // are in its space's, so they are carried back first.
@@ -3105,27 +3149,19 @@ impl DocSession {
     /// `input`'s own origin, then translated — and the body's world
     /// placements re-pointed to it (A10, Ev's residue 1), in one action.
     fn add_transform(
-        &mut self,
+        &self,
         input: Operand,
         translation: &[Formula; 3],
         rotation_axis: &[Formula; 3],
         rotation_angle: &Formula,
-    ) -> OpOutcome {
-        if let Err(refusal) = self.require_placeable(&input) {
-            return OpOutcome::refused(refusal);
-        }
+    ) -> Result<Creating, Refusal> {
+        self.require_placeable(&input)?;
         let doc = self.committed_doc();
-        let at = match gesture_frame(doc, translation, rotation_axis, rotation_angle, self.tol) {
-            Ok(at) => at,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        let moves = match gesture_moves(doc, translation, rotation_axis, rotation_angle, &at) {
-            Ok(moves) => moves,
-            Err(refusal) => return OpOutcome::refused(refusal),
-        };
+        let at = gesture_frame(doc, translation, rotation_axis, rotation_angle, self.tol)?;
+        let moves = gesture_moves(doc, translation, rotation_axis, rotation_angle, &at)?;
         let over = self.placements_of(&input);
         let taken = crate::world::read_var(doc, &input);
-        let staged = self.stage_run(|run| {
+        Ok(creating(move |run| {
             // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
             let placement = run.insert(Node::place(
@@ -3133,83 +3169,122 @@ impl DocSession {
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            repoint(run, over, taken, placement)?;
-            Ok(())
-        });
-        match staged {
-            Ok((staged, ())) => self.record_run(staged),
-            Err(refusal) => OpOutcome::refused(refusal),
-        }
+            repoint(run, over, taken, placement)
+        }))
     }
 
     /// Insert one pattern of an existing body, fused or not
-    /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]).
+    /// ([`SessionOp::AddPattern`], [`SessionOp::AddFusedPattern`]): the
+    /// index `k = index(count)` and one placement of the body in its own
+    /// space whose values read it (D10 `[repetition]`,
+    /// [`pncad::pattern`]) — a row slid `scalar(k)·spacing` along the
+    /// rule's direction, or a ring spun `scalar(k)·step` about its axis
+    /// — and, fused, a union reading the family whole, which the body's
+    /// world placements are re-pointed to.
     ///
     /// **One function for the two ops**, for `add_blend`'s reason: the
-    /// prototype seat, the axis seat a circular
-    /// rule adds and the commit are the same move for both, and the
-    /// only difference — which node is minted — is one match below
-    /// where a reader can see the pair side by side.
+    /// prototype seat, the axis seat a circular rule adds and the
+    /// commit are the same move for both, and the only difference —
+    /// whether a union fuses the family — is one match below.
     fn add_pattern(
-        &mut self,
+        &self,
         input: Operand,
         count: i64,
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
-    ) -> OpOutcome {
-        if let Err(refusal) = self.require_placeable(&input) {
-            return OpOutcome::refused(refusal);
-        }
-        let kind = match rule {
+    ) -> Result<Creating, Refusal> {
+        self.require_placeable(&input)?;
+        let doc = self.committed_doc();
+        let index = combine::fresh_index(doc);
+        let target = crate::world::read_var(doc, &input)
+            .and_then(|var| doc.operation_of(var))
+            .and_then(|node| doc.node_space(node))
+            .unwrap_or(VarId::WORLD);
+        let source = pncad::document::BodyRead::plain(input.clone());
+        let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
-                PatternKind::Linear { direction, spacing }
+                combine::row_steps(&direction, &spacing).and_then(|steps| {
+                    pncad::pattern::linear_pattern(&index, source, Operand::Var(target), &steps)
+                })
             }
             PatternRuleSpec::Circular {
                 through,
                 direction,
                 step,
-            } => match self.read_off(&input, &through, &direction, "pattern axis", PoseRole::Z) {
-                Ok(axis) => PatternKind::Circular { axis, step },
-                Err(refusal) => return OpOutcome::refused(refusal),
-            },
+            } => {
+                let axis = axis_operand(self.read_off(
+                    &input,
+                    &through,
+                    &direction,
+                    "pattern axis",
+                    PoseRole::Z,
+                )?);
+                let along = combine::ring_slide_axis(&direction);
+                pncad::pattern::circular_pattern(
+                    doc,
+                    &index,
+                    source,
+                    Operand::Var(target),
+                    (axis.clone(), axis, along),
+                    pncad::pattern::RingStep::By(step),
+                )
+            }
+        };
+        let placement = placement.map_err(Refusal::Dimension)?;
+        let declare = move |run: &mut Recording<'_, ProfileProgram>| {
+            run.declare(
+                index,
+                pncad::document::VarDecl::Index {
+                    count: Formula::count(count),
+                    within: None,
+                },
+            )
+            .map(drop)
         };
         match output {
-            // Several bodies, which no placement reads: the pattern
-            // places nothing, and its copies reach the world through a
-            // projection each (`SessionOp::AddPart`).
-            PatternOutputChoice::Instances => self.commit(DocEdit::InsertNode {
-                node: Box::new(combine::pattern_node(input, count, kind)),
-                fresh: Vec::new(),
-            }),
-            PatternOutputChoice::Fused => self.feature_over(
-                self.placements_of(&input),
-                crate::world::read_var(self.committed_doc(), &input),
-                combine::placed_union_node(input, count, kind),
-            ),
+            // Several bodies, the family itself.
+            PatternOutputChoice::Instances => Ok(creating(move |run| {
+                declare(run)?;
+                run.insert(placement).map(drop)
+            })),
+            PatternOutputChoice::Fused => {
+                let over = self.placements_of(&input);
+                let taken = crate::world::read_var(self.committed_doc(), &input);
+                stranded_pick(self.committed_doc(), &over, taken)?;
+                Ok(creating(move |run| {
+                    declare(run)?;
+                    let row = run.insert(placement)?;
+                    let fused = run.insert(Node::Union {
+                        members: pncad::document::Bodies::Family(row.into()),
+                    })?;
+                    repoint(run, over, taken, fused)
+                }))
+            }
         }
     }
 
-    /// Insert one projection of a pattern's copies
-    /// ([`SessionOp::AddPart`]).
-    fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
-            return OpOutcome::refused(refusal);
-        }
-        self.create_placed(combine::part_node(of, select))
+    /// Insert one read of a family's member
+    /// ([`SessionOp::AddPart`]), placed in the world.
+    fn add_part(&self, of: RecipeNodeId, select: PartSelectSpec) -> Result<Creating, Refusal> {
+        self.require_kind(of, NodeKindWanted::Instances)?;
+        let node = combine::part_node(self.committed_doc(), of, select);
+        Ok(create_placed(node))
     }
 
-    /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
-    /// stepped clear, and its second copy's projection placed beside
-    /// the original where it is drawn.
+    /// Duplicate one body ([`SessionOp::Duplicate`]): a copy of it
+    /// stepped clear in its own space, placed beside the original where
+    /// it is drawn.
     ///
     /// **One action and therefore one undo.** The original stays placed
     /// where it was; the copy is a creation, so it is placed where the
     /// person can see it, and it is a body of its own — a feature
     /// authored on it re-points the copy's placements alone.
-    fn add_duplicate(&mut self, input: Operand, beside: Option<RecipeNodeId>) -> OpOutcome {
-        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
-            return OpOutcome::refused(refusal);
-        }
+    fn add_duplicate(
+        &self,
+        input: Operand,
+        beside: Option<RecipeNodeId>,
+    ) -> Result<Creating, Refusal> {
+        self.require_read(&input, NodeKindWanted::Body)?;
         // The kind gate above is the document's; this is the VALUE's —
         // one body, with a width to clear — and the value must be the
         // CURRENT document's. `busy` is the authority on that: it is
@@ -3225,18 +3300,28 @@ impl DocSession {
         };
         let (step, seats) = match landed {
             Ok(landed) => landed,
-            Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
+            Err(fault) => return Err(Refusal::Duplicate(fault)),
         };
-        let pattern = match combine::duplicate_rule(step) {
-            Ok(kind) => combine::pattern_node(input, combine::DUPLICATE_COUNT, kind),
-            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        let moves = match combine::duplicate_moves(step) {
+            Ok(moves) => moves,
+            Err(error) => return Err(Refusal::Dimension(error)),
         };
-        self.commit_run(|run| {
-            let pattern = run.insert(pattern)?;
-            let copy = run.insert(combine::part_node(
-                pattern,
-                PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
-            ))?;
+        let doc = self.committed_doc();
+        let space = crate::world::read_var(doc, &input)
+            .and_then(|var| doc.operation_of(var))
+            .and_then(|node| doc.node_space(node))
+            .unwrap_or(VarId::WORLD);
+        let stepped = Node::place(
+            pncad::document::BodyRead::plain(input),
+            Operand::Var(space),
+            pncad::document::Placed::unmated(moves).bundle(),
+        );
+        Ok(creating(move |run| {
+            let copy = run.insert(stepped)?;
+            // A copy stepped in the world stands there already.
+            if space == VarId::WORLD {
+                return Ok(());
+            }
             if seats.is_empty() {
                 return place_in_world(run, copy.into()).map(drop);
             }
@@ -3248,7 +3333,7 @@ impl DocSession {
                 ))?;
             }
             Ok(())
-        })
+        }))
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing
@@ -3264,15 +3349,13 @@ impl DocSession {
     /// instead of comparing two near-identical functions for the line
     /// that is not the same.
     fn add_blend(
-        &mut self,
+        &self,
         target: RecipeNodeId,
         size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
-    ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
-            return OpOutcome::refused(refusal);
-        }
+    ) -> Result<Creating, Refusal> {
+        self.require_kind(target, NodeKindWanted::Body)?;
         // The CANONICALIZING constructors, never the struct literals:
         // canonical form is what makes two recipes over the same edges
         // bit-identical, and `persist`'s strict door treats a
@@ -3302,39 +3385,22 @@ impl DocSession {
         self.feature_over(over, taken, node)
     }
 
-    /// **A creation gesture's one action** (A10): the new body, and its
-    /// placement in the world at the identity ([`place_in_world`]), so
-    /// what the person made is drawn. One action, so one undo takes
-    /// both.
-    ///
-    /// What is placed is the made node's first `Body` output: a revolve
-    /// defines its body and its axis, and naming it alone reads neither.
-    fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
-        self.commit_run(|run| {
-            let made = run.insert(node)?;
-            let body = body_of(run.doc(), made);
-            place_in_world(run, body).map(drop)
-        })
-    }
-
     /// **A feature gesture's one action** (A10, Ev's residue 1): the
     /// result, and each of the target's world placements `over`
     /// re-pointed to it through the slot door — so the world shows the
     /// result where it showed the target, and one undo restores both.
     /// A target nothing places places nothing.
     fn feature_over(
-        &mut self,
+        &self,
         over: Vec<RecipeNodeId>,
         taken: Option<VarId>,
         node: AuthoredNode,
-    ) -> OpOutcome {
-        if let Err(refusal) = stranded_pick(self.committed_doc(), &over, taken) {
-            return OpOutcome::refused(refusal);
-        }
-        self.commit_run(|run| {
+    ) -> Result<Creating, Refusal> {
+        stranded_pick(self.committed_doc(), &over, taken)?;
+        Ok(creating(move |run| {
             let result = run.insert(node)?;
             repoint(run, over, taken, result)
-        })
+        }))
     }
 
     /// The world placements of the body `target` reads
@@ -3529,7 +3595,7 @@ impl DocSession {
 
     /// **The one door an edit enters the document through**: apply,
     /// record, re-evaluate — and reconcile the display state against
-    /// what the document alone says: a free-move frame whose root is
+    /// what the document alone says: a free-move frame whose space is
     /// gone is discarded (see `display`'s module docs for why discard
     /// and not zero), and a hide the picture can no longer honour is
     /// dropped, each reported on the outcome with the fault that caused
@@ -3674,6 +3740,38 @@ impl DocSession {
         }
     }
 
+    /// **A creating door's run, recorded** — the one place a creation
+    /// is staged, through [`Self::commit_run`]. Where `labelled` is
+    /// given ([`SessionOp::CreateLabelled`]) the run ends with a
+    /// `SetLabel` on the node it made ([`crate::world::made`]: the last
+    /// it minted that is not a placement), so the edits, the minted ids
+    /// and the netted maintenance the outcome carries are the one
+    /// recording's. A refused creation records nothing, its label
+    /// included.
+    fn create(&mut self, labelled: Option<Label>, door: Result<Creating, Refusal>) -> OpOutcome {
+        let action = match door {
+            Ok(action) => action,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        self.commit_run(|run| {
+            action(run)?;
+            let Some(label) = labelled else {
+                return Ok(());
+            };
+            let minted: Vec<RecipeNodeId> = run.minted().iter().flatten().copied().collect();
+            // Every creating door's run inserts its node through `?`
+            // before it can answer `Ok`, so an accepted run has minted.
+            let Some(node) = crate::world::made(run.doc(), &minted) else {
+                unreachable!("a creation's accepted run mints the node it creates")
+            };
+            run.apply(DocEdit::SetLabel {
+                node,
+                label: Some(label),
+            })
+            .map(drop)
+        })
+    }
+
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
     /// the bundle written whole again without it, by the door's rule
     /// ([`DocEdit::RemoveConstraint`]) — a mate taken away frees what it
@@ -3778,6 +3876,34 @@ impl DocSession {
             resolver: self.requested_resolver.clone(),
         });
     }
+}
+
+/// **A creation's run, decided and not yet staged**: what a creating
+/// door answers once its checks pass. The door reads the session and
+/// writes nothing; [`DocSession::create`] stages the run, labels it
+/// where asked, and records it.
+type Creating = Box<dyn FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>>;
+
+/// `action` as a [`Creating`] run.
+fn creating(
+    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError> + 'static,
+) -> Creating {
+    Box::new(action)
+}
+
+/// **A creation gesture's one action** (A10): the new body, and its
+/// placement in the world at the identity ([`place_in_world`]), so
+/// what the person made is drawn. One action, so one undo takes
+/// both.
+///
+/// What is placed is the made node's first `Body` output: a revolve
+/// defines its body and its axis, and naming it alone reads neither.
+fn create_placed(node: AuthoredNode) -> Creating {
+    creating(move |run| {
+        let made = run.insert(node)?;
+        let body = body_of(run.doc(), made);
+        place_in_world(run, body).map(drop)
+    })
 }
 
 /// **A takeover onto a body holding no pieces refuses where it would
@@ -4263,6 +4389,98 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
     spins.chain(slides).collect()
 }
 
+/// How many rays each way [`DocSession::sketch_trace`] samples a trace
+/// with: enough points to read a circle's shape by, few enough to
+/// redraw each time the picks or the landed evaluation move.
+const SKETCH_TRACE_RAYS: u32 = 24;
+
+/// How far past the traced body's reach the trace is shown: a quarter
+/// more, so the body's own outline is inside the window.
+const TRACE_WINDOW_MARGIN: f64 = 1.25;
+
+/// **Why a face's trace could not be shown** ([`DocSession::sketch_trace`]).
+#[derive(Debug, Clone)]
+pub enum SketchTraceFault {
+    /// Nothing has landed to read the trace against.
+    Unevaluated,
+    /// No frame reads off the picks ([`drawn_frame`]): the traced face
+    /// has no axis, or the picked face is no plane square to it.
+    Frame(Arc<pncad::trace::TracedFrameFault>),
+    /// The trace's own refusal: the plane misses the face, the carrier
+    /// has no closed form, or a read refused.
+    Trace(Arc<pncad::trace::SketchTraceError>),
+}
+
+impl core::fmt::Display for SketchTraceFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unevaluated => f.write_str("the document has not been evaluated yet"),
+            Self::Frame(e) => write!(f, "{e}"),
+            Self::Trace(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl core::error::Error for SketchTraceFault {}
+
+/// **The body a face pick is read on, and the face's name there**
+/// (`crate::world::on_body`): the node's output by its port where it
+/// holds several, its body output otherwise.
+fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
+    let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+    let body = match crate::world::seat_read(doc, at, Some(port)) {
+        (at, Some(port)) => Operand::output(at, port),
+        (at, None) => body_of(doc, at),
+    };
+    (body, name)
+}
+
+/// **The face `face` selects, as an operand**: its name on the body the
+/// pick is read on ([`picked_body`]).
+fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
+    let (body, name) = picked_body(doc, face);
+    Operand::select(body, vec![name])
+}
+
+/// **The frame a sketch tracing `traced` stands on, in the plane of
+/// `plane`** ([`pncad::trace::traced_frame`]): `Through` the traced
+/// face's own axis and a vertex of the picked plane face. A boss swept
+/// up that axis from a piece leaving the trace along its tangent is
+/// tangent to the traced wall by construction: the coincidence door
+/// proves the union's tangency row `SameConstruction`.
+fn drawn_frame(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    plane: &FaceSelection,
+    traced: &FaceSelection,
+    tol: Tol,
+) -> Result<Operand, pncad::trace::TracedFrameFault> {
+    pncad::trace::traced_frame(
+        doc,
+        ev,
+        &face_read(doc, plane),
+        &face_read(doc, traced),
+        tol,
+    )
+}
+
+/// How far `node`'s body reaches from its own origin across its `xy`:
+/// the window a trace is shown across.
+fn body_reach(ev: &Evaluation<f64>, node: pncad::document::RecipeNodeId) -> Option<f64> {
+    use pncad::document::ValuePayload;
+    let value = ev.usable(node).ok()?;
+    let body = match &value.payload {
+        ValuePayload::Body(b)
+        | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => b.shared(),
+        _ => return None,
+    };
+    body.vertices()
+        .filter_map(|(v, _)| pncad::topo::readback::vertex_point(body, v).ok())
+        .map(|p| p.x.abs().max(p.y.abs()))
+        .reduce(f64::max)
+        .filter(|&r| r > 0.0)
+}
+
 /// **A frame read off `body`'s own geometry, standing at `at` in its
 /// own coordinates**: `Through` the first edge by id with an axis and
 /// the first vertex by id off its line, moved to `at` by the moves its
@@ -4293,10 +4511,12 @@ fn frame_off(
     let Some(NodeResult::Ok(value)) = ev.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
+    // A copy's body is its source's, in the source's coordinates: the
+    // frame is read there, as `at` states it.
     let solid = match &value.payload {
         ValuePayload::Body(b)
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
-            std::sync::Arc::clone(b)
+            std::sync::Arc::clone(b.shared())
         }
         _ => return Err(PinRefusal::NotABody { node }),
     };
@@ -4342,9 +4562,7 @@ fn frame_off(
         })
     });
     let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
-    let at = value
-        .motion
-        .map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let at = at.affine();
     use pncad::document::pose::PoseDef;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let base = Operand::Pose(Box::new(PoseDef::Through {
@@ -4449,9 +4667,9 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions
-/// [`AtRestBadge`] names for taking an A5 badge: a document that
-/// instantiates no part declares no cross-instance rest and has
-/// nothing for the gate to answer about.
+/// [`AtRestBadge`] names for taking an at-rest badge: a document that
+/// instantiates no part has no cross-instance rest for the badge to
+/// answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids()
         .iter()
@@ -4464,9 +4682,6 @@ fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
 fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
     match node {
         Node::InstantiatePart { .. } => true,
-        // Placements of a prototype drawn in THIS document: the rest
-        // between them is the placement rule's, not a crossing.
-        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
         // Copies bodies this document already holds; its constraints
         // relate copies some other node put in the document.
         Node::Place { .. } => false,
@@ -4490,51 +4705,6 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Assemble { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
-    }
-}
-
-/// One A5 verdict as the badge that shows it — the gate's own
-/// vocabulary either way: a certification with its overlap counts, or
-/// the typed refusal with its nodes spoken from `doc`, the landed
-/// document the gate judged — **and the aggregate the gate hands back
-/// with it**.
-///
-/// The gate CONSUMES the product it judges. A certification returns
-/// the same body on its `Assembly` and a refusal returns nothing, so
-/// the body is an `Option` here for the same reason
-/// [`Gathered::body`] is one, and this is the one place that fact is
-/// read off the gate's own result type.
-fn badge(
-    doc: &Doc<ProfileProgram>,
-    verdict: Result<Assembly<f64>, AssemblyError>,
-) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
-    match verdict {
-        Ok(assembly) => (
-            AtRestBadge::Certified {
-                loud: assembly.interference.iter().filter(|f| f.is_loud()).count(),
-                quiet: assembly
-                    .interference
-                    .iter()
-                    .filter(|f| !f.is_loud())
-                    .count(),
-            },
-            Some(Arc::new(assembly.body)),
-        ),
-        Err(refusal) => (
-            AtRestBadge::Refused {
-                message: refusal.spoken(doc),
-            },
-            None,
-        ),
-    }
-}
-
-/// The directory a document at `path` resolves against — its parent,
-/// with a bare filename reading as the current directory.
-fn session_dir(path: &Path) -> PathBuf {
-    match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
-        _ => PathBuf::from("."),
     }
 }
 
@@ -4592,6 +4762,20 @@ impl core::fmt::Debug for DocSession {
     }
 }
 
+/// **An axis read as a mate's operand**: a plain read as it is, and a
+/// read through a role (a frame's `z`) as the axis slid zero along
+/// itself, which is that axis.
+fn axis_operand(axis: RoleRead<Operand>) -> Operand {
+    match axis.role {
+        None => axis.read,
+        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
+            pose: axis.clone(),
+            along: axis,
+            by: Formula::zero(Dimension::Length),
+        })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
@@ -4617,6 +4801,7 @@ mod tests {
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: Vec::new(),
                 ids: Vec::new(),
+                on: None,
             }));
             let _ = run.insert(square());
             Ok(())

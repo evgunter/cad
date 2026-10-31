@@ -34,16 +34,15 @@
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::intersect::{EqualCylinderSection, SectionError, cylinder_cylinder_section};
-use geom_brep::{EdgeCurveSpec, Reach};
+use geom_brep::{EdgeCurveSpec, ExtentBall};
 use geom_core::{Band, Bounds, Decide, Point3, Real, Tol, Vec3};
-use topo::{
-    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    VertexKey,
-};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
 use super::end_face::{CapSliver, CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
@@ -461,10 +460,7 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
             let section = cylinder_cylinder_section(
                 &cylinder(l1, turn.out[0])?,
                 &cylinder(l2, turn.out[1])?,
-                &Reach::Measured {
-                    at: p,
-                    lever: l1.arm_len.max(l2.arm_len),
-                },
+                &ExtentBall::new(p, l1.arm_len.max(l2.arm_len)),
                 band,
             )
             .map_err(|e| match e {

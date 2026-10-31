@@ -99,7 +99,7 @@ fn a_straddling_part_with_touch_only_crossings_is_a_same_side_interference() {
         crossings(&errors).is_empty(),
         "no pierce and no edge-edge cross among the findings: {errors:?}"
     );
-    let placements = placement_findings(&errors);
+    let placements = placement_findings(&body, &errors);
     println!("straddle placement findings: {placements:?}");
     // The materials overlap, and the arm's own per-solid door says so
     // of an interior point of the overlap.
@@ -202,7 +202,7 @@ fn two_half_overlapping_cubes_refuse_as_a_same_side_interference() {
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared touches refuse");
     assert!(crossings(&errors).is_empty(), "{errors:?}");
-    let placements = placement_findings(&errors);
+    let placements = placement_findings(&body, &errors);
     assert!(
         matches!(
             placements[..],
@@ -230,16 +230,22 @@ fn a_pierce_between_a_and_c_leaves_the_a_b_pair_to_its_own_findings() {
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the pierce refuses");
     assert!(!crossings(&errors).is_empty(), "{errors:?}");
-    let placements = placement_findings(&errors);
+    let placements = placement_findings(&body, &errors);
     let [bracket, _, piercer_solid] = solids(&body)[..] else {
         panic!()
     };
+    // The bracket × piercer pair interferes, decided by the corner
+    // inside and by the pierces, and nothing else is placed.
     assert!(
-        matches!(
-            placements[..],
-            [ValidationError::InstanceInterference { outer, inner, .. }]
+        placements.iter().any(|e| matches!(
+            e,
+            ValidationError::InstanceInterference { outer, inner, .. }
                 if *outer == bracket && *inner == piercer_solid
-        ),
+        )) && placements.iter().all(|e| {
+            topo::census_interference_solids(&body, e).is_some_and(|(x, y)| {
+                (x, y) == (bracket, piercer_solid) || (x, y) == (piercer_solid, bracket)
+            })
+        }),
         "{placements:?}"
     );
     // And the pair without the third solid clears too.

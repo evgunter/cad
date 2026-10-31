@@ -722,6 +722,41 @@ pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRes
     posed_boxes(what, &[b], pose, tol)
 }
 
+/// The multiples of ε [`sunk_on_an_edge`] is swept at by a row that
+/// needs the sweep to escalate on the sunk box's far edge: together they
+/// span the dips at which it escalates there at some pose of each ε row.
+pub const ESCALATING_DIPS: [f64; 3] = [10.0, 300.0, 1000.0];
+
+/// **A box sunk on an edge into a cube**, at `pose`: the unit cube, and a
+/// box `[0, 1] × [0.2, 0.8] × [0, 1]` stood on its top and turned about
+/// the line `x = 0.25` on the top until its far bottom edge sinks `dip`
+/// into the cube. It rests on the top along that line, and its walls
+/// pierce the top. Each is its own solid.
+///
+/// # Panics
+///
+/// Where the two do not graft.
+#[allow(clippy::unwrap_used)]
+pub fn sunk_on_an_edge(pose: &Pose, dip: f64, tol: Tol) -> Body<f64> {
+    let cube = posed_box("the cube", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
+    let tilt = Pose::turn(
+        "tilt",
+        [0.0, 1.0, 0.0],
+        (dip / 0.75).asin(),
+        [0.25, 0.0, 1.0],
+    );
+    let tilted = Pose::rest().after(pose).after(&tilt);
+    let sunk = posed_box(
+        "the sunk box",
+        [(0.0, 1.0), (0.2, 0.8), (0.0, 1.0)],
+        &tilted,
+        tol,
+    );
+    let mut body = cube.into_body();
+    crate::instance::graft_disjoint(&mut body, &sunk).unwrap();
+    body
+}
+
 /// A hole's prism placed by `pose`, built under the caller's `tol`.
 pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [o, u, v, n] = h.frame();
@@ -747,6 +782,22 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
 /// body (a base wound clockwise from the apex is inside out).
 #[allow(clippy::panic)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    posed_pyramid_at(base, apex, pose, tol)
+}
+
+/// [`posed_pyramid`] at any scalar the Euler operators take, its posed
+/// corners lifted.
+///
+/// # Panics
+///
+/// As [`posed_pyramid`].
+#[allow(clippy::panic)]
+pub fn posed_pyramid_at<T: geom_core::Decide + crate::AtRestPolicy>(
+    base: &[[f64; 3]],
+    apex: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+) -> AtRestBody<T> {
     posed_pyramid_kept(base, apex, pose, tol)
         .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
 }
@@ -762,21 +813,22 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -
 ///
 /// Where an Euler operator refuses.
 #[allow(clippy::unwrap_used)]
-pub(crate) fn posed_pyramid_kept(
+pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     base: &[[f64; 3]],
     apex: [f64; 3],
     pose: &Pose,
     tol: Tol,
-) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
+) -> Result<AtRestBody<T>, Vec<crate::ValidationError>> {
     let n = base.len();
     assert!(n >= 3, "a pyramid needs at least three base corners");
-    let bot: Vec<_> = base.iter().map(|&q| pose.at(q)).collect();
-    let top = pose.at(apex);
-    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+    let lift = |q: [f64; 3]| pose.at(q).map(T::from_f64);
+    let bot: Vec<_> = base.iter().map(|&q| lift(q)).collect();
+    let top = lift(apex);
+    let face = |corners: &[Point3<T>]| FaceSurface::New {
         surface: plane(corners, tol),
         sense: true,
     };
-    let mut body = Body::<f64>::new();
+    let mut body = Body::<T>::new();
     let seed = body.mvfs(bot[0], true).unwrap();
     let mut chain = vec![
         body.mev(
@@ -851,7 +903,7 @@ pub(crate) fn posed_pyramid_kept(
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(body, tol)
+    T::gate_at_rest_kept(body, tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either

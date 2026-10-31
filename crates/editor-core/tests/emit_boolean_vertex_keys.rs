@@ -111,7 +111,7 @@ fn kind_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> BooleanResultKind {
 
 fn assert_at(ev: &Evaluation<f64>, id: RecipeNodeId, n: &StableName, at: [f64; 3]) {
     let v = vertex_of(table(ev, id), "the touch vertex", n);
-    let p = point(body_of(ev, id), v);
+    let p = point(&(body_of(ev, id)), v);
     let d = ((p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2)).sqrt();
     assert!(d < 1e-9, "{n:?} names a vertex at {p:?}, not at {at:?}");
 }
@@ -491,7 +491,7 @@ fn a_b_edge_in_a_b_clone_descends_to_its_b_edge() {
         .iter()
         .filter_map(|(n, e)| match e {
             Entry::Unique(r) => match r.key {
-                EntityKey::Edge(k) if on_line(bar_body, k) => Some(n.clone()),
+                EntityKey::Edge(k) if on_line(&bar_body, k) => Some(n.clone()),
                 _ => None,
             },
             Entry::Tied(_) => None,
@@ -507,7 +507,7 @@ fn a_b_edge_in_a_b_clone_descends_to_its_b_edge() {
         (bar_first, BooleanResultKind::OperandA),
     ] {
         assert_eq!(kind_of(&ev, id), kind);
-        let body = body_of(&ev, id);
+        let body = &body_of(&ev, id);
         let halves: Vec<StableName> = table(&ev, id)
             .iter()
             .flat_map(|(n, e)| {
@@ -575,7 +575,7 @@ pub(crate) fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<B
     }
     let body = body_of(ev, id);
     let at = |v| {
-        let p = point(body, v);
+        let p = point(&body, v);
         (micro(p.x), micro(p.y), micro(p.z))
     };
     let mut out = BTreeSet::new();
@@ -588,14 +588,14 @@ pub(crate) fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<B
             let geo = match k {
                 EntityKey::Vertex(v) => format!("{:?}", at(v)),
                 EntityKey::Edge(e) => {
-                    let mut s = ends(body, e).map(at);
+                    let mut s = ends(&body, e).map(at);
                     s.sort_unstable();
                     format!("{s:?}")
                 }
                 // A face by the points of its boundary vertices — its
                 // extent, which no other face of a sound body shares.
                 EntityKey::Face(f) => {
-                    let mut s: Vec<_> = face_vertices(body, f).into_iter().map(at).collect();
+                    let mut s: Vec<_> = face_vertices(&body, f).into_iter().map(at).collect();
                     s.sort_unstable();
                     format!("face {s:?}")
                 }
@@ -691,7 +691,7 @@ fn faces_in(ev: &Evaluation<f64>, id: RecipeNodeId, plane: Plane) -> Vec<StableN
         .iter()
         .filter_map(|(n, e)| match e {
             Entry::Unique(r) => match r.key {
-                EntityKey::Face(f) if on_plane(body, f, plane) => Some(n.clone()),
+                EntityKey::Face(f) if on_plane(&body, f, plane) => Some(n.clone()),
                 _ => None,
             },
             Entry::Tied(_) => None,

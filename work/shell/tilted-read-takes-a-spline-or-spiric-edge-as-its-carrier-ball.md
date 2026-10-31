@@ -69,7 +69,7 @@ merge base at every angle and wall probed, with "overlaps" of `0.3` to
 `2.4` m, because its cavity's end caps are bounded by spirics whose one
 ball reached the line. The walls clear. On this branch the read clears
 it, and the sector stops at the props door, where a spiric-bounded cap
-has no volume yet (`work/flux/spiric-bounded-face-area-is-unimplemented.md`,
+has no volume yet (`spiric-bounded-face-area-is-unimplemented`, closed by PR 4554,
 evidence added there). Rows: `a_bowl_sectors_spiric_bounded_end_walls_clear`
 (`verbs_shell`) and `the_tilted_cut_reads_a_spline_on_its_carrier`
 (unit: a parabola's cut within a few bands of `[0, 0.75]`, where its

@@ -46,7 +46,9 @@ use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
-use topo::{Body, FaceKey, FaceSurface, LoopKey};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey, LoopKey};
 
 use crate::assemble::Assembled;
 use crate::entities::SolidSpec;
@@ -232,7 +234,11 @@ fn rotate_loop_firsts(
             })?;
         let offset = Point3::new(p.x + 1.0, p.y, p.z);
         let strut = body
-            .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset, tol)
+            .mev_line(
+                topo::construction::MevSite::Fan { he1: t, he2: t },
+                offset,
+                tol,
+            )
             .map_err(op_err)?;
         body.kev(strut.he_plus).map_err(op_err)?;
     }
@@ -445,7 +451,7 @@ fn adopt_edges(
                 AdoptionCandidate::Intersection,
                 EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(fs_plus, fs_minus),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
             ));
             candidates.push((
@@ -780,7 +786,7 @@ fn iso_curve_candidates(
             // carries the file's parameterization, where `u = 1` is
             // an interior column — a description naming a locus the
             // carrier is not on.
-            let (du0, du1) = wp.knots_u_f64_interim().domain();
+            let (du0, du1) = wp.knot_values_u().domain();
             let u = if end { du1 } else { du0 };
             match spec.carrier {
                 Curve3::Nurbs(ref nurbs_carrier) => {
@@ -826,6 +832,47 @@ fn iso_curve_candidates(
                 // wall loop.
                 _ => {}
             }
+        }
+    }
+    // The `v` boundary rows, after every `u` column, between two
+    // spline walls only: the bitwise arm again, on the row a split
+    // along `v` shares between two sub-patches (`crate::knot_split`).
+    // Beside an analytic face such a row takes the intersection rung,
+    // as it always has. The row's own parameter is the chart's `u`, so
+    // the image is the line `v = const` the carrier runs along.
+    let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
+        return Ok(());
+    };
+    let spline = |k: topo::SurfaceKey| matches!(body.get_surface(k), Some(Surface::Nurbs(_)));
+    if fs_plus == fs_minus || !spline(fs_plus) || !spline(fs_minus) {
+        return Ok(());
+    }
+    for end in [false, true] {
+        for &wall in walls {
+            let Some(Surface::Nurbs(wp)) = body.get_surface(wall) else {
+                continue;
+            };
+            if wp.is_placeholder() {
+                continue;
+            }
+            let row = geom_brep::boundary_iso_v(wp.as_ref(), end)?;
+            if !bitwise_iso_match(nurbs_carrier, &row) {
+                continue;
+            }
+            let (dv0, dv1) = wp.knot_values_v().domain();
+            let v = if end { dv1 } else { dv0 };
+            let (u0, u1) = wp.knot_values_u().domain();
+            let slope = (u1 - u0) / (spec.t1 - spec.t0);
+            candidates.push((
+                AdoptionCandidate::IsoCurve,
+                EdgeDescriptionSpec::chart_image(
+                    wall,
+                    geom_brep::Pcurve::IsoLine {
+                        p0: geom_core::Point2::new(u0 - slope * spec.t0, v),
+                        pl: geom_core::Vec2::new(slope, 0.0),
+                    },
+                ),
+            ));
         }
     }
     Ok(())

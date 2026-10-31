@@ -6,7 +6,7 @@
 //! (`Rest`, `Tangent`) — so there is no second vocabulary to keep
 //! synced. A value sets one freedom a mate leaves. Each is a constraint
 //! of the placement that holds it, addressed by a [`MateRef`], never a
-//! node; everything the solve and the gate then say about it is here.
+//! node; everything the solve and the checks then say about it is here.
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!
@@ -290,7 +290,7 @@ impl Coord {
 }
 
 /// The word of an axis of the target's frame: `"x"`, `"y"` or `"z"`.
-fn axis_word(axis: d::TargetAxis) -> &'static str {
+pub(crate) fn axis_word(axis: d::TargetAxis) -> &'static str {
     match axis {
         d::TargetAxis::X => "x",
         d::TargetAxis::Y => "y",
@@ -299,7 +299,7 @@ fn axis_word(axis: d::TargetAxis) -> &'static str {
 }
 
 /// An axis of the target's frame by its word: `"x"`, `"y"` or `"z"`.
-fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
+pub(crate) fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
     match axis {
         "x" => Ok(d::TargetAxis::X),
         "y" => Ok(d::TargetAxis::Y),

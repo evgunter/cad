@@ -36,8 +36,8 @@ use editor_core::range::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
-    SpokenNode, StableName, VarName, evaluate,
+    LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    StableName, VarName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol};
@@ -86,6 +86,7 @@ fn slab(depth: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -116,6 +117,7 @@ fn notch(height: f64) -> ProfileDoc {
             [len(0.0), len(1.0)],
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -128,12 +130,26 @@ fn notch(height: f64) -> ProfileDoc {
 /// neighbours.
 const THROUGH: f64 = 0.0;
 
-/// The notch's nominal height, a convex point below the square.
-const NOMINAL: f64 = -0.25;
+/// The heights below [`THROUGH`] at which two of [`notch`]'s lines
+/// stop or start lying apart along one's axis, each a `segment_gap`
+/// decision that changes sign (`profile::seg`'s `line_line` reads that
+/// gap before any side): `(1 − √2)/2`, where `(0.5, h)–(1, 0)`'s axis
+/// reads the left wall's top at its own start, and `−1/2`, where
+/// `(0, 0)–(0.5, h)`'s reads the top edge's start `(1, 1)` at its own
+/// start. The pair's contacts are none on either side of both.
+const GAP_ZEROS: [f64; 2] = [(1.0 - std::f64::consts::SQRT_2) / 2.0, -0.5];
 
-/// The notch's seed: from a deeper point to just past the crossing,
-/// at offset `THROUGH − NOMINAL`.
-const NOTCH_SEED: RangeSeed = RangeSeed { lo: -0.25, hi: 0.3 };
+/// The notch's nominal height, a convex point below the square, above
+/// both [`GAP_ZEROS`].
+const NOMINAL: f64 = -0.125;
+
+/// The notch's seed: from a deeper point still clear of the
+/// [`GAP_ZEROS`] to just past the crossing, at offset
+/// `THROUGH − NOMINAL`, so the crossing is the one boundary inside it.
+const NOTCH_SEED: RangeSeed = RangeSeed {
+    lo: -0.0625,
+    hi: 0.15,
+};
 
 /// The same document with the extrusion distance left as a bare
 /// LITERAL — a field with no name at all until the query derives one.
@@ -145,6 +161,7 @@ fn defined_slab() -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -158,6 +175,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     let e = r.insert(Node::Extrude {
         profile: p.into(),
@@ -187,6 +205,7 @@ fn two_param_slab() -> ProfileDoc {
             [len(0.0), param("side")],
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -195,26 +214,29 @@ fn two_param_slab() -> ProfileDoc {
     r.doc
 }
 
-/// A document whose one interesting slot is STRUCTURAL.
+/// The structural slot [`patterned`]'s node carries: the index of its
+/// read of one member.
+const INDEX: SlotId = SlotId::Index {
+    seat: editor_core::OperandSlot::Source,
+    k: 0,
+};
+
+/// A document whose one interesting slot is STRUCTURAL: a row of three
+/// and a copy of its member 1, whose index ([`INDEX`]) is a count.
 fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     let e = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(0.5),
     });
-    let pat = r.insert(Node::Pattern {
-        input: e.into(),
-        count: Formula::count(3),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(2.0),
-        },
-    });
-    (r.doc, pat)
+    let (_, row) = r.linear(e, [1.0, 0.0, 0.0], 2.0, 3);
+    let read = r.member(row, 1);
+    (r.doc, read)
 }
 
 fn f64_run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -318,102 +340,6 @@ fn a_certified_side_stops_at_the_seeds_edge() {
     assert_eq!(r.nominal(), 1.0);
 }
 
-/// **A pattern's step stays inside its turn**: the certificate over a
-/// driven step stops short of zero, where the copies would mirror and
-/// every reference to a copy silently change sides, and short of a
-/// full turn either way, from seeds that reach past both. The claim is
-/// where the certificate cannot reach, not how near it gets, so a
-/// small budget makes it.
-#[test]
-fn a_driven_step_certifies_within_its_turn() {
-    use std::f64::consts::TAU;
-    for (step, seed) in [
-        (1.0, RangeSeed { lo: -3.0, hi: 7.0 }),
-        (3.0, RangeSeed { lo: -5.0, hi: 5.0 }),
-        (-1.0, RangeSeed { lo: -7.0, hi: 3.0 }),
-    ] {
-        let mut r = Recorder::new();
-        let p = r.insert(Node::Profile(ProfileProgram {
-            loops: vec![unit_square()],
-            ids: Vec::new(),
-        }));
-        let e = r.insert(Node::Extrude {
-            profile: p.into(),
-            distance: len(0.5),
-        });
-        let axis = fixture::axis_on(&r.doc, e, [0.0; 3], [0.0, 0.0, 1.0]);
-        let pattern = r.insert(Node::Pattern {
-            input: e.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Circular {
-                axis,
-                step: fixture::ang(step),
-            },
-        });
-        let range = certified_range(
-            &r.doc,
-            &RangeField::Slot {
-                node: pattern,
-                slot: SlotId::Step,
-            },
-            seed,
-            &budget(8, 64),
-            tol(),
-        )
-        .expect("the step boxes");
-        let (lo, hi) = range.certified_interval();
-        let inside = if step > 0.0 {
-            0.0 < lo && hi < TAU
-        } else {
-            -TAU < lo && hi < 0.0
-        };
-        assert!(
-            inside && lo < step && step < hi,
-            "step {step}: the certificate stays inside its turn: [{lo}, {hi}], sides {:?} {:?}",
-            range.lo(),
-            range.hi()
-        );
-        for side in [range.lo(), range.hi()] {
-            assert!(
-                !matches!(side, RangeSide::Certified { .. }),
-                "step {step}: each side meets a boundary before the seed's edge: {side:?}"
-            );
-        }
-    }
-}
-
-/// **A pattern's spacing has the slab's floor**: a spacing is a size,
-/// so the certificate over a driven spacing stops above zero instead
-/// of certifying through it into the mirrored pattern, where every
-/// reference to a copy would silently change sides.
-#[test]
-fn a_driven_spacing_does_not_certify_through_zero() {
-    let (doc, pattern) = patterned();
-    let r = certified_range(
-        &doc,
-        &RangeField::Slot {
-            node: pattern,
-            slot: SlotId::Spacing,
-        },
-        RangeSeed { lo: -3.0, hi: 0.5 },
-        &budget(24, 2048),
-        tol(),
-    )
-    .expect("the spacing boxes");
-    let (lo, hi) = r.certified_interval();
-    assert!(
-        0.0 < lo && lo < hi,
-        "the certificate stops above a zero spacing: [{lo}, {hi}], low side {:?}",
-        r.lo()
-    );
-    assert!(
-        !matches!(r.lo(), RangeSide::Certified { .. }),
-        "the low side meets a boundary before the seed's edge: {:?}",
-        r.lo()
-    );
-    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
-}
-
 // ------------------------------------------------ the four-arm contract
 
 /// **A2.** A branch change whose flipped leaf still builds every node
@@ -512,6 +438,46 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
     assert!(
         funded.hi().certified_to() > starved.hi().certified_to(),
         "more budget proves more ground"
+    );
+}
+
+/// **A line pair's gap is a boundary of its own.** From a nominal below
+/// the first of the [`GAP_ZEROS`], the walk up stops at it, which the
+/// seed holds short of the crossing, and names `segment_gap` leaving Negative: the two lines'
+/// projections go from overlapping to apart there (through the zero
+/// band, which a coarse ε reaches first), and nothing else about the
+/// notch changes.
+#[test]
+fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
+    let nominal = -0.25;
+    let doc = notch(nominal);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let RangeSide::DecisionFlip {
+        within, evidence, ..
+    } = r.hi()
+    else {
+        panic!("the gap's zero is a decision flip, got {:?}", r.hi());
+    };
+    // The bracket closes where the gap's margin enters the band, which
+    // at a coarse ε lies short of its exact zero by about ε.
+    let zero = GAP_ZEROS[0] - nominal;
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
+    assert!(
+        within.0 <= zero && zero - within.1 < 100.0 * resolution.max(tol().eps()),
+        "the gap's zero at offset {zero} closes {within:?}"
+    );
+    let named: Vec<_> = evidence
+        .verdicts
+        .nodes
+        .values()
+        .flat_map(|d| &d.flips)
+        .map(|f| (f.predicate, f.from, f.to))
+        .collect();
+    assert!(
+        named.iter().any(|(p, from, to)| *p == "segment_gap"
+            && *from == geom_core::Sign::Negative
+            && *to != geom_core::Sign::Negative),
+        "the gap's flip was not named: {named:?}"
     );
 }
 
@@ -774,14 +740,14 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             &doc,
             &RangeField::Slot {
                 node: pattern,
-                slot: SlotId::Count,
+                slot: INDEX,
             },
             seed,
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
             node: doc.spoken(pattern),
-            slot: SlotId::Count
+            slot: INDEX
         })
     );
     // A slot reading a defined variable has no interval of its own:
@@ -851,30 +817,27 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
 /// **The door's read order**: whether THIS node carries the slot is
 /// asked before what the slot id means in the vocabulary.
 ///
-/// `SlotId::Count` is structural everywhere, so a door that tested
-/// that first told a caller "the count slot of node N is structural"
-/// about a node with no count slot at all — the vocabulary's fact
-/// where the caller asked about this document's.
+/// An index slot is structural everywhere, so a door that tested that
+/// first told a caller "the index slot of node N is structural" about a
+/// node with no such slot at all — the vocabulary's fact where the
+/// caller asked about this document's.
 #[test]
 fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
     let (doc, node) = slab_slot(1.0);
     assert!(
-        doc.node(node).and_then(|n| n.expr(SlotId::Count)).is_none(),
-        "an extrude carries no Count slot"
+        doc.node(node).and_then(|n| n.expr(INDEX)).is_none(),
+        "an extrude reads no member"
     );
     assert_eq!(
         derive(
             &doc,
-            &RangeField::Slot {
-                node,
-                slot: SlotId::Count
-            },
+            &RangeField::Slot { node, slot: INDEX },
             RangeSeed::symmetric(0.25),
             tol()
         ),
         Err(RangeRefusal::UnknownSlot {
             node: doc.spoken(node),
-            slot: SlotId::Count
+            slot: INDEX
         })
     );
     // And a node that DOES carry it still refuses structural — the
@@ -883,7 +846,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
     assert!(
         patterned_doc
             .node(pattern)
-            .and_then(|n| n.expr(SlotId::Count))
+            .and_then(|n| n.expr(INDEX))
             .is_some()
     );
     assert_eq!(
@@ -891,14 +854,14 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
             &patterned_doc,
             &RangeField::Slot {
                 node: pattern,
-                slot: SlotId::Count
+                slot: INDEX
             },
             RangeSeed::symmetric(0.25),
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
             node: patterned_doc.spoken(pattern),
-            slot: SlotId::Count
+            slot: INDEX
         })
     );
 }
@@ -912,6 +875,7 @@ fn a_profile_step_argument_widens() {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),

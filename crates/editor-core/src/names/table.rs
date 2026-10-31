@@ -22,7 +22,7 @@ use super::role::{EntityKind, NameRef, StableName, next_epoch};
 /// One named entity: which output body of the node, and what in it.
 /// (`body` indexes the node's output bodies — 0 for single-body ops; a
 /// split's halves by [`crate::names::SplitHalf::output_body`]; a
-/// pattern's instances by instance index.)
+/// family's members by member index.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntityRef {
     /// Output-body index within the node's value.
@@ -407,7 +407,7 @@ impl NameTable {
     /// emitter that reads an operand's names ONE ENTITY AT A TIME goes
     /// through — and by the emitters that instead walk a whole operand
     /// table ([`super::emit_union::member_view`],
-    /// [`super::emit::name_pattern`] and its two neighbours), each at
+    /// [`super::emit::name_family`] and [`super::emit::name_copy`]), each at
     /// the point it starts that walk. So a table is sealed when it is
     /// first used as an operand and never while it is being built. A
     /// row inserted after a seal is simply unstamped and compares

@@ -2,7 +2,7 @@
 //! (`docs/INTENT-STAGE5-SPEC.md` §3, §6 rows 5–10; D10, Assertions).
 //!
 //! At rest, an overlap of two copies' material is an
-//! [`editor_core::InterferenceFinding`] on the assembly, one per
+//! [`editor_core::InterferenceFinding`] of the at-rest check, one per
 //! connected overlap, never a refusal. A holding assertion quiets one
 //! only when it reads a `Gap` directly over an opposed pair of the two
 //! copies' faces, admits only negative values, its two faces bound the
@@ -14,8 +14,8 @@ use crate::corpus;
 use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
 
 use editor_core::{
-    Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, Overlap,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
+    AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, Overlap, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
 use geom_core::Tol;
 use topo::{CensusContact, ValidationError};
@@ -48,11 +48,11 @@ fn block(doc: ProfileDoc, (cx, cy): (f64, f64), h: f64, height: f64) -> (Profile
 
 /// The `square` wall facing +x (segment 1) and the one facing −x
 /// (segment 3), as `block`'s extrude names them.
-fn plus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
+pub(crate) fn plus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
     fname(b, wall(doc, b, 1))
 }
 
-fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
+pub(crate) fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
     fname(b, wall(doc, b, 3))
 }
 
@@ -62,7 +62,7 @@ fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
 /// wall is inside `a`'s material and nothing is coplanar. `a` placed
 /// once at the identity and `b` once 0.25 up: `(doc, a, b, copy of a,
 /// copy of b)`.
-fn slab_overlap() -> (
+pub(crate) fn slab_overlap() -> (
     ProfileDoc,
     RecipeNodeId,
     RecipeNodeId,
@@ -77,9 +77,34 @@ fn slab_overlap() -> (
     (doc, a, b, p, q)
 }
 
-fn assembled(doc: &ProfileDoc) -> Assembly<f64> {
+/// **What the at-rest check reports**: its interference findings, and
+/// every finding beside them, over the product's gathered body, whose
+/// keys the census's verdicts name.
+struct AtRest {
+    interference: Vec<InterferenceFinding>,
+    findings: Vec<editor_core::CheckFinding>,
+    body: topo::AtRestBody<f64>,
+}
+
+/// The at-rest check over `doc` at `run`.
+fn at_rest(
+    doc: &ProfileDoc,
+    run: &editor_core::Evaluation<f64>,
+) -> Result<AtRest, editor_core::ChecksError> {
+    let findings = crate::fixture::at_rest(doc, run)?;
+    let body = editor_core::product_recorded(doc, run, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product gathers: {e}"))
+        .body;
+    Ok(AtRest {
+        interference: crate::fixture::interference(&findings),
+        findings,
+        body,
+    })
+}
+
+fn assembled(doc: &ProfileDoc) -> AtRest {
     let run = corpus::eval::<f64>(doc);
-    assemble(doc, &run, Tol::witness()).unwrap_or_else(|e| panic!("the gate refused: {e}"))
+    at_rest(doc, &run).unwrap_or_else(|e| panic!("the check could not run: {e}"))
 }
 
 /// The faces a bounded finding names, as `(placement, the body's own
@@ -100,13 +125,13 @@ fn sites(finding: &InterferenceFinding, doc: &ProfileDoc) -> Vec<(RecipeNodeId, 
         .collect()
 }
 
-/// **(B, test 5) An overlap is a finding, not a refusal.** The gate
-/// returns `Ok` with one loud finding, whose evidence is the census's
-/// decided `InstanceInterference` (what the gate refused before) and
+/// **(B, test 5) An overlap is a finding, not a refusal.** The at-rest
+/// check reports one loud finding, whose evidence is the census's
+/// decided `InstanceInterference` and
 /// whose site names `a`'s +x wall and `b`'s −x wall among the faces
 /// bounding it.
 #[test]
-fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
+fn two_overlapping_copies_report_one_loud_finding() {
     let (doc, a, b, p, q) = slab_overlap();
     let assembly = assembled(&doc);
     let [finding] = assembly.interference.as_slice() else {
@@ -141,7 +166,7 @@ fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
 
 /// **(B, test 8) A pierce is interference.** A bar through a plate's
 /// two side walls, every vertex of each outside the other's material:
-/// the census sees only edges piercing faces, and the gate reports one
+/// the census sees only edges piercing faces, and the check reports one
 /// finding for the pair rather than refusing an unrecorded contact.
 #[test]
 fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
@@ -168,22 +193,18 @@ fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
     let [finding] = assembly.interference.as_slice() else {
         panic!("one overlap, one finding: {:?}", assembly.interference)
     };
-    // No vertex is inside: the evidence is the pierces, and the
-    // containment arm's undecided pair the standing pierces left it.
+    // No vertex is inside: the evidence is the pierces alone, which
+    // decide the pair, so the containment arm leaves nothing undecided
+    // beside them.
     assert!(
-        finding.evidence.iter().any(|e| matches!(
-            e,
-            ValidationError::UnrecordedContact {
-                contact: CensusContact::EdgeFacePierce { .. },
-                ..
-            }
-        )) && finding.evidence.iter().all(|e| matches!(
-            e,
-            ValidationError::UnrecordedContact {
-                contact: CensusContact::EdgeFacePierce { .. },
-                ..
-            } | ValidationError::CensusUndecidable { .. }
-        )),
+        !finding.evidence.is_empty()
+            && finding.evidence.iter().all(|e| matches!(
+                e,
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::EdgeFacePierce { .. },
+                    ..
+                }
+            )),
         "the census's evidence is pierces: {:?}",
         finding.evidence
     );
@@ -255,7 +276,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
         ),
         "the assertion holds over the bodies (gap −0.05 ≤ −0.01)"
     );
-    let assembly = assemble(&doc, &run, Tol::witness()).expect("the gate reports");
+    let assembly = at_rest(&doc, &run).expect("the check reports");
     let [finding] = assembly.interference.as_slice() else {
         panic!("one finding: {:?}", assembly.interference)
     };
@@ -264,7 +285,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
 
 /// A `Gap` over faces of two world copies, read where each copy holds
 /// it (`face`), bounded by `relation` and `bound`.
-fn gap_at_copies(
+pub(crate) fn gap_at_copies(
     doc: ProfileDoc,
     (p, outer): (RecipeNodeId, StableName),
     (q, inner): (RecipeNodeId, StableName),
@@ -446,8 +467,8 @@ fn an_overlap_with_a_sunk_flange_stays_loud() {
 
 /// **(B, test 10) A failed requirement gates nothing.** The quieting
 /// assertion's measure names a face its copy does not hold, so the
-/// measure refuses and the assertion has no verdict: the gate still
-/// answers `Ok`, the finding is loud, and the assertion reports its
+/// measure refuses and the assertion has no verdict: the finding is
+/// loud, and the assertion reports its
 /// own failure.
 #[test]
 fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
@@ -471,7 +492,7 @@ fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
         ),
         "the assertion has no verdict"
     );
-    let assembly = assemble(&doc, &run, Tol::witness()).expect("a failed assertion gates nothing");
+    let assembly = at_rest(&doc, &run).expect("a failed assertion gates nothing");
     let [finding] = assembly.interference.as_slice() else {
         panic!("one finding: {:?}", assembly.interference)
     };
@@ -481,7 +502,7 @@ fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
 /// A plate with a 0.5 bore and a pin of radius `pin_r` through it,
 /// each placed once: `(doc, plate, pin, copy of plate, copy of pin,
 /// the bore's wall, the pin's wall)`.
-fn bore_and_pin(
+pub(crate) fn bore_and_pin(
     pin_r: f64,
 ) -> (
     ProfileDoc,
@@ -515,6 +536,7 @@ fn bore_pin_and_holes(
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(
@@ -590,16 +612,18 @@ fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
     }
 }
 
-/// **(B, curved containment) A pin that bottoms through a blind bore
-/// stays loud.** The plate is a union of the holed plate and a floor
-/// slab under it, so the bore is blind at `z = 0`; the pin is pressed
-/// into it (radius 0.505) and runs on into the floor. The overlap is
-/// one solid, the annulus and the slug in the floor beneath the bore,
-/// and both asserted faces bound it, but the slug lies inside the
-/// bore's carrier, away from the plate's material: the region past the
-/// carrier keeps it, so the bore's own gap does not quiet the finding.
+/// **(B, curved containment) A pin that bottoms through a blind bore is
+/// not quieted by the bore's gap.** The plate is a union of the holed
+/// plate and a floor slab under it, so the bore is blind at `z = 0`; the
+/// pin is pressed into it (radius 0.505) and runs on into the floor. The
+/// overlap is one solid, the annulus and the slug in the floor beneath
+/// the bore, and both asserted faces bound it, but the slug lies inside
+/// the bore's carrier, away from the plate's material: the region past
+/// the carrier keeps it, so the bore's own gap does not quiet the
+/// finding. (A `Gap` between the plate's top and the pin's bottom does:
+/// `intent_s5_c_quietable::a_blind_bore_pin_is_quietable_and_refuses_until_quieted`.)
 #[test]
-fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
+fn a_blind_bore_pin_is_not_quieted_by_the_bores_gap() {
     use crate::fixture::{in_world, piece, slid};
     use editor_core::{Bodies, LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
@@ -609,6 +633,7 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(
@@ -681,30 +706,32 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
     );
 }
 
-/// **(B) A clearance fit the census cannot decide still refuses.** A
+/// **(B) A clearance fit the census cannot decide is could-not-look.** A
 /// pin one box pad (`topo::test_support::sweep_pad`) inside the same bore: wide
 /// enough that every vertex and edge reads definitely clear of the
 /// other part, so the census decides no contact and no overlap, and
 /// narrower than the two pads the depth gap takes, so it cannot part
-/// the curved pairs either. The gate refuses them as it always did.
+/// the curved pairs either. Each is a could-not-look finding, which
+/// refuses nothing.
 ///
 /// Red if undecided pairs between copies are reported as interference
 /// without a decided overlap.
 #[test]
-fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
+fn a_clearance_fit_the_census_cannot_decide_is_could_not_look() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let (doc, ..) = bore_and_pin(0.5 - topo::test_support::sweep_pad(band));
     let run = corpus::eval::<f64>(&doc);
-    match assemble(&doc, &run, Tol::witness()) {
-        Err(editor_core::AssemblyError::AtRest { findings }) => assert!(
-            !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.error, ValidationError::CensusUndecidable { .. })),
-            "the census's undecided pairs: {findings:?}"
-        ),
-        other => panic!("the undecided pair refuses: {other:?}"),
-    }
+    let checked = at_rest(&doc, &run).expect("the check runs");
+    let blind = crate::fixture::could_not_look(&checked.findings);
+    assert!(
+        checked.interference.is_empty()
+            && !blind.is_empty()
+            && blind.iter().all(|f| matches!(
+                f,
+                editor_core::AtRestEvidence::NoLane(ValidationError::CensusUndecidable { .. })
+            )),
+        "the census's undecided pairs: {blind:?}"
+    );
 }
 
 /// **(B) A clearance fit apart past the band assembles.** A pin of
@@ -726,17 +753,26 @@ fn a_clearance_fit_apart_in_depth_assembles() {
 }
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
-/// press fit again, its plate drilled with a small hole beside the pin
-/// (0.586 from its axis at the nearest, within its faces' reach):
-/// the census leaves the pin's wall and that hole's wall undecided, a
-/// face pair outside the overlap the assertion's containment check
-/// covers, so the finding stays loud and carries the verdict.
+/// press fit again, its plate drilled with a small hole beside the pin:
+/// radius `0.05`, on the diagonal, its wall 1.5 of the census's box pads
+/// (`sweep_pad`) clear of the pin's wall. The census parts two faces
+/// only on a gap past both faces' pads, so it leaves the pin's wall and
+/// that hole's wall undecided (a `CensusUndecidable` face pair), a pair
+/// outside the overlap the assertion's containment check covers, so the
+/// finding stays loud and carries the verdict.
+///
+/// The pads hold the pair undecided, not a missing direction: the line
+/// between the two axes reads the gap, and the gap is less than the two
+/// pads, as for `sweep`'s `cross_solid_apart::a_rod_between_the_pads_refuses`.
 ///
 /// Red if an undecided verdict anywhere on the pair rides a quiet
 /// finding.
 #[test]
 fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
-    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(0.45, 0.45, 0.05)]);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let gap = 1.5 * topo::test_support::sweep_pad(band);
+    let at = (0.555 + gap) * core::f64::consts::FRAC_1_SQRT_2;
+    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(at, at, 0.05)]);
     let (doc, _) = gap_at_copies(
         doc.clone(),
         (p, bore),
@@ -751,19 +787,27 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let Overlap::Bounded { faces } = &finding.overlap else {
         panic!("bounded: {:?}", finding.overlap)
     };
-    let beside = finding.evidence.iter().filter(|e| {
+    // The side hole's wall: the product's one cylinder of its radius.
+    let hole_wall = |f: topo::FaceKey| {
+        let body = &assembly.body;
+        matches!(
+            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+        )
+    };
+    let beside = finding.evidence.iter().any(|e| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
-                a: topo::EntityId::Face(_),
-                b: topo::EntityId::Face(_),
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
                 ..
-            }
+            } if hole_wall(*a) || hole_wall(*b)
         )
     });
     assert!(
-        beside.count() > 0,
-        "the census left curved pairs undecided: {:?}",
+        beside,
+        "the census left the side hole's wall undecided: {:?}",
         finding.evidence
     );
     assert!(
@@ -841,5 +885,112 @@ fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
     assert_eq!(
         finding.quiet, None,
         "the assertion {assertion:?} bounds the overlap and not the touch"
+    );
+}
+
+/// An extrude of the polygon `corners` on its own xy, `height` up.
+fn prism(doc: ProfileDoc, corners: Vec<(f64, f64)>, height: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![corners],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(height),
+        },
+    )
+}
+
+/// **An overlap that shows only where the copies touch is one loud
+/// finding.** A triangular prism stood 0.2 up inside a unit block, its
+/// corners on three of the block's walls and its upright edges lying in
+/// them: no vertex of either is strictly inside the other, no edge
+/// pierces a face and no faces share a plane, so the census decides the
+/// overlap at a touch (`TouchInterference`). The gate reports one loud
+/// finding for the two copies, with that verdict as its evidence and no
+/// undecided pair beside it. Red, the pair refused as undecidable or
+/// cleared, where a decided crossing touch is read as anything else.
+#[test]
+fn a_prism_inscribed_in_a_block_is_one_loud_finding_at_its_touches() {
+    let doc = ProfileDoc::empty_derived("atrest-touch-interference", Tol::witness());
+    let (doc, block) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, wedge) = prism(doc, vec![(0.0, -0.5), (0.5, 0.0), (-0.5, 0.0)], 0.6);
+    let (doc, p) = place(doc, block);
+    let (doc, q) = place_up(doc, wedge, 0.2);
+    let assembly = assembled(&doc);
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one overlap, one finding: {:?}", assembly.interference)
+    };
+    assert!(finding.is_loud(), "no assertion is written, so it is loud");
+    assert_eq!(
+        (finding.a.var, finding.b.var),
+        (doc.output(p, 0).unwrap(), doc.output(q, 0).unwrap()),
+        "the finding names the two copies"
+    );
+    assert!(
+        finding
+            .evidence
+            .iter()
+            .any(|e| matches!(e, ValidationError::TouchInterference { .. }))
+            && !finding
+                .evidence
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "the census decides the overlap at a touch, with nothing undecided beside it: {:?}",
+        finding.evidence
+    );
+}
+
+/// **An overlap only pierces show is quiet under its gap.** A unit
+/// block, and a block wider than it across y sunk 0.05 into its +x wall
+/// half-way up: no vertex of either is inside the other, and the
+/// census decides the overlap by the pierces of the wide block's edges
+/// through the unit block's ±y walls. Those decide the pair, so nothing
+/// undecided rides the finding, and a holding `Gap ≤ −0.01` over the
+/// unit block's +x wall and the wide block's −x wall, which bound the
+/// overlap, quiets it as it quiets the slab. Red, the finding loud
+/// under its gap, where a `CensusUndecidable` stands beside a decided
+/// pair.
+#[test]
+fn an_overlap_only_pierces_show_is_quiet_under_its_gap() {
+    let doc = ProfileDoc::empty_derived("atrest-pierce-quiet", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, b) = prism(
+        doc,
+        vec![(0.45, -1.0), (1.5, -1.0), (1.5, 1.0), (0.45, 1.0)],
+        0.5,
+    );
+    let (doc, p) = place(doc, a);
+    let (doc, q) = place_up(doc, b, 0.25);
+    let loud = only_finding(&doc);
+    assert!(
+        !loud.evidence.is_empty()
+            && loud.evidence.iter().all(|e| matches!(
+                e,
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::EdgeFacePierce { .. },
+                    ..
+                }
+            )),
+        "the evidence is the pierces alone: {:?}",
+        loud.evidence
+    );
+    assert!(loud.is_loud(), "no assertion is written, so it is loud");
+    let (doc, assertion) = gap_at_copies(
+        doc.clone(),
+        (p, plus_x(&doc, a)),
+        (q, minus_x(&doc, b)),
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    assert_eq!(
+        only_finding(&doc).quiet,
+        Some(assertion),
+        "the gap over the overlap's opposed walls quiets it"
     );
 }

@@ -130,3 +130,36 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Fix:** ATREST's PR 5779 had already fixed it on main. It skips the read where an aligned confirmed pair holds the span and re-pins 5529's two gating rows. Opposed pairs still reach the read, and the pinwheel still refuses. 5529's verdict was right on substance.
   - **A second break:** RESTREAD's own PR 5704 broke `editor-core`'s build. Its new `BoundaryCrossesItself` variants were not placed in `finding_solids`, and the change filter skipped editor-core, so PR CI and main's push run stayed green. ATREST placed them (`863030db6b`).
   - Filed `ciw/a-new-public-variant-skips-its-downstream-exhaustive-matches-in-the-change-filter` (P2). — (RESTREAD orchestrator)
+- 2026-10-27 — PR 5817 (`restread/curved-pairs-apart`) merges. It closes the certify-apart half of `census-cross-solid-curved-pairs-undecidable-on-shell-results` (P0). Touches stay held under D10.
+  - **Measured on main first:** PR 5323's depth gap had already cleared the shell class, ZIP's plug, REACH's 38 unions (0 of 3794 gated results refuse) and TANG's tilted stubs.
+  - **What this PR adds:** offset directions and a held sphere reach. They clear the ball-cut lumps, the crossing balls' lumps, and a box beside a rod. JOIN-2's grid goes from 850 to 794 `BAD`; the rest touch.
+  - **INTENT's `intent_s5_b_interference` undecided-pair row** lost its premise, since the census now proves its side pair apart. I ruled that the re-fixture lands with the change: the D10 hold covers semantics, and the rule, the press fit and the assertions are unchanged. The seam note is in INTENT's log.
+  - **Tier:** dual, arm concurrent (class H). Both reviews returned APPROVE-WITH-FIXES with no MAJOR. The pair is excluded under 6(e): restarts killed both mid-run twice.
+  - **Fix pass:** a trimmed-sphere gating row and the missed sweep hits. Verifier: VERIFIED-WITH-NITS.
+  - **Rows filed:**
+    - `census-arm-1-reads-directions-from-the-pairs-own-faces-only` (P1);
+    - `census-arm-1-cannot-part-coplanar-faces-no-line-separates` (P1);
+    - `held-reach-keeps-an-unread-pole-with-no-witness` (P3);
+    - `orbit/boolean-gate-refuses-a-pair-the-census-reads-apart` (P1).
+  - **Main reds:** the lanes' unfiled ones were confirmed and filed in PR 5828: SPLICE, from PR 5789, and FLUX, from PR 5734. — (RESTREAD orchestrator)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/a-crossing-touch-is-interference` touches this program's ground. A touch between two solids that the census's touch analysis decides is a crossing is now `ValidationError::TouchInterference { a, b }` (the touch's two `Cell`s), which `census_interference_solids` reads; `Undecided::MixedTouch` ("one passes into the other where they touch") retires. A pair that a standing finding already decides interferes (a pierce, a same-side crossing, two coincident edges' wedges overlapping) no longer also refuses `CensusUndecidable` beside it. New exhaustive-match arm: `boolean/ops.rs`, `checks/at_rest.rs` `finding_solids`, pncad-py `touch_interference`. Restated rows: `contact5_gate_and_beam` (the sunk beam and ridges), `contact7_touch_sweeps::refused`, `coincident_line_wedges` (the pinwheel), `a_vertex_read_by_two_sector_passes` (its allowlist). (ATREST crossing-touch lane)
+- 2026-10-27 (ATREST orchestrator): filed `main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817` (P1, E) here: #5817 moved one `kitchen_sink` census verdict, and the slow perf12 goldens are red on main at three ε. Bisected to the #5817 merge `48910f2b`.
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` edits `crates/topo/src/census.rs`, which this program also claims: `face_interiors_meet` now certifies an arc or curved pair apart (`arc_interiors_meet`), `curved_same_side_pairs` returns the pairs certified apart (arm 1 of `sweep_cross_solid_backstop` skips them), and `flush_at_rest` gains a curved half (`curved_flush_at_rest`).
+- 2026-10-28 — PR 5858 (`restread/arm1-third-face-directions`) merges. It closes `census-arm-1-reads-directions-from-the-pairs-own-faces-only` (P1): arm 1 also proposes each arc's chord direction and the line between the carriers.
+  - **Results:** FLUSH's pocket battery goes 12 → 0 `BAD`, and JOIN-2's grid holds at 794.
+  - **INTENT row:** INTENT's `intent_s5_b_interference` undecided-pair row is re-fixtured again. Its witness now sits 1.5 pads clear, undecided because of the pads, with a seam note in INTENT's log.
+  - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. The pair is excluded under 6(e): a restart killed R2 mid-run.
+  - **Fix pass:** the chord taken as `n̂ × (q − p)` and the common normal of two axes removed. Verifier: VERIFIED-WITH-NITS.
+  - **Rows filed:** `arm-one-has-no-row-for-a-cone-pair-only-the-common-normal-would-part` (P3). — (RESTREAD orchestrator)
+- 2026-10-28 — PR 5856 (`restread/curved-edge-in-face`) merges. It closes `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P1).
+  - **The row's diagnosis was wrong.** The 42 refusals measured on main (not 38) were planar faces with a curved edge elsewhere on their boundary, not curved edge faces. They read now as a cleared fan about the point, with its rim past the face and its radius capping where a crossing is confirmed. All 42 pass.
+  - **Tier:** dual, arm concurrent (class H), fair. R2 found a false Rest at link level (a cleared sector read at its radius, not the face's reach), which R1 contradicted. The coder sided with R2: +1 R2 (blinding byte 214).
+  - **Fix passes:**
+    - Pass 1 put the rim past the face. The verifier found the ball cap ungated.
+    - Pass 2 gated it.
+  - **Process:** the orchestrator removed the implementer's worktree before the PR merged, so a fresh lane took the fix pass. Worktrees stay until merge.
+  - **Rows filed:**
+    - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
+    - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)

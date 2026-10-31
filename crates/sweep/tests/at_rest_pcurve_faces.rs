@@ -1,5 +1,9 @@
 //! **Tier 3's pcurve pass on a torus wall** (C4): a strut no torus
-//! holds is a defect tier 3 and the mint name; a stored row stated over
+//! holds is a refusal tier 3 and the mint name, and, a definite miss
+//! of a pair the kernel built, it ends as the kernel's defect at the
+//! build door and as the stored culprit's at rest, though the strut is
+//! scaffolding (a declaration, which no ending reads; D3); a stored row
+//! stated over
 //! more of its carrier than the edge spans is refused, on a complete
 //! face and a half-minted one alike; and a face bounded by a Villarceau
 //! arc mints.
@@ -26,8 +30,10 @@ use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
+use topo::construction::Construct;
+use topo::construction::MevSite;
 use topo::pcurves::validate_pcurves;
-use topo::{Body, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
+use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,14 +132,19 @@ fn line_strut(body: &mut Body<f64>, he: HalfEdgeKey) {
     strut(body, he, end, EdgeCurveSpec::line_between(p, end));
 }
 
+/// A strut off the torus: its refusal is the kernel's defect at the build
+/// door and the stored culprit's at rest, declared scaffold though it is.
 fn off_chart(e: &PcurveMintError) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { .. },
+            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
             ..
         }
-    )
+    ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
+        && topo::ValidationError::Pcurve { finding: e.clone() }
+            .to_string()
+            .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
 }
 
 /// Tier 3's findings and the wall's mint, with the oblique strut at
@@ -584,9 +595,9 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let he2 = half_edge_at(&body, face, inner);
         let made = body
             .mef(
-                topo::MefSite::Chords { he1, he2 },
+                topo::construction::MefSite::Chords { he1, he2 },
                 spec,
-                topo::FaceSurface::Inherit,
+                topo::construction::FaceSurface::Inherit,
                 tol(),
             )
             .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
@@ -606,4 +617,111 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
             "family {family}: tier 3 reads the split clean: {findings:?}"
         );
     }
+}
+
+/// The planar cap of [`torus_quarter`] in the profile plane `z = 0`.
+fn profile_cap(body: &Body<f64>) -> geom_brep::SurfaceKey {
+    body.faces()
+        .map(|(_, f)| f.surface)
+        .find(|&k| {
+            matches!(body.get_surface(k), Some(Surface::Plane { normal, .. })
+                if normal.z.abs() > 0.5)
+        })
+        .expect("the quarter revolve has a cap in the profile plane")
+}
+
+/// A straight strut on the torus wall from a corner in the profile plane,
+/// lying in that plane: DECLARED (a scaffold), or DERIVED
+/// (described as a chart image of the profile cap, which it lies on, so
+/// its edge certifies while its row on the torus wall cannot).
+fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
+    let mut body = torus_quarter();
+    let (wall, cycle) = torus_wall(&body);
+    let he = cycle
+        .iter()
+        .copied()
+        .find(|&he| {
+            let p = start_point(&body, he);
+            p.z.abs() < 1e-12 && p.x > 1.2
+        })
+        .expect("a wall corner in the profile plane, off the axis");
+    let p = start_point(&body, he);
+    let end = p + Vec3::new(0.05, 0.2, 0.0);
+    let spec = if declared {
+        EdgeCurveSpec::line_between(p, end)
+    } else {
+        let len = p.distance(end);
+        EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(profile_cap(&body)),
+            carrier: Curve3::Line {
+                origin: p,
+                dir: (end - p) * (1.0 / len),
+            },
+            param_start: 0.0,
+            param_end: len,
+        }
+    };
+    strut(&mut body, he, end, spec);
+    (body, wall)
+}
+
+/// **A strut off its face ends by the door, whoever placed it** (D3, D4
+/// ¶1 (iv)): the one map (`geom_brep::IncidenceRead::ending`) the build
+/// Display and the at-rest reason read alike. The same line strut on the
+/// torus wall, declared (a scaffold) and derived (a chart image of the
+/// profile cap it lies on), definitely off the wall:
+///
+/// - at the build door (`topo::mint_pcurves_of`), the kernel's defect, as
+///   in the mint's refusal wrapped by hand in `sweep::ExtrudeError::Pcurve`,
+///   the variant a sweep builder returns it in (its Display carries the
+///   mint's text; this is not a refusal of an extrude);
+/// - at rest (tier 3's finding), the stored culprit's;
+/// - declared and derived alike, word for word.
+///
+/// A kernel build's miss read as a lever reds the build row.
+#[test]
+fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
+    let mut texts = Vec::new();
+    for declared in [true, false] {
+        let (mut body, wall) = in_plane_strut(declared);
+        let findings = validate_pcurves(&body, band());
+        let [finding] = findings.as_slice() else {
+            panic!("declared {declared}: {findings:?}")
+        };
+        assert!(
+            matches!(
+                finding,
+                PcurveMintError::Certify {
+                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    ..
+                }
+            ),
+            "declared {declared}: {finding:?}"
+        );
+        let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
+        assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
+        let built = minted.to_string();
+        let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
+        let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
+        for (door, text, culprit) in [
+            ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
+            (
+                "ExtrudeError::Pcurve wrapping",
+                &wrapped,
+                geom_core::KERNEL_DEFECT_ENDING,
+            ),
+            ("rest", &at_rest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ] {
+            assert!(
+                text.ends_with(culprit),
+                "declared {declared} at {door}: {text}"
+            );
+            assert!(
+                !text.contains("Recourse"),
+                "declared {declared} at {door}: {text}"
+            );
+        }
+        texts.push([built, wrapped, at_rest]);
+    }
+    assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
 }

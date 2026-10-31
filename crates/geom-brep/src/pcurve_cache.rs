@@ -1668,8 +1668,10 @@ pub enum PcurveCheck {
     /// A projected image's tube-angle extent against one period on a
     /// torus chart (the projected lane's own gate).
     TubePeriod,
-    /// A curved chart's incidence test, or a class gate it leads to
-    /// (`chart_incidence`, the Villarceau gates).
+    /// A curved chart's incidence test (`chart_incidence`,
+    /// `incidence_over_span`, the cone conic's apex-height read): whether
+    /// the carrier lies on the chart. Only a genuine incidence reading
+    /// raises it.
     ChartIncidence,
     /// A projected image's sector condition: each piece in one `atan2`
     /// sector, clear of the chart's singular set.
@@ -2156,49 +2158,39 @@ impl PcurveCertifyError {
                 chart.name(),
                 channel.describe()
             ),
+            // The payload says what was read; the ending says what to do,
+            // and it is the read's at the door ([`IncidenceRead::ending`]),
+            // so no recourse is written here.
             Self::CarrierOffChart {
                 chart,
                 carrier,
                 why,
-                margin: None,
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why}. \
-                 The edge is not on its face. Recourse: repair the body so the edge's carrier \
-                 lies on the face's surface",
-                carrier.name(),
-                chart.name(),
-            ),
-            Self::CarrierOffChart {
-                chart,
-                carrier,
-                why,
-                margin: Some(OffMargin::Past(m)),
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why} \
-                 (margin {m:e} m). The edge is not on its face. Recourse: repair the body so the \
-                 edge's carrier lies on the face's surface",
-                carrier.name(),
-                chart.name(),
-            ),
-            // Not shown off the chart: the carrier is read AT a pose where
-            // no carrier of its kind lies on it, which says nothing about
-            // whether the edge is on its face.
-            Self::CarrierOffChart {
-                chart,
-                carrier,
-                why,
-                margin: Some(OffMargin::InBand(m)),
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier is no curve of the {} chart at this \
-                 tolerance — {why} (margin {m:e} m, within the band). Recourse: move the \
-                 carrier clear of that pose by more than the tolerance, or split the edge so no \
-                 piece of it sits there",
-                carrier.name(),
-                chart.name(),
-            ),
+                margin,
+            } => match IncidenceRead::of_margin(*margin) {
+                IncidenceRead::Off(margin) => write!(
+                    f,
+                    "pcurve certification: the {} carrier does not lie on the {} chart — \
+                     {why}{}. The edge is not on its face",
+                    carrier.name(),
+                    chart.name(),
+                    margin
+                        .map(|m| format!(" (margin {m:e} m)"))
+                        .unwrap_or_default()
+                ),
+                // Not shown off the chart: the carrier is read AT a pose
+                // where no carrier of its kind lies on it, which says
+                // nothing about whether the edge is on its face.
+                IncidenceRead::AtPose(m) => write!(
+                    f,
+                    "pcurve certification: the {} carrier is no curve of the {} chart at this \
+                     tolerance — {why} (margin {m:e} m, within the band)",
+                    carrier.name(),
+                    chart.name(),
+                ),
+                IncidenceRead::Undecided(_) => {
+                    unreachable!("a decided incidence refusal carries no undecided read")
+                }
+            },
             Self::ImageMismatch { image, why } => write!(
                 f,
                 "pcurve certification: the {} image offered is not its carrier's image at \
@@ -2370,6 +2362,12 @@ impl PcurveCertifyError {
                 (PcurveCheck::ChartWinding, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
+            // The check and the arm its read carries; its ending is
+            // the read's ([`Self::ending`], [`IncidenceRead::ending`]).
+            Self::CarrierOffChart { margin, .. } => (
+                PcurveCheck::ChartIncidence,
+                IncidenceRead::of_margin(*margin).arm(),
+            ),
             Self::NoGeneralLane {
                 gap: LaneGap::Unwritten,
                 ..
@@ -2380,7 +2378,6 @@ impl PcurveCertifyError {
             } => (PcurveCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::FittedEscalated { .. }
             | Self::UnsupportedChart { .. }
-            | Self::CarrierOffChart { .. }
             | Self::ImageMismatch { .. }
             | Self::FittedLaneUnsupported { .. }
             | Self::SectorRefused { .. }
@@ -2408,30 +2405,76 @@ impl PcurveCertifyError {
         if let Self::FittedEscalated { decision, cause } = self {
             return Some(decision.ending(cause, at));
         }
+        if let Some(read) = IncidenceRead::of(self) {
+            return Some(read.ending(at));
+        }
         self.decided().map(|(check, arm)| check.recourse(arm, at))
     }
 
-    /// This refusal's text read at `at`: an escalation, whose text
-    /// carries its ending, ends as its decision does there; every other
-    /// refusal is its payload alone.
+    /// This refusal's text read at `at`: an incidence refusal
+    /// ([`IncidenceRead::of`]) ends through the one map
+    /// ([`IncidenceRead::ending`]); an escalation ends as its decision
+    /// does there; every other decided refusal is its payload alone, its
+    /// ending left to the reader ([`Self::ending`]).
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
+        if let Some(read) = IncidenceRead::of(self) {
+            return self.with_ending(&read.ending(at));
+        }
         match self {
             Self::FittedEscalated { decision, cause } => format!(
                 "pcurve certification: the fitted lane's certificate escalated — {}",
                 cause.undecided(decision, decision.ending(cause, at))
             ),
+            Self::Escalated { check, cause, .. } => {
+                self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
+            }
+            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+        }
+    }
+
+    /// **This refusal's text ended by its own ending at `at`**
+    /// ([`Self::ending`]), the decided refusal's included, which
+    /// [`Self::render`] leaves to its reader; a payload that carries its
+    /// own recourse (a hand-built image, a scalar without the fitted
+    /// door, a piece outside one sector) is that payload, ended once.
+    /// `None` for a refusal no decision owns and whose payload carries no
+    /// recourse, which a door holding it ends itself.
+    #[must_use]
+    pub fn render_ended(&self, at: impl Into<ReadAt>) -> Option<String> {
+        let at = at.into();
+        if matches!(
+            self,
+            Self::ImageMismatch { .. }
+                | Self::FittedLaneUnsupported { .. }
+                | Self::SectorRefused { .. }
+        ) {
+            return Some(self.render(at));
+        }
+        let ending = self.ending(at)?;
+        Some(match self {
+            Self::FittedEscalated { .. } => self.render(at),
+            _ => self.with_ending(&ending),
+        })
+    }
+
+    /// The refusal's text followed by `ending`: the one spelling of an
+    /// escalation's text and of a payload with its ending.
+    fn with_ending(&self, ending: &str) -> String {
+        match self {
             Self::Escalated {
                 check,
                 sample,
                 cause,
             } => format!(
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
-                cause.payload(),
-                check.recourse(RefusedArm::Undecided(cause), at)
+                "pcurve certification: {check:?} at sample {sample} escalated: {}. {ending}",
+                cause.payload()
             ),
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+            _ => format!(
+                "{}. {ending}",
+                core::fmt::from_fn(|f| self.write_payload(f))
+            ),
         }
     }
 
@@ -2458,6 +2501,11 @@ enum Routing {
     /// written general lane that cannot image this pose yet
     /// ([`PcurveCheck::GeneralLane`]).
     NotYet,
+    /// A carrier's incidence on its chart ([`PcurveCheck::ChartIncidence`]):
+    /// ended by its read ([`IncidenceRead::ending`]). A refusal that
+    /// carries its read ends by it ([`PcurveCertifyError::ending`]); the
+    /// check alone reads it back off the arm ([`IncidenceRead::arm_ending`]).
+    Incidence,
 }
 
 impl PcurveCheck {
@@ -2480,9 +2528,10 @@ impl PcurveCheck {
             Self::ChartClass | Self::GeneralLane => Routing::NotYet,
             // The placement integer and the stored copies the kernel
             // writes exactly.
-            Self::ChartWinding | Self::ImageIdentity | Self::ChartIncidence | Self::Sector => {
+            Self::ChartWinding | Self::ImageIdentity | Self::Sector => {
                 Routing::Unsized(Unsized::Defect)
             }
+            Self::ChartIncidence => Routing::Incidence,
             // A sample's residual is the miss at that sample, on a
             // fitted image as well as an exact one.
             Self::MapResidual => Routing::Unsized(Unsized::Fit),
@@ -2500,14 +2549,16 @@ impl PcurveCheck {
     }
 
     /// The one ending a refusal of this check carries on `arm`, read at
-    /// `at` (D4 ¶1 (i)).
+    /// `at` (D4 ¶1 (i)). An incidence refusal ends by its read instead
+    /// ([`PcurveCertifyError::ending`], [`IncidenceRead::ending`]).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+    pub(crate) fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         match self.routing() {
             Routing::Sized(decision) => decision.recourse(arm, at),
             Routing::Unsized(decision) => decision.recourse(arm, at),
             Routing::NotYet => crate::recourse::not_yet(arm, at),
+            Routing::Incidence => IncidenceRead::arm_ending(arm, at),
         }
     }
 
@@ -2889,6 +2940,13 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 impl<T: Real> PcurveCertificate<T> {
+    /// The edge's limbs 1 and 2 on this chart, as an edge certificate
+    /// reads them off a row image's certificate: the residual at the
+    /// samples, and the envelope between them.
+    pub fn limbs(&self) -> (T, T) {
+        (self.max_residual, self.envelope)
+    }
+
     /// A certificate whose envelope is its own statement's bound.
     pub(crate) fn closed(
         samples: u32,
@@ -2957,6 +3015,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeStraddles { .. }
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
+        | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
         | P::CarrierEnclosure(_)) => unreachable!(
@@ -3004,9 +3063,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     twin: &Surface<T>,
     cuts: &[f64],
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
-    use geom_core::Bounds;
-    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    use projected::{PieceHull, ProjectedHull, SpanHull};
+    use projected::{PieceHull, ProjectedHull};
     let cross = geom_core::Interval::from_certified;
     let refuse = |why| PcurveCertifyError::ImageMismatch {
         image: PcurveKind::Projected,
@@ -3043,42 +3100,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         v_off: cross(image.v_off),
         v_sign: cross(image.v_sign),
     };
-    // An endpoint of a bracket that does not certify is an ordinary
-    // number, not a bound: every read here asks first, and reads NaN
-    // for one that does not. A piece or span the edge's interval meets
-    // refuses on it (`projected::net_incidence`, the sector check); one
-    // outside the interval is not the edge's.
-    //
-    // A net with a control that does not certify is corrupt, and it
-    // refuses wherever that control's support reaches: a piece or part
-    // reads NaN for every bound (`ok` false), through the same two
-    // reads, whichever channel the control's refusal sits in — not only
-    // where a box the bound is read off carries it.
-    let lower = |v: geom_core::Interval, ok: bool| {
-        if ok && v.is_certified() {
-            v.lo()
-        } else {
-            f64::NAN
-        }
-    };
-    let upper = |v: geom_core::Interval, ok: bool| {
-        if ok && v.is_certified() {
-            v.hi()
-        } else {
-            f64::NAN
-        }
-    };
-    let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
-        let (knots, p) = (
-            n.knots_f64_interim().knots(),
-            n.knots_f64_interim().degree(),
-        );
-        n.control().iter().enumerate().any(|(i, c)| {
-            knots[i] < b
-                && knots[i + p + 1] > a
-                && !(c.x.is_certified() && c.y.is_certified() && c.z.is_certified())
-        })
-    };
+    let (lower, uncertified) = (certified_lower, uncertified_over);
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
         .map(|k| {
@@ -3099,6 +3121,78 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
+    let spans = twin_span_hulls(
+        &lift(twin_net),
+        twin,
+        &image.chart,
+        projected::INCIDENCE_CUTS,
+        cuts,
+    )?;
+    Ok(ProjectedHull { pieces, spans })
+}
+
+/// An endpoint of a bracket that does not certify is an ordinary
+/// number, not a bound: every read here asks first, and reads NaN for
+/// one that does not. A piece or span the edge's interval meets refuses
+/// on it (`projected::net_incidence`, the sector check); one outside the
+/// interval is not the edge's.
+fn certified_lower(v: geom_core::Interval, ok: bool) -> f64 {
+    use geom_core::Bounds;
+    if ok && v.is_certified() {
+        v.lo()
+    } else {
+        f64::NAN
+    }
+}
+
+/// [`certified_lower`]'s upper end.
+fn certified_upper(v: geom_core::Interval, ok: bool) -> f64 {
+    use geom_core::Bounds;
+    if ok && v.is_certified() {
+        v.hi()
+    } else {
+        f64::NAN
+    }
+}
+
+/// Whether a control of `n` whose support meets `(a, b)` does not
+/// certify. A net with such a control is corrupt, and it refuses
+/// wherever that control's support reaches: a piece or part reads NaN
+/// for every bound, whichever channel the control's refusal sits in —
+/// not only where a box the bound is read off carries it.
+fn uncertified_over(n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)) -> bool {
+    let (knots, p) = (
+        n.knots_f64_interim().knots(),
+        n.knots_f64_interim().degree(),
+    );
+    n.control().iter().enumerate().any(|(i, c)| {
+        knots[i] < b
+            && knots[i + p + 1] > a
+            && !(c.x.is_certified() && c.y.is_certified() && c.z.is_certified())
+    })
+}
+
+/// The parts of a carrier's twin net in certification arithmetic: the
+/// chart's canonical implicit form composed along `twin_net` (the
+/// carrier written in the frame of `twin`, the chart's orthonormal
+/// twin), each knot span cut into `per_span` equal parts and at `cuts`,
+/// with each part's bound of `|f|`, the floors its metre conversion
+/// reads, and its metre readings.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] for a net the composite
+/// refuses; [`PcurveCertifyError::UnsupportedChart`] off an analytic
+/// chart.
+fn twin_span_hulls<T: geom_core::CertifiedBounds>(
+    twin_net: &NurbsCurve3<geom_core::Interval>,
+    twin: &Surface<T>,
+    chart: &ProjectedChart<T>,
+    per_span: usize,
+    cuts: &[f64],
+) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
+    use geom_core::spline::compose::CanonicalSurface;
+    let cross = geom_core::Interval::from_certified;
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -3127,9 +3221,47 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
-    let Some(meters) = projected::Meters::of(twin, &image.chart, cross) else {
+    let Some(meters) = projected::Meters::of(twin, chart, cross) else {
         unreachable!("the form above is analytic")
     };
+    // The parts read the controls through their brackets, as the
+    // composite does (`certified_coords`), and the knots and weights on
+    // their value channel: crossing the net first and reading the
+    // channel here makes the memo's input all that they read.
+    let twin_net = twin_net.map_scalar(geom_core::Interval::from_certified::<geom_core::Interval>);
+    let (knots, weights) = (twin_net.knots_f64_interim(), twin_net.weights_f64_interim());
+    let input = span_memo::Input {
+        twin_net: &twin_net,
+        form: &form,
+        meters,
+        per_span,
+        cuts,
+    };
+    span_memo::read(&input, (knots, weights), || {
+        spans_of(&input, (knots, weights))
+    })
+}
+
+/// [`twin_span_hulls`]' parts, from the twin's canonical form and metre
+/// conversion in certification arithmetic.
+fn spans_of(
+    input: &span_memo::Input<'_>,
+    (knots, weights): (&KnotVector, &[f64]),
+) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
+    let span_memo::Input {
+        twin_net,
+        form,
+        meters,
+        per_span,
+        cuts,
+    } = *input;
+    use geom_core::spline::compose::{CurveCertData, canonical_composite};
+    use projected::SpanHull;
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let (lower, upper, uncertified) = (certified_lower, certified_upper, uncertified_over);
     // The composite of the net, and the same composite with each knot
     // span cut into equal parts, and at `cuts`: the Bernstein hull over a
     // part is tighter than over the whole span (its excess falls as the
@@ -3140,31 +3272,26 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
-    let twin_net = lift(twin_net);
+    let all_certified = twin_net
+        .control()
+        .iter()
+        .all(|c| c.x.is_certified() && c.y.is_certified() && c.z.is_certified());
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(
-        twin_net.knots_f64_interim(),
-        twin_net.weights_f64_interim(),
-        &coords,
-    )
-    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(knots, weights, &coords)
+        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
-        canonical_composite(data, &form)
+        canonical_composite(data, form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = twin_net
-        .knots_f64_interim()
-        .knot_runs()
-        .map(|(k, _)| k)
-        .collect();
+    let runs: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
-            (1..projected::INCIDENCE_CUTS).map(move |j| {
+            (1..per_span).map(move |j| {
                 #[allow(clippy::cast_precision_loss)]
-                let f = j as f64 / projected::INCIDENCE_CUTS as f64;
+                let f = j as f64 / per_span as f64;
                 w[0] + (w[1] - w[0]) * f
             })
         })
@@ -3172,7 +3299,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         .collect();
     all_cuts.sort_by(f64::total_cmp);
     all_cuts.dedup();
-    let parts = composite_of(&data.clone().with_breaks(&all_cuts))?;
+    let cut = if all_cuts.is_empty() {
+        None
+    } else {
+        Some(composite_of(&data.clone().with_breaks(&all_cuts))?)
+    };
+    let parts = cut.as_ref().unwrap_or(&whole);
     let (breaks, part_sup, values) = (
         parts.num.breaks().to_vec(),
         parts.span_sup_bounds(),
@@ -3203,7 +3335,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                     floors: (0.0, 0.0),
                 };
             };
-            let controls = projected::piece_controls(&twin_net, piece);
+            let controls = projected::piece_controls(twin_net, piece);
             let (boxed, support, z) = projected::part_floors(&controls);
             // The support's divisor may not certify (a chord through the
             // axis): the box's floor stands alone then.
@@ -3212,7 +3344,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             } else {
                 boxed
             };
-            let ok = !uncertified(&twin_net, range);
+            let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             let (rho_lo, z) = (lower(rho, ok), (lower(z.0, ok), upper(z.1, ok)));
             let point = |x: f64| geom_core::Interval::from_bounds(x, x);
@@ -3226,7 +3358,14 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                                 Err(())
                             }
                         })
-                        .map_or(f64::INFINITY, |m| upper(m, true))
+                        .map_or_else(
+                            |()| {
+                                meters
+                                    .apex_root(point(f_sup))
+                                    .map_or(f64::INFINITY, |m| upper(m, true))
+                            },
+                            |m| upper(m, true),
+                        )
                 } else {
                     f64::NAN
                 };
@@ -3249,7 +3388,725 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
-    Ok(ProjectedHull { pieces, spans })
+    Ok(spans)
+}
+
+/// **The span hulls' memo**: [`spans_of`] keyed by exactly what it
+/// reads, for the projected rows' door and limb 2's rounds alike.
+///
+/// [`spans_of`] is certification arithmetic over the twin net, the
+/// twin's canonical form and its metre conversion, all in `Interval`,
+/// and the cuts. It takes no decision, so a hit skips no verdict, no
+/// escalation and no decision count. [`twin_span_hulls`] crosses the
+/// twin's scalars into the form and the conversion, and the net's
+/// controls through their brackets, on every call before the memo is
+/// read, so every `Interval` the parts read is `Def` where it certifies
+/// and `Trv` where it does not ([`geom_core::Interval::from_certified`]):
+/// its decoration is its certified bracket's presence, and a certified
+/// one is keyed by that bracket's two ends. An uncertified control is
+/// keyed as NaN, which is all the parts read of it: every part its
+/// support reaches reads NaN (`uncertified_over`), and no other part
+/// reads it. The knots and weights enter on the value channel the
+/// composite reads, each `f64` as its bits. The key is compared whole:
+/// no hash stands for it, so a hit returns exactly what a miss computes
+/// (D9). It is a bounded thread-local memo ([`crate::memo`]), so an entry
+/// left from another operation is still that key's value, never stale.
+///
+/// Limb 2's round memo keys the scalar's witness kind beside its
+/// brackets because its round forms the twin in the scalar inside the
+/// memo; here the twin is crossed before it, so the witness kind is
+/// already in the brackets.
+mod span_memo {
+    use super::{PcurveCertifyError, projected};
+    use geom::NurbsCurve3;
+    use geom_core::Interval;
+    use geom_core::spline::KnotVector;
+    use geom_core::spline::compose::CanonicalSurface;
+
+    pub(super) type Spans = Result<Vec<projected::SpanHull>, PcurveCertifyError>;
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<crate::memo::Memo<Vec<u64>, Spans>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
+    }
+
+    /// What [`super::spans_of`] reads besides its knots' and weights'
+    /// value channel: the net crossed through its brackets, the twin's
+    /// form and metre conversion, the parts per span and the cuts.
+    #[derive(Clone, Copy)]
+    pub(super) struct Input<'a> {
+        pub(super) twin_net: &'a NurbsCurve3<Interval>,
+        pub(super) form: &'a CanonicalSurface,
+        pub(super) meters: projected::Meters<Interval>,
+        pub(super) per_span: usize,
+        pub(super) cuts: &'a [f64],
+    }
+
+    /// The parts at `input`: the memo's, or `compute`'s, which is then
+    /// kept.
+    pub(super) fn read(
+        input: &Input<'_>,
+        channel: (&KnotVector, &[f64]),
+        compute: impl FnOnce() -> Spans,
+    ) -> Spans {
+        crate::memo::read(&MEMO, key(input, channel), compute)
+    }
+
+    /// The input whole, each list behind its length and each variant
+    /// behind its tag: an `f64` as its bits, a crossed `Interval` as its
+    /// certified bracket's two ends' bits, NaN where it does not certify.
+    fn key(input: &Input<'_>, (knots, weights): (&KnotVector, &[f64])) -> Vec<u64> {
+        use geom_core::CertifiedEnclosure as _;
+        use projected::Meters;
+        let len = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+        let mut k = Vec::new();
+        let floats = |k: &mut Vec<u64>, tag: u64, xs: &[f64]| {
+            k.extend([tag, len(xs.len())]);
+            k.extend(xs.iter().map(|x| x.to_bits()));
+        };
+        let scalars = |k: &mut Vec<u64>, tag: u64, xs: &[Interval]| {
+            k.extend([tag, len(xs.len())]);
+            for x in xs {
+                let (lo, hi) = x.certified_bracket().unwrap_or((f64::NAN, f64::NAN));
+                k.extend([lo.to_bits(), hi.to_bits()]);
+            }
+        };
+        match *input.form {
+            CanonicalSurface::Plane => scalars(&mut k, 0, &[]),
+            CanonicalSurface::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            CanonicalSurface::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            CanonicalSurface::Cone { cos2, sin2 } => scalars(&mut k, 3, &[cos2, sin2]),
+            CanonicalSurface::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        match input.meters {
+            Meters::Plane => scalars(&mut k, 0, &[]),
+            Meters::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
+            Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
+            Meters::Cone { sin, cos, nappe } => scalars(
+                &mut k,
+                if nappe == crate::offset::Nappe::Opening {
+                    3
+                } else {
+                    5
+                },
+                &[sin, cos],
+            ),
+            Meters::Torus { major, minor } => scalars(&mut k, 4, &[major, minor]),
+        }
+        k.extend([len(input.per_span), len(knots.degree())]);
+        floats(&mut k, 6, knots.knots());
+        floats(&mut k, 7, weights);
+        k.push(len(input.twin_net.control().len()));
+        for c in input.twin_net.control() {
+            scalars(&mut k, 8, &[c.x, c.y, c.z]);
+        }
+        floats(&mut k, 9, input.cuts);
+        k
+    }
+
+    /// This thread's memo hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        crate::memo::counts(&MEMO)
+    }
+}
+
+/// **Limb 2's reader: an `Intersection` carrier's distance from an
+/// analytic surface**, for a carrier of every kind — limb 2 of C2 for an
+/// analytic operand ([`crate::analytic_edge_limbs`]). The carrier is read
+/// through its net ([`crate::carrier_net::framed_carrier_net`]: a spline
+/// is its own net, a line, circle, ellipse or spiric its certified
+/// enclosing net), written in the frame of the surface's orthonormal
+/// twin in certification arithmetic, the frame applied to the carrier's
+/// own data before anything is combined, so each control rounds at its
+/// distance from the operand's origin and never at its distance from the
+/// world's. The twin's canonical composite along the net is converted to
+/// metres per part (the cone's and the torus's lever per part, the cone's
+/// apex root where its lever is not positive) and halved under limb 2's
+/// budget ([`projected::offset_rounds`]): a spline's rounds insert their
+/// breaks into its own net exactly, and a closed form's re-enclose the
+/// spans they cut, over [`closed_form_grid`]'s first breaks. No round
+/// reads a closed form's net past the window's outer ends; a spline is
+/// read whole, its parts the window overlaps deciding. A curved closed
+/// form is read first on its dyadic spans (`limb2_quick`), which may
+/// reach past the window's ends (a bound over a span holding a piece of
+/// the window bounds that piece); that reading passes only on cleared
+/// parts that cover the window's outer ends with no gap, and hands
+/// anything else to the rounds, so every refusal is the rounds'.
+///
+/// The reading carries the size of the net it stopped on
+/// ([`projected::NetSize`]): the carrier's own enclosure width there,
+/// below which no composite of it can bound anything, and its extent.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::CarrierEnclosure`] for a span the carrier has
+/// no certified net over; [`PcurveCertifyError::UnsupportedChart`] off
+/// an analytic chart; as [`projected::offset_rounds`] otherwise.
+pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
+    let Some((origin, e)) = projected::chart_frame(surface) else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    };
+    let chart = projected::chart_at(
+        surface,
+        || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
+        band,
+    )?;
+    let twin = orthonormal_chart(surface);
+    let Some((o, te)) = projected::chart_frame(&twin) else {
+        unreachable!("an analytic chart has a frame")
+    };
+    let frame = crate::carrier_net::Frame::of(o, te);
+    let (domain, grid, per_span) = match carrier {
+        Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
+        _ => {
+            let (lo, hi) = crate::carrier_net::outer_ends(window);
+            ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
+        }
+    };
+    let round_over =
+        |grid: &[f64],
+         cuts: &[f64]|
+         -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
+            let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+            breaks.sort_by(f64::total_cmp);
+            breaks.dedup();
+            let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
+                .map_err(PcurveCertifyError::CarrierEnclosure)?;
+            let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::Projected,
+                why: "the carrier's net forms no curve",
+            })?;
+            let size = projected::NetSize {
+                width: net.width(),
+                rounding: net.rounding(),
+                extent: net.extent(),
+            };
+            let hull = projected::ProjectedHull {
+                pieces: Vec::new(),
+                spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
+            };
+            Ok((hull, size))
+        };
+    let round_hull = |cuts: &[f64]| round_over(&grid, cuts);
+    // A curved closed form is read first on its dyadic spans, each
+    // enclosed alone (`limb2_quick`); a reading that clears is the
+    // limb's, and anything else goes to the rounds below. Its parts
+    // all clear, so `offset_cleared`'s decisions (the window's ends
+    // located, a cone's or torus's lever per part) are taken only on a
+    // reading about to pass; where a lever then refuses, the rounds
+    // take those decisions again, so the trail shows them twice.
+    let quick = if limb2_quick::enabled() {
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, &chart, band).and_then(
+            |(hull, size)| {
+                projected::offset_cleared(hull, size, window, &chart, &twin, band)
+                    .ok()
+                    .flatten()
+            },
+        )
+    } else {
+        None
+    };
+    let mut read = match quick {
+        Some(read) => read,
+        None => {
+            // The rounds read through limb 2's memo (`limb2_memo`): a
+            // round is a pure function of the key's inputs and its cuts.
+            let key = limb2_memo::Key::of(carrier, window, surface, band);
+            let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
+            projected::offset_rounds(hull, window, &chart, &twin, band)?
+        }
+    };
+    read.upper = read.offset.upper();
+    Ok(read)
+}
+
+/// **Limb 2's round memo**: one round of the composite
+/// ([`limb2_offset_sup`]'s `round_hull`: the carrier's framed net cut at
+/// the round's breaks, and the twin's composite along it, converted to
+/// metres per part) keyed by exactly what it reads.
+///
+/// **What the key holds, and why that is all.** The round reads the
+/// carrier, the operand surface (its orthonormal twin, the frame and the
+/// chart are derived from it, the chart also from the carrier's middle
+/// over the window and from the band), the window, the band and the
+/// cuts, and nothing else: no decision is taken in a round (the
+/// composite is certification arithmetic; the chart's decisions are
+/// taken outside the memo, every call), so a hit skips no verdict, no
+/// escalation and no decision count. Each scalar of the carrier, the
+/// surface and the window enters the key as its certified bracket's two
+/// ends' bits (NaN where it does not certify), beside the scalar's
+/// witness kind: the twin is formed in the scalar, and an exact scalar
+/// (`Interval`, and `Sym<Interval>`, whose value channel is
+/// `Interval`'s bit for bit) rounds it outward where an inexact one
+/// (`f64`, `Probe`) rounds it to nearest. The round's output is `f64`
+/// data with no symbolic node in it, so sharing one between `Interval`
+/// and `Sym<Interval>` hands each the bits it would have computed. The
+/// key is the whole rendering, compared whole: no hash stands for it,
+/// so no collision can return another input's round (D9: a hit returns
+/// exactly what a miss computes).
+///
+/// **Where it lives**: a bounded thread-local memo ([`crate::memo`]),
+/// so it needs no owner to thread through every door that attaches an
+/// edge. A round is a pure function of its key, so an entry left from
+/// another body or document is still that key's round, never stale.
+mod limb2_memo {
+    use super::{PcurveCertifyError, projected};
+    use geom::{Curve3, Surface};
+    use geom_core::CertifiedBounds;
+    use geom_core::predicate::Band;
+
+    pub(super) type Round =
+        Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError>;
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<crate::memo::Memo<(String, Vec<u64>), Round>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
+    }
+
+    /// The inputs a round reads, rendered whole.
+    pub(super) struct Key(String);
+
+    impl Key {
+        pub(super) fn of<T: CertifiedBounds>(
+            carrier: &Curve3<T>,
+            window: (T, T),
+            surface: &Surface<T>,
+            band: Band,
+        ) -> Self {
+            let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+            let bits = |x: f64| x.to_bits();
+            Self(format!(
+                "{}|{:x?}|{:x},{:x}",
+                rendered(carrier, surface),
+                [lo(window.0), hi(window.0), lo(window.1), hi(window.1)].map(bits),
+                band.zero().to_bits(),
+                band.escalate().to_bits(),
+            ))
+        }
+    }
+
+    /// A scalar's certified bracket's lower (`hi` false) or upper end,
+    /// NaN where it does not certify.
+    fn end<T: CertifiedBounds>(x: T, hi: bool) -> f64 {
+        x.certified_bracket()
+            .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
+    }
+
+    /// The carrier and the surface rendered whole, each scalar as its
+    /// certified bracket's two ends beside the scalar's witness kind.
+    pub(super) fn rendered<T: CertifiedBounds>(
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+    ) -> String {
+        let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+        format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}",
+            T::WITNESS,
+            carrier.map_scalar(lo),
+            carrier.map_scalar(hi),
+            surface.map_scalar(lo),
+            surface.map_scalar(hi),
+        )
+    }
+
+    /// The round at `key` cut at `cuts`: the memo's, or `compute`'s,
+    /// which is then kept.
+    pub(super) fn read(key: &Key, cuts: &[f64], compute: impl FnOnce() -> Round) -> Round {
+        let k = (
+            key.0.clone(),
+            cuts.iter().map(|c| c.to_bits()).collect::<Vec<_>>(),
+        );
+        crate::memo::read(&MEMO, k, compute)
+    }
+
+    /// This thread's memo hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        crate::memo::counts(&MEMO)
+    }
+
+    /// Empties this thread's memo, so the next read of every key
+    /// computes.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        crate::memo::clear(&MEMO);
+    }
+}
+
+/// **Limb 2's first reading of a curved closed form**: the carrier cut
+/// at the dyadic points of its angle parameter (multiples of `τ/2ᵈ`),
+/// each span enclosed alone as a degree-[`limb2_quick::ORDER`] Bézier
+/// segment ([`crate::carrier_net::framed_span_net`]) in the operand's
+/// twin frame and composed with the twin's canonical form as the rounds
+/// compose each part ([`twin_span_hulls`]). A span whose bound does not
+/// clear the band is replaced by its dyadic halves that meet the edge's
+/// outer ends, and only those are recomposed.
+///
+/// **What it hands on.** Parts that clear the band and **cover** the
+/// outer ends: sorted, each starting exactly where the one before ends,
+/// the first starting at or before the lower end and the last ending at
+/// or past the upper one ([`limb2_quick::covering`]). Anything else is
+/// `None`, so the rounds decide: a span with no certified net or
+/// composite, a halving that no longer halves the bound, a span at
+/// [`limb2_quick::DEPTH`], more than [`limb2_quick::WORK`] spans, or a
+/// covering with a gap. No span is ever dropped from the reading: a span
+/// that cannot be halved further ends it with no pass.
+///
+/// **Past the window.** A span may reach past the outer ends: a bound
+/// over a span holding a piece of the window bounds that piece. A span
+/// past the ends whose halving no longer halves its bound (the carrier
+/// past the edge's ends is not the edge's: a spiric past its oval has
+/// no net there) is read again clipped to the ends, and halved clipped
+/// from then on; a span past the ends that still halves keeps halving
+/// unclipped, its halves that leave the ends dropped as not the edge's.
+///
+/// **Why the spans are dyadic and alone.** A span's reading is then a
+/// function of the carrier, the operand, the chart (a cone's nappe,
+/// which the chart takes from the window's middle, is in the key) and
+/// the span's ends, so every edge that shares a carrier, an operand and
+/// a nappe shares its spans inside both windows (a split edge's pieces,
+/// an edge read at its attach and at rest, an edge re-attached over a
+/// moved window), and they are read once ([`limb2_quick`]'s memo). The
+/// degree is the Taylor remainder's lever: the remainder falls as the
+/// span's `ORDER + 1`th power, so a higher degree reaches the band on a
+/// few spans where [`crate::carrier_net::ORDER`] needs tens.
+mod limb2_quick {
+    use super::twin_span_hulls;
+    use crate::pcurve_cache::projected::{NetSize, ProjectedChart, ProjectedHull, SpanHull};
+    use geom::{Curve3, Surface};
+    use geom_core::CertifiedBounds;
+    use geom_core::predicate::Band;
+
+    /// The Taylor degree of a span's net. The remainder of a span of
+    /// length `h` is about `h^(ORDER+1)/(ORDER+1)!` times the carrier's
+    /// size: at 12, a quarter turn of a unit circle carries
+    /// `(π/2)¹³/13! ≈ 5.7e-8` and an eighth `≈ 7e-12`, so the finest
+    /// band is reached within a halving or two, while the conversion's
+    /// cost grows as the degree's square and its rounding with the
+    /// binomials it divides by.
+    pub(super) const ORDER: usize = 12;
+
+    /// The first spans' level: quarter turns. A coarser span's remainder
+    /// at [`ORDER`] is above every band on a unit carrier (a half turn
+    /// carries `π¹³/13! ≈ 0.04`), so its composite would only be thrown
+    /// away; a finer start composes spans a quarter turn would have
+    /// cleared.
+    const START: u32 = 2;
+
+    /// The most spans one reading composes, memo hits included: a few
+    /// rounds' worth of the rounds' own work (a round composes tens of
+    /// spans), so a carrier the first reading cannot clear costs about
+    /// that before the rounds decide.
+    pub(super) const WORK: usize = 256;
+
+    /// The deepest level a span is halved to. [`dyadic`]'s step is
+    /// `τ/2ᵈ` with `2ᵈ` a `u32`, so a level-30 span's halves are still
+    /// representable; a span of `τ/2³⁰ ≈ 5.9e-9` rad that has not
+    /// cleared is at its net's rounding, not its remainder, and a span
+    /// at this level that does not clear ends the reading.
+    pub(super) const DEPTH: u32 = 30;
+
+    /// One span's reading: its part, and its net's widths and box.
+    #[derive(Clone, Copy)]
+    pub(super) struct Part {
+        pub(super) hull: SpanHull,
+        width: f64,
+        rounding: f64,
+        boxed: Option<[(f64, f64); 3]>,
+    }
+
+    type Key = (std::rc::Rc<str>, u64, u64);
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<crate::memo::Memo<Key, Option<Part>>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
+    }
+
+    #[cfg(test)]
+    std::thread_local! {
+        static OFF: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    }
+
+    /// Whether the first reading is taken: always, but under a test's
+    /// `without`.
+    pub(super) fn enabled() -> bool {
+        #[cfg(test)]
+        {
+            !OFF.with(core::cell::Cell::get)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    /// `f` with the first reading not taken on this thread, so limb 2
+    /// is its rounds alone.
+    #[cfg(test)]
+    pub(crate) fn without<R>(f: impl FnOnce() -> R) -> R {
+        let was = OFF.with(|o| o.replace(true));
+        let r = f();
+        OFF.with(|o| o.set(was));
+        r
+    }
+
+    /// This thread's span hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        crate::memo::counts(&MEMO)
+    }
+
+    /// A cleared part over `range`, for rows of [`covering`].
+    #[cfg(test)]
+    pub(crate) fn part_over(range: (f64, f64)) -> Part {
+        Part {
+            hull: SpanHull {
+                range,
+                f_sup: 0.0,
+                rho_lo: 1.0,
+                z: (0.0, 0.0),
+                meters: 0.0,
+                floors: (0.0, 0.0),
+            },
+            width: 0.0,
+            rounding: 0.0,
+            boxed: None,
+        }
+    }
+
+    /// Empties this thread's memo, so the next read of every span
+    /// computes.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        crate::memo::clear(&MEMO);
+    }
+
+    /// Dyadic span `k` at level `d`, `[k·τ/2ᵈ, (k + 1)·τ/2ᵈ]`. Two
+    /// neighbours' shared end is the same bits at every level: `τ/2ᵈ⁺¹`
+    /// is `τ/2ᵈ` halved exactly, so `2j·τ/2ᵈ⁺¹` and `j·τ/2ᵈ` round the
+    /// same real.
+    fn dyadic(d: u32, k: i64) -> (f64, f64) {
+        let h = core::f64::consts::TAU / f64::from(1u32 << d);
+        #[allow(clippy::cast_precision_loss)]
+        ((k as f64) * h, ((k + 1) as f64) * h)
+    }
+
+    /// [`dyadic`] clipped to `[lo, hi]`; `None` where the clip is empty.
+    fn clip(d: u32, k: i64, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
+        let (a, b) = dyadic(d, k);
+        let (a, b) = (a.max(lo), b.min(hi));
+        (a < b).then_some((a, b))
+    }
+
+    /// The level-`d` spans meeting `[lo, hi]`; `None` past [`WORK`].
+    fn cover(d: u32, (lo, hi): (f64, f64)) -> Option<Vec<(u32, i64)>> {
+        let h = core::f64::consts::TAU / f64::from(1u32 << d);
+        let (first, last) = ((lo / h).floor(), (hi / h).ceil());
+        #[allow(clippy::cast_precision_loss)]
+        if !(first.is_finite() && last.is_finite()) || last - first > WORK as f64 {
+            return None;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let (first, last) = (first as i64 - 1, last as i64 + 1);
+        Some(
+            (first..=last)
+                .filter(|&k| clip(d, k, (lo, hi)).is_some())
+                .map(|k| (d, k))
+                .collect(),
+        )
+    }
+
+    /// `(d, k)`'s halves that meet `[lo, hi]`, each descended (where
+    /// read `clipped`) past any level where the clip leaves it whole, so
+    /// every half read is a shorter span than its parent's. `None` where
+    /// a half would be past [`DEPTH`], or none meets `[lo, hi]`: the
+    /// span cannot be halved, and the reading ends.
+    fn halves(d: u32, k: i64, domain: (f64, f64), clipped: bool) -> Option<Vec<(u32, i64)>> {
+        let whole = if clipped { clip(d, k, domain) } else { None };
+        let (mut d, mut k) = (d, k);
+        loop {
+            if d >= DEPTH {
+                return None;
+            }
+            let kids: Vec<(u32, i64)> = [(d + 1, 2 * k), (d + 1, 2 * k + 1)]
+                .into_iter()
+                .filter(|&(e, j)| clip(e, j, domain).is_some())
+                .collect();
+            match kids.as_slice() {
+                [] => return None,
+                [(e, j)] if clip(*e, *j, domain) == whole => (d, k) = (*e, *j),
+                _ => return Some(kids),
+            }
+        }
+    }
+
+    /// **The cleared parts as a covering of `[lo, hi]`**, sorted: the
+    /// first starts at or before `lo`, each next one starts exactly where
+    /// the one before ends, and the last ends at or past `hi`. `None`
+    /// otherwise: a gap is a piece of the edge no part has read, which
+    /// [`super::projected::window_of`] would read as the part before
+    /// it, so a reading with one does not pass.
+    pub(super) fn covering(mut parts: Vec<Part>, (lo, hi): (f64, f64)) -> Option<Vec<Part>> {
+        parts.sort_by(|x, y| x.hull.range.0.total_cmp(&y.hull.range.0));
+        let first = parts.first()?;
+        let reaches_lo = first.hull.range.0 <= lo;
+        if !reaches_lo {
+            return None;
+        }
+        let mut reach = first.hull.range.1;
+        for p in &parts[1..] {
+            if p.hull.range.0 != reach {
+                return None;
+            }
+            reach = p.hull.range.1;
+        }
+        (reach >= hi).then_some(parts)
+    }
+
+    /// [`super::limb2_offset_sup`]'s first reading (module docs): the
+    /// parts covering `domain`, every one clearing the band, and the
+    /// size of their nets; `None` otherwise.
+    pub(super) fn read<T: CertifiedBounds>(
+        carrier: &Curve3<T>,
+        domain: (f64, f64),
+        surface: &Surface<T>,
+        frame: &crate::carrier_net::Frame,
+        twin: &Surface<T>,
+        chart: &ProjectedChart<T>,
+        band: Band,
+    ) -> Option<(ProjectedHull, NetSize)> {
+        if !crate::carrier_net::has_span_nets(carrier) {
+            return None;
+        }
+        let nappe = match chart {
+            ProjectedChart::Cone { nappe, .. } => format!("{nappe:?}"),
+            _ => String::new(),
+        };
+        let base: std::rc::Rc<str> = format!(
+            "{}|{nappe}|{ORDER}",
+            super::limb2_memo::rendered(carrier, surface)
+        )
+        .into();
+        let compute = |range: (f64, f64)| -> Option<Part> {
+            let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
+            let curve = net.curve()?;
+            let hull = match twin_span_hulls(&curve, twin, chart, 1, &[])
+                .ok()?
+                .as_slice()
+            {
+                [one] => *one,
+                _ => return None,
+            };
+            Some(Part {
+                hull,
+                width: net.width(),
+                rounding: net.rounding(),
+                boxed: net.control_box(),
+            })
+        };
+        let clears =
+            |p: &Option<Part>| p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band));
+        // Each pending span: its dyadic index, its parent's bound, and
+        // whether it is read clipped to the window's outer ends.
+        let mut pending: Vec<((u32, i64), f64, bool)> = cover(START, domain)?
+            .into_iter()
+            .map(|dk| (dk, f64::INFINITY, false))
+            .collect();
+        let (mut cleared, mut work) = (Vec::new(), 0usize);
+        while let Some(((d, k), parent, clipped)) = pending.pop() {
+            work += 1;
+            if work > WORK {
+                return None;
+            }
+            let range = if clipped {
+                clip(d, k, domain)?
+            } else {
+                dyadic(d, k)
+            };
+            let p = crate::memo::read(
+                &MEMO,
+                (base.clone(), range.0.to_bits(), range.1.to_bits()),
+                || compute(range),
+            );
+            if clears(&p) {
+                cleared.extend(p);
+                continue;
+            }
+            // A halving that no longer halves the bound is at the net's
+            // rounding (or the bound is NaN, or the span has no net):
+            // no deeper span clears. A span reaching past the window's
+            // ends is then read again within them, since the carrier
+            // past the edge's ends is not the edge's.
+            let bound = p.map_or(f64::NAN, |p| p.hull.meters);
+            let halved = bound <= 0.5 * parent;
+            if !halved {
+                if clipped || clip(d, k, domain) == Some(range) {
+                    return None;
+                }
+                pending.push(((d, k), f64::INFINITY, true));
+                continue;
+            }
+            pending.extend(
+                halves(d, k, domain, clipped)?
+                    .into_iter()
+                    .map(|dk| (dk, bound, clipped)),
+            );
+        }
+        let cleared = covering(cleared, domain)?;
+        let widest = crate::carrier_net::widest;
+        let boxed = cleared
+            .iter()
+            .try_fold([(f64::INFINITY, f64::NEG_INFINITY); 3], |acc, p| {
+                let b = p.boxed?;
+                Some(core::array::from_fn(|i| {
+                    (acc[i].0.min(b[i].0), acc[i].1.max(b[i].1))
+                }))
+            });
+        let size = NetSize {
+            width: cleared.iter().map(|p| p.width).fold(0.0, widest),
+            rounding: cleared.iter().map(|p| p.rounding).fold(0.0, widest),
+            extent: boxed.map_or(f64::NAN, |b| crate::carrier_net::diagonal(&b)),
+        };
+        let hull = ProjectedHull {
+            pieces: Vec::new(),
+            spans: cleared.iter().map(|p| p.hull).collect(),
+        };
+        Some((hull, size))
+    }
+}
+
+/// The breaks a closed-form carrier's first net is cut at inside
+/// `[lo, hi]`: none for a line, whose degree-1 net is exact; for a
+/// curved kind, equal spans of at most a [`crate::ssi::SSI_CERT_SPANS`]th
+/// of a turn of its angle parameter, so a span's Taylor remainder is
+/// bounded by the turn's fraction whatever the arc's length.
+fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> {
+    if matches!(carrier, Curve3::Line { .. }) {
+        return Vec::new();
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let turn = core::f64::consts::TAU / crate::ssi::SSI_CERT_SPANS as f64;
+    let reach = ((hi - lo) / turn).ceil();
+    if !reach.is_finite() || reach < 2.0 {
+        return Vec::new();
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = (reach as usize).min(crate::ssi::SSI_CERT_SPANS);
+    #[allow(clippy::cast_precision_loss)]
+    (1..n)
+        .map(|k| lo + (hi - lo) * (k as f64 / n as f64))
+        .collect()
 }
 
 /// The fitted door's body for check 4 ([`crate::FittedLane`]): limb 2
@@ -3380,6 +4237,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::TubeNotOneArc { .. }
         | E::TransversalityBand { .. }
         | E::PairTangent { .. }
+        | E::RadiusNotPositive { .. }
+        | E::DegenerateTorus(_)
+        | E::CoincidentTori
         | E::OperandNotFinite { .. }
         | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }
@@ -4708,7 +5568,7 @@ fn periodic_envelope<T: Decide>(
 /// arithmetic it is the frame the lemma on
 /// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
 /// unit frame is its own twin, and its twin's forms reduce to its own.
-fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
+pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
         let f = geom::square_frame(axis, u_ref);
         (f.axis, f.u_ref)
@@ -8272,6 +9132,14 @@ fn derive_class<T: Decide>(
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let off_chart = |why| Underived::Refused(OffChart(why).refusal(surface, carrier));
+    // A class rate read Zero: the carrier is not that class, and the
+    // reading says nothing of whether it lies on the chart (a circle in
+    // the plane through a torus's tube centre ⊥ the meridian reads its
+    // meridional rate 0 off the torus; a great circle tilted in band at
+    // `K < √2` reads its polar rate in band on the sphere). So the
+    // incidence test decides, through D3's one door to the general lane:
+    // off, a definite miss; not shown off, the general lane or "not yet".
+    let not_this_class = || incidence::general_lane(carrier, surface, place, band, None);
     let Some(form) = carrier_harmonic(carrier) else {
         return Err(Underived::Refused(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
@@ -8388,6 +9256,7 @@ fn derive_class<T: Decide>(
                         |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
+                    let (a, b) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
@@ -8396,8 +9265,8 @@ fn derive_class<T: Decide>(
                             },
                             v: Channel::Free {
                                 c: w.dot(axis),
-                                a: form.a.dot(axis),
-                                b: form.b.dot(axis),
+                                a,
+                                b,
                                 l: form.l.dot(axis),
                             },
                         },
@@ -8708,7 +9577,7 @@ fn derive_class<T: Decide>(
                     // image against the carrier.
                     let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
-                    let sense = match decide(
+                    let sense = match geom_core::k_stats::decide_reported(
                         "pcurve_chart_orientation",
                         Margin::over_lever(orient, ra.norm()),
                         band,
@@ -8716,16 +9585,19 @@ fn derive_class<T: Decide>(
                     .map_err(|cause| {
                         incidence::general_lane(carrier, surface, place, band, Some(cause))
                     })? {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        // A section that does not wind about the axis
-                        // is no ellipse of this cone.
-                        Sign::Zero => {
-                            return Err(off_chart(
-                                "an ellipse that does not wind about the axis is no section of \
-                                 the cone",
-                            ));
-                        }
+                        Decided {
+                            sign: Sign::Positive,
+                            ..
+                        } => T::one(),
+                        Decided {
+                            sign: Sign::Negative,
+                            ..
+                        } => T::zero() - T::one(),
+                        // The class rate read Zero: not this class, and no
+                        // reading of incidence (`not_this_class`).
+                        Decided {
+                            sign: Sign::Zero, ..
+                        } => return Err(not_this_class()),
                     };
                     // The vertex at `t = 0` lies along `ra` from the axis:
                     // `r0 = −e·ra` (the focus), so `r0 + ra = (1 − e)·ra`,
@@ -8795,8 +9667,10 @@ fn derive_class<T: Decide>(
             // Structural carrier gate: only circles lie on a sphere — a
             // bounded algebraic surface holds no line, and its plane
             // sections are circles. An `Ellipse` is refused by kind,
-            // even a near-circular one within ε of such a circle: its
-            // kind is the pose that minted it, a tilted section.
+            // before any incidence read: its roundness is no reading of
+            // whether it lies on the sphere, so no margin is quoted.
+            // Reading incidence first, as the cone's ellipse arm does, is
+            // E1c's (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`).
             if !matches!(carrier, Curve3::Circle { .. }) {
                 return Err(off_chart(
                     "a sphere holds no line, and its plane sections are circles",
@@ -8920,7 +9794,7 @@ fn derive_class<T: Decide>(
                     } else {
                         T::zero() - b_r.dot(d_hat) * aa / radius
                     };
-                    let sigma_sign = match decide(
+                    let sigma_sign = match geom_core::k_stats::decide_reported(
                         "pcurve_sphere_chart_polar_rate",
                         Margin::of(sigma_margin),
                         band,
@@ -8928,16 +9802,15 @@ fn derive_class<T: Decide>(
                     .map_err(|cause| {
                         incidence::general_lane(carrier, surface, place, band, Some(cause))
                     })? {
-                        sign @ (Sign::Positive | Sign::Negative) => sign,
-                        // A great circle in a plane holding the axis
-                        // moves along the meridian at every point, at
-                        // rate `r`: a zero rate is no such circle.
-                        Sign::Zero => {
-                            return Err(off_chart(
-                                "a centred circle in a plane holding the polar axis that does \
-                                 not move along the meridian is no great circle of the sphere",
-                            ));
-                        }
+                        Decided {
+                            sign: sign @ (Sign::Positive | Sign::Negative),
+                            ..
+                        } => sign,
+                        // The class rate read Zero: not this class, and no
+                        // reading of incidence (`not_this_class`).
+                        Decided {
+                            sign: Sign::Zero, ..
+                        } => return Err(not_this_class()),
                     };
                     let sigma = winding_of(sigma_sign);
                     // The half of the great circle the edge lies on is
@@ -9043,7 +9916,7 @@ fn derive_class<T: Decide>(
             // A bounded surface holds no line, and a torus's plane
             // sections are bicircular quartics, whose conic components
             // are circles. An `Ellipse` is refused by kind, as on the
-            // sphere arm, however near-circular.
+            // sphere arm, before any incidence read (E1c's).
             if !matches!(carrier, Curve3::Circle { .. }) {
                 return Err(off_chart(
                     "a torus holds no line, and the conics among its plane sections are circles",
@@ -9155,7 +10028,7 @@ fn derive_class<T: Decide>(
                     // and `δ` is computed once, placed, below.
                     let a_rad = a_r.dot(rad);
                     let tube = Azimuth::of(aa, a_rad);
-                    let sigma = match decide(
+                    let sigma = match geom_core::k_stats::decide_reported(
                         "pcurve_torus_chart_meridional_rate",
                         Margin::over_lever(ba * a_rad - b_r.dot(rad) * aa, tube.length()),
                         band,
@@ -9163,16 +10036,15 @@ fn derive_class<T: Decide>(
                     .map_err(|cause| {
                         incidence::general_lane(carrier, surface, place, band, Some(cause))
                     })? {
-                        sign @ (Sign::Positive | Sign::Negative) => winding_of(sign),
-                        // A meridian circle moves along the meridian at
-                        // every point, at rate `r`: a zero rate is no
-                        // meridian.
-                        Sign::Zero => {
-                            return Err(off_chart(
-                                "a circle in a plane holding the axis that does not move along \
-                                 the meridian is no meridian of the torus",
-                            ));
-                        }
+                        Decided {
+                            sign: sign @ (Sign::Positive | Sign::Negative),
+                            ..
+                        } => winding_of(sign),
+                        // The class rate read Zero: not this class, and no
+                        // reading of incidence (`not_this_class`).
+                        Decided {
+                            sign: Sign::Zero, ..
+                        } => return Err(not_this_class()),
                     };
                     // The tube angle placed in the window at the span's
                     // midpoint; σ, read off the direction above, is the
@@ -9228,6 +10100,37 @@ impl From<PcurveCertifyError> for Underived {
     }
 }
 
+/// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
+/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where both
+/// are enclosures holding zero and their sup is decided `Zero` at
+/// `pcurve_cylinder_chart_axial` — the cone arm's
+/// `pcurve_cone_chart_axial` read on the cylinder. Otherwise as given.
+///
+/// An interval scalar encloses a rim's terms, dot products of its frame
+/// with the axis, as intervals about zero that an exact test does not
+/// read as zero. At `f64` a value holds zero only when it is zero, so
+/// nothing there is decided or moved. The dropped drift is within the
+/// band, and the certificate's envelope bounds what it moves.
+fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
+    let holds_zero = |x: T| {
+        x.structure_bracket()
+            .is_some_and(|(lo, hi)| lo <= 0.0 && 0.0 <= hi)
+    };
+    if (geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b))
+        || !(holds_zero(a) && holds_zero(b))
+    {
+        return (a, b);
+    }
+    match decide(
+        "pcurve_cylinder_chart_axial",
+        Margin::of(harmonic_sup_scalar(a, b)),
+        band,
+    ) {
+        Ok(Sign::Zero) => (T::zero(), T::zero()),
+        _ => (a, b),
+    }
+}
+
 /// [`derive_class`] for a caller that wants a closed-form image or a
 /// refusal: the sphere's general circle has none.
 fn derive_harmonic<T: Decide>(
@@ -9265,6 +10168,142 @@ pub enum OffMargin {
     /// so at this tolerance it is read as there, and no carrier of its
     /// kind lies on the chart there. It is not shown off the chart either.
     InBand(geom_core::MarginDiag),
+}
+
+impl OffMargin {
+    /// The margin the decision read, on either side of the band.
+    #[must_use]
+    pub fn diag(self) -> geom_core::MarginDiag {
+        match self {
+            Self::Past(m) | Self::InBand(m) => m,
+        }
+    }
+}
+
+/// **How a carrier's incidence on its chart was read**: the one
+/// classifier every door's incidence ending matches on
+/// ([`IncidenceRead::of`], [`IncidenceRead::ending`]).
+#[derive(Clone, Copy, Debug)]
+pub enum IncidenceRead<'a> {
+    /// Decided off the chart: past the band, or with no margin to quote.
+    Off(Option<geom_core::MarginDiag>),
+    /// A band-decided Zero at a degenerate pose ([`OffMargin::InBand`]):
+    /// at this tolerance the carrier sits where the chart holds no curve
+    /// of its kind; it is not shown off the chart.
+    AtPose(geom_core::MarginDiag),
+    /// The incidence test landed in the band
+    /// ([`PcurveCheck::ChartIncidence`] escalated).
+    Undecided(&'a Indeterminate),
+}
+
+impl<'a> IncidenceRead<'a> {
+    /// **The one incidence classifier**: the read a refusal carries, or
+    /// `None` for a refusal of anything else. Every reader of an incidence
+    /// refusal reads it here (the edge certificate's through
+    /// [`crate::CertifyError::incidence_read`], which agrees arm for arm),
+    /// and decides definite or in band by [`Self::is_definite`].
+    #[must_use]
+    pub fn of(error: &'a PcurveCertifyError) -> Option<Self> {
+        match error {
+            PcurveCertifyError::CarrierOffChart { margin, .. } => Some(Self::of_margin(*margin)),
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::ChartIncidence,
+                cause,
+                ..
+            } => Some(Self::Undecided(cause)),
+            // The test's residual decided past the band: a definite miss
+            // with no margin carried.
+            PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::ChartIncidence,
+                ..
+            } => Some(Self::Off(None)),
+            _ => None,
+        }
+    }
+
+    /// The read a decided incidence refusal's margin names.
+    #[must_use]
+    pub fn of_margin(margin: Option<OffMargin>) -> Self {
+        match margin {
+            Some(OffMargin::InBand(m)) => Self::AtPose(m),
+            None => Self::Off(None),
+            Some(OffMargin::Past(m)) => Self::Off(Some(m)),
+        }
+    }
+
+    /// The refused arm the read carries.
+    #[must_use]
+    pub fn arm(self) -> RefusedArm<'a> {
+        match self {
+            Self::Off(margin) => RefusedArm::SignCertain(margin),
+            Self::AtPose(m) => RefusedArm::SignCertain(Some(m)),
+            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+        }
+    }
+
+    /// **An incidence decision's ending read off its refused arm alone**,
+    /// for a refusal that does not carry its read: a sign-certain arm is a
+    /// definite miss, a band-decided Zero a pose, an undecided arm
+    /// undecided, each through [`Self::ending`]; a straddle, two readable
+    /// bounds neither showing the carrier off nor on, the undecided read's
+    /// lever. A refusal that carries its read ([`Self::of`]) ends by it
+    /// instead: off and at a pose both refuse sign-certain, so only the
+    /// read tells them apart.
+    #[must_use]
+    pub fn arm_ending(arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        match arm {
+            RefusedArm::SignCertain(margin) => IncidenceRead::Off(margin).ending(at),
+            RefusedArm::Zero(crate::recourse::Classified { margin, .. }) => {
+                IncidenceRead::AtPose(margin).ending(at)
+            }
+            RefusedArm::Undecided(cause) => IncidenceRead::Undecided(cause).ending(at),
+            RefusedArm::Straddle => crate::recourse::INCIDENCE_UNSHOWN.recourse(arm, at),
+        }
+    }
+
+    /// **The one ending of an incidence refusal**, read at `at` (D3, D4
+    /// ¶1 (iv)): a definite miss is a contradiction between what the edge
+    /// states and its geometry, ended by the door that reads it (the
+    /// kernel's defect at a build, the stored culprit at rest, the
+    /// damaged file at the import door, with no ε_in offer: the margin it
+    /// may carry is a pose's height, not the miss); a read in band, at a
+    /// pose or undecided, is a reading of the geometry, ending in its
+    /// lever at every door, never a defect, unless its margin could not
+    /// be read: that reads nothing about the geometry and ends in the
+    /// defect ending. No ending reads who placed the carrier.
+    #[must_use]
+    pub fn ending(self, at: impl Into<ReadAt>) -> String {
+        let arm = self.arm();
+        match self {
+            Self::AtPose(_) if !self.is_definite() => {
+                crate::recourse::INCIDENCE_AT_POSE.recourse(arm, at)
+            }
+            Self::Undecided(_) if !self.is_definite() => {
+                crate::recourse::INCIDENCE_UNSHOWN.recourse(arm, at)
+            }
+            // A definite miss, or a margin that could not be read.
+            Self::Off(_) | Self::AtPose(_) | Self::Undecided(_) => {
+                crate::recourse::Unsized::Defect.recourse(arm, at)
+            }
+        }
+    }
+
+    /// **Whether this read is definite**: a miss decided off the chart,
+    /// or a read whose margin could not be read, which says nothing of
+    /// the geometry's pose and which no lever makes readable (as every
+    /// unsized decision's unreadable arm, [`crate::recourse::Unsized::recourse`]).
+    /// A definite read ends in the door's defect ending
+    /// ([`Self::ending`]) and is a torn row to a reader that walks one
+    /// (topo's boolean loop walk); a read in band is neither. The one
+    /// policy every reader of an incidence refusal uses.
+    #[must_use]
+    pub fn is_definite(self) -> bool {
+        match self {
+            Self::Off(_) => true,
+            Self::AtPose(m) => m.is_invalid(),
+            Self::Undecided(cause) => cause.margin.is_invalid(),
+        }
+    }
 }
 
 /// A closed-form arm's conclusion that the carrier cannot lie on the
@@ -9362,7 +10401,10 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// [`Underived::General`] not shown off it and no Villarceau circle
 /// shown (in band: with the ladder's cause), through the incidence door
 /// ([`incidence::general_lane`]); [`PcurveCertifyError::Escalated`] when
-/// the incidence test or the tangent's signs land in the sliver band.
+/// the incidence test lands in the sliver band
+/// ([`PcurveCheck::ChartIncidence`]), or a tangent's sign is not decided:
+/// [`PcurveCheck::ChartClass`], the class not shown (the comment at
+/// `unit_sign`).
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -9387,7 +10429,7 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
-    incidence::incident(carrier, surface, place, band)?;
+    let shown = incidence::incident(carrier, surface, place, band)?;
     let w = c - center;
     let w_r = w - axis * w.dot(axis);
     let gates = [
@@ -9461,17 +10503,26 @@ fn torus_oblique_circle<T: Decide>(
     //   here only at `K ≤ 3`, up to rounding, and there the tube-rate part
     //   decides Zero (measured at `R = 2`, `r = 1.8e-9`, band
     //   `(1e-9, 2e-9)`).
-    // At the run's `K` above 3, a Zero or in-band reading here is two
-    // readings of one number disagreeing, a kernel defect, which is the
-    // ending `ChartIncidence` gives it. The `K ≤ 3` route's defect ending
-    // is the class
-    // `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`
-    // covers.
+    // Neither part is an incidence reading: the test above did not show
+    // the circle off the torus. Each route, read by its own gates:
+    // - the parallel route (`_axial` Zero, `_centered` apart) reaches here
+    //   only at `K ≤ 3`, and there the tube-rate part is a class reading of
+    //   a circle at the band's scale: a Zero or in-band reading is the
+    //   class not shown, a lane choice, "not yet" (`ChartClass`, Ev on
+    //   PR 5113; `pcurve_villarceau::a_tube_rate_gates_rejected_zero_is_a_class_reading`);
+    // - the both-apart route reads two numbers its gates already decided
+    //   apart, so its parts decide too, up to rounding: nothing in band
+    //   reaches the refusal from it, and a rounding-level reading would
+    //   be the same class not shown.
+    // So both end as the class reading; no check of its own is owed
+    // (check 4's re-read of a class in band ends `ChartClass` too,
+    // `check_4_class_rows`).
+    let reread = |cause| incidence::class_escalated(shown, cause);
     let unit_sign = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
         geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)
-            .map_err(incidence_escalated)?;
-        match decide(name, Margin::levered(part, big), band).map_err(incidence_escalated)? {
+            .map_err(reread)?;
+        match decide(name, Margin::levered(part, big), band).map_err(reread)? {
             Sign::Positive => Ok(T::one()),
             Sign::Negative => Ok(T::zero() - T::one()),
             Sign::Zero => unreachable!("a part whose magnitude decided positive decides a sign"),
@@ -9741,7 +10792,10 @@ mod incidence {
     }
 }
 
-/// The escalation the incidence test and a class gate it leads to raise.
+/// The escalation of a genuine incidence reading landing in the sliver
+/// band: the sampled test (`incidence_over_span`) and the spiric wall's
+/// centre read. No class gate raises it (a class reading in band is
+/// [`PcurveCheck::ChartClass`]'s, through the incidence door).
 fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
     PcurveCertifyError::Escalated {
         check: PcurveCheck::ChartIncidence,
@@ -9834,9 +10888,21 @@ fn spiric_chart_pcurve<T: Decide>(
         } => {
             let cv = chart_axis.cross(chart_u);
             // Both readings place the oval on one of the tori that hold
-            // it, so their far or Zero arm is the chart's incidence and an
-            // in-band reading is an incidence reading, never a lane choice
-            // ([`PcurveCheck::ChartIncidence`]).
+            // it, so their far or Zero arm is the chart's incidence, never
+            // a lane choice. The axis reading's sign is all that can
+            // place it: a reading Zero or in the sliver puts the axes
+            // within `K·ε/R` of perpendicular, far from the parallel ones
+            // every torus holding the oval has, so it is definitely off
+            // (no margin to quote). A poisoned read says only that. The centre's reading in the sliver is
+            // the chart's distance from the own torus, an incidence
+            // reading ([`PcurveCheck::ChartIncidence`]).
+            let perpendicular = || {
+                spiric_off_own_chart(
+                    "the chart torus's axis is perpendicular to the carrier's, and a spiric \
+                     oval lies only on tori parallel to its own",
+                )
+                .refusal(surface, carrier)
+            };
             let sigma = match decide(
                 "pcurve_spiric_chart_axis",
                 // A COSINE of unit vectors: dimensionless, so it is
@@ -9847,17 +10913,23 @@ fn spiric_chart_pcurve<T: Decide>(
                 Margin::levered(chart_axis.dot(axis), chart_major),
                 band,
             )
-            .map_err(incidence_escalated)?
-            {
+            .map_err(|cause| {
+                if cause.margin.is_invalid() {
+                    // A poisoned read shows nothing about the axes: no
+                    // claim that they are perpendicular, and no lever
+                    // makes it readable (the defect ending).
+                    spiric_off_own_chart(
+                        "the chart torus's axis could not be read against the carrier's (its \
+                         reading was poisoned)",
+                    )
+                    .refusal(surface, carrier)
+                } else {
+                    perpendicular()
+                }
+            })? {
                 Sign::Positive => T::one(),
                 Sign::Negative => T::zero() - T::one(),
-                Sign::Zero => {
-                    let verdict = spiric_off_own_chart(
-                        "the chart torus's axis is perpendicular to the carrier's, and a \
-                         spiric oval lies only on tori parallel to its own",
-                    );
-                    return Err(verdict.refusal(surface, carrier));
-                }
+                Sign::Zero => return Err(perpendicular()),
             };
             let torus = match decide(
                 "pcurve_spiric_mint_center",
@@ -9937,8 +11009,16 @@ fn cone_conic_incidence<T: Decide>(
         form.b.dot(axis),
     );
     let z_min = wz.abs() - (az.powi(2) + bz.powi(2)).sqrt();
+    // A pose reading: in the sliver the conic is not shown away from the
+    // apex's height, the pose the in-band Zero below names, so it ends in
+    // the pose lever too (`OffMargin::InBand`), never "not shown on the
+    // face" of a conic that may lie on it.
+    let near_apex = OffChart(
+        "the conic's lowest point is not shown away from the apex's height, where the apex \
+         plane meets the cone only at the apex",
+    );
     match geom_core::k_stats::decide_reported("pcurve_cone_chart_nappe", Margin::of(z_min), band)
-        .map_err(incidence_escalated)?
+        .map_err(|cause| near_apex.with_margin(OffMargin::InBand(cause.margin), surface, carrier))?
     {
         Decided {
             sign: Sign::Positive,
@@ -9958,11 +11038,7 @@ fn cone_conic_incidence<T: Decide>(
             sign: Sign::Zero,
             margin,
         } => {
-            return Err(OffChart(
-                "the conic's lowest point is not shown away from the apex's height, where the \
-                 apex plane meets the cone only at the apex",
-            )
-            .with_margin(OffMargin::InBand(margin), surface, carrier));
+            return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
     match chart_incidence("pcurve_cone_chart_incident", carrier, surface, band)? {
@@ -10135,7 +11211,7 @@ mod tests {
                     );
                     Some(decision.side)
                 }
-                Routing::Unsized(_) | Routing::NotYet => None,
+                Routing::Unsized(_) | Routing::NotYet | Routing::Incidence => None,
             };
             assert_eq!(side, want(check), "{check:?}");
         }
@@ -10433,7 +11509,7 @@ mod tests {
         }
         .to_string();
         assert!(
-            escalated.contains(&format!("escalated: {told}There is no way through")),
+            escalated.contains(&format!("escalated: {told}Recourse:")),
             "`Escalated`: {escalated}"
         );
         let fitted = PcurveCertifyError::FittedEscalated {
@@ -11561,58 +12637,224 @@ mod tests {
 
     /// Each split arm names its condition, the pair it was raised on,
     /// and a recourse — a floor on the vocabulary, as the sibling
-    /// `every_*_arm_names_a_recourse` rows are.
+    /// `every_*_arm_names_a_recourse` rows are. An incidence refusal's
+    /// recourse is its ending, the read's at the door: none in its payload.
     #[test]
     fn every_carrier_refusal_arm_names_its_pair_and_a_recourse() {
         use geom::{CurveKind, SurfaceKind};
-        let mut rows: Vec<(PcurveCertifyError, Vec<&str>)> = Vec::new();
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Sphere,
-                carrier: CurveKind::Line,
-                why: "WHY",
-                margin: None,
-            },
-            vec!["sphere", "line", "WHY"],
-        ));
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Cone,
-                carrier: CurveKind::Circle,
-                why: "WHY",
-                margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-10))),
-            },
-            vec![
-                "cone",
-                "circle",
-                "WHY",
-                "(margin 4e-10 m)",
-                "not on its face",
-            ],
-        ));
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Cone,
-                carrier: CurveKind::Line,
-                why: "WHY",
-                margin: Some(OffMargin::InBand(geom_core::MarginDiag::value(4e-10))),
-            },
-            vec!["cone", "line", "WHY", "(margin 4e-10 m, within the band)"],
-        ));
-        rows.push((
-            PcurveCertifyError::ImageMismatch {
-                image: PcurveKind::Spiric,
-                why: "WHY",
-            },
-            vec!["Spiric", "WHY"],
-        ));
+        let rows: Vec<(PcurveCertifyError, Vec<&str>)> = vec![
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Sphere,
+                    carrier: CurveKind::Line,
+                    why: "WHY",
+                    margin: None,
+                },
+                vec!["sphere", "line", "WHY"],
+            ),
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Cone,
+                    carrier: CurveKind::Circle,
+                    why: "WHY",
+                    margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-10))),
+                },
+                vec![
+                    "cone",
+                    "circle",
+                    "WHY",
+                    "(margin 4e-10 m)",
+                    "not on its face",
+                ],
+            ),
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Cone,
+                    carrier: CurveKind::Line,
+                    why: "WHY",
+                    margin: Some(OffMargin::InBand(geom_core::MarginDiag::value(4e-10))),
+                },
+                vec!["cone", "line", "WHY", "(margin 4e-10 m, within the band)"],
+            ),
+            (
+                PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::Spiric,
+                    why: "WHY",
+                },
+                vec!["Spiric", "WHY"],
+            ),
+        ];
         for (err, payload) in rows {
             let msg = err.to_string();
             for word in payload {
                 assert!(msg.contains(word), "{word} missing from: {msg}");
             }
-            assert!(msg.contains("Recourse: "), "no recourse in: {msg}");
-            assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
+            assert!(
+                test_utils::refusal::recourse_markers(&msg) >= 1,
+                "no recourse in: {msg}"
+            );
+            let Some(read) = IncidenceRead::of(&err) else {
+                assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
+                continue;
+            };
+            // An incidence refusal's payload carries no recourse: its
+            // ending is the door's, through the one map.
+            let text = core::fmt::from_fn(|f| err.write_payload(f)).to_string();
+            assert!(!text.contains("Recourse"), "{text}");
+            assert_eq!(
+                err.ending(Reading::Build),
+                Some(read.ending(Reading::Build))
+            );
+            assert!(!msg.contains("repair the body"), "{msg}");
+        }
+    }
+
+    /// **An incidence refusal ends by the door that reads it, and a read
+    /// in band in its lever** (D3, D4 ¶1 (iv)), through the one map: a
+    /// definite miss (with no margin, or past a pose) is the kernel's
+    /// defect at a build, the stored culprit at rest and the damaged file
+    /// at import, with no ε_in offer; a read at a pose or undecided is
+    /// the geometry's lever at every door, never a defect, unless its
+    /// margin was poisoned: an unreadable margin reads nothing about the
+    /// pose and ends in the defect ending, as every unsized decision's
+    /// does. `render` ends each the same way. A kernel build's miss read
+    /// as a lever, a read in band read as a defect, or a poisoned read
+    /// offered a lever, reds a row here.
+    #[test]
+    fn an_incidence_refusal_ends_by_the_door_and_in_band_by_its_lever() {
+        use geom::{CurveKind, SurfaceKind};
+        let off = |margin| PcurveCertifyError::CarrierOffChart {
+            chart: SurfaceKind::Torus,
+            carrier: CurveKind::Line,
+            why: "WHY",
+            margin,
+        };
+        let m = geom_core::MarginDiag::value(4e-9);
+        let poisoned = geom_core::MarginDiag::INVALID;
+        let undecided = |margin| PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 2,
+            cause: Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_torus_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        let file = geom_core::FileCoincidence::new(1e-6);
+        // `definite`: ends in the door's defect ending.
+        for (err, definite) in [
+            (off(None), true),
+            (off(Some(OffMargin::Past(m))), true),
+            (off(Some(OffMargin::InBand(m))), false),
+            (undecided(geom_core::MarginDiag::value(5e-9)), false),
+            (off(Some(OffMargin::InBand(poisoned))), true),
+            (undecided(poisoned), true),
+        ] {
+            let read = IncidenceRead::of(&err).expect("an incidence refusal");
+            for (door, culprit) in [
+                (
+                    ReadAt::from(Reading::Build),
+                    geom_core::KERNEL_DEFECT_ENDING,
+                ),
+                (
+                    ReadAt::from(Reading::AtRest),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                ),
+                (ReadAt::from(file), geom_core::DAMAGED_FILE_ENDING),
+            ] {
+                let ending = read.ending(door);
+                assert_eq!(
+                    err.ending(door).as_deref(),
+                    Some(ending.as_str()),
+                    "{err:?}"
+                );
+                assert!(err.render(door).ends_with(&ending), "{err:?} at {door:?}");
+                assert!(!ending.contains("ε_in"), "{err:?} at {door:?}: {ending}");
+                if definite {
+                    assert_eq!(ending, culprit, "{err:?} at {door:?}");
+                } else {
+                    assert!(
+                        ending.starts_with("Recourse:") && !ending.contains("defect"),
+                        "{err:?} at {door:?}: {ending}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **No public refusal of the incidence check panics for want of its
+    /// read** (review A's executed case on E1d): a pub-constructible
+    /// `ResidualExceeded` of [`PcurveCheck::ChartIncidence`], here and as
+    /// the edge certificate's [`crate::CertCheck::ChartIncidence`], is a
+    /// definite miss ending by the door; and the check alone ends each
+    /// refused arm through the one map ([`IncidenceRead::arm_ending`]).
+    #[test]
+    fn no_incidence_refusal_panics_for_want_of_its_read() {
+        use crate::recourse::Classified;
+        use geom_core::{KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+        let pcurve = PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::ChartIncidence,
+            sample: 3,
+        };
+        assert_eq!(
+            pcurve.ending(Reading::Build).as_deref(),
+            Some(KERNEL_DEFECT_ENDING)
+        );
+        assert!(
+            pcurve
+                .render(Reading::AtRest)
+                .ends_with(KERNEL_OR_FILE_DEFECT_ENDING)
+        );
+        let edge = crate::CertifyError::ResidualExceeded {
+            check: crate::CertCheck::ChartIncidence,
+            sample: 3,
+            margin: MarginDiag::value(4e-6),
+        };
+        assert_eq!(
+            edge.ending(Reading::Build).as_deref(),
+            Some(KERNEL_DEFECT_ENDING)
+        );
+        assert_eq!(
+            edge.ending(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING)
+        );
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some("pcurve_cone_chart_incident"),
+            terminal_sliver: false,
+        };
+        let m = MarginDiag::value(4e-10);
+        for (arm, want) in [
+            (
+                RefusedArm::SignCertain(None),
+                IncidenceRead::Off(None).ending(Reading::Build),
+            ),
+            (
+                RefusedArm::Zero(Classified { margin: m, band }),
+                IncidenceRead::AtPose(m).ending(Reading::Build),
+            ),
+            (
+                RefusedArm::Undecided(&cause),
+                IncidenceRead::Undecided(&cause).ending(Reading::Build),
+            ),
+            (
+                RefusedArm::Straddle,
+                crate::recourse::INCIDENCE_UNSHOWN.recourse(RefusedArm::Straddle, Reading::Build),
+            ),
+        ] {
+            assert_eq!(
+                PcurveCheck::ChartIncidence.recourse(arm, Reading::Build),
+                want,
+                "{arm:?}"
+            );
+            assert_eq!(
+                crate::certify::recourse(crate::CertCheck::ChartIncidence, arm, Reading::Build),
+                want,
+                "{arm:?}"
+            );
         }
     }
 
@@ -12597,6 +13839,863 @@ mod check_4_class_rows {
         assert!(
             !ending.starts_with(geom_core::NOT_YET_ENDING),
             "an identity check ends as a defect: {ending}"
+        );
+    }
+}
+
+/// Limb 2's round memo (`limb2_memo`): a hit is the miss's bits, and a
+/// changed input misses.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod limb2_memo_rows {
+    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Real, Vec3};
+
+    /// The wall a micron inside the rim: limb 2's first reading does
+    /// not clear it, so its rounds, which the memo serves, decide.
+    const WALL: f64 = 1.25 - 1e-6;
+
+    fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
+        let rim = Curve3::Circle {
+            center: Point3::new(0.3, -0.2, 0.7),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.3, -0.2, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: WALL,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        (rim, wall)
+    }
+
+    /// **The span memo serves a repeated read with the fresh parts, and
+    /// every input its key holds misses when it changes alone.** Limb 2's
+    /// round read again after its own memo is emptied takes its parts
+    /// from the span memo alone, the same bits; a twin net read twice
+    /// hits; a net whose certified controls carry another decoration
+    /// (`Com` against the crossed `Def`) is the same input once crossed,
+    /// and reads the same bits. Asked of the memo directly, each input
+    /// changed alone misses: the form, the metre conversion, the knots,
+    /// the weights, the degree (with the knot list it implies), the parts
+    /// per span, the cuts, a control a ulp away, and a control with the
+    /// same ends that does not certify. Red under a key that leaves out
+    /// an input the parts read, or a memo that returns a neighbour's
+    /// parts.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn the_span_memo_serves_a_repeated_read_and_a_changed_input_misses() {
+        use super::twin_span_hulls;
+        use crate::pcurve_cache::projected::{Meters, ProjectedChart};
+        use geom::NurbsCurve3;
+        use geom_core::CertifiedEnclosure as _;
+        use geom_core::Interval;
+        use geom_core::spline::compose::CanonicalSurface;
+        use geom_core::spline::{KnotVector, SpanLocate as _};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (c, s) = rim(1.25);
+        let round = || format!("{:?}", limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        limb2_memo::clear();
+        let cold = round();
+        limb2_memo::clear();
+        let (h0, m0) = span_memo::counts();
+        let warm = round();
+        let (h1, m1) = span_memo::counts();
+        assert!(
+            h1 > h0 && m1 == m0,
+            "a repeated round's parts hit: {:?}",
+            (h1 - h0, m1 - m0)
+        );
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        // A net of four controls, degree 2 unless `cubic`, one control's
+        // x lifted by `lift`.
+        let net = |interior: f64, w1: f64, cubic: bool, x: f64, lift: &dyn Fn(f64) -> Interval| {
+            let knots = if cubic {
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+            } else {
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, interior, 1.0, 1.0, 1.0], 2)
+            }
+            .unwrap();
+            let control = vec![
+                Point3::new(1.2, 0.0, 0.1),
+                Point3::new(x, 1.3, 0.2),
+                Point3::new(-0.1, 1.2, 0.3),
+                Point3::new(-1.1, 0.2, 0.4),
+            ];
+            NurbsCurve3::new(knots, control, vec![1.0, w1, 1.0, 1.0])
+                .unwrap()
+                .map_scalar(|v| {
+                    if v == x {
+                        lift(v)
+                    } else {
+                        Interval::from_f64(v)
+                    }
+                })
+        };
+        let base = |lift: &dyn Fn(f64) -> Interval| net(0.5, 1.0, false, 1.3, lift);
+        let (_, wall) = rim(1.25);
+        let parts = |n: &NurbsCurve3<Interval>| {
+            format!(
+                "{:?}",
+                twin_span_hulls(n, &wall, &ProjectedChart::Cylinder, 4, &[0.5])
+            )
+        };
+        let first = parts(&base(&Interval::from_f64));
+        let (h2, m2) = span_memo::counts();
+        assert_eq!(
+            parts(&base(&Interval::from_f64)),
+            first,
+            "a hit is the miss's bits"
+        );
+        let (h3, m3) = span_memo::counts();
+        assert_eq!((h3 - h2, m3 - m2), (1, 0), "the same input hits");
+        let def = |v: f64| Interval::from_certified(Interval::from_f64(v));
+        assert_eq!(
+            parts(&base(&def)),
+            first,
+            "a certified control's decoration is crossed away, and reads the same bits"
+        );
+        // Each input changed alone, asked of the memo directly.
+        let cross = |n: NurbsCurve3<Interval>| n.map_scalar(Interval::from_certified);
+        let radius = def(1.25);
+        let form = CanonicalSurface::Cylinder { radius };
+        let meters = Meters::Cylinder { radius };
+        let base_net = cross(base(&Interval::from_f64));
+        let ask = |n: &NurbsCurve3<Interval>,
+                   form: &CanonicalSurface,
+                   meters: Meters<Interval>,
+                   per_span: usize,
+                   cuts: &[f64]| {
+            let input = span_memo::Input {
+                twin_net: n,
+                form,
+                meters,
+                per_span,
+                cuts,
+            };
+            let knots = n.knot_values().runs().flat_map(|(k, m)| {
+                core::iter::repeat_n(k.certified_bracket().map_or(f64::NAN, |(lo, _)| lo), m)
+            });
+            let knots = KnotVector::clamped(knots.collect(), n.knot_values().degree()).unwrap();
+            let weights: Vec<f64> = n
+                .weights()
+                .iter()
+                .map(|w| w.certified_bracket().map_or(f64::NAN, |(lo, _)| lo))
+                .collect();
+            let channel = (&knots, &weights[..]);
+            let computed = core::cell::Cell::new(false);
+            let _ = span_memo::read(&input, channel, || {
+                computed.set(true);
+                Ok(Vec::new())
+            });
+            computed.get()
+        };
+        assert!(
+            ask(&base_net, &form, meters, 4, &[0.5]),
+            "the base misses first"
+        );
+        assert!(!ask(&base_net, &form, meters, 4, &[0.5]), "and then hits");
+        let wider = def(1.25f64.next_up());
+        let uncertified = |x: f64| {
+            let y = Interval::from_bounds(-1.0, x * x).sqrt().clip_to(x, x);
+            assert!(!y.is_certified());
+            y
+        };
+        for (what, missed) in [
+            (
+                "form",
+                ask(
+                    &base_net,
+                    &CanonicalSurface::Cylinder { radius: wider },
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "conversion",
+                ask(
+                    &base_net,
+                    &form,
+                    Meters::Cylinder { radius: wider },
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "knots",
+                ask(
+                    &cross(net(0.6, 1.0, false, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "weights",
+                ask(
+                    &cross(net(0.5, 2.0, false, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "degree",
+                ask(
+                    &cross(net(0.5, 1.0, true, 1.3, &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            ("parts per span", ask(&base_net, &form, meters, 3, &[0.5])),
+            ("cuts", ask(&base_net, &form, meters, 4, &[0.6])),
+            (
+                "control",
+                ask(
+                    &cross(net(0.5, 1.0, false, 1.3f64.next_up(), &Interval::from_f64)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+            (
+                "certification",
+                ask(
+                    &cross(net(0.5, 1.0, false, 1.3, &uncertified)),
+                    &form,
+                    meters,
+                    4,
+                    &[0.5],
+                ),
+            ),
+        ] {
+            assert!(missed, "a changed {what} misses");
+        }
+    }
+
+    /// **A memo hit is the fresh compute, bit for bit, and every input
+    /// the key holds misses when it changes.** The same rim against the
+    /// same wall read cold (every round a miss), warm (every round a hit)
+    /// and cold again after the memo is emptied render identically, `f64`
+    /// bits included. Each key input then changed alone, after a warm
+    /// read of the base, must miss: the carrier (a ulp wider), the
+    /// surface (a ulp wider), the window, the band, the cuts (asked of
+    /// the memo directly), and the decoration (an `Interval` radius with
+    /// the base's ends that does not certify). And the one sharing the
+    /// key allows: `Sym<Interval>` reads `Interval`'s rounds as hits, and
+    /// its reading's `f64` fields are `Interval`'s. Red under a key that
+    /// leaves out an input the round reads, or a memo that returns a
+    /// neighbour's round.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn a_hit_is_the_fresh_compute_and_a_changed_input_misses() {
+        use geom_core::spline::SpanLocate as _;
+        use geom_core::{Interval, Sym};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |radius: f64, wall: f64, window: (f64, f64), band: Band| {
+            let (c, mut s) = rim(radius);
+            if let Surface::Cylinder { ref mut radius, .. } = s {
+                *radius = wall;
+            }
+            format!("{:?}", limb2_offset_sup(&c, window, &s, band))
+        };
+        let base = || read(1.25, WALL, (0.2, 2.9), band);
+        limb2_memo::clear();
+        let (h0, m0) = limb2_memo::counts();
+        let cold = base();
+        let (h1, m1) = limb2_memo::counts();
+        assert!(
+            m1 > m0 && h1 == h0,
+            "a cold read misses: {:?}",
+            (h1 - h0, m1 - m0)
+        );
+        let warm = base();
+        let (h2, m2) = limb2_memo::counts();
+        assert!(
+            h2 > h1 && m2 == m1,
+            "a warm read hits: {:?}",
+            (h2 - h1, m2 - m1)
+        );
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        limb2_memo::clear();
+        assert_eq!(base(), cold, "a recompute is the same bits");
+        let misses = |what: &str, f: &dyn Fn()| {
+            let _ = base();
+            let (_, before) = limb2_memo::counts();
+            f();
+            let (_, after) = limb2_memo::counts();
+            assert!(after > before, "a changed {what} misses");
+        };
+        misses("carrier", &|| {
+            let _ = read(1.25f64.next_up(), WALL, (0.2, 2.9), band);
+        });
+        misses("surface", &|| {
+            let _ = read(1.25, WALL.next_up(), (0.2, 2.9), band);
+        });
+        misses("window", &|| {
+            let _ = read(1.25, WALL, (0.2, 2.8), band);
+        });
+        misses("band", &|| {
+            let _ = read(1.25, WALL, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
+        });
+        let (c, s) = rim(1.25);
+        let key = limb2_memo::Key::of(&c, (0.2, 2.9), &s, band);
+        let round = || -> super::limb2_memo::Round {
+            Err(PcurveCertifyError::UnsupportedChart { chart: s.kind() })
+        };
+        let _ = limb2_memo::read(&key, &[0.5], round);
+        let (_, before) = limb2_memo::counts();
+        let _ = limb2_memo::read(&key, &[0.5], round);
+        let _ = limb2_memo::read(&key, &[0.6], round);
+        let (_, after) = limb2_memo::counts();
+        assert_eq!(after, before + 1, "the same cuts hit and changed cuts miss");
+        // The decoration: the same ends, certified and not.
+        let lift = Interval::from_f64;
+        let iv = |radius: Interval| {
+            let (c, s) = rim(1.25);
+            let c = match c.map_scalar(lift) {
+                Curve3::Circle {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } => Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                _ => unreachable!(),
+            };
+            format!(
+                "{:?}",
+                limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s.map_scalar(lift), band)
+            )
+        };
+        let certified = lift(1.25);
+        let uncertified = Interval::from_bounds(-1.0, 1.5625)
+            .sqrt()
+            .clip_to(1.25, 1.25);
+        assert!(!uncertified.is_certified());
+        let _ = iv(certified);
+        let (_, before) = limb2_memo::counts();
+        let _ = iv(uncertified);
+        let (_, after) = limb2_memo::counts();
+        assert!(after > before, "a changed decoration misses");
+        // `Sym<Interval>` shares `Interval`'s rounds, and reads the same.
+        let at_iv = iv(certified);
+        let (hits, misses_before) = limb2_memo::counts();
+        let sym = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
+                let (c, s) = rim(1.25);
+                let read = limb2_offset_sup(
+                    &c.map_scalar(lift),
+                    (lift(0.2), lift(2.9)),
+                    &s.map_scalar(lift),
+                    band,
+                )
+                .unwrap();
+                (
+                    read.upper.to_bits(),
+                    read.size.width.to_bits(),
+                    read.size.rounding.to_bits(),
+                )
+            },
+        )
+        .0;
+        let (hits_after, misses_after) = limb2_memo::counts();
+        assert!(
+            hits_after > hits && misses_after == misses_before,
+            "Sym reads Interval's rounds"
+        );
+        let r = limb2_offset_sup(
+            &rim(1.25).0.map_scalar(lift),
+            (lift(0.2), lift(2.9)),
+            &rim(1.25).1.map_scalar(lift),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            sym,
+            (
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits()
+            ),
+            "{at_iv}"
+        );
+    }
+}
+
+/// Limb 2's first reading (`limb2_quick`): a span hit is the miss's
+/// bits, every input its key holds misses when it changes, the window
+/// is not one of them, a span past the window's ends is read within
+/// them where the carrier has no net past them, and a reading that does
+/// not clear leaves the rounds' verdict as it was.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod limb2_quick_rows {
+    use super::{limb2_memo, limb2_offset_sup, limb2_quick, projected};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Real, Vec3};
+
+    fn rim(radius: f64, wall: f64) -> (Curve3<f64>, Surface<f64>) {
+        (
+            Curve3::Circle {
+                center: Point3::new(0.3, -0.2, 0.7),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Cylinder {
+                origin: Point3::new(0.3, -0.2, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: wall,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        )
+    }
+
+    /// The reading's bits, `f64` fields included.
+    fn bits<T: core::fmt::Debug>(
+        read: &Result<projected::OffsetRead<T>, super::PcurveCertifyError>,
+    ) -> String {
+        match read {
+            Ok(r) => format!(
+                "{:?} {:x} {:x} {:x} {:x}",
+                r.offset,
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits(),
+                r.size.extent.to_bits()
+            ),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    /// **A span hit is the fresh compute, and only the window is shared.**
+    /// A rim against its wall read cold, warm and cold again after the
+    /// memo is emptied reads the same bits, and passes without a round.
+    /// A second window over the same rim reads every span as a hit (the
+    /// spans are dyadic, so a window is not in their key), while a
+    /// carrier or a surface a ulp off, or a radius with the same ends
+    /// that does not certify, misses. `Sym<Interval>` reads
+    /// `Interval`'s spans and the same `f64` fields. Red under a key
+    /// that leaves out an input a span reads, or one that holds the
+    /// window.
+    #[test]
+    fn a_span_hit_is_the_fresh_compute_and_a_window_shares_its_spans() {
+        use geom_core::spline::SpanLocate as _;
+        use geom_core::{Interval, Sym};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |radius: f64, wall: f64, window: (f64, f64)| {
+            let (c, s) = rim(radius, wall);
+            bits(&limb2_offset_sup(&c, window, &s, band))
+        };
+        limb2_quick::clear();
+        let rounds_before = limb2_memo::counts();
+        let (h0, m0) = limb2_quick::counts();
+        let cold = read(1.25, 1.25, (0.2, 2.9));
+        let (h1, m1) = limb2_quick::counts();
+        assert!(m1 > m0 && h1 == h0, "a cold read computes its spans");
+        assert!(cold.starts_with("Bound("), "the rim clears: {cold}");
+        assert_eq!(
+            limb2_memo::counts(),
+            rounds_before,
+            "a reading that clears asks no round"
+        );
+        let warm = read(1.25, 1.25, (0.2, 2.9));
+        let (h2, m2) = limb2_quick::counts();
+        assert!(h2 > h1 && m2 == m1, "a warm read hits");
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        limb2_quick::clear();
+        assert_eq!(
+            read(1.25, 1.25, (0.2, 2.9)),
+            cold,
+            "a recompute is the same bits"
+        );
+        let (_, before) = limb2_quick::counts();
+        let _ = read(1.25, 1.25, (0.3, 2.7));
+        assert_eq!(
+            limb2_quick::counts().1,
+            before,
+            "another window over the same rim reads the same spans"
+        );
+        let misses = |what: &str, f: &dyn Fn()| {
+            let (_, before) = limb2_quick::counts();
+            f();
+            assert!(limb2_quick::counts().1 > before, "a changed {what} misses");
+        };
+        misses("carrier", &|| {
+            let _ = read(1.25f64.next_up(), 1.25, (0.2, 2.9));
+        });
+        misses("surface", &|| {
+            let _ = read(1.25, 1.25f64.next_up(), (0.2, 2.9));
+        });
+        let lift = Interval::from_f64;
+        let iv = |radius: Interval| {
+            let (c, s) = rim(1.25, 1.25);
+            let Curve3::Circle {
+                center,
+                axis,
+                u_ref,
+                ..
+            } = c.map_scalar(lift)
+            else {
+                unreachable!()
+            };
+            let c = Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+            bits(&limb2_offset_sup(
+                &c,
+                (lift(0.2), lift(2.9)),
+                &s.map_scalar(lift),
+                band,
+            ))
+        };
+        let uncertified = Interval::from_bounds(-1.0, 1.5625)
+            .sqrt()
+            .clip_to(1.25, 1.25);
+        assert!(!uncertified.is_certified());
+        let at_iv = iv(lift(1.25));
+        misses("decoration", &|| {
+            let _ = iv(uncertified);
+        });
+        let (_, before) = limb2_quick::counts();
+        let sym = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
+                let (c, s) = rim(1.25, 1.25);
+                let r = limb2_offset_sup(
+                    &c.map_scalar(lift),
+                    (lift(0.2), lift(2.9)),
+                    &s.map_scalar(lift),
+                    band,
+                )
+                .unwrap();
+                (
+                    r.upper.to_bits(),
+                    r.size.width.to_bits(),
+                    r.size.rounding.to_bits(),
+                )
+            },
+        )
+        .0;
+        assert_eq!(
+            limb2_quick::counts().1,
+            before,
+            "Sym reads Interval's spans"
+        );
+        let r = limb2_offset_sup(
+            &rim(1.25, 1.25).0.map_scalar(lift),
+            (lift(0.2), lift(2.9)),
+            &rim(1.25, 1.25).1.map_scalar(lift),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            sym,
+            (
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits()
+            ),
+            "{at_iv}"
+        );
+    }
+
+    /// **A span past the window's ends is read within them where the
+    /// carrier has none past them.** A spiric section of a torus whose
+    /// oval ends at `cos t = −0.4` (`t ≈ ±1.98`), over `[0.1, 1.9]`: the
+    /// quarter-turn span `[π/2, π]` reaches past the oval's end, where
+    /// the square root's argument is negative and the span has no net,
+    /// so it is read again as `[π/2, 1.9]`. The first reading clears
+    /// against both operands, and no round is asked. Red under a first
+    /// reading that gives up on a span past the window, or one that
+    /// passes on a net it could not certify.
+    #[test]
+    fn a_span_past_the_window_is_read_within_it_where_the_carrier_ends() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let center = Point3::new(0.4, -0.3, 0.2);
+        let spiric = Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius: 1.0,
+            minor_radius: 0.5,
+            offset: 0.8,
+        };
+        let torus = Surface::Torus {
+            center,
+            axis,
+            major_radius: 1.0,
+            minor_radius: 0.5,
+            u_ref,
+        };
+        let plane = Surface::Plane {
+            origin: center + u_ref * 0.8,
+            normal: u_ref,
+            u_ref: axis.cross(u_ref),
+        };
+        assert!(
+            crate::carrier_net::carrier_net(&spiric, (0.0, 3.0), &[]).is_err(),
+            "the spiric has no net past its oval's end"
+        );
+        limb2_quick::clear();
+        let rounds = limb2_memo::counts();
+        for operand in [&torus, &plane] {
+            let read = limb2_offset_sup(&spiric, (0.1, 1.9), operand, band).unwrap();
+            assert!(
+                matches!(read.offset, projected::Offset::Bound(_)) && read.upper <= band.zero(),
+                "{:?}: the spiric clears: {:?}",
+                operand.kind(),
+                read.offset
+            );
+        }
+        assert_eq!(limb2_memo::counts(), rounds, "the first reading decided it");
+    }
+
+    /// **A first reading that does not clear leaves the rounds'
+    /// verdict, bit for bit.** A rim a micron off its wall, at a
+    /// nanometre band: limb 2's reading asks the rounds, is a measured
+    /// miss, and is the reading limb 2 gives with the first reading not
+    /// taken, `f64` fields included (the rounds' memo emptied between,
+    /// so each computes). Red under a first reading that passes or
+    /// refuses on its own, or leaves any trace in the reading.
+    #[test]
+    fn a_reading_that_does_not_clear_is_the_rounds() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (c, s) = rim(1.25 + 1e-6, 1.25);
+        limb2_memo::clear();
+        let (_, misses) = limb2_memo::counts();
+        let read = limb2_offset_sup(&c, (0.2, 2.9), &s, band);
+        assert!(limb2_memo::counts().1 > misses, "the rounds are asked");
+        assert!(
+            matches!(
+                read,
+                Ok(projected::OffsetRead {
+                    offset: projected::Offset::Miss { .. },
+                    ..
+                })
+            ),
+            "a micron off is a measured miss: {}",
+            bits(&read)
+        );
+        limb2_memo::clear();
+        let alone = limb2_quick::without(|| limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        assert_eq!(bits(&read), bits(&alone), "the rounds' reading");
+    }
+
+    /// **A covering has no gap.** Parts over `[lo, hi]` cover it when,
+    /// sorted, the first starts at or before `lo`, each next starts at
+    /// the bits the one before ends at, and the last ends at or past
+    /// `hi`: any order of a partition passes, reaching past either end
+    /// passes, and a gap, an overlap, a part short of either end, or no
+    /// part at all does not. Red under a covering that reads a gap as
+    /// the part before it.
+    #[test]
+    fn a_covering_has_no_gap() {
+        let parts = |r: &[(f64, f64)]| r.iter().map(|&x| limb2_quick::part_over(x)).collect();
+        let covers = |r: &[(f64, f64)], d| limb2_quick::covering(parts(r), d).is_some();
+        let d = (0.1, 0.9);
+        assert!(covers(&[(0.5, 1.0), (0.0, 0.25), (0.25, 0.5)], d));
+        assert!(covers(&[(0.1, 0.9)], d));
+        assert!(covers(&[(-2.0, 0.5), (0.5, 3.0)], d));
+        assert!(!covers(&[(0.0, 0.25), (0.5, 1.0)], d), "a gap");
+        assert!(
+            !covers(&[(0.0, 0.25), (0.25f64.next_up(), 1.0)], d),
+            "a gap of a ulp"
+        );
+        assert!(!covers(&[(0.0, 0.6), (0.5, 1.0)], d), "an overlap");
+        assert!(!covers(&[(0.2, 1.0)], d), "short of the lower end");
+        assert!(!covers(&[(0.0, 0.8)], d), "short of the upper end");
+        assert!(!covers(&[], d), "no part");
+    }
+
+    /// **Every pass bounds the true deviation.** A unit circle about `ẑ`
+    /// against the plane `y = 1` it touches at `t = π/2`, where its
+    /// deviation is `1 − cos s = 2·sin²(s/2)` at `s = t − π/2`. Over
+    /// windows `[π/2 + s₀, π/2 + s₁]`, symmetric and lopsided either way,
+    /// some under the band's `1e-9` throughout and some reaching past it
+    /// at one end only, every `Bound` limb 2 reads is at least the
+    /// window's true greatest deviation, and the symmetric windows under
+    /// the band pass in the first reading. Red under a first reading that
+    /// passes without reading a piece of the window: keeping one half of
+    /// each halving, say, passes the lopsided windows on the half that
+    /// clears.
+    #[test]
+    fn every_pass_bounds_the_true_deviation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let deviation = |s: f64| 2.0 * (s / 2.0).sin().powi(2);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let ends = [1e-5, 2e-5, 3e-5, 6e-5, 1e-4];
+        let (mut passes, mut first) = (0, 0);
+        for &lo in &ends {
+            for &hi in &ends {
+                let window = (quarter - lo, quarter + hi);
+                let truth = deviation(lo).max(deviation(hi));
+                let (_, misses) = limb2_memo::counts();
+                let read = limb2_offset_sup(&circle, window, &plane, band).unwrap();
+                if let projected::Offset::Bound(b) = read.offset {
+                    passes += 1;
+                    if limb2_memo::counts().1 == misses {
+                        first += 1;
+                    }
+                    assert!(
+                        b >= truth * (1.0 - 1e-9),
+                        "[π/2 − {lo}, π/2 + {hi}]: a pass at {} under the true {truth}",
+                        b
+                    );
+                }
+                if lo == hi && truth < 0.5e-9 {
+                    assert!(
+                        matches!(read.offset, projected::Offset::Bound(_)),
+                        "[π/2 ± {lo}]: under the band, a pass"
+                    );
+                }
+            }
+        }
+        assert!(
+            first > 0,
+            "the first reading passes some window ({passes} passes)"
+        );
+    }
+
+    /// **No piece of the window goes unread** (dual review of PR 5885,
+    /// R1). A circle of radius 0.2 about `ẑ` against the plane
+    /// `y = 0.5e-9`, at the band `(1e-9, 1e-8)`, over the window
+    /// `[−5e-9, 1e-10]`: the carrier's deviation reaches `1.5e-9` at the
+    /// window's lower end, so no bound below the band holds there. The
+    /// clipped piece `[−5e-9, 0]` stays whole down to the deepest level,
+    /// where it cannot be halved: the first reading ends there rather
+    /// than passing on `[0, 1e-10]` alone. At `f64` and at `Interval`
+    /// limb 2's reading is the rounds' alone, bit for bit, and a
+    /// measured miss. Red under a first reading that drops a span it
+    /// cannot halve, or passes on parts with a gap between them.
+    #[test]
+    fn a_window_piece_no_span_reads_ends_the_first_reading() {
+        use geom_core::Interval;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.5e-9, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let window = (-5e-9, 1e-10);
+        let miss = |what: &str, read: &str| {
+            assert!(read.starts_with("Miss"), "{what}: a measured miss: {read}");
+        };
+        limb2_memo::clear();
+        let read = bits(&limb2_offset_sup(&circle, window, &plane, band));
+        limb2_memo::clear();
+        let alone = bits(&limb2_quick::without(|| {
+            limb2_offset_sup(&circle, window, &plane, band)
+        }));
+        assert_eq!(read, alone, "f64: the rounds' reading");
+        miss("f64", &read);
+        let lift = Interval::from_f64;
+        let (c, p) = (circle.map_scalar(lift), plane.map_scalar(lift));
+        let w = (lift(window.0), lift(window.1));
+        limb2_memo::clear();
+        let read = bits(&limb2_offset_sup(&c, w, &p, band));
+        limb2_memo::clear();
+        let alone = bits(&limb2_quick::without(|| limb2_offset_sup(&c, w, &p, band)));
+        assert_eq!(read, alone, "Interval: the rounds' reading");
+        miss("Interval", &read);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod cylinder_rim_rows {
+    use super::cylinder_rim_axial;
+    use geom_core::interval::Interval;
+    use geom_core::predicate::Band;
+    use geom_core::{Bounds, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+    }
+
+    fn iv(lo: f64, hi: f64) -> Interval {
+        Interval::from_bounds(lo, hi)
+    }
+
+    fn bits(x: Interval) -> (f64, f64) {
+        (x.lo(), x.hi())
+    }
+
+    /// **A rim's axial terms are zero only where both hold zero and their
+    /// sup is decided `Zero`** ([`cylinder_rim_axial`]). Red if the
+    /// decision is lax (an amplitude past the band zeroed), if `b`'s
+    /// holding-zero gate is dropped (an in-band `b` beside an exact
+    /// zero `a` zeroed, which at `f64` moves a pcurve), or if the rim is
+    /// not decided (an enclosure of zero kept).
+    #[test]
+    fn a_rims_axial_terms_are_zeroed_only_where_both_hold_zero_within_the_band() {
+        let rounding = iv(-1e-17, 1e-17);
+        let zero = iv(0.0, 0.0);
+        let (a, b) = cylinder_rim_axial(rounding, zero, band());
+        assert_eq!(
+            (bits(a), bits(b)),
+            ((0.0, 0.0), (0.0, 0.0)),
+            "a rim's rounding"
+        );
+        let wide = iv(-1e-3, 1e-3);
+        let (a, _) = cylinder_rim_axial(wide, zero, band());
+        assert_eq!(bits(a), bits(wide), "an amplitude past the band is kept");
+        let off = iv(1e-17, 2e-17);
+        let (_, b) = cylinder_rim_axial(rounding, off, band());
+        assert_eq!(bits(b), bits(off), "a term that excludes zero is kept");
+        assert_eq!(
+            cylinder_rim_axial(0.0_f64, 1e-17, band()),
+            (0.0, 1e-17),
+            "at f64 a nonzero term is kept, however small"
+        );
+        assert_eq!(
+            cylinder_rim_axial(1e-17_f64, 0.0, band()),
+            (1e-17, 0.0),
+            "at f64 a nonzero term is kept, however small"
         );
     }
 }

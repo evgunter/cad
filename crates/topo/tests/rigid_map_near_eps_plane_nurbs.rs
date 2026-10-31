@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
@@ -174,7 +175,7 @@ fn lamina(delta: f64) -> Body<f64> {
     let seed = body.mvfs(p0, true).unwrap();
     let made = body
         .mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             p1,
@@ -184,14 +185,14 @@ fn lamina(delta: f64) -> Body<f64> {
     let first = body.get_edge(made.edge).unwrap().clone();
     let closed = body
         .mef_chord(
-            topo::MefSite::Chords {
+            topo::construction::MefSite::Chords {
                 he1: first.he_minus,
                 he2: first.he_plus,
             },
             tol,
         )
         .unwrap();
-    let face_surface = |surface| topo::FaceSurface::New {
+    let face_surface = |surface| topo::construction::FaceSurface::New {
         surface,
         sense: true,
     };
@@ -207,7 +208,7 @@ fn lamina(delta: f64) -> Body<f64> {
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(pl, wl),
-                    witness: carrier.eval(0.5),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
                 },
                 carrier: Curve3::Nurbs(Arc::new(carrier)),
                 param_start: 0.0,

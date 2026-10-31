@@ -456,7 +456,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
             let face = lateral(&ev, ext, &pv.pieces, *e)
                 .unwrap_or_else(|| panic!("{id}: step {step}'s ref {e:?} names no wall"));
             walls.insert(face);
-            let pts = face_vertex_points(body, face);
+            let pts = face_vertex_points(body.body(), face);
             let s = r.prog(0, e);
             for end in [r.verts[0][s].0, r.verts[0][(s + 1) % n].0] {
                 assert!(
@@ -603,26 +603,64 @@ fn rim(
     }
 }
 
-/// The loft wall at canonical segment `e`: named by the piece every
-/// section draws there, `None` where a section draws none or the table
-/// has no such name.
+/// The degree-1 loft's wall at canonical segment `e` across slab
+/// `slab`: through two sections the one wall, named by the piece each
+/// draws there; through more, the slab's, named by its index and the
+/// pieces its two sections draw. `None` where a section draws none or
+/// the table has no such name.
 fn loft_wall(
     ev: &Evaluation<f64>,
     loft: RecipeNodeId,
     sections: &[RecipeNodeId],
     e: CanonicalSegment,
+    slab: usize,
 ) -> Option<FaceKey> {
-    let pieces = sections
-        .iter()
-        .map(|&s| match &ev.value(s)?.payload {
-            ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let name = fixture::fname(loft, RoleSeg::LoftWall(pieces));
-    match ev.table_at(loft)?.lookup(&name)? {
+    let piece = |s: RecipeNodeId| match &ev.value(s)?.payload {
+        ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
+        _ => None,
+    };
+    let seg = if sections.len() == 2 {
+        RoleSeg::LoftWall(
+            sections
+                .iter()
+                .map(|&s| piece(s))
+                .collect::<Option<Vec<_>>>()?,
+        )
+    } else {
+        RoleSeg::LoftSlabWall(
+            u32::try_from(slab).ok()?,
+            sections[slab..=slab + 1]
+                .iter()
+                .map(|&s| piece(s))
+                .collect::<Option<Vec<_>>>()?,
+        )
+    };
+    match ev.table_at(loft)?.lookup(&fixture::fname(loft, seg))? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
+            _ => None,
+        },
+        Entry::Tied(_) => None,
+    }
+}
+
+/// The edge of interior section `si`'s ring over canonical segment `e`,
+/// `None` where the table has no such name.
+fn section_edge(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    si: usize,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<EdgeKey> {
+    let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
+    let name = fixture::ename(
+        node,
+        RoleSeg::LoftSectionEdge(u32::try_from(si).ok()?, piece),
+    );
+    match ev.table_at(node)?.lookup(&name)? {
+        Entry::Unique(r) => match r.key {
+            EntityKey::Edge(k) => Some(k),
             _ => None,
         },
         Entry::Tied(_) => None,
@@ -655,20 +693,21 @@ fn station_z(doc: &ProfileDoc, loft: RecipeNodeId, si: usize) -> f64 {
         .sum()
 }
 
-/// For EACH section of an evaluated straight-prism loft, every step of
-/// every program loop, asked through the ordinary door with the
-/// section's own program, records and naming anchor:
+/// For EACH section of an evaluated straight-prism loft (v-degree 1, so
+/// one wall per segment per slab), every step of every program loop,
+/// asked through the ordinary door with the section's own program,
+/// records and naming anchor:
 ///
-/// - names a loft wall that carries the step's segment — its placed
-///   endpoints on the first and last sections, whose segments are the
-///   walls' own corners; their plan positions on a middle one, whose
-///   segment endpoints are no vertex of the body;
-/// - on the first and last sections, names the `Start` / `End` rim
-///   whose two endpoints ARE that segment's, placed.
+/// - names the wall of each slab the section bounds that carries the
+///   step's segment, its placed endpoints among the wall's corners;
+/// - names the `Start` / `End` rim on the first and last sections, and
+///   the section's ring edge on a middle one, whose two endpoints ARE
+///   that segment's, placed.
 ///
 /// The segment a step produced is read off its own recorded span, never
 /// off the ref, so nothing here re-does the door's arithmetic. Between
-/// them each section's steps name every wall exactly once.
+/// them each section's steps name every wall of the slabs it bounds
+/// exactly once.
 fn assert_sections_bound_their_walls(
     id: &str,
     doc: &ProfileDoc,
@@ -720,62 +759,69 @@ fn assert_sections_bound_their_walls(
                     "{id}: section {si} loop {li} step {step} answers one ref per segment"
                 );
                 for (e, s) in edges.iter().zip(span.iter()) {
-                    let face = loft_wall(ev, loft, ids, *e).unwrap_or_else(|| {
-                        panic!("{id}: section {si} loop {li} step {step}: {e:?} names no wall")
-                    });
-                    walls.insert(face);
-                    let pts = face_vertex_points(body, face);
                     let ends = [r.verts[li][s].0, r.verts[li][(s + 1) % n].0];
-                    for end in ends {
-                        let p = place(end);
-                        let bound = if si == 0 || si == last {
-                            touches(&pts, p, 1e-9)
-                        } else {
-                            pts.iter()
-                                .any(|q| (q.x - p.x).abs() <= 1e-9 && (q.y - p.y).abs() <= 1e-9)
-                        };
-                        assert!(
-                            bound,
-                            "{id}: section {si} loop {li} step {step}'s wall for {e:?} does \
-                             not carry {end:?}, an endpoint of the segment that step \
-                             produced (wall vertices {pts:?})"
-                        );
+                    // The slabs section `si` bounds: the one below it
+                    // and the one above it.
+                    for slab in si.saturating_sub(1)..si.min(last - 1) + 1 {
+                        let face = loft_wall(ev, loft, ids, *e, slab).unwrap_or_else(|| {
+                            panic!(
+                                "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
+                                 of slab {slab}"
+                            )
+                        });
+                        walls.insert(face);
+                        let pts = face_vertex_points(body.body(), face);
+                        for end in ends {
+                            assert!(
+                                touches(&pts, place(end), 1e-9),
+                                "{id}: section {si} loop {li} step {step}'s slab-{slab} wall \
+                                 for {e:?} does not carry {end:?}, an endpoint of the segment \
+                                 that step produced (wall vertices {pts:?})"
+                            );
+                        }
                     }
                     let cap = match si {
                         0 => Some(CapEnd::Start),
                         i if i == last => Some(CapEnd::End),
                         _ => None,
                     };
-                    if let Some(cap) = cap {
-                        let edge = rim(ev, loft, cap, &pv.pieces, *e).unwrap_or_else(|| {
+                    let edge = match cap {
+                        Some(cap) => rim(ev, loft, cap, &pv.pieces, *e).unwrap_or_else(|| {
                             panic!(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
-                        });
-                        let [a, b] = fixture::ends(body, edge);
-                        let got = [fixture::point(body, a), fixture::point(body, b)];
-                        for end in ends {
-                            assert!(
-                                touches(&got, place(end), 1e-9),
-                                "{id}: section {si} step {step}'s {cap:?} rim for {e:?} \
-                                 does not end at {end:?} (rim ends {got:?})"
-                            );
-                        }
+                        }),
+                        None => section_edge(ev, loft, si, &pv.pieces, *e).unwrap_or_else(|| {
+                            panic!("{id}: section {si} step {step}'s ref {e:?} names no ring edge")
+                        }),
+                    };
+                    let [a, b] = fixture::ends(body.body(), edge);
+                    let got = [
+                        fixture::point(body.body(), a),
+                        fixture::point(body.body(), b),
+                    ];
+                    for end in ends {
+                        assert!(
+                            touches(&got, place(end), 1e-9),
+                            "{id}: section {si} step {step}'s rim for {e:?} does not end \
+                         at {end:?} (rim ends {got:?})"
+                        );
                     }
                 }
             }
         }
         let total: usize = r.verts.iter().map(Vec::len).sum();
+        let slabs = if si == 0 || si == last { 1 } else { 2 };
         assert_eq!(
             walls.len(),
-            total,
-            "{id}: section {si}'s steps name every wall exactly once"
+            total * slabs,
+            "{id}: section {si}'s steps name every wall of the slabs it bounds exactly once"
         );
         every_wall.extend(walls);
     }
     assert_eq!(
         every_wall.len(),
-        body.faces().count() - 2,
+        body.body().faces().count() - 2,
         "{id}: every section names the same walls — the loft's, and no others"
     );
 }
@@ -1067,8 +1113,11 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             ),
         );
         let strut = fixture::edge_of(ev.table_at(loft).unwrap(), "strut", &name);
-        let [a, b] = fixture::ends(body, strut);
-        let got = [fixture::point(body, a), fixture::point(body, b)];
+        let [a, b] = fixture::ends(body.body(), strut);
+        let got = [
+            fixture::point(body.body(), a),
+            fixture::point(body.body(), b),
+        ];
         for want in [
             geom_core::Point3::new(x0, y0, 0.0),
             geom_core::Point3::new(x1, y1, 1.0),
@@ -1082,7 +1131,7 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
     }
     let volume = topo::test_support::pinned_volume(
         "mass properties",
-        &topo::test_support::finished("the measured body", topo::Body::clone(&**body), tol()),
+        &topo::test_support::finished("the measured body", topo::Body::clone(body.body()), tol()),
         tol(),
     )
     .volume;
@@ -1569,6 +1618,7 @@ fn arc_prism(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -1593,7 +1643,10 @@ fn wall_radius(
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
-    match body.get_surface(body.get_face(face)?.surface)? {
+    match body
+        .body()
+        .get_surface(body.body().get_face(face)?.surface)?
+    {
         geom::Surface::Cylinder { radius, .. } => Some(*radius),
         _ => None,
     }
@@ -1728,6 +1781,7 @@ fn a_carrier_loop_is_answered_at_every_edge() {
                 phase: fixture::ang(0.3),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let ev = run(&doc);
@@ -1865,6 +1919,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Profile(ProfileProgram {
             loops: vec![filleted],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -1981,6 +2036,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Profile(ProfileProgram {
             loops: vec![chain],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2249,6 +2305,7 @@ fn rotated_arc_prism(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2477,6 +2534,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
         Node::Profile(ProfileProgram {
             loops: vec![program],
             ids: Vec::new(),
+            on: None,
         }),
     );
     doc
@@ -2528,6 +2586,7 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -2641,6 +2700,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![program],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -2749,6 +2809,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Profile(ProfileProgram {
             loops: vec![program],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(

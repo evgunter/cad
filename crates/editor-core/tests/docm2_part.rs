@@ -1,15 +1,16 @@
 //! **DOCM-2 — one body of a multi-body value at f64**
 //! (`crates/editor-core/REFERENCES.md` DM3): a read of a split's port,
-//! and `Node::Part` over a pattern's copies. Acceptance rows A1–A6, the
+//! and an indexed read `row[i]` of one member of a family (D10
+//! `[repetition]`). Acceptance rows A1–A6, the
 //! split-stamping row the stop clause's amendment asks for, and the
 //! `Dual64` pin of the exact corpus document. The Interval-lane rows
 //! (A7) are `docm2_part_interval`.
 //!
 //! The oracle for "the half IS the half" is the kernel's own door fed
 //! the body read straight off the split's or the pattern's value: a
-//! consumer of a port or a `Part` must produce the same body,
+//! consumer of a port or of a member must produce the same body,
 //! description for description, that the door produces from that body
-//! — and a `Part`'s value must be that body's own `Arc`, not a copy of
+//! — and a member's value must share its source's `Arc`, not a copy of
 //! it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -17,13 +18,13 @@
 use std::sync::Arc;
 
 use crate::corpus;
-use crate::fixture::{Recorder, len, scl};
+use crate::fixture::{Recorder, len};
 
 use editor_core::{
     CancelToken, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
-    Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
-    StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
+    Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand, ProfileDoc,
+    RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide, StableName, ValuePayload,
+    VarId, all_edges, apply, denotation, evaluate, product,
 };
 use geom_core::{Dual, Tol};
 use topo::{Body, BooleanResult, transform_rigid};
@@ -68,32 +69,20 @@ fn plane_z(r: &Recorder, body: RecipeNodeId, z: f64) -> editor_core::pose::RoleR
     crate::fixture::plane_on(&r.doc, body, [0.0, 0.0, z], [0.0, 0.0, 1.0])
 }
 
-fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
-    r.insert(Node::Part {
-        of: of.into(),
-        select,
-    })
-}
-
 /// The read of `split`'s half `h`.
 fn port(split: RecipeNodeId, h: SplitHalf) -> Operand {
     Operand::output(split, h.port())
 }
 
-fn instance(i: i64) -> PartSelect<Formula> {
-    PartSelect::Instance(Formula::count(i))
+/// A three-member row of `input`, three metres apart: its index and
+/// the placement.
+fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> (VarId, RecipeNodeId) {
+    r.linear(input, [1.0, 0.0, 0.0], 3.0, 3)
 }
 
-/// A three-instance linear pattern of `input`, three metres apart.
-fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Pattern {
-        input: input.into(),
-        count: Formula::count(3),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(3.0),
-        },
-    })
+/// Whether `seg` is member `i` of the index `k`.
+fn is_member(seg: Option<&RoleSeg>, k: VarId, i: u32) -> bool {
+    matches!(seg, Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, i)])
 }
 
 /// A copy of `input` in the world, `dz` up: the placement, a reader of
@@ -102,18 +91,18 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
     r.in_world(input, &editor_core::Frame::translation([0.0, 0.0, dz]))
 }
 
-/// The `Body` value of a node — a Part's, a placement's one copy — as
+/// The `Body` value of a node — a member's, a placement's one copy — as
 /// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
     match &ev.value(id).expect("a value").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.shared(),
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
 
 /// A single body read off any single-body value — a `Body` or a
 /// boolean's non-empty result.
-fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
+fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
     corpus::body_of(ev, id)
 }
 
@@ -123,18 +112,18 @@ fn sides(ev: &Evaluation<f64>, split: RecipeNodeId) -> (Arc<Body<f64>>, Arc<Body
         panic!("a split value");
     };
     let body = |s: &SplitSide<f64>| match s {
-        SplitSide::Body(b) => Arc::clone(b),
+        SplitSide::Body(b) => Arc::clone(b.shared()),
         SplitSide::Empty => panic!("both halves carry material"),
     };
     (body(above), body(below))
 }
 
-/// The instances read straight off the pattern's value.
+/// The members read straight off the family's value.
 fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<Body<f64>>> {
     let ValuePayload::Instances(v) = &ev.value(pattern).expect("the pattern").payload else {
-        panic!("an instances value");
+        panic!("a family of bodies");
     };
-    v.clone()
+    v.iter().map(|b| Arc::clone(b.shared())).collect()
 }
 
 fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
@@ -301,20 +290,18 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
             .zip(lifted.columns.iter().flatten().chain(&lifted.translation))
             .all(|(a, b)| (a - b).abs() <= 1e-12);
         assert!(near, "{h:?}: the lift is {LIFT} up z: {pose:?}");
-        let map = pose.affine::<f64>();
-        let placed = transform_rigid(
-            side,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("a rigid placement");
-        assert_eq!(
-            bits(body_arc(&ev, moved)),
-            bits(&placed),
-            "{h:?}: placement"
+        // The copy is the half itself: its body is the half's `Arc`,
+        // under the lift.
+        assert!(
+            Arc::ptr_eq(body_arc(&ev, moved), side),
+            "{h:?}: placement shares the half"
         );
-        let fused = kernel_union(side, body_of(&ev, other));
-        assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
+        let fused = kernel_union(side, &(body_of(&ev, other)));
+        assert_eq!(
+            bits(&(body_of(&ev, joined))),
+            bits(&fused),
+            "{h:?}: boolean"
+        );
         let keys = edge_keys(&ev, split, h.output_body(), &selection);
         let filleted = sweep::blend::build::fillet_edges(
             &sweep::test_support::at_rest(side, Tol::witness()),
@@ -331,18 +318,19 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
     }
 }
 
-/// **A2 — the instance IS the instance.** `Part(1) ∪ Part(2)` is the
+/// **A2 — the member IS the member.** `row[1] ∪ row[2]` is the
 /// kernel's pair union of `v[1]` and `v[2]` read off the value, and
-/// `Part(0)` is the input body's own `Arc`: instance 0 is the input
-/// itself, through the pattern and through the Part.
+/// every member holds the input body's own `Arc` (a copy shares its
+/// source's body): member 0 is the input itself, through the family
+/// and through the read.
 #[test]
-fn a2_the_instance_is_the_instance() {
+fn a2_the_member_is_the_member() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r);
-    let pat = pattern3(&mut r, cube);
-    let p0 = part(&mut r, pat, instance(0));
-    let p1 = part(&mut r, pat, instance(1));
-    let p2 = part(&mut r, pat, instance(2));
+    let (_, pat) = pattern3(&mut r, cube);
+    let p0 = r.member(pat, 0);
+    let p1 = r.member(pat, 1);
+    let p2 = r.member(pat, 2);
     let joined = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
     });
@@ -357,15 +345,31 @@ fn a2_the_instance_is_the_instance() {
     for (p, i) in [(p0, 0), (p1, 1), (p2, 2)] {
         assert!(
             Arc::ptr_eq(body_arc(&ev, p), &v[i]),
-            "Part({i}) holds instance {i}'s Arc"
+            "row[{i}] holds member {i}'s Arc"
+        );
+        assert!(
+            Arc::ptr_eq(&v[i], body_arc(&ev, cube)),
+            "member {i} shares the input body"
         );
     }
-    assert!(
-        Arc::ptr_eq(body_arc(&ev, p0), body_arc(&ev, cube)),
-        "instance 0 is the input body itself"
-    );
-    let fused = kernel_union(&v[1], &v[2]);
-    assert_eq!(bits(body_of(&ev, joined)), bits(&fused));
+    // The union computes in its first member's frame and reads the
+    // second into it through `relative`.
+    let framed = |id: RecipeNodeId| match &ev.value(id).expect("a value").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
+    };
+    let (first, second) = (framed(p1), framed(p2));
+    let map = first
+        .relative(&second)
+        .expect("a finite relative map")
+        .expect("two members apart");
+    let read = transform_rigid(second.body(), &map, Tol::witness()).expect("a rigid read");
+    let fused = kernel_union(first.body(), &read);
+    let joined = match &ev.value(joined).expect("the union").payload {
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
+        other => panic!("the union is a {}", other.kind_name()),
+    };
+    assert_eq!(bits(joined.body()), bits(&fused));
 }
 
 /// The edge names of ONE output body of a node's table.
@@ -390,9 +394,9 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 /// read of the above port, every name uniquely, and a placement of
 /// that read carries exactly those rows, verbatim; a below-half name read there
 /// refuses through the N5 ladder, never re-anchored to a congruent
-/// above-half edge; a selector for instance 2 against `Part(1)` refuses
-/// `Vanished` the same way; `Part(1)`'s table is the master's row count
-/// and every name carries `Instance { i: 1 }`.
+/// above-half edge; a selector for member 2 against `row[1]` refuses
+/// `Vanished` the same way; `row[1]`'s table is the master's row count
+/// and every name carries `Member { (k, 1) }`.
 #[test]
 fn a3_names_pass_through_and_only_the_selected_bodys() {
     // The split's own rows, by output body.
@@ -457,36 +461,36 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
         other => panic!("the fillet must refuse through the ladder, got {other:?}"),
     }
 
-    // The pattern side.
+    // The family side.
     let mut r = Recorder::new();
     let cube = unit_box(&mut r);
-    let pat = pattern3(&mut r, cube);
-    let p1 = part(&mut r, pat, instance(1));
+    let (k, pat) = pattern3(&mut r, cube);
+    let p1 = r.member(pat, 1);
     let base = eval(&r.doc);
     let master = base.table_at(cube).expect("the master").len();
-    let table = base.table_at(p1).expect("the Part");
+    let table = base.table_at(p1).expect("the member");
     assert_eq!(table.len(), master, "exactly the master's row count");
-    for (name, _) in table.iter() {
+    for (name, _) in table.iter().filter(|(name, _)| name.node != p1) {
         assert!(
-            matches!(name.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
-            "{name} carries Instance {{ i: 1 }}: {:?}",
+            is_member(name.path.first(), k, 1),
+            "{name} carries Member {{ (k, 1) }}: {:?}",
             name.path
         );
     }
-    // `Instance { i: 2, .. }` spelled against Part(1): the ladder's
-    // third rung — the node is live, the table lacks it.
+    // Member 2's name spelled against row[1]: the ladder's third rung
+    // — the node is live, the table lacks it.
     let edge = all_edges(&base, p1)
         .into_iter()
         .next()
-        .expect("an edge of instance 1");
-    let Some(RoleSeg::Instance { of, .. }) = edge.path.first() else {
-        panic!("an instance name");
+        .expect("an edge of member 1");
+    let Some(RoleSeg::Member { of, .. }) = edge.path.first() else {
+        panic!("a member name");
     };
     let other_instance = StableName {
         kind: EntityKind::Edge,
         node: pat,
-        path: vec![RoleSeg::Instance {
-            i: 2,
+        path: vec![RoleSeg::Member {
+            at: vec![(k, 2)],
             of: of.clone(),
         }],
     };
@@ -538,15 +542,15 @@ fn a4_every_refusal_is_typed() {
     // a live index.
     let mut r = Recorder::new();
     let cube = unit_box(&mut r);
-    let pat = pattern3(&mut r, cube);
-    let at_count = part(&mut r, pat, instance(3));
-    let negative = part(&mut r, pat, instance(-1));
-    let live = part(&mut r, pat, instance(2));
+    let (k, pat) = pattern3(&mut r, cube);
+    let at_count = r.member(pat, 3);
+    let negative = r.member(pat, -1);
+    let live = r.member(pat, 2);
     let ev = eval(&r.doc);
     assert!(
         matches!(
             error_of(&ev, at_count),
-            NodeErrorKind::InstanceOutOfRange { input, index: 3, count: 3 } if *input == pat
+            NodeErrorKind::MemberOutOfRange { input, at } if *input == pat && at.as_slice() == [3]
         ),
         "{:?}",
         error_of(&ev, at_count)
@@ -554,11 +558,7 @@ fn a4_every_refusal_is_typed() {
     assert!(
         matches!(
             error_of(&ev, negative),
-            NodeErrorKind::InstanceOutOfRange {
-                index: -1,
-                count: 3,
-                ..
-            }
+            NodeErrorKind::MemberOutOfRange { at, .. } if at.as_slice() == [-1]
         ),
         "{:?}",
         error_of(&ev, negative)
@@ -566,94 +566,46 @@ fn a4_every_refusal_is_typed() {
     assert!(ev.value(live).is_some());
     let lowered = apply(
         &r.doc,
-        &DocEdit::SetStructuralParam {
-            node: pat,
-            slot: SlotId::Count,
-            expr: Formula::count(2),
+        &DocEdit::DefineVar {
+            var: editor_core::VarRef::Id(k),
+            def: editor_core::VarDecl::Index {
+                count: Formula::count(2),
+                within: None,
+            },
             fresh: Vec::new(),
         },
         Tol::witness(),
     )
-    .expect("a structural edit")
+    .expect("an index's count edit")
     .doc;
     let ev = eval_after(&lowered, Some(&ev));
-    assert!(ev.value(pat).is_some(), "the pattern is Ok at two");
+    assert!(ev.value(pat).is_some(), "the family is Ok at two");
     assert!(
         matches!(
             error_of(&ev, live),
-            NodeErrorKind::InstanceOutOfRange {
-                index: 2,
-                count: 2,
-                ..
-            }
+            NodeErrorKind::MemberOutOfRange { at, .. } if at.as_slice() == [2]
         ),
         "{:?}",
         error_of(&ev, live)
     );
-    // The pattern (its count moved) and all three Parts — the two that
-    // failed before are not in the memo and the live one reads the
-    // pattern — recompute; the frame, the profile and the box are
-    // served.
-    assert_eq!(ev.recomputed, 4, "the pattern and its three Parts");
-    assert_eq!(ev.reused, lowered.len() - 4);
+    // The three reads recompute — the two that failed before are not
+    // in the memo, and the live one reads the family. The family's
+    // members 0 and 1 keep their keys (D9: a member keys by its node's
+    // key and its index values), so the family is served, as are the
+    // frame, the profile and the box.
+    assert_eq!(ev.recomputed, 3, "the three reads");
+    assert_eq!(ev.reused, lowered.len() - 3);
 
-    // A part reads a pattern's copies and nothing else, refused at the
-    // door: a plain body and a split's half are one body each, and a
-    // split named alone is two.
-    let mut r = Recorder::new();
-    let cube = unit_box(&mut r);
-    let tool = plane_z(&r, cube, 0.5);
-    let split = r.insert(Node::Split {
-        target: cube.into(),
-        tool,
-    });
-    let pat = pattern3(&mut r, cube);
-    let index_of = |of: Operand| {
-        apply(
-            &r.doc,
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Part {
-                    of,
-                    select: instance(0),
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .err()
+    // The index of a read is structural: `SetParam` refuses it.
+    let slot = SlotId::Index {
+        seat: editor_core::OperandSlot::Source,
+        k: 0,
     };
-    let of_slot = editor_core::SlotId::Operand(editor_core::OperandSlot::Of);
-    for (of, label) in [
-        (cube.into(), "a plain body"),
-        (port(split, SplitHalf::Above), "a split's half"),
-    ] {
-        let refused = index_of(of);
-        assert!(
-            matches!(
-                &refused,
-                Some(EditError::SlotVarKind { slot, found: editor_core::VarKind::Body, .. })
-                    if *slot == of_slot
-            ),
-            "an index of {label}: {refused:?}"
-        );
-    }
-    let refused = index_of(split.into());
-    assert!(
-        matches!(
-            &refused,
-            Some(EditError::AmbiguousOutput { input, slot, .. })
-                if input.id() == split && *slot == of_slot
-        ),
-        "{refused:?}"
-    );
-    let index_of_body = part(&mut r, pat, instance(0));
-
-    // The index is structural: `SetParam` refuses it.
     let refused = apply(
         &r.doc,
         &DocEdit::SetParam {
-            node: index_of_body,
-            slot: SlotId::Instance,
+            node: live,
+            slot,
             value: Formula::count(1).into(),
             fresh: Vec::new(),
         },
@@ -662,17 +614,15 @@ fn a4_every_refusal_is_typed() {
     assert!(
         matches!(
             refused,
-            Err(EditError::StructuralSlotNeedsStructuralEdit {
-                slot: SlotId::Instance
-            })
+            Err(EditError::StructuralSlotNeedsStructuralEdit { slot: s }) if s == slot
         ),
         "{refused:?}"
     );
 }
 
 /// **A5 — the key separates what the memo must separate.** Reads of
-/// the two halves key apart, the two instances key apart, and an edit
-/// of the index recomputes the Part and nothing upstream. (The tag census is
+/// the two halves key apart, the two members key apart, and an edit
+/// of the index recomputes the read and nothing upstream. (The tag census is
 /// `eval::tag_vocabulary_tests::node_kind_vocabulary_is_injective`.)
 #[test]
 fn a5_the_content_key_separates_the_halves_and_the_instances() {
@@ -685,9 +635,9 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
     });
     let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
-    let pat = pattern3(&mut r, cube);
-    let p1 = part(&mut r, pat, instance(1));
-    let p2 = part(&mut r, pat, instance(2));
+    let (_, pat) = pattern3(&mut r, cube);
+    let p1 = r.member(pat, 1);
+    let p2 = r.member(pat, 2);
     let ev = eval(&r.doc);
     assert!(
         corpus::failures(&ev).is_empty(),
@@ -700,13 +650,16 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         key(below),
         "reads of the two halves of one split"
     );
-    assert_ne!(key(p1), key(p2), "two instances of one pattern");
+    assert_ne!(key(p1), key(p2), "two members of one family");
 
     let edited = apply(
         &r.doc,
         &DocEdit::SetStructuralParam {
             node: p1,
-            slot: SlotId::Instance,
+            slot: SlotId::Index {
+                seat: editor_core::OperandSlot::Source,
+                k: 0,
+            },
             expr: Formula::count(2),
             fresh: Vec::new(),
         },
@@ -715,12 +668,15 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
     .expect("a structural edit")
     .doc;
     let again = eval_after(&edited, Some(&ev));
-    assert_eq!(again.recomputed, 1, "the Part alone");
+    assert_eq!(again.recomputed, 1, "the read alone");
     assert_eq!(again.reused, r.doc.len() - 1, "nothing upstream moves");
-    assert_eq!(
-        again.value(p1).expect("the Part").content_key,
-        key(p2),
-        "an index of 2 keys as the other Part of 2 does"
+    let framed = |ev: &Evaluation<f64>, id| match &ev.value(id).expect("a value").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("a body, got {}", other.kind_name()),
+    };
+    assert!(
+        matches!(framed(&again, p1).relative(&framed(&again, p2)), Ok(None)),
+        "a read at 2 stands where the other read at 2 does"
     );
 }
 
@@ -929,23 +885,16 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
     }
 }
 
-/// **The contrast: a pattern of a tied master.** The pattern wraps the
-/// master's tie per instance, every candidate in that instance's body,
-/// so no row straddles and the Part of an instance is simply that
-/// instance's tie, still tied.
+/// **The contrast: a family of a tied master.** The family wraps the
+/// master's tie per member, every candidate in that member's body, so
+/// no row straddles and the read of a member is simply that member's
+/// tie, still tied.
 #[test]
-fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
+fn a_member_of_a_family_of_a_tied_master_keeps_the_tie() {
     let mut r = Recorder::new();
     let (sub, _) = u_cutter_tie(&mut r);
-    let pat = r.insert(Node::Pattern {
-        input: sub.into(),
-        count: Formula::count(3),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(20.0),
-        },
-    });
-    let p1 = part(&mut r, pat, instance(1));
+    let (k, pat) = r.linear(sub, [1.0, 0.0, 0.0], 20.0, 3);
+    let p1 = r.member(pat, 1);
     let ev = eval(&r.doc);
     assert!(
         corpus::failures(&ev).is_empty(),
@@ -956,11 +905,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
     assert!(!master_ties.is_empty(), "the fixture carries a tie");
     for (_, c) in ties(&ev, pat) {
         let bodies: std::collections::BTreeSet<u32> = c.iter().map(|e| e.body).collect();
-        assert_eq!(
-            bodies.len(),
-            1,
-            "a pattern's tie lives in one instance: {c:?}"
-        );
+        assert_eq!(bodies.len(), 1, "a family's tie lives in one member: {c:?}");
     }
     let projected = ties(&ev, p1);
     assert_eq!(
@@ -969,10 +914,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
         "one tie per master tie, still tied"
     );
     for (name, c) in &projected {
-        assert!(
-            matches!(name.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
-            "{name}"
-        );
+        assert!(is_member(name.path.first(), k, 1), "{name}");
         assert!(c.iter().all(|e| e.body == 0), "re-keyed to body 0: {c:?}");
     }
 }

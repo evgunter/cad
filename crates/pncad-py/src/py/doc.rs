@@ -199,10 +199,10 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
 /// VALUE and the words are that enum's own maps', even though the raise
-/// site is here — `Node.placed_union`'s count-spelling refusal
-/// (`variant` and `inner_variant` both) and a `label=` text that is not
-/// a label (`label_fault_tag`) are the two cases, and forwarding the
-/// value is what keeps one map the only speller of its words. Where
+/// site is here — a `label=` text that is not a label
+/// (`label_fault_tag`) and a body `Doc.corner_frame` reads no frame off
+/// (`pin_refusal_tag`) are the cases, and forwarding the value is what
+/// keeps one map the only speller of its words. Where
 /// none does — a `serde_json` failure, a mate head or parameter name
 /// whose constructor refuses with one struct — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
@@ -906,12 +906,13 @@ impl AtArg {
     }
 }
 
-/// **One member of a family, read by index** (REFERENCES DM3): `xs[i]`,
-/// written `op[i]` on the family's operand — a node or a variable —
-/// with one count per index. It is a read of the family, not a
-/// variable: an operation reading it keys the member's names by the
-/// family's read. Every body seat takes one; an index out of the
-/// family's range refuses `instance_out_of_range` at `evaluate`.
+/// **One member of a family, read by index** (REFERENCES DM3, D10
+/// `[repetition]`): `xs[i]`, or `xs[i, j]` for a family of two indices,
+/// written on the family's operand — a node or a variable — with one
+/// count per index. It is a read of the family, not a variable: an
+/// operation reading it keys the member's names by the family's read.
+/// Every body seat takes one; an index out of the family's range
+/// refuses `member_out_of_range` at `evaluate`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IndexedRead {
@@ -919,13 +920,27 @@ pub(crate) struct IndexedRead {
     at: Vec<d::Formula>,
 }
 
+/// **The indices `[]` is handed**: one (`xs[i]`), or a tuple, one per
+/// index of the family, the outermost first (`xs[i, j]`).
+#[derive(FromPyObject)]
+pub(crate) enum IndexArg {
+    /// One index.
+    One(super::expr::SlotArg),
+    /// One per index of the family.
+    Many(Vec<super::expr::SlotArg>),
+}
+
 impl IndexedRead {
-    /// `read` at the one index `index`, read as a count.
-    fn of(py: Python<'_>, read: OperandArg, index: &super::expr::SlotArg) -> PyResult<Self> {
-        Ok(Self {
-            read,
-            at: vec![index.formula(py, d::Dimension::Count)?],
-        })
+    /// `read` at `index`, each read as a count.
+    fn of(py: Python<'_>, read: OperandArg, index: &IndexArg) -> PyResult<Self> {
+        let at = match index {
+            IndexArg::One(one) => vec![one.formula(py, d::Dimension::Count)?],
+            IndexArg::Many(many) => many
+                .iter()
+                .map(|i| i.formula(py, d::Dimension::Count))
+                .collect::<PyResult<Vec<_>>>()?,
+        };
+        Ok(Self { read, at })
     }
 }
 
@@ -998,9 +1013,9 @@ impl NodeId {
         format!("NodeId({})", self.0.full())
     }
 
-    /// One member of the family this node's output is, at `index`
-    /// ([`IndexedRead`]).
-    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+    /// One member of the family this node's output is, at `index`: one
+    /// count per index of the family ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
         IndexedRead::of(py, OperandArg::Node(*self), &index)
     }
 
@@ -1067,6 +1082,7 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
+                    d::VarDef::Index(_) => Some(d::Dimension::Count),
                     d::VarDef::Output { .. }
                     | d::VarDef::Select(_)
                     | d::VarDef::Pose(_)
@@ -1643,7 +1659,8 @@ impl Doc {
         py: Python<'_>,
         primitives: Vec<super::measure::MeasurePrimitive>,
     ) -> PyResult<Measured> {
-        let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
+        let primitives: Vec<d::MeasurePrimitive<d::Operand>> =
+            primitives.into_iter().map(|p| p.inner).collect();
         let tol = Tol::witness();
         let mut action = d::Recording::start(&self.inner, tol);
         let measured = action
@@ -1697,6 +1714,7 @@ impl Doc {
         let profile = d::ProfileProgram {
             loops: loops_from_outline(py, outline)?,
             ids: Vec::new(),
+            on: None,
         };
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         let spin = match spin {
@@ -2057,10 +2075,11 @@ impl Doc {
         }
     }
 
-    /// **The variable a node's slot reads** (`Doc::slot`), or `None`
-    /// for a node or a slot the document does not hold. Every slot
-    /// reads one: a value written there is its own anonymous variable,
-    /// and passing the handle to another slot is how two slots share it.
+    /// **The variable a node's slot reads** (`Doc::slot`): an
+    /// expression slot's variable or an operand's read, or `None` for a
+    /// node or a slot the document does not hold. Every slot reads one:
+    /// a value written there is its own anonymous variable, and passing
+    /// the handle to another slot is how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
         Ok(self
             .inner
@@ -2072,6 +2091,28 @@ impl Doc {
     /// anonymous variable, or one the document no longer holds.
     fn var_name(&self, var: &Var) -> Option<VarName> {
         self.inner.var_name(var.0).cloned().map(VarName)
+    }
+
+    /// **What pattern `placement` is**, for display
+    /// (`pncad::pattern::recognise`): a row where it is a placement
+    /// under exactly one index with no mate whose every non-zero value
+    /// is a slide a multiple of the index, a grid where it is under two
+    /// and slides along each, a ring where it has one mate and its spin
+    /// is that multiple. `None` for any other node. It reads the recipe
+    /// as written and decides nothing.
+    fn recognise(&self, placement: &NodeId) -> Option<Recognised> {
+        pncad::pattern::recognise(&self.inner, placement.0).map(|r| {
+            let (index, within) = match &r {
+                pncad::pattern::Recognised::Linear { index, .. }
+                | pncad::pattern::Recognised::Circular { index, .. } => (*index, None),
+                pncad::pattern::Recognised::Grid { outer, inner } => (outer.0, Some(inner.0)),
+            };
+            Recognised {
+                index: Var::of(&self.inner, index),
+                inner_index: within.map(|var| Var::of(&self.inner, var)),
+                inner: r,
+            }
+        })
     }
 
     /// **The text of `expr`**, each variable it reads written by the
@@ -2322,41 +2363,125 @@ impl StationMove {
     }
 }
 
-/// **Which copy of a pattern a `Node.part` selects**, by index. A
-/// split's halves need no selector: each is an output of the split,
-/// read as `doc.output(split, port)`.
-///
-/// The shape is `PatternKind`'s: a frozen value class of static
-/// constructors, one per kernel arm, spelled in snake case.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
+/// One step of a row as Python writes it, `(axis, pitch)`: the axis by
+/// its word, the pitch a length.
+fn pattern_step(
+    py: Python<'_>,
+    axis: &str,
+    pitch: &super::expr::SlotArg,
+) -> PyResult<(d::TargetAxis, d::Formula)> {
+    Ok((
+        super::mate::target_axis(axis)?,
+        super::pose::scalar_at(py, d::Dimension::Length, pitch, "row's pitch")?,
+    ))
+}
+
+/// A ring's axis as Python writes it, `(on, to, along)`.
+fn ring_axis(
+    (on, to, along): (OperandArg, OperandArg, String),
+) -> PyResult<(d::Operand, d::Operand, d::TargetAxis)> {
+    Ok((on.read(), to.read(), super::mate::target_axis(&along)?))
+}
+
+/// The node a pattern writer authored. Every argument's dimension is
+/// read at the boundary first, so a refusal here is a product the
+/// writer cannot form.
+fn pattern_node(authored: Result<d::AuthoredNode, d::DimensionError>) -> PyResult<Node> {
+    authored
+        .map(|inner| Node { inner })
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))
+}
+
+/// **A placement read back as the pattern it is** (`Doc.recognise`):
+/// a row (`kind == "linear"`, its `steps`), a grid (`kind == "grid"`,
+/// `steps` along `index` and `inner_steps` along `inner_index`) or a
+/// ring (`kind == "circular"`, its `step`), under `index`.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct Recognised {
+    inner: pncad::pattern::Recognised,
+    index: Var,
+    inner_index: Option<Var>,
+}
 
 #[pymethods]
-impl PartSelect {
-    /// The `index`-th instance of a `Node.pattern` value, counting
-    /// from zero.
-    ///
-    /// `index` is a count `Formula` — `Formula.count(3)` — because a Count
-    /// is an integer in the kernel's own expression language, not a
-    /// measurement, and every slot on this surface takes the
-    /// expression its kernel slot holds. It is the node's `Instance`
-    /// STRUCTURAL slot, so `DocEdit.bind_instance_param` can replace
-    /// this literal with a document parameter afterwards.
-    ///
-    /// The admitted indices are `0 .. count`. A negative index and one
-    /// past the end refuse the same way at `evaluate`
-    /// (`instance_out_of_range`, carrying the index and the count):
-    /// neither is wrapped nor clamped, because either would hand back
-    /// a body the author did not name.
-    #[staticmethod]
-    fn instance(py: Python<'_>, index: super::expr::SlotArg) -> PyResult<Self> {
-        Ok(Self(d::PartSelect::Instance(super::doc::slot_expr(
-            py,
-            d::SlotId::Instance,
-            &index,
-        )?)))
+impl Recognised {
+    /// `"linear"`, `"grid"` or `"circular"`.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        match self.inner {
+            pncad::pattern::Recognised::Linear { .. } => "linear",
+            pncad::pattern::Recognised::Grid { .. } => "grid",
+            pncad::pattern::Recognised::Circular { .. } => "circular",
+        }
     }
+
+    /// The index: a grid's outer.
+    #[getter]
+    fn index(&self) -> Var {
+        self.index
+    }
+
+    /// A grid's inner index; `None` for a row or a ring.
+    #[getter]
+    fn inner_index(&self) -> Option<Var> {
+        self.inner_index
+    }
+
+    /// A row's slides, or a grid's along its outer index, each axis
+    /// (`"x"`, `"y"`, `"z"`) and its pitch per member; empty for a ring.
+    #[getter]
+    fn steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
+        match &self.inner {
+            pncad::pattern::Recognised::Linear { steps, .. }
+            | pncad::pattern::Recognised::Grid {
+                outer: (_, steps), ..
+            } => slides(steps),
+            pncad::pattern::Recognised::Circular { .. } => Vec::new(),
+        }
+    }
+
+    /// A grid's slides along its inner index; empty for a row or a ring.
+    #[getter]
+    fn inner_steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
+        match &self.inner {
+            pncad::pattern::Recognised::Grid {
+                inner: (_, steps), ..
+            } => slides(steps),
+            _ => Vec::new(),
+        }
+    }
+
+    /// A ring's turn per member; `None` for a row.
+    #[getter]
+    fn step(&self) -> Option<super::expr::Formula> {
+        match &self.inner {
+            pncad::pattern::Recognised::Circular { step, .. } => {
+                Some(super::expr::Formula(step.clone()))
+            }
+            pncad::pattern::Recognised::Linear { .. } | pncad::pattern::Recognised::Grid { .. } => {
+                None
+            }
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Recognised.{}({})", self.kind(), self.index.__repr__())
+    }
+}
+
+/// Slides as Python reads them: each axis word and its pitch.
+fn slides(
+    steps: &[(pncad::document::TargetAxis, pncad::document::Formula)],
+) -> Vec<(&'static str, super::expr::Formula)> {
+    steps
+        .iter()
+        .map(|(axis, pitch)| {
+            (
+                super::mate::axis_word(*axis),
+                super::expr::Formula(pitch.clone()),
+            )
+        })
+        .collect()
 }
 
 /// **The loop programs an `outline` argument spells** — ONE
@@ -2472,6 +2597,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }
@@ -2499,6 +2625,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }
@@ -2657,7 +2784,11 @@ impl Node {
     /// reverses the produced surface's v-direction. The loft lies in
     /// its first section's coordinates. `v_degree` is the v-direction
     /// interpolation degree, a COUNT (structural material, D3), so it
-    /// crosses as `Formula.count` and not as a continuous literal.
+    /// crosses as `Formula.count` and not as a continuous literal. It
+    /// sets the faces too: at degree 1 through three sections or more
+    /// the loft is one wall per profile segment per slab between two
+    /// consecutive sections, each interior section a ring of edges; at 2
+    /// or more one wall per segment spans every section.
     ///
     /// The degree is the node's `VDegree` slot —
     /// `DocEdit.bind_v_degree_param` is what makes it a named,
@@ -2862,6 +2993,26 @@ impl Node {
         }
     }
 
+    /// **A profile drawn on `frame`, tracing `faces`**: its chain (a
+    /// `Chain`, or a list of them, outer first) reads the trace of each
+    /// face, by its place in `faces`, in the frame's xy plane — a run
+    /// onto a crossing (`TraceTarget.on_trace`), a heading along the
+    /// trace (`Chain.along_trace`). `frame` is a frame pose of a body's
+    /// space and each face a `(body, name)` of that space; the profile,
+    /// and every sweep of it, is in that space. An argument whose
+    /// dimension is not its slot's raises here, naming its loop, step
+    /// and argument; a step whose trace refuses refuses at `evaluate`
+    /// (`trace`), naming the step and the face.
+    #[staticmethod]
+    fn drawn_profile(
+        py: Python<'_>,
+        frame: OperandArg,
+        faces: Vec<(OperandArg, String)>,
+        outline: super::trace::Outline,
+    ) -> PyResult<Self> {
+        super::trace::drawn_profile(py, frame, faces, outline)
+    }
+
     /// The mirror image of a body: `body` reflected across `plane` (a
     /// plane, or a frame's coordinate plane read through its role), a
     /// new body in `body`'s own space, its cells named as `body` names
@@ -2929,8 +3080,7 @@ impl Node {
     /// operand seat.
     ///
     /// The membership is data, so `DocEdit.set_members` rewrites it on
-    /// the live node. Not `Node.placed_union`, whose members are one
-    /// prototype under a placement rule.
+    /// the live node.
     ///
     /// Members whose faces a margin decides on one surface glue there,
     /// and the coincidence is recorded for the `unproven_coincidence`
@@ -2993,138 +3143,132 @@ impl Node {
         })
     }
 
-    /// **The pattern**: one prototype, `count` placements stepped by
-    /// `kind`, N BODIES OUT — the replicated family with nothing
-    /// fused.
+    /// **A row** (D10 `[repetition]`): `source` copied into `target`,
+    /// member `k` slid `scalar(k)·pitch` along each `(axis, pitch)` of
+    /// `steps` on the target's axes (`"x"`, `"y"`, `"z"`), with no mate
+    /// — `pncad::pattern::linear_pattern`'s program, a `Node.place`
+    /// like any other.
     ///
-    /// The value is PLURAL (`Value.kind == "instances"`,
-    /// `Value.bodies` the whole list), and that is the difference from
-    /// `Node.placed_union`, which is the same rule vocabulary over the
-    /// same prototype fused into ONE body. A plural value is refused
-    /// at every single-body operand seat — a boolean, a transform, a
-    /// fillet — so the node a pattern's instance reaches those doors
-    /// through is `Node.part`, which projects one body back out of the
-    /// list. Reach for `placed_union` when the family IS the shape,
-    /// and for `pattern` + `part` when one copy of it is.
-    ///
-    /// `count` is a count `Formula` — `Formula.count(4)` — and it is the
-    /// node's `Count` slot, so `DocEdit.bind_count_param` is what
-    /// makes it a named, editable number. A count below one refuses
-    /// at `evaluate` (`count_out_of_range`).
-    ///
-    /// An `explicit` rule refuses typed at `Doc.insert`
-    /// (`EditError`, `placement_rule_mismatch`): it carries its own
-    /// placements, so pairing it with a count is two answers to one
-    /// question. A pattern has no `placed_union_at` twin — a listed
-    /// family whose members stay separate has no user yet, and the
-    /// door that would say it can be added when one appears.
-    ///
-    /// Per-instance naming is the `Instance(i)` qualifier, ONE segment
-    /// deep whatever the count, so a selector spelled against the
-    /// prototype resolves against every copy.
+    /// `index` names an index the document declares
+    /// (`DocEdit.declare_var(k, VarDecl.index(n))`), so the placement
+    /// is a family of `n` members: `Node.union(row)` fuses them, and
+    /// `row[i]` reads one. Each pitch is a length (`ValueError`
+    /// otherwise, as `MateValue`'s); the insert refuses a name the
+    /// document does not hold (`unlowered_name`) as any formula's.
     #[staticmethod]
-    fn pattern(
+    fn linear_pattern(
         py: Python<'_>,
-        input: OperandArg,
-        count: super::expr::SlotArg,
-        kind: &super::place::PatternKind,
+        index: &VarName,
+        source: BodyArg,
+        target: SpaceArg,
+        steps: Vec<(String, super::expr::SlotArg)>,
     ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Pattern {
-                input: input.read(),
-                count: slot_expr(py, d::SlotId::Count, &count)?,
-                kind: kind.0.clone(),
-            },
-        })
+        let steps = steps
+            .iter()
+            .map(|(axis, pitch)| pattern_step(py, axis, pitch))
+            .collect::<PyResult<Vec<_>>>()?;
+        pattern_node(pncad::pattern::linear_pattern(
+            &index.0,
+            source.read(),
+            target.read(),
+            &steps,
+        ))
     }
 
-    /// **The projection**: ONE body out of a pattern's copies —
-    /// "instance 3 of that pattern".
-    ///
-    /// A projection, not an operation. The selected body is the
-    /// instance's OWN, and the node's name table is the input's
-    /// restricted to that body with every name verbatim, so a selector
-    /// already spelled against that instance resolves here unchanged
-    /// and a `Value.mass_properties` read matches the body read
-    /// straight off `Value.bodies`.
-    ///
-    /// `of` reads the copies (a list of bodies), and `select` says
-    /// which one (`PartSelect.instance`). Reading anything else
-    /// refuses at insert (`slot_var_kind`). An index outside
-    /// `0 .. count` refuses at `evaluate` (`instance_out_of_range`).
+    /// **A grid**: `Node.linear_pattern` over two indices, each
+    /// `(index, axis, pitch)`, `inner`'s index declared within
+    /// `outer`'s (`VarDecl.index(n, within=outer)`), member
+    /// `(i, j)` slid along both — the family indexed `[outer, inner]`.
     #[staticmethod]
-    fn part(of: OperandArg, select: &PartSelect) -> Self {
-        Self {
-            inner: d::Node::Part {
-                of: of.read(),
-                select: select.0.clone(),
-            },
-        }
+    fn grid(
+        py: Python<'_>,
+        outer: (VarName, String, super::expr::SlotArg),
+        inner: (VarName, String, super::expr::SlotArg),
+        source: BodyArg,
+        target: SpaceArg,
+    ) -> PyResult<Self> {
+        let (outer_k, outer_axis, outer_pitch) = &outer;
+        let (inner_k, inner_axis, inner_pitch) = &inner;
+        pattern_node(pncad::pattern::grid(
+            (&outer_k.0, pattern_step(py, outer_axis, outer_pitch)?),
+            (&inner_k.0, pattern_step(py, inner_axis, inner_pitch)?),
+            source.read(),
+            target.read(),
+        ))
     }
 
-    /// **The group boolean** over a PARAMETRIC rule: one prototype,
-    /// `count` placements stepped by `kind`, ONE body out — the union
-    /// of the prototype at each placement.
+    /// **A ring**: `source` copied into `target` by one `Axis` mate
+    /// equating `axis[0]` (an axis read off the copy) with `axis[1]`
+    /// (an axis in the target), member `k` spun `scalar(k)·step` about
+    /// it and slid zero along the target axis `axis[2]` it runs on.
     ///
-    /// The value is an ordinary body, so every downstream door
-    /// consumes it with no new arms; that is exactly what a `Pattern`
-    /// node's plural `Instances` payload cannot do. Per-instance
-    /// naming is the `Instance(i)` qualifier, ONE segment deep
-    /// whatever the count.
-    ///
-    /// `count` is a count `Formula` — `Formula.count(4)`, the `Node.loft`
-    /// `v_degree` precedent: a Count is an integer in the kernel's own
-    /// expression language, not a dimensioned measurement, and there
-    /// is no `Count` quantity to wrap it in.
-    ///
-    /// Disjointness is CERTIFIED, never declared: overlapping
-    /// placements refuse typed at `evaluate` (`placements_uncertified`,
-    /// naming the pair), and the certificate is
-    /// sufficient-not-necessary — a touching-but-genuinely-disjoint
-    /// arrangement refuses honestly rather than passing on a guess.
-    ///
-    /// An `explicit` rule brings its OWN placements, so pairing it
-    /// with a count is the two-sources-of-truth state: it refuses here
-    /// (`EditError`, `placement_rule_mismatch`, `inner_variant`
-    /// `listed_with_count`) and `Node.placed_union_at` is its door.
+    /// Exactly one of `count` and `step` says how far apart the
+    /// members turn: `count` a full ring of that many (`turn / count`),
+    /// `step` the angle as written. `doc` reads the mate's kinds, as
+    /// `Placed.of`'s.
     #[staticmethod]
-    fn placed_union(
+    #[pyo3(signature = (doc, index, source, target, axis, *, count=None, step=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn circular_pattern(
         py: Python<'_>,
-        input: OperandArg,
-        count: super::expr::SlotArg,
-        kind: &super::place::PatternKind,
+        doc: &Doc,
+        index: &VarName,
+        source: BodyArg,
+        target: SpaceArg,
+        axis: (OperandArg, OperandArg, String),
+        count: Option<super::expr::SlotArg>,
+        step: Option<super::expr::SlotArg>,
     ) -> PyResult<Self> {
-        let count = slot_expr(py, d::SlotId::Count, &count)?;
-        let node = d::Node::placed_union(input.read(), count, kind.0.clone()).ok_or_else(|| {
-            boundary_edit_err(
+        let step = match (count, step) {
+            (Some(count), None) => pncad::pattern::RingStep::Full(super::pose::scalar_at(
                 py,
-                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
-                    shape: d::CountMismatch::ListedWithCount,
-                }),
-                "an explicit placement rule carries its own placements, so it has no \
-                     count slot: use Node.placed_union_at"
-                    .to_owned(),
-            )
-        })?;
-        Ok(Self { inner: node })
+                d::Dimension::Count,
+                &count,
+                "ring's count",
+            )?),
+            (None, Some(step)) => pncad::pattern::RingStep::By(super::pose::scalar_at(
+                py,
+                d::Dimension::Angle,
+                &step,
+                "ring's step",
+            )?),
+            _ => {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "a ring takes exactly one of count= and step=",
+                ));
+            }
+        };
+        pattern_node(pncad::pattern::circular_pattern(
+            &doc.inner,
+            &index.0,
+            source.read(),
+            target.read(),
+            ring_axis(axis)?,
+            step,
+        ))
     }
 
-    /// **The group boolean** over LISTED absolute frames: one
-    /// prototype placed at each of `frames`, unioned into ONE body.
-    ///
-    /// There is no count argument because the list IS the count — one
-    /// number, one spelling. An EMPTY list is this rule's `count < 1`
-    /// and refuses typed at `Doc.insert` (`empty_placement_list`), as
-    /// does a non-finite (`non_finite_placement`) or non-rigid
-    /// (`non_rigid_placement`) frame.
+    /// **A bolt circle**: a full ring of `count` copies of `source`
+    /// about `axis` (`Node.circular_pattern(..., count=count)`).
     #[staticmethod]
-    fn placed_union_at(input: OperandArg, frames: Vec<super::place::Frame>) -> Self {
-        Self {
-            inner: d::Node::placed_union_at(
-                input.read(),
-                frames.into_iter().map(|f| f.0).collect(),
-            ),
-        }
+    fn bolt_circle(
+        py: Python<'_>,
+        doc: &Doc,
+        index: &VarName,
+        count: super::expr::SlotArg,
+        source: BodyArg,
+        target: SpaceArg,
+        axis: (OperandArg, OperandArg, String),
+    ) -> PyResult<Self> {
+        let count = super::pose::scalar_at(py, d::Dimension::Count, &count, "ring's count")?;
+        pattern_node(pncad::pattern::bolt_circle(
+            &doc.inner,
+            &index.0,
+            count,
+            source.read(),
+            target.read(),
+            ring_axis(axis)?,
+        ))
     }
 
     /// An **instance of another document's product**: a leaf whose
@@ -3200,7 +3344,7 @@ impl Node {
     #[staticmethod]
     fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
         Self {
-            inner: d::Node::measure(&primitive.0),
+            inner: d::Node::measure(&primitive.inner),
         }
     }
 
@@ -3344,9 +3488,9 @@ impl Var {
         format!("Var({})", self.0.full())
     }
 
-    /// One member of the family this variable holds, at `index`
-    /// ([`IndexedRead`]).
-    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+    /// One member of the family this variable holds, at `index`: one
+    /// count per index of the family ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
         IndexedRead::of(py, OperandArg::Var(*self), &index)
     }
 
@@ -3461,10 +3605,10 @@ impl VarArg {
     }
 }
 
-/// **A variable's definition as an edit carries it** — a free value, or
-/// a `Formula` over other variables that the edit door lowers (its names
+/// **A variable's definition as an edit carries it** — a free value, a
+/// `Formula` over other variables that the edit door lowers (its names
 /// resolved against the document's) and stores as the variable's
-/// definition (VARIABLES-DESIGN VR3).
+/// definition (VARIABLES-DESIGN VR3), or an index (D10 `[repetition]`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct VarDecl(pub(crate) d::VarDecl);
@@ -3485,21 +3629,72 @@ impl VarDecl {
         Self(d::VarDecl::defined(expr.0.clone()))
     }
 
-    /// The defining expression, or `None` for a free variable.
+    /// **An index** `k = index(count)` (D10 `[repetition]`): a `Count`
+    /// variable taking each value `0 .. count`, so a placement whose
+    /// values read it is evaluated once per value and its copy is a
+    /// family of `count` members. `count` is a count (an `int`, a count
+    /// `Formula`, or a variable read as one).
+    ///
+    /// `within` names another index this one is declared within, by
+    /// its `Var` or its `VarName`: a reader of both is a family indexed
+    /// by both, the outer first (a grid). Two indices neither of which
+    /// is within the other meet in no reader, which refuses
+    /// `indices_unrelated` where one node reads both.
+    ///
+    /// `declare_var` refuses a count of another dimension and a
+    /// `within` that is no index of the document (`index`, with
+    /// `inner_variant` `count_not_count` or `within_no_index`).
+    #[staticmethod]
+    #[pyo3(signature = (count, within=None))]
+    fn index(
+        py: Python<'_>,
+        count: super::expr::SlotArg,
+        within: Option<VarArg>,
+    ) -> PyResult<Self> {
+        Ok(Self(d::VarDecl::Index {
+            count: count.formula(py, d::Dimension::Count)?,
+            within: within.map(|w| match w {
+                VarArg::Id(var) => d::Formula::var(var.0, d::Dimension::Count),
+                VarArg::Name(name) => d::Formula::named(name.0, d::Dimension::Count),
+            }),
+        }))
+    }
+
+    /// The defining expression, or `None` for a free variable or an
+    /// index.
     #[getter]
     fn expr(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Free(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Index { .. } => None,
             d::VarDecl::Defined(expr) => Some(super::expr::Formula(expr.clone())),
         }
     }
 
-    /// The free value, or `None` for a defined variable.
+    /// The free value, or `None` for a defined variable or an index.
     #[getter]
     fn value(&self) -> Option<FreeVar> {
         match &self.0 {
             d::VarDecl::Free(free) => Some(FreeVar(free.clone())),
-            d::VarDecl::Defined(_) => None,
+            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } => None,
+        }
+    }
+
+    /// An index's count, or `None` for any other declaration.
+    #[getter]
+    fn count(&self) -> Option<super::expr::Formula> {
+        match &self.0 {
+            d::VarDecl::Index { count, .. } => Some(super::expr::Formula(count.clone())),
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+        }
+    }
+
+    /// The index an index is declared within, as the count read of it,
+    /// or `None` for an index within none and any other declaration.
+    #[getter]
+    fn within(&self) -> Option<super::expr::Formula> {
+        match &self.0 {
+            d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
         }
     }
 
@@ -3510,6 +3705,16 @@ impl VarDecl {
             }
             d::VarDecl::Defined(expr) => {
                 format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
+            }
+            d::VarDecl::Index { count, within } => {
+                let count = d::unparse(count, &|_| None);
+                match within {
+                    None => format!("VarDecl.index({count})"),
+                    Some(w) => format!(
+                        "VarDecl.index({count}, within={})",
+                        d::unparse(w, &|_| None)
+                    ),
+                }
             }
         }
     }
@@ -3881,9 +4086,8 @@ impl FreeValue {
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
 /// `add_constraint`, `remove_constraint`, `update_reference`, `rebind`, and
-/// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
-/// the structural-slot edit narrowed to one named slot and a
-/// parameter reference.
+/// `bind_v_degree_param`, the structural-slot edit narrowed to one
+/// named slot and a parameter reference.
 ///
 /// **What is NOT here, and why each one is not.** The appearance and
 /// metadata four are the FAÇADE's answer rather than this module's:
@@ -4054,7 +4258,7 @@ impl DocEdit {
     /// afterwards, and the door that puts an EXPRESSION there: hand
     /// it `Doc.parse_formula("plate_t * 2")` and the slot is driven by a
     /// document parameter from then on, exactly as
-    /// `bind_count_param` drives a structural one.
+    /// `bind_v_degree_param` drives a structural one.
     ///
     /// **The slot is named by its WORD** — the same word
     /// `EditError.slot` answers in — so a refusal is an address a
@@ -4317,85 +4521,14 @@ impl DocEdit {
         }
     }
 
-    /// Bind `node`'s STRUCTURAL count slot to the document parameter
-    /// `name` — the edit that makes a pattern's or a group's
-    /// replication count a named, editable number.
-    ///
-    /// With the binding in place, one `set_var_value` re-counts the
-    /// placements and recomputes exactly the nodes downstream of the
-    /// count; without it a count is a literal and each new number is a
-    /// new document.
-    ///
-    /// # Why the door is this narrow
-    ///
-    /// The underlying edit replaces a slot's EXPRESSION, and its two
-    /// remaining degrees of freedom are the slot and the expression
-    /// tree. Both stay closed here: the slot is named by the door
-    /// rather than passed to it, and the expression is a parameter
-    /// reference at `Count` dimension, so no expression algebra
-    /// crosses and there is no way to aim this edit at a continuous
-    /// slot (the refusal the general door would need). What DOES stay
-    /// live is every refusal the edit itself carries: a node with no
-    /// count slot, an unknown parameter, a parameter of the wrong
-    /// dimension — each arrives as its own typed `EditError`.
-    ///
-    /// A door per slot, not a `slot=` argument: the structural slots
-    /// are the Count-dimensioned ones and there are four of them.
-    /// Three have doors — this one, `Instance`
-    /// ([`DocEdit::bind_instance_param`]) and `VDegree`
-    /// ([`DocEdit::bind_v_degree_param`]) — and `Stations` has none,
-    /// because its only node is the sweep and no Python constructor
-    /// mints one to aim an edit at. A shared door would cross the slot
-    /// vocabulary as an enum, which is exactly what the bindings
-    /// decline to do.
-    #[staticmethod]
-    fn bind_count_param(node: &NodeId, name: &VarName) -> Self {
-        Self {
-            inner: d::DocEdit::SetStructuralParam {
-                node: node.0,
-                slot: d::SlotId::Count,
-                expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
-                fresh: Vec::new(),
-            },
-        }
-    }
-
-    /// Bind `node`'s STRUCTURAL instance slot to the document
-    /// parameter `name` — the edit that makes a `Node.part`'s index
-    /// into a pattern a named, editable number.
-    ///
-    /// `bind_count_param`'s sibling, and the same narrow shape for the
-    /// same reason: which body a projection selects is STRUCTURE, not
-    /// a continuous quantity, so the index is Count-dimensioned and
-    /// edited only through a structural edit. Its own door rather than
-    /// a reuse of the count one because a panel that spelled an index
-    /// "count" would be lying about it — the kernel keeps
-    /// `SlotId::Instance` separate from `SlotId::Count` for that
-    /// reason, and this pair of doors is that distinction crossing.
-    ///
-    /// Refuses typed on a node with no instance slot — every node but
-    /// a `Node.part` selecting an instance, a Part selecting a split
-    /// half included — and on an unknown or wrongly dimensioned
-    /// parameter.
-    #[staticmethod]
-    fn bind_instance_param(node: &NodeId, name: &VarName) -> Self {
-        Self {
-            inner: d::DocEdit::SetStructuralParam {
-                node: node.0,
-                slot: d::SlotId::Instance,
-                expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
-                fresh: Vec::new(),
-            },
-        }
-    }
-
     /// Bind `node`'s STRUCTURAL v-degree slot to the document
     /// parameter `name` — the edit that makes a loft's v-direction
     /// interpolation degree a named, editable number.
     ///
-    /// The third of the sibling doors, and the same narrow shape for
-    /// the same reason. A degree is neither a count of placements nor
-    /// an index into them: it says how the skin interpolates BETWEEN
+    /// A narrow door: the slot is named by the door rather than passed
+    /// to it, and the expression is a parameter read at `Count`, so no
+    /// expression algebra crosses and the edit cannot be aimed at a
+    /// continuous slot. A degree says how the skin interpolates BETWEEN
     /// the sections, so a document whose degree is a literal is a
     /// re-authoring away from every other degree, and one bound here
     /// moves under a single `set_var_value` like any other named
@@ -4697,24 +4830,6 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
     })
 }
 
-/// A vector slot's three components, each checked against its own
-/// per-axis `SlotId`.
-pub(crate) fn direction_expr(
-    py: Python<'_>,
-    slot: d::VectorSlot,
-    v: &(
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-    ),
-) -> PyResult<[d::Formula; 3]> {
-    Ok([
-        slot_expr(py, slot.slot(d::Axis3::X), &v.0)?,
-        slot_expr(py, slot.slot(d::Axis3::Y), &v.1)?,
-        slot_expr(py, slot.slot(d::Axis3::Z), &v.2)?,
-    ])
-}
-
 /// **A tube's traversed window** — the kernel's `TubeWindow`, crossing
 /// as a VALUE with two spellings and no third.
 ///
@@ -4797,7 +4912,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
     m.add_class::<FreeValue>()?;
     m.add_class::<Node>()?;
-    m.add_class::<PartSelect>()?;
+    m.add_class::<Recognised>()?;
     m.add_class::<TubeWindow>()?;
     m.add_class::<StationMove>()?;
     m.add_class::<Loaded>()?;

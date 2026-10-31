@@ -298,7 +298,7 @@ pub(crate) fn two_tori_on_a_bar() -> topo::Body<f64> {
 /// moved that point from one torus to the other and read the other's
 /// faces across the bar: pads 2.58× apart across the 12 rotations at 1e-9,
 /// 2.71× at 1e-12 and 90.2× at 1e-6, from 2.28e-5, 2.14e-8 and 4.14e-5 at
-/// best (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
+/// best (`a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`, closed by PR 5699).
 /// Each region read about its own point and carried to the shell's by its
 /// boundary's vector area (`topo::props`' `References`), the pads are
 /// 4.10e-6, 3.69e-9 – 3.74e-9 and 4.10e-6, within 1.02× across the
@@ -414,7 +414,7 @@ fn a_torus_midway_on_the_top_face() -> topo::Body<f64> {
 /// the home torus and one on the top face near the far end, read pads
 /// 456× apart across rotations at 1e-6, and R2, a torus midway with both
 /// ends' tori, 83×
-/// (`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`).
+/// (`a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever`, closed by PR 5801).
 /// Joined only across rims (`topo::props`' `References`), each torus is a
 /// region with the faces its rims bound, read about its first curved
 /// face's start. Across the 12 and 16 rotations the pads are within 1.006×
@@ -474,7 +474,7 @@ fn a_torus_astride_the_end_edge_and_one_far_on_top() -> topo::Body<f64> {
 /// 2.83× and 80.8× apart at 1e-6, 1e-9 and 1e-12, the widest 8.55e-5,
 /// 3.35e-5 and 8.53e-7. What is left is the end-edge torus's long top
 /// face read about a point off its plane
-/// (`work/flux/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`).
+/// (`work/spiricarm/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`).
 /// Pinned within 1.1× of both.
 #[test]
 fn a_shell_whose_tori_meet_along_circles_keeps_each_torus_a_region() {

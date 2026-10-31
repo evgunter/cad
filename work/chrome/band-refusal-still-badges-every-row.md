@@ -243,11 +243,12 @@ document-level mark existed, which was wrong):
   raises `AtRestBadge::Refused` (`Tone::Actionable`) for ANY gather
   fault on an assembly-shaped document, and every document a Band
   refusal reaches is one — the fault is recorded against instances.
-- What that badge lacks is the band's WORDS: its message is
-  `AssemblyError::product_refusal` over `ProductError::RootFailed
-  { node }`, which reads *"product: root N failed to evaluate (ask
-  `Evaluation::node_error` for the typed cause)"* — the gather error
-  carries no cause, and `frame::badge_site` leaves `RootFailed` to the
+- What that badge lacks is the band's WORDS: its message was
+  `AssemblyError::product_refusal` over `ProductError::Read`
+  (`NodeStanding::Failed { node }`), which read *"product: root N
+  failed to evaluate (ask `Evaluation::node_error` for the typed
+  cause)"* — the gather error
+  carries no cause, and `frame::badge_site` leaves `ReadFailed` to the
   tree.
 
 **Moved since (2026-10-01, `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`):**
@@ -260,17 +261,17 @@ own; (a) and (c) are N loud marks, not N+1.
 The options:
 
 - **(a) Status quo.** Every reached row `FAILED`, `Actionable`, the
-  payload's own words, beside a document badge that names a root and
+  payload's own words, beside a document badge that names the read and
   no cause. N+1 loud marks. `child_band_refusal_rows` pins the rows.
 - **(b) Put the cause in the badge that already exists, then quiet the
-  rows.** Render the root's `Evaluation::node_error` into the
-  at-rest refusal (following `through` for a poisoned root, which
+  rows.** Render the read's `Evaluation::node_error` into the
+  at-rest refusal (following `through` for a poisoned read, which
   `node_error` already does in one hop), so the one document mark
   says *"the mate solve could not build a band: …"*; and give the
   reached rows a run-refusal `RowStatus` (e.g. `RunRefused`) toned
   `Advisory`. One loud mark for one cause, at document level — which
   is where the cause lives (the document's tolerance). The badge half
-  helps every `RootFailed`, not only Band. `badge_site`'s one-for-one
+  helps every `ReadFailed`, not only Band. `badge_site`'s one-for-one
   pairing is restated (the new state pairs with no gather class) and
   its guard test with it; the link decision answers `None` for the
   new state.

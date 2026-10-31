@@ -67,6 +67,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("a 60-degree secant is half a radius off the wall");
     // The door that refuses is recorded rather than asserted blind:
@@ -120,6 +121,7 @@ fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("a chord of a plane lies in the plane");
     assert!(
@@ -160,6 +162,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     );
     // **(evidence — this row reports, it does not gate.)** Which way it
     // lands is the finding either way: if the chord certifies, the
@@ -225,8 +228,16 @@ fn r2_the_rest_conversion_moves_only_the_description() {
         }
         _ => panic!("the carrier kind changed"),
     }
-    let edge =
-        EdgeCurve::certify(at_rest, q0, q1, &lookup, 1.0, band()).expect("it rests in the plane");
+    let edge = EdgeCurve::certify(
+        at_rest,
+        q0,
+        q1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("it rests in the plane");
     assert!(matches!(edge.description(), EdgeDescription::Chart(_)));
     assert!(
         edge.authority().is_declared(),
@@ -310,11 +321,20 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("rests in the plane");
     assert!(declared.authority().is_declared());
-    let again = EdgeCurve::certify(declared.restated_spec(), q0, q1, &lookup, 1.0, band())
-        .expect("a restatement re-certifies");
+    let again = EdgeCurve::certify(
+        declared.restated_spec(),
+        q0,
+        q1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("a restatement re-certifies");
     assert!(
         again.authority().is_declared(),
         "a restatement must not flip the authority record"
@@ -335,14 +355,23 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("rests in the plane");
     assert!(!derived.authority().is_declared());
     assert!(
-        !EdgeCurve::certify(derived.restated_spec(), q0, q1, &lookup, 1.0, band())
-            .expect("re-certifies")
-            .authority()
-            .is_declared()
+        !EdgeCurve::certify(
+            derived.restated_spec(),
+            q0,
+            q1,
+            &lookup,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .expect("re-certifies")
+        .authority()
+        .is_declared()
     );
 }
 
@@ -364,13 +393,22 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("rests in the plane");
     let mid = p(1.0, 0.0, 0.0);
     let (a, b) = parent.split_specs(1.0);
     for (spec, s, e) in [(a, q0, mid), (b, mid, q1)] {
-        let child =
-            EdgeCurve::certify(spec, s, e, &lookup, 1.0, band()).expect("the child certifies");
+        let child = EdgeCurve::certify(
+            spec,
+            s,
+            e,
+            &lookup,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .expect("the child certifies");
         assert!(
             child.authority().is_declared(),
             "a split child kept its parent's declaration"
@@ -409,6 +447,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("a decreasing interval is refused");
     let rendered = format!("{err}");
@@ -438,6 +477,7 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("scaffolding needs no chart");
     assert!(edge.description().is_scaffold());
@@ -496,6 +536,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
         // the fixed 1e-6 the PR names for this escalation, not the run's
         // ε, so this row must not follow the matrix point it drew.
         Band::linear_at(Tol::witness(), 1e-6).unwrap(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("a chord of a plane is an image of that plane's chart");
     let residual = edge.certificate().max_residual;

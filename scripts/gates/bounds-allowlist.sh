@@ -480,9 +480,9 @@ BOUNDS_ALLOWLIST=(
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
   # its two readers carry the bound to call it: `decided_declarations`,
-  # which hands each pair to the carrier ladder, and `frame_rows`,
-  # which decides the cylinder × sphere pairs' coaxial frame and the
-  # cylinder pairs' crossing one. None
+  # which hands each pair to the carrier ladder, and `section_door`,
+  # which builds the operation's section table and reads the cylinder
+  # pairs' crossing. None
   # reads a bracket of its own beyond the box builders'.
   'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
@@ -493,7 +493,7 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With the eight pre-existing seams (the six public and
+  # same scan (since left, below). With the eight pre-existing seams (the six public and
   # pipeline doors, `sphere_extent_scan` and `apply_recuts`; the three
   # declaring doors `union_with`, `intersect_with` and `subtract_with`
   # went with the declaration channel, INTENT stage 4 F) the count is
@@ -522,16 +522,26 @@ BOUNDS_ALLOWLIST=(
   # bracket of its own. 21 + 2 = 23. One more is `boolean_op_given`,
   # `boolean_op_with`'s body with a fold step's given pairs, which the
   # n-ary door (`nary.rs`) calls; it forwards to `boolean_door` and
-  # reads no bracket of its own. 23 + 1 = 24.
-  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
+  # reads no bracket of its own. 23 + 1 = 24. `section_report` left
+  # the seam: it runs at `f64` only, a concrete scalar. 24 − 1 = 23.
+  # Three more are the section certificate's callers split out so
+  # each path and its test door read one walk: `crossings_section_pairs`
+  # (the guard's and `section_report`'s), `fallback_section_pairs` (the
+  # no-crossings pass's and its report's), and `no_crossings_pass`, the
+  # extent scan then the section pass, as the path and its test door
+  # run them. None reads a bracket of its own. 23 + 3 = 26.
+  'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  # Three more ride to `carrier_touch::off_face` the same way:
-  # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
-  'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
+  # Six more ride to `carrier_touch::off_face` the same way:
+  # `curved_face_arm`, `wall_crossing`, `settle_deferred`, and the spline
+  # span's `composite_count` and its two lanes, `spline_plane_crossings`
+  # and `spline_wall_event`, none of which reads a bracket of its own
+  # (without `Bounds` the call to `off_face` does not compile). 5 + 6 = 11.
+  'crates/topo/src/boolean/reduce.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
   # nary.rs's two are `nary_boolean`, the n-ary union and intersect,
   # and `run_members`, its body: it reads each member's box through
   # `Separation::of` and runs every judgement and fold step through the
@@ -539,15 +549,23 @@ BOUNDS_ALLOWLIST=(
   # own. It is the fold `editor-core`'s `wire_combine` ran under the same
   # amendment, moved into the kernel
   # (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
-  'crates/topo/src/boolean/nary.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
-  # `separation.rs` is FOUR and the ledger entry enumerates THREE
-  # (`Separation::of`, `Separation::certify`, `image`). The fourth,
+  # The third is `nary_boolean_apart`, `nary_boolean` with the member
+  # pairs a placement's separation certificate certifies apart: it
+  # forwards to `run_members` with those pairs and reads no bracket of
+  # its own. 2 + 1 = 3.
+  'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # `separation.rs` is FIVE. The ledger entry enumerates three seams
+  # (`Separation::of`, the pair certificate, `image`), and the pair
+  # certificate is `Separation::apart`, every pair of placed copies the
+  # boxes separate, with `may_meet`, its per-pair step: both read the
+  # prototype's face boxes through `image` and the tree `of` built, and
+  # neither reads a bracket of its own. The fifth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
   # INHERITANCE from the sibling door — a dual-admission argument, not
   # the necessity standard the ledger asks for — so its ledger row is
   # owed and the entry says so rather than letting the count read as
   # ratified by a ruling that does not mention it.
-  "crates/topo/src/separation.rs 4 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
+  "crates/topo/src/separation.rs 5 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   # 15 -> 16: `wire_shell` joined its nine sibling lowerings on the
   # same header. The shell's seat door stopped being a trait method
@@ -648,7 +666,11 @@ BOUNDS_ALLOWLIST=(
   # read outward (`undecided_refused`, at `T: Bounds` alone): a bracket
   # REPORTED, never branched on. The walk beneath it
   # (`SignCertificate::continued`) stays plain `Decide`.
-  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
+  # 13 -> 14 (SYMCLEAR): `impl AtRestPolicy for Sym<T>` adds
+  # `T: AtRestPolicy` beside its `T: CertifiedBounds`, so the symbolic
+  # arm of `clearance_lane` answers exactly where its base scalar's
+  # does. It asks the base's policy and reads no bracket.
+  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -679,6 +701,42 @@ BOUNDS_ALLOWLIST=(
   # the carrier-kind refusals they carried are `harmonic_carrier`'s, at
   # plain `Decide`.
   'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # The clearance engine's door, under the same seam and for the same
+  # reason as `QuadLane::certified` (its own ledger paragraph in
+  # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any
+  # certifying scalar and lifts every surface, curve and point it reads
+  # through `Interval::from_certified`, the certification act this
+  # seam's right is; the cells, the enclosures, the funnelled `d − c`
+  # and the bracket are interval arithmetic, and no bracket of `T` is
+  # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
+  # whose station is placed at `T` by the point-in-face doors and whose
+  # ball is lifted, and `lift_boundary`, which lifts the boundary
+  # `clear_of_boundary` clears (that one now reads only the lift).
+  # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
+  # the carrier's and the boundary's lifts in hand, so the sweep lifts
+  # each window once and places a station at `T` only for a cell
+  # already clear of the boundary. `clearance.rs` 10: `Side::windows` (the windows),
+  # `window_of`, `boundary_of` and `iso_bounded_domain` (the lifts:
+  # the last reads a NURBS face's boundary images at `T` and lifts their
+  # ends), `RegionMemo::ask` and
+  # `station` (the two doors above, memoized), `Candidate`'s block and
+  # `admitted` (a verifier's on-face stations), `Sweep::run` and
+  # `min_separation` (the two walks). 10 -> 12 (SYMCLEAR): the door value
+  # `ClearanceLane::certified`, whose block forms the four doors above
+  # into its fn-pointer fields exactly as `QuadLane::certified` forms
+  # `quad_lane`'s, and its wiring helper, as `QuadLane`'s is; neither
+  # reads a bracket, so it is the same plumbing at the same door.
+  # 12 -> 13 (LOOPS): the two walks share one frontier, and the bound
+  # walk's per-pair body moved out of `Sweep::run` into its `Question`
+  # impl (`Bound`), which asks the same two doors, `RegionMemo::ask`
+  # and the verifier's `Candidate`, that `Sweep::run` asked in place.
+  # One walk in two items; no new bracket read.
+  # 13 -> 16 (TIGHTEN): the minimum walk decides its cells as the bound
+  # walk does. Its `Question` impl (`Bracket`) asks the same two doors,
+  # `RegionMemo::ask` and `station`, through `Bracket::outside` and
+  # `Bracket::witness`, which the root pass shares; no new bracket read.
+  'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
@@ -757,7 +815,10 @@ BOUNDS_ALLOWLIST=(
   # `sphere_circle_image_lane`, retired with the Hermite image, so the
   # count is unmoved. Same seam, reached only through
   # `FittedLane::certified`.
-  'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
+  # C2 as ratified on PR 5652 (limbs 1 and 2 owed by every carrier)
+  # adds `limb2_offset_sup`, limb 2's one reader for every carrier
+  # (a closed form through its enclosing net), at that limb's bound.
+  'crates/geom-brep/src/pcurve_cache.rs 10 M6-2, the SSI rung-3 certificate; C2 2026-10-24 (PR 5652), limb 2 for every carrier kind at the same bound'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
   # certification RIGHT the value stands for, so the type cannot be
@@ -780,13 +841,15 @@ BOUNDS_ALLOWLIST=(
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
   # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
   # edge certificate — its offset from each operand (limbs 1–2, through
-  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # `pcurve_cache::limb2_offset_sup`) and the uniqueness tube
   # (limb 3). It reads no bracket. It hands the carrier and the two
   # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 12 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound'
+  # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
+  # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
+  'crates/geom-brep/src/edge_nurbs.rs 14 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -797,14 +860,26 @@ BOUNDS_ALLOWLIST=(
   # `wiring_rows::holds_the_certified_nurbs_lane`, which forms that
   # constructor at each certifying scalar and so restates its bound and
   # nothing wider, in a `#[cfg(test)]` module that reads no bracket.
-  'crates/geom-brep/src/certify.rs 2 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
+  # 2026-10-25 adds the edge door split (Ev's ruling on PR 5689, the
+  # geom-brep README's C2): the certification doors' impl block and the
+  # engine they share (`run_checks`), at the lane's bound, so a scalar
+  # that may not certify cannot name them.
+  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine'
+  # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
+  # scalars' edge door bodies their policies run, at the certifying
+  # doors' own bound, and nothing else in the file.
+  'crates/topo/src/policy_lane.rs 2 2026-10-25, the edge door split as a BOUND; the certifying door bodies'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
-  # 2026-08-29, the advisory-check registry. Its fifth bound is the same
+  # 2026-08-29, the advisory-check registry. Its bound is the same
   # registry's door with the coincidence door split off to run at rest
   # (`run_checks_at_rest_on`): `run_checks_on` is that door with the job
   # run at once, so the two doors are one registry body at one bound.
-  'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
+  # The doors read `at_rest::LocalizeLane` (`Decide + AtRestPolicy` and
+  # the overlap's localizing lane) since the at-rest census became a
+  # resident (stage 5 C); the separation resident's bound retired with
+  # it, so the four are the three doors and `connectedness`.
+  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
   # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at

@@ -105,7 +105,8 @@ now, and the pin's poses take a fractional `a`.
 - `resolve_edge_sector`, "on-edge event without a reference sector"
   (`find_ref_sector`): at `vee300 e0 a11.75 d−2e-8`, ε = 1e-12, one
   record `(a3, b3)` carries both solids' edges On, rays 1.7e-8 rad apart
-  that `parallel_same_dir` reads as two events. The first event's germ
+  that `parallel_same_dir` reads as two events (since 2026-10-29
+  `sectors::parallel_same` passed `RAY_COLLINEAR`, PR 5983). The first event's germ
   is that record, and `mark_germ` rewrites both its On codes, so the
   second event found no record naming its bound. The reference is read
   off the codes as first read now. The `cp` order then refuses

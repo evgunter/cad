@@ -1,7 +1,7 @@
 ---
 id: quad-rational-patch-cross-grows-with-translation
 kind: issue
-title: quad: the rational patch lane (rational_patch_face, Ladder::cross_num over Collapse::Over) assembles A = w·P in the absolute frame from decorrelated hulls, so a rational face's area and flux enclosures grow with its translation (area width 0.124 at 0, 7.49 at 100 m, 66.5 at 1 km)
+title: quad: the rational patch lane (rational_patch_face, Ladder::cross_num_at over a column slice) assembles A = w·P in the absolute frame from decorrelated hulls, so a rational face's area and flux enclosures grow with its translation (area width 0.124 at 0, 7.49 at 100 m, 66.5 at 1 km)
 status: open
 opened: 2026-10-02
 priority: P2
@@ -16,7 +16,7 @@ Measured by that PR's reviewer; not reproduced by the filer. PR 3863's
 own §5 sweep missed it.
 
 `crates/geom-brep/src/props/quad/rational.rs`: the rational lane
-(`rational_patch_face` → `Ladder::cross_num`, read over
+(`rational_patch_face` → `Ladder::cross_num_at`, read over
 `Collapse::Over` windows) forms the homogeneous net `A = w·P` from the
 control points as given and assembles the area element's cross
 product from separately-hulled terms. Each term carries the net's
@@ -125,3 +125,15 @@ carries the frame's `c`, so `f_uu` itself scales with the distance
 from the origin. That is the flux's own magnitude, which this row asks
 to judge it against; the per-point midpoint reads in the absolute frame
 are unchanged.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds at the door, unmeasured since 2026-10-22.
+`nurbs_patch_face` (`crates/geom-brep/src/props/quad/patch.rs:141`)
+now takes the caller's accept closure. Since PR 5741 there is no
+`QuadratureBudget`, so the "refuses" rows above now read as a stop
+short of the closure's target (`LaneEnd::Floor` or `Wall`, with the
+bracket). The widths are not re-measured. The rational lane is
+`rational_patch_face` (`props/quad/rational.rs:360`). Topo still reads
+each face about its shell's reference point (`props/quad_lane.rs`,
+`about`), so a body's translation still does not reach the lane.

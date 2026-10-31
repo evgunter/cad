@@ -46,7 +46,7 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         // it) under one more op.
         RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::Instance { of: n, .. } => Head::Through(n),
+        | RoleSeg::Member { of: n, .. } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
@@ -115,7 +115,10 @@ pub(super) fn seam_edge_sides_carried(name: &StableName) -> Option<(StableName, 
                         of: inner,
                     },
                     RoleSeg::SplitFragment { .. } => RoleSeg::SplitFragment { parent: inner },
-                    RoleSeg::Instance { i, .. } => RoleSeg::Instance { i: *i, of: inner },
+                    RoleSeg::Member { at, .. } => RoleSeg::Member {
+                        at: at.clone(),
+                        of: inner,
+                    },
                     other => unreachable!(
                         "{other:?} is no wrapper `head` passes through: the walk above kept \
                          only `Head::Through` segments"
@@ -317,5 +320,47 @@ mod tests {
             }],
         };
         assert!(seam_edge_sides(&member).is_some());
+    }
+
+    /// What enters one half of a split along a seam leaves the other:
+    /// the other half's sense names the other side, a pair of one name
+    /// names it again, and a `Through` neither reading of the line
+    /// gives refuses rather than standing for both halves.
+    #[test]
+    fn the_other_half_of_a_through_names_the_side_it_did_not() {
+        use crate::names::role::Sense;
+        let seam = |a: &StableName, b: &StableName| StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::Seam {
+                a: a.clone().into(),
+                b: b.clone().into(),
+            }],
+        };
+        let through = |things: &[&StableName]| Sense::Through {
+            entering: things.iter().map(|&n| n.clone().into()).collect(),
+        };
+        let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
+        let edge = seam(&a, &b);
+        assert_eq!(through(&[&a]).other_half(&edge), Some(through(&[&b])));
+        assert_eq!(through(&[&b]).other_half(&edge), Some(through(&[&a])));
+        assert_eq!(
+            through(&[&a]).other_half(&seam(&a, &a)),
+            Some(through(&[&a])),
+            "a pair of one name"
+        );
+        let other = cap(3, CapEnd::End);
+        for unread in [through(&[]), through(&[&a, &b]), through(&[&other])] {
+            assert_eq!(unread.other_half(&edge), None, "{unread:?} on a seam");
+        }
+        let plain = StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId::new(0, 4),
+            path: vec![RoleSeg::SectionEdge {
+                face: cap(4, CapEnd::End).into(),
+            }],
+        };
+        assert_eq!(through(&[&plain]).other_half(&plain), None, "off a seam");
+        assert_eq!(Sense::Enters.other_half(&edge), Some(Sense::Leaves));
     }
 }

@@ -19,41 +19,40 @@
 //!
 //! One record rather than one match per attribute, and the reason is
 //! `pick_payload`'s second one rather than `mate_payload`'s
-//! arithmetic: **three of the six arms are unreachable from Python**.
+//! arithmetic: **several arms are unreachable from Python**.
 //! `escalated` and `unsupported` need the shell door to escalate on a
-//! subject the registry gathered, `separation_unavailable` needs the
-//! box builder to refuse over the whole product, and nothing in the
-//! authoring surface arranges either. Sited here, `src/tests.rs` can
-//! build the arms the façade's types allow and read what each one
-//! puts on the wire; sited in `py/`, the projection of those arms
-//! would be pinned nowhere at all.
+//! subject the registry gathered, and most of the at-rest check's
+//! could-not-look reasons need a census verdict nothing in the
+//! authoring surface arranges. Sited here, `src/tests.rs` can build
+//! the arms the façade's types allow and read what each one puts on
+//! the wire; sited in `py/`, the projection of those arms would be
+//! pinned nowhere at all.
 //!
 //! # What is not here
 //!
 //! A NESTED REFUSAL is not flattened into its FIELDS. `Escalated` and
-//! `Unsupported` each hold the shell door's own typed refusal and
-//! `SeparationUnavailable` the boolean door's, shared whole;
-//! which shell, and which face, belong to those types' own
+//! `Unsupported` each hold the shell door's own typed refusal, and the
+//! at-rest arm the validator's finding or the gather's refusal, shared
+//! whole; which shell, and which face, belong to those types' own
 //! vocabularies. What crosses here is the word a caller branches on —
-//! `inner_variant` for the shell refusal's discriminant,
-//! `boolean_variant` for the boolean class — and the prose those
-//! types render, as `reason`.
+//! `inner_variant` for the inner refusal's discriminant — and the
+//! prose those types render, as `reason`. A finding the evidence
+//! carries whole (an interference, a carried row) crosses on the
+//! Python value, as a coincidence's row does.
 
 use std::borrow::Cow;
 
-use pncad::document::{CheckEvidence, RecipeNodeId};
+use pncad::document::{AtRestEvidence, CheckEvidence};
 
 use crate::tags::{
-    boolean_error_tag, coherence_condition_tag, coincidence_relation_tag, decision_site_tag,
-    shell_classify_error_tag, unexaminable_tag,
+    at_rest_evidence_tag, coherence_condition_tag, coincidence_relation_tag, decision_site_tag,
+    product_error_tag, shell_classify_error_tag, unexaminable_tag, validation_error_tag,
 };
 
 /// What one [`CheckEvidence`] arm carries, every field present.
 ///
-/// Borrowed from the evidence rather than cloned out of it: the
-/// separation arm's sentence is a `String` the kernel already owns,
-/// and the shell arms' is rendered here, so the two spellings of
-/// `reason` are the two halves of a [`Cow`].
+/// `reason` is a [`Cow`] so an arm whose sentence the kernel already
+/// owns can lend it; every arm today renders its own.
 // `PartialEq` without `Eq`: the record carries measured lengths, and
 // a float has no total equality to derive.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,38 +61,25 @@ pub struct CheckEvidencePayload<'a> {
     pub actual: Option<u32>,
     /// The expectation the subject was held to.
     pub expected: Option<u32>,
-    /// The counterpart subject's root, for a pair held apart by no
-    /// certificate.
-    pub other_root: Option<RecipeNodeId>,
-    /// That counterpart's output-body index.
-    pub other_output: Option<u32>,
     /// The underlying refusal's own prose, where the arm holds one.
     pub reason: Option<Cow<'a, str>>,
     /// **The shell door's own refusal**, as the branchable word
-    /// ([`crate::tags::shell_classify_error_tag`]) — which of its four
-    /// ways it refused, on the two arms that carry one.
+    /// ([`crate::tags::shell_classify_error_tag`]) — which of its
+    /// ways it refused, on the two arms that carry one; the
+    /// validator's finding's word on `not_at_rest`; and on `at_rest`,
+    /// the inner validator finding's or gather refusal's word
+    /// ([`AtRestPayload::inner_variant`]).
     pub inner_variant: Option<&'static str>,
-    /// **The boolean refusal's own class**, as the branchable word
-    /// ([`crate::tags::boolean_error_tag`]) — which kernel refusal
-    /// made separation unavailable, on the one arm that carries one.
-    ///
-    /// A field of its own rather than a second vocabulary under
-    /// `inner_variant`: the two alphabets are not disjoint (`band` and
-    /// `escalated` are words in both), so one attribute carrying
-    /// either would answer a caller that did not first branch on the
-    /// arm, and answer it wrong.
-    pub boolean_variant: Option<&'static str>,
+    /// **Why the at-rest check could not look**, as the branchable word
+    /// ([`crate::tags::at_rest_evidence_tag`]), on `at_rest` alone.
+    pub at_rest_variant: Option<&'static str>,
     /// **The chart-coherence arm's own inner discriminant** — which of
     /// the three conditions was measured
     /// ([`crate::tags::coherence_condition_tag`]), or why one loop was
     /// out of reach ([`crate::tags::unexaminable_tag`]).
     ///
-    /// Two alphabets under one attribute, which [`Self::boolean_variant`]
-    /// refuses one field over — and the difference is the reason that
-    /// field states. The objection there is that `band` and `escalated`
-    /// are words in BOTH alphabets, so a caller who did not first branch
-    /// on the arm gets an answer that is wrong rather than absent. These
-    /// two alphabets are DISJOINT, so the same caller gets an answer that
+    /// Two alphabets under one attribute, and they are DISJOINT, so a
+    /// caller who did not first branch on the arm gets an answer that
     /// is right, and the arm remains readable off the word.
     pub chart_variant: Option<&'static str>,
     /// The chart-coherence measurement as a LENGTH, `gap * lever` — the
@@ -133,15 +119,13 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 15] {
+    pub fn presence(&self) -> [(&'static str, bool); 13] {
         let Self {
             actual,
             expected,
-            other_root,
-            other_output,
             reason,
             inner_variant,
-            boolean_variant,
+            at_rest_variant,
             chart_variant,
             metres,
             gap,
@@ -154,11 +138,9 @@ impl CheckEvidencePayload<'_> {
         [
             ("actual", actual.is_some()),
             ("expected", expected.is_some()),
-            ("other_root", other_root.is_some()),
-            ("other_output", other_output.is_some()),
             ("reason", reason.is_some()),
             ("inner_variant", inner_variant.is_some()),
-            ("boolean_variant", boolean_variant.is_some()),
+            ("at_rest_variant", at_rest_variant.is_some()),
             ("chart_variant", chart_variant.is_some()),
             ("metres", metres.is_some()),
             ("gap", gap.is_some()),
@@ -183,11 +165,9 @@ impl CheckEvidencePayload<'_> {
     pub const NONE: Self = Self {
         actual: None,
         expected: None,
-        other_root: None,
-        other_output: None,
         reason: None,
         inner_variant: None,
-        boolean_variant: None,
+        at_rest_variant: None,
         chart_variant: None,
         metres: None,
         gap: None,
@@ -203,9 +183,7 @@ impl CheckEvidencePayload<'_> {
 ///
 /// The match is EXHAUSTIVE with no wildcard arm: an arm added to
 /// [`CheckEvidence`] fails this build rather than reaching Python
-/// with an all-`None` payload nobody chose for it. An arm that names
-/// a counterpart answers `other_root`; an arm that does not answers
-/// `None` BY NAME.
+/// with an all-`None` payload nobody chose for it.
 pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
     let none = CheckEvidencePayload::NONE;
     match evidence {
@@ -216,14 +194,6 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         },
         CheckEvidence::StaleExpectation { expected } => CheckEvidencePayload {
             expected: Some(*expected),
-            ..none
-        },
-        CheckEvidence::NotSeparated {
-            other_root,
-            other_output,
-        } => CheckEvidencePayload {
-            other_root: Some(*other_root),
-            other_output: Some(*other_output),
             ..none
         },
         // The shell door's refusal is another type's vocabulary, so
@@ -241,13 +211,9 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // sentence, the way the shell door's refusal does.
         CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
             reason: errors.first().map(|e| Cow::Owned(e.to_string())),
-            inner_variant: errors.first().map(crate::tags::validation_error_tag),
+            inner_variant: errors.first().map(validation_error_tag),
             ..none
         },
-        // The boolean refusal crosses the way the shell door's does:
-        // the class is the word a consumer MATCHES on, the kernel's
-        // own sentence rides beside it, and neither half is a
-        // substring hunt through the other.
         // The measurement, whole: the length it is judged as, the two
         // factors it is the product of, and the band it was judged
         // against. Four numbers rather than one because the finding
@@ -271,6 +237,8 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // attribute is set — the TAG is the whole answer, and it is
         // the answer a caller must not read as a clean body.
         CheckEvidence::ChartCoherenceUnavailable => none,
+        // The tag is the whole answer: the subject is what was not used.
+        CheckEvidence::Unused { .. } => none,
         // The row's two words, the residual's sentence as the reason
         // (what separates the cells' constructions), and how many fold
         // rows it reports with it. The cells and those rows themselves
@@ -287,10 +255,55 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
             restated: Some(restated.len()),
             ..none
         },
-        CheckEvidence::SeparationUnavailable { refusal } => CheckEvidencePayload {
-            reason: Some(Cow::Owned(refusal.to_string())),
-            boolean_variant: Some(boolean_error_tag(refusal.get().kind())),
-            ..none
-        },
+        // The finding crosses whole on the Python value; nothing of it
+        // is flattened here.
+        CheckEvidence::Interference { .. }
+        | CheckEvidence::CarriedInterference { .. }
+        | CheckEvidence::CarriedCoincidence { .. } => none,
+        CheckEvidence::AtRest { evidence } => {
+            let AtRestPayload {
+                variant,
+                reason,
+                inner_variant,
+            } = at_rest_payload(evidence);
+            CheckEvidencePayload {
+                reason: Some(Cow::Owned(reason)),
+                inner_variant,
+                at_rest_variant: Some(variant),
+                ..none
+            }
+        }
+    }
+}
+
+/// What one [`AtRestEvidence`] carries, flattened: its own word, its
+/// sentence, and the inner refusal's word where it holds one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtRestPayload {
+    /// Why the check could not look ([`at_rest_evidence_tag`]).
+    pub variant: &'static str,
+    /// The evidence's own sentence, its nodes said by their tags.
+    pub reason: String,
+    /// The validator finding's word on `no_lane`, `malformed` and
+    /// `inside_arrival`, and the gather refusal's on `not_gathered`;
+    /// `None` on `not_run` and `carried`, which hold no refusal of
+    /// their own (a carried row's own evidence crosses whole).
+    pub inner_variant: Option<&'static str>,
+}
+
+/// Flatten one at-rest evidence. Exhaustive, no wildcard, for the
+/// reason [`check_payload`] is.
+pub fn at_rest_payload(evidence: &AtRestEvidence) -> AtRestPayload {
+    let inner_variant = match evidence {
+        AtRestEvidence::NoLane(error)
+        | AtRestEvidence::Malformed(error)
+        | AtRestEvidence::InsideArrival(error) => Some(validation_error_tag(error)),
+        AtRestEvidence::NotGathered(refusal) => Some(product_error_tag(refusal.error())),
+        AtRestEvidence::NotRun | AtRestEvidence::Carried(_) => None,
+    };
+    AtRestPayload {
+        variant: at_rest_evidence_tag(evidence),
+        reason: evidence.to_string(),
+        inner_variant,
     }
 }

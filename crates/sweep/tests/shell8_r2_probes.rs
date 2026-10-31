@@ -11,6 +11,7 @@
 )]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{block, brick, finished};
@@ -945,7 +946,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
             let spec = geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(wall, key),
-                    witness: p + (q - p) * 0.5,
+                    selector: geom_brep::CurveSelector::Witness(p + (q - p) * 0.5),
                 },
                 carrier: geom::Curve3::Line {
                     origin: p,
@@ -958,7 +959,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
         })
         .collect();
     body.set_face_surfaces_describing(
-        vec![topo::Rechart::shared(key, bottom, sense)],
+        vec![topo::construction::Rechart::shared(key, bottom, sense)],
         &specs,
         tol(),
     )

@@ -368,7 +368,7 @@ New step-4 sites, of the same gate shape, off the log:
 - `merge_faces`' LoopWinding decided zero.
 
 Filed on flux:
-`work/flux/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
+`work/scalar/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
 
 ## Step 2 WIP, held by #3990 (2026-10-03)
 

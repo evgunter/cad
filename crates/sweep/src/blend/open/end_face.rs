@@ -42,7 +42,9 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, VertexKey};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;

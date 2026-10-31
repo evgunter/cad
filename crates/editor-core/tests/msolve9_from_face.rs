@@ -33,7 +33,7 @@ use editor_core::{
     VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, insert, len, on_frame, run, solve, square, step};
+use fixture::{could_look, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -281,9 +281,9 @@ fn a1_the_mate_follows_the_edited_face() {
         ev.node_error(s.mate.placement)
     );
     assert!(
-        gate(&s.doc, &ev).is_ok(),
+        could_look(&s.doc, &ev).is_ok(),
         "the seat certifies: {:?}",
-        gate(&s.doc, &ev).err()
+        could_look(&s.doc, &ev).err()
     );
 
     shorten_or_grow(&mut s, 1.3);
@@ -307,9 +307,9 @@ fn a1_the_mate_follows_the_edited_face() {
         ev.node_error(s.mate.placement)
     );
     assert!(
-        gate(&s.doc, &ev).is_ok(),
+        could_look(&s.doc, &ev).is_ok(),
         "no refutation: the mate followed the face: {:?}",
-        gate(&s.doc, &ev).err()
+        could_look(&s.doc, &ev).err()
     );
 
     // Nothing stored twice: the target is the face's plane, flipped —
@@ -713,7 +713,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
         _ => false,
     };
     let placed = move |doc: &ProfileDoc, opts: &EvalOptions| {

@@ -747,7 +747,7 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
 }
 
 /// **The cone gate's side is a face fact under a re-anchoring**
-/// (`work/flux/rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order.md`).
+/// (`rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order`, closed by PR 4573).
 /// The gate reads the sign of the face's area against the chart normal
 /// off its axial vector area (`props_cone_area_side`), the quantity the
 /// flux integrates, so no rim is read first: a frustum patch — two rims

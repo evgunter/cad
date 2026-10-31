@@ -1647,3 +1647,78 @@ Signed (CLEAVE orchestrator).
   The fix pass went back to the implementer. (CLEAVE orchestrator)
 - 2026-10-26 — Nightly 72: checked every red test and red job against open rows. One cause had no row: `certified_endpoint_census` moved for spiric.rs, rational_rim.rs and topo props.rs after FLUX #5696/#5699. Filed on FLUX (PR 5807, merged). (CLEAVE orchestrator)
 - 2026-10-27 — PR 5812 (flush partners at a slit; the three flush-partner P1s) and PR 5808 (one-segment tangent rims) handed back with CI green. 5812's claims and style reviews are dispatched, and 5808's are in. The 5812 lane found a main red, QUAD's `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` (slow set: `Certifier::validate_pseudomanifold` is missing from the roster). It filed the row on QUAD's slate in its branch; the same file is lifted to main here so it does not wait on 5812. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5808 reviewed. Claims: no wrong body, and the full suites match base to head. Two blocking findings:
+  - B1: tilted (ellipse) one-segment rims reach `closed_edge_spec`'s "closed segment edge that is not a circle" invariant.
+  - B2: a boss tangent to two holes with no vertex at either touch reaches `fate.rs`'s "a fate cut leaves a slit in the dropped face" invariant.
+
+  Main refused both typed. Also taken:
+  - `sheets_part`'s cosine through `Margin::of`, and its swallowed errors (propagate them);
+  - `closed_reach` copies `runs_in`'s midpoint reader;
+  - "no parallel path" overclaims;
+  - stale docs, and the turned test's pose count (11, not 12);
+  - the through-cylinder one-segment sibling, to file;
+  - close the row in the PR.
+
+  The fix pass went back to the implementer. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5812 reviewed. The claims review found nothing blocking:
+  - topo's outcome diff moved only the keel pin, with no body or naming hash moves;
+  - sweep moved 0;
+  - an independent 1242-cell probe moved 267 cells, all refusal → sound body or typed → typed.
+
+  Taken for the fix pass:
+  - from claims: the eager `tied_order` in `mint_directed` (make it lazy); dedup `fragments_at`'s corners; rows for the remaining tie sites and the touch-end placement blind spot; the three-lump `LineWedges` shape;
+  - from style: `beside_order` re-spells `walks_after` and borrows its site; three spellings of the tie fallback; `fragment_along` re-spells the pierce arm; "strut" now means two things; `ZipReport::struts` is incomplete at the producer; stale docs; test duplication; row closures.
+
+  Ruled: the lumps' `x ∪ y` typed refusal beside a building `y ∪ x` is acceptable to merge, and its row goes to P1 (an operand-order asymmetry is a defect). Fix pass sent to the implementer. (CLEAVE orchestrator)
+- 2026-10-27 — The container restarted mid-work. The riders and tangent-rims fix passes and 5812's claims review were resumed from their transcripts; worktrees and pushed heads survived. (CLEAVE orchestrator)
+- 2026-10-27 — [ev] 5780, after Ev's comment that the DESIGN.md edits were too detailed. The diff is now three high-level lines:
+  - the kept side gets a row in the canonical-places table;
+  - `[coincidence.booleans]`: the kept operand is arbitrary, first-written as the simplest fixed rule, and the other face moves onto it before the op;
+  - `[tolerance.margins]` (i): a backstop compares with the operands as decided.
+
+  Dropped: the "No snapping" additions and their README twin (detail for the implementing PR), and the standoff enclosure with (iv)'s qualifier. The enclosure is filed as `a-volume-reads-one-anchor-where-a-face-stands-off-its-carrier` (P2), owed a witness before it goes back to Ev.
+
+  Earlier the same day Ev pushed back twice on the kept-side reasons: "A's face depends on where B sits" and "has to be measured to glue" each hold symmetrically, so I conceded both. Lesson, again: check that a reason separates the alternatives before offering it. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5812 merged (`5c5534ead7`): the three flush-partner P1s build: a box corner at a ring's tip, a fate cut between touching lumps, and a ring partner inside the ring. The PR closed their rows, plus the partner-along-part row. Reviewed by claims and style lanes, then a narrow re-review of the fix pass and a docs pass. The re-review found the dropped `part_mid_slit` plane gate unreachable (zero calls across the sweep suite).
+
+  Filed:
+  - P1: the remaining tie sites;
+  - P1: the touch-end placement at a division vertex;
+  - P1: the lumps' `x ∪ y` order asymmetry, raised from P2;
+  - P2: four sheets on a line refuse `LineWedges`;
+  - P3: strut prune refuses `kev` on a curved face;
+  - P4: test-file vector helper copies. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5830 merged (`acc979c942`): `BooleanError`'s `EdgeInFace` `Display` is one unguarded arm, so the prose census can read it again. Its main-red row is closed. The lane filed CENSUS's `prose-census-reads-a-match-guard-as-the-arms-pattern` (P3). It also found a second slow-set red, the brace-payload census on `RechartedRowUnstated`, from WIRE's PR 5795; filed on WIRE's slate as `main-red-the-brace-payload-census-flags-recharted-row-unstated` (P1 E). (CLEAVE orchestrator)
+- 2026-10-27 — [ev] 5780 approved by Ev ("looks good!"). Final diff:
+  - `[simple]` added as a principle, with `[simple.uniform]` and `[simple.checks]`;
+  - the kept side of a glued pair gets a canonical-places row;
+  - `[coincidence.booleans]` says the kept operand is arbitrary, first-written as the simplest fixed rule;
+  - the implementer discipline gains "Tests and CI are tools, not a ritual".
+
+  Ruled with it: the boolean volume backstop becomes a test oracle, not a check every operation runs, and the glued boundary is not re-derived. Filed `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (P1). (CLEAVE orchestrator)
+- 2026-10-27 — PR 5808's narrow re-review confirmed its fix pass:
+  - B1 refuses typed as main;
+  - B2 builds;
+  - `runs_into` moves nothing outside its tests;
+  - the sites are registered.
+
+  It found one new blocking case: internally tangent one-segment cylinders with a taller outer one (`A ∪ B`, `B ∩ A`) now reach fate's "a fate cut's end lies in no corner" invariant, where main refused typed at the join. Second fix pass sent, including the conservative lever arm for `bool_touch_sheets_part` and rows for three main-side kernel-invariant poses. Also today:
+  - [ev] 5780 merged (`b2b1e971f6`);
+  - PR 5757 closed unmerged;
+  - the P0 re-pointed to "the volume relations a test oracle" and dispatched on `cleave/volume-relations-a-test-oracle`. (CLEAVE orchestrator)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/a-crossing-touch-is-interference` touches this program's ground. A touch between two solids that the census's touch analysis decides is a crossing is now `ValidationError::TouchInterference { a, b }` (the touch's two `Cell`s), which `census_interference_solids` reads; `Undecided::MixedTouch` ("one passes into the other where they touch") retires. A pair that a standing finding already decides interferes (a pierce, a same-side crossing, two coincident edges' wedges overlapping) no longer also refuses `CensusUndecidable` beside it. New exhaustive-match arm: `boolean/ops.rs`, `checks/at_rest.rs` `finding_solids`, pncad-py `touch_interference`. Restated rows: `contact5_gate_and_beam` (the sunk beam and ridges), `contact7_touch_sweeps::refused`, `coincident_line_wedges` (the pinwheel), `a_vertex_read_by_two_sector_passes` (its allowlist). (ATREST crossing-touch lane)
+- 2026-10-27 — PR 5808 merged (`30ba5082c1`): one-segment tangent rims build where their two-arc forms do, which unblocks PATHS unit 4 (PROFILE's `circle-lowers-to-one-segment`). Reviews: claims and style, a narrow re-review of the fix pass, then a second fix pass. Inner rods tangent inside a taller outer rod refuse typed (`SingleSiteSectionLoop`, through the new `join.rs` `stands_on`) before fate, in `A ∪ B` and `B ∩ A`; the other orders build. Against main, no cell that built refuses except the 1e-6 in-band pair, and 548 refused cells now build at the default ε.
+
+  Filed by the PR:
+  - P1: one-segment ellipse rims;
+  - P1: a one-segment cylinder through a tangent hole;
+  - P1: a flush closed rim at the fate-cut limit, the S7/S10 order asymmetry;
+  - P1: a box along a fillet's line–arc junction;
+  - P2: a cone boss over a tangent hole;
+  - P3: the face-inward direction spelled in five places. (CLEAVE orchestrator)
+- 2026-10-27 — Dispatched:
+  - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
+  - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones. It also adds `crates/topo/src/boolean/carrier_eq.rs` `exact_curved`, the cylinder and sphere kinds the undeclared ladder decides exactly, as the one home of that list for the census's curved aligned arm and its flush door; no behaviour moves.

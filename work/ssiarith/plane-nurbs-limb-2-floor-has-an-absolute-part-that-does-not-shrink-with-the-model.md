@@ -36,7 +36,7 @@ chart image's fit or in the interval enclosure's widening, the kind
 found in the projection.
 
 The 1 km refusal is that FLUX item
-(`work/flux/project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry.md`):
+(`work/nurbs/project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry.md`):
 `PROJECT_EPS_POINT` = 1e-13 m sits below the ulp of km-scale
 coordinates.
 

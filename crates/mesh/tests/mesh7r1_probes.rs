@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::witness_bodies::{keyway, oblique_lens, pole_crossing_half_cap};
 use common::*;
@@ -29,7 +30,8 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use mesh::TessellateError;
-use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, FaceKey};
 
 // R1-DOOR-ONLY-BEGIN
 fn door_verdict(body: &Body<f64>, fk: FaceKey) -> Result<(), geom_brep::props::PropsError> {

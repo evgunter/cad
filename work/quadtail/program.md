@@ -4,12 +4,12 @@ kind: program
 title: QUADTAIL — the quadrature lane's P2–P4 tail: enclosure looseness, missing volume rules and the tests over them
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/props
 prefix: quadtail/
 tag: (QUADTAIL orchestrator)
 budget: 32
 paths: [crates/geom-brep/src/props/quad/*]
-keep_out: [opened 2026-10-21 by QUAD's priority-seam cut (QUAD measured 72.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and QUAD kept its P0 and P1 rows. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/quad/ is shared with QUAD FLUX and FLUXTAIL - run scripts/work.py territory on your branch and announce the seam on the other program's log]
+keep_out: [opened 2026-10-21 by QUAD's priority-seam cut (QUAD measured 72.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and QUAD kept its P0 and P1 rows. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/quad/ is shared with QUAD and with SPANFOLD and SPIRICARM (FLUX's successors) - run scripts/work.py territory on your branch and announce the seam on the other program's log]
 ---
 
 **The quadrature lane's tail.** QUAD keeps the engines, the budget's

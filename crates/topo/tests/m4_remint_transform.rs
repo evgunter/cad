@@ -63,7 +63,11 @@ fn witnesses_are_construction_fresh_bits() {
         let Some(topo::CurveGeom::Certified(ec)) = out.get_curve_geom(e.curve) else {
             continue;
         };
-        if let EdgeDescription::Intersection { witness, .. } = ec.description() {
+        if let EdgeDescription::Intersection {
+            selector: geom_brep::CurveSelector::Witness(witness),
+            ..
+        } = ec.description()
+        {
             let fresh = ec.carrier().eval(ec.sample_param(mid));
             assert_eq!(
                 (
@@ -105,7 +109,11 @@ fn transform_chain_stays_fresh() {
         let Some(topo::CurveGeom::Certified(ec)) = cur.get_curve_geom(e.curve) else {
             continue;
         };
-        if let EdgeDescription::Intersection { witness, .. } = ec.description() {
+        if let EdgeDescription::Intersection {
+            selector: geom_brep::CurveSelector::Witness(witness),
+            ..
+        } = ec.description()
+        {
             let fresh = ec.carrier().eval(ec.sample_param(mid));
             assert_eq!(witness.x.to_bits(), fresh.x.to_bits());
             assert_eq!(witness.y.to_bits(), fresh.y.to_bits());

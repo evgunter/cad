@@ -201,13 +201,13 @@ class WorldPins(unittest.TestCase):
         self.assertEqual(doc.space(shelf), doc.output(aside))
         self.assertEqual(doc.space(post), doc.output(doc.world))
 
-    def test_the_gate_checks_each_assemble_by_itself(self):
-        """`pncad.assemble` reaches the kernel's one gate, which checks
-        each `⊔` between its own members, whether or not the product
-        reads it: two posts seated at one spot under a shelf in a space
-        of their own, gathered by a `⊔` there, interpenetrate, and the
-        gate reports their overlap as one loud interference finding
-        though the world's product beside them certifies."""
+    def test_the_at_rest_check_reads_each_assemble_by_itself(self):
+        """The at-rest check reads each `⊔`'s census between its own
+        members, whether or not the product reads it: two posts seated
+        at one spot under a shelf in a space of their own, gathered by a
+        `⊔` there, interpenetrate, and the check reports their overlap
+        as one loud interference finding under that `⊔`, though the
+        world's product beside them has nothing to report."""
         doc = Doc("py-pin-gate")
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
         assemble_world_copies(doc)
@@ -226,14 +226,17 @@ class WorldPins(unittest.TestCase):
             posts.append(post)
         self.assertEqual({doc.space(p) for p in posts}, {doc.output(aside)})
         # One post under the shelf: nothing clashes anywhere.
+        def at_rest():
+            report = pncad.run_checks(doc, evaluate(doc, resolver=self.ws))
+            return [f for f in report.findings if f.check == pncad.CheckId.AtRest]
+
         doc.assemble([shelf, posts[0]])
-        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
-        self.assertEqual(len(assembly.interference), 0)
-        doc.assemble([shelf, *posts])
-        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
-        self.assertEqual(len(assembly.interference), 1)
-        (finding,) = assembly.interference
-        self.assertTrue(finding.loud)
+        self.assertEqual(at_rest(), [])
+        clash = doc.assemble([shelf, *posts])
+        (finding,) = at_rest()
+        self.assertEqual(finding.census, doc.output(clash), "the `⊔` that decided it")
+        self.assertEqual(finding.evidence.variant, "interference")
+        self.assertTrue(finding.evidence.interference.loud)
 
     def test_a_seat_charts_on_the_space_not_on_the_body_it_rests_on(self):
         """Against an independent 4x4 composition: a post pinned to the

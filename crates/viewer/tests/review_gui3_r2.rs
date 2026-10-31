@@ -43,7 +43,6 @@ use crate::common::{edited, inserted, len, scl, tempdir};
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
 use viewer::generation::Generation;
-use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp, Step};
 use viewer::{docio, props, tree};
@@ -285,25 +284,20 @@ fn opening_a_file_and_saving_it_straight_back_reproduces_its_bytes() {
             .refusal
             .is_none()
     );
-    let again = dir.join("again.pncad");
     assert!(
         reopened
-            .perform(SessionOp::Save(again.clone()))
+            .perform(SessionOp::Save(original.clone()))
             .refusal
             .is_none()
     );
-    let second = std::fs::read_to_string(&again).expect("the file is readable");
+    let second = std::fs::read_to_string(&original).expect("the file is readable");
     assert_eq!(first, second, "open → save with no edits changed the bytes");
 
-    // And the file's log IS the current path: two undos reach the root.
-    assert_eq!(reopened.history().path_edits().len(), 2);
-    assert!(reopened.perform(SessionOp::Undo).refusal.is_none());
+    // And the file is the document's state: undo ends at the open.
     assert_eq!(
         distance_of(reopened.committed_doc(), extrude),
-        SlotValue::Continuous(0.011),
-        "an opened document undoes step by step"
+        SlotValue::Continuous(0.013)
     );
-    assert!(reopened.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         matches!(
             reopened.perform(SessionOp::Undo).refusal,
@@ -311,20 +305,16 @@ fn opening_a_file_and_saving_it_straight_back_reproduces_its_bytes() {
                 direction: Step::Undo
             })
         ),
-        "the file's log is exactly two steps long"
+        "an opened document has nothing to undo"
     );
 
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
-/// **A save after an undo writes the SHORTER log**, and reopening it
-/// produces a history that undoes exactly that far.
-///
-/// The branch the cursor is not on is deliberately not persisted (the
-/// v1 contract); this row is the consumer-side statement of that, taken
-/// through the file rather than through `path_edits()`.
+/// **A save after an undo writes the document the cursor is on**, and
+/// the branch it walked past stays in the session.
 #[test]
-fn a_save_taken_after_an_undo_persists_only_the_path_the_cursor_is_on() {
+fn a_save_taken_after_an_undo_writes_the_document_the_cursor_is_on() {
     let tol = Tol::witness();
     let (doc, extrude, _moved) = slab(tol);
     let dir = tempdir("r2-gui3-shortlog");
@@ -352,41 +342,12 @@ fn a_save_taken_after_an_undo_persists_only_the_path_the_cursor_is_on() {
         "the states the undo walked past are all still held"
     );
 
-    let reopened = docio::open(&file, tol).expect("the short log opens");
-    assert_eq!(reopened.path_edits().len(), 1, "one edit was on the path");
+    let reopened = docio::open(&file, tol).expect("the saved file opens");
     assert_eq!(
         distance_of(reopened.doc(), extrude),
         SlotValue::Continuous(0.007)
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
-}
-
-/// A history seeded by `History::replayed` walks back through the log
-/// one entry at a time, and its root is the file's snapshot.
-#[test]
-fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
-    let tol = Tol::witness();
-    let (doc, extrude, _moved) = slab(tol);
-    let edits: Vec<DocEdit<ProfileProgram>> = [0.007_f64, 0.008, 0.009]
-        .into_iter()
-        .map(|v| DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: len(v).into(),
-            fresh: Vec::new(),
-        })
-        .collect();
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
-    assert_eq!(history.len(), 4);
-    for expected in [0.008_f64, 0.007, 0.006] {
-        history.undo().expect("a step back");
-        assert_eq!(
-            distance_of(history.doc(), extrude),
-            SlotValue::Continuous(expected)
-        );
-    }
-    assert_eq!(history.current(), history.root());
-    assert!(history.undo().is_none(), "the root has no parent");
 }
 
 // --- edit emission (G1 preview vs commit) ---------------------------
@@ -498,7 +459,6 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
         SlotValue::Continuous(0.006),
         "the preview never reached the file"
     );
-    assert_eq!(reopened.path_edits().len(), 0);
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 

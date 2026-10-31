@@ -247,7 +247,7 @@ fn the_undeclared_l_bracket_carries_no_placement_finding() {
         [finding.pair.a, finding.pair.b].contains(&wall),
         "the pair is the part's side on the wall: {finding:?}"
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **The decided interference.** The embedded cube refuses as
@@ -301,7 +301,7 @@ fn the_embedded_cube_decides_the_same_undeclared() {
     let (body, _) = embedded();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("refuses undeclared too");
-    let placements = placement_findings(&errors);
+    let placements = placement_findings(&body, &errors);
     assert_eq!(placements.len(), 1, "{errors:?}");
     assert!(
         matches!(placements[0], ValidationError::InstanceInterference { .. }),
@@ -342,7 +342,7 @@ fn every_vertex_on_the_boundary_is_a_same_side_interference() {
     let body = all_on_boundary();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("refuses");
-    let placements = placement_findings(&errors);
+    let placements = placement_findings(&body, &errors);
     assert!(
         matches!(
             placements[..],
@@ -508,7 +508,7 @@ fn a_mixed_side_touch_beside_a_coplanar_face_is_a_same_side_interference() {
         };
         assert!(
             matches!(
-                placement_findings(&errors)[..],
+                placement_findings(&body, &errors)[..],
                 [ValidationError::SameSideInterference { .. }]
             ),
             "{name}: the one decided interference: {errors:?}"
