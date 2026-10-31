@@ -1096,3 +1096,32 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **The lane's calls, taken:** S6 (newtype) and S7 (comparing two uvs) were not done; S7 would be the forbidden weaker predicate.
   - **Lily wall 8's next stop:** `Euler(PcurveMint { face 3v1, SplineChart })` at 1e-9 and 1e-6, `vtxfac::ring_vertex_in`. It is filed as `a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex` (P1, M).
   - **Main reds** found on the way: six editor-core interval rows, hidden by the nightly's cancelled full suite. Filed on GREEN (PR 6156).
+- 2026-10-31 — **W5: the plane × spline pose's loop-free sweep, read by the interior-loop guard** (PR 6150, closing `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`). Built per `[ev]` PR 6121 as the plane instance of C5's pose classification: hull, boundary pass, regularity sweep. Review tier: single FULL, then a re-review (a bound leaning the wrong way would clear a real loop).
+  - **The lane corrected the brief.** "Every cell excluded or regular ⇒ loop-free" is unsound, because an excluded cell can hold the very extremum a loop encloses. The sweep therefore also requires every non-regular cell to be joined to the rectangle's boundary through cells excluded on the same side. It declines on any interior crease.
+  - **First review** (frozen at `5e0132e8`): NOT-MERGEABLE-AS-IS. Two MAJORs, demonstrated, with one root: the guard read the sweep before C5's stage-1 coincidence call and stage-2 boundary pass.
+    - A wall within the band everywhere cleared.
+    - A boundary graze cleared.
+    - Main refuses both as tangent.
+  - **Class: a stage built in front of the ratified stages skips their decisions.** Any later stage-3 build, such as SECTARMS's NURBS × implicit arm, runs the hull and the pass first.
+  - **Fixed, in the ratified order:**
+    - the hull decides apart, coincident (a D10 record) or in band;
+    - a door refuses a collapsed side not decided clear over its whole row;
+    - C3's own pass runs once, before the sweep, and is carried to the whole reading;
+    - the sweep runs on the one shared cell recursion (`SweepDuty::Regular`), its decisions named through `k_stats`, with a union-find join.
+  - **Under the ratified order:** exact grazes refuse by name, and at 1e-6 sides lying in the plane read as coincident. That is the ratified order working, not a regression.
+  - **Re-review** (frozen at `7eed17a4`): APPROVE-WITH-FIXES, no MAJOR.
+    - Regularity holds under the levered slope: inflating the lever 10⁶× moves no loop row.
+    - The sweep alone would read a long thin in-band wall as loop-free; the guarantee lives in the hull and the pass, and an asserting row pins it.
+  - **The last pass:**
+    - the door decides clearance over every row point, through one collapsed-side reading;
+    - `Reached` cannot be empty;
+    - `CoincidentSurfaces` maps in one place;
+    - poison refuses at the hull whether or not a lane is handed in;
+    - probes are moved off the hull thresholds;
+    - `Want::Far` is pinned per ε.
+  - **Accepted, not done:** the hull's heights stay in the scalar's own arithmetic, certified at `Interval`, as every analytic pose margin is. Requiring certified bounds would ripple through the generic boolean, to `Dual`, which has none.
+  - **Filed:** `the-plane-spline-sweep-declines-a-loop-free-dome-beside-a-saddle` (P3, completeness). Krawczyk and Hessian isolation at `Declined::Floor` is SECTARMS's completion.
+  - **Found on the way:**
+    - `holds_the_ssi_lane` compared neither of two fn-pointer fields, a gap latent on main and hidden by a type alias; fixed.
+    - A first review session stalled at clone, because a short SHA as `source_revision` fails with `ref_not_found` and surfaces no error. Every dispatch now passes the full SHA.
+  - **Timings:** the classification costs 8–90 ms a pair. The whole readings it skips run 0.2 s for lily's caps, and for the blade cuts 1.7–8 s at 1e-9, 0.3–1.8 s at 1e-6 and 7–36 s at 1e-12.
