@@ -69,3 +69,25 @@ path: "a pipe along the core's tangent", `R 46.22`, `r 34.60`,
 degeneracy stands `2.67e-10` from tangency, past the search's `16 ×
 escalate` allowance. The pose's scale (`R + r ≈ 81` from the origin)
 fits the charge being read from the world origin.
+
+## 2026-10-31 (SECT, lane `sect-onesix`): a wrong verdict at 1e-6
+
+`geom-brep::all`
+`torus_gap::no_tube_circle_pose_at_scale_reads_the_wrong_verdict`
+(`crates/geom-brep/tests/torus_gap.rs`) fails at ε 1e-6 with seed
+`CAD_FUZZ_SEED=0xb8c56b2ac7806cae CAD_FUZZ_EFFORT=1`. That is a wrong
+verdict, not an escalation. Pose 30 is a torus pair (kind 2) at scale
+39.3, about 100 m from the origin. Its oracle gap is 3.9e-6, about four
+zero bands, and it reads `Tangent`. It reproduces on main `b719d39ad1`
+and on SECT's `sect/torus-rows-at-1e-6`. This fits the shape this row names: a pose far from the origin whose
+rounding charge, read from the origin, covers a gap of a few bands. It
+has not been traced to the charge, though. Pin the seed as a
+deterministic row beside the fix.
+
+A second seed, from PR 6153's review (2026-10-31): `topo`
+`boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+fails at ε 1e-12 with `CAD_FUZZ_SEED=0x37bda209ae183db3 CAD_FUZZ_EFFORT=1`.
+The pose is a pipe along the core's tangent, R 81.4, and it reads
+`Tangent("ct_critical_gap")`. It fails identically on the PR's
+merge-base, so the PR did not cause it. It is a large pose read as a
+tangency, the same shape as above. Not traced.

@@ -3648,6 +3648,7 @@ pub(super) fn section_unbuilt(
                 hull_sup: *hull_sup,
             })
         }
+        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
         Uncarried::Carry(CarryError::NoLane { scalar }) => {
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }

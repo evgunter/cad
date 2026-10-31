@@ -525,6 +525,8 @@ mod contfp_reads_arcs_on_their_carriers;
 mod copied_carriers_at_interval;
 #[path = "corner_patch_chart_poles.rs"]
 mod corner_patch_chart_poles;
+#[path = "edges_lying_in_a_face_part_wherever_they_lie.rs"]
+mod edges_lying_in_a_face_part_wherever_they_lie;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
