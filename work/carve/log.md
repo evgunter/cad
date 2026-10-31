@@ -669,3 +669,18 @@ falsifier. Dual is held back because nothing here is hard to reverse:
 class 1's build arrives only with its own lane.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — a class finding from PR 6138's review: slow rows a change reaches go unrun
+
+PR 6138's gate was green while six slow-set rows its change reaches
+were red: a STEP fixture, a kernel sidecar, two `m7_skin_integral`
+Pappus caps and an injectivity row. The PR gate runs only the slow
+rows whose names the diff touches, and the lane ran none of the others.
+The class: a change to a shared kernel law (the frame) moves rows far
+from its diff, and only the nightly sees them. From this sitting, a
+CARVE implementer brief that changes a law every caller reads names
+running the reached crates' whole slow set before the PR opens.
+Single FULL review stays this program's default; the reviewer caught
+it by doing exactly that.
+
+Signed: (CARVE orchestrator)
