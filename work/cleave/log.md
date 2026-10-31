@@ -1774,3 +1774,9 @@ Signed (CLEAVE orchestrator).
   - Raised with Ev, no action: with the plug written first and tilted in band, the whole merged cap takes the tilt, so a later flush union can escalate.
 
   Dispatched `two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner` (P1 H, an operand-order asymmetry) on `cleave/two-lumps-pinch-rays`. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5793's third pass handed back at `8d0aa75f61`, with CI green.
+  - F1 is addressed: one off sample decides, and the floor's normal is read at its carrier's foot.
+  - The merge of main adopted main's `CurvedFace` gate, retiring the PR's own `CurvedRing`. It keeps one departure: a tangent wall bending away from a curved face builds.
+  - The lane also fixed main's `census::line_on_quadric_carrier` to the same one-off rule.
+
+  A narrow re-review was dispatched over the third pass and the reconciliation. (CLEAVE orchestrator)
