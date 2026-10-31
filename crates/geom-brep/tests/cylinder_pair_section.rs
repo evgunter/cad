@@ -655,13 +655,13 @@ fn a_region_off_the_pair_that_cuts_the_loop_marches_it() {
 }
 
 /// **Every carried point lies within the domain's ball**: the
-/// perpendicular pair `e = 0.9`, `r₁ = 1`, `r₂ = 0.2`, whose one loop the
-/// region holds, sampled along its fitted carrier.
+/// perpendicular pair `e = 0.1`, `r₁ = 0.5`, `r₂ = 0.2`, whose two loops
+/// the region holds, sampled along their fitted carriers.
 #[test]
 fn the_carried_loop_lies_within_the_pairs_ball() {
-    let a = wall(Point3::origin(), Vec3::unit_z(), 1.0);
-    let b = wall(Point3::new(0.0, 0.9, 0.0), Vec3::unit_x(), 0.2);
-    let section = built(&a, &b, ExtentBall::new(Point3::origin(), 4.0));
+    let a = drum();
+    let b = wall(Point3::new(0.0, 0.1, 0.0), Vec3::unit_x(), 0.2);
+    let section = built(&a, &b, region());
     let geom_brep::PairPose::CylinderCylinder(pose) = section.pose() else {
         panic!("a cylinder pair's pose");
     };
