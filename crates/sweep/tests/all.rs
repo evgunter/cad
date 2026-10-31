@@ -206,8 +206,6 @@ mod bool3_torus_doors;
 mod bool3_torus_doors_interval;
 #[path = "bool5r2_wedge_reach.rs"]
 mod bool5r2_wedge_reach;
-#[path = "carve_embed_scratch.rs"]
-mod carve_embed_scratch;
 #[path = "bool6_per_slab_stacking.rs"]
 mod bool6_per_slab_stacking;
 #[path = "bool6_r2_probes.rs"]
@@ -218,6 +216,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "boolean_tangent_rim_review.rs"]
 mod boolean_tangent_rim_review;
+#[path = "carve_embed_scratch.rs"]
+mod carve_embed_scratch;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]

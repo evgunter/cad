@@ -31,7 +31,10 @@ use topo::clearance::{
 use crate::common::{normal_start_place, plane_of, quad};
 
 fn budget() -> usize {
-    std::env::var("CARVE_EMBED_BUDGET").ok().and_then(|b| b.parse().ok()).unwrap_or(65_536)
+    std::env::var("CARVE_EMBED_BUDGET")
+        .ok()
+        .and_then(|b| b.parse().ok())
+        .unwrap_or(65_536)
 }
 
 fn tol() -> Tol {
@@ -125,9 +128,14 @@ fn injective<T: Scalar>(body: &topo::Body<T>) -> Result<BoundReport<Witness>, En
 
 /// Tier 3's verdict and the signed volume, timed (the "inside" price).
 fn volume<T: Scalar>(body: &topo::Body<T>) -> String {
-    let t3 = topo::validate_geometric(body, tol()).map_err(|e| format!("{e:?}").chars().take(80).collect::<String>());
+    let t3 = topo::validate_geometric(body, tol())
+        .map_err(|e| format!("{e:?}").chars().take(80).collect::<String>());
     let t = Instant::now();
-    let m = topo::test_support::measure_unvalidated(body, tol(), topo::test_support::pinned_resolution(tol()));
+    let m = topo::test_support::measure_unvalidated(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    );
     let c = t.elapsed().as_secs_f64();
     let v = match m {
         Ok(m) => format!("{:.4}", mid(m.enclosure.volume)),
@@ -145,7 +153,11 @@ fn line<T: Scalar>(l: &Lofted<T>, l64: Option<&Lofted<f64>>, build: f64) -> Stri
             "{} | cert {c:.3}s build {build:.3}s | {:?}{}",
             say(l, l64, &r),
             r.receipt,
-            if matches!(r.verdict, BoundVerdict::Holds) { volume(&l.body) } else { String::new() }
+            if matches!(r.verdict, BoundVerdict::Holds) {
+                volume(&l.body)
+            } else {
+                String::new()
+            }
         ),
         Err(EngineRefusal::Unsupported { carrier, face, .. }) => format!(
             "WINDOW REFUSED {} unsupported: {carrier} | cert {c:.3}s build {build:.3}s",
@@ -239,7 +251,10 @@ fn row(
         Err(e) => format!("BUILD REFUSED {e:?}"),
         Ok(l) => line(l, built.as_ref().ok(), build_i.as_secs_f64()),
     };
-    println!("[embed] {what}{}\n  f64:      {line64}\n  Interval: {line_i}", if bypass { " (fold bypassed)" } else { "" });
+    println!(
+        "[embed] {what}{}\n  f64:      {line64}\n  Interval: {line_i}",
+        if bypass { " (fold bypassed)" } else { "" }
+    );
 }
 
 // ------------------------------------------------------------ corpora
@@ -264,7 +279,12 @@ fn loft_at<T: Scalar>(
     places: &[SketchPlane<f64>],
     deg: usize,
 ) -> Result<Lofted<T>, LoftError> {
-    loft_body::<T>(&lift_sections::<T>(sections), &lift_places::<T>(places, tol()), deg, tol())
+    loft_body::<T>(
+        &lift_sections::<T>(sections),
+        &lift_places::<T>(places, tol()),
+        deg,
+        tol(),
+    )
 }
 
 fn sweep_at<T: Scalar>(
@@ -279,7 +299,13 @@ fn sweep_at<T: Scalar>(
     sweep_body::<T>(s, p, path, stations, deg, tol())
 }
 
-fn loft_row(what: &str, bypass: bool, sections: &[sweep::Section], places: &[SketchPlane<f64>], deg: usize) {
+fn loft_row(
+    what: &str,
+    bypass: bool,
+    sections: &[sweep::Section],
+    places: &[SketchPlane<f64>],
+    deg: usize,
+) {
     row(
         what,
         bypass,
@@ -328,7 +354,9 @@ fn turned_about_x(origin: Vec3<f64>, cos_a: f64) -> SketchPlane<f64> {
 }
 
 fn poly(pts: &[(f64, f64)]) -> sweep::Section {
-    vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
 }
 
 #[test]
@@ -373,7 +401,10 @@ fn carve_embed_scratch_fold_arms() {
         "top facing down (z 0,1; +z,-z)",
         true,
         &vec![unit.clone(); 2],
-        &[stacked_at(&[0.0])[0], turned_about_x(Vec3::new(0.0, 0.0, 1.0), -1.0)],
+        &[
+            stacked_at(&[0.0])[0],
+            turned_about_x(Vec3::new(0.0, 0.0, 1.0), -1.0),
+        ],
         1,
     );
     loft_row(
@@ -494,8 +525,20 @@ fn carve_embed_scratch_coincident_and_others() {
         "carvetail opposite-turning joints",
         false,
         &[
-            poly(&[(0.0, 0.0), (2.0, 0.0), (0.03, 0.347), (-2.0, 1.0), (-2.0, -1.0)]),
-            poly(&[(0.0, 0.0), (2.0, 0.0), (0.03, -0.347), (3.0, -3.0), (3.0, 3.0)]),
+            poly(&[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (0.03, 0.347),
+                (-2.0, 1.0),
+                (-2.0, -1.0),
+            ]),
+            poly(&[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (0.03, -0.347),
+                (3.0, -3.0),
+                (3.0, 3.0),
+            ]),
         ],
         &stacked_at(&[0.0, 1.0]),
         1,
