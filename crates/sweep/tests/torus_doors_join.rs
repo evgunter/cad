@@ -156,22 +156,6 @@ fn a_rod_across_the_inner_bound_stops_at_the_join() {
 /// ∖ stops at the edge join.
 #[test]
 fn a_square_rod_on_the_outer_equator_stops_at_the_join() {
-    // Pinned red at 1e-6 since PR 6011: the germ section refuses its
-    // winding before the join
-    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-6],
-        "the square rod on the outer equator",
-        &[
-            "an unpinned stop: Err(GermSectionUnbuilt { a_face: FaceKey(4v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Cylinder, why: Winds(Unseparated) })",
-        ],
-        a_square_rod_on_the_outer_equator_stops_at_the_join_row,
-    );
-}
-
-/// The row [`a_square_rod_on_the_outer_equator_stops_at_the_join`] runs, under its pin.
-fn a_square_rod_on_the_outer_equator_stops_at_the_join_row() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
     assert_eq!(stop(got), Stop::Join { closed: false });
 }

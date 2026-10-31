@@ -796,22 +796,6 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 /// the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
-    // Pinned red at 1e-6 since PR 6011: the closest pair escalates at
-    // the straddle
-    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-6],
-        "two loops near the node",
-        &[
-            "d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 0.10006928966127418, hi: 0.2063515605648144, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 0.10979844554160123, escalate: 0.10980744554160123 }, predicate: Some(\"curve_carrier_straddle\") })",
-        ],
-        two_loops_keep_their_sites_and_order_near_the_node_row,
-    );
-}
-
-/// The row [`two_loops_keep_their_sites_and_order_near_the_node`] runs, under its pin.
-fn two_loops_keep_their_sites_and_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));
@@ -885,4 +869,54 @@ fn one_loop_keeps_its_order_near_the_node() {
             assert!(turns_once(&ts, hi - lo), "d {d}, R {big}");
         }
     }
+}
+
+/// **Near the node, no site reads on the other sheet's loop**: the two
+/// loops of the sphere at `d 0.2` whose radius `R` runs across
+/// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
+/// whose foot is read lies on its own sheet's component, and the two
+/// sheets' components differ; a refusal, of the carry or of a foot, is
+/// allowed, but most sites read. Marches: in the slow set.
+#[test]
+fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
+    let (r, d) = (0.5, 0.2);
+    let (mut read, mut refused) = (0usize, 0usize);
+    for k in 0..8 {
+        let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let Ok(c) = built(x, y).carry(Some(SsiLane::marched()), band()) else {
+                refused += 1;
+                continue;
+            };
+            let mut owner: [Option<usize>; 2] = [None, None];
+            for (s, sheet) in [1.0, -1.0].into_iter().enumerate() {
+                for i in 0..97 {
+                    let u = f64::from(i) / 97.0;
+                    let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
+                    let Some(p) = wall_point(r, d, big, theta, sheet) else {
+                        continue;
+                    };
+                    let Ok(f) = c.foot(p, band()) else {
+                        refused += 1;
+                        continue;
+                    };
+                    read += 1;
+                    let at = format!("R {big}, sheet {sheet}, θ {theta}");
+                    assert_eq!(
+                        *owner[s].get_or_insert(f.component),
+                        f.component,
+                        "{at}: a site on its sheet's own loop"
+                    );
+                }
+            }
+            if let [Some(a), Some(b)] = owner {
+                assert_ne!(a, b, "R {big}: each sheet its own loop");
+            }
+        }
+    }
+    eprintln!("near the node: {read} sites read, {refused} refusals");
+    // The row is a reading, not a run of refusals: 2716 of its 3104
+    // sites read at every ε when it landed.
+    assert!(read >= 2500, "{read} sites read, {refused} refusals");
 }
