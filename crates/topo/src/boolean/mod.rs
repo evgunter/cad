@@ -2748,6 +2748,10 @@ pub enum SectionUnbuilt {
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
+    /// A marched loop's uniqueness tube could not be read: an empty box
+    /// chain, or a refused box or carrier point
+    /// (`geom_brep::CarryError::TubeUnread`).
+    TubeUnread,
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2771,6 +2775,11 @@ impl core::fmt::Display for SectionUnbuilt {
                 f,
                 "a marched loop's turns about an operand's axis or core could not be read \
                  ({why:?})"
+            ),
+            Self::TubeUnread => write!(
+                f,
+                "a marched loop's uniqueness tube could not be read (an empty box chain, or a \
+                 refused box or carrier point)"
             ),
             Self::PadShort { pad, hull_sup } => write!(
                 f,

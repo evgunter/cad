@@ -1,10 +1,10 @@
 //! **How a fitted loop winds about a surface**: its integer turns about
-//! each of the surface's essential channels, read off the loop in ℝ³ —
-//! about the axis on a cylinder; about the axis and about the core
-//! circle on a ring torus. A sphere has none: every loop on it is null.
-//! On the surface these are the loop's turns in the chart's periodic
-//! parameters; they are read here on the loop itself, which lies off
-//! the surface, and stay defined off it.
+//! each of the surface's essential channels, read over the loop's
+//! uniqueness tube in ℝ³ — about the axis on a cylinder; about the axis
+//! and about the core circle on a ring torus. A sphere has none: every
+//! loop on it is null. On the surface these are the loop's turns in the
+//! chart's periodic parameters; they are read here in ℝ³, where they
+//! stay defined off the surface.
 //!
 //! # The lever
 //!
@@ -38,22 +38,36 @@
 //! cover the march's exhaustiveness accounts the section to. Each box
 //! is convex and holds its stretch of the carrier (the hull's
 //! convex-hull property). Limb 3 proves the section's points in the
-//! chain one arc, one piece of it in each box and consecutive boxes'
-//! pieces sharing a point. So the component and the carrier are each
-//! cut into stretches lying in the same boxes in the same order, the
-//! cut points of each lying in two consecutive boxes; the straight
-//! homotopy between them, stretch by stretch, stays inside the boxes,
-//! and where no box's rectangle reaches a centre the component winds as
-//! the carrier does. That needs no bound on how far a point of the
-//! component lies from the carrier, only that each box holds both.
+//! chain one arc: one connected piece of it in each box, consecutive
+//! boxes' pieces sharing a point. Walk the component through the pieces
+//! in the chain's order, from a shared point to the next inside each
+//! piece; the straight homotopy from that walk to the carrier, stretch
+//! by stretch, stays inside the boxes, so where no box's rectangle
+//! reaches a centre the walk winds as the carrier does. That needs no
+//! bound on how far a point of the component lies from the carrier.
+//!
+//! **The walk runs round the component once** ([`once_round`]), which
+//! limb 3 does not say: it puts a piece in every box and links
+//! neighbours, but a walk that doubled back, or went round twice, would
+//! wind zero or twice the component's turns. It is checked. Group the
+//! chain into runs of consecutive boxes; each run's pieces form one
+//! connected arc of the component (neighbours share a point), so the
+//! runs cover the component by arcs. Where no box of a run meets a box
+//! of a run that is not its neighbour, and there are at least four runs,
+//! each arc meets only its two neighbours, so the arcs lie round the
+//! component in the runs' order, and the walk, stepping from each to
+//! the next, goes round once. Its turns are the component's, up to the
+//! sign the component's orientation takes, which essentiality does not
+//! read.
 
+use crate::ssi::enclose::Box3;
 use geom::{Curve3, Surface};
 use geom_core::{Bounds as _, Interval, Point3, Vec3};
 
-/// **One piece of a loop**: a convex set holding the carrier over the
+/// **One piece of a loop**: a box holding the carrier over the
 /// parameter span beside it, and the section's stretch there (module
-/// docs), as an interval box.
-pub type Piece = (Point3<Interval>, (f64, f64));
+/// docs).
+pub(crate) type Piece = (Box3, (f64, f64));
 
 /// **A loop's turns about one surface's channels**: about its axis
 /// (cylinder and torus) and about its core circle (torus); zero on a
@@ -85,6 +99,9 @@ pub enum WindsRefusal {
     Unseparated,
     /// The pieces do not tile the carrier's span in order.
     Untiled,
+    /// The walk through the pieces is not shown to run round the
+    /// component once ([`once_round`]).
+    Unordered,
     /// The loop's turning is not a whole number of turns: it does not
     /// close.
     Open,
@@ -133,9 +150,9 @@ fn lift3(v: Vec3<f64>) -> Vec3<Interval> {
     v.map(lift)
 }
 
-/// Whether the interval `x` excludes zero.
+/// Whether the interval `x` excludes zero; never where it is refused.
 fn clears(x: Interval) -> bool {
-    x.lo() > 0.0 || x.hi() < 0.0
+    x.is_certified() && (x.lo() > 0.0 || x.hi() < 0.0)
 }
 
 impl Channel {
@@ -164,7 +181,8 @@ impl Channel {
     }
 
     /// Whether the box `b` clears the centre in the channel's plane.
-    fn clear(self, b: Point3<Interval>) -> bool {
+    fn clear(self, b: Box3) -> bool {
+        let b = Point3::new(b.x, b.y, b.z);
         let w = |o: Point3<f64>| Vec3::new(b.x - lift(o.x), b.y - lift(o.y), b.z - lift(o.z));
         match self {
             Self::Axis { origin, e1, e2 } => {
@@ -224,12 +242,13 @@ fn channels(surface: &Surface<f64>) -> Vec<Channel> {
 }
 
 /// **The winding of the closed carrier over `span` about `surface`**,
-/// read over `pieces` (module docs), which tile the span in order.
+/// read over `pieces` (module docs), which tile the span in order and
+/// whose walk runs round the component once.
 ///
 /// # Errors
 ///
 /// [`WindsRefusal`].
-pub fn winding(
+pub(crate) fn winding(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     (lo, hi): (f64, f64),
@@ -271,16 +290,51 @@ pub fn winding(
             turns[k] = whole as i64;
         }
     }
+    if !once_round(pieces) {
+        return Err(WindsRefusal::Unordered);
+    }
     Ok(Winding {
         about_axis: turns[0],
         about_core: turns[1],
     })
 }
 
+/// **Whether the walk through `pieces` runs round once** (module docs):
+/// for some run length `k` (`1, 2, 4, …`) giving at least four runs of
+/// consecutive pieces (the last taking the remainder, the runs read
+/// round the closed chain), every pair of boxes that are not certainly
+/// apart lies in one run or in neighbouring ones.
+fn once_round(pieces: &[Piece]) -> bool {
+    let n = pieces.len();
+    let apart = |a: Box3, b: Box3| {
+        [(a.x, b.x), (a.y, b.y), (a.z, b.z)].iter().any(|&(p, q)| {
+            p.is_certified() && q.is_certified() && (p.hi() < q.lo() || q.hi() < p.lo())
+        })
+    };
+    let met: Vec<(usize, usize)> = (0..n)
+        .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
+        .filter(|&(i, j)| !apart(pieces[i].0, pieces[j].0))
+        .collect();
+    let mut k = 1;
+    while n / k >= 4 {
+        let runs = n / k;
+        let run = |i: usize| (i / k).min(runs - 1);
+        let near = |i: usize, j: usize| {
+            let d = run(j) - run(i);
+            d <= 1 || d == runs - 1
+        };
+        if met.iter().all(|&(i, j)| near(i, j)) {
+            return true;
+        }
+        k *= 2;
+    }
+    false
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{Piece, Winding, WindsRefusal, lift, winding};
+    use super::{Box3, Piece, Winding, WindsRefusal, lift, winding};
     use geom::{Curve3, Surface};
     use geom_core::{Interval, Point3, Vec3};
 
@@ -296,7 +350,14 @@ mod tests {
             .windows(2)
             .map(|w| {
                 let b = lifted.span_enclosure(w[0], w[1]).expect("a hull");
-                (Point3::new(b.x + g, b.y + g, b.z + g), (w[0], w[1]))
+                (
+                    Box3 {
+                        x: b.x + g,
+                        y: b.y + g,
+                        z: b.z + g,
+                    },
+                    (w[0], w[1]),
+                )
             })
             .collect()
     }
@@ -332,9 +393,10 @@ mod tests {
     }
 
     /// **The torus's two channels read apart**: a longitude turns once
-    /// about the axis (twice, run twice round), a meridian once about the
-    /// core, a `(1, 1)` curve once about each, and a small loop on the
-    /// tube's outer side about neither.
+    /// about the axis, a meridian once about the core, a `(1, 1)` curve
+    /// once about each, and a small loop on the tube's outer side about
+    /// neither. A longitude run twice round is no walk round a component
+    /// once, and refuses.
     #[test]
     fn a_torus_loop_turns_as_it_runs() {
         let (big_r, r) = (2.0, 0.5);
@@ -355,10 +417,57 @@ mod tests {
             })
         };
         assert_eq!(read(&longitude), w(1, 0), "a longitude");
-        assert_eq!(read(&twice), w(2, 0), "a longitude run twice round");
+        assert_eq!(
+            read(&twice),
+            Err(WindsRefusal::Unordered),
+            "a longitude run twice round"
+        );
         assert_eq!(read(&meridian), w(0, 1), "a meridian");
         assert_eq!(read(&diagonal), w(1, 1), "a (1, 1) curve");
         assert_eq!(read(&small), w(0, 0), "a null loop");
+    }
+
+    /// **The tube's own chain reads as the knot spans do**: the winding
+    /// over `ssi::certify::tube_chain`'s boxes (the march's handover) of
+    /// a longitude, a meridian and a null loop on the torus, at a tube
+    /// radius of `1e-3`; and boxes padded past the tube refuse.
+    #[test]
+    fn the_tube_chain_is_read_as_pieces() {
+        let (big_r, r) = (2.0, 0.5);
+        let on = |u: f64, v: f64| {
+            let rho = big_r + r * v.cos();
+            Point3::new(rho * u.cos(), rho * u.sin(), r * v.sin())
+        };
+        let chain = |c: &Curve3<f64>, radius: f64| match c {
+            Curve3::Nurbs(net) => crate::ssi::certify::tube_chain(net, radius),
+            _ => Vec::new(),
+        };
+        for (what, c, want) in [
+            ("a longitude", polygon(64, |s| on(s, 0.3)), (1, 0)),
+            ("a meridian", polygon(64, |s| on(0.4, s)), (0, 1)),
+            (
+                "a null loop",
+                polygon(32, |s| on(0.1 * s.cos(), 0.2 * s.sin())),
+                (0, 0),
+            ),
+        ] {
+            let pieces = chain(&c, 1e-3);
+            assert!(pieces.len() >= 32, "{what}: the chain has its boxes");
+            assert_eq!(
+                winding(&torus(), &c, (0.0, 1.0), &pieces),
+                Ok(Winding {
+                    about_axis: want.0,
+                    about_core: want.1,
+                }),
+                "{what}"
+            );
+        }
+        let meridian = polygon(64, |s| on(0.4, s));
+        assert_eq!(
+            winding(&torus(), &meridian, (0.0, 1.0), &chain(&meridian, 0.6)),
+            Err(WindsRefusal::Unseparated),
+            "a meridian's boxes padded past the tube's radius reach the core"
+        );
     }
 
     /// **A loop whose pieces reach a centre refuses**: a loop round the

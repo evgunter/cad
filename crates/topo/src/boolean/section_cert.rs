@@ -1946,7 +1946,7 @@ pub(super) fn of_pair_section<T: Decide>(
 /// **A section no closed form counts, read from its march** (W0 to W4
 /// on the march's components): no branch is W0, its receipt being the
 /// march's exhaustiveness; each loop winds as its turns about each
-/// surface's axis and core read off the loop do (W2,
+/// surface's axis and core read over its uniqueness tube do (W2,
 /// `geom_brep::pair_section::winds`); its witness is its carrier's
 /// middle point, within its reach of the component, so W3 places it with
 /// that pad ([`Component::pad`]); and the march's count is certified, so
@@ -1965,6 +1965,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::March(_)
             | CarryError::Winds(_)
             | CarryError::PadShort { .. }
+            | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_),

@@ -47,7 +47,8 @@
 //! with its C2 certificate ([`crate::ssi::SsiCertificate`]). Where the
 //! classification is marched, the carried components are the march's
 //! closed branches, each winding as the fitted loop's turns about each
-//! surface's axis and core circle, read off the loop in ℝ³, say
+//! surface's axis and core circle, read over the loop's uniqueness tube
+//! in ℝ³, say
 //! ([`winds`]); where it is counted, the march's distinct branches must
 //! match the count, so the closed form is a cross-check of the march's
 //! exhaustiveness receipt. A reader that needs a list no closed form
@@ -1497,8 +1498,7 @@ fn march_over_the_ball(
                 0.5 * (br.params.0 + br.params.1),
             )?;
             let winding = if closed {
-                let pieces = tube.pieces();
-                let read = |s| winds::winding(s, &br.carrier, br.params, &pieces);
+                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.chain);
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
@@ -1530,7 +1530,7 @@ fn march_over_the_ball(
 /// winding's pieces ([`winds`]), for the pad ([`CarriedComponent::pad`])
 /// and for the witness's reach ([`CarriedComponent::reach`]).
 struct Tube {
-    chain: Vec<(crate::ssi::enclose::Box3, (f64, f64))>,
+    chain: Vec<winds::Piece>,
     pad: f64,
     reach: f64,
 }
@@ -1540,15 +1540,19 @@ impl Tube {
     /// witness at `carrier(at)`.
     ///
     /// - **The pad** is the farthest any point of the tube stands from
-    ///   the carrier: each box is cut into [`PAD_SLABS`] slabs along its
-    ///   longest side, and a slab's every point is no farther from the
-    ///   carrier than from the nearest of [`PAD_SAMPLES`] carrier points
-    ///   over the box's span. The carrier's limb-2 bound must lie within
-    ///   it too, so the carrier lies within the pad of each surface;
-    ///   otherwise it refuses [`CarryError::PadShort`].
-    /// - **The reach** is the smallest diameter of a box holding the
-    ///   witness (one whose span holds `at`): the box holds a piece of
-    ///   the component too.
+    ///   the carrier: each box is halved [`PAD_SPLITS`] times
+    ///   (`Box3::split`), and a part's every point is no farther from
+    ///   the carrier than from the nearest of [`PAD_SAMPLES`] carrier
+    ///   points over the box's span ([`farthest`]). The carrier's limb-2
+    ///   bound must lie within it too, so the carrier lies within the pad
+    ///   of each surface; otherwise it refuses [`CarryError::PadShort`].
+    /// - **The reach** bounds the witness's distance from the component:
+    ///   a box whose span holds `at` holds the witness and a piece of the
+    ///   component, so the farthest the box reaches from the witness
+    ///   bounds it; the least over such boxes.
+    ///
+    /// An empty chain, or a box or carrier point that is refused, reads
+    /// no tube ([`CarryError::TubeUnread`]).
     fn of(
         carrier: &Curve3<f64>,
         certificate: &SsiCertificate<f64>,
@@ -1567,118 +1571,87 @@ impl Tube {
         let lift = <geom_core::Interval as Real>::from_computed;
         let lifted = net.map_scalar(lift);
         let chain = crate::ssi::certify::tube_chain(net, radius);
-        let pad = (!chain.is_empty())
-            .then(|| {
-                chain.iter().try_fold(0.0f64, |acc, &(b, (lo, hi))| {
-                    #[allow(clippy::cast_precision_loss)]
-                    let samples: Vec<Point3<geom_core::Interval>> = (0..PAD_SAMPLES)
-                        .map(|j| {
-                            let t = lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64;
-                            lifted.eval(lift(t))
-                        })
-                        .collect();
-                    slabs(b).into_iter().try_fold(acc, |acc, slab| {
-                        let far = samples
-                            .iter()
-                            .map(|&p| farthest(slab, p))
-                            .fold(f64::INFINITY, f64::min);
-                        far.is_finite().then(|| acc.max(far))
+        let pad = (!chain.is_empty()).then_some(()).and_then(|()| {
+            chain.iter().try_fold(0.0f64, |acc, &(b, (lo, hi))| {
+                #[allow(clippy::cast_precision_loss)]
+                let samples: Vec<Point3<geom_core::Interval>> = (0..PAD_SAMPLES)
+                    .map(|j| {
+                        let t = lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64;
+                        lifted.eval(lift(t))
                     })
+                    .collect();
+                parts(b).into_iter().try_fold(acc, |acc, part| {
+                    let far = samples
+                        .iter()
+                        .map(|&p| farthest(part, p))
+                        .fold(f64::INFINITY, f64::min);
+                    far.is_finite().then(|| acc.max(far))
                 })
             })
-            .flatten();
-        let pad = match pad {
-            Some(pad) if certificate.hull_sup <= pad => pad,
-            _ => {
-                return Err(CarryError::PadShort {
-                    pad: pad.unwrap_or(f64::NAN),
-                    hull_sup: certificate.hull_sup,
-                });
-            }
+        });
+        let Some(pad) = pad else {
+            return Err(CarryError::TubeUnread);
         };
+        if certificate.hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater)
+            || certificate.hull_sup.is_nan()
+        {
+            return Err(CarryError::PadShort {
+                pad,
+                hull_sup: certificate.hull_sup,
+            });
+        }
+        let witness = lifted.eval(lift(at));
         let reach = chain
             .iter()
             .filter(|(_, (lo, hi))| *lo <= at && at <= *hi)
-            .map(|&(b, _)| {
-                use geom_core::Bounds as _;
-                let w = [b.x, b.y, b.z].map(|s| s.hi() - s.lo());
-                (w[0].powi(2) + w[1].powi(2) + w[2].powi(2)).sqrt() * (1.0 + 1e-12)
-            })
+            .map(|&(b, _)| farthest(b, witness))
+            .filter(|r| r.is_finite())
             .fold(f64::INFINITY, f64::min);
         if !reach.is_finite() {
-            return Err(CarryError::Desync(
-                "no box of a fitted loop's tube holds its witness",
-            ));
+            return Err(CarryError::TubeUnread);
         }
         Ok(Self { chain, pad, reach })
     }
-
-    /// The tube as the winding's pieces.
-    fn pieces(&self) -> Vec<winds::Piece> {
-        self.chain
-            .iter()
-            .map(|&(b, span)| (Point3::new(b.x, b.y, b.z), span))
-            .collect()
-    }
 }
 
-/// The slabs [`Tube::of`] cuts each tube box into along its longest side.
-const PAD_SLABS: usize = 8;
+/// How many times [`Tube::of`] halves each tube box for the pad: into
+/// `2³` parts.
+const PAD_SPLITS: u32 = 3;
 
-/// The carrier points [`Tube::of`] reads each tube box's slabs against,
+/// The carrier points [`Tube::of`] reads each tube box's parts against,
 /// evenly over the box's span, its ends among them.
 const PAD_SAMPLES: usize = 9;
 
-/// `b` cut into [`PAD_SLABS`] slabs along its longest side, which cover
-/// it: neighbours share their cut, computed once.
-fn slabs(b: crate::ssi::enclose::Box3) -> Vec<crate::ssi::enclose::Box3> {
-    use geom_core::{Bounds as _, Interval};
-    let sides = [b.x, b.y, b.z];
-    let k = (0..3).fold(0, |k, i| {
-        if sides[i].hi() - sides[i].lo() > sides[k].hi() - sides[k].lo() {
-            i
-        } else {
-            k
-        }
-    });
-    let (lo, hi) = (sides[k].lo(), sides[k].hi());
-    #[allow(clippy::cast_precision_loss)]
-    let cut = |i: usize| match i {
-        0 => lo,
-        i if i == PAD_SLABS => hi,
-        i => lo + (hi - lo) * i as f64 / PAD_SLABS as f64,
-    };
-    (0..PAD_SLABS)
-        .map(|i| {
-            let mut s = sides;
-            s[k] = Interval::from_bounds(cut(i), cut(i + 1));
-            crate::ssi::enclose::Box3 {
-                x: s[0],
-                y: s[1],
-                z: s[2],
-            }
-        })
-        .collect()
+/// `b` halved [`PAD_SPLITS`] times along its widest axis
+/// (`Box3::split`, which keeps a refused axis refused); the parts cover
+/// it.
+fn parts(b: crate::ssi::enclose::Box3) -> Vec<crate::ssi::enclose::Box3> {
+    (0..PAD_SPLITS).fold(vec![b], |boxes, _| {
+        boxes
+            .into_iter()
+            .flat_map(|b| {
+                let (l, r) = b.split();
+                [l, r]
+            })
+            .collect()
+    })
 }
 
 /// An upper bound on the distance from any point of `b` to any point of
-/// the enclosure `p`: per axis the larger of the two far gaps, the norm
-/// rounded up by a relative `1e-12`, far past its few roundings. `NaN`
-/// where either side is refused.
+/// the enclosure `p`: the diagonal of the box of per-axis far gaps
+/// (`carrier_net::diagonal`), rounded up by a relative `1e-12`, far past
+/// its few roundings. `NaN` where either side is refused.
 fn farthest(b: crate::ssi::enclose::Box3, p: Point3<geom_core::Interval>) -> f64 {
-    use geom_core::Bounds as _;
-    let gap = |s: geom_core::Interval, q: geom_core::Interval| {
-        if [s.lo(), s.hi(), q.lo(), q.hi()]
-            .iter()
-            .all(|v| v.is_finite())
-        {
-            (s.hi() - q.lo()).max(q.hi() - s.lo())
+    use geom_core::{Bounds as _, Interval};
+    let gap = |s: Interval, q: Interval| {
+        if s.is_certified() && q.is_certified() {
+            (0.0, (s.hi() - q.lo()).max(q.hi() - s.lo()))
         } else {
-            f64::NAN
+            (0.0, f64::NAN)
         }
     };
-    let [gx, gy, gz] = [gap(b.x, p.x), gap(b.y, p.y), gap(b.z, p.z)];
-    (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt() * (1.0 + 1e-12)
+    let gaps = [gap(b.x, p.x), gap(b.y, p.y), gap(b.z, p.z)];
+    crate::carrier_net::diagonal(&gaps) * (1.0 + 1e-12)
 }
 
 /// **[`PairSection::seat`] at `f64`.** `at` at either end of the
@@ -1832,14 +1805,16 @@ pub enum CarryError {
     /// A reading in the band or poisoned.
     Escalated(Indeterminate),
     /// A fitted loop's limb-2 bound stands past the pad its points are
-    /// read within ([`CarriedComponent::pad`]), or the pad's boxes could
-    /// not be read (`NaN`).
+    /// read within ([`CarriedComponent::pad`]).
     PadShort {
         /// The pad, in metres.
         pad: f64,
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
+    /// A fitted loop's uniqueness tube could not be read: its box chain
+    /// is empty, or a box or carrier point of it is refused ([`Tube::of`]).
+    TubeUnread,
     /// The march and the classification disagree.
     Desync(&'static str),
     /// A closed fitted component could not be opened at its first site
@@ -1860,8 +1835,8 @@ pub struct CarriedComponent<T: Real> {
     pub certificate: Option<SsiCertificate<T>>,
     /// Whether it winds about each surface's carrier, in the order the
     /// section was asked of: a closed form's as classified, a fitted
-    /// loop's turns about each surface's axis and core read off the loop
-    /// itself ([`winds`]).
+    /// loop's turns about each surface's axis and core read over its
+    /// uniqueness tube ([`winds`]).
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
@@ -2273,9 +2248,10 @@ mod wiring {
     /// within its pad, which holds its uniqueness tube's radius; every
     /// corner and centre of every tube box lies within the pad of the
     /// carrier (read against `4096` carrier points, within their
-    /// spacing); the witness lies in a box no wider than its reach; and
-    /// a certificate whose limb-2 bound stands past the pad refuses
-    /// `PadShort`.
+    /// spacing), and the pad stands well inside the hull-diameter bound;
+    /// the witness lies in every box whose span holds it, and its reach
+    /// is no wider than one; and a certificate whose limb-2 bound stands
+    /// past the pad refuses `PadShort`.
     #[test]
     fn a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound() {
         use super::{CarryError, Tube};
@@ -2310,6 +2286,7 @@ mod wiring {
                     .windows(2)
                     .map(|w| (w[1] - w[0]).norm())
                     .fold(0.0, f64::max);
+                let mut worst = 0.0f64;
                 for (bx, _) in &tube.chain {
                     let [x, y, z] = [bx.x, bx.y, bx.z].map(|s| [s.lo(), s.hi()]);
                     let centre = Point3::new(
@@ -2324,6 +2301,7 @@ mod wiring {
                             .iter()
                             .map(|&c| (q - c).norm())
                             .fold(f64::INFINITY, f64::min);
+                        worst = worst.max(d);
                         assert!(
                             d <= br.pad + spacing,
                             "{what}: a tube point {d:e} from the carrier, pad {:e}",
@@ -2331,18 +2309,40 @@ mod wiring {
                         );
                     }
                 }
-                let w = br.witness;
+                let diag = |bx: &crate::ssi::enclose::Box3| {
+                    crate::carrier_net::diagonal(&[bx.x, bx.y, bx.z].map(|s| (s.lo(), s.hi())))
+                };
+                let held: Vec<_> = tube
+                    .chain
+                    .iter()
+                    .filter(|(_, (l, h))| *l <= mid && mid <= *h)
+                    .collect();
                 assert!(
-                    tube.chain.iter().any(|(bx, (l, h))| {
-                        let width = [bx.x, bx.y, bx.z].map(|s| s.hi() - s.lo());
-                        *l <= mid
-                            && mid <= *h
-                            && [(bx.x, w.x), (bx.y, w.y), (bx.z, w.z)]
+                    !held.is_empty()
+                        && held.iter().all(|(bx, _)| {
+                            let w = br.witness;
+                            [(bx.x, w.x), (bx.y, w.y), (bx.z, w.z)]
                                 .iter()
                                 .all(|(s, v)| s.lo() <= *v && *v <= s.hi())
-                            && width.iter().map(|v| v.powi(2)).sum::<f64>().sqrt() <= br.reach
-                    }),
-                    "{what}: the witness in a box within its reach"
+                        }),
+                    "{what}: the witness lies in the boxes whose span holds it"
+                );
+                assert!(
+                    br.reach
+                        <= held
+                            .iter()
+                            .map(|(bx, _)| diag(bx))
+                            .fold(f64::INFINITY, f64::min),
+                    "{what}: the reach {:e} is no wider than a box holding the witness",
+                    br.reach
+                );
+                // Tight as well as sound: within 1.5 times the farthest
+                // tube corner or centre read on the dense carrier (the
+                // hull-diameter bound it replaces read up to twice that).
+                assert!(
+                    br.pad <= 1.5 * worst + spacing,
+                    "{what}: pad {:e} against the tube's farthest sampled point {worst:e}",
+                    br.pad
                 );
                 let mut loose = br.certificate;
                 loose.hull_sup = 2.0 * br.pad;
