@@ -531,13 +531,9 @@ fn the_mint_and_tier_3_read_one_incidence_at_the_tip() {
     );
 }
 
-/// **A flipped small wrap-tip cap refuses at tier 3.** Its chart image
-/// drops the tip, so the side reader finds a pole on each side of the rim
-/// and reads no side (`a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip`),
-/// but flipped, the cap claims the sphere's far side, and the
-/// chart-singularity arm finds the far pole inside it.
-#[test]
-fn a_flipped_small_tip_cap_refuses_at_tier_3() {
+/// The unit sphere's cap above `y = 0.8` on its disk, its pole reached by
+/// one wrap edge.
+fn small_tip_cap() -> (Body<f64>, FaceKey, VertexKey) {
     let th: f64 = 0.8f64.asin();
     let cap = revolved_about_y(
         vec![
@@ -548,16 +544,120 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
         Revolution::Full,
         tol(),
     );
-    let (body, face, _, _) = one_wrap_edge(cap, true);
-    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "as built");
+    let (body, face, _, tip) = one_wrap_edge(cap, true);
+    (body, face, tip)
+}
+
+/// The cone of radius and height 0.2 on its disk, apex at `NORTH` reached
+/// by one wrap edge.
+fn small_tip_cone() -> (Body<f64>, FaceKey, VertexKey) {
+    let cone = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.8), 0.0),
+            (Point2::new(0.2, 0.8), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    );
+    let (body, face, _, tip) = one_wrap_edge(cone, true);
+    (body, face, tip)
+}
+
+/// The side `face`'s loops encode, read by tier 3's side reader over their
+/// chart images, holding the points `held`.
+fn side(body: &Body<f64>, face: FaceKey, held: &[Point3<f64>]) -> geom_brep::props::MaterialSign {
+    let f = body.get_face(face).unwrap();
+    let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
+    let surface = body.get_surface(f.surface).unwrap();
+    let band = Band::linear(tol()).unwrap();
+    geom_brep::props::boundary_material_sign_holding(surface, &[&image], held, band).unwrap()
+}
+
+/// **A wrap-tip cap reads its side off the tip its chart image drops.**
+/// The image is the rim alone, with a pole on each side of it; held at
+/// the tip, the sphere cap lies on the side holding the north pole and
+/// not the south, the side its bit claims, and it passes tier 3 and
+/// measures its closed form. The cone reads the same side with the tip
+/// or without, its apex held by its rim's winding, and passes and
+/// measures too.
+#[test]
+fn a_small_tip_cap_reads_its_side_off_its_tip_and_measures() {
+    use geom_brep::props::MaterialSign::{Encoded, Unencoded};
+    let (h, rr) = (0.2, 0.2);
+    let rows = [
+        (
+            "the sphere cap",
+            small_tip_cap(),
+            false,
+            PI * h * h * (3.0 - h) / 3.0,
+            2.0 * PI * h + PI * 0.36,
+        ),
+        (
+            "the cone",
+            small_tip_cone(),
+            true,
+            PI * rr * rr * h / 3.0,
+            PI * rr * (rr * rr + h * h).sqrt() + PI * rr * rr,
+        ),
+    ];
+    for (what, (body, face, tip), reads_bare, volume, area) in rows {
+        let sense = body.get_face(face).unwrap().sense;
+        let claimed = Encoded(if sense {
+            geom_core::Sign::Positive
+        } else {
+            geom_core::Sign::Negative
+        });
+        assert_eq!(
+            side(&body, face, &[point(&body, tip)]),
+            claimed,
+            "{what}: held at the tip, the side the bit claims"
+        );
+        assert_eq!(
+            side(&body, face, &[]),
+            if reads_bare { claimed } else { Unencoded },
+            "{what}: without it"
+        );
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let (flux, got) = measured(&body, what);
+        close(flux / 3.0, volume, &format!("{what}: volume"));
+        close(got, area, &format!("{what}: area"));
+    }
+}
+
+/// **A flipped small wrap-tip cap refuses at tier 3 through the side
+/// reader.** The cap's side, read off the tip its chart image drops,
+/// disagrees with the flipped bit (`CurvedSenseInverted`); the sphere cap
+/// so flipped claims the sphere's far side, and the chart-singularity arm
+/// also finds the far pole inside it. The cone's side reader refuses it
+/// alone.
+#[test]
+fn a_flipped_small_tip_cap_refuses_at_tier_3() {
+    let (body, face, _) = small_tip_cap();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
     let got = topo::validate_geometric(&flipped, tol()).expect_err("flipped refuses");
+    assert!(
+        got.contains(&ValidationError::CurvedSenseInverted { face }),
+        "the sphere cap flipped: the side reader refuses it: {got:?}"
+    );
     assert!(
         got.contains(&ValidationError::ChartSingularityNotAVertex {
             face,
             point: geom_brep::chart_singularity::Singularity::South,
             lies: topo::SingularityLies::Interior,
         }),
-        "flipped: the south pole inside the face: {got:?}"
+        "the sphere cap flipped: the south pole inside the face: {got:?}"
+    );
+
+    let (body, face, _) = small_tip_cone();
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    assert_eq!(
+        topo::validate_geometric(&flipped, tol()),
+        Err(vec![ValidationError::CurvedSenseInverted { face }]),
+        "the cone flipped: the side reader alone"
     );
 }

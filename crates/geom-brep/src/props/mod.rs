@@ -141,9 +141,10 @@ use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
     ClosedSurface, MaterialSign, SeamCover, SeamLoops, boundary_material_sign,
-    boundary_material_sign_loops, closed_surface, cone_face_closed_form, curved_face,
-    curved_face_loops, require_iso_rectangle, require_one_chart_branch, seam_loops,
-    sphere_region_cover, sphere_region_material_sign, whole_surface,
+    boundary_material_sign_holding, boundary_material_sign_loops, closed_surface,
+    cone_face_closed_form, curved_face, curved_face_loops, require_iso_rectangle,
+    require_one_chart_branch, seam_loops, sphere_region_cover, sphere_region_material_sign,
+    whole_surface,
 };
 pub(crate) use curved::{PoleLeft, sphere_pole_left};
 pub use loop_area::{

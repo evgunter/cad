@@ -5494,11 +5494,33 @@ pub(crate) fn image_of_cycle<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
 ) -> Result<FlatLoop<T>, LoopEdgesError> {
-    let image =
-        crate::surface_boundary::chart_image(body, cycle).ok_or(LoopEdgesError::Corrupt {
-            what: "half-edge mate does not resolve",
-        })?;
-    Ok((run_edges(body, &image)?, image))
+    Ok(image_with_tips(body, cycle)?.0)
+}
+
+/// [`image_of_cycle`] with the stored point of every tip the chart image
+/// drops ([`crate::surface_boundary::tips`]), the datum of the face's
+/// side ([`geom_brep::props::boundary_material_sign_holding`]).
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn image_with_tips<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<(FlatLoop<T>, Vec<Point3<T>>), LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
+    let image = crate::surface_boundary::chart_image(body, cycle)
+        .ok_or(corrupt("half-edge mate does not resolve"))?;
+    let tips = image
+        .tips
+        .iter()
+        .map(|&v| body.points.get(body.vertices.get(v)?.point).copied())
+        .collect::<Option<Vec<_>>>()
+        .ok_or(corrupt("tip vertex or point key does not resolve"))?;
+    Ok((
+        (run_edges(body, &image.half_edges)?, image.half_edges),
+        tips,
+    ))
 }
 
 /// [`loop_edges`]' flattening over any closed run of half-edges, in

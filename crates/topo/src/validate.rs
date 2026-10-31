@@ -1494,9 +1494,10 @@ pub enum ValidationError {
     /// (cylinder, cone, sphere, torus). The face's two orientation
     /// encodings are the S10 `sense` bit and the stored loop traversal
     /// (interior-left), read per kind off the quantity its flux
-    /// integrates (`geom_brep::props::boundary_material_sign_loops`:
+    /// integrates (`geom_brep::props::boundary_material_sign_holding`:
     /// the chart Green form's area, the cone's axial vector area, the
-    /// sphere's Gauss–Bonnet area or pole-free side); a face where the
+    /// sphere's Gauss–Bonnet area or the side holding its own singular
+    /// vertices, a wrap tip's among them); a face where the
     /// two disagree is INSIDE-OUT at that face. Tier 3 refuses it here,
     /// per face: on every kind but the sphere the flux is
     /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
@@ -1532,8 +1533,9 @@ pub enum ValidationError {
     ///   two faces or more, whatever its members' own boundaries encode,
     ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
-    ///   side — a rim-only cap or a tilted cap holding a pole. Under
-    ///   either sense it holds a pole, so its loop says nothing about
+    ///   side, neither at a tip its chart image drops — a rim-only cap
+    ///   or a tilted cap holding a pole. Under either sense it holds a
+    ///   pole that is not its vertex, so its loop says nothing about
     ///   the bit; the chart-singularity arm refuses the face
     ///   ([`Self::ChartSingularityNotAVertex`]);
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
@@ -8133,12 +8135,13 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign_loops` reads every
+    // `geom_brep::props::boundary_material_sign_holding` reads every
     // loop, per kind: the chart Green form's sign on a cylinder or
     // torus (`props_chart_area_side`), the axial vector area's on a
     // cone (`props_cone_area_side`), and on a sphere the side of its
-    // loops with positive area with holes (`props_sphere_face_area`) or
-    // the loop's pole-free side without (`props_sphere_pole_winding`).
+    // loops with positive area with holes (`props_sphere_face_area`) or,
+    // without, the side of the loop holding the face's own singular
+    // vertices and no other pole (`props_sphere_pole_winding`).
     // None rests
     // on an iso-rectangle premise. The final comparison is two exact
     // ±1s, genuinely combinatorial.
@@ -8170,8 +8173,11 @@ pub(crate) fn tier3_local_checks_marked<
     // ([`seam_region`]), whose boundary encodes a side by its area or
     // by a pole on an interior edge (`sphere_region_material_sign`).
     // Exempt: the regions that reader leaves unread, listed on
-    // `CurvedSenseInverted`. So is a face with a pole off its loop on
-    // each side, which holds a pole under either sense: the
+    // `CurvedSenseInverted`. A tip the face's chart image drops is
+    // handed to the reader as a point the face holds, so a wrap-tip cap
+    // lies on the side of its loop holding its tip's pole and not the
+    // other. A face with a pole off its loop on each side and neither
+    // at such a tip holds a pole under either sense, and is exempt: the
     // chart-singularity arm below refuses it.
     // ------------------------------------------------------------------
     // Every seam region of a sphere, read once: the cover census here,
@@ -8206,19 +8212,22 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // derivation exempt (posture above)
         };
-        let Ok(images) = full
+        // The tips the images drop are the face's own: the datum of its
+        // side.
+        let Ok((images, held)) = full
             .iter()
-            .map(|(_, cycle)| crate::props::image_of_cycle(body, cycle))
-            .collect::<Result<FlatLoops<T>, _>>()
+            .map(|(_, cycle)| crate::props::image_with_tips(body, cycle))
+            .collect::<Result<(FlatLoops<T>, Vec<Vec<geom_core::Point3<T>>>), _>>()
         else {
             continue; // derivation exempt (posture above)
         };
+        let held: Vec<geom_core::Point3<T>> = held.into_iter().flatten().collect();
         let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
             .iter()
             .map(|(edges, _)| edges.as_slice())
             .filter(|edges| geom_brep::chart_image::bounds_area(edges))
             .collect();
-        let side = geom_brep::props::boundary_material_sign_loops(surface, &loops, band);
+        let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
             flattened.insert(face_key, (full, images));
         }
