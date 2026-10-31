@@ -11,8 +11,8 @@
 //! orders) builds SOUND against the closed-form volume or refuses past
 //! the join at its pinned door
 //! (`crate::cylinder_sphere_frame::door`): every one reaches the result
-//! gate's volume or the spline edge join, the doors the single-ball
-//! poses stop at.
+//! gate's volume, on a sphere face's conic trim or a cylinder face's
+//! projected boundary, doors the single-ball poses stop at.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,7 +31,7 @@ use topo::BooleanOp;
 /// drum first and then the balls first.
 #[test]
 fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
-    use Door::{Join, Sphere};
+    use Door::{Projected, Sphere};
     let tol = Tol::witness();
     let (big, c) = (0.25, [0.5, 0.0, 0.4]);
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
@@ -51,11 +51,12 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
     let runs = [
         ("A ∪ B", BooleanOp::Union, false, va + vb - vi, Sphere),
         ("B ∪ A", BooleanOp::Union, true, va + vb - vi, Sphere),
-        ("A ∩ B", BooleanOp::Intersect, false, vi, Join),
-        ("B ∩ A", BooleanOp::Intersect, true, vi, Join),
-        ("A ∖ B", BooleanOp::Subtract, false, va - vi, Join),
-        ("B ∖ A", BooleanOp::Subtract, true, vb - vi, Join),
+        ("A ∩ B", BooleanOp::Intersect, false, vi, Sphere),
+        ("B ∩ A", BooleanOp::Intersect, true, vi, Sphere),
+        ("A ∖ B", BooleanOp::Subtract, false, va - vi, Projected),
+        ("B ∖ A", BooleanOp::Subtract, true, vb - vi, Sphere),
     ];
+    let mut off = Vec::new();
     for (label, op, swapped, want, pinned) in runs {
         let (x, y) = if swapped {
             (&balls, &drum)
@@ -63,14 +64,16 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
             (&drum, &balls)
         };
         let got = run(op, x, y);
-        if let Err(e) = &got {
-            assert_eq!(door(e), Some(pinned), "{label}: refused {e:?}");
+        if let Err(e) = &got
+            && door(e) != Some(pinned)
+        {
+            off.push(format!("{label}: refused at {:?}: {e:?}", door(e)));
         }
         let line = outcome(got, want, tol);
         println!("{label}: {line}");
-        assert!(
-            line.starts_with("ERR") || line.contains("SOUND") || line == "EMPTY ok",
-            "{label}: {line}"
-        );
+        if !(line.starts_with("ERR") || line.contains("SOUND") || line == "EMPTY ok") {
+            off.push(format!("{label}: {line}"));
+        }
     }
+    assert!(off.is_empty(), "{off:#?}");
 }
