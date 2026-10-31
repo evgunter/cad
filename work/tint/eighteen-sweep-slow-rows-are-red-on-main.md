@@ -68,3 +68,22 @@ on a curved-cut face's pcurve, or on a conic trim), which matches
 `conic_edge_curved_face::a_rim_crossing_reaches_the_join` above. That
 suggests one recent change to the quadrature's admitted faces, and it
 is the first thing to bisect.
+
+## 2026-10-31 — seven of the first eight on PR 5793 (CLEAVE)
+
+PR 5793 (merged with main `aed0b727c8`) turns seven of the first eight
+green. The `a_pierce_held…`, `a_ruling_lying…` and
+`a_ruling_through_a_box_corner_edge` pairs are the boolean refusing
+`EdgeInFace` (`CurvedFace`) where an edge lies in a curved face with
+its material parted there (or, for one pierce row on main, shipping the
+one-edge form that tier 3′ refuses): they are re-pinned to that
+refusal, owed back on
+`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`.
+`bisector_nodes::the_near_node_poses_at_the_witness_band` escalates on
+`bool_line_face_carrier_offset` with all three of the rim's samples in
+band of the other rod's wall, none off: main raises that reading. PR
+5793's gate (`slit::holding`) reads the edge's faces against the wall
+first, and they leave it on opposite sides (`Crossed`), so the edge
+does not lie in the wall and the reading is not raised.
+`conic_edge_curved_face::a_rim_crossing_reaches_the_join` and the ten
+below are not this PR's ground.
