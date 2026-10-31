@@ -482,6 +482,11 @@ fn lift_loop_walls<T: geom_core::spline::SpanLocate>(
         .collect()
 }
 
+/// Each plane's placement map.
+fn placements<T: Real>(places: &[SketchPlane<T>]) -> Vec<Affine3<T>> {
+    places.iter().map(SketchPlane::placement).collect()
+}
+
 /// The world point of a sketch-plane point under a lifted placement.
 fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
     place.transform_point(Point3::new(p.x, p.y, T::zero()))
@@ -738,7 +743,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
         let geometry =
             skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
         assemble(
-            self.places,
+            &placements(self.places),
             &geometry.walls,
             &geometry.canonical,
             geometry.section_params,
@@ -783,10 +788,12 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     ///
     /// - Sections and placements that are points are a family of one,
     ///   and the body encloses its `f64` loft. The skin is the `f64`
-    ///   one, the walls are lifted ([`lift_loop_walls`]), and the caps
-    ///   and the fold read the `f64` canonical form lifted onto the
-    ///   lane's own placements ([`ValidatedProfile::lift_onto`]), whose
-    ///   point values are the planes the skin was selected on.
+    ///   one, the walls are lifted ([`lift_loop_walls`]), and the fold
+    ///   reads the `f64` canonical form lifted onto the lane's own
+    ///   placements ([`ValidatedProfile::lift_onto`]). The caps and rims
+    ///   are placed on the frames the skin was selected on, lifted as
+    ///   computed values: a path sweep's lane placements are carried
+    ///   along the path at `T` and only enclose those frames.
     /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
     ///   section of loops validated at `T` with its decisions certified
     ///   there. The skin's structure is what every value of the family
@@ -834,7 +841,14 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|u| T::from_computed(*u))
             .collect();
-        assemble(places, &walls, &lifted, params, self.tol)
+        // The walls are the `f64` skin, so the rims are placed on the
+        // frames it was skinned on, which the lane's own placements only
+        // enclose: a rim and the wall row it bounds are then one value.
+        let skinned: Vec<Affine3<T>> = channel_places
+            .iter()
+            .map(|p| p.placement().map(T::from_computed))
+            .collect();
+        assemble(&skinned, &walls, &lifted, params, self.tol)
     }
 }
 
@@ -971,21 +985,23 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
 /// Assembles the loft BODY from its skinned geometry (module docs),
 /// over sections the stacking fold has already accepted.
 ///
+/// `places` are the placements the walls were skinned on, so every
+/// section rim is placed on the frame its wall row was built from.
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
 fn assemble<T: Decide + topo::AtRestPolicy>(
-    places: &[SketchPlane<T>],
+    places: &[Affine3<T>],
     walls_t: &[Vec<Arc<NurbsSurface<T>>>],
     canonical: &[ValidatedProfile<T>],
     section_params: Vec<T>,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
-    let (Some(place_bottom), Some(place_top)) = (places.first(), places.last()) else {
+    let (Some(&bplace), Some(&tplace)) = (places.first(), places.last()) else {
         return Err(LoftError::SectionStructure);
     };
-    let (bplace, tplace) = (place_bottom.placement(), place_top.placement());
 
     // ---- The walls, one per segment per slab ([`slab_walls`]). Slab
     // boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
@@ -1023,10 +1039,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let q_at: Vec<Vec<Vec<Point3<T>>>> = loops_at
         .iter()
         .zip(places)
-        .map(|(ls, p)| {
-            let place = p.placement();
+        .map(|(ls, place)| {
             ls.iter()
-                .map(|segs| segs.iter().map(|s| world(&place, s.a)).collect())
+                .map(|segs| segs.iter().map(|s| world(place, s.a)).collect())
                 .collect()
         })
         .collect();
@@ -1037,8 +1052,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let rim_spec = |i: usize, li: usize, j: usize, q_from, q_to| {
         placed_segment_spec(
             &loops_at[i][li][j],
-            places[i].placement(),
-            places[i].normal().get(),
+            places[i],
+            places[i].linear.c2,
             q_from,
             q_to,
             tol,
