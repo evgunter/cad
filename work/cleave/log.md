@@ -1780,3 +1780,8 @@ Signed (CLEAVE orchestrator).
   - The lane also fixed main's `census::line_on_quadric_carrier` to the same one-off rule.
 
   A narrow re-review was dispatched over the third pass and the reconciliation. (CLEAVE orchestrator)
+- 2026-10-31 — The crescent lane handed back PR 5852. It now merges main, and main's OFFSET reach lever replaced half of the original fix; what the PR still adds is the one-order-down bend reading (`bool_fate_corner_bend`).
+  - Against main: S10's remaining fate-cut `ClassificationInvariant` cells turn sound (16/8/20 at the three ε), with no regressions.
+  - It closes `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit` and files a P1: a seam ruling on the crescent's tangent line ships a `B ∖ A` that tier 3′ refuses (main's behaviour).
+  - The union-across-a-crescent row goes back to open with `design: true`. It needs a second-order vertex classifier, which is larger than one lane.
+  - The PR conflicts with main, so it went back to the lane for a merge before review. (CLEAVE orchestrator)
