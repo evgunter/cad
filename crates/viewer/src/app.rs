@@ -5879,6 +5879,99 @@ mod properties_pane_tests {
         removed.expect("the row removes the document it saved");
     }
 
+    /// The camera as a row compares it: where it looks and how far
+    /// back it stands.
+    fn camera_pose(app: &ViewerApp) -> ([f64; 3], f64) {
+        let target = app.camera.target();
+        ([target.x, target.y, target.z], app.camera.distance())
+    }
+
+    /// The camera backed off to `factor` times its distance, so a
+    /// re-frame that follows is visible as a return.
+    fn backed_off(app: &ViewerApp, factor: f64) -> crate::camera::Camera {
+        let camera = &app.camera;
+        let radius = app
+            .scene
+            .bounds()
+            .map_or(crate::camera::DEFAULT_FRAME_RADIUS, |b| {
+                ((b.max_x - b.min_x).powi(2)
+                    + (b.max_y - b.min_y).powi(2)
+                    + (b.max_z - b.min_z).powi(2))
+                .sqrt()
+                    / 2.0
+            });
+        crate::camera::Camera::new(
+            camera.target(),
+            camera.distance() * factor,
+            camera.yaw(),
+            camera.pitch(),
+            camera.fov_y(),
+            radius,
+        )
+        .expect("a camera backed off inside the zoom band")
+    }
+
+    /// **A replaced document re-frames the CAMERA, not only the flag**,
+    /// through both doors and in sequence (Open → NewDocument → Open):
+    /// a camera the user backed off returns to the reopened plate's
+    /// fit, a new (empty) document frames the origin, and the next
+    /// Open frames the plate again. `a_replaced_document_is_owed_both_
+    /// fits_and_drops_the_verdict` holds the flags; this holds what
+    /// they are for, on the frames the viewport actually draws.
+    #[test]
+    fn a_replaced_document_reframes_the_camera_through_both_doors() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let plate = camera_pose(&driven.app);
+        let path =
+            std::env::temp_dir().join(format!("reframe across doors {}.pncad", std::process::id()));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(camera_pose(&driven.app), plate, "open re-frames the plate");
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        });
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let (target, _) = camera_pose(&driven.app);
+        assert_eq!(target, [0.0; 3], "a new document frames the origin");
+        assert!(!driven.app.derived.fit_camera, "its landing spent the fit");
+
+        driven.perform(SessionOp::Open(path.clone()));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **Startup's second fit lands where the first one did**: the
+    /// provisional mesh's fit (`pending_fit`) and the first indexed
+    /// scene's (`DocumentDerived::owed`) frame the same plate, so an
+    /// untouched camera does not move when the index lands.
+    #[test]
+    fn startups_second_fit_lands_on_the_first() {
+        let mut driven = Driven::with(Vec::new());
+        let first = camera_pose(&driven.app);
+        assert!(
+            driven.app.derived.fit_camera,
+            "the first indexed scene owes a fit"
+        );
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(!driven.app.derived.fit_camera, "and the landing spent it");
+        assert_eq!(camera_pose(&driven.app), first, "on the same plate");
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
