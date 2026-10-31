@@ -2,10 +2,11 @@
 id: nurbs-plane-section-has-no-component-arm
 kind: issue
 title: A NURBS face and a plane whose carrier cuts its control net refuse on reach at the section certificate, which blocks every crossing NURBS union once containment serves the kind
-status: open
-priority: P3
+status: closed
+priority: P0
 cost: H
 opened: 2026-09-29
+closed: 2026-10-29
 refs: [nurbs-face-meeting-a-plane-in-an-interior-loop-is-unguarded-on-the-crossings-path]
 ---
 
@@ -47,3 +48,30 @@ net and W0 cannot part them. The NURBS × NURBS pairs behind it refuse
 the same way
 (`splice/no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`).
 So "costs nothing today" holds only until SPLICE's rim certifies.
+
+## Moved to SPLICE
+
+2026-10-29 (SPLICE). Moved from GERMTAIL and re-banded P0: lily's
+caps reach this arm once her rim certifies, and so does every NURBS
+part on planar stock once containment serves the kind. The design is
+the fork of `docs/DESIGN-FORK-LOG.md` row 213, question 1 on `[ev]`
+PR 5990.
+
+## Closed
+
+2026-10-29 (SPLICE). The section value builds plane × NURBS (and
+plane × `Approx` as its fit) from C3's whole reading
+(`geom_brep::pair_section_with`, `pair_section/plane_spline.rs`), and
+the guard reads it after W0 (`section_cert.rs` `spline_plane`): a
+closed branch is a loop read by W3, W4 or the no-event decision; an
+open branch, a `Side` region and a `Corner` region reach the wall's
+chart boundary in a channel the chart does not close and clear (W1′,
+by C4); a refusal maps by name. A spline witness is the wall's point
+at the middle of the branch's pcurve, with a point of the branch's own
+arc bracketed within a metre bound of it inside its tube window, and
+that bound is its pad, which the rule pads the band by twice over
+(`Component::pad`). The witnesses are
+`crates/topo/src/boolean/section_cert_spline_rows.rs`,
+`crates/sweep/tests/nurbs_plane_guard.rs` (lily's four cap pairs, a
+plane cutting the blade, and a witness by a box's edge), and the bump × clamp row, re-pinned to
+the loop's undecided refusal.

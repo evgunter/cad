@@ -98,3 +98,7 @@ and bodies unchanged. No orchestrator yet.
   - **Behaviour that moved:** the replace_face neighbour gate now refuses `VertexDisagreement` (filed on SHELF, P3).
   - **Filed** `a-one-loop-cylinder-pair-refuses-winds-unseparated-at-coarse-eps` (P2), unmeasured.
   - **Class to watch:** reordering margin reads can drop a premise a later read relied on. That is what made this MAJOR. A unit that reorders pose decisions sweeps every later read for that premise.
+- 2026-10-31 — (SPLICE orchestrator) **PR 6026 merged (`6335ffd3`); W5 dispatched** (`splice/w5-loop-free-sweep`).
+  - 6026 adopted 6139's shapes: `ComponentShape::Open { ends: ComponentEnds { rims, .. } }`, with SPLICE's exact-sides `ChartReach` as the type in `rims`. `pair_section_with` is folded into `pair_section(a, b, region, lane, band)`.
+  - W5 is built per PR 6121 as the plane instance of the pose classification's regularity sweep, in `pair_section/plane_spline.rs`, and the guard reads its verdict. It may move W0 (`section_cert::nurbs_plane`) into the pose as stage 1.
+  - Krawczyk isolation and the Hessian decision are left to your NURBS × implicit build, with the plug-in point named in W5's PR.

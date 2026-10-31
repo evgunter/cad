@@ -47,9 +47,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
+    Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
     ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
-    SlotId, SpokenNode, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
+    SlotId, SpokenNode, StepArg, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
     WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
@@ -58,6 +58,7 @@ use pncad::profile::{
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
     Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
 };
+use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
 use crate::props::Notation;
@@ -226,7 +227,8 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// **`notation` over every argument `program` holds** — each `Length`
 /// argument written in its length unit, each `Angle` one in its angle
 /// unit, and every other argument (a bulge, a director component) left
-/// with the one spelling a dimensionless number has.
+/// with the one spelling a dimensionless number has — except where
+/// `noted` names the unit the argument at `(step, arg)` is written in.
 ///
 /// Asked of the PROGRAM, through its own argument enumeration, rather
 /// than of the steps: which roles a step holds is the document layer's
@@ -234,10 +236,15 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// come to be minted without its unit.
 fn recorded_notation(
     notation: Notation,
+    noted: &dyn Fn(u32, StepArg) -> Option<UnitDef>,
     program: &LoopProgram<Formula>,
 ) -> Result<RecordedNotation, DimensionError> {
     let mut recorded = RecordedNotation::new();
     for (step, arg) in program.step_args() {
+        if let Some(unit) = noted(step, arg) {
+            recorded.set(step, arg, unit)?;
+            continue;
+        }
         match arg.dimension() {
             Dimension::Length => recorded.set(step, arg, notation.length.def())?,
             Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
@@ -303,14 +310,29 @@ pub fn loop_program(
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
-        ProfileShape::Path { steps } => {
-            // Lifted once to learn which arguments the program holds,
-            // then again with the notation written over them: the lift
-            // is the only thing that knows the roles.
-            let written = recorded_notation(notation, &LoopProgram::from_recorded(steps)?)?;
-            LoopProgram::from_recorded_with_notation(steps, &written)
-        }
+        ProfileShape::Path { steps } => path_program(steps, notation, &|_, _| None),
     }
+}
+
+/// **A path lowered with some arguments written in units of their
+/// own** — [`loop_program`] of `steps`, where `noted` names the unit
+/// the argument at `(step, arg)` is written in and every argument it
+/// names none for is written in `notation`. The edit door writes a
+/// kept argument in the unit its slot is written in.
+///
+/// # Errors
+///
+/// [`loop_program`]'s.
+pub fn path_program(
+    steps: &[Step<f64>],
+    notation: Notation,
+    noted: &dyn Fn(u32, StepArg) -> Option<UnitDef>,
+) -> Result<LoopProgram<Formula>, RecordedProgramError> {
+    // Lifted once to learn which arguments the program holds, then
+    // again with the notation written over them: the lift is the only
+    // thing that knows the roles.
+    let written = recorded_notation(notation, noted, &LoopProgram::from_recorded(steps)?)?;
+    LoopProgram::from_recorded_with_notation(steps, &written)
 }
 
 /// **Whether two shape lists author the same loops** — what a frame
@@ -361,10 +383,25 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
 // The edit door: a committed program into the editor, and back
 // ------------------------------------------------------------------
 
-/// **The loops of a committed profile as the editor holds them** —
-/// the kernel's own [`Step`] at plain numbers, per loop, which is the
-/// currency the create form authors in. What makes the two doors one
-/// editor is that both hold this and nothing else.
+/// **A committed profile as the editor holds it**: the kernel's own
+/// [`Step`] at plain numbers, per loop — the currency the create form
+/// authors in — and beside them every argument an expression drives.
+///
+/// A driven argument's number is its expression's value under the
+/// document, which is what the step replays and the preview draws; its
+/// expression is what a commit writes back while the step is kept
+/// ([`crate::drafts::ProfileEdit`]), so the number is a reading and
+/// never a literal written over a computation.
+#[derive(Clone, Debug)]
+pub struct HeldLoops {
+    /// The loops, in description order.
+    pub loops: Vec<Vec<Step<f64>>>,
+    /// Every argument an expression drives, in slot order.
+    pub driven: Vec<SlotId>,
+}
+
+/// **The loops of a committed profile as the editor holds them**
+/// ([`HeldLoops`]).
 ///
 /// The inverse of [`loop_program`], read through the document layer's
 /// own resolver ([`resolve_loops`]) rather than a second verb-by-verb
@@ -375,16 +412,10 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
 ///
 /// # Errors
 ///
-/// [`HeldRefusal`]: the node is not a profile; an argument is driven
-/// by an expression, which a `Step<f64>` has no way to hold — the
-/// whole node is refused rather than shown as numbers that would be
-/// written back over a computation, and every driven argument is
-/// named so the reader knows which rows to edit instead; or the
-/// resolver refused a stored expression.
-pub fn held_loops(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+/// [`HeldRefusal`]: the node is not a profile; the node lists an
+/// argument it carries no expression for; or the resolver refused a
+/// stored expression.
+pub fn held_loops(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<HeldLoops, HeldRefusal> {
     let Some(Node::Profile(program)) = doc.node(node) else {
         return Err(HeldRefusal::NotAProfile {
             node: doc.spoken(node),
@@ -401,40 +432,67 @@ pub fn held_loops(
 ///
 /// # Errors
 ///
-/// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
-/// [`held_loops`].
+/// As [`held_loops`].
 pub fn held_program(
     node: SpokenNode,
     program: &ProfileProgram,
     doc: &Doc<ProfileProgram>,
-) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+) -> Result<HeldLoops, HeldRefusal> {
     let held = Node::Profile(program.clone());
-    // Every argument, asked of the node's own slot walk. An address
-    // the walk lists and `expr` denies is the node layer's broken
-    // postcondition, which `props::slot_row` reports as a row; here
-    // it reads as driven, the refusing direction.
-    let driven: Vec<(SlotId, String)> = held
-        .slots()
-        .into_iter()
-        .filter_map(|slot| match held.expr(slot) {
-            Some(&var) if doc.is_typed_value(var) => None,
-            Some(&var) => Some((
-                slot,
-                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
-            )),
-            None => Some((slot, String::new())),
-        })
-        .collect();
-    if !driven.is_empty() {
-        return Err(HeldRefusal::Driven {
+    // Every argument, asked of the node's own slot walk: an anonymous
+    // free variable is a number the editor holds, anything else an
+    // expression held beside the number it reads. An address the walk
+    // lists and `expr` denies is the node layer's broken postcondition,
+    // which `props::slot_row` reports as a row; here it refuses.
+    let mut driven = Vec::new();
+    let mut unwritten = Vec::new();
+    for slot in held.slots() {
+        match held.expr(slot) {
+            Some(&var) if doc.is_typed_value(var) => {}
+            Some(_) => driven.push(slot),
+            None => unwritten.push(slot),
+        }
+    }
+    if !unwritten.is_empty() {
+        return Err(HeldRefusal::Unwritten {
             node,
-            slots: driven,
+            slots: unwritten,
         });
     }
-    resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
-        ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
-        ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
-    })
+    let loops =
+        resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
+            ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
+            ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
+        })?;
+    Ok(HeldLoops { loops, driven })
+}
+
+/// **`step` with each of `readings` written at its role** — one
+/// held step's arguments set by role, through the document layer's own
+/// role table: the step lifted alone, each role's argument replaced by
+/// a literal of its reading, and resolved back. Every other argument
+/// is the literal it was, so it comes back bit for bit. `None` where
+/// the step does not lift alone or a role is not the step's.
+#[must_use]
+pub fn with_readings(step: Step<f64>, readings: &[(StepArg, f64)], tol: Tol) -> Option<Step<f64>> {
+    let mut lifted = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::from_recorded(&[step]).ok()?],
+        ids: Vec::new(),
+        on: None,
+    });
+    for &(arg, reading) in readings {
+        let slot = SlotId::Profile {
+            loop_: 0,
+            step: 0,
+            arg,
+        };
+        *lifted.expr_mut(slot)? = Formula::literal(reading, arg.dimension()).ok()?;
+    }
+    let Node::Profile(ProfileProgram { loops, .. }) = lifted else {
+        unreachable!("lifted as a profile node")
+    };
+    let resolved = resolve_written_loops(&loops, tol).ok()?;
+    resolved.into_iter().next()?.into_iter().next()
 }
 
 /// **`program` as it was written** ([`Node::written`]): each argument
@@ -587,15 +645,13 @@ pub enum HeldRefusal {
         /// The node named, as the document held it.
         node: SpokenNode,
     },
-    /// One or more arguments are expressions, which the editor's
-    /// plain-number steps cannot hold. Each is named with its source
-    /// text; an empty source is an address the node lists and carries
-    /// no expression for.
-    Driven {
+    /// The node lists arguments it carries no expression for, so
+    /// there is no number to hold for them.
+    Unwritten {
         /// The profile node, as the document held it.
         node: SpokenNode,
-        /// Every driven argument, in slot order.
-        slots: Vec<(SlotId, String)>,
+        /// Every such argument, in slot order.
+        slots: Vec<SlotId>,
     },
     /// A stored expression did not resolve under the document's
     /// parameters.
@@ -614,23 +670,13 @@ impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
-            Self::Driven { node, slots } => {
+            Self::Unwritten { node, slots } => {
+                let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
                 write!(
                     f,
-                    "{node}'s program is driven by expressions, which the editor's number \
-                     fields cannot hold — edit those in the slot rows: "
-                )?;
-                for (index, (slot, source)) in slots.iter().enumerate() {
-                    if index > 0 {
-                        f.write_str(", ")?;
-                    }
-                    if source.is_empty() {
-                        write!(f, "{} (no expression)", slot.label())?;
-                    } else {
-                        write!(f, "{} = {source}", slot.label())?;
-                    }
-                }
-                Ok(())
+                    "{node} lists {} and carries no expression for it",
+                    labels.join(", ")
+                )
             }
             Self::Resolve { slot, source } => {
                 write!(f, "{} did not resolve: {source}", slot.label())

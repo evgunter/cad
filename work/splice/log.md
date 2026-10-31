@@ -1041,3 +1041,24 @@ APPROVE-WITH-FIXES. I read the fix pass myself.
   - **Filed:** `the-cone-nappe-gap-arm-has-no-reaching-row` (P3). Its arm has no reaching fixture: the root doors and the composite refuse first.
   - **Weights** are positive by construction (`NurbsCurve3::new`), as the hull argument needs.
   - **Lily wall 8's next stop:** `vtxfac::classify_vertex_on_face` (`a-vertex-piercing-a-spline-face-reads-no-outward-normal`, P1). It is being built on `splice/vertex-on-spline-face`, with the normal read at the sweep's own certified chart point. Its second-sheet question was ruled the placement read's gap and filed separately; no partial check is built.
+
+## 2026-10-31 — PR 6026 merges: the interior-loop guard reads a NURBS face against a plane
+
+Review tier: a concurrent pair (letter H: a new arm of the interior-loop
+guard), then one re-review. I read the final pass myself. The review-log
+row is `docs/dual-review-log/rows/PR-6026.md`.
+- **W1′ (a component reaching its chart's boundary clears)** is now
+  checked per face. A side clears only if its channel does not close and
+  it is not collapsed (`chart_side_bounds`). R1 had raised it as a MAJOR
+  by inspection; it is now closed.
+- **The witness's pad** is a certified bracket on the wall, inside the
+  branch's own tube window. It scales with ε and is tight (1–1.25× the
+  true distance).
+- **The pivot's f64 shift** is charged to the band.
+- **The demo-tour reds** at 1e-6 (chaintol) and 1e-12 (the stem's torus
+  KernelLimit) are identical at base and head, so they are not this PR's.
+
+Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
+SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
+general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
+6026's shapes.

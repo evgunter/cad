@@ -309,7 +309,7 @@ fn the_tube_circle_tangency_decides_zero() {
     }
     // The tangent pipe stands square to the torus axis: the section value
     // lists one tangent component, classification only.
-    match geom_brep::pair_section(&first, &pipe(0.5), None, b) {
+    match geom_brep::pair_section(&first, &pipe(0.5), None, None, b) {
         Ok(SectionRead::Built(s)) => {
             assert!(s.tangency().is_some(), "the pipe's tangency is decided");
             assert!(
@@ -334,7 +334,7 @@ fn a_sphere_on_the_core_is_tangent_along_a_circle() {
     let t = torus(p(0.0, 0.0, 0.0), Vec3::unit_z(), 2.0, 0.5);
     let s = sphere(p(2.0, 0.0, 0.0), 0.5);
     for (x, y) in [(&t, &s), (&s, &t)] {
-        match geom_brep::pair_section(x, y, None, band()) {
+        match geom_brep::pair_section(x, y, None, None, band()) {
             Ok(SectionRead::Built(sec)) => {
                 assert!(sec.tangency().is_some(), "tangent");
                 assert!(

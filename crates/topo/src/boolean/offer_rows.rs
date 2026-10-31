@@ -1268,7 +1268,7 @@ fn section_site(
     let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
         super::super::join::section_unbuilt(why, kinds.0, kinds.1)
     };
-    let section = match geom_brep::pair_section(c, s, None, band()) {
+    let section = match geom_brep::pair_section(c, s, None, None, band()) {
         Ok(geom_brep::SectionRead::Built(section)) => section,
         Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
         Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
