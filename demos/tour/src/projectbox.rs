@@ -191,7 +191,8 @@ pub const ROUND_COIL_A: f64 = 0.836_392_790_468_53;
 ///
 /// Round wire is the natural section, and it was wall 1: the swept
 /// `circle_split` wire builds, and its volume meets the tour's printed
-/// precision at every ε (0.01040581 ± 2.1e-7 at the default ε). The wall is RETIRED, kept live: it asserts the bracket
+/// precision at every ε (0.01040581 ± 2.1e-7 at the default ε and at
+/// ε = 1e-12 alike). The wall is RETIRED, kept live: it asserts the bracket
 /// holds the body's own [`ROUND_COIL_V`] and [`ROUND_COIL_A`]. Neither bracket holds [`coil_volume`]`(π WIRE_H²)`,
 /// the continuum tube's: the body is a stack of slabs, as the square
 /// wire's is, and the retired wall asserts the same slab gap against
