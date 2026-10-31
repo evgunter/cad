@@ -875,7 +875,8 @@ NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The 
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
-section value, built from the whole-section reading `all()`:
+section value (`pair_section`, through its march door), built
+from the whole-section reading `all()`:
 - each closed branch is a loop component, with its witness and carrier;
 - each open branch, `Side` region and `Corner` region is a component
   that reaches its chart's boundary;

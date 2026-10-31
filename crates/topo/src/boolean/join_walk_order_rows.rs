@@ -343,7 +343,7 @@ fn a_circle_on_a_sphere_walks_one_order_in_all_three_lanes() {
         radius: (1.5f64 * 1.5 - 0.6 * 0.6).sqrt(),
         u_ref,
     };
-    let section = match geom_brep::pair_section(&cylinder, &sphere, None, band()).unwrap() {
+    let section = match geom_brep::pair_section(&cylinder, &sphere, None, None, band()).unwrap() {
         geom_brep::SectionRead::Built(s) => s.carry(None, band()).unwrap(),
         geom_brep::SectionRead::Elsewhere(route) => panic!("{route:?}"),
     };

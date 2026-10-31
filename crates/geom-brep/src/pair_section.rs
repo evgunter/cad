@@ -5,11 +5,14 @@
 //!
 //! # The value
 //!
-//! [`pair_section`] reads two surfaces and answers either the section
-//! ([`SectionRead::Built`]) or that the kind pair is served elsewhere
-//! ([`SectionRead::Elsewhere`], with [`crate::route`]'s arm): its match on
-//! kinds is exhaustive with no wildcard arm, so a kind added to
-//! [`SurfaceKind`] is a compile-time visit here as it is at `route`.
+//! [`pair_section`] reads two surfaces, over the operation's region and
+//! with the march door where the caller holds them, and answers either
+//! the section ([`SectionRead::Built`]) or that the kind pair is served
+//! elsewhere ([`SectionRead::Elsewhere`], with [`crate::route`]'s arm):
+//! its match on kinds is exhaustive with no wildcard arm, so a kind added
+//! to [`SurfaceKind`] is a compile-time visit here as it is at `route`.
+//! With no march door it refuses a plane and a spline
+//! ([`SectionError::NoMarch`]).
 //!
 //! A [`PairSection`] holds:
 //!
@@ -19,11 +22,14 @@
 //!   tangency is classification data that refuses toward C7 wherever a
 //!   carrier is wanted;
 //! - **its components, where a closed form counts them**
-//!   ([`Components::Counted`]): each a loop or a point, whether it winds
-//!   about each surface's carrier, a witness point, and its carrier at
+//!   ([`Components::Counted`]): each a loop, a point, or a curve or region
+//!   that reaches a surface's chart boundary ([`ComponentShape`]),
+//!   whether it winds about each surface's carrier, a witness point with
+//!   how far it may stand from the component, and its carrier at
 //!   classification ([`ClassCarrier`]): a closed form, the general rung
 //!   (marched on demand by [`PairSection::carry`]), or none (a tangency,
-//!   classification only). Where no closed form counts them
+//!   a boundary region or a spline section's piece, classification
+//!   only). Where no closed form counts them
 //!   ([`Components::Marched`]: a general cylinder × torus or torus ×
 //!   torus pose), the components are the march's, listed only once
 //!   carried. An empty count is the surfaces disjoint; `Marched` never
@@ -32,7 +38,9 @@
 //! # Classified, then carried
 //!
 //! The value is built in two states. [`PairSection`] is the
-//! classification: it costs no march and needs no lane.
+//! classification: it costs no march and needs no lane, but on a plane
+//! and a spline, whose classification is C3's whole reading
+//! ([`plane_spline`]), read through the march door.
 //! [`PairSection::carry`] turns it into a [`CarriedSection`], which lists
 //! the components, every one holding a carrier a reader can take a foot
 //! on: a closed form as classified, or the general rung's fitted curve
@@ -56,7 +64,10 @@
 //! Cylinder × sphere, the three torus pairs (a ring torus against a
 //! sphere, a cylinder or another ring torus, [`torus`]) and two
 //! cylinders ([`cylinders`]), which have no bounded side and are read
-//! over the operation's region. Each pair's pose
+//! over the operation's region; and, through the march door, a plane
+//! against a NURBS or approximating surface ([`plane_spline`],
+//! [`PlaneSplinePose`], read by the section certificate alone). Each
+//! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
 //! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
 //! every reader of the pair
@@ -79,6 +90,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
 pub mod cylinders;
 pub mod gap;
+pub mod plane_spline;
 pub mod torus;
 mod torus_arms;
 pub mod torus_coincidence;
@@ -86,6 +98,7 @@ pub mod winds;
 
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
+pub use plane_spline::PlaneSplinePose;
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
@@ -585,14 +598,84 @@ impl ComponentEnds {
 }
 
 /// **The sides of a surface's parameter rectangle a component reaches**,
-/// by the parameter each holds fixed: whether a side is the surface's
-/// boundary or a seam of a closed channel is the reader's question.
+/// each named by the parameter it holds fixed and the end it holds it
+/// at: whether a side is the surface's boundary, a seam of a closed
+/// channel or a collapsed side (a pole) is the reader's question.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ChartReach {
-    /// It reaches a side on which `u` is held fixed.
-    pub u_side: bool,
-    /// It reaches a side on which `v` is held fixed.
-    pub v_side: bool,
+    /// `[u held fixed, v held fixed]`, each `[at the low end, at the
+    /// high end]`.
+    sides: [[bool; 2]; 2],
+}
+
+impl ChartReach {
+    /// The side `side` alone.
+    #[must_use]
+    pub fn side(side: crate::ssi::ChartSide) -> Self {
+        let mut sides = [[false; 2]; 2];
+        sides[axis_index(side.fixed)][end_index(side.end)] = true;
+        Self { sides }
+    }
+
+    /// The two sides meeting at `corner`.
+    #[must_use]
+    pub fn corner(corner: crate::ssi::ChartCorner) -> Self {
+        use crate::ssi::{ChartAxis, ChartSide};
+        Self::side(ChartSide {
+            fixed: ChartAxis::U,
+            end: corner.u,
+        })
+        .or(Self::side(ChartSide {
+            fixed: ChartAxis::V,
+            end: corner.v,
+        }))
+    }
+
+    /// The sides either reaches.
+    #[must_use]
+    pub fn or(self, other: Self) -> Self {
+        let mut sides = self.sides;
+        for (mine, theirs) in sides.iter_mut().flatten().zip(other.sides.iter().flatten()) {
+            *mine |= *theirs;
+        }
+        Self { sides }
+    }
+
+    /// It reaches some side.
+    #[must_use]
+    pub fn any(self) -> bool {
+        self.sides.iter().flatten().any(|&s| s)
+    }
+
+    /// The sides it reaches.
+    pub fn sides(self) -> impl Iterator<Item = crate::ssi::ChartSide> {
+        use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+        [
+            (ChartAxis::U, ChartEnd::Low),
+            (ChartAxis::U, ChartEnd::High),
+            (ChartAxis::V, ChartEnd::Low),
+            (ChartAxis::V, ChartEnd::High),
+        ]
+        .into_iter()
+        .filter(move |&(fixed, end)| self.sides[axis_index(fixed)][end_index(end)])
+        .map(|(fixed, end)| ChartSide { fixed, end })
+    }
+}
+
+/// A chart axis's index in [`ChartReach`]'s sides.
+fn axis_index(axis: crate::ssi::ChartAxis) -> usize {
+    match axis {
+        crate::ssi::ChartAxis::U => 0,
+        crate::ssi::ChartAxis::V => 1,
+    }
+}
+
+/// A chart end's index in [`ChartReach`]'s sides.
+fn end_index(end: crate::ssi::ChartEnd) -> usize {
+    match end {
+        crate::ssi::ChartEnd::Low => 0,
+        crate::ssi::ChartEnd::High => 1,
+    }
 }
 
 /// A component's carrier as classified.
@@ -625,10 +708,35 @@ pub struct SectionComponent<T: Real> {
     /// `false` claims nothing, since an arm that does not read
     /// essentiality lists none.
     pub winds: [bool; 2],
-    /// One point of it, in closed form, where the arm names one.
+    /// One point of it, where the arm names one: in closed form, or a
+    /// spline section's wall point with a point of the component
+    /// bracketed near it ([`plane_spline`]).
     pub witness: Option<Point3<T>>,
+    /// **How far the witness may stand from the component**, in metres:
+    /// zero for a closed form, the bracket's bound for a spline
+    /// section's.
+    pub pad: f64,
     /// Its carrier.
     pub carrier: ClassCarrier<T>,
+}
+
+impl<T: Real> SectionComponent<T> {
+    /// A component a closed form reads: its witness, where it has one,
+    /// on the component.
+    pub(crate) fn closed_form(
+        shape: ComponentShape,
+        winds: [bool; 2],
+        witness: Option<Point3<T>>,
+        carrier: ClassCarrier<T>,
+    ) -> Self {
+        Self {
+            shape,
+            winds,
+            witness,
+            pad: 0.0,
+            carrier,
+        }
+    }
 }
 
 /// **A section's components, as classified** (module docs).
@@ -665,6 +773,8 @@ pub enum PairPose<T: Real> {
     TorusTorus(TorusTorusPose<T>),
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
+    /// A plane and a spline wall.
+    PlaneSpline(Box<PlaneSplinePose<T>>),
 }
 
 impl<T: Real> PairPose<T> {
@@ -675,7 +785,8 @@ impl<T: Real> PairPose<T> {
             Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
-            | Self::CylinderCylinder(_) => None,
+            | Self::CylinderCylinder(_)
+            | Self::PlaneSpline(_) => None,
         }
     }
 }
@@ -689,6 +800,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
+            Self::PlaneSpline(p) => p.operands(),
         }
     }
 
@@ -710,6 +822,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.ball(),
+            Self::PlaneSpline(p) => p.ball(),
         }
     }
 
@@ -721,7 +834,8 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderSphere(_)
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
-            | Self::TorusTorus(_) => false,
+            | Self::TorusTorus(_)
+            | Self::PlaneSpline(_) => false,
         }
     }
 }
@@ -737,13 +851,23 @@ impl PairPose<f64> {
     /// ball cut by the region.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
-        let ball = self.ball();
-        SsiDomain {
-            center: ball.center(),
-            half_extent: ball.radius() * 1.01,
-            extent: ball.radius() * 2.0,
-            floor_scale: 1.0,
+        if let Self::PlaneSpline(p) = self {
+            return p.domain();
         }
+        let ball = self.ball();
+        domain_about(ball.center(), ball.radius() * 1.01, ball.radius() * 2.0)
+    }
+}
+
+/// **A march's domain**: the cube of half-width `half_extent` about
+/// `center`, its feature extent `extent`, at the standard accounting
+/// floor.
+fn domain_about(center: Point3<f64>, half_extent: f64, extent: f64) -> SsiDomain {
+    SsiDomain {
+        center,
+        half_extent,
+        extent,
+        floor_scale: 1.0,
     }
 }
 
@@ -769,17 +893,25 @@ pub enum SectionRead<T: Real> {
 /// convention ([`SectionError::DegenerateTorus`]), two tori decided one
 /// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
 /// ([`SectionError::Pinched`], [`SectionError::Unordered`]); a pair with
-/// no bounded side asked with no `region` ([`SectionError::NoRegion`]).
+/// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
+/// a plane and a spline asked with no `lane` ([`SectionError::NoMarch`]),
+/// and with one, the whole reading's refusal, mapped by name
+/// ([`plane_spline`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
 /// operation can use. A pair with no bounded side (two cylinders) is
 /// read over it; a pair with a sphere or a torus side is read over that
 /// side's own ball and does not read it.
+///
+/// `lane` is the march door: a plane and a spline wall (an approximating
+/// surface read as its fit) are read through it, since their section is
+/// C3's whole reading, a march ([`plane_spline`]). No other pair reads it.
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     region: Option<ExtentBall<T>>,
+    lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
@@ -820,22 +952,30 @@ pub fn pair_section<T: Decide>(
                 }),
             }
         }
-        (Plane, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => match lane {
+            Some(lane) => (lane.spline)(a, b, band).map(SectionRead::Built),
+            None => Err(SectionError::NoMarch { scalar: T::NAME }),
+        },
+        (Plane, Plane | Cylinder | Cone | Sphere | Torus)
         | (Cylinder, Plane | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
         | (Torus, Plane | Cone | Nurbs | Approx)
-        | (Nurbs, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx) => {
+        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx) => {
             Ok(SectionRead::Elsewhere(route(ka, kb)))
         }
     }
 }
 
-/// **Whether the value builds the section of some kind pair `kind` is a
-/// side of** — the filter a reader scanning many pairs applies before it
-/// asks [`pair_section`]. Exhaustive, as `pair_section`'s match is, and
-/// a second spelling of it (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`).
+/// **Whether the value builds, by classification, the section of some
+/// kind pair `kind` is a side of** — the filter a reader scanning many
+/// pairs applies before it asks [`pair_section`]. Exhaustive, as
+/// `pair_section`'s match is, and a second spelling of it
+/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A plane and
+/// a spline are not among them: their section is a whole reading, read
+/// per pair through [`pair_section`]'s march door by the reader that asks
+/// it.
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
@@ -866,11 +1006,8 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         u_ref: geom::square_frame(pose.axis, pose.u_ref).u_ref,
         radius: pose.r,
     };
-    let ring = |carrier| SectionComponent {
-        shape: ComponentShape::Loop,
-        winds: order(true, false),
-        witness: None,
-        carrier,
+    let ring = |carrier| {
+        SectionComponent::closed_form(ComponentShape::Loop, order(true, false), None, carrier)
     };
     let components = match pose.stance {
         CsStance::Coaxial { coaxial, wall } => {
@@ -895,12 +1032,12 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         }
         CsStance::Apart { toward, near, far } => match (near.sign, far.map(|f| f.sign)) {
             (Sign::Negative, _) => Vec::new(),
-            (Sign::Zero, _) => vec![SectionComponent {
-                shape: ComponentShape::Point,
-                winds: [false, false],
-                witness: Some(pose.nearest_ruling(toward)),
-                carrier: ClassCarrier::Unminted(TANGENT_COMPONENT),
-            }],
+            (Sign::Zero, _) => vec![SectionComponent::closed_form(
+                ComponentShape::Point,
+                [false, false],
+                Some(pose.nearest_ruling(toward)),
+                ClassCarrier::Unminted(TANGENT_COMPONENT),
+            )],
             // One loop, witnessed on the ruling nearest the centre,
             // `√((R − |d − r|)(R + |d − r|))` above the foot.
             (Sign::Positive, Some(Sign::Negative | Sign::Zero) | None) => {
@@ -910,12 +1047,12 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                     Some(Sign::Negative) => ClassCarrier::General,
                     _ => ClassCarrier::Unminted(TANGENT_COMPONENT),
                 };
-                vec![SectionComponent {
-                    shape: ComponentShape::Loop,
-                    winds: [false, false],
-                    witness: Some(pose.nearest_ruling(toward) + pose.axis * t),
+                vec![SectionComponent::closed_form(
+                    ComponentShape::Loop,
+                    [false, false],
+                    Some(pose.nearest_ruling(toward) + pose.axis * t),
                     carrier,
-                }]
+                )]
             }
             (Sign::Positive, Some(Sign::Positive)) => {
                 vec![ring(ClassCarrier::General), ring(ClassCarrier::General)]
@@ -1283,9 +1420,9 @@ impl<T: Decide> FittedCarrier<T> {
 }
 
 /// **The general rung's door** (module docs): the ℝ³ march of a
-/// decided pose over its ball, written at `f64`. Holding one is the
-/// statement that the scalar may march; [`SsiLane::marched`], at `f64`,
-/// is its one constructor.
+/// decided pose over its ball, and a plane and a spline's whole reading,
+/// written at `f64`. Holding one is the statement that the scalar may
+/// march; [`SsiLane::marched`], at `f64`, is its one constructor.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiLane<T: Real> {
     /// One march of a decided pose, each branch's winding read.
@@ -1293,7 +1430,12 @@ pub struct SsiLane<T: Real> {
     /// One closed fitted component seated at a parameter, re-certified
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
+    /// The section of a plane and a spline wall ([`plane_spline`]).
+    spline: SplineSection<T>,
 }
+
+/// What reads a plane and a spline's section ([`plane_spline`]).
+type SplineSection<T> = fn(&Surface<T>, &Surface<T>, Band) -> Result<PairSection<T>, SectionError>;
 
 /// What one seating answers: the component opened at the parameter
 /// ([`PairSection::seat`]).
@@ -1309,6 +1451,7 @@ impl SsiLane<f64> {
         Self {
             march: march_over_the_ball,
             seat: seat_at,
+            spline: plane_spline::section,
         }
     }
 }
@@ -1330,6 +1473,11 @@ fn march_over_the_ball(
         PairPose::CylinderTorus(p) => crate::ssi::march_cylinder_torus(p, domain, band),
         PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band),
         PairPose::CylinderCylinder(p) => crate::ssi::march_cylinder_cylinder(p, domain, band),
+        // Its components are read whole when the section is built, and
+        // none is carried.
+        PairPose::PlaneSpline(_) => {
+            return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+        }
     }
     .map_err(CarryError::March)?;
     let (a, b) = pose.operands();
@@ -1407,6 +1555,9 @@ fn seat_at(
     at: f64,
     band: Band,
 ) -> Result<CarriedComponent<f64>, CarryError> {
+    if let PairPose::PlaneSpline(_) = pose {
+        return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+    }
     let Curve3::Nurbs(net) = &component.carrier else {
         return Err(CarryError::Desync(
             "a fitted component's carrier is not a spline",
@@ -1835,7 +1986,7 @@ mod wiring {
     }
 
     fn built(a: &geom::Surface<f64>, b: &geom::Surface<f64>) -> super::PairSection<f64> {
-        match super::pair_section(a, b, None, band()) {
+        match super::pair_section(a, b, None, None, band()) {
             Ok(super::SectionRead::Built(s)) => s,
             other => panic!("the value builds the pair: {other:?}"),
         }

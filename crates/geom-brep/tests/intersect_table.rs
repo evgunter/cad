@@ -889,7 +889,7 @@ pub(crate) fn cs_section<T: geom_core::Decide>(
     cyl: &Surface<T>,
     sph: &Surface<T>,
 ) -> Result<PairSection<T>, SectionError> {
-    match geom_brep::pair_section(cyl, sph, None, band()) {
+    match geom_brep::pair_section(cyl, sph, None, None, band()) {
         Ok(SectionRead::Built(s)) => Ok(s),
         Ok(SectionRead::Elsewhere(route)) => panic!("cylinder × sphere is built: {route:?}"),
         Err(e) => Err(e),
@@ -1201,7 +1201,7 @@ fn the_cylinder_sphere_value_reads_either_order() {
         [false, true]
     );
     assert!(matches!(
-        geom_brep::pair_section(&cyl, &cyl, None, band()),
+        geom_brep::pair_section(&cyl, &cyl, None, None, band()),
         Err(geom_brep::SectionError::NoRegion { .. })
     ));
 }
