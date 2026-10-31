@@ -53,7 +53,11 @@ fn duplicate_picking(
     tools.open(ToolKind::Duplicate);
     assert!(
         tools
-            .feed(session.committed_doc(), None, &[SessionOp::Select(pick)])
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &[SessionOp::Select(pick)]
+            )
             .is_empty(),
         "the pick is taken"
     );

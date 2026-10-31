@@ -762,23 +762,29 @@ impl core::error::Error for NameLookupError {}
 pub type BoundaryRim = Result<Option<Vec<StableName>>, RimNameFault>;
 
 /// **Why a drawn edge's rim could not be answered as names**
-/// ([`NodePick::boundary_rims`]) — each a naming or pairing bug, never
-/// "this edge is on no rim", which is that door's `None` (closed enum,
-/// D4 ¶3).
+/// ([`NodePick::boundary_rims`]): a naming bug, or a part read against
+/// an evaluation other than the one it was built from — never "this
+/// edge is on no rim", which is that door's `None` (closed enum, D4 ¶3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RimNameFault {
     /// An arc of the rim evaluated but has no name in its table.
     Unnamed(UnnamedEntity),
-    /// The evaluation holds no body where the part says it drew one.
+    /// The evaluation holds no body where the part says it drew one:
+    /// [`NodePickError::NoSuchBody`]'s case, met by a part held across
+    /// an edit that removed it.
     NoBody {
         /// The part's node.
         node: RecipeNodeId,
         /// The part's output body.
         body: u32,
-        /// The body read's refusal.
-        error: crate::InterrogateError,
     },
-    /// The drawn edge does not resolve in the body it was drawn from.
+    /// A drawn edge is not in the body this evaluation holds: the part
+    /// was built against an earlier evaluation of the document, which
+    /// the pairing admits (a caller holding a `NodePick` across an
+    /// edit by hand). [`NodePick::boundary_names`] reads the same slot
+    /// as [`UnnamedEntity`], because a table read cannot tell a key
+    /// absent from the body from one the table did not name; the walk
+    /// can, so it says the narrower thing.
     Stale {
         /// The part's node.
         node: RecipeNodeId,
@@ -797,16 +803,22 @@ impl crate::spoken::Say for RimNameFault {
             Self::Unnamed(unnamed) => {
                 write!(f, "rim names: {}", crate::spoken::Said(unnamed, by))
             }
-            Self::NoBody { node, body, error } => write!(
+            Self::NoBody { node, body } => write!(
                 f,
-                "rim names: {} has no output body {body} to walk: {}",
-                by.node(*node),
-                crate::spoken::Said(error, by)
+                "rim names: {}",
+                crate::spoken::Said(
+                    &NodePickError::NoSuchBody {
+                        node: *node,
+                        body: *body
+                    },
+                    by
+                )
             ),
             Self::Stale { node, body } => write!(
                 f,
-                "rim names: a drawn edge of {} body {body} does not resolve in the body it was \
-                 drawn from — the picture and the evaluation disagree, which is a kernel bug",
+                "rim names: a drawn edge of {} body {body} is not in the body this evaluation \
+                 holds — the pick was built against an earlier evaluation; rebuild it against \
+                 this one",
                 by.node(*node)
             ),
         }
@@ -1528,9 +1540,9 @@ impl NodePick {
     ///
     /// Total per polyline, with the loud arms in their own slot
     /// ([`RimNameFault`]): an arc without a name, a body the evaluation
-    /// does not hold where the part says it drew one, or an edge the
-    /// walk finds stale in it. Each is a naming or pairing bug, and one
-    /// should not cost a consumer every other rim.
+    /// does not hold where the part says it drew one, or an edge that
+    /// is not in the body this evaluation holds. One should not cost a
+    /// consumer every other rim.
     ///
     /// # Errors
     ///
@@ -1540,37 +1552,24 @@ impl NodePick {
         &self,
         eval: &Evaluation<f64>,
     ) -> Result<Vec<BoundaryRim>, NameLookupError> {
-        if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
-            return Err(m.into());
-        }
-        eval.usable(self.node)?;
+        let value = self.admitted(eval)?;
         let edges = self.mesh.boundaries.iter().map(|boundary| boundary.edge);
-        let body = match eval.body_read_of(self.node, self.body) {
-            Some((var, index)) => eval.read_body(var, index)?,
-            None => Err(crate::InterrogateError::NoSuchBody { index: self.body }),
+        // The body this part was drawn from, read the way
+        // [`NodePick::build`] reads it, so the two cannot disagree
+        // about which body index means which body.
+        let drawn = sources_of(value)
+            .and_then(|sources| sources.into_iter().find(|(ix, _, _, _)| *ix == self.body));
+        let Some((_, body, _, _)) = drawn else {
+            let fault = RimNameFault::NoBody {
+                node: self.node,
+                body: self.body,
+            };
+            return Ok(edges.map(|_| Err(fault)).collect());
         };
-        let body = match body {
-            Ok(body) => body.body(),
-            Err(error) => {
-                let fault = RimNameFault::NoBody {
-                    node: self.node,
-                    body: self.body,
-                    error,
-                };
-                return Ok(edges.map(|_| Err(fault)).collect());
-            }
-        };
+        let body = body.body();
         let named = |edge: topo::EdgeKey| {
-            lookup(
-                eval,
-                self.node,
-                EntityRef {
-                    body: self.body,
-                    key: EntityKey::Edge(edge),
-                },
-            )
-            .cloned()
-            .map_err(RimNameFault::Unnamed)
+            self.name_in(eval, EntityKey::Edge(edge))
+                .map_err(RimNameFault::Unnamed)
         };
         Ok(edges
             .map(|edge| match topo::query::rim_of(body, edge) {
@@ -1600,23 +1599,33 @@ impl NodePick {
         eval: &Evaluation<f64>,
         keys: impl Iterator<Item = EntityKey>,
     ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        self.admitted(eval)?;
+        Ok(keys.map(|key| self.name_in(eval, key)).collect())
+    }
+
+    /// **The preamble every name door runs**: the pairing (DI3, A2a),
+    /// then the node's standing, answering its value.
+    fn admitted<'e>(
+        &self,
+        eval: &'e Evaluation<f64>,
+    ) -> Result<&'e crate::eval::NodeValue<f64>, NameLookupError> {
         if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
             return Err(m.into());
         }
-        eval.usable(self.node)?;
-        Ok(keys
-            .map(|key| {
-                lookup(
-                    eval,
-                    self.node,
-                    EntityRef {
-                        body: self.body,
-                        key,
-                    },
-                )
-                .cloned()
-            })
-            .collect())
+        Ok(eval.usable(self.node)?)
+    }
+
+    /// One entity of this part's body, named through its node's table.
+    fn name_in(&self, eval: &Evaluation<f64>, key: EntityKey) -> Result<StableName, UnnamedEntity> {
+        lookup(
+            eval,
+            self.node,
+            EntityRef {
+                body: self.body,
+                key,
+            },
+        )
+        .cloned()
     }
 
     /// The node this index answers for.

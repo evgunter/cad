@@ -2510,7 +2510,7 @@ mod tools_respeak {
             )
             .expect("the block indexes")
         };
-        let declined = tools.feed(session.doc(), Some(&index), &picks);
+        let declined = tools.feed(session.doc(), Ok(&index), &picks);
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);

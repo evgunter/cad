@@ -192,7 +192,13 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         .map(|node| SessionOp::Select(Selection::Node(node)))
         .collect();
     assert!(
-        tools.feed(session.committed_doc(), None, &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     let tool = tools.boolean().expect("the boolean tool is open");
@@ -1837,14 +1843,26 @@ fn the_open_tool_consumes_the_selection_stream() {
     let mut tools = Tools::new();
     // Nothing open: the stream reaches nothing.
     assert!(
-        tools.feed(session.committed_doc(), None, &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     assert_eq!(tools.open_kind(), None);
 
     tools.open(ToolKind::Boolean);
     assert!(
-        tools.feed(session.committed_doc(), None, &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     let boolean = tools.boolean().expect("the boolean tool is open");
@@ -1856,7 +1874,11 @@ fn the_open_tool_consumes_the_selection_stream() {
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), None);
     assert!(
         tools
-            .feed(session.committed_doc(), None, &picks[..1])
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks[..1]
+            )
             .is_empty(),
         "the pick landed"
     );
@@ -2955,7 +2977,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
     for kind in ToolKind::ALL {
         let mut tools = Tools::new();
         tools.open(kind);
-        let _ = tools.feed(doc, None, &[SessionOp::Select(picked.clone())]);
+        let _ = tools.feed(
+            doc,
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(picked.clone())],
+        );
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
             ToolKind::Split => tools.split().and_then(|t| t.target()),
@@ -2988,7 +3014,11 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     let picked = picked_from_above(&session, x, y);
     let mut tools = Tools::new();
     tools.open(ToolKind::Duplicate);
-    let _ = tools.feed(session.committed_doc(), None, &[SessionOp::Select(picked)]);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(picked)],
+    );
     let op = tools
         .duplicate()
         .expect("open")
@@ -3025,7 +3055,7 @@ fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     tools.open(ToolKind::Part);
     let _ = tools.feed(
         session.committed_doc(),
-        None,
+        Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Node(pattern))],
     );
     let tool = tools.part().expect("open");
@@ -3267,7 +3297,11 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let picked = picked_from_above(&session, 0.0, 0.0);
     let mut tools = Tools::new();
     tools.open(ToolKind::Transform);
-    let _ = tools.feed(session.committed_doc(), None, &[SessionOp::Select(picked)]);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(picked)],
+    );
     let tool = tools.transform().expect("open");
     assert_eq!(tool.input(), Some(split));
     assert_eq!(

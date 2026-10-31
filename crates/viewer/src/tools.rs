@@ -44,6 +44,7 @@ use crate::combine::{
     TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
+use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
@@ -708,8 +709,9 @@ impl Tools {
     /// **`index` is what an edge pick means** — the whole drawn edge it
     /// is part of ([`PickIndex::whole_edge`]), so a click on a circle
     /// the body holds as two arcs reaches the blend tool as the circle.
-    /// It is the index the pick was made through; `None` where there is
-    /// no picture, and a pick is then taken as named.
+    /// It is the index the pick was made through, or why there is none
+    /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
+    /// one rather than hold what may be half a circle.
     ///
     /// **`doc` is what routes a seated tool's pick**, not what
     /// judges it: a seat asks the document what KIND of node was
@@ -724,7 +726,7 @@ impl Tools {
     pub fn feed(
         &mut self,
         doc: &Doc<ProfileProgram>,
-        index: Option<&PickIndex>,
+        index: Result<&PickIndex, NotIndexed>,
         ops: &[SessionOp],
     ) -> Vec<ToolNotice> {
         let mut notices = Vec::new();

@@ -903,6 +903,16 @@ impl Rims {
     ) -> Result<(), PickIndexError> {
         let rims = part.boundary_rims(eval).map_err(PickIndexError::Names)?;
         let mut found: BTreeMap<StableName, Result<usize, RimNameFault>> = BTreeMap::new();
+        assert_eq!(
+            names.len(),
+            rims.len(),
+            "body {} of {:?}: `boundary_names` answered {} polylines and `boundary_rims` {}; \
+             both walk the same boundaries",
+            part.body(),
+            part.node(),
+            names.len(),
+            rims.len()
+        );
         for (name, rim) in names.iter().zip(rims) {
             // An unnamed edge is the window's loud arm already
             // (`PickIndex::edge_names_in`), and no pick can name it.
@@ -932,7 +942,20 @@ impl Rims {
     fn rim_holding(&self, edge: &EdgeSelection) -> Option<Result<&[StableName], RimNameFault>> {
         let held = self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
         Some(match held {
-            Ok(rim) => Ok(self.rims.get(*rim).map_or(&[][..], Vec::as_slice)),
+            // Every id in `of` was minted by `push` as the index of the
+            // rim it pushed next, so one past the end is a broken table,
+            // and an empty whole would fix a blend target holding nothing.
+            Ok(rim) => Ok(self.rims.get(*rim).map_or_else(
+                || {
+                    unreachable!(
+                        "rim id {rim} of {:?} body {} is past the {} rims recorded",
+                        edge.node,
+                        edge.body,
+                        self.rims.len()
+                    )
+                },
+                Vec::as_slice,
+            )),
             Err(fault) => Err(*fault),
         })
     }

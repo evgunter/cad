@@ -3897,7 +3897,10 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         ),
         (
             "blend: an edge pick with no index declined",
-            ToolNotice::Blend(BlendEvent::Unindexed { picked: target }),
+            ToolNotice::Blend(BlendEvent::Unindexed {
+                picked: target,
+                why: viewer::pickcache::NotIndexed::Absent,
+            }),
             frame::Retold::Again,
         ),
         (

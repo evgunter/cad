@@ -74,6 +74,7 @@ use pncad::prelude::StableName;
 
 use editor_core::resolve::RimNameFault;
 
+use crate::pickcache::NotIndexed;
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
 use crate::vocab::vocabulary;
@@ -282,6 +283,10 @@ pub enum BlendEvent {
     Unindexed {
         /// The body the refused pick was on.
         picked: BlendTarget,
+        /// Why there is no index: one being built, or none and none
+        /// coming ([`NotIndexed::Absent`], whose reason the pick-index
+        /// badge carries).
+        why: NotIndexed,
     },
     /// The index could not say which drawn edge the pick is part of
     /// ([`PickIndex::whole_edge`]): a naming or pairing bug, so the pick
@@ -335,12 +340,28 @@ impl Say for BlendEvent {
                  dropped what went and still holds {kept}",
                 Said(target, by)
             ),
-            Self::Unindexed { picked } => write!(
-                f,
-                "the edge on {} was not taken: the picture is not indexed yet, so the tool \
-                 cannot tell a whole edge from one arc of a circle; pick it again once it is",
-                Said(picked, by)
-            ),
+            Self::Unindexed { picked, why } => {
+                write!(
+                    f,
+                    "the edge on {} was not taken: without a pick index the tool cannot tell a \
+                     whole edge from one arc of a circle; ",
+                    Said(picked, by)
+                )?;
+                match why {
+                    NotIndexed::Building => {
+                        write!(
+                            f,
+                            "the picture is still being indexed, so pick it again then"
+                        )
+                    }
+                    NotIndexed::Absent | NotIndexed::AnotherPicture => write!(
+                        f,
+                        "no index is being built — the pick-index badge says why the last \
+                         build refused, and an edit or a new display tolerance is what builds \
+                         it again"
+                    ),
+                }
+            }
             Self::RimUnanswered { fault } => {
                 write!(f, "the edge was not taken: {}", Said(fault, by))
             }
@@ -469,8 +490,8 @@ impl BlendTool {
     /// or REMOVE it when it is already held.
     ///
     /// `index` says what the pick's whole is ([`PickIndex::whole_edge`]):
-    /// every arc of a rim drawn as one circle. A new pick with no index
-    /// is refused ([`BlendEvent::Unindexed`]), and so is one whose rim
+    /// every arc of a rim drawn as one circle, or why there is no index.
+    /// A new pick with no index is refused ([`BlendEvent::Unindexed`]), and so is one whose rim
     /// the index could not answer ([`BlendEvent::RimUnanswered`]);
     /// un-picking a held edge needs neither.
     ///
@@ -482,7 +503,7 @@ impl BlendTool {
         &mut self,
         doc: &Doc<ProfileProgram>,
         edge: &EdgeSelection,
-        index: Option<&PickIndex>,
+        index: Result<&PickIndex, NotIndexed>,
     ) -> Option<BlendEvent> {
         let picked = BlendTarget::of(edge);
         match self.target() {
@@ -500,8 +521,9 @@ impl BlendTool {
         // named-cell link) can arrive while the index is being built.
         // Held as named it could be half a circle, which is the commit
         // that refuses at the seam vertex, so it is refused instead.
-        let Some(index) = index else {
-            return Some(BlendEvent::Unindexed { picked });
+        let index = match index {
+            Ok(index) => index,
+            Err(why) => return Some(BlendEvent::Unindexed { picked, why }),
         };
         let whole = match index.whole_edge(edge) {
             Ok(whole) => whole,
@@ -519,16 +541,16 @@ impl BlendTool {
     fn take(&mut self, whole: Vec<StableName>) {
         let whole: BTreeSet<StableName> = whole.into_iter().collect();
         if whole.len() > 1 {
-            let (met, apart) = core::mem::take(&mut self.rims)
-                .into_iter()
-                .partition::<BTreeSet<_>, _>(|rim| !rim.is_disjoint(&whole));
-            self.rims = apart;
-            self.rims.insert(
-                met.into_iter()
-                    .flatten()
-                    .chain(whole.iter().cloned())
-                    .collect(),
+            // An arc held alone joins the rim (a partial revolve turned
+            // full under a held arc). A held RIM meeting a new whole is
+            // not reachable: the clicked name is not held, and within one
+            // index the rims partition the drawn edges.
+            debug_assert!(
+                self.rims.iter().all(|rim| rim.is_disjoint(&whole)),
+                "a held rim meets the new pick {whole:?}: {:?}",
+                self.rims
             );
+            self.rims.insert(whole.clone());
         }
         self.edges.extend(whole);
     }
@@ -868,7 +890,7 @@ mod tests {
             node: copy,
             body: 0,
         };
-        assert_eq!(tool.pick(&doc, &held, Some(&index)), None);
+        assert_eq!(tool.pick(&doc, &held, Ok(&index)), None);
         let before = tool.clone();
 
         let first = index.unname_edge(drawn[2]);

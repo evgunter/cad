@@ -15,6 +15,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::RoleSeg;
 use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+use viewer::pickcache::NotIndexed;
 use viewer::pickindex::PickIndex;
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, EdgeSelection, Selection, SessionOp};
@@ -72,7 +73,7 @@ fn is_rim_arc(name: &StableName, pi: bool) -> bool {
 fn click(
     tools: &mut Tools,
     doc: &Doc<ProfileProgram>,
-    index: Option<&PickIndex>,
+    index: Result<&PickIndex, NotIndexed>,
     edge: &EdgeSelection,
 ) -> Vec<ToolNotice> {
     tools.feed(
@@ -210,15 +211,29 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
-    match click(&mut tools, &doc, None, a).as_slice() {
-        [ToolNotice::Blend(BlendEvent::Unindexed { picked })] => {
-            assert_eq!(*picked, BlendTarget { node, body: 0 });
+    // The two absences say different things: one being built is worth
+    // waiting for, and one the cache refused is not retried until the
+    // document or the display tolerance moves.
+    for (why, says) in [
+        (NotIndexed::Building, "still being indexed"),
+        (
+            NotIndexed::Absent,
+            "pick-index badge says why the last build refused",
+        ),
+    ] {
+        match click(&mut tools, &doc, Err(why), a).as_slice() {
+            [notice @ ToolNotice::Blend(BlendEvent::Unindexed { picked, why: said })] => {
+                assert_eq!(*picked, BlendTarget { node, body: 0 });
+                assert_eq!(*said, why);
+                let line = notice.to_string();
+                assert!(line.contains(says), "{why:?}: {line}");
+            }
+            other => panic!("a pick with no index is refused, not held as a half: {other:?}"),
         }
-        other => panic!("a pick with no index is refused, not held as a half: {other:?}"),
     }
     assert_eq!(blend(&tools).count(), 0, "the refused pick holds nothing");
     assert_eq!(blend(&tools).target(), None, "nor fixes a target");
-    assert!(click(&mut tools, &doc, Some(&index), b).is_empty());
+    assert!(click(&mut tools, &doc, Ok(&index), b).is_empty());
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
         (1, 2)
@@ -229,12 +244,12 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
         .iter()
         .find(|e| !whole.contains(&e.name))
         .expect("a straight edge");
-    assert!(click(&mut tools, &doc, Some(&index), straight).is_empty());
+    assert!(click(&mut tools, &doc, Ok(&index), straight).is_empty());
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
         (2, 3)
     );
-    assert!(click(&mut tools, &doc, Some(&index), a).is_empty());
+    assert!(click(&mut tools, &doc, Ok(&index), a).is_empty());
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
         (1, 1),
@@ -261,7 +276,7 @@ fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
-    assert!(click(&mut tools, &doc, Some(&index), a).is_empty());
+    assert!(click(&mut tools, &doc, Ok(&index), a).is_empty());
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
         (1, 2)
@@ -315,7 +330,7 @@ fn a_held_rim_through_an_undo_that_removes_the_body() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
-    assert!(click(&mut tools, &doc, Some(&index), a).is_empty());
+    assert!(click(&mut tools, &doc, Ok(&index), a).is_empty());
     for _ in 0..3 {
         let _ = session.perform(SessionOp::Undo);
         if session.doc().node(node).is_none() {
@@ -467,7 +482,7 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
     for at in [0usize, 1, 3] {
-        assert!(click(&mut tools, &doc, Some(&index), &arcs[at]).is_empty());
+        assert!(click(&mut tools, &doc, Ok(&index), &arcs[at]).is_empty());
     }
     assert_eq!(blend(&tools).count(), 3, "three clicks, three rims");
     assert_eq!(blend(&tools).selection().len(), 6, "six arcs held");
@@ -597,5 +612,10 @@ fn a_node_pick_held_across_an_edit_reaches_the_stale_arm() {
         .unwrap_or_else(|| panic!("a stale key: {rims:?}"));
     assert!(names[stale].is_err(), "the name door reads it unnamed");
     let said = rims[stale].clone().expect_err("stale").to_string();
-    assert!(said.starts_with("rim names: "), "{said}");
+    assert!(
+        said.starts_with("rim names: ")
+            && said.contains("built against an earlier evaluation")
+            && !said.contains("kernel bug"),
+        "the stale arm says what it is, a pick held across an edit: {said}"
+    );
 }
