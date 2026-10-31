@@ -375,7 +375,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         };
         assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&donut(), &partner, band())
+            geom_brep::pair_section(&donut(), &partner, None, band())
         else {
             panic!("{what}: the value builds the pair");
         };

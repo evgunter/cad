@@ -283,7 +283,7 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
 }
 
 #[test]
-fn the_authored_ring_survives_the_snapshot_and_log_door() {
+fn the_authored_ring_survives_save_and_reload() {
     let tol = Tol::witness();
     let (mut session, _) = authored_ring(tol);
     let dir = common::tempdir("gauth1-ring");
@@ -293,8 +293,7 @@ fn the_authored_ring_survives_the_snapshot_and_log_door() {
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     let authored = session.committed_doc().clone();
 
-    // Reload into the same session through the ordinary open door —
-    // the file's log replays through `apply` on the way in.
+    // Reload into the same session through the ordinary open door.
     let opened = session.perform(SessionOp::Open(path));
     assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
     assert!(
@@ -327,46 +326,40 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         "extruded block volume: {v} vs {want}"
     );
 
+    // Undo walks the session's actions back to the empty document, and
+    // redo restores the whole of it.
+    let authored = session.committed_doc().clone();
+    let mut steps = 0;
+    while session.perform(SessionOp::Undo).refusal.is_none() {
+        steps += 1;
+    }
+    assert!(steps > 0, "the authoring is undoable");
+    assert!(session.committed_doc().is_empty(), "back to empty");
+    assert!(session.committed_doc().node(profile).is_none());
+    for _ in 0..steps {
+        assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    }
+    assert!(session.committed_doc().bit_eq(&authored), "redo restores");
+
     // Save → reload → bit identity, and the SOLID is the same too.
     let dir = common::tempdir("gauth1-bracket");
     let path = dir.join("bracket.pncad");
     let saved = session.perform(SessionOp::Save(path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
-    let authored = session.committed_doc().clone();
     let opened = session.perform(SessionOp::Open(path));
     assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
     assert!(session.committed_doc().bit_eq(&authored));
     let v2 = body_volume(&mut session, extrude, tol);
     assert_eq!(v.to_bits(), v2.to_bits(), "same volume after reload");
 
-    // Undo walks back across the reopened log one edit at a time (the
-    // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, inserted with its identity bundle as
-    // one edit — then the extrude; redo restores the whole document.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(
-        session.committed_doc().placements().is_empty(),
-        "the placement goes first"
-    );
-    assert!(session.committed_doc().node(extrude).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.committed_doc().node(extrude).is_none());
-    assert!(session.committed_doc().node(profile).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.committed_doc().is_empty(), "back to empty");
-    let at_root = session.perform(SessionOp::Undo);
+    // The file is the document's state: undo ends at the open.
     assert!(matches!(
-        at_root.refusal,
+        session.perform(SessionOp::Undo).refusal,
         Some(Refusal::NothingToDo {
             direction: Step::Undo
         })
     ));
-    // Three edits: the profile, the extrude, and its placement with its
-    // identity bundle.
-    for _ in 0..3 {
-        assert!(session.perform(SessionOp::Redo).refusal.is_none());
-    }
-    assert!(session.committed_doc().bit_eq(&authored), "redo restores");
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
 /// The op vocabulary deliberately exceeds the chrome's templates — a

@@ -53,10 +53,13 @@
 //!
 //! # The pairs it serves
 //!
-//! Cylinder × sphere and the three torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`]). Each pair's pose
+//! Cylinder × sphere, the three torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`]) and two
+//! cylinders ([`cylinders`]), which have no bounded side and are read
+//! over the operation's region. Each pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
-//! [`TorusTorusPose`]) is decided once, and every reader of the pair
+//! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
+//! every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
 //! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
@@ -74,12 +77,14 @@ use crate::ExtentBall;
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
+pub mod cylinders;
 pub mod gap;
 pub mod torus;
 mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
+pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
@@ -466,6 +471,11 @@ pub enum Coincident {
     CylinderTorus,
     /// `section_axes_offset`: the second torus's axis on the first's.
     TorusTorus,
+    /// `cc_radius_equality`: two cylinders of one radius, at the node
+    /// pose.
+    CylinderRadii,
+    /// `cc_axes_coplanar`: two cylinders' axes meeting, at the node pose.
+    CylinderAxesMeet,
 }
 
 impl Coincident {
@@ -476,6 +486,8 @@ impl Coincident {
             Self::CylinderSphere => CsDecision::Coaxial.name(),
             Self::SphereTorus => "st_coaxial",
             Self::CylinderTorus | Self::TorusTorus => "section_axes_offset",
+            Self::CylinderRadii => CcDecision::RadiusEquality.name(),
+            Self::CylinderAxesMeet => CcDecision::AxesMeet.name(),
         }
     }
 }
@@ -520,20 +532,82 @@ pub struct ZeroVerdict {
     pub margin: MarginDiag,
 }
 
-/// Whether a component is a curve or one point.
+/// Whether a component is a closed curve, one point, or a curve with
+/// ends (C3: a component is closed, ends on the domain's boundary, or
+/// ends at a node).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentShape {
     /// A closed curve.
     Loop,
     /// One point, where the surfaces touch.
     Point,
+    /// A curve with ends, each on the domain's boundary or at a node.
+    Open {
+        /// Where it ends.
+        ends: ComponentEnds,
+    },
+}
+
+/// **Where an open component ends**: the sides of each surface's
+/// parameter rectangle it reaches (rim ends, in the order the section was
+/// asked of), whether it reaches the operation's region (a cut end), and
+/// the nodes it ends at, by their index in [`PairSection::nodes`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ComponentEnds {
+    /// The rectangle sides it reaches on each surface.
+    pub rims: [ChartReach; 2],
+    /// The region cuts it: a marched branch ends on the march domain's
+    /// cube, or a closed form runs past the region (it is carried whole,
+    /// its carrier exact there).
+    pub cut: bool,
+    /// The nodes its ends stand at.
+    pub nodes: [Option<usize>; 2],
+}
+
+impl ComponentEnds {
+    /// Both ends on the region's boundary.
+    #[must_use]
+    pub fn cut() -> Self {
+        Self {
+            cut: true,
+            ..Self::default()
+        }
+    }
+
+    /// From the node `from` to the node `to`.
+    #[must_use]
+    pub fn nodes(from: usize, to: usize) -> Self {
+        Self {
+            nodes: [Some(from), Some(to)],
+            ..Self::default()
+        }
+    }
+}
+
+/// **The sides of a surface's parameter rectangle a component reaches**,
+/// by the parameter each holds fixed: whether a side is the surface's
+/// boundary or a seam of a closed channel is the reader's question.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChartReach {
+    /// It reaches a side on which `u` is held fixed.
+    pub u_side: bool,
+    /// It reaches a side on which `v` is held fixed.
+    pub v_side: bool,
 }
 
 /// A component's carrier as classified.
 #[derive(Clone, Debug)]
 pub enum ClassCarrier<T: Real> {
-    /// A closed form.
+    /// A closed form, the whole of a closed curve.
     Closed(Curve3<T>),
+    /// A closed form over a parameter span: an arc between nodes, or a
+    /// line cut by the region.
+    Span {
+        /// The curve.
+        curve: Curve3<T>,
+        /// The span of it the component is.
+        span: (T, T),
+    },
     /// The general rung's: marched and fitted by [`PairSection::carry`].
     General,
     /// None mints: the component is classification data, for the reason
@@ -544,7 +618,7 @@ pub enum ClassCarrier<T: Real> {
 /// One connected component of a section, as classified.
 #[derive(Clone, Debug)]
 pub struct SectionComponent<T: Real> {
-    /// A loop or a point.
+    /// A loop, a point or a curve with ends.
     pub shape: ComponentShape,
     /// Whether the arm proves it winds about each surface's carrier (it
     /// is essential there), in the order the section was asked of:
@@ -574,6 +648,7 @@ pub struct PairSection<T: Real> {
     pose: PairPose<T>,
     decided: Vec<ZeroVerdict>,
     components: Components<T>,
+    nodes: Vec<Point3<T>>,
     lever: T,
 }
 
@@ -588,6 +663,8 @@ pub enum PairPose<T: Real> {
     CylinderTorus(CylinderTorusPose<T>),
     /// Torus × torus.
     TorusTorus(TorusTorusPose<T>),
+    /// Cylinder × cylinder.
+    CylinderCylinder(CylinderCylinderPose<T>),
 }
 
 impl<T: Real> PairPose<T> {
@@ -595,7 +672,10 @@ impl<T: Real> PairPose<T> {
     pub fn cylinder_sphere(&self) -> Option<&CylinderSpherePose<T>> {
         match self {
             Self::CylinderSphere(p) => Some(p),
-            Self::SphereTorus(_) | Self::CylinderTorus(_) | Self::TorusTorus(_) => None,
+            Self::SphereTorus(_)
+            | Self::CylinderTorus(_)
+            | Self::TorusTorus(_)
+            | Self::CylinderCylinder(_) => None,
         }
     }
 }
@@ -608,6 +688,7 @@ impl<T: Decide> PairPose<T> {
             Self::SphereTorus(p) => p.operands(),
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
+            Self::CylinderCylinder(p) => p.operands(),
         }
     }
 
@@ -618,13 +699,29 @@ impl<T: Decide> PairPose<T> {
     /// `|x − c| ≤ R + r` (each of its points is `r` from a core point,
     /// which is `R` from the centre), the smaller of two tori's as the
     /// pose decided it ([`TorusTorusPose::ball`]). A cylinder is
-    /// unbounded along its axis, so it is never the ball.
+    /// unbounded along its axis, so it is never the ball: two cylinders
+    /// are read over their own ball where the region holds it, and over
+    /// the region otherwise ([`CylinderCylinderPose::ball`]), which holds
+    /// every section point the operation can use.
     pub fn ball(&self) -> ExtentBall<T> {
         match self {
             Self::CylinderSphere(p) => p.ball(),
             Self::SphereTorus(p) => p.ball(),
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
+            Self::CylinderCylinder(p) => p.ball(),
+        }
+    }
+
+    /// Whether the domain cuts the section, so that a marched branch may
+    /// end on its boundary: only where the region bounds it.
+    pub fn cut(&self) -> bool {
+        match self {
+            Self::CylinderCylinder(p) => p.cut(),
+            Self::CylinderSphere(_)
+            | Self::SphereTorus(_)
+            | Self::CylinderTorus(_)
+            | Self::TorusTorus(_) => false,
         }
     }
 }
@@ -634,7 +731,10 @@ impl PairPose<f64> {
     /// a hundredth of its radius so the slab's faces stand off the ball,
     /// which the bounding surface reaches (a sphere everywhere, a torus
     /// round its outer equator); the feature extent the ball's diameter,
-    /// the standard accounting floor.
+    /// the standard accounting floor. For two cylinders it is the cube of
+    /// one ball ([`CylinderCylinderPose::ball`]): their own ball where
+    /// the region holds it, else the region's, each a superset of their
+    /// ball cut by the region.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
         let ball = self.ball();
@@ -668,10 +768,18 @@ pub enum SectionRead<T: Real> {
 /// the band ([`SectionError::Escalated`]); a torus outside its ring
 /// convention ([`SectionError::DegenerateTorus`]), two tori decided one
 /// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
-/// ([`SectionError::Pinched`], [`SectionError::Unordered`]).
+/// ([`SectionError::Pinched`], [`SectionError::Unordered`]); a pair with
+/// no bounded side asked with no `region` ([`SectionError::NoRegion`]).
+///
+/// `region` is the operation's (C5): the ball about the overlap of the
+/// two operands' boxes, padded, which holds every section point the
+/// operation can use. A pair with no bounded side (two cylinders) is
+/// read over it; a pair with a sphere or a torus side is read over that
+/// side's own ball and does not read it.
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
+    region: Option<ExtentBall<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
@@ -701,8 +809,19 @@ pub fn pair_section<T: Decide>(
                 expected: "two tori",
             }),
         },
+        (Cylinder, Cylinder) => {
+            let region = region.ok_or(SectionError::NoRegion {
+                pair: "cylinder×cylinder",
+            })?;
+            match CylinderCylinderPose::decide(a, b, &crate::Reach::Ball(region), band) {
+                Some(pose) => cylinders::cylinder_cylinder(pose?, band).map(SectionRead::Built),
+                None => Err(SectionError::WrongLane {
+                    expected: "two cylinders",
+                }),
+            }
+        }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Cylinder, Plane | Cylinder | Cone | Nurbs | Approx)
+        | (Cylinder, Plane | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
         | (Torus, Plane | Cone | Nurbs | Approx)
@@ -809,6 +928,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),
+        nodes: Vec::new(),
     }
 }
 
@@ -838,6 +958,15 @@ impl<T: Decide> PairSection<T> {
         &self.components
     }
 
+    /// **The nodes the pose placed** (D2): points where branches of the
+    /// section cross and the surfaces are tangent, each decided on the
+    /// pose as a `Zero` tangency whose section still has carriers. An
+    /// open component names the ones it ends at
+    /// ([`ComponentEnds::nodes`]).
+    pub fn nodes(&self) -> &[Point3<T>] {
+        &self.nodes
+    }
+
     /// The components a closed form counts, where one does.
     pub fn counted(&self) -> Option<&[SectionComponent<T>]> {
         match &self.components {
@@ -850,6 +979,15 @@ impl<T: Decide> PairSection<T> {
     /// one, with its margin: the record its consumer keeps.
     pub fn coincidence(&self) -> Option<(Coincident, MarginDiag)> {
         self.decided.iter().find_map(|z| match z.decision {
+            SectionDecision::Coincidence(c) => Some((c, z.margin)),
+            SectionDecision::Tangency(_) => None,
+        })
+    }
+
+    /// Every coincidence among [`Self::decided`], with its margin: a
+    /// node pose of two cylinders stands on two.
+    pub fn coincidences(&self) -> impl Iterator<Item = (Coincident, MarginDiag)> + '_ {
+        self.decided.iter().filter_map(|z| match z.decision {
             SectionDecision::Coincidence(c) => Some((c, z.margin)),
             SectionDecision::Tangency(_) => None,
         })
@@ -896,7 +1034,7 @@ impl<T: Decide> PairSection<T> {
             Components::Marched => distinct(
                 branches()?
                     .into_iter()
-                    .map(FittedCarrier::component)
+                    .map(|b| b.component(self.pose.cut()))
                     .collect::<Result<_, _>>()?,
                 band,
             )?,
@@ -910,7 +1048,7 @@ impl<T: Decide> PairSection<T> {
                     .iter()
                     .any(|c| matches!(c.carrier, ClassCarrier::General));
                 let fitted = if general { branches()? } else { Vec::new() };
-                Self::matched(listed, fitted, band)?
+                Self::matched(listed, fitted, self.pose.cut(), band)?
             }
         };
         Ok(CarriedSection {
@@ -930,6 +1068,7 @@ impl<T: Decide> PairSection<T> {
     fn matched(
         listed: &[SectionComponent<T>],
         branches: Vec<FittedCarrier<T>>,
+        cut: bool,
         band: Band,
     ) -> Result<Vec<CarriedComponent<T>>, CarryError> {
         let general: Vec<usize> = (0..listed.len())
@@ -943,7 +1082,7 @@ impl<T: Decide> PairSection<T> {
         let branches = distinct(
             branches
                 .into_iter()
-                .map(FittedCarrier::component)
+                .map(|b| b.component(cut))
                 .collect::<Result<_, _>>()?,
             band,
         )?;
@@ -1029,12 +1168,22 @@ impl<T: Decide> PairSection<T> {
                 (ClassCarrier::Closed(curve), _) => Ok(CarriedComponent {
                     carrier: curve.clone(),
                     span: (T::zero(), T::from_f64(core::f64::consts::TAU)),
-                    closed: true,
+                    shape: ComponentShape::Loop,
                     certificate: None,
                     winds: c.winds,
                     pad: 0.0,
                     reach: 0.0,
                     witness: curve.eval(T::pi()),
+                }),
+                (ClassCarrier::Span { curve, span }, _) => Ok(CarriedComponent {
+                    carrier: curve.clone(),
+                    span: *span,
+                    shape: c.shape,
+                    certificate: None,
+                    winds: c.winds,
+                    pad: 0.0,
+                    reach: 0.0,
+                    witness: curve.eval((span.0 + span.1) * T::from_f64(0.5)),
                 }),
                 (ClassCarrier::General, Some(f)) => Ok(f),
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
@@ -1069,7 +1218,7 @@ impl<T: Decide> PairSection<T> {
         at: T,
         band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
-        if !component.closed || component.certificate.is_none() {
+        if !component.closed() || component.certificate.is_none() {
             return Ok(component.clone());
         }
         let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
@@ -1088,8 +1237,8 @@ pub struct FittedCarrier<T: Real> {
     pub carrier: Curve3<T>,
     /// Its parameter span.
     pub span: (T, T),
-    /// Whether the branch closed on itself.
-    pub closed: bool,
+    /// How the march ended it: closed on itself, or cut by the domain.
+    pub end: BranchEnd,
     /// The three-limb certificate.
     pub certificate: SsiCertificate<T>,
     /// A point of it (`carrier(mid)`).
@@ -1106,18 +1255,30 @@ pub struct FittedCarrier<T: Real> {
 }
 
 impl<T: Decide> FittedCarrier<T> {
-    /// The branch as a carried component: a closed one, since the
-    /// march's box holds the whole section.
-    fn component(self) -> Result<CarriedComponent<T>, CarryError> {
-        if !self.closed {
-            return Err(CarryError::Desync(
-                "the march left the ball's box, which holds the whole section",
-            ));
-        }
+    /// The branch as a carried component: a closed one where the
+    /// march's box holds the whole section, and one cut by the domain
+    /// where the domain is `cut` ([`PairPose::cut`]).
+    fn component(self, cut: bool) -> Result<CarriedComponent<T>, CarryError> {
+        let shape = match (self.end, cut) {
+            (BranchEnd::Closed, _) => ComponentShape::Loop,
+            (BranchEnd::Cut, true) => ComponentShape::Open {
+                ends: ComponentEnds::cut(),
+            },
+            (BranchEnd::Cut, false) => {
+                return Err(CarryError::Desync(
+                    "the march left the ball's box, which holds the whole section",
+                ));
+            }
+            (BranchEnd::Rim { .. }, _) => {
+                return Err(CarryError::Desync(
+                    "an ℝ³ march ended on a chart's side, which it does not trace",
+                ));
+            }
+        };
         Ok(CarriedComponent {
             carrier: self.carrier,
             span: self.span,
-            closed: true,
+            shape,
             certificate: Some(self.certificate),
             winds: self.winding.map(Winding::essential),
             pad: self.pad,
@@ -1158,11 +1319,12 @@ impl SsiLane<f64> {
     }
 }
 
-/// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::domain`]),
-/// which holds every component of the section. No branch reaches the
-/// box's faces, so every branch the march finds closes; each closed
-/// branch's winding about each operand is read over its uniqueness
-/// tube ([`winds`]).
+/// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::domain`]).
+/// Where the ball holds every component of the section no branch reaches
+/// the box's faces, so every branch the march finds closes; where the
+/// region cuts it ([`PairPose::cut`]) a branch may end on them. Each
+/// closed branch's winding about each operand is read over its
+/// uniqueness tube ([`winds`]).
 fn march_over_the_ball(
     pose: &PairPose<f64>,
     band: Band,
@@ -1173,6 +1335,7 @@ fn march_over_the_ball(
         PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band),
         PairPose::CylinderTorus(p) => crate::ssi::march_cylinder_torus(p, domain, band),
         PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band),
+        PairPose::CylinderCylinder(p) => crate::ssi::march_cylinder_cylinder(p, domain, band),
     }
     .map_err(CarryError::March)?;
     let (a, b) = pose.operands();
@@ -1200,7 +1363,7 @@ fn march_over_the_ball(
             Ok(FittedCarrier {
                 carrier: br.carrier,
                 span: br.params,
-                closed,
+                end: br.end,
                 certificate: br.certificate,
                 witness: br.witness,
                 winding,
@@ -1426,7 +1589,7 @@ fn seat_at(
         witness: carrier.eval(mid),
         carrier,
         span,
-        closed: true,
+        shape: ComponentShape::Loop,
         certificate: Some(certificate),
         winds: component.winds,
         pad: tube.pad,
@@ -1540,8 +1703,8 @@ pub struct CarriedComponent<T: Real> {
     pub carrier: Curve3<T>,
     /// The carrier's parameter span over the component.
     pub span: (T, T),
-    /// Whether the component is closed: its span's ends are one point.
-    pub closed: bool,
+    /// A loop, whose span's ends are one point, or a curve with ends.
+    pub shape: ComponentShape,
     /// The general rung's certificate, where it was fitted.
     pub certificate: Option<SsiCertificate<T>>,
     /// Whether it winds about each surface's carrier, in the order the
@@ -1581,6 +1744,12 @@ pub struct CarriedComponent<T: Real> {
 }
 
 impl<T: Decide> CarriedComponent<T> {
+    /// Whether it is a loop.
+    #[must_use]
+    pub fn closed(&self) -> bool {
+        self.shape == ComponentShape::Loop
+    }
+
     /// **Where the point `p` of the section lies against this
     /// component**: its foot on the carrier where `p` is within the band
     /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
@@ -1808,7 +1977,7 @@ mod wiring {
     }
 
     fn built(a: &geom::Surface<f64>, b: &geom::Surface<f64>) -> super::PairSection<f64> {
-        match super::pair_section(a, b, band()) {
+        match super::pair_section(a, b, None, band()) {
             Ok(super::SectionRead::Built(s)) => s,
             other => panic!("the value builds the pair: {other:?}"),
         }
@@ -1891,13 +2060,13 @@ mod wiring {
             let twice = vec![branch.clone(), branch.clone()];
             assert!(
                 matches!(
-                    PairSection::matched(&listed, twice, band()),
+                    PairSection::matched(&listed, twice, false, band()),
                     Err(CarryError::Desync(_))
                 ),
                 "branch {order} twice"
             );
             assert!(
-                PairSection::matched(&listed, fitted.clone(), band()).is_ok(),
+                PairSection::matched(&listed, fitted.clone(), false, band()).is_ok(),
                 "the march's own two, listed in order {order}"
             );
             listed.reverse();
@@ -1911,7 +2080,7 @@ mod wiring {
         let theirs = march_over_the_ball(elsewhere.pose(), band()).expect("the march");
         assert!(
             matches!(
-                PairSection::matched(listed, theirs, band()),
+                PairSection::matched(listed, theirs, false, band()),
                 Err(CarryError::Desync(_))
             ),
             "a witness on no branch the march found"
@@ -1940,7 +2109,7 @@ mod wiring {
         };
         fitted[0].winding = [turn, turn];
         fitted[1].winding = [turn, Winding::default()];
-        let carried = PairSection::matched(&listed, fitted, band())
+        let carried = PairSection::matched(&listed, fitted, false, band())
             .unwrap_or_else(|e| panic!("a matching exists: {e:?}"));
         assert_eq!(
             carried.iter().map(|c| c.winds).collect::<Vec<_>>(),
