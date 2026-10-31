@@ -1,0 +1,98 @@
+name: pages
+
+# Publishes the viewer's browser build (crates/viewer/web/, the
+# single-threaded wasm32 lane) to GitHub Pages once a day, so the GUI can
+# be looked at in a browser without a local toolchain. The build is the
+# one `local-scripts/serve-wasm.sh` makes — same cargo command, same
+# wasm-bindgen output, same index.html — minus the LAN server.
+#
+# A WORKFLOW OF ITS OWN rather than a nightly.yml job, deliberately: a
+# Pages outage or a Pages setting nobody has switched on yet must not red
+# the nightly, whose red means "main is broken". What this does share
+# with the nightly is the cadence; the cron below sits after nightly's.
+#
+# It is also the only place the browser build is LINKED: ci.yml's viewer
+# row runs wasm32 clippy, which type-checks the entry point but never
+# links it, so a link-time break shows up here first.
+#
+# ONE-TIME SETUP (repository settings, not code): Settings -> Pages ->
+# Build and deployment -> Source: "GitHub Actions". Until that is set the
+# deploy job fails with a 404 from the Pages API and the build job is
+# unaffected.
+
+on:
+  schedule:
+    - cron: '47 6 * * *'
+  # A dispatch from any branch builds; only main deploys (the `deploy`
+  # job's `if`, and the github-pages environment's own branch rule).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the browser viewer (wasm32)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - name: add the wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pages-wasm32
+      - name: install the wasm-bindgen CLI at the lockfile's version
+        # The CLI must match the wasm-bindgen CRATE exactly, or the page
+        # fails at import time in the browser with a schema error. The
+        # version is derived from Cargo.lock (as serve-wasm.sh does), so a
+        # dependency bump moves both. The official prebuilt, downloaded to
+        # a file and extracted separately so a retried download cannot
+        # feed tar a corrupt stream (.github/actions/install-nextest).
+        run: |
+          set -euo pipefail
+          v=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/[",]/, ""); print $3; exit }' Cargo.lock)
+          [ -n "$v" ] || { echo "::error::no wasm-bindgen entry in Cargo.lock"; exit 1; }
+          name="wasm-bindgen-$v-x86_64-unknown-linux-musl"
+          curl -sSfL --retry 5 --retry-all-errors --retry-max-time 120 -o "$RUNNER_TEMP/wb.tgz" \
+            "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$v/$name.tar.gz"
+          tar xzf "$RUNNER_TEMP/wb.tgz" -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/$name/wasm-bindgen" "$HOME/.cargo/bin/wasm-bindgen"
+          wasm-bindgen --version
+      - name: build (viewer, app feature, wasm32 release)
+        # The getrandom flag: see the RUSTFLAGS note in serve-wasm.sh.
+        run: RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build -p viewer --features app --bin viewer --target wasm32-unknown-unknown --release
+      - name: assemble the site
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/site"
+          wasm-bindgen --target web --no-typescript --out-dir "$out" \
+            target/wasm32-unknown-unknown/release/viewer.wasm
+          cp crates/viewer/web/index.html "$out/index.html"
+          ls -la "$out"
+          echo "built from \`${GITHUB_SHA}\`: $(du -sh "$out" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
