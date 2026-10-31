@@ -464,6 +464,35 @@ through the same funnel as the other sign gates.
 circle loops and chain loops freely. §6's mixed-authoring rule is read
 at LOOP granularity, as it always was: no loop is half raw.
 
+### 1a. `rectangle(centre, width, height)` — a complete-loop program form
+
+**Consumes** a centre, a width and a height: the three numbers the
+author wrote, stored as written (`[recipe.forms]`). **Determines** the
+whole loop, as `circle` does: an axis-aligned rectangle centred on
+`centre`, not a chain step. It lowers at replay to four legs,
+counter-clockwise from the lower-left corner, and its seam sits at that
+corner, a junction, so PQ4 is untouched. Its four sides are the step's
+indexed pieces `0..3` in that order, as `circle_split`'s arcs are.
+A rotated or rounded rectangle is a chain.
+
+**Refusals**: `width` or `height` not definitely positive, through the
+same funnel as the other sign gates.
+
+### 1b. A centre may be another loop's
+
+A complete-loop form's centre is written one of two ways: as a point,
+or as **the centre of an earlier loop of the same profile**. That is
+how a bore concentric with its boss is authored: a second `circle`
+whose centre is loop k's. The centre is stored once, so the two are
+concentric by construction (`[intent.structural]`), and each loop is
+still one program entry. The reference resolves to the earlier loop's
+resolved centre, as a leg aimed at `Start` takes the first step's
+resolved point; it holds no variable, so it is no second reader of the
+earlier loop's numbers.
+
+**Refusals**: a reference to a loop that is not earlier in the profile,
+or that has no centre.
+
 ### 2. The arc through a point — the `Via { q, p }` mode of
 ### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`
 ### name is gone)
@@ -1001,7 +1030,8 @@ typestate, and it retires:
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-split closed carrier: `n` equal arcs from `phase`, its vertices declared tangent joints on one carrier (the carrier fact is emission-layer bookkeeping) — the same no-seam story as `circle`, with the count and phase authored |
-| **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
+| `rectangle(c, w, h)` | — → complete loop | **G1** — the axis-aligned rectangle as written: four legs from the lower-left corner, its seam at that corner (a junction, so PQ4 holds); its sides are pieces `0..3` |
+| **TIER 1 — SUGAR** (one call each; stored as written, lowers to core at replay; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement; VQ7-banked with the legs |
