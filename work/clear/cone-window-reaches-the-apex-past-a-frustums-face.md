@@ -2,11 +2,12 @@
 id: cone-window-reaches-the-apex-past-a-frustums-face
 kind: issue
 title: window_of stretches a cone face's window to the apex though the face stops short of it, so the injectivity walk spends its pair budget on apex cells it can never clear (the cone frustum's cavity, a 3/64 frustum operand)
-status: dispatched
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
 branch: clear/frustum
+closed: 2026-10-31
 ---
 
 
