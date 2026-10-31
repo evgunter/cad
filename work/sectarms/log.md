@@ -110,3 +110,4 @@ and bodies unchanged. No orchestrator yet.
   - **SPLICE's 6026 merged mid-stage** and was absorbed: its march door and rim reaches.
   - **Eight rows moved to the slow set** (1.3–4.1 s), because the guard now marches cut pairs. The ruling-sweep stage should bring them back.
   - **Held before review:** GREEN's new P0 (18 sweep rows red on main) names 6139 as a suspect, so the same lane bisects it first. P0 work outranks the P1 review.
+- 2026-10-31 — **GREEN's P0 is not ours.** All 18 rows were red before PR 6139 (17 with identical panics at 6139's parent, at its merge and at stage 2; the 18th still running after 22 minutes at the parent). The evidence is on GREEN's row, and 6139 leaves its suspect list. **Stage 2's review dispatched** (single full, on `cf488e3`).

@@ -35,3 +35,20 @@ may already be covered by an existing row:
 `bisector_nodes` at 1e-12. If one is, add this evidence to that row
 rather than duplicating it.
 
+
+## PR 6139 cleared (2026-10-31, SECTARMS)
+
+SECTARMS ran the 18 rows at the default ε, with `--run-ignored all --no-fail-fast` in its own clone, at three commits:
+- `81707fbe`, the first parent of 6139's merge (main before 6139);
+- `f2f34e16`, 6139's merge;
+- `cf488e3`, SECTARMS's stage 2 (PR 6151).
+
+17 rows are red at all three, with identical fail sets. The panic texts before and after 6139 hash the same, so each row fails at the same site with the same message:
+- **`a_pierce_held_in_a_curved_face`, `a_ruling_lying_on_a_wall`, `a_ruling_through_a_box_corner_edge`:** `Err(EdgeInFace { …, gap: CurvedFace })`, and on one `a_pierce_held` row a tier-3′ `FaceThroughEdgeWedge`. Seen at `a_pierce_held_in_a_curved_face.rs:447`, `a_ruling_lying_on_a_wall.rs:232` and `a_ruling_through_a_box_corner_edge.rs:141`.
+- **`cylinder_sphere_frame` ×6 and `conic_edge_curved_face`:** `ResultInvalid { VolumeUncomputable … }`.
+- **`bisector_nodes::the_near_node_poses_at_the_witness_band`:** `Escalated { Coincidence(EdgeOnCurvedFace, Moot) }`.
+- **`torus_doors_join` ×3:** `assert_eq` mismatches at `torus_doors_join.rs:136`, `:152` and `:176`.
+
+The 18th row, `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`, was still running after 22 minutes at `81707fbe` and was killed. So whatever makes it red already predates 6139.
+
+**6139 leaves the suspect list.** The earliest commit checked is `81707fbe`, so bisection should start before it. `charttail/main-red-ringed-curved-doors-reds-four-sweep-rows` overlaps only in the `bisector_nodes` file, and on a different row (`slanted_bores_…` at 1e-12).
