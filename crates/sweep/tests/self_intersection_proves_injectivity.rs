@@ -730,11 +730,24 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
-/// **A long helical sweep certifies within the default budget**: a
+/// **A long helical sweep waits on the window door's halving**: a
 /// square tube two turns round a helix of pitch 0.4, its four walls
-/// sharing helical seams.
+/// sharing helical seams. Its walls are refused a window as charts that
+/// do not refine (`EngineRefusal::Unsupported`), at `f64` and at
+/// `Interval`, before the sweep is asked anything.
+///
+/// The refusal is the window door's, not the body's:
+/// `topo::clearance::refines` halves each axis only toward its lower
+/// end, and this wall's enclosure extremes all lie in one lower half
+/// (`work/clear/clearance-refines-reads-only-the-lower-halves.md`).
+/// With that door reading either half, the same body certifies
+/// `Holds` within the default budget at both scalars (measured). The
+/// sweep's carried frame put the wall there: under the frame measured
+/// from the start tangent the section spun, and this row certified.
+/// When the CLEAR row lands this goes red, and it goes back to
+/// asserting `Holds` through `holds_at_both`.
 #[test]
-fn a_long_helical_sweep_certifies_within_the_default_budget() {
+fn a_long_helical_sweep_waits_on_the_window_doors_halving() {
     fn helical<T: Scalar>() -> Body<T> {
         let path = helix(2.0, 0.4);
         let place = plane_at(&normal_start_place(&path));
@@ -748,7 +761,25 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
             .expect("the helix sweeps")
             .body
     }
-    holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
+    fn refused<T: Scalar>(what: &str, body: &Body<T>) {
+        let side = Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        match side.windows(Which::First) {
+            Err(EngineRefusal::Unsupported { carrier, .. }) => assert!(
+                carrier.contains("does not refine"),
+                "{what}: the wall is refused as a chart that does not refine, got {carrier}"
+            ),
+            Err(other) => panic!("{what}: refused otherwise: {other:?}"),
+            Ok(_) => panic!(
+                "{what}: every wall has a window now; if the CLEAR row has landed, this row \
+                 asserts Holds again (`holds_at_both`)"
+            ),
+        }
+    }
+    refused("the helical sweep", &helical::<f64>());
+    refused("the helical sweep at Interval", &helical::<Interval>());
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
@@ -1223,12 +1254,15 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
     }
     // The known divergence `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span`
     // (CLEAVE): at `Interval` the union does not build, so there is no
-    // body to ask.
+    // body to ask. Which decision refuses first moves with ε; that the
+    // union refuses, naming its cause rather than a kernel defect, does
+    // not.
     match tee_at::<Interval>() {
-        Err(topo::BooleanError::Escalated { diag, .. })
-            if diag.predicate == Some("bool_ruled_region_span") && diag.margin.is_invalid() => {}
+        Err(e) if !topo::test_support::offer_key(&e).1 => {
+            println!("[corner] tee at Interval refuses {e:?}");
+        }
         other => panic!(
-            "the tee's known divergence at Interval is the union's poison span: {:?}",
+            "the tee's known divergence at Interval is a typed refusal of the union: {:?}",
             other.map(|_| ())
         ),
     }

@@ -765,19 +765,16 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
 /// arm between it and the reach), so its slack can cost an escalation and
 /// never decide a class.
 ///
-/// `None` where no bound is read: a chart the patch bound refuses (an
-/// integral chart with a C⁰ crease anywhere, a degree-0 direction, a
-/// rational degree past its ceiling), a rational chart's C⁰ crease
-/// bounding a cell within `reach` of `p` (no curvature is read across
-/// it), a cell containing `p` whose curvature is not bounded, or a
-/// poisoned `p` or `reach`.
+/// # Errors
+///
+/// [`ChartArmRefusal`], where no bound is read, naming why.
 pub(crate) fn chart_arm(
     net: &geom::surfaces::NurbsSurface<f64>,
     p: geom_core::Point3<f64>,
     reach: f64,
-) -> Option<f64> {
+) -> Result<f64, ChartArmRefusal> {
     if reach.is_nan() || !(p.x.is_finite() && p.y.is_finite() && p.z.is_finite()) {
-        return None;
+        return Err(ChartArmRefusal::Poisoned);
     }
     let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
     // Not `patch_cells_across_creases` alone: it reads an integral chart's
@@ -787,7 +784,7 @@ pub(crate) fn chart_arm(
     } else {
         crate::patch_bound::patch_cells_across_creases(net)
     }
-    .ok()?;
+    .map_err(|_| ChartArmRefusal::PatchBound)?;
     let (crease_u, crease_v) = (
         net.knot_values_u().crease_values(),
         net.knot_values_v().crease_values(),
@@ -800,7 +797,7 @@ pub(crate) fn chart_arm(
         }
         let on = |c: &[f64], (lo, hi): (f64, f64)| c.iter().any(|&k| k == lo || k == hi);
         if on(&crease_u, cell.u) || on(&crease_v, cell.v) {
-            return None;
+            return Err(ChartArmRefusal::CreaseWithinReach);
         }
         let kappa = cell_curvature(cell).map_or(f64::INFINITY, |(lo, hi)| (-lo).max(hi));
         near.push((d, kappa));
@@ -819,7 +816,31 @@ pub(crate) fn chart_arm(
         }
         arm = arm.min(fit);
     }
-    (arm > 0.0).then_some(arm)
+    if arm > 0.0 {
+        Ok(arm)
+    } else {
+        Err(ChartArmRefusal::Unbounded)
+    }
+}
+
+/// **Why [`chart_arm`] read no arm.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartArmRefusal {
+    /// The patch bound refuses the chart as a whole: an integral chart
+    /// with a C⁰ crease anywhere, a degree-0 direction, a rational degree
+    /// past its ceiling.
+    PatchBound,
+    /// A rational chart's C⁰ crease bounds a cell within the reach of the
+    /// point: no curvature is read across it.
+    CreaseWithinReach,
+    /// A cell containing the point has no bounded curvature (a pole, a
+    /// normal not bounded from zero).
+    Unbounded,
+    /// The point or the reach is poisoned, or wider than a point at the
+    /// scalar.
+    Poisoned,
+    /// The scalar has no certified lane to read the bound at.
+    NoLane,
 }
 
 /// The distance from `p` to `cell`'s spatial enclosure ([`chart_arm`]):

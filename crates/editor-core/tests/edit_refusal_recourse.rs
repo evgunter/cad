@@ -267,28 +267,16 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
 /// owner's table reds [`every_predicate_a_subtract_logs_has_words_or_a_reason`].
 const WORDLESS: &[(&str, &[&str])] = &[
     (
-        // Deliberately: the invariant lane (`k_stats::decide_invariant`)
-        // is the kernel checking its own result, not a decision about
-        // the model, so there is no model question to put in words.
-        "the invariant lane",
-        &[
-            "volume_backstop",
-            "volume_backstop_operand",
-            "volume_backstop_violation",
-        ],
-    ),
-    (
         // Tier 3 at the boolean door: the at-rest gate the door runs on
         // its result and the boolean seat runs on each operand it
         // finishes (`AtRestPolicy::gate_at_rest_kept`), and its +V
-        // reading (check 7) with its interval re-derivation, which the
-        // volume backstop also runs. The kernel checking its own bodies
-        // through tier 3's rules, so no model question either.
+        // reading (check 7) with its interval re-derivation. The kernel
+        // checking its own bodies through tier 3's rules, so no model
+        // question to put in words.
         "tier 3, at the boolean door",
         &[
             "planar_boundary_residual",
             "planar_face_residual",
-            "positive_volume",
             "positive_volume_exact",
         ],
     ),

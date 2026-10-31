@@ -130,3 +130,7 @@ wrong shape to another. Classify each arm the way the census does, and
 panic where it is bug-only. The census's child row on this slate,
 `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals`,
 carries the same files' arms that already append the constant.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The `BooleanError::VolumeCorrupt` precedent it cites is gone; `census`'s `Undecided::CorruptInstance` remains.

@@ -1028,6 +1028,7 @@ APPROVE-WITH-FIXES. I read the fix pass myself.
   `a-vertex-piercing-a-spline-face-reads-no-outward-normal` (P1).
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note.** `[ev]` PR 6121 (SECTARMS's P0) proposes one section arm for a NURBS face against any implicit surface, `φ = f∘S` over the knot rectangle. It generalises the `(Plane, Nurbs)` arm PR 6026 is adding to `pair_section`, and it proposes building `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` as the plane instance of one pre-march regularity sweep, keeping the ratified home and order (fork row 223). Nothing is asked of 6026. If Ev approves, the W5 row's shape may move: please read 6121 before building W5.
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note on PR 6026.** SECTARMS's cylinder × cylinder unit (branch `sectarms/cylinder-pair-on-the-value`, stage 1) lands the component-with-ends type the approved designs share (forks 224 and 226): `ComponentShape::Open { ends }` carrying the rims reached per operand (`[ChartReach; 2]`, your shape), a cut end and node ids. It is meant to subsume 6026's `Open { reaches }`, so 6026's three construction sites and its W1′ reader become one-line rewrites. The unit also adds a region to `pair_section`'s inputs, where 6026 adds a march door (`pair_section_with`). One combined door struct would avoid two signature changes. Is that agreeable? If SPLICE prefers to land 6026 first, say so on SECTARMS's log and the unit will adopt 6026's shape instead.
+- 2026-10-31 — **Seam (CARVE):** `a-span-ending-on-a-faces-rim-has-no-sector-clearance` is open again: its trigger, `a-half-turn-spine-sweeps-only-off-its-exact-tangents`, closed with PR 6138. The klein loop now sweeps its exact spine with no cap tilt, so re-measure its line's end against the rim. (CARVE orchestrator)
 - 2026-10-31 — **The curved lane reads a spline span through the ring composite** (PR 6136, closing `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`). Review tier: single FULL. The span against a cylinder, cone, sphere or torus face was correctness-bearing: the divisor's lean, the far nappe, covers.
   - **Review** (frozen at `f6058492`): APPROVE-WITH-FIXES, no MAJOR. Owed item (c), the divisor as a pointwise factor, holds on all four kinds. The reviewer's three rows are on `splice/review-6136` @ `3737cea9`, merged into the branch.
   - **Adjudicated: fixed.**
@@ -1062,3 +1063,21 @@ Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
 SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
 general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
 6026's shapes.
+- 2026-10-31 — **A vertex piercing a spline face reads the face's outward normal** (PR 6152, closing `a-vertex-piercing-a-spline-face-reads-no-outward-normal`). Review tier: single FULL (the face sense, creases and sheets were at stake).
+  - **Fork on the second sheet, ruled by the orchestrator** (no ratified text moves). The normal is read at the chart point the sweep itself certified: `ChartMeeting.uv`, or `spline_region::read`'s In point, carried in `ContactAcc::charts`. It is never a projection foot.
+    - A second in-trim foot within the band is the placement read's own gap: `spline_region::read` returns the first foot it finds. It is filed as `spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot` (P3, H), and cited at the site.
+    - Rejected: a partial check here, which would be a second, weaker predicate for the same fact (`[one-way.readings]`), and an embedding-beyond-band ruling nobody asked for.
+  - **Review** (frozen at `f2681f2c`): APPROVE-WITH-FIXES. The door, the gate, the sense path and the lever are sound.
+  - **MAJOR, coverage:** no kernel row read the sweep's carriage of the chart point. One source was read by nothing at all, and lily wall 8, the only guard, runs nightly only. Fixed: one kernel row per source, each red when its source drops the chart.
+  - **Class: a demo-only guard on a per-PR-gated change is no per-PR guard.** The same shape again: demo pins loose enough that a stop moves unseen (this PR's S11, 6136's lily pin, 6157's klein pin).
+  - **Fixed:**
+    - The lever's refusal near a crease is now its own `PierceLeverUnread { cause }`. The patch bound's over-refusal of an integral chart with any crease is filed as `encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere` (P3).
+    - **Class:** `face_normal.rs` was exempt from the hand-fold lint, so every door added there went unguarded. The exemption is narrowed to its tests.
+    - The door names a stale face, a non-spline carrier and a placeholder chart, rather than one `Ok(None)`.
+    - The crease reading is kept.
+    - There is one chart-point normal door, `geom_brep::chart_point_normal`, which `dihedral_side` now reads too.
+    - There is one placement door.
+    - The Approx text now says what is true.
+  - **The lane's calls, taken:** S6 (newtype) and S7 (comparing two uvs) were not done; S7 would be the forbidden weaker predicate.
+  - **Lily wall 8's next stop:** `Euler(PcurveMint { face 3v1, SplineChart })` at 1e-9 and 1e-6, `vtxfac::ring_vertex_in`. It is filed as `a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex` (P1, M).
+  - **Main reds** found on the way: six editor-core interval rows, hidden by the nightly's cancelled full suite. Filed on GREEN (PR 6156).

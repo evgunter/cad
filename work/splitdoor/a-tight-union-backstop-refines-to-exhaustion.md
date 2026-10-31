@@ -2,10 +2,13 @@
 id: a-tight-union-backstop-refines-to-exhaustion
 kind: issue
 title: The union's volume backstop refines every face to exhaustion where the bound is tight: the tilted plug's union costs 8.7 s in debug against 30 ms for its differences
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: M
+branch: cleave/volume-relations-a-test-oracle
+pr: 5842
+closed: 2026-10-31
 ---
 
 
@@ -42,3 +45,7 @@ last refinement. Not measured beyond the timing and the samples.
 Banded P3 by its filer: a union of touching operands is everyday input,
 and its cost is a user's latency as well as the suite's; the
 orchestrator re-bands.
+
+## Closed (2026-10-31)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::VolumeOracle`), so nothing refuses or passes on it. The union no longer walks any face to decide a volume inequality, so the tilted plug's union pays only the at-rest gate's own measure, as its differences do. The timing was not re-taken.
