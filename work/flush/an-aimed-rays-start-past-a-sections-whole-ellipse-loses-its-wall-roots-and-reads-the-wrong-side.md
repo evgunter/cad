@@ -34,9 +34,18 @@ The main column is FLUSH's review measure (R1) at 1e-9, re-taken on
 Examples on main: φ −3.1 at ψ 2e-7, 0.135 at 5e-7, 2.022 at 2e-7,
 ±0.943 at 1e-7.
 
+PR 5781's fix pass moves which poses meet this defect (R1's delta): 6
+poses that build on main now refuse with `NegativeVolume`, 15 that
+refuse on main now build, and the total goes from 65 to 58 of 384. That
+is this defect's aim luck, refused rather than shipped. The census
+above reads 50 of the 58 shared with main (8 newcomers, not 6);
+R1's 6 and 15 against 65 would give 56, so the counts disagree by two,
+unreconciled.
+
 Further, a φ 5.5, ψ 1e-5 pose refuses at L 0, 0.02, 0.1 and 0.5, both
 signs, on main and on `27ae1eea` (R2: check 7 walked a pass and read
-`In`). With the ruled aim moved to its edges' golden sections, φ 5.5
+`In`), and on PR 5781's merged head at 1e-9 (not at 1e-6 or 1e-12),
+where the pin carries it. With the ruled aim moved to its edges' golden sections, φ 5.5
 reads `Out` and builds while φ 2.2 at ψ 1e-7 reads `In`. Which poses
 fail is aim luck, both ways; the aim does not cause the defect.
 

@@ -5,12 +5,22 @@
 //! its seam (where the schedule's `+x` ray runs through the seam, every
 //! product along it exactly zero) reads its analytic side, and so does
 //! the same tube with a slit across a cap in that plane.
+//!
+//! The slit half guards the line pass only, not the seam skip: the slit
+//! is a line, which `edge_meets` meets wherever the ray crosses the cap
+//! (the ray's trace on the cap is the slit's own line), and a face met
+//! at an edge never takes the turn. It is no witness that a planar face
+//! leaves its own seam out of the turn. A curved slit would be one, but
+//! none was built: the cap's only vertices are its rims' seam vertices,
+//! both on that line, and a circle arc through them meets the line only
+//! there, so the ray's trace never crosses such a slit inside its span.
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use sweep::test_support::{finished, revolved_about_y};
-use topo::{AtRestBody, Body, ContactRecords, LoopBoundary, MekrSite, SolidContainment};
+use topo::construction::{Construct, MekrSite};
+use topo::{AtRestBody, Body, ContactRecords, LoopBoundary, SolidContainment};
 
 /// The tube `0.5 < r < 1`, `0 < y < 1` about the `y` axis; with
 /// `slit`, its `y = 0` cap's two rims joined by a chord across it.

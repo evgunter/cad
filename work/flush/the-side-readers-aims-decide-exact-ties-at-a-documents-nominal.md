@@ -175,8 +175,10 @@ and each ray (a probe, not kept):
   tube read in its seam plane misread 608, 509, 403, 456 and 352 of 7381
   points at five turns (R1; base 0).
 - **What licenses a turn is now its own set, `EdgeMeets::clear`.** It
-  holds the edges every crossing reads definitely off: the lines
-  `edge_meets` decides, and each curved edge read clear from every
+  holds the edges a face's turn may be read past: every line pass
+  `edge_meets` reads, met or not (a face met at any edge never takes the
+  turn, so a met line in it licenses nothing), and each curved edge read
+  clear from every
   crossing, or whose carrier the ray definitely misses. `read` keeps
   meaning "decided". A seam is in neither: `curved_edges` no longer
   inserts it unread, and `every_bound_read` skips it by name. An edge
@@ -192,6 +194,15 @@ and each ray (a probe, not kept):
   of their constants.** Every golden-section search and every golden-angle
   sample in the tree reads them. `π(3 − √5)` equals `GOLDEN_ANGLE` in
   `f64`, so the batteries' inputs keep their bits.
+
+- **The fix pass moves which seam-split poses meet the P1** (R1's
+  delta): 6 poses that build on main now refuse with `NegativeVolume`,
+  15 that refuse on main now build, and the census total goes from 65
+  to 58 of 384 at 1e-9. That is the P1's aim luck, refused rather than
+  shipped: no wrong side builds, and the P1 row carries the defect. My
+  census reads 50 of the 58 shared with main, so 8 newcomers, not 6;
+  R1's 6 and 15 against 65 would give 56, so the two counts disagree
+  by two and I have not reconciled them.
 
 After, on the merged head: **22** ties, all
 `bool_ruled_region_roots_coaxial` in `cut_cylinder`; every other

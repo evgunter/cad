@@ -3004,11 +3004,14 @@ struct EdgeMeets<T> {
     /// Every edge decided, met or not: `lines` and the curved reading's
     /// ([`curved_edges`]).
     read: std::collections::BTreeSet<crate::entity::EdgeKey>,
-    /// The edges every crossing of whose faces reads definitely off them:
-    /// `lines`, as [`edge_meets`] decides them, and each curved edge read
-    /// clear from every crossing of its faces, or whose face's carrier the
-    /// ray definitely misses ([`curved_edges`]). An edge read past its
-    /// span's end from one is not, and neither is one met.
+    /// The edges a face's turn may be read past: every one of `lines`,
+    /// met or not, as [`edge_meets`] inserts each pass before deciding
+    /// its gap, and each curved edge read clear from every crossing of
+    /// its faces, or whose face's carrier the ray definitely misses
+    /// ([`curved_edges`]). A curved edge read past its span's end from
+    /// one is not in it, and neither is a curved edge met. A met line
+    /// here is harmless: the turn is read only for a face no edge is met
+    /// at, so a face with a met line never takes it.
     clear: std::collections::BTreeSet<crate::entity::EdgeKey>,
     marks: Vec<RayHit<T>>,
     /// The vertices read so far, each once.
@@ -3339,6 +3342,18 @@ fn wall_crosses_by_turn<T: Decide>(
     // twice how far the edge is off, the image may misplace it, and the
     // face is not read so here. For an edge on its line or parallel the
     // margin is `p`'s clearance of it, which every crossing read definite.
+    //
+    // The factor 2 is argued, not demonstrated: no fixture reads wrong
+    // under factor 1, and none is pinned. Off-line numerics (not kept)
+    // put the image's misplacement zone, as a share of `off`, below 1
+    // for a ruling drifting linearly round the wall (about 0.25 at a
+    // length of twice the radius, approaching 1 only as length over
+    // radius grows without bound), and at about `off/(2r)` for a tilted
+    // circle, whose image the two three-point arcs carry to first order;
+    // a circle's centre off the axis moves no image at all. So factor 1
+    // can be made red by no pose, and factor 0 only by a ruling drifting
+    // by far more than the band, which a valid body bounds by a plane
+    // through that ruling: not built.
     for e in face_edges(body, face).map_err(RayFault::Fatal)? {
         if e.across == face {
             continue;

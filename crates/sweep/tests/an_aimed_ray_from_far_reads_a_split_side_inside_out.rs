@@ -50,7 +50,9 @@ fn inside_out(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> bool {
 /// the run's ε, on main and on the side reader's in-face aims alike (the
 /// aim decides which poses meet the defect, both ways): at 1e-9 the seam
 /// at the census's 13th azimuth `2·10⁻⁷` and `5·10⁻⁷` off tangency, at
-/// both offsets and either normal; at 1e-12 the 8th, 9th and 15th
+/// both offsets and either normal, and a second reviewer's seam at
+/// `φ 5.5` `10⁻⁵` off tangency, outside the census's tilts, at four
+/// offsets and either normal; at 1e-12 the 8th, 9th and 15th
 /// azimuths at the tilts that read so. At 1e-6 no pose of the census does,
 /// and the row says so.
 #[test]
@@ -62,6 +64,11 @@ fn a_seam_split_a_hair_off_tangency_reads_a_side_inside_out() {
             .into_iter()
             .flat_map(|psi| [0.0, 0.1].map(|l| (psi, l)))
             .flat_map(|(psi, l)| [1.0, -1.0].map(|sign| (azimuth(13), psi, l, sign)))
+            .chain(
+                [0.0, 0.02, 0.1, 0.5]
+                    .into_iter()
+                    .flat_map(|l| [1.0, -1.0].map(|sign| (5.5, 1e-5, l, sign))),
+            )
             .collect()
     } else if eps == 1e-12 {
         [(8, 1e-7), (8, 2e-7), (9, 2e-7), (9, 5e-7), (15, 1e-7)]
