@@ -2,10 +2,11 @@
 id: a-one-segment-cylinder-through-a-plate-tangent-to-a-hole-refuses-single-site
 kind: issue
 title: A one-segment cylinder through a plate, a hole tangent to its wall, refuses SingleSiteSectionLoop{count: 2} in every op where the two-arc form builds
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
+branch: cleave/one-segment-cylinder-through-a-holed-plate
 ---
 
 Found by PR 5808's claims review, in the class of
