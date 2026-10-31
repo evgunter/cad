@@ -69,3 +69,20 @@ to move, or either, is the design question. Either is sound for
 admission, because the engine still refuses later on depth or budget.
 The CARVE unit `self-overlapping-spines-build-and-validate` cannot
 certify the loft and sweep bodies above until this is settled.
+
+## A long helical sweep hits it too (CARVE, PR 6138, 2026-10-31)
+
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`'s helical
+row (a 0.16 square swept two turns round a radius-1 helix of pitch 0.4,
+65 stations, v-degree 3) used to certify `Holds` within the default
+budget. Under the sweep frame of
+`work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`,
+which carries the section without spinning it, the window door refuses
+its wall `FaceKey(3v1)` as `Unsupported { carrier: "a face whose
+interval chart does not refine …" }` at `f64`. With
+`CARVE_EMBED_SCRATCH_REFINES_BOTH_HALVES` set (the experiment above,
+applied locally and not committed), the same body certifies `Holds`
+again (64.6 s in a debug build). The row is renamed
+`a_long_helical_sweep_waits_on_the_window_doors_halving` and pins the
+refusal, citing this row. When this row lands it goes red, and it goes
+back to `holds_at_both`.
