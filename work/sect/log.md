@@ -320,6 +320,17 @@ which topo's `identity_data` reads — the orchestrator checked its ranking and
 non-finite handling match main's) and the ring convention refused at the
 ladder.
 
+## 2026-10-29 — the cylinder-face re-homing dispatched beside PR 6011's fix pass
+
+- **`sect-rehome`** (branch `sect/rehome-by-path`):
+  `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`
+  (P1 M). Tier: **single FULL**. Dispatched now rather than after PR 6011:
+  its ground is `chord_join`'s re-homing functions (`rehome_rings`,
+  `chart_ring_side`, `path_ring_side`), which PR 6011 does not edit; the two
+  share only the file, and the lane announces the seam. It also measures
+  whether PR 6011's `RunImageNotYet` stops are this row's site.
+- PR 6011's dual review: both APPROVE-WITH-FIXES, no MAJOR (row written at
+  its state sync); fix pass running.
 ## 2026-10-29 — components are the march's (PR 6011)
 
 PR 6011 closes `a-general-torus-pose-lists-no-components` as fork row 212
@@ -335,6 +346,27 @@ confirmation review. The one-way winding cross-check is a filed deviation
 the new marching rows take up to ~30 min each at opt-level 2 in the nightly
 (`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).
 
+## 2026-10-29 — PR 6011 merged; the frames row closed; the seam-region red re-banded
+
+- **PR 6011 merged** (head 5c5ca02, CI green); lane reclaimed; `sect-rehome`
+  told to merge main.
+- **`torus-germ-pairs-have-no-section-frame` closed** by the orchestrator:
+  every measured pair passes the germ mint, and each stops at another row's
+  door (named in its `## Closed`).
+- **`main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`**
+  (filed by nightly triage on SECT at P3, GREEN holding the row out of the
+  nightly's 1e-12 row) **re-banded P1** and dispatched as `sect-seamslow`
+  (branch `sect/seam-region-speed`): the slowdown is SECT's own (PR 5894),
+  the guard runs blind meanwhile, and PR 6011's new marching rows put the
+  nightly job's headroom in question. Tier: **single FULL**.
+
+## 2026-10-29 — the repeated march dispatched (Ev: "the time seems pretty egregious")
+
+Filed and dispatched `a-surface-pairs-march-is-repeated-per-operation-and-per-germ`
+(P1 M) as `sect-marchonce` (branch `sect/march-once`), on Ev's go-ahead in
+chat. Measure first, share within an operation, then across operations if
+the answer is the pair's and band's alone; a cache that crosses the public
+API stops for the designer pair. Tier: **single FULL**.
 ## 2026-10-29 — the repeated march was not repeated (PR 6056)
 
 `sect-marchonce` measured one march per pair per operation on every slow
@@ -346,3 +378,17 @@ P3 (cross-op sharing buys ≤ ~11 % and waits on canonical operand order).
 The orchestrator's earlier "about eight marches per pair" was wrong: each of
 a row's eight operations marches once, which is what that count was.
 Tier: **orchestrator's read** (a test-only counter and two pins).
+
+## 2026-10-31 — PR 6011's 1e-6 red dispatched; usage limit lifted
+
+- Nightly 77 (GREEN's triage) found five torus rows red at ε 1e-6 only since
+  PR 6011, bisected to the PR's own head, and pinned them red at 1e-6
+  (`main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`,
+  P1). Cause to measure: PR 6011's second fix pass grew each marched loop's
+  pad (tube + √3 × the hull boxes' side) after the confirmation review's
+  1e-6 run, and its lane re-ran only the compiled ε; four rows refuse
+  `Winds(Unseparated)`. Dispatched as `sect-onesix` (branch
+  `sect/torus-rows-at-1e-6`). Tier: **single FULL**.
+- The account's weekly usage limit stopped `sect-seamslow` mid-poll
+  (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
+  (review: APPROVE-WITH-FIXES, no MAJOR).
