@@ -114,10 +114,10 @@ use geom::Surface;
 use geom::{Curve3, EllipseInvalid, SpiricInvalid, SquareFrame, SurfaceKind, square_frame};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
+use crate::ExtentBall;
 use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
-use crate::ExtentBall;
 use crate::extent::{LeverBounds, Reach};
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
@@ -254,7 +254,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    operation's region: parallel axes cut in closed-form rulings, equal \
                    radii (decided Zero by their margin) with meeting axes in the two \
                    bisector Ellipses (cylinder_cylinder_section), and every other \
-                   crossing pose is marched over the pair's ball cut by the region",
+                   crossing pose is marched as the IMPLICIT pair in ℝ³ over the pair's \
+                   ball cut by the region",
         },
         // ---- Rung 2, axis-aligned poses only: the containing and
         // normal planes cut closed-form Circles, the parallel one off
@@ -551,7 +552,12 @@ pub fn route_pose<T: Decide>(
                 }),
             }
         }
-        (Cylinder, Cylinder) => crate::pair_section(a, b, Some(reach.ball()), band).map(drop),
+        (Cylinder, Cylinder) => match crate::CylinderCylinderPose::decide(a, b, reach, band) {
+            Some(pose) => pose.map(drop),
+            None => Err(SectionError::WrongLane {
+                expected: "two cylinders",
+            }),
+        },
         // Every pose served, by a closed form or by a general-rung arm
         // that marches.
         (Plane, Plane | Cylinder | Sphere | Nurbs | Approx)
@@ -1575,7 +1581,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
 ) -> Result<EqualCylinderSection<T>, SectionError> {
     use crate::pair_section::cylinders::{bisector_ellipses, parallel_rulings};
     use crate::{CcNode, CcStance, CylinderCylinderPose};
-    let pose = CylinderCylinderPose::decide(c1, c2, *region, band).ok_or(
+    let pose = CylinderCylinderPose::decide(c1, c2, &Reach::Ball(*region), band).ok_or(
         SectionError::WrongLane {
             expected: "cylinder×cylinder",
         },

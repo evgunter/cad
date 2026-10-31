@@ -686,7 +686,8 @@ pub(crate) fn classify<T: Decide>(
         (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. }, S::Cylinder { .. })
-        | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, None, band) {
+        | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, None, band)
+        {
             Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), marched),
             Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
             Err(e) => of_pair_section(&Err(e), marched),

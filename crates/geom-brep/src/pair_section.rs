@@ -53,10 +53,13 @@
 //!
 //! # The pairs it serves
 //!
-//! Cylinder × sphere and the three torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`]). Each pair's pose
+//! Cylinder × sphere, the three torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`]) and two
+//! cylinders ([`cylinders`]), which have no bounded side and are read
+//! over the operation's region. Each pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
-//! [`TorusTorusPose`]) is decided once, and every reader of the pair
+//! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
+//! every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
 //! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
@@ -807,7 +810,7 @@ pub fn pair_section<T: Decide>(
             let region = region.ok_or(SectionError::NoRegion {
                 pair: "cylinder×cylinder",
             })?;
-            match CylinderCylinderPose::decide(a, b, region, band) {
+            match CylinderCylinderPose::decide(a, b, &crate::Reach::Ball(region), band) {
                 Some(pose) => cylinders::cylinder_cylinder(pose?, band).map(SectionRead::Built),
                 None => Err(SectionError::WrongLane {
                     expected: "two cylinders",

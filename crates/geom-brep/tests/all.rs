@@ -99,6 +99,8 @@ mod coplanar_ellipses_one_locus;
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
 mod cylinder_green_conditioning;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
@@ -147,8 +149,6 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "onpair_plane_nurbs.rs"]
 mod onpair_plane_nurbs;
-#[path = "cylinder_pair_section.rs"]
-mod cylinder_pair_section;
 #[path = "pair_section.rs"]
 mod pair_section;
 #[path = "pcurve_frame_premise_rows.rs"]

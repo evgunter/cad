@@ -316,7 +316,8 @@ fn germ_row(
                 oracle_loops(&a, &b, 600),
                 "{what}: the oracle's loop count"
             );
-            let Ok(SectionRead::Built(section)) = geom_brep::pair_section(&a, &b, None, band()) else {
+            let Ok(SectionRead::Built(section)) = geom_brep::pair_section(&a, &b, None, band())
+            else {
                 panic!("{what}: the value builds the pair");
             };
             let carried = section
@@ -452,7 +453,8 @@ fn the_radial_hole_marches_the_square_walls_loops() {
     let t = torus(Point3::origin(), Vec3::unit_y(), 2.0, 0.5);
     for (what, h, e) in [("on the axis", 0.0, 0.0), ("off the axis", 0.1, 0.15)] {
         let rod = cylinder(Point3::new(0.0, h, e), Vec3::unit_x(), 0.2);
-        let SectionRead::Built(section) = geom_brep::pair_section(&t, &rod, None, band()).unwrap() else {
+        let SectionRead::Built(section) = geom_brep::pair_section(&t, &rod, None, band()).unwrap()
+        else {
             panic!("{what}: the value builds the pair");
         };
         assert!(
@@ -495,7 +497,8 @@ fn the_radial_hole_marches_the_square_walls_loops() {
 fn a_rod_through_the_tube_carries_both_loops() {
     let t = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
     let rod = cylinder(Point3::new(1.0, 0.05, 0.0), Vec3::unit_z(), 0.1);
-    let SectionRead::Built(section) = geom_brep::pair_section(&rod, &t, None, band()).unwrap() else {
+    let SectionRead::Built(section) = geom_brep::pair_section(&rod, &t, None, band()).unwrap()
+    else {
         panic!("the value builds the pair");
     };
     assert_eq!(

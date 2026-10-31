@@ -82,7 +82,9 @@ fn route_inventory() {
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.
         (Plane, Nurbs, Rung::General, true),
-        (Cylinder, Cylinder, Rung::Conic, true),
+        // Every pose on the section value; its closed forms are the
+        // parallel rulings and the bisector ellipses.
+        (Cylinder, Cylinder, Rung::General, true),
         // VERBS-C5ARMS retired this arm's coaxial half: two
         // closed-form Circles, one per nappe (cone_cylinder_section);
         // tilted and parallel-but-offset cylinders still route to the
@@ -486,8 +488,8 @@ fn parallel_equal_cylinders_trio() {
     let s = cylinder_cylinder_section(&c1, &mk(3.0), &metre_on(&c1).ball(), band()).unwrap();
     assert!(matches!(s, EqualCylinderSection::Empty), "{s:?}");
     // In-band gap: escalated (F6).
-    let err =
-        cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1).ball(), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1).ball(), band())
+        .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
     // the shared recourse exactly once.
@@ -1200,7 +1202,7 @@ fn the_cylinder_sphere_value_reads_either_order() {
     );
     assert!(matches!(
         geom_brep::pair_section(&cyl, &cyl, None, band()),
-        Ok(SectionRead::Elsewhere(_))
+        Err(geom_brep::SectionError::NoRegion { .. })
     ));
 }
 
@@ -1681,8 +1683,13 @@ fn cc_coaxial_in_band_escalates() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let err = cylinder_cylinder_section(&mk(0.0), &mk(3.0 * eps()), &metre_on(&mk(0.0)).ball(), band())
-        .unwrap_err();
+    let err = cylinder_cylinder_section(
+        &mk(0.0),
+        &mk(3.0 * eps()),
+        &metre_on(&mk(0.0)).ball(),
+        band(),
+    )
+    .unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };

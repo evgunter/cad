@@ -484,7 +484,6 @@ fn every_other_pair_is_read_elsewhere() {
     for (a, b) in [
         (&plane, &sphere(0.0, 1.0)),
         (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-        (&cylinder(1.0), &cylinder(0.5)),
     ] {
         match geom_brep::pair_section(a, b, None, band()) {
             Ok(SectionRead::Elsewhere(route)) => {

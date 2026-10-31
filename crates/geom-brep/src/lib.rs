@@ -195,13 +195,13 @@ pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
-    CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose,
-    FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated,
-    SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
-    SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData,
-    TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose,
-    TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt,
-    pair_section, square_part, tori_coincide,
+    CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
+    Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent, SectionDecision,
+    SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane, StStance,
+    TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
+    TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding,
+    WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
+    tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

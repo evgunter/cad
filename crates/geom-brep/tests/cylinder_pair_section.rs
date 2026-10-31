@@ -68,7 +68,10 @@ fn on_both(p: Point3<f64>, a: &Surface<f64>, b: &Surface<f64>, what: &str) {
 fn near_both(p: Point3<f64>, pad: f64, a: &Surface<f64>, b: &Surface<f64>, what: &str) {
     for s in [a, b] {
         let r = geom_brep::implicit_residual(s, p);
-        assert!(r.abs() <= pad, "{what}: {p:?} is {r:e} off {s:?}, past {pad:e}");
+        assert!(
+            r.abs() <= pad,
+            "{what}: {p:?} is {r:e} off {s:?}, past {pad:e}"
+        );
     }
 }
 
@@ -76,11 +79,13 @@ fn near_both(p: Point3<f64>, pad: f64, a: &Surface<f64>, b: &Surface<f64>, what:
 /// the value refuses typed rather than reading the pair over nothing.
 #[test]
 fn two_cylinders_without_a_region_refuse_typed() {
-    let got = geom_brep::pair_section(&drum(), &placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)), None, band());
-    assert!(
-        matches!(got, Err(SectionError::NoRegion { .. })),
-        "{got:?}"
+    let got = geom_brep::pair_section(
+        &drum(),
+        &placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)),
+        None,
+        band(),
     );
+    assert!(matches!(got, Err(SectionError::NoRegion { .. })), "{got:?}");
 }
 
 /// **Parallel axes** (the survey's p0): two rulings, open with both ends
@@ -91,7 +96,11 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05)));
     for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
         let section = built(x, y, region());
-        assert!(section.decided().is_empty(), "{label}: {:?}", section.decided());
+        assert!(
+            section.decided().is_empty(),
+            "{label}: {:?}",
+            section.decided()
+        );
         let listed = section.counted().expect("rulings are counted");
         assert_eq!(listed.len(), 2, "{label}: two rulings");
         for c in listed {
@@ -103,18 +112,32 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
                 "{label}: a ruling is cut by the region at both ends"
             );
             let ClassCarrier::Span { curve, span } = &c.carrier else {
-                panic!("{label}: a ruling is a closed form over a span: {:?}", c.carrier);
+                panic!(
+                    "{label}: a ruling is a closed form over a span: {:?}",
+                    c.carrier
+                );
             };
             for t in [span.0, span.1, 0.5 * (span.0 + span.1)] {
                 let p = curve.eval(t);
                 on_both(p, x, y, label);
                 let out = (p - region().center()).norm() - region().radius();
-                assert!(out < 1e-9, "{label}: the span stays in the region, {out:e} out");
+                assert!(
+                    out < 1e-9,
+                    "{label}: the span stays in the region, {out:e} out"
+                );
             }
-            assert!(span.1 - span.0 > 3.0, "{label}: the chord of a 2 m ball: {span:?}");
+            assert!(
+                span.1 - span.0 > 3.0,
+                "{label}: the chord of a 2 m ball: {span:?}"
+            );
         }
-        let carried = section.carry(None, band()).expect("closed forms carry with no lane");
-        assert!(carried.components().iter().all(|c| !c.closed()), "{label}: open");
+        let carried = section
+            .carry(None, band())
+            .expect("closed forms carry with no lane");
+        assert!(
+            carried.components().iter().all(|c| !c.closed()),
+            "{label}: open"
+        );
     }
 }
 
@@ -126,10 +149,23 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
 #[test]
 fn the_surveys_crossing_poses_are_on_the_value_and_carry() {
     let poses = [
-        ("p1 at π/2", placed(Vec3::unit_x(), core::f64::consts::FRAC_PI_2, (0.3, 0.2, 0.1))),
+        (
+            "p1 at π/2",
+            placed(
+                Vec3::unit_x(),
+                core::f64::consts::FRAC_PI_2,
+                (0.3, 0.2, 0.1),
+            ),
+        ),
         ("p2", placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2))),
-        ("p3", placed(Vec3::new(0.3, 1.0, 0.2), 1.1, (0.42, -0.15, 0.3))),
-        ("p5", placed(Vec3::new(1.0, 1.0, 0.0), 0.9, (0.05, 0.1, 0.02))),
+        (
+            "p3",
+            placed(Vec3::new(0.3, 1.0, 0.2), 1.1, (0.42, -0.15, 0.3)),
+        ),
+        (
+            "p5",
+            placed(Vec3::new(1.0, 1.0, 0.0), 0.9, (0.05, 0.1, 0.02)),
+        ),
     ];
     let a = drum();
     for (label, b) in &poses {
@@ -162,7 +198,10 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
     let a = drum();
     for (e, loops, winds) in [(0.1, 2, [false, true]), (0.4, 1, [false, false])] {
         let b = wall(Point3::new(0.0, e, 0.0), Vec3::unit_x(), 0.2);
-        for (label, x, y, winds) in [("a, b", &a, &b, winds), ("b, a", &b, &a, [winds[1], winds[0]])] {
+        for (label, x, y, winds) in [
+            ("a, b", &a, &b, winds),
+            ("b, a", &b, &a, [winds[1], winds[0]]),
+        ] {
             let section = built(x, y, region());
             let listed = section
                 .counted()
@@ -171,7 +210,10 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
             for c in listed {
                 assert_eq!(c.shape, ComponentShape::Loop, "e = {e} ({label})");
                 assert_eq!(c.winds, winds, "e = {e} ({label}): winding");
-                assert!(matches!(c.carrier, ClassCarrier::General), "e = {e} ({label})");
+                assert!(
+                    matches!(c.carrier, ClassCarrier::General),
+                    "e = {e} ({label})"
+                );
             }
         }
         let section = built(&a, &b, region());
@@ -188,7 +230,10 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
 fn a_region_that_cuts_the_loop_carries_cut_components() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
     let section = built(&a, &b, ExtentBall::new(Point3::origin(), 0.6));
-    assert!(matches!(section.components(), Components::Marched), "cut: marched");
+    assert!(
+        matches!(section.components(), Components::Marched),
+        "cut: marched"
+    );
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
     assert!(
         carried.components().iter().any(|c| c.shape
@@ -196,7 +241,11 @@ fn a_region_that_cuts_the_loop_carries_cut_components() {
                 ends: ComponentEnds::cut()
             }),
         "a component cut by the region: {:?}",
-        carried.components().iter().map(|c| c.shape).collect::<Vec<_>>()
+        carried
+            .components()
+            .iter()
+            .map(|c| c.shape)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -333,7 +382,10 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         matches!(pose.stance(), geom_brep::CcStance::Crossing { .. }),
         "levered at the region the tilt reads crossing"
     );
-    assert!(matches!(far.components(), Components::Marched), "cut: marched");
+    assert!(
+        matches!(far.components(), Components::Marched),
+        "cut: marched"
+    );
     let got = far.carry(Some(SsiLane::marched()), band());
     assert!(
         matches!(

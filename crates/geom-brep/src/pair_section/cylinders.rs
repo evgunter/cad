@@ -148,11 +148,13 @@ fn read<T: Decide>(decision: CcDecision, value: T, band: Band) -> Result<Decided
 }
 
 impl<T: Decide> CylinderCylinderPose<T> {
-    /// **Decides the pose of `a` and `b`**, two cylinders, over
-    /// `region` (module docs). In order:
+    /// **Decides the pose of `a` and `b`**, two cylinders, across
+    /// `reach` (module docs): the operation's region
+    /// ([`Reach::Ball`]), or the consumed extent a pose question names
+    /// ([`crate::route_pose`]). In order:
     ///
     /// 1. `cc_cylinder_radius`, each radius definitely positive.
-    /// 2. `cc_axes_parallel`, levered across `region`.
+    /// 2. `cc_axes_parallel`, levered across `reach`.
     /// 3. Parallel: `cc_coaxial`, `d` read across the region with its
     ///    swing beside it, `Zero` one surface; then `cc_parallel_gap`
     ///    and, where it is positive, `cc_parallel_nest`, each read
@@ -173,7 +175,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
     pub fn decide(
         a: &Surface<T>,
         b: &Surface<T>,
-        region: ExtentBall<T>,
+        reach: &Reach<T>,
         band: Band,
     ) -> Option<Result<Self, SectionError>> {
         let (
@@ -194,8 +196,9 @@ impl<T: Decide> CylinderCylinderPose<T> {
             return None;
         };
         let lines = [(o1, a1), (o2, a2)];
+        let region = reach.ball();
         Some(
-            Self::decide_stance(lines, [r1, r2], region, band).map(|(stance, held)| Self {
+            Self::decide_stance(lines, [r1, r2], reach, band).map(|(stance, held)| Self {
                 first: a.clone(),
                 second: b.clone(),
                 lines,
@@ -210,7 +213,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
     fn decide_stance(
         [l1, l2]: [(Point3<T>, Vec3<T>); 2],
         [r1, r2]: [T; 2],
-        region: ExtentBall<T>,
+        reach: &Reach<T>,
         band: Band,
     ) -> Result<(CcStance<T>, bool), SectionError> {
         for r in [r1, r2] {
@@ -236,12 +239,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
                 }
             }
         }
-        let reach = Reach::Ball(region);
-        let parallel =
-            cylinder_axes_parallel_reported(&reach, l1, l2, band).map_err(SectionError::Escalated)?;
+        let parallel = cylinder_axes_parallel_reported(reach, l1, l2, band)
+            .map_err(SectionError::Escalated)?;
         if parallel.sign == Sign::Zero {
-            let at = parallel_axes_at(&reach, l1, l2);
-            let swing = parallel_swing(&reach, l1, l2, at.d);
+            let at = parallel_axes_at(reach, l1, l2);
+            let swing = parallel_swing(reach, l1, l2, at.d);
             let across = |names: [&'static str; 2], value: T| {
                 decide_across_reported(names, value, swing, band)
                     .map(|(sign, margin)| Decided { sign, margin })
@@ -322,7 +324,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
             node,
             thinner,
         };
-        let held = region_holds(crossing_ball(foot, normal, sin, gap, [r1, r2]), region, band);
+        let held = region_holds(
+            crossing_ball(foot, normal, sin, gap, [r1, r2]),
+            reach.ball(),
+            band,
+        );
         Ok((stance, held))
     }
 
@@ -570,7 +576,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         } => {
             let [p, q] = parallel_rulings(foot, across, axis, pose.radii);
             match (gap.sign, nest.map(|n| n.sign)) {
-                (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => Components::Counted(Vec::new()),
+                (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => {
+                    Components::Counted(Vec::new())
+                }
                 (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
                     let (_, _, witness) = ruling(p + (q - p) * T::from_f64(0.5));
                     Components::Counted(vec![component(
@@ -692,7 +700,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                 };
                 Components::Counted(
                     (0..2)
-                        .map(|_| component(ComponentShape::Loop, winds, None, ClassCarrier::General))
+                        .map(|_| {
+                            component(ComponentShape::Loop, winds, None, ClassCarrier::General)
+                        })
                         .collect(),
                 )
             }

@@ -7213,8 +7213,9 @@ mod frame_dispatch_tests {
     /// is neither the nodes nor the unequal pair's `NoArm`, each of which
     /// claims a definite class. The partner's radius is `1 + 2·zero` of
     /// the band, past the zero band and short of escalation's edge, so
-    /// the table's `cc_radius_equality` reads it in band; a dispatch that
-    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
+    /// the pose's inner level `e − |r₁ − r₂|` (`cc_crossing_nest`, `e`
+    /// zero at meeting axes) reads it in band; a dispatch that mapped
+    /// that escalation to `NoArm` (or to the nodes) reds here.
     #[test]
     fn an_in_band_radius_at_meeting_axes_escalates() {
         let z = Vec3::new(0.0, 0.0, 1.0);
@@ -7232,7 +7233,7 @@ mod frame_dispatch_tests {
             );
             assert!(
                 matches!(&got, Err(FrameError::Escalated { diag, .. })
-                    if diag.predicate == Some("cc_radius_equality")),
+                    if diag.predicate == Some("cc_crossing_nest")),
                 "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
                  escalate, got {}",
                 outcome(&got)
@@ -7273,13 +7274,9 @@ mod frame_dispatch_tests {
                 radius: r,
                 u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
             };
-            let sec = cylinder_cylinder_section(
-                &c1,
-                &c2,
-                &geom_brep::ExtentBall::new(at(), 1.0),
-                band(),
-            )
-            .expect("intersecting equal-radius axes have a section");
+            let sec =
+                cylinder_cylinder_section(&c1, &c2, &geom_brep::ExtentBall::new(at(), 1.0), band())
+                    .expect("intersecting equal-radius axes have a section");
             let EqualCylinderSection::TwoEllipses { e1, e2, .. } = sec else {
                 panic!("{deg}°: the intersecting equal-radius section is the ellipse pair");
             };
