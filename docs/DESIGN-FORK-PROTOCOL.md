@@ -55,11 +55,11 @@ docs/DESIGN-FORK-PROTOCOL.md`, after a fetch).
    records each designer's token count as the harness reports it, for
    the first report and in total.
 5. **Reconciliation.** When the designers disagree, the orchestrator
-   may hand each the others' reports, and/or dispatch further designers to
-   weigh them, until there is a clear recommendation or a clearly
-   stated split. A round in which any designer moves to another's
-   previous position (a crossing) does not end reconciliation:
-   another round follows, each shown the others' revised reports. The row
+   runs rounds, each designer shown the others' latest reports, until
+   the designers all agree or a round ends with no designer having
+   changed its position; the orchestrator may also dispatch further
+   designers to weigh them. Reconciliation ends with the agreed
+   recommendation, or with the split as it stands. The row
    records each round: who was dispatched, what they were shown, and
    what moved; a further designer's model goes
    in the analysis-branch record, not the row, until Ev has decided.

@@ -88,16 +88,16 @@ Ev's standing instructions for implementation work:
   same statement of the PROBLEM — what needs deciding and why, and
   where to look — never candidate solutions: the options are theirs.
   None sees another's report until all are in. If they
-  disagree, hand each the others' reports and/or dispatch further
-  designers to weigh them, until there are clear recommendations — or
-  a split stated so Ev can rule on it. **A crossover is not a
-  split** (Ev, 2026-09-30; any one designer's switch counts, Ev,
-  2026-10-31): when, on comparison, any designer moves to another's
-  previous position, run another round, handing each the others'
-  revised reports and asking what moved it and whether its own
-  earlier argument is answered. Crossing means each argument is
-  still live, and often that the question beneath them has not been
-  asked yet. Only then open the `[ev]` PR:
+  disagree, **run rounds until they all agree or a round changes no
+  one's mind** (Ev, 2026-10-31, replacing the 2026-09-30 crossover
+  rule): each round hands each designer the others' latest reports
+  and asks what moved it and whether its own earlier argument is
+  answered; you may also dispatch further designers to weigh them.
+  A round in which positions moved but did not meet means the
+  arguments are still live, often that the question beneath them
+  has not been asked yet. Reconciliation ends with an agreed
+  recommendation or a split stated so Ev can rule on it. Only then
+  open the `[ev]` PR:
   its body carries each designer's `For Ev` section verbatim, labelled
   A, B (and C), **never saying which model wrote which** (Ev, 2026-09-25:
   so Ev's judgement is not biased). Act on the `For the orchestrator`
