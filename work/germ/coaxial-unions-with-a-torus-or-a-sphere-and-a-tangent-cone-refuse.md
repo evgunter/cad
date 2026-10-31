@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P2
 cost: M
-refs: [coaxiality-of-two-revolution-carriers-is-tested-five-ways, tangent-and-coaxial-scenes-are-in-the-corpus]
+refs: [coaxiality-of-two-revolution-carriers-is-tested-five-ways, 6023]
 ---
 
 Found by INTENT stage 6 PR A (`work/intent/tangent-and-coaxial-scenes-are-in-the-corpus.md`),

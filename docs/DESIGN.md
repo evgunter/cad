@@ -18,66 +18,6 @@ resolve against this file at commit `95c77e152a`, and
 Update an old citation as a drive-by when touching the text that
 holds it.
 
-## State of the build
-
-**The intent refactor is in progress, and much of what
-[intent], [variables], [operations], [repetition], [placement],
-[coincidence] and [assertions] describe is not built yet.** The INTENT
-program builds it in stages (`work/intent/plan.md`), with COINCIDE,
-REFS and INLANE as its successors; every other program holds off
-starting units that meaningfully touch dependency, placement or
-intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
-
-- **Built:** variables (stage 1); operations that read and define
-  variables, selections as definitions, the product as a list
-  (stage 2); poses as defined variables, read off geometry, read
-  through their roles and moved by lengths and angles, a revolve's
-  axis a point and a heading, and a lone `0` the constant zero
-  (stage 3 A and A′); a placement as the bundle of its mates, the
-  world a node and spaces as kinds, with gauges, offsets and the
-  mates' spanning tree retired (stage 3 B); a mate relating two poses,
-  `Transform` retired into a placement, a placement naming its target
-  space with mates reading only geometry and values charted on it,
-  `assemble` as the `⊔` operator and the product a slot, an operation
-  computing in a frame of its reads, a mate on a pinned copy refusing,
-  and repetition by index with patterns retired (stage 3 C–G); the
-  coincidence door with its rungs and the `unproven-coincidence` lint,
-  with declared pairs, a mate's `ContactClass` and the undeclared
-  refusals retired (stage 4); booleans gluing on a Zero verdict
-  and the boolean declare surface retired (stage 4 E and F); assertions
-  relating by `=`, interference at rest as a finding, and the at-rest
-  census as a check whose contacts a holding `Gap = 0` quiets, with A5's
-  at-rest gate (`assemble` and its refusal) and CHECKS DS6's
-  product-separation resident (`Separation`) retired (stage 5); an
-  operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way; coaxiality read at the door as one `Axis` read
-  twice, and tangency constructions, a sketch drawn on a frame
-  continuing tangent to a face's trace, proven at the door and written
-  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
-  its record at every consuming site, with the declared rung and its
-  bridged verdict retired (CONTACTHOLD).
-- **Not built:** `Gap`'s curved arms reading each face's material
-  side, with a plane against a curved face; a measure's reference
-  reading a pose; and each finding's recourse chosen by its kind
-  ([assertions.quiet], [intent.checked]).
-- **What retires as the build reaches it.** Where a companion clause
-  disagrees with these sections, these govern, and the companion
-  clause retires when the program reaches it: the declared-contact
-  seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a
-  mate's `ContactClass`, C6's `Fit` as a class); the
-  undeclared-coincidence, undeclared-contact and undeclared-tangency
-  refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; the axis
-  declaration channel;
-  `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
-  `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's gathered product and
-  sink rule, and A12's
-  reading edges.
-
-The program's exit walk checks that list against the code
-(`work/intent/plan.md`, "Exit criteria").
-
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the
@@ -2390,7 +2330,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, placements as mate bundles into a target space with the world a node (A3), pins, split and inline, the constructive solve, the at-rest check (A5) |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
@@ -2507,7 +2447,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D7 | [import] |
 | D8 | [recipe]; "The recipe keeps the form that was written" is [recipe.forms] |
 | D9 | [failure] (the never-panic rule and the bug-vs-invalid-state taxonomy, [failure.taxonomy]); [determinism] (bit-identity, libm, replay with kills, deterministic parallelism, the GPU boundary, equivariance as [determinism.equivariance]); [engineering] (the other engineering conventions) |
-| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the retirement list is in [State of the build](#state-of-the-build) |
+| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the clauses it superseded are retired (`docs/doc-ledger/intent-leaves-the-tracker.md`) |
 | Q1 | [scalars] and [verdicts] |
 | Q2, Q4, Q6, Q7, Q8 (resolved) | [tolerance], [tolerance.units] and [units], [recipe], [determinism], OFFSET-DESIGN O1–O6 |
 | Q3 | [open.sketch-solver] |

@@ -2,7 +2,7 @@
 id: atrest
 kind: program
 title: ATREST — the at-rest records after the seat ruling: stage 4 I, stage 5 C, and what a record is
-status: active
+status: ready
 opened: 2026-10-22
 group: api/assembly
 prefix: atrest/

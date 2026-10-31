@@ -131,6 +131,23 @@ finding (`CheckFinding::quiet`) is listed with the assertion that quiets
 it and never refuses. The census's own pre-filter is the pair filter;
 the resident adds no box test of its own.
 
+**The unproven-coincidence resident: `CheckId::UnprovenCoincidence`.**
+It reports each row the coincidence door leaves unproven, an
+operation's or an at-rest census's (DESIGN `[coincidence]`). A row is
+quiet under a holding `= 0` over the measure that says what it decided
+(`checks::at_rest::quiet_row`): a `Gap` over its two cells, read on
+their sides, for a contact, a flush pair or a tangency; a `Distance`
+between the poses its cells' carriers have (an axis, a centre) for a
+centre on an axis, two axes meeting, or two axes one, where the two
+axes read parallel; a `Gap` or a `Distance` between a split's tool and
+its vertex. Only `= 0` quiets, since a bound is a tolerance; and only an
+opposed pair's `Gap` quiets an interference. A finding refuses only
+where such an assertion could hold, which the rule evaluates
+(`row_quietable`). A row no
+assertion says (a blend turn's two feet, two radii written apart, a
+profile junction, a blend's joint) is loud, refuses at no severity, and
+its recourse names the construction alone (`coincide::Recourse::words`).
+
 **The unused resident: `CheckId::Unused`.** Kind Certified, it reads
 the recipe alone (`Doc::unused`), nothing evaluated and no subject
 gathered. A use is a read (a slot, an operand or a definition reading

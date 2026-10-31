@@ -328,9 +328,11 @@ mod interference {
         }
     }
 
-    /// Roles swapped on the press fit: Gap(pin, bore). Must stay loud.
+    /// Roles swapped on the press fit: Gap(pin, bore). A pin and a bore
+    /// are opposed, so the fit reads −0.005 in either order, and the
+    /// swapped assertion says the interference: quiet.
     #[test]
-    fn r2_press_fit_roles_swapped_is_loud() {
+    fn r2_press_fit_roles_swapped_is_quiet() {
         let (doc, p, q, _, bore, pinwall) = bore_and_pin(0.505);
         let (doc, _) = gap_at_copies(
             doc,
@@ -340,7 +342,7 @@ mod interference {
             -0.001,
         );
         let r = report(&doc);
-        assert!(r.iter().all(|(loud, _)| *loud), "{r:?}");
+        assert!(!r.is_empty() && r.iter().all(|(loud, _)| !*loud), "{r:?}");
     }
 
     /// Back-to-back planes: b runs through a's -x wall (b: x in [-0.7, 0.3]).

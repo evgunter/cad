@@ -33,6 +33,7 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::pose::{read_directly_off, read_off_cell, read_pose};
 pub(crate) use wire::{DECISION_WORDS, EVAL_DIRECTION_NORM};
 
 pub(crate) use wire::unit as unit_direction;

@@ -788,11 +788,10 @@ pub(crate) fn chart_arm(
         crate::patch_bound::patch_cells_across_creases(net)
     }
     .ok()?;
-    let creases = |knots: &geom_core::spline::Knots<f64>| -> Vec<f64> {
-        let runs: Vec<f64> = knots.runs().map(|(value, _)| value).collect();
-        knots.structure().crease_runs().map(|r| runs[r]).collect()
-    };
-    let (crease_u, crease_v) = (creases(net.knot_values_u()), creases(net.knot_values_v()));
+    let (crease_u, crease_v) = (
+        net.knot_values_u().crease_values(),
+        net.knot_values_v().crease_values(),
+    );
     let mut near = Vec::new();
     for cell in &cells {
         let d = cell_distance(net, cell, p);
