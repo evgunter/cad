@@ -1572,7 +1572,7 @@ impl Tube {
         let lifted = net.map_scalar(lift);
         let chain = crate::ssi::certify::tube_chain(net, radius);
         let pad = (!chain.is_empty()).then_some(()).and_then(|()| {
-            chain.iter().try_fold(0.0f64, |acc, &(b, (lo, hi))| {
+            chain.iter().try_fold(0.0f64, |acc, &(b, _, (lo, hi))| {
                 #[allow(clippy::cast_precision_loss)]
                 let samples: Vec<Point3<geom_core::Interval>> = (0..PAD_SAMPLES)
                     .map(|j| {
@@ -1603,8 +1603,8 @@ impl Tube {
         let witness = lifted.eval(lift(at));
         let reach = chain
             .iter()
-            .filter(|(_, (lo, hi))| *lo <= at && at <= *hi)
-            .map(|&(b, _)| farthest(b, witness))
+            .filter(|(_, _, (lo, hi))| *lo <= at && at <= *hi)
+            .map(|&(b, _, _)| farthest(b, witness))
             .filter(|r| r.is_finite())
             .fold(f64::INFINITY, f64::min);
         if !reach.is_finite() {
@@ -2287,7 +2287,7 @@ mod wiring {
                     .map(|w| (w[1] - w[0]).norm())
                     .fold(0.0, f64::max);
                 let mut worst = 0.0f64;
-                for (bx, _) in &tube.chain {
+                for (bx, _, _) in &tube.chain {
                     let [x, y, z] = [bx.x, bx.y, bx.z].map(|s| [s.lo(), s.hi()]);
                     let centre = Point3::new(
                         0.5 * (x[0] + x[1]),
@@ -2315,11 +2315,11 @@ mod wiring {
                 let held: Vec<_> = tube
                     .chain
                     .iter()
-                    .filter(|(_, (l, h))| *l <= mid && mid <= *h)
+                    .filter(|(_, _, (l, h))| *l <= mid && mid <= *h)
                     .collect();
                 assert!(
                     !held.is_empty()
-                        && held.iter().all(|(bx, _)| {
+                        && held.iter().all(|(bx, _, _)| {
                             let w = br.witness;
                             [(bx.x, w.x), (bx.y, w.y), (bx.z, w.z)]
                                 .iter()
@@ -2331,7 +2331,7 @@ mod wiring {
                     br.reach
                         <= held
                             .iter()
-                            .map(|(bx, _)| diag(bx))
+                            .map(|(bx, _, _)| diag(bx))
                             .fold(f64::INFINITY, f64::min),
                     "{what}: the reach {:e} is no wider than a box holding the witness",
                     br.reach
