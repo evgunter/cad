@@ -7,6 +7,7 @@ opened: 2026-10-26
 priority: P1
 cost: M
 closed: 2026-10-29
+pr: 6136
 branch: splice/spline-span-curved-crossing
 ---
 
