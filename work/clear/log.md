@@ -243,3 +243,13 @@ Signed: (CARVE orchestrator)
   - **The orchestrator's read** also fixed a doc comment that the insertion had moved onto the new function.
   - **Filed (P1):** the frustum (`cone-window-reaches-the-apex-past-a-frustums-face`, decided shape) and the elbow (`injectivity-reads-no-spiric-edge-on-a-torus`, a new arm). SHELL-4 is parked on both.
   - **Class, recorded:** a fix at the reader that copies a producer's decision should first be tried at the producer. This is the second time in two units that the review found the source fix both smaller and concession-free.
+- 2026-10-31 — **The FRUSTUM review is in; EPSROWS and SPIRIC are dispatched.**
+  - **FRUSTUM (#6114).** A single FULL review at `16e62919fb` returned APPROVE-WITH-FIXES, with no MAJOR. The window holds as a superset and nothing else moved. A fix pass went to the lane:
+    - pin the two unsound mutants that survive (*noslant*, *skipmissing*);
+    - tighten the wall row's near end;
+    - reword `misses_apex` to say "composed total";
+    - file the sibling `splitting/rules.rs` `cone_axial_window`, which decides "holds the apex" by a ¾-turn rule.
+  - **Class, recorded:** two guards that cover the same case each survive their own mutant (*noreset*, *nonstrict*). A per-step table should mutate overlapping guards together, or name the guard that a step's row actually pins.
+  - **Class, recorded:** one fact has four homes. A cone face's axial window and its apex test are computed in `clearance`, `splitting/rules`, `replace_face` and `census/depth_gap`, by two different apex rules.
+  - **EPSROWS dispatched.** Branch `clear/epsrows`, single FULL review: the helix half touches the iso-line mint producer. It covers the nightly's ε 1e-12 red on the tee and the long-helix rows, which the FRUSTUM review diagnosed. It is not SPIRIC's code, so it runs as its own unit.
+  - **SPIRIC dispatched.** Branch `clear/spiric`, H, a DUAL concurrent pair. It runs before FRUSTUM merges, because its spec already has it merge main as FRUSTUM lands, and SHELL-4 waits on both.
