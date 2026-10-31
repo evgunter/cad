@@ -3711,7 +3711,8 @@ fn root_held<T: Decide>(
 /// - no other met edge stands for;
 /// - belongs to a face whose every edge is decided;
 /// - on a face not every edge of which is a line edge read exactly, lies
-///   near the passage or is definitely held by the face.
+///   near the passage, or is definitely held by the face and reached
+///   from the passage in band of its carrier.
 ///
 /// A planar face whose edges are all line edges so decided, and clear of the ray,
 /// is crossed where the turn of its loops says ([`crosses_by_turn`]);
@@ -3861,21 +3862,49 @@ pub(crate) fn ray_crossings<T: Decide>(
             // A face whose edges are all read exactly is met at each edge
             // the ray passes in band of, so its crossing lies between them.
             // Another's crossing stands for the edge only where it lies near
-            // the passage, or where the face definitely holds it: a ray
+            // the passage, or where the face definitely holds it and the ray
+            // reaches it from the passage in band of the carrier: a ray
             // shallow to the face can pass an edge of it read clear at the
             // crossings, and cross its carrier past that edge, outside the
-            // face.
+            // face. A ray's distance from a plane is linear along it, so
+            // any plane crossing is reached so. From a curved carrier it
+            // need not be monotone: a root far from the passage can be the
+            // ray's crossing of the face elsewhere, past a graze at the
+            // edge that crosses the carrier nowhere. Where the distance is
+            // convex (a cylinder, a cone's nappe, a sphere) and the ray
+            // reaches the root from outside, its slope at the root is at
+            // most the band over the distance from the passage, so a root
+            // stands only where the ray, at its incidence there, rises off
+            // the carrier over that distance by no more than the band.
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
                 let near =
                     geom_core::k_stats::decide_magnitude(rows.represents, Margin::of(off), band)
                         != Ok(geom_core::k_stats::Magnitude::Positive);
-                let held = match (c, plane, geo_of(f)) {
+                let held = match (c, plane) {
                     _ if near => Ok(Some(true)),
-                    (Cross::Plane, Some(p), _) => {
+                    (Cross::Plane, Some(p)) => {
                         point_in_face(body, f, p.normal, p.p, band).map_err(at_hit)
                     }
-                    (Cross::Root(_), _, Some(geo)) => root_held(f, geo, q + d * t, band),
+                    (Cross::Root(_), _) => {
+                        let at = q + d * t;
+                        let rise = body
+                            .get_face(f)
+                            .and_then(|fc| body.get_surface(fc.surface))
+                            .map(|s| off * d.dot(geom_brep::implicit_gradient(s, at)).abs());
+                        match (geo_of(f), rise) {
+                            (Some(geo), Some(rise))
+                                if geom_core::k_stats::decide_magnitude(
+                                    rows.represents,
+                                    Margin::of(rise),
+                                    band,
+                                ) != Ok(geom_core::k_stats::Magnitude::Positive) =>
+                            {
+                                root_held(f, geo, at, band)
+                            }
+                            _ => Ok(None),
+                        }
+                    }
                     _ => Ok(None),
                 };
                 stands = match held {

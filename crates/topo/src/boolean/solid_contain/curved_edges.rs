@@ -41,8 +41,9 @@
 //! faces reads clear of it is decided clear, and each face reads its own
 //! crossing there. A ray can pass within the band of such an edge: from
 //! a face met at another edge it is read again ([`narrow`]), and a met
-//! edge stands only for a crossing near where the ray passes it or one
-//! its face holds.
+//! edge stands only for a crossing near where the ray passes it, or one
+//! its face holds that the ray reaches from there in band of the face's
+//! carrier.
 
 use super::{
     Cross, EdgeMeets, FaceGeo, Gap, Mark, Met, PlaneCross, PointInSolidError, RayHit, RayRows,
