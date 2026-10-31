@@ -172,7 +172,7 @@ prefix `vseam/`; tag `(VSEAM orchestrator)`; ab_band `5400-5499`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P0 | `session-save-is-two-acts` | issue | D | open | SessionOp::Save routes through the workspace save door; a save-as-new-document op spells the fork |  |  |
+| P0 | `session-save-is-two-acts` | issue | M +design | open | SessionOp::Save routes through the workspace save door; a save-as-new-document op spells the fork |  |  |
 | P1 | `a-labelled-creation-composes-its-label-edit-after-the-action` | issue | M | open | A labelled creation appends its SetLabel to the recorded action by hand instead of recording it in the action's run |  |  |
 | P1 | `a-picked-half-rim-blends-half-and-refuses` | issue | M | open | a click on a full-revolve rim picks one half-arc, so the blend tool's fillet refuses SeamVertex and its recourse is a kernel-only query |  |  |
 | P1 | `an-action-of-several-edits-becomes-several-undos-after-reopen` | issue | M +design | open | History::replayed commits each logged edit as its own state, so a several-edit action (duplicate, add-profile on a new frame) is several undos after save and reopen |  |  |
