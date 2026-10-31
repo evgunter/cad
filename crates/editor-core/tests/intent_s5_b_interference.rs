@@ -536,6 +536,7 @@ fn bore_pin_and_holes(
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(
@@ -632,6 +633,7 @@ fn a_blind_bore_pin_is_not_quieted_by_the_bores_gap() {
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(

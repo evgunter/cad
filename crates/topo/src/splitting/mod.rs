@@ -985,7 +985,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     classify::carrier_gate(&body, plane, band)?;
     let tips = crate::sector_shape::SlitTips::of(&body);
     let (mut sides, mut on_vertices, on_margins) =
-        classify::classify_vertices_margined(&body, plane, band)?;
+        classify::classify_vertices_margined(&body, plane, &tips, band)?;
     let edge_pieces =
         classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 

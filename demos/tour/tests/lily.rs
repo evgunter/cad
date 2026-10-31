@@ -11,7 +11,7 @@ mod review_probes {
     use pncad::profile::{ArcSweep, Center};
     use pncad::sweep::WedgeFrames;
     use pncad::topo::Surface;
-    use pncad::topo::{Body, BooleanError, Operand};
+    use pncad::topo::{AtRestBody, Body, BooleanError, Operand, PairRefusalSite};
 
     fn pieces() -> Vec<Piece<f64>> {
         plant::<f64>(Tol::witness())
@@ -363,13 +363,16 @@ mod review_probes {
     /// The lantern's throat disk against the arch's end cap is an exact
     /// coincident planar Rest pair, which the union decides on its
     /// zero. Past the operand gate (the cone is on its roster) and F7,
-    /// the union stops at the crossing layer on the WELD CIRCLE itself:
-    /// the lantern's neck rim, which lies on the arch's torus wall as
-    /// its terminal meridian circle — a coincidence the circle × torus
-    /// lane does not decide. This row is what shows it moving when a
-    /// coincidence door learns the circle.
+    /// the crossing layer reads the WELD CIRCLE — the lantern's neck
+    /// rim, which lies on the arch's torus wall as its terminal
+    /// meridian circle — as an edge lying on that wall, the carrier
+    /// ladder having decided the neck cone distinct from the torus. The
+    /// union stops at the interior-loop guard on the neck cone against
+    /// the torus wall: a cone and a torus that are not coaxial have no
+    /// section certificate arm. This row is what shows it moving when
+    /// that pair gets one.
     #[test]
-    fn the_weld_refuses_on_the_weld_circle() {
+    fn the_weld_refuses_at_the_cone_torus_pair() {
         let tol = Tol::witness();
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
@@ -379,31 +382,47 @@ mod review_probes {
         );
         let refused = pncad::topo::union(lant, arch, tol).expect_err("the weld still refuses");
         println!("weld: {refused:?}");
-        let BooleanError::CurvedPierceUnsupported {
+        let BooleanError::CurvedPairUnsupported {
+            site: PairRefusalSite::InteriorLoopGuard,
             operand: Operand::A,
             face,
-            edge,
+            other_face,
             ..
         } = refused
         else {
-            panic!("the weld stops at the curved pierce: {refused:?}");
+            panic!("the weld stops at the interior-loop guard: {refused:?}");
         };
-        let carrier = lant
-            .get_edge(edge)
-            .and_then(|e| lant.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .map(|c| c.carrier().clone());
-        let kind = arch
-            .get_face(face)
-            .and_then(|f| arch.get_surface(f.surface))
-            .map(|s| s.kind());
+        let kind_of = |body: &AtRestBody<f64>, f| {
+            body.get_face(f)
+                .and_then(|f| body.get_surface(f.surface))
+                .map(|s| s.kind())
+        };
+        assert_eq!(
+            (kind_of(lant, face), kind_of(arch, other_face)),
+            (Some(SurfaceKind::Cone), Some(SurfaceKind::Torus)),
+            "the refused pair is the lantern's neck cone against the arch's torus wall"
+        );
+        // The neck cone is the face the weld circle bounds.
+        let bounds_the_weld = lant.get_face(face).is_some_and(|_| {
+            lant.edges().any(|(_, e)| {
+                [e.he_plus, e.he_minus]
+                    .into_iter()
+                    .any(|he| lant.face_of_half_edge(he) == Some(face))
+                    && lant
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .is_some_and(|c| {
+                            matches!(
+                                c.carrier(),
+                                pncad::geom::Curve3::Circle { radius, .. }
+                                    if (radius - ARCH_R).abs() < 1e-12
+                            )
+                        })
+            })
+        });
         assert!(
-            matches!(
-                carrier,
-                Some(pncad::geom::Curve3::Circle { radius, .. }) if (radius - ARCH_R).abs() < 1e-12
-            ) && kind == Some(SurfaceKind::Torus),
-            "the refused edge is the weld circle, on the arch's torus wall: \
-             {carrier:?} on {kind:?}"
+            bounds_the_weld,
+            "the refused cone face is bounded by the weld circle"
         );
     }
 
@@ -873,7 +892,9 @@ mod review_probes {
         let ps = pieces();
         let b = body(&ps, "lily_leaf_a");
         let caps = cap_frames(b);
-        // The BASE cap is the wide one; the TIP cap the narrow one.
+        // The wide cap is the root's, where the sheath carries the
+        // blade's base section into the stem unchanged, so it reads
+        // the base lens; the TIP cap is the narrow one.
         let (base, tip) = if caps[0].width > caps[1].width {
             (&caps[0], &caps[1])
         } else {
@@ -901,17 +922,11 @@ mod review_probes {
         // identical spine, identical stations, identical sections, so
         // the two tip caps are coplanar and their frames differ by the
         // roll and nothing else.
-        let untwisted = lofted_blade::<f64>(
-            LEAF_A_BASE,
-            LEAF_A_DIR,
-            LEAF_A_UP,
-            LEAF_A_LEN,
-            LEAF_A_CURL,
+        let untwisted = leaf_a::<f64>(
             Plan {
                 twist: 0.0,
                 ..leaf_a_plan()
             },
-            LOFT_STATIONS,
             Tol::witness(),
         );
         let flat = cap_frames(&untwisted);
@@ -936,6 +951,42 @@ mod review_probes {
             (turn - want).abs() < 1e-9,
             "blade roll {turn} rad, wanted {want} (the authored twist, SIGN included)"
         );
+    }
+
+    /// The long leaf grows from the middle of the lower stem, read off
+    /// both stored bodies: the chord midpoint of its root cap, the
+    /// spine's first point, lies on the stem tube's core circle, and its
+    /// two margins stand outside the tube, so the base clasps the stem
+    /// with a margin showing either side. Wall 8 unions the two as they
+    /// stand.
+    #[test]
+    fn the_long_leaf_grows_from_the_middle_of_the_stem() {
+        let ps = pieces();
+        let caps = cap_frames(body(&ps, "lily_leaf_a"));
+        let root = if caps[0].width > caps[1].width {
+            &caps[0]
+        } else {
+            &caps[1]
+        };
+        let (c, axis, ring, tube, _) = torus(body(&ps, "lily_stem"));
+        let off_core = |p: Point3<f64>| {
+            let w = p - c;
+            let h = w.dot(axis);
+            ((w - axis * h).norm() - ring).hypot(h)
+        };
+        let mid = root.margins[0] + (root.margins[1] - root.margins[0]) * 0.5;
+        assert!(
+            off_core(mid) < 1e-9,
+            "the leaf's root is {:e} off the stem's axis",
+            off_core(mid)
+        );
+        for m in root.margins {
+            assert!(
+                off_core(m) > tube,
+                "a root margin {} from the stem's axis is inside its {tube} tube",
+                off_core(m)
+            );
+        }
     }
 
     /// The sepals' TANGENCY claim, checked against the globe the
@@ -1276,6 +1327,8 @@ mod review_probes {
         /// points from the chord toward the RIDGE (the deeper of the
         /// section's two rises).
         v: Vec3<f64>,
+        /// The two margins.
+        margins: [Point3<f64>; 2],
     }
 
     /// Both caps of a lofted blade, each reduced to a [`Cap`].
@@ -1348,6 +1401,7 @@ mod review_probes {
                 n: normal,
                 width,
                 v,
+                margins: [on[0], on[1]],
             });
         }
         assert_eq!(
@@ -1382,11 +1436,17 @@ mod review_probes {
     /// refusal NAMES the slab that walls. At [`LOFT_STATIONS`] the
     /// blade coils past two full turns and still builds, so the
     /// refusal side is pinned at four stations instead.
+    ///
+    /// The wall is [`lofted_blade`]'s, the door the sepals are built
+    /// through, so it is measured on the long leaf's blade alone: its
+    /// base, direction, length and plan, without the sheath the scene's
+    /// [`leaf_a`] lofts in front of it.
     #[test]
     fn the_spine_curl_wall_re_measured() {
+        let (_, _, base, _) = leaf_a_spine(Tol::witness());
         let blade = |curl: f64, stations: usize| {
             try_lofted_blade::<f64>(
-                LEAF_A_BASE,
+                base,
                 LEAF_A_DIR,
                 LEAF_A_UP,
                 LEAF_A_LEN,
@@ -1449,8 +1509,9 @@ mod verbs_gate_r1_probes {
     use demo_tour::scalar::Scalar;
     use pncad::geom_core::Point3;
     use pncad::geom_core::Tol;
+    use pncad::prelude::SurfaceKind;
     use pncad::topo::Surface;
-    use pncad::topo::{Body, BooleanError, Operand};
+    use pncad::topo::{Body, BooleanError, Operand, PairRefusalSite};
 
     /// The wall-7 finding, re-derived with the reviewer's own
     /// arithmetic. A slab box of the pucker (max-generator radius along
@@ -1739,13 +1800,16 @@ mod verbs_gate_r1_probes {
         assert!(
             matches!(
                 welded,
-                BooleanError::CurvedPierceUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    site: PairRefusalSite::InteriorLoopGuard,
                     operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             ),
-            "wall 2 must stop at the crossing layer on the lantern's weld circle, \
-             which lies on the arch's torus wall: {welded:?}"
+            "wall 2 must stop at the interior-loop guard on the lantern's neck cone \
+             against the arch's torus wall: {welded:?}"
         );
     }
 

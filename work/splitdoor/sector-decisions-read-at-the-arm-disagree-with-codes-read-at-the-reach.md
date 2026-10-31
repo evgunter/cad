@@ -2,10 +2,12 @@
 id: sector-decisions-read-at-the-arm-disagree-with-codes-read-at-the-reach
 kind: issue
 title: Sector decisions read at the shorter arm can disagree with side codes read at each bound's reach
-status: open
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-29
+closed: 2026-10-30
+pr: 6053
 ---
 
 Found by the review of PR 6005 (branch `splitdoor/boss-in-hole-germ`).
@@ -51,3 +53,15 @@ test sides with the arm deliberately (`sectors` module doc); the
 crossing record sides with the reach since PR 6005. Build a witness
 before changing any site.
 
+
+## Closed (2026-10-30, PR 6053)
+
+One reading. A direction's side of a bound is read at the shorter of the two directions' own reaches (`sectors::reading_lever`). A face–face line has no reach of its own and is read at the bound's reach; a bisector's reach is its arm. Since `within`'s margin against a bound is that bound's side code over sin(dihedral), the two readings cannot disagree to first order.
+
+The sites that now call the one lever: `within_signs`, `runs_into`, `sector_overlap`, `coincident_run`, `strut_order`'s arrival-edge side, `fate::corner_holds` and `tip_wraps`. On main the witnesses refused `bool_sector_within`, and `fate::corner_holds` raised `ClassificationInvariant`; they now build SOUND at the closed form and tiers 3/3′ at three ε (`a_long_bound_beside_a_short_arm.rs`).
+
+The readers left at the arm, each with its reason, are on `arm-readers-left-at-the-sector-arm-after-the-reach-reading` (P3).
+
+Review: dual tier, sequential arm (byte 175). One FULL review: APPROVE-WITH-FIXES, 0 MAJOR. About 1,250 probes on both heads found nothing that got worse, 233 refusals now SOUND, every changed site mutation-pinned and 39 invariant refusals gone.
+
+Filed `a-tilted-boss-on-a-slabs-short-edge-unites-into-no-legal-operand` (P2), pre-existing and widened by the new reading.

@@ -246,7 +246,7 @@ fn a_radial_hole_through_the_tube_stops_at_the_volume() {
         ("through the outer side", rod((2.0, 3.0), (0.0, 0.0), 0.2)),
         ("off the axis", rod((1.0, 3.0), (0.1, 0.15), 0.2)),
     ] {
-        let report = topo::test_support::no_crossings_section_report(&d, &r, Tol::witness())
+        let report = topo::test_support::no_event_section_report(&d, &r, Tol::witness())
             .expect("the section pass runs");
         assert!(!report.is_empty(), "{what}: the certificate is asked");
         for (_, _, v) in &report {

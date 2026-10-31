@@ -340,7 +340,9 @@ fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
 /// equal pair's lens, and the bitten cap `A ∖ B` keeps on B's sphere —
 /// encode their side by their loop, so a lone flip of the bit reads as
 /// `CurvedSenseInverted` in tier 3 and as `SenseContradicted` in the
-/// mass properties, rather than as the complement's volume.
+/// mass properties, rather than as the complement's volume. The
+/// complement the flipped bit claims holds both poles, which tier 3
+/// names too (`ChartSingularityNotAVertex`).
 #[test]
 fn a_flipped_tilted_face_is_refused_by_name() {
     let a = ball(1.0, BASE);
@@ -364,7 +366,19 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
-                Err(vec![topo::ValidationError::CurvedSenseInverted { face: k }]),
+                Err(vec![
+                    topo::ValidationError::CurvedSenseInverted { face: k },
+                    topo::ValidationError::ChartSingularityNotAVertex {
+                        face: k,
+                        point: geom_brep::chart_singularity::Singularity::North,
+                        lies: topo::SingularityLies::Interior,
+                    },
+                    topo::ValidationError::ChartSingularityNotAVertex {
+                        face: k,
+                        point: geom_brep::chart_singularity::Singularity::South,
+                        lies: topo::SingularityLies::Interior,
+                    },
+                ]),
                 "{label}: face {k:?} flipped"
             );
             assert!(

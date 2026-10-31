@@ -1,11 +1,12 @@
 """R2 e2e (M10-2 review): read a measurement and its verdict from
 Python, as a first-time consumer, off a document authored elsewhere.
 
-The document is the reviewer's ball-in-socket fit (C5's concentric
-spheres), written by `r2_e2e_ball_in_socket_authored_and_saved` in
-editor-core's probe suite. Authoring a measure from Python is NOT
-bound (`B-MEASURES`), so this half is deliberately read-only — which is
-itself the friction under test.
+The document is the reviewer's nested balls (a small ball inside a
+large one, C5's sphere arm), written by
+`r2_e2e_nested_balls_authored_and_saved` in editor-core's probe
+suite. Authoring a measure from Python is NOT bound (`B-MEASURES`), so
+this half is deliberately read-only — which is itself the friction
+under test.
 
 Run:  PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/r2_read_a_verdict.py
 """

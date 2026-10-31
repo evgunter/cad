@@ -1559,7 +1559,8 @@ pub(crate) fn path_parity<T: Decide>(
 /// where the path says nothing: a meeting at either span's end (the
 /// path starts on the arc or runs through its end) or in the zero band
 /// of the crossing reading, a shared run, or a meeting the reader could
-/// not settle. An escalation of the reader or of a crossing escalates.
+/// not settle ([`meet_refused`]). An escalation of the reader or of a
+/// crossing escalates.
 fn spline_crossings<T: Decide>(
     piece: &Piece<T>,
     SplineArc { carrier, span }: &SplineArc<T>,
@@ -1567,7 +1568,7 @@ fn spline_crossings<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
+    use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
     let (curve, params, length) = match *piece {
         Piece::Arc(p) | Piece::Meridian(p) => (
             geom::Curve3::Circle {
@@ -1604,15 +1605,7 @@ fn spline_crossings<T: Decide>(
     let on_arc = Span::new(carrier, *span);
     let met = match meet(&on_piece, &on_arc, band) {
         Ok(met) => met,
-        Err(refusal) => {
-            return match refusal.fault {
-                MeetFault::Escalated(diag) => Err(diag),
-                MeetFault::Unsettled(_)
-                | MeetFault::Unsupported { .. }
-                | MeetFault::Desync
-                | MeetFault::Contradiction { .. } => Ok(None),
-            };
-        }
+        Err(refusal) => return meet_refused(refusal.fault),
     };
     if met.shared.is_some() {
         return Ok(None);
@@ -1637,6 +1630,30 @@ fn spline_crossings<T: Decide>(
         crossings += 1;
     }
     Ok(Some(crossings))
+}
+
+/// **What a refused meeting of a piece and a spline arc says of the
+/// path.** A meeting in band on the path is the path's, which says
+/// nothing there, as a probe ray grazes; so does a limit of the reader
+/// or a pose it has no closed form for. An escalation escalates. A
+/// carrier of a kind its arm does not read, or two readings that
+/// contradict, is the kernel's fault: a piece is a circle or a line and
+/// the arc a spline, which the table reads, and a contradiction is ruled
+/// out by the readings' definitions.
+fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>, Indeterminate> {
+    use geom_brep::curve_pair::MeetFault;
+    match fault {
+        MeetFault::Escalated(diag) => Err(diag),
+        MeetFault::Touch(_) | MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Ok(None),
+        MeetFault::Desync => {
+            unreachable!("the meeting of a path's piece and a spline arc misread a carrier's kind")
+        }
+        MeetFault::Contradiction { readings } => {
+            unreachable!(
+                "the meeting of a path's piece and a spline arc contradicts itself: {readings}"
+            )
+        }
+    }
 }
 
 impl<T: Decide> Conic<T> {
@@ -2867,6 +2884,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A refused meeting of a piece and a spline arc says nothing where
+    /// the reader touched in band, met a limit or a pose it has no
+    /// closed form for, and escalates an escalation.
+    #[test]
+    fn a_refused_spline_meeting_says_nothing_but_of_an_escalation() {
+        use geom_brep::curve_pair::MeetFault;
+        use geom_brep::roots::Unsettled;
+        let diag = || Indeterminate {
+            margin: geom_core::MarginDiag::value(0.5 * band().escalate()),
+            band: band(),
+            predicate: Some("split_ring_path_spline_across"),
+            terminal_sliver: false,
+        };
+        assert!(
+            matches!(meet_refused(MeetFault::Escalated(diag())), Err(d) if d.predicate == Some("split_ring_path_spline_across")),
+            "an escalation of the reader escalates"
+        );
+        for (fault, what) in [
+            (MeetFault::Touch(diag()), "a touch in band"),
+            (MeetFault::Unsettled(Unsettled::Exhausted), "a limit"),
+            (MeetFault::Unsupported { pose: "a pose" }, "a missing pose"),
+        ] {
+            assert!(
+                matches!(meet_refused(fault), Ok(None)),
+                "{what} says nothing"
+            );
+        }
+    }
+
+    /// A carrier the arm does not read is the kernel's fault, not the
+    /// path's silence.
+    #[test]
+    #[should_panic(expected = "misread a carrier's kind")]
+    fn a_spline_meeting_that_misreads_a_carrier_is_a_kernel_fault() {
+        let _ = meet_refused(geom_brep::curve_pair::MeetFault::Desync);
+    }
+
+    /// Two readings that contradict are the kernel's fault, not the
+    /// path's silence.
+    #[test]
+    #[should_panic(expected = "contradicts itself: two readings")]
+    fn a_spline_meeting_whose_readings_contradict_is_a_kernel_fault() {
+        let _ = meet_refused(geom_brep::curve_pair::MeetFault::Contradiction {
+            readings: "two readings",
+        });
     }
 
     /// **A piece that runs along the cylinder `ρ = R` says nothing of a

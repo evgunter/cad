@@ -26,6 +26,7 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
         at_rest: Severity::Off,
         chart_coherence: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
+        unused: Advisory::Off,
         ..ChecksConfig::default()
     };
     let report = editor_core::run_checks(doc, ev, &cfg, Tol::witness()).expect("the checks run");
@@ -1137,6 +1138,7 @@ fn an_arc_crossed_twice_reunites_by_construction() {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, disc) = insert(
@@ -1317,6 +1319,7 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
         Node::Profile(ProfileProgram {
             loops: vec![steps],
             ids: Vec::new(),
+            on: None,
         }),
     )
 }
@@ -1400,6 +1403,7 @@ fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     });
     match doc.apply(
         &editor_core::DocEdit::InsertNode {
@@ -2665,7 +2669,8 @@ fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<Stri
 
 /// **`cd`'s union escalates at `Interval`**, at the default ε on the
 /// ruled region's span (`bool_ruled_region_span`; at `1e-12` a carrier
-/// gap reads first), so the scene stands beside the registry
+/// gap reads first, at the meeting of an edge with the curved face's
+/// boundary, located), so the scene stands beside the registry
 /// (`work/intent/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`).
 fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
@@ -2674,7 +2679,10 @@ fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
         Some(editor_core::NodeResult::Failed(e)) => assert!(
             matches!(
                 &e.kind,
-                editor_core::NodeErrorKind::Boolean(topo::BooleanError::Escalated { diag, .. })
+                editor_core::NodeErrorKind::Boolean(
+                    topo::BooleanError::Escalated { diag, .. }
+                        | topo::BooleanError::CurvedPierceEscalated { diag, .. }
+                )
                     if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS
                         || diag.predicate == Some("bool_ruled_region_span")
             ),
@@ -3041,9 +3049,10 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 /// kind.
 ///
 /// - `cone_on_sphere`: a cone typed tangent to a sphere along a circle;
-///   `CurvedPierceUnsupported`, or at a tighter ε an escalation on the
-///   conic–quadric reading that comes before it (at `1e-12`,
-///   `bool_conic_quadric_disc`).
+///   `CurvedPierceUnsupported`, or an escalation on the conic–quadric
+///   reading that comes before it, at the edge and the face where the
+///   door reads the touch in the band's gap (at `1e-9`,
+///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
 /// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
 ///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
 ///   torus.
@@ -3071,7 +3080,7 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     };
     refused(crate::corpus::cone_on_sphere::document(), &|e| {
         matches!(e, B::CurvedPierceUnsupported { .. })
-            || matches!(e, B::Escalated { diag, .. }
+            || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
                 if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
     });
     refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {

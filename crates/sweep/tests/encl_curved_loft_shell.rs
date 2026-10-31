@@ -1108,7 +1108,7 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// the move builds: its corners are the
 /// side planes' roots along the plane × fit sections, tier 3 refuses the
 /// cap's volume alone
-/// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
+/// (`work/quadtail/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
 /// and the moved body maps rigidly. Tighter, the fit refuses first; at
 /// 1e-9 the moved rim refuses at limb 2's value at a break where its own
 /// foot reads 1.4e-15 and 6.5e-16 m (`ImageMiss`).

@@ -862,21 +862,17 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 }
 
 /// **A rounded continuation that lies inside the other's wall
-/// builds its subtract and intersect, and refuses A ∪ B typed.**
-/// The rounded plate and a plate of the same outline half as thick,
-/// sunk inside it or flush with its top or bottom, so the thin plate's
-/// walls (fillets included) lie inside the thick one's. Subtract and
-/// intersect build at box arithmetic in z over
-/// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
-/// each, the sunk subtract as two plates of a quarter unit (twenty
-/// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
-/// event exists, and that pass exempts no continuation
-/// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// In the (B, A) order, B ∖ A, empty (the thin
-/// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
-/// builds the thick plate, its walls glued back whole where the thin
-/// plate's lay (the plate's 10 faces): the union refuses in one operand
-/// order only.
+/// builds every op.** The rounded plate and a plate of the same outline
+/// half as thick, sunk inside it or flush with its top or bottom, so the
+/// thin plate's walls (fillets included) lie inside the thick one's.
+/// Subtract and intersect build at box arithmetic in z over the
+/// outline's area `24 − (4 − π)·R²`: half the thick plate's volume each,
+/// the sunk subtract as two plates of a quarter unit (twenty faces).
+/// A ∪ B is the thick plate (its 10 faces) and B ∖ A is nothing: no
+/// crossing event exists, the section pass defers the settled wall
+/// pairs, and no edge of the thick plate runs inside the thin plate's
+/// walls, so the thin plate's `In` stands. B ∪ A builds the thick plate
+/// too, its walls glued back whole where the thin plate's lay.
 ///
 /// Two results here are an operand itself measured through another
 /// face order, so their `f64` volumes round a few ulps past the operand
@@ -897,14 +893,11 @@ fn rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol()),
             tol(),
         );
-        let err = topo::union(&a, &b, tol()).expect_err("the union refuses");
-        assert!(
-            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-            "{label}, union: {err:?}"
-        );
-        assert!(
-            !err.to_string().contains("kernel"),
-            "{label}, union: a legal input is no kernel bug: {err}"
+        builds(
+            &format!("{label}, A ∪ B"),
+            topo::union(&a, &b, tol()),
+            area(4.0),
+            10,
         );
         builds(
             &format!("{label}, subtract"),
@@ -918,10 +911,10 @@ fn rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             half,
             10,
         );
-        let err = topo::subtract(&b, &a, tol()).expect_err("B ∖ A refuses");
+        let out = topo::subtract(&b, &a, tol());
         assert!(
-            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-            "{label}, B ∖ A: {err:?}"
+            matches!(out, Ok(BooleanResult::Empty)),
+            "{label}, B ∖ A: nothing: {out:?}"
         );
         builds(
             &format!("{label}, B ∪ A"),

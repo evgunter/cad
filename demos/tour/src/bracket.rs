@@ -133,6 +133,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
                     .expect("a literal recording lifts"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

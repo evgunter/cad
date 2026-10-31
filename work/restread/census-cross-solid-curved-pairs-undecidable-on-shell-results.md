@@ -419,3 +419,15 @@ nothing measured it on today's main, and this change only adds clears.
 ## 2026-10-27 — the touch behind it now reads (ATREST, `atrest/gap-reads-a-cell-against-a-curved-face`)
 
 The touch analysis now reads a vertex resting strictly inside a sphere or cylinder face of another solid, where that face is all the other solid holds at the point. It judges the vertex's planar link against the face's carrier (`topo::link::rest::by_round`, through `Germ::touch_at_point` in `census.rs`). This arm still refuses such a pair (`CurvedWithinReach`) before any record site is read: the pair is the vertex's planar faces against the round face. So no verdict moves, and the instrumented topo, sweep, step-import and editor-core suites never reach the new reading. When this row clears a curved × planar pair down to its touches, a recorded vertex-on-sphere or vertex-on-cylinder touch reads Rest or Crossing, not `TouchUnreadable`. A plain deferral of the pair to its recorded touches is not sound. This arm is the only reader of a curved × planar pair, because the exact sweeps hold planar boundaries only. The two faces can also meet away from every record, for example where the vertex's planar face cuts the sphere elsewhere, and a deferral would hide that meeting. The clear needs the pair's whole meeting accounted for: its separation off a neighbourhood of each recorded touch, or a meeting set the touches cover.
+
+## Also measured: two lumps touching along a line, one a disc slab (2026-10-30)
+
+PR 6053's review (`crates/sweep/tests/review_arm_vs_reach_probes.rs`
+`review_curved`): the disc slab of radius `r` (`0.5`, `0.05`, `2.0`)
+through the origin, centred below it, beside a quad slab whose long
+edge leaves the origin `θ` off the disc's tangent. Where the two touch
+along a line, the union is two lumps and fails tier 3′ on
+`CensusUndecidable { MayOverlap }` (curved faces of two lumps in
+reach), on main as on that PR's head, at `θ = −0.1` too. PR 6053 makes
+more of these unions build where main refused (`θ = ±10⁻²`), so the
+finding now shows at more poses; the census reading is unchanged.

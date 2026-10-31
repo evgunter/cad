@@ -2,11 +2,13 @@
 id: a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike
 kind: issue
 title: A slit tip on a curved face's section reading, or at a cone's apex, reads the face's full turn as a spike
-status: open
+status: closed
 opened: 2026-10-29
 priority: P2
 cost: M
 refs: [a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector]
+closed: 2026-10-30
+pr: 6052
 ---
 
 Found by the sweep of `splitdoor/pocket-floor-sliver`, which taught the

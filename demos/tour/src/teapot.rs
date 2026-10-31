@@ -705,6 +705,7 @@ fn spout_loft(
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -828,6 +829,7 @@ fn revolved(doc: &mut Doc<ProfileProgram>, loop_: LoopProgram<Formula>, tol: Tol
         Node::Profile(ProfileProgram {
             loops: vec![loop_],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -1051,9 +1053,11 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// The product is the four bodies the montage shows — the handle, the
 /// lid, the cup and the spout — each placed in the world once. Nothing
 /// places the SEALED hollow, the same operand and wall as the cup, so
-/// it is not in the product. It and the two refusing unions, which
-/// produce no body, are deleted as well, so the file holds what the
-/// montage shows and no refusal.
+/// it is not in the product. It, the two refusing unions, which
+/// produce no body, and the placements of the handle and the spout
+/// against the pot that only the unions read are deleted as well, so
+/// the file holds what the montage shows, no refusal and nothing
+/// unused.
 ///
 /// They interpenetrate, and the file says so: the handle's roots are
 /// driven through the belly wall and the spout's root disc sits inside
@@ -1062,7 +1066,7 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// through the checks registry.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    let tidied = [r.handle_union, r.spout_union, r.pot]
+    let tidied = [r.handle_union, r.spout_union, r.pot, r.handle, r.spout]
         .into_iter()
         .fold(r.doc, |doc, id| {
             apply(&doc, &DocEdit::DeleteNode { id }, tol)

@@ -170,12 +170,29 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
+    /// **The nominal document's results**, where this lane is not its
+    /// evaluation and a profile reads a face's trace: an `f64`
+    /// evaluation of the nominal, built beside this one
+    /// ([`Self::nominal_results`]).
+    pub nominal_results: Option<&'a Results<f64>>,
     /// Whether an `f64` lane over the nominal takes the first pass's
     /// form ([`super::PassTwo`]).
     pub pass_two: super::PassTwo,
 }
 
-impl<T: super::ProfileLane> LaneEnv<'_, T> {
+impl<'a, T: super::ProfileLane> LaneEnv<'a, T> {
+    /// **The nominal document's results**, which a profile reading a
+    /// trace resolves its first pass off: `results` where this lane is
+    /// the nominal `f64` evaluation, the evaluation built beside it
+    /// otherwise.
+    pub(crate) fn nominal_results<'r>(&self, results: &'r Results<T>) -> Option<&'r Results<f64>>
+    where
+        'a: 'r,
+        T: Decide,
+    {
+        T::nominal_results(results, self.params, self.nominal).or(self.nominal_results)
+    }
+
     /// **The first pass's validated form as this lane's value**, where
     /// this lane IS the first pass: an `f64` lane whose environment
     /// binds the nominal ([`super::ProfileLane`]). `None` wherever the
@@ -235,6 +252,9 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
         resolved: Vec<Vec<profile::Step<f64>>>,
         pre: Box<ProfilePre>,
         form: ProfileForm<T>,
+        /// The frame the profile is drawn on, at the lane, where it is
+        /// drawn on one.
+        frame: Option<RigidMotion<T>>,
     },
     /// An assertion, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
@@ -317,13 +337,18 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
-    // A profile and an assertion read no operand, so neither has a
-    // read to project.
+    // An assertion reads no operand, and a profile's frame and traced
+    // faces were read ahead of its key (`trace::drawn`), so neither has
+    // a read to project here.
     let node = match input {
         OpInput::Profile {
-            program, pre, form, ..
+            program,
+            pre,
+            form,
+            frame,
+            ..
         } => {
-            let value = wire_profile(program, pre, form, tol)?;
+            let value = wire_profile(program, pre, form, frame.as_ref(), tol)?;
             let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces);
             return Ok(
                 OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
@@ -524,7 +549,7 @@ where
                     .and_then(Option::as_ref)
                     .unwrap_or(unprojected)
             };
-            wire_measure(primitive, doc, &at, tol)
+            wire_measure(primitive, doc, &at, env.lane.params, tol)
         }
         Node::InstantiatePart {
             doc_ref,
@@ -1418,6 +1443,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     program: &ProfileProgram,
     pre: &ProfilePre,
     form: &ProfileForm<T>,
+    frame: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
     let plane = profile::SketchPlane::xy();
@@ -1436,6 +1462,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
+        frame: frame.map(|f| super::Frame::Map(Arc::new(*f))),
     }))
 }
 
@@ -1525,7 +1552,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(out.body))),
+        ValuePayload::Body(vp.framed(Arc::new(out.body))),
         out.table,
     ))
 }
@@ -2035,7 +2062,7 @@ fn select_one<T: Decide>(
 /// holds it, then the name through that value's table under the
 /// [`ladder`], into an entity of the name's own kind. [`select_one`]
 /// resolves a selection's one name here, and so does the quieting
-/// rule's [`crate::checks::at_rest::contact_quietable`] for a row's
+/// rule's [`crate::checks::at_rest::row_quietable`] for a row's
 /// cell, so the two read one entity.
 ///
 /// # Errors
@@ -2202,14 +2229,16 @@ impl<'v, T: Decide> Measured<'v, T> {
 /// states. The body
 /// read is what makes the answer the placed carrier: a selection of a
 /// transform's output names the moved geometry.
-fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
+fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     primitive: &crate::measure::MeasurePrimitive<crate::VarId>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results_at: &dyn Fn(usize) -> &'r Results<T>,
+    params: &crate::expr::VarEnv<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let dim = primitive.dim();
-    let mut sides = Vec::with_capacity(2);
+    let mut cells = Vec::with_capacity(2);
+    let mut poses = Vec::with_capacity(2);
     for (index, &var) in primitive.refs().into_iter().enumerate() {
         // Each reference reads its own body: two ports of one split are
         // two bodies (`reads_projected`).
@@ -2218,10 +2247,37 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             primitive.kind(),
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
         );
-        let (at, ent) = if doc.selection(var).is_some() {
-            select_one(doc, results, slot, var)?
+        // A pose reference (D10 `[assertions.quiet]`): one read directly
+        // off a cell is read off that cell ([`pose::read_off_cell`]); any
+        // other (a split's tool, a construction) is evaluated.
+        let off_cell = pose::read_directly_off(doc, var);
+        if off_cell.is_none()
+            && doc.var(var).is_some_and(|v| {
+                matches!(
+                    v.kind(),
+                    crate::VarKind::Point
+                        | crate::VarKind::Axis
+                        | crate::VarKind::Plane
+                        | crate::VarKind::Frame
+                )
+            })
+        {
+            let posed = pose::eval_posed(
+                doc,
+                results,
+                slot,
+                crate::pose::RoleRead::plain(var),
+                params,
+                tol,
+            )?;
+            poses.push((index, posed));
+            continue;
+        }
+        let (read, kind) = off_cell.map_or((var, None), |(cell, kind)| (cell, Some(kind)));
+        let (at, ent) = if doc.selection(read).is_some() {
+            select_one(doc, results, slot, read)?
         } else {
-            let at = super::read_at(doc, slot, var)?;
+            let at = super::read_at(doc, slot, read)?;
             (
                 at,
                 names::EntityRef {
@@ -2230,34 +2286,57 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
                 },
             )
         };
-        let body = reference_body(results, slot, var, (at, ent))?;
-        sides.push((at, ent, body));
+        let body = reference_body(results, slot, read, (at, ent))?;
+        cells.push((index, at, ent, kind, body));
     }
-    let [(at_a, ent_a, framed_a), (at_b, ent_b, framed_b)] = sides.as_slice() else {
+    // Its two references are in one space (D′1): it measures in the
+    // first cell's frame, or the second's where only that one is in its
+    // space's coordinates ([`super::Framed::computing_among`]), and reads
+    // the other cell into it through `relative`, a pose through its own
+    // relative map. Two poses measure in their space's coordinates.
+    let computing = super::Framed::computing_among(cells.iter().map(|(.., framed)| *framed))
+        .or_else(|| cells.first().map(|(.., framed)| *framed));
+    let bodies = cells
+        .iter()
+        .map(|(index, at, ent, kind, framed)| {
+            let body = match computing {
+                Some(computing) => computing.read_in(framed, tol)?,
+                None => unreachable!("a cell gives the computing frame"),
+            };
+            Ok((*index, *at, *ent, *kind, body))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let b = band(tol)?;
+    let mut posed = Vec::with_capacity(poses.len());
+    for (index, read) in poses {
+        let value = match computing {
+            Some(computing) => read.read_into(computing.frame(), b)?,
+            None => read.in_its_space(b)?,
+        };
+        let pose = super::measure::Pose::of(&value).unwrap_or_else(|| {
+            unreachable!("a measure admits a point, an axis, a plane or a frame")
+        });
+        posed.push((index, pose));
+    }
+    let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = Vec::with_capacity(2);
+    for (index, _, ent, kind, body) in &bodies {
+        carriers.push((
+            *index,
+            match kind {
+                None => super::measure::carrier_of(body, *ent),
+                Some(kind) => pose::read_off_cell(body, *ent, *kind, b)?,
+            },
+        ));
+    }
+    carriers.extend(
+        posed
+            .into_iter()
+            .map(|(index, pose)| (index, super::measure::Carrier::Pose { pose, reach: None })),
+    );
+    carriers.sort_by_key(|(index, _)| *index);
+    let [(_, ca), (_, cb)] = carriers.as_slice() else {
         unreachable!("a primitive reads two references")
     };
-    // Its two references are in one space (D′1): it measures in the
-    // first's frame, or the second's where only that one is in its space's
-    // coordinates
-    // ([`super::Framed::computing_among`]), and reads the other into it
-    // through `relative`.
-    let computing = super::Framed::computing_among([*framed_a, *framed_b]).unwrap_or(*framed_a);
-    let body_a = computing.read_in(framed_a, tol)?;
-    let body_b = computing.read_in(framed_b, tol)?;
-    let measured_at = |at, ent: &names::EntityRef, body| {
-        (
-            Measured {
-                at,
-                index: ent.body,
-                body,
-                key: ent.key,
-            },
-            super::measure::carrier_of(body, *ent),
-        )
-    };
-    let (a, ca) = measured_at(*at_a, ent_a, body_a.as_ref());
-    let (b, cb) = measured_at(*at_b, ent_b, body_b.as_ref());
-    let (a, b, ca, cb) = (&a, &b, &ca, &cb);
     let measured = if matches!(
         primitive,
         crate::measure::MeasurePrimitive::MinClearance { .. }
@@ -2280,6 +2359,19 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
                 names::empty(),
             ));
         };
+        let measured = |i: usize| {
+            let (_, at, ent, _, body) = &bodies[i];
+            Measured {
+                at: *at,
+                index: ent.body,
+                body: body.as_ref(),
+                key: ent.key,
+            }
+        };
+        let [_, _] = bodies.as_slice() else {
+            unreachable!("a min_clearance reference reads a body or a face, never a pose")
+        };
+        let (a, b) = (measured(0), measured(1));
         let (oa, ob) = (a.clearance_operand(), b.clearance_operand());
         // The pair budget is the engine's small default: a drive of a few
         // hundred leaves pays this search a few hundred times.
@@ -2594,7 +2686,11 @@ fn body_rows(
 ) -> Vec<(crate::OperandSlot, crate::VarId)> {
     node.operand_rows()
         .into_iter()
-        .map(|(seat, var)| (seat, doc.selection(var).map_or(var, |select| select.body)))
+        .map(|(seat, var)| {
+            // A pose read directly off a cell reads that cell's body.
+            let cell = pose::read_directly_off(doc, var).map_or(var, |(cell, _)| cell);
+            (seat, doc.selection(cell).map_or(var, |select| select.body))
+        })
         .collect()
 }
 
@@ -4133,6 +4229,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
 
 mod distribute;
 pub(crate) mod pose;
+pub(crate) mod trace;
 
 /// **The full-turn decision**: the sign of `|angle| − whole`, `whole`
 /// a whole number of turns, read by the revolve's full-or-partial
@@ -4243,6 +4340,13 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // where its station carries that plane.
     let mut sections: Vec<profile::ValidatedProfile<T>> = Vec::with_capacity(values.len());
     for (k, value) in values.iter().enumerate() {
+        if k > 0 && value.frame.is_some() {
+            return Err(operand_refusal(
+                profiles[k],
+                super::phrase::FREE_PROFILE,
+                "drawn profile",
+            ));
+        }
         let plane = match k.checked_sub(1) {
             None => profile::SketchPlane::xy(),
             Some(after) => station_plane(k, stations[after], vals)?,
@@ -4261,7 +4365,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // so wall `k` is named by one locator per section.
     let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(built.body))),
+        ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,
     ))
 }

@@ -2,10 +2,12 @@
 id: coplanar-sectors-read-touching-at-a-short-arm-where-their-bounds-part-at-their-reach
 kind: issue
 title: pair_search reads two coplanar sectors touching where their bounds part at their own reach, levered at a short arc's arm
-status: open
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-28
+closed: 2026-10-30
+pr: 6053
 ---
 
 Found by the sweep of the crescent short-arc lane (branch
@@ -80,3 +82,7 @@ shorter of two, where each direction's own reach is known:
   with its own reach: **the same shape**, unmeasured; both refuse in
   band rather than read a side.
 
+
+## Closed (2026-10-30, PR 6053)
+
+Closed with its class row `sector-decisions-read-at-the-arm-disagree-with-codes-read-at-the-reach`: `sector_overlap` now reads at the bounds' reaches through `sectors::reading_lever`. The two-slabs pose is pinned in `a_long_bound_beside_a_short_arm.rs`.

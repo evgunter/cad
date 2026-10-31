@@ -56,6 +56,8 @@
 mod carrier_net;
 pub mod carrier_resolution;
 pub mod certify;
+pub mod chart_image;
+pub mod chart_singularity;
 pub mod conic_bend;
 pub mod curve_face;
 pub mod curve_pair;
@@ -216,9 +218,6 @@ pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
-#[cfg(any(test, feature = "test-support"))]
-#[doc(hidden)]
-pub use ssi::charted_nurbs_mints;
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
@@ -231,6 +230,9 @@ pub use ssi::{
     march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
     trace_plane_nurbs_uncertified,
 };
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub use ssi::{charted_nurbs_mints, implicit_pair_marches};
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };

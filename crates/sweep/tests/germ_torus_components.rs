@@ -123,10 +123,21 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
+/// `run`'s answer, and how many marches it ran
+/// ([`geom_brep::implicit_pair_marches`]).
+fn marching<R>(run: impl FnOnce() -> R) -> (R, usize) {
+    let before = geom_brep::implicit_pair_marches();
+    let got = run();
+    (got, geom_brep::implicit_pair_marches() - before)
+}
+
 /// `a` against the donut moved to each of `places`, under ∪ in both
 /// member orders (`A ∪ B`, then `B ∪ A`), against `want` by placement at
-/// the compiled ε; `other_eps` names the placements that stop elsewhere
-/// at another ε row, measured: at `1e-6` a march's tube straddles
+/// the compiled ε, each run marching its one marched pair once (the
+/// section table carries a pair once per operation, for the germ mint,
+/// the join and the certificate alike); `other_eps` names the
+/// placements that stop elsewhere at another ε row, measured: at `1e-6`
+/// a march's tube straddles
 /// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn row(
     a: fn() -> Body<f64>,
@@ -142,12 +153,14 @@ fn row(
             .find(|&&(e, k, _)| e == eps && k == i)
             .map_or(want, |(_, _, w)| w);
         let (a, b) = (at_rest(&a()), placed(&donut(), placements()[i]));
-        let got = [
-            stop(&topo::union(&a, &b, Tol::witness())),
-            stop(&topo::union(&b, &a, Tol::witness())),
-        ];
+        let (ab, ab_marches) = marching(|| topo::union(&a, &b, Tol::witness()));
+        let (ba, ba_marches) = marching(|| topo::union(&b, &a, Tol::witness()));
+        let (got, marches) = ([stop(&ab), stop(&ba)], [ab_marches, ba_marches]);
         if got != *want {
             off.push(format!("placement {i}: {got:?}"));
+        }
+        if marches != [1, 1] {
+            off.push(format!("placement {i}: marches by op {marches:?}"));
         }
     }
     assert!(off.is_empty(), "{off:#?}");

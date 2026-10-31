@@ -144,6 +144,7 @@ fn torus_on_cylinder() -> ProfileDoc {
     let disc = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: disc.into(),
@@ -163,6 +164,7 @@ fn boss_on_plate() -> ProfileDoc {
             LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: plate.into(),
@@ -172,6 +174,7 @@ fn boss_on_plate() -> ProfileDoc {
     let boss = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: boss.into(),
@@ -189,6 +192,7 @@ fn tangent_cylinders() -> ProfileDoc {
         let disc = r.insert(Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle_split(cx, 0.0, 1.0, 3, 0.0).unwrap()],
             ids: Vec::new(),
+            on: None,
         }));
         let body = r.insert(Node::Extrude {
             profile: disc.into(),
@@ -207,6 +211,7 @@ fn loft_with_brick() -> ProfileDoc {
         r.insert(Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon(pts).unwrap()],
             ids: Vec::new(),
+            on: None,
         }))
     };
     let bottom = section(&mut r, PRISM_SQUARE);
@@ -230,6 +235,7 @@ fn loft_with_brick() -> ProfileDoc {
             LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: brick.into(),
@@ -258,6 +264,7 @@ fn grazing_notch() -> ProfileDoc {
             .unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: l.into(),
@@ -269,6 +276,7 @@ fn grazing_notch() -> ProfileDoc {
             LoopProgram::polygon([(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let body = r.insert(Node::Extrude {
         profile: brick.into(),

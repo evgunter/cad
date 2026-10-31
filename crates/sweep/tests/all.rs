@@ -72,20 +72,28 @@ mod a_cylinder_split_just_off_its_rim_vertex;
 mod a_face_across_a_wavy_corner;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
+#[path = "a_face_reads_its_chart_image.rs"]
+mod a_face_reads_its_chart_image;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flat_frustum_revolves.rs"]
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_keel_on_a_bores_ruling.rs"]
+mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
 mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
 mod a_lofted_lens_blade_certifies_its_sign;
+#[path = "a_long_bound_beside_a_short_arm.rs"]
+mod a_long_bound_beside_a_short_arm;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
 mod a_minted_vertex_on_a_curved_face;
+#[path = "a_mirrored_loft_placement_is_no_sketch_plane.rs"]
+mod a_mirrored_loft_placement_is_no_sketch_plane;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
@@ -128,6 +136,8 @@ mod a_seam_region_covering_the_sphere_twice;
 mod a_sheath_grafted_on_its_blade;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
+#[path = "a_slit_tip_on_a_curved_face_reads_its_full_turn.rs"]
+mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
@@ -150,6 +160,8 @@ mod a_tube_ending_on_a_ball;
 mod a_vertex_on_a_grazing_plane;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
+#[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
+mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
@@ -220,6 +232,10 @@ mod cone_operand_rows;
 mod continuation_pose;
 #[path = "crossing_equal_rods.rs"]
 mod crossing_equal_rods;
+#[path = "curved_copy_against_itself.rs"]
+mod curved_copy_against_itself;
+#[path = "curved_copy_review_probes.rs"]
+mod curved_copy_review_probes;
 #[path = "curved_edge_corpus.rs"]
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
@@ -308,6 +324,8 @@ mod review_4996_blend_cap;
 mod review_5956_r1_probes;
 #[path = "review_5956_r2_probes.rs"]
 mod review_5956_r2_probes;
+#[path = "review_arm_vs_reach_probes.rs"]
+mod review_arm_vs_reach_probes;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
@@ -340,6 +358,8 @@ mod sf2b_r1_probes;
 mod sf2b_r2_probes;
 #[path = "shallow_arc_extrude_grid_interval.rs"]
 mod shallow_arc_extrude_grid_interval;
+#[path = "sheets_part_on_slanted_rims.rs"]
+mod sheets_part_on_slanted_rims;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
@@ -1306,7 +1326,11 @@ mod a_plane_near_a_needle_cones_apex;
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
 mod review_5956_delta_needle;
+#[path = "review_5993_probe.rs"]
+mod review_5993_probe;
 #[path = "review_6002_needle_join.rs"]
 mod review_6002_needle_join;
 #[path = "review_6020_seam_probes.rs"]
 mod review_6020_seam_probes;
+#[path = "review_r1_roots_split.rs"]
+mod review_r1_roots_split;

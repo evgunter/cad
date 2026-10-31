@@ -608,6 +608,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         });
         let (doc, profile) = try_inserted(&doc, node, Tol::witness())
             .expect("the document admits a split circle above the form's cap");
@@ -1144,6 +1145,7 @@ mod tests {
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );

@@ -49,7 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
+use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -180,13 +180,11 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             diag: contradiction_margin("carrier_cyl_radius"),
         },
         ContactRefusal::Escalated { diag: diag() },
-        ContactRefusal::Undeclared { diag: diag() },
     ];
     // The longest `what`s the raise sites write.
     v.extend(
         [
-            "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder, torus)",
+            crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -1068,22 +1066,20 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::FaceFaceTangent {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Tangent,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
-                pair: DeclaredContact {
+                pair: ContactPair {
                     a: face,
                     b: face,
                     class: GlueClass::Rest,
                 },
-                verdict: ContactVerdict::Definite,
             },
         },
     ]
@@ -1412,6 +1408,44 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::CurvedSenseInverted { face },
         ValidationError::SeamRegionOvercovered { face, times: 2 },
         ValidationError::SeamRegionCoverUnresolved { face },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            lies: crate::SingularityLies::Interior,
+        },
+        ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::Apex,
+            lies: crate::SingularityLies::InsideEdge { edge },
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::South,
+            reading: geom_brep::chart_singularity::Undecided::Boundary(diag()),
+        },
+        ValidationError::ChartSingularityUndecided {
+            face,
+            point: geom_brep::chart_singularity::Singularity::North,
+            reading: geom_brep::chart_singularity::Undecided::Side(
+                geom_brep::chart_singularity::SideUnread::Straddle,
+            ),
+        },
+        ValidationError::WrapTipOffChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
+        ValidationError::WrapTipUndecided {
+            face,
+            edge,
+            tip: vertex,
+            cause: diag(),
+        },
+        ValidationError::WrapTipWithoutChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
@@ -1712,7 +1746,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         s.push((
             format!("ContactContradicted/{}", class.name()),
             ValidationError::ContactContradicted {
-                declaration: DeclaredContact {
+                declaration: ContactPair {
                     a: face,
                     b: face,
                     class,
