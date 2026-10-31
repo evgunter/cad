@@ -5,7 +5,7 @@ title: SessionOp::Save routes through the workspace save door; a save-as-new-doc
 status: closed
 opened: 2026-09-08
 closed: 2026-10-31
-pr: PRNUM
+pr: 6135
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
 priority: P0
 cost: M
@@ -122,7 +122,7 @@ overwrite of a different document's file
 Neither blocks the build, because `docio::save_path` overwrites any
 target today.
 
-## 2026-10-31 — closed (PR PRNUM)
+## 2026-10-31 — closed (PR 6135)
 
 Built to the ruling above. `SessionOp::Save` and the new
 `SessionOp::SaveAsNewDocument` both write through `docio::save`, which

@@ -5,7 +5,7 @@ title: History::replayed commits each logged edit as its own state, so a several
 status: closed
 opened: 2026-09-24
 closed: 2026-10-31
-pr: PRNUM
+pr: 6135
 priority: P1
 cost: M
 ---
@@ -80,7 +80,7 @@ way to meet this. The fork named under "What deciding it needs" (put
 the boundary in `LoggedEdit`/persist, which is EDIT's ground, or let the
 two histories differ and say so) is open, so `design` is set.
 
-## 2026-10-31 — closed: dissolved by Ev's ruling (PR 6123), built in PR PRNUM
+## 2026-10-31 — closed: dissolved by Ev's ruling (PR 6123), built in PR 6135
 
 GQ3 now says a save file holds the document's state and that undo ends
 at a reopen. `History::replayed` is deleted, and `docio::open` seeds

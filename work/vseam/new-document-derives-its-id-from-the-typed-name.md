@@ -34,7 +34,7 @@ demo, or the tour. Check that before switching.
 
 ## 2026-10-31 — the overwrite is live
 
-`work/vseam/session-save-is-two-acts` closed: Save now goes through
+`work/vseam/session-save-is-two-acts` closed (PR 6135): Save now goes through
 `Workspace::save_at`, so the resave case above, where a second "bracket"
 overwrites the first's file with no refusal, is what a user meets today.
 `docio::save_path` is gone.
