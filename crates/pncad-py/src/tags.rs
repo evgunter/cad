@@ -1509,10 +1509,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
-        BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
-        BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
+        BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
@@ -2157,6 +2155,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
+        StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2205,10 +2204,10 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
-/// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words. `chart_singularity_vertex` keeps its
-/// disposition beside the word too ([`singularity_found_tag`]).
+/// The match is exhaustive, so a normalization minted kernel-side
+/// stops this crate compiling instead of arriving under one of these
+/// words. `chart_singularity_vertex` keeps its disposition beside the
+/// word too ([`singularity_found_tag`]).
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
@@ -2216,6 +2215,8 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
     }
 }
 

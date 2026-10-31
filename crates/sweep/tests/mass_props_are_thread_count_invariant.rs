@@ -393,6 +393,14 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 ///
 /// **Each re-cut names its cause in its PR body**, and the history of
 /// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
+///
+/// The 1e-12 table's `sym_arc_loft validate_geometric chk=97/104` is rule
+/// H's (`SymRules::angle_sum`; shut, it reads 99/104). Its form of one
+/// `Mul`'s kid carries a coefficient of about 100 bits, against the
+/// other kid's 160 at this row's scale. Their product passes the 256-bit
+/// ring, the early walk freezes the node, and the two contradiction
+/// checks whose residual is a multiple of it read frozen. Their
+/// decisions hold, and no dispute is lost.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

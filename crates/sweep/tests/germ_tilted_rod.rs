@@ -335,6 +335,49 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
+    // Pinned red at 1e-6 since PR 6011: every op of every pose refuses
+    // the germ section's winding, the cylinder's face 4 at β 0.5 spin 2.5
+    // and β 0.7 spin π/2, face 3 elsewhere
+    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
+    let unbuilt = |a: (u32, &str), b: (u32, &str)| {
+        format!(
+            "GermSectionUnbuilt {{ a_face: FaceKey({}v1), a_kind: {}, b_face: FaceKey({}v1), \
+             b_kind: {}, why: Winds(Unseparated) }}",
+            a.0, a.1, b.0, b.1
+        )
+    };
+    let stops: Vec<String> = [
+        ("0.5", "0", 3),
+        ("0.5", "0.5", 3),
+        ("0.5", "1", 3),
+        ("0.5", "2.5", 4),
+        ("0.6", "0", 3),
+        ("0.6", "1.5707963267948966", 3),
+        ("0.7", "0", 3),
+        ("0.7", "1.5707963267948966", 4),
+    ]
+    .into_iter()
+    .map(|(beta, spin, rod)| {
+        let (t, c) = (
+            unbuilt((3, "Torus"), (rod, "Cylinder")),
+            unbuilt((rod, "Cylinder"), (3, "Torus")),
+        );
+        let row = [t.clone(), t.clone(), c.clone(), t, c];
+        format!("β {beta}, spin {spin}: {row:?}")
+    })
+    .collect();
+    let says = format!("at ε 1e-6:\n{}", stops.join("\n"));
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the other spins and steeper tilts",
+        &[&says],
+        other_spins_and_steeper_tilts_refuse_at_their_germs_row,
+    );
+}
+
+/// The row [`other_spins_and_steeper_tilts_refuse_at_their_germs`] runs, under its pin.
+fn other_spins_and_steeper_tilts_refuse_at_their_germs_row() {
     let h = half_donut();
     let poses = [
         (0.5, 0.0),

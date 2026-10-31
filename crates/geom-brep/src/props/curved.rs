@@ -159,6 +159,15 @@ pub fn boundary_material_sign_loops<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
+        // An empty chart image encodes no side: on a closed surface the
+        // face is the whole of it, signed by its bit alone
+        // ([`whole_surface`]); elsewhere it bounds nothing.
+        return match closed_surface(surface)? {
+            Some(_) => Ok(MaterialSign::Unencoded),
+            None => Err(PropsError::DegenerateFace),
+        };
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "boundary_material_sign called on a plane (planar orientation is the \
@@ -1598,6 +1607,10 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    // The empty rule's one dispatch: no loop bounds area.
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
+        return whole_surface(surface, sense);
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "curved_face called on a plane (planar faces take the loop route)",
@@ -1633,6 +1646,90 @@ pub fn curved_face_loops<T: Decide>(
         // fitted kind would.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
+}
+
+/// **The empty rule**: a face whose chart image is empty (every loop of
+/// it all spurs, `topo::surface_boundary`) is the whole of its surface
+/// where that surface is closed, its flux signed by the face's sense:
+/// the outward normal is the chart normal's exactly when the bit is set,
+/// and a closed surface's flux is three times the volume it encloses,
+/// wherever the origin lies. The one rule for an empty chart image, read
+/// at one dispatch ([`curved_face_loops`], where no loop bounds area,
+/// [`crate::chart_image::bounds_area`]), so no integrator sums an empty
+/// boundary to a flux of zero.
+///
+/// - a sphere of radius `R`: area `4πR²`, flux `±4πR³`;
+/// - a torus of radii `R`, `r`: area `4π²Rr`, flux `±6π²Rr²`.
+///
+/// # Errors
+///
+/// [`PropsError::DegenerateFace`] on a surface that is not closed (a
+/// plane, a cylinder, a cone), where an empty chart image bounds nothing;
+/// [`PropsError::Unimplemented`] on a spline or offset surface, which
+/// has no closed form here.
+pub fn whole_surface<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+) -> Result<FaceContribution<T>, PropsError> {
+    let pi = T::pi();
+    let (enclosed, area) = match closed_surface(surface)? {
+        Some(ClosedSurface::Sphere { radius }) => {
+            let area = T::from_f64(4.0) * pi * radius.powi(2);
+            (area * radius, area)
+        }
+        Some(ClosedSurface::Torus { major, minor }) => {
+            let ring = pi.powi(2) * major * minor;
+            (T::from_f64(6.0) * ring * minor, T::from_f64(4.0) * ring)
+        }
+        None => return Err(PropsError::DegenerateFace),
+    };
+    Ok(FaceContribution {
+        flux: if sense { enclosed } else { -enclosed },
+        area,
+    })
+}
+
+/// A closed surface the empty rule reads whole ([`closed_surface`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ClosedSurface<T> {
+    /// A sphere of this radius.
+    Sphere {
+        /// Its radius.
+        radius: T,
+    },
+    /// A torus of these radii.
+    Torus {
+        /// Its major radius.
+        major: T,
+        /// Its minor radius.
+        minor: T,
+    },
+}
+
+/// **Whether `surface` is closed**, with what [`whole_surface`] reads of
+/// it: a sphere or a torus is, a plane, a cylinder or a cone is not
+/// (`None`).
+///
+/// # Errors
+///
+/// [`PropsError::Unimplemented`] on a spline or offset surface, whose
+/// closure no closed form here reads.
+pub fn closed_surface<T: Real>(
+    surface: &Surface<T>,
+) -> Result<Option<ClosedSurface<T>>, PropsError> {
+    Ok(match *surface {
+        Surface::Sphere { radius, .. } => Some(ClosedSurface::Sphere { radius }),
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(ClosedSurface::Torus {
+            major: major_radius,
+            minor: minor_radius,
+        }),
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
+        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+    })
 }
 
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the

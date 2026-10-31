@@ -23,7 +23,27 @@ fn locate_hand_built(
         .zip(&corners)
         .map(|(edges, corners)| FaceLoop { edges, corners })
         .collect();
-    locate(surface, &views, sense, band)
+    let images: Vec<Vec<LoopEdge<f64>>> = loops.iter().map(|l| hand_image(l)).collect();
+    let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
+    locate(surface, &views, &images, sense, band)
+}
+
+/// **A hand-built loop's chart image**, the structure a body's caller
+/// reads off half-edge identity (`topo::surface_boundary::chart_image`)
+/// read here off the hand-built tags: an edge followed by one that walks
+/// it straight back (tags swapped, traversal reversed, the same stored
+/// interval on the same carrier), by the one reduction
+/// ([`geom_brep::chart_image::without_reversals`]).
+fn hand_image(edges: &[LoopEdge<f64>]) -> Vec<LoopEdge<f64>> {
+    let back = |e: &LoopEdge<f64>, f: &LoopEdge<f64>| {
+        e.start == f.end
+            && e.end == f.start
+            && e.forward != f.forward
+            && e.t0 == f.t0
+            && e.t1 == f.t1
+            && format!("{:?}", e.carrier) == format!("{:?}", f.carrier)
+    };
+    geom_brep::chart_image::without_reversals(edges, back)
 }
 
 /// Spheres and cones read in closed form and by their walk: tilted

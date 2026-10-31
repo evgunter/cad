@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P1
 cost: M
-refs: [a-mirror-of-an-assemble-reports-its-findings-twice]
+refs: [5999]
 ---
 
 

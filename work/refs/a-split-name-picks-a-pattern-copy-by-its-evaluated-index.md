@@ -6,7 +6,7 @@ status: closed
 closed: 2026-10-28
 priority: P2
 opened: 2026-10-09
-parent: patterns-are-index-variables
+refs: [5954]
 ---
 
 

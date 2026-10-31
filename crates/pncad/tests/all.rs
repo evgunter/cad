@@ -445,14 +445,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         // and the difference is that the answer is now readable.
         CensusContact::ConformalPatch { finding } => {
             named::<ContactFinding>(finding);
-            named::<DeclaredContact>(finding.pair);
-            let _bridgeable = match finding.verdict {
-                // A finding is only minted on definite evidence, so
-                // this is the arm that arrives; the other is the
-                // shape of the verdict type and not of this payload.
-                ContactVerdict::Definite => false,
-                ContactVerdict::Bridged => true,
-            };
+            named::<ContactPair>(finding.pair);
             false
         }
     }
@@ -1515,9 +1508,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a new
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these five words.
+/// under one of these words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1532,6 +1525,8 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {

@@ -217,7 +217,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
     "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/boolean/mod.rs"),
-    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # `BooleanError::Escalated`'s and `ContactContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
     # does not reach.

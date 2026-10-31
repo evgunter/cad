@@ -147,6 +147,7 @@ crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces'
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
 crates/topo/src/clearance.rs	1	constant	c	the authored clearance bound, a constant of the question (the interval arithmetic of the sweep, never the lane scalar)
+crates/topo/src/clearance.rs	1	constant	f64::from(winding)	harmonic_of: an angle channel's rate, its integer winding count (the ratio of two equal periods)
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	1.0 / f64::from(n)	the step of an orbit, a period over its steps (1 or 2)
@@ -165,6 +166,7 @@ crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pa
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/spline_arc.rs	1	constant	m	a spline piece's middle parameter, a point the halving chose
+crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
 crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain

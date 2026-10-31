@@ -2990,6 +2990,14 @@ fn import_report_row_tags_are_stable() {
             "seamless_periodic_band",
         ),
         (NormalizationKind::JoinedEdges, "joined_edges"),
+        (
+            NormalizationKind::EdgeSplitAtC0Knot,
+            "edge_split_at_c0_knot",
+        ),
+        (
+            NormalizationKind::FaceSplitAtC0Knot,
+            "face_split_at_c0_knot",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -3681,7 +3689,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        message.ends_with("Recourse: move the geometry so the faces clearly touch or clearly part"),
         "the unrecorded-contact recourse is the actionable half: {message}"
     );
 }
@@ -3723,7 +3731,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             // LIB's row. `what` is production's own string, from
             // `topo::boolean::contact_verify`'s Rest-ladder arm.
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
-                what: "a declared face's surface kind is outside the Rest ladder's \
+                what: "a glued face's surface kind is outside the Rest ladder's \
                        inventory (plane, sphere, cylinder, torus, cone)",
             }),
         }),
@@ -4424,7 +4432,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coincident_shell",
             "contact_contradicted",
             "containment",
-            "continuation_contradicted",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
             "crossing_insertion",
@@ -4435,7 +4442,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_pierce_escalated",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
-            "declaration_contradicted",
             "degenerate_torus",
             "edge_carrier_unsupported",
             "edge_in_face",
@@ -4492,12 +4498,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spheres_meet",
             "spline_crossing_unsettled",
             "split_lineage_cycle",
+            "tangency_unsupported",
             "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
             "unrepresentable_result",
-            "unsupported_declaration_class",
             "vertex_read_twice",
             "volume_corrupt",
             "volume_undecided",
@@ -5294,6 +5300,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "chart_singularity_vertex",
             "edge_free_sphere",
+            "edge_split_at_c0_knot",
+            "face_split_at_c0_knot",
             "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
@@ -5917,6 +5925,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "c0_knot_unsplit",
             "dangling_reference",
             "instance",
             "invalid_eps_override",

@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-28
 priority: P1
 cost: E
-refs: [a-placement-carries-its-sources-at-rest-result, patterns-are-index-variables]
+refs: [5903, 5954]
 ---
 
 Found by the carry (`a-placement-carries-its-sources-at-rest-result`).

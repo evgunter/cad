@@ -104,27 +104,31 @@ fn a_half_rod_stack_unions_at_every_seam_turn() {
     }
 }
 
-/// **The other three ops keep their typed refusal at every seam
-/// turn**: ∩, A ∖ B and B ∖ A refuse `FallbackExtentUnsupported` at the
-/// no-crossings path's section certificate, the coaxial wall halves
-/// touching across the mating circle with no crossing event — the
-/// rounded plate stack's refusal
-/// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// Their oracle once built: ∩ empty, each difference its minuend, π.
+/// **The other three ops build at every seam turn**: ∩ is nothing and
+/// each difference its minuend, π. They take the no-crossings path, the
+/// coaxial wall halves touching across the mating circle with no
+/// crossing event; the section pass defers the settled wall pairs, no
+/// edge of either rod runs inside the other's wall, and the shells'
+/// sides (each rod `Out` the other) stand.
 #[test]
-fn a_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {
+fn a_half_rod_stack_intersects_and_subtracts_at_every_seam_turn() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
-        for (op, out) in [
-            ("A ∩ B", topo::intersect(&a, &b, tol())),
-            ("A ∖ B", topo::subtract(&a, &b, tol())),
-            ("B ∖ A", topo::subtract(&b, &a, tol())),
-        ] {
-            assert!(
-                matches!(out, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                "{label}: {op}: {out:?}"
-            );
-        }
+        let meet = topo::intersect(&a, &b, tol());
+        assert!(
+            matches!(meet, Ok(BooleanResult::Empty)),
+            "{label}: A ∩ B: {meet:?}"
+        );
+        builds(
+            &format!("{label}, A ∖ B"),
+            topo::subtract(&a, &b, tol()),
+            PI,
+        );
+        builds(
+            &format!("{label}, B ∖ A"),
+            topo::subtract(&b, &a, tol()),
+            PI,
+        );
     }
 }
 
