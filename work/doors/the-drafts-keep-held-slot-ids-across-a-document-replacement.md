@@ -50,3 +50,15 @@ half of the one replacement door; a row in `app.rs` beside
 gone after an `Open` of the same file. The deeper version is the
 `DocumentDerived` move inside `Drafts`: its id-holding fields as one
 value rebuilt at the door, so the next one cannot be missed.
+
+## 2026-10-31 — the fix is the move, not more lines in the walk
+
+PR 6125's review (S1): `Drafts::document_replaced` is a hand-written,
+field-by-field reset, which is the shape `DocumentDerived` closed one
+layer up in `ViewerApp`, and before it `Derived` closed in `DocSession`.
+Adding the missing fields to the walk would leave the next id-holding
+draft just as able to land outside it. The fix is the same move:
+collect `Drafts`' document-derived fields (the held faces, the
+expression and naming drafts, the rename text, the profile edit) into
+one value that the replacement door rebuilds from nothing, so that a
+field is reset by being declared there.

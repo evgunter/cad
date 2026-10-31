@@ -1718,8 +1718,8 @@ and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
 free-move table is checked against the property
-(`SessionOp::replaces_the_document`, in `tests/gesture_table.rs`) rather
-than against a second copy of its rows, and `perform` consults both
+(`SessionOp::replaces_the_document`, in `session/op.rs`) rather than
+against a second copy of its rows (`tests/gesture_table.rs`), and `perform` consults both
 tables in turn, value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one

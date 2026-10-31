@@ -409,8 +409,8 @@ pub struct ViewerApp {
     /// Zeroed and assigned back every frame as
     /// [`Self::profiles_undrawn`] is.
     held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
-    /// **What the viewer holds about the document under the session**,
-    /// as one value a replacement rebuilds ([`DocumentDerived`]).
+    /// What the incoming document is owed when its scene lands, and the
+    /// budget's verdict about it ([`DocumentDerived`]).
     derived: DocumentDerived,
     /// **The display budget's seam** — where the probe tessellations
     /// that price a document run, which is not this thread.
@@ -707,27 +707,24 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
-/// **What the viewer knows because of the document under the session**,
-/// and what it owes that document when its first scene lands.
+/// **What the viewer owes the document under the session when its
+/// first scene lands, and what the budget said about it.**
 ///
 /// **One value, because replacing the document invalidates all of it
 /// at once** — the session's own [`crate::session`] `Derived` move,
 /// one layer up. [`DocumentDerived::owed`] is the one spelling of "a
-/// document has just arrived": the constructor's value and the value
-/// [`ViewerApp::document_replaced`] installs, for every operation
-/// [`SessionOp::replaces_the_document`] names. A field added here is
-/// reset by being declared.
+/// document has just arrived": the value [`ViewerApp::document_replaced`]
+/// installs for every operation [`SessionOp::replaces_the_document`]
+/// names, and the base [`DocumentDerived::at_startup`] is built from. A
+/// field added here is reset by being declared.
 ///
-/// **What is outside it, and why.** The rest of [`ViewerApp`] is
-/// either session chrome that must survive a replacement (the
-/// camera, δ in force, theme, layout, input, preferences, the open
-/// windows), or a value whose own currency key already retires it
-/// when the next document lands: the picture and its keys
-/// (`scene_key`, `scene_display`, `scene_focus`, `revision`), the
-/// pick cache and the fit seam, keyed on the landed generation, and
-/// the per-frame reads the frame entry zeroes. The drafts and the
-/// open tool hold ids of the document alongside chrome, so each drops
-/// its own half in the same door ([`ViewerApp::document_replaced`]).
+/// **A field belongs here when a replacement must reset it and nothing
+/// else would.** A value keyed on the landed generation, δ or picture
+/// revision is retired by the next landing, a per-frame value is
+/// rewritten every frame, and session chrome must survive; none of
+/// those belongs here. The drafts and the open tool hold ids of the
+/// document alongside chrome, so each drops its own half in the same
+/// door.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct DocumentDerived {
     /// A camera fit is owed as soon as the next rebuilt scene lands.
@@ -761,6 +758,17 @@ impl DocumentDerived {
             fit_camera: true,
             fit_delta: true,
             budget_delta: None,
+        }
+    }
+
+    /// The startup document: [`Self::owed`] except the camera fit,
+    /// which `pending_fit` takes on the first frame over the startup
+    /// mesh already drawn. Owing it again at the first landing would
+    /// re-frame a camera the user moved in between.
+    fn at_startup() -> Self {
+        Self {
+            fit_camera: false,
+            ..Self::owed()
         }
     }
 }
@@ -812,7 +820,9 @@ impl ViewerApp {
         // and there is no aspect to fit against. It is provisional for
         // exactly one frame: `pending_fit` below makes the viewport fit
         // what it draws at its true aspect the first time it runs — the
-        // same fit an open books — so what a user sees is never this.
+        // fit a replaced document books when its scene lands, taken at
+        // once here because the startup mesh is already drawn — so what
+        // a user sees is never this.
         let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
@@ -890,12 +900,12 @@ impl ViewerApp {
             projection_fault: None,
             profiles_undrawn: 0,
             held_edges_refused: None,
-            // The startup document goes through the same door an
-            // opened one does: it is small enough that the budget will
-            // not move its δ, and a first picture that took a
+            // The startup document's δ goes through the same budget an
+            // opened one's does: it is small enough that the budget
+            // will not move it, and a first picture that took a
             // different path from every later one is a difference
             // waiting to be a bug.
-            derived: DocumentDerived::owed(),
+            derived: DocumentDerived::at_startup(),
             fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
@@ -5954,22 +5964,23 @@ mod properties_pane_tests {
         removed.expect("the row removes the document it saved");
     }
 
-    /// **Startup's second fit lands where the first one did**: the
-    /// provisional mesh's fit (`pending_fit`) and the first indexed
-    /// scene's (`DocumentDerived::owed`) frame the same plate, so an
-    /// untouched camera does not move when the index lands.
+    /// **A camera moved before the index lands is kept**: startup's
+    /// fit is the first frame's (`pending_fit`, over the startup mesh),
+    /// so the first indexed scene owes no second one that would undo a
+    /// move made in between.
     #[test]
-    fn startups_second_fit_lands_on_the_first() {
+    fn a_camera_moved_before_the_index_lands_is_kept() {
         let mut driven = Driven::with(Vec::new());
-        let first = camera_pose(&driven.app);
         assert!(
-            driven.app.derived.fit_camera,
-            "the first indexed scene owes a fit"
+            driven.app.scene_key.is_none(),
+            "the move is made before the first indexed scene lands"
         );
+        driven.app.camera = backed_off(&driven.app, 2.0);
+        let moved = camera_pose(&driven.app);
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        assert!(!driven.app.derived.fit_camera, "and the landing spent it");
-        assert_eq!(camera_pose(&driven.app), first, "on the same plate");
+        assert!(driven.app.scene_key.is_some(), "the index has landed");
+        assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
     }
 
     /// **The mate tool's two picks are marked once the selection moves
