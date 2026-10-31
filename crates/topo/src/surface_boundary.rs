@@ -21,20 +21,26 @@
 //!   half-edge followed in its loop by its own mate walks its edge out
 //!   and straight back, which bounds no area. The reduction and the rule
 //!   that a loop left empty bounds nothing are `geom_brep::chart_image`'s.
-//!
-//! Both views hand back the **tips** they drop ([`tips`]): the end of a
-//! half-edge its loop follows by its own mate, a vertex with no other
-//! edge, which on a body past tier 2 is a wrap edge's tip and so the
-//! face's chart singularity. A tip bounds nothing, but the face holds
-//! it, and a reader of either view that has dropped a tip keeps it as
-//! the datum of the face's side
-//! (`geom_brep::props::boundary_material_sign_holding`).
 //!   Seams stay: a Green form written in a lifted chart coordinate (the
 //!   torus's tube angle) reads a seam's two traversals a period apart, and
 //!   that term is the face's area. Every integrator and chart reader
 //!   takes this view (`props::chart_image_edges`). A chart image that is
 //!   empty on a closed surface is the whole surface, signed by the face's
 //!   sense (`geom_brep::props::whole_surface`).
+//!
+//! **The tips** ([`tips`]) are what both views drop that the face still
+//! holds: the end of a half-edge its loop follows by its own mate, a
+//! vertex with no other edge, which on a body past tier 2 is a wrap
+//! edge's tip and so the face's chart singularity. The chart image hands
+//! its loop's tips back ([`ChartImage`]). The readers of a sphere face's
+//! side keep them as the datum of that side: tier 3's check 6
+//! (`geom_brep::props::boundary_material_sign_holding`), the closed-form
+//! lane's cross-check of the bit (`geom_brep::props::curved_face_holding`)
+//! and the mass-property doors' seam refusals (`props::face_tips`). Two
+//! readers of a sphere face do not: a boolean's sphere window, which
+//! reads a face holding a pole as the whole ball's box, and the seam
+//! region's reader, which refuses a region holding a tip
+//! (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
@@ -88,6 +94,12 @@ pub struct ChartImage {
 /// rotation (`next(mate(·))`) closes on the one edge, so it is the
 /// valence-1 end of a spur, stored structure read with no geometry, in
 /// the order of `hes`. `None` where a key does not resolve.
+///
+/// On a tier-1 body this is one fact read three ways: the vertex here,
+/// the valence-1 vertex `validate::wrap_tips` counts, and the orbit of
+/// one `Body::strut_tip` walks. A wrap tip is such an end of a wrap edge;
+/// tier 2 refuses any other at rest (`ScaffoldingStrutVertex`), so past
+/// tier 2 every tip here is a wrap tip.
 #[must_use]
 pub fn tips<T: Real>(body: &Body<T>, hes: &[HalfEdgeKey]) -> Option<Vec<VertexKey>> {
     let mut tips = Vec::new();
@@ -104,9 +116,8 @@ pub fn tips<T: Real>(body: &Body<T>, hes: &[HalfEdgeKey]) -> Option<Vec<VertexKe
 /// next such half-edge out of its end vertex, crossing every edge it does
 /// lie on both sides of to that edge's mate ([`boundary_cycles`]). Each
 /// cycle is in walk order, the cycles in the order their first
-/// half-edges are stored, the outer loop first, with every tip of the
-/// face's loops ([`tips`]). No cycle where the face lies on both sides of
-/// every edge it has.
+/// half-edges are stored, the outer loop first. Empty where the face lies
+/// on both sides of every edge it has.
 ///
 /// # Errors
 ///
@@ -115,7 +126,7 @@ pub fn tips<T: Real>(body: &Body<T>, hes: &[HalfEdgeKey]) -> Option<Vec<VertexKe
 pub fn surface_cycles<T: Real>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<SurfaceBoundary, &'static str> {
+) -> Result<Vec<Vec<HalfEdgeKey>>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
     let f = body.get_face(face).ok_or(unresolved)?;
     let mut members = Vec::new();
@@ -134,20 +145,7 @@ pub fn surface_cycles<T: Real>(
             open.push(h);
         }
     }
-    let tips = tips(body, &members).ok_or(unresolved)?;
-    Ok(SurfaceBoundary {
-        cycles: boundary_cycles(body, open, members.len(), both_sides)?,
-        tips,
-    })
-}
-
-/// **A face's surface boundary and the tips it drops** ([`surface_cycles`]).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SurfaceBoundary {
-    /// The boundary's cycles, each in walk order.
-    pub cycles: Vec<Vec<HalfEdgeKey>>,
-    /// The tips of the face's loops ([`tips`]).
-    pub tips: Vec<VertexKey>,
+    boundary_cycles(body, open, members.len(), both_sides)
 }
 
 /// **The boundary cycles of a set of half-edges**: from each of `open`,
@@ -209,7 +207,7 @@ mod tests {
 
     /// A lone strut on a seed face: its loop walks it out and back, so
     /// the face lies on both sides of it, each half turns back, both
-    /// views are empty, and both hand back its two ends as tips.
+    /// views are empty, and its two ends are the chart image's tips.
     #[test]
     fn a_lone_strut_is_both_sides_and_a_spur() {
         let mut body = Body::<f64>::new();
@@ -240,11 +238,11 @@ mod tests {
         let mut want = vec![seed.vertex, strut.vertex];
         want.sort();
         assert_eq!(ends, want, "the chart image drops both ends");
-        let boundary = surface_cycles(&body, seed.face).unwrap();
-        assert_eq!(boundary.cycles, Vec::<Vec<_>>::new(), "no surface boundary");
-        let mut ends = boundary.tips;
-        ends.sort();
-        assert_eq!(ends, want, "the surface boundary drops both ends");
+        assert_eq!(
+            surface_cycles(&body, seed.face),
+            Ok(Vec::new()),
+            "no surface boundary"
+        );
     }
 
     /// A strut off a strut: the loop walks `a` out, `b` out, `b` back,

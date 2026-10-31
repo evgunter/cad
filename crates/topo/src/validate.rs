@@ -5396,7 +5396,10 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 /// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
 /// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
 /// reading is structural and takes no ε. Where a tip lies is tier 3's
-/// (`crate::pcurves::pcurve_pass`).
+/// (`crate::pcurves::pcurve_pass`). The valence-1 end is the vertex
+/// [`crate::surface_boundary::tips`] reads off a loop (a half-edge its
+/// loop follows by its own mate), counted here so that a body whose
+/// rotations tier 1 has not yet closed still reads.
 pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, HalfEdgeKey> {
     let valence = valences(body);
     let mut tips = SecondaryMap::new();
