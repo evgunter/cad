@@ -780,7 +780,11 @@ fn bracket_read(result: Result<(), Vec<ValidationError>>) -> Result<(), Vec<Vali
 /// its side first. At ε 1e-9 one reads every needle 21ε and 30ε across;
 /// below `2Kε` every ray through a needle meets a wedge (a face it passes
 /// within the band of two edges of) and reads nothing, except one aimed
-/// at an end of the inside-out needle along the axes.
+/// at an end of the inside-out needle along the axes, and on the
+/// inside-out turned needles 12ε and 15ε across, the ray aimed at a long
+/// face's point stepped in from its end (`side_reader`'s planar aim, which
+/// hangs on the face's first half-edge, so the needle unreverted aims
+/// elsewhere).
 #[test]
 fn a_needles_orientation_through_the_structural_doors() {
     let tol = Tol::witness();
@@ -803,7 +807,8 @@ fn a_needles_orientation_through_the_structural_doors() {
                 volume: None,
             }]);
             let plain = if reads { Ok(()) } else { unresolved.clone() };
-            let inverted = if reads || !turned {
+            let end_aim_reads = turned && !at_1e6 && (m == 12.0 || m == 15.0);
+            let inverted = if reads || !turned || end_aim_reads {
                 Err(vec![ValidationError::NegativeVolume { solid }])
             } else {
                 unresolved

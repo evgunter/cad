@@ -375,6 +375,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
         | "bool_wall_outline_reach"
+        | "bool_wall_turn_true"
         | "bool_wrap_rim"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"

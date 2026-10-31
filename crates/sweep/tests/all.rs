@@ -1314,10 +1314,18 @@ mod a_cone_with_a_tilted_seam;
 mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
+#[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
+mod a_seam_inside_a_face_is_no_boundary_of_it;
+#[path = "an_aimed_ray_from_far_reads_a_split_side_inside_out.rs"]
+mod an_aimed_ray_from_far_reads_a_split_side_inside_out;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+#[path = "side_reader_aims_ask_nothing.rs"]
+mod side_reader_aims_ask_nothing;
+#[path = "sphere_aims_reader_ties.rs"]
+mod sphere_aims_reader_ties;
 
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;

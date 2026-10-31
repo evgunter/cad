@@ -622,19 +622,13 @@ a length; a dimensionless quantity levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw
-construction door. Consistency backstops between integral results
-decide on bare `T` through `k_stats::decide_invariant`, no Margin
-minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A site where no door honestly fits
+construction door. A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
 kind-dependent data lives in per-kind enum variants. (iii)
 **Parameter-space values cross to model space only through per-kind
-metric doors.** (iv) **Inequality gates split sign from magnitude**:
-a certified sign-certain violation refuses with no ε involved; the
-banded comparison governs only the near-zero region, and both arms
-consume the same metered comparand. Extension is opportunistic as
+metric doors.** Extension is opportunistic as
 signatures get touched; the migration ledger is
 `docs/predicate-dimension-audit.md`, whose flagged rows ride
 `k_stats::decide_flagged` — visible typed debt, not casts.

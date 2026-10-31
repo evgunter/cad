@@ -25,11 +25,13 @@
 //! (D10, Booleans; [`ray_crossings`]): each line edge between two planar
 //! faces whose planes it crosses is decided once, for both faces, and an
 //! edge it passes within the band of meets it, half a crossing for each
-//! face the edge bounds; a planar face clear of its edges is crossed
-//! where the turn of its loops says, and one with an edge no such
-//! reading decides tests the hit against its loops on their edges' own
-//! carriers (`point_in_loop_projected`); the curved kinds' arms below
-//! offer their roots. Each crossing counts `+1` leaving material
+//! face the edge bounds; a planar face of lines and circle arcs clear of
+//! its edges is crossed where the turn of its loops says, and another
+//! tests the hit against its loops on their edges' own carriers
+//! (`point_in_loop_projected`); the curved kinds' arms below offer their
+//! roots, and a cylinder face of rulings and circles clear of its edges
+//! holds a root where the turn of its loops on an image of its wall
+//! says. Each crossing counts `+1` leaving material
 //! (`d·n > 0`) and `−1` entering it, crossings in band of each other are
 //! summed, and the sign of the first nonzero running count is the side
 //! of `q`: rising ⇒ the ray *exits* material first ⇒ `In`; falling ⇒
@@ -156,7 +158,9 @@
 //!   edges by [`super::torus_region`], under its own rows
 //!   (`bool_torus_region_*`, `bool_torus_frame_radius`).
 //! - A cylinder or cone face is read from its boundary edges by
-//!   [`super::ruled_region`], under its own rows (`bool_ruled_region_*`).
+//!   [`super::ruled_region`], under its own rows (`bool_ruled_region_*`),
+//!   except a cylinder face held by the turn of its loops
+//!   ([`wall_crosses_by_turn`], under `_winding`).
 //!   One whose region cannot be read refuses only within a ball holding
 //!   it: **`bool_wall_outline_reach`** on a wall, **`bool_cone_partial_reach`**
 //!   on a cone (a distance less a radius, metres).
@@ -172,9 +176,11 @@
 //!   census's closest read (`census::line_passes`); not Positive ⇒ the
 //!   ray meets the edge where **`bool_point_in_solid_edge_span`** puts
 //!   the closest point definitely inside the edge.
-//!   **`bool_point_in_solid_winding`**: the turn of a planar face's loops
-//!   about the ray's hit, less `π`, levered by the reach; Positive ⇒ the
-//!   hit is inside the face.
+//!   **`bool_point_in_solid_winding`**: the turn of a face's loops about
+//!   the ray's hit (a planar face's, or a cylinder face's on an image of
+//!   its wall), less `π`, levered by the reach; Positive ⇒ the hit is
+//!   inside the face. Read through the unlogged door, as it is definite
+//!   by construction.
 //! - **`side_at_infinity_advance`**, **`_denom`**, **`_clearance`**,
 //!   **`_beside`**, **`_order`**, **`_vertex`**, **`_edge`**,
 //!   **`_edge_span`** and **`_winding`**: the planar rows above, as a ray aimed
@@ -2986,8 +2992,11 @@ struct PlaneCross<T: geom_core::Real> {
 /// bounds: a line edge between two crossed planes by the census's closest
 /// read of two lines ([`edge_meets`]), any other by where the ray passes
 /// it ([`curved_edges`]). `met` holds each edge it passes within the band
-/// of; `lines` and `read` the edges decided, met or not; `marks` where
-/// along the ray it meets what it reads nothing at ([`RayHit::mark`]).
+/// of; `lines` and `read` the edges decided, met or not; `clear` those a
+/// face's crossing may be read past by the turn of its loops; `marks`
+/// where along the ray it meets what it reads nothing at
+/// ([`RayHit::mark`]). A seam inside a face bounds nothing and is none of
+/// these.
 struct EdgeMeets<T> {
     met: Vec<Met<T>>,
     /// The line edges between two planar faces decided, met or not.
@@ -2995,6 +3004,15 @@ struct EdgeMeets<T> {
     /// Every edge decided, met or not: `lines` and the curved reading's
     /// ([`curved_edges`]).
     read: std::collections::BTreeSet<crate::entity::EdgeKey>,
+    /// The edges a face's turn may be read past: every one of `lines`,
+    /// met or not, as [`edge_meets`] inserts each pass before deciding
+    /// its gap, and each curved edge read clear from every crossing of
+    /// its faces, or whose face's carrier the ray definitely misses
+    /// ([`curved_edges`]). A curved edge read past its span's end from
+    /// one is not in it, and neither is a curved edge met. A met line
+    /// here is harmless: the turn is read only for a face no edge is met
+    /// at, so a face with a met line never takes it.
+    clear: std::collections::BTreeSet<crate::entity::EdgeKey>,
     marks: Vec<RayHit<T>>,
     /// The vertices read so far, each once.
     vertices: Vec<crate::entity::VertexKey>,
@@ -3107,6 +3125,7 @@ fn edge_meets<T: Decide>(
         met: Vec::new(),
         lines: std::collections::BTreeSet::new(),
         read: std::collections::BTreeSet::new(),
+        clear: std::collections::BTreeSet::new(),
         marks: Vec::new(),
         vertices: Vec::new(),
     };
@@ -3126,6 +3145,7 @@ fn edge_meets<T: Decide>(
     for pass in passes {
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
+        meets.clear.insert(pass.edge);
         let gap =
             match geom_core::k_stats::decide_magnitude(rows.edge, Margin::of(pass.gap[0]), band) {
                 Ok(geom_core::k_stats::Magnitude::Positive) => continue,
@@ -3240,44 +3260,249 @@ impl<T: Decide> EdgeMeets<T> {
     }
 }
 
+/// What a turn of a face's loops is read under: the band and the ray's
+/// rows.
+#[derive(Clone, Copy)]
+struct TurnRay {
+    band: Band,
+    rows: RayRows,
+}
+
 /// **Whether a ray crosses planar `face` at `p`**, off the turn of its
-/// loops about `p`. Every edge of `face` is a line edge the ray was
-/// decided definitely clear of ([`edge_meets`]), so the turn is `±2π`
-/// inside the face and `0` outside it, to rounding: `|turn| − π` is
-/// `±π`, definite by construction, and is read under `winding` through
-/// the unlogged door (`k_stats::check_unlogged`, ledger row F23 of
-/// `docs/predicate-dimension-audit.md`), so no verdict log, flip lane
-/// or tie census counts it as a margin. No auxiliary direction is cast,
+/// loops about `p` ([`loop_turn`]); `None` where an edge of it is neither
+/// a line nor a circle arc. The caller reads it only where every edge
+/// bounding `face` is one the ray was decided clear of
+/// ([`EdgeMeets::clear`]), so `p`, a point of the ray, lies off every one,
+/// and a seam inside the face, which bounds nothing and was read nowhere,
+/// is left out of the turn ([`loop_turn`]). The turn is `±2π` inside the
+/// face and `0` outside it, to rounding: `|turn| − π` is `±π`, definite
+/// by construction ([`turned_inside`]). No auxiliary direction is cast,
 /// so no tie the face's geometry does not hold is ever decided.
 fn crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    normal: Vec3<T>,
-    p: Point3<T>,
+    (normal, p): (Vec3<T>, Point3<T>),
     reach: T,
-    band: Band,
-    rows: RayRows,
-) -> Result<bool, RayFault<PointInSolidError>> {
-    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
-    let at = |v| {
-        body.get_vertex(v)
-            .and_then(|vx| body.get_point(vx.point))
-            .copied()
-            .ok_or_else(corrupt)
-    };
-    let mut turn = T::zero();
-    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
-        let (u, w) = (at(e.ends[0])? - p, at(e.ends[1])? - p);
-        turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
+    ray: TurnRay,
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    match loop_turn(body, face, normal, p, |x| x)? {
+        Some(turn) => turned_inside(face, turn, reach, ray).map(Some),
+        None => Ok(None),
     }
+}
+
+/// **Whether a root `p` of a cylinder face's wall lies in the face**, off
+/// the turn of its loops about `p` on an image of the wall in a plane
+/// ([`loop_turn`]); `None` where an edge of it is neither a ruling nor a
+/// circle (an oblique section). The wall `(origin, axis, radius)` minus
+/// nothing is an annulus: a point at height `h` along the axis and
+/// radial direction `s` goes to `ρ(h − h_p)·s`, `s` read in the frame of
+/// `p`'s own radial and `ρ(Δ) = 1 + Δ/(|Δ| + radius)`, which rises from
+/// `0` to `2` and is `1` at `p`. It is one to one and continuous, carries
+/// every ruling to a segment of a ray from the origin and every circle on
+/// the wall (a parallel) to a circle about it, so the face's image is a
+/// region of the plane bounded by its loops' images, and `p`'s image lies
+/// in it exactly when `p` lies in the face; the face's own seam, a ruling
+/// its image walks out and back, is left out of the turn. The caller reads
+/// it only where the face is met at no edge and every edge bounding it is
+/// one the ray was decided clear of ([`EdgeMeets::clear`]), so `p` lies
+/// off every one; `None` too where `p` lies nearer an edge than twice how
+/// far the edge is off its ruling or parallel (`bool_wall_turn_true`,
+/// below). The turn is read as a planar face's is ([`turned_inside`]): no
+/// path is walked.
+fn wall_crosses_by_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (origin, axis, radius): (Point3<T>, Vec3<T>, T),
+    (p, reach): (Point3<T>, T),
+    ray: TurnRay,
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    let band = ray.band;
+    let axis = axis / axis.norm();
+    let radius = radius.abs();
+    let split = |x: Point3<T>| {
+        let w = x - origin;
+        let h = w.dot(axis);
+        let radial = w - axis * h;
+        (h, radial / radial.norm())
+    };
+    let (h_p, e1) = split(p);
+    let e2 = axis.cross(e1);
+    let image = |x: Point3<T>| {
+        let (h, s) = split(x);
+        let dh = h - h_p;
+        let rho = T::one() + dh / (dh.abs() + radius);
+        Point3::new(s.dot(e1) * rho, s.dot(e2) * rho, T::zero())
+    };
+    // The image carries a ruling to a segment, and a circle to a circle,
+    // exactly where the ruling lies along the axis and the circle is a
+    // parallel. Tier 3 admits an edge off that by its band's zero
+    // (`props_cylinder_circle_tilt`, `props_meridian_axial`), so off it by
+    // up to `√(2εr)` along the axis: where `p` lies nearer the edge than
+    // twice how far the edge is off, the image may misplace it, and the
+    // face is not read so here. For an edge on its line or parallel the
+    // margin is `p`'s clearance of it, which every crossing read definite.
+    //
+    // The factor 2 is argued, not demonstrated: no fixture reads wrong
+    // under factor 1, and none is pinned. Off-line numerics (not kept)
+    // put the image's misplacement zone, as a share of `off`, below 1
+    // for a ruling drifting linearly round the wall (about 0.25 at a
+    // length of twice the radius, approaching 1 only as length over
+    // radius grows without bound), and at about `off/(2r)` for a tilted
+    // circle, whose image the two three-point arcs carry to first order;
+    // a circle's centre off the axis moves no image at all. So factor 1
+    // can be made red by no pose, and factor 0 only by a ruling drifting
+    // by far more than the band, which a valid body bounds by a plane
+    // through that ruling: not built.
+    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+        if e.across == face {
+            continue;
+        }
+        let Some(curve) = body
+            .get_edge(e.edge)
+            .and_then(|ed| body.get_curve_geom(ed.curve))
+            .and_then(crate::null::CurveGeom::certified)
+        else {
+            return Ok(None);
+        };
+        let off = match *curve.carrier() {
+            geom::Curve3::Line { dir, .. } => {
+                let (t0, t1) = curve.params();
+                (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
+            }
+            geom::Curve3::Circle {
+                center,
+                axis: normal,
+                radius: r,
+                ..
+            } => {
+                let w = center - origin;
+                r.abs() * (normal / normal.norm()).cross(axis).norm()
+                    + (w - axis * w.dot(axis)).norm()
+            }
+            _ => return Ok(None),
+        };
+        let Some(clear) = edge_clearance(body, &e, p) else {
+            return Ok(None);
+        };
+        if decide(
+            "bool_wall_turn_true",
+            Margin::of(clear - off * T::from_f64(2.0)),
+            band,
+        ) != Ok(Sign::Positive)
+        {
+            return Ok(None);
+        }
+    }
+    let up = Vec3::new(T::zero(), T::zero(), T::one());
+    match loop_turn(body, face, up, image(p), image)? {
+        Some(turn) => turned_inside(face, turn, reach, ray).map(Some),
+        None => Ok(None),
+    }
+}
+
+/// Whether a loop turn `turn` about a point says it lies inside: the
+/// turn is `±2π` inside and `0` outside, to rounding, so `|turn| − π` is
+/// `±π`, definite by construction, and is read under `winding` through
+/// the unlogged door (`k_stats::check_unlogged`, ledger row F23 of
+/// `docs/predicate-dimension-audit.md`), so no verdict log, flip lane or
+/// tie census counts it as a margin.
+fn turned_inside<T: Decide>(
+    face: FaceKey,
+    turn: T,
+    reach: T,
+    ray: TurnRay,
+) -> Result<bool, RayFault<PointInSolidError>> {
     Ok(geom_core::k_stats::check_unlogged(
-        rows.winding,
+        ray.rows.winding,
         (turn.abs() - T::pi()) * reach,
-        band,
+        ray.band,
         "F23",
     )
     .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
         == Sign::Positive)
+}
+
+/// **The turn of `face`'s loops about `p`**, about `normal`, every point
+/// of them first carried by `map` (the identity for a planar face, which
+/// `p` lies in; an image of a curved face in the plane `p`'s image lies
+/// in): a line edge, carried to a segment, turns by the angle its ends
+/// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
+/// over its two halves. `None` where an edge is neither.
+fn loop_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+    map: impl Fn(Point3<T>) -> Point3<T>,
+) -> Result<Option<T>, RayFault<PointInSolidError>> {
+    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
+    let at = |v| {
+        body.get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .map(|&x| map(x))
+            .ok_or_else(corrupt)
+    };
+    let angle = |a: Point3<T>, b: Point3<T>| {
+        let (u, w) = (a - p, b - p);
+        normal.dot(u.cross(w)).atan2(u.dot(w))
+    };
+    let mut turn = T::zero();
+    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+        // A seam inside the face is walked once each way, and its two
+        // turns cancel: it is left out, not summed, since in floats two
+        // passes whose products vanish both read `atan2(+0, x < 0) = π`.
+        if e.across == face {
+            continue;
+        }
+        let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+        let curve = body
+            .get_edge(e.edge)
+            .and_then(|ed| body.get_curve_geom(ed.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or_else(corrupt)?;
+        match *curve.carrier() {
+            geom::Curve3::Line { .. } => turn = turn + angle(a, b),
+            geom::Curve3::Circle { .. } => {
+                let on = |f: f64| {
+                    along_half(body, e.half, f)
+                        .map(|(x, _)| map(x))
+                        .ok_or_else(corrupt)
+                };
+                let m = on(0.5)?;
+                turn = turn
+                    + arc_turn(normal, p, (a, on(0.25)?, m))
+                    + arc_turn(normal, p, (m, on(0.75)?, b));
+            }
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some(turn))
+}
+
+/// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
+/// at most half a turn, about `normal`, in the plane of `p`: the change
+/// in the direction from `p` to the arc's point as it runs from `a` to
+/// `b`. As complex numbers in that plane, `M(x) = (x − a)/(x − b)` carries
+/// the arc's circle to a line through the origin and the arc to the
+/// half of it `M(m)` lies on, so the turn is
+/// `Arg(−conj M(m)) − Arg(−M(p) conj M(m))`, whose one cut is the arc
+/// itself: it asks no question, as a chord's turn and a test of which
+/// side of the chord `p` lies would, and `p` lies clear of the arc. Each
+/// `M` is read by its numerator `(x − a)·conj(x − b)`, the positive
+/// scale `|x − b|²` turning no argument.
+fn arc_turn<T: Decide>(
+    normal: Vec3<T>,
+    p: Point3<T>,
+    (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
+) -> T {
+    let numerator = |x: Point3<T>| {
+        let (u, w) = (x - a, x - b);
+        (u.dot(w), normal.dot(w.cross(u)))
+    };
+    let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
+    let zero = T::zero();
+    mi.atan2(zero - mr) - (zero - (pi * mr - pr * mi)).atan2(zero - (pr * mr + pi * mi))
 }
 
 /// **An edge of a face's loops**, as one of its half-edges walks it: the
@@ -3335,7 +3560,85 @@ pub(crate) fn face_edges<T: geom_core::Real>(
     Ok(out)
 }
 
-/// Whether every edge of `face` is one of `read`.
+/// **The point of half-edge `half`'s curve at fraction `f` of its span,
+/// as the half walks it**, and the curve's derivative there in that
+/// direction: the one reading of a half-edge's walk along its carrier.
+/// `None` where the half, its edge or its certified curve does not
+/// resolve.
+pub(crate) fn along_half<T: Decide>(
+    body: &Body<T>,
+    half: crate::entity::HalfEdgeKey,
+    f: f64,
+) -> Option<(Point3<T>, Vec3<T>)> {
+    let edge = body.get_half_edge(half)?.edge;
+    let plus = body.edges.get(edge)?.claim(half)?.plus;
+    let curve = body
+        .get_edge(edge)
+        .and_then(|ed| body.get_curve_geom(ed.curve))
+        .and_then(crate::null::CurveGeom::certified)?;
+    let (t0, t1) = curve.params();
+    let t = t0 + (t1 - t0) * T::from_f64(if plus { f } else { 1.0 - f });
+    let d = curve.carrier().deriv(t);
+    Some((curve.carrier().eval(t), if plus { d } else { -d }))
+}
+
+/// How many even steps of an arc's span [`edge_clearance`] reads.
+const CLEARANCE_SAMPLES: u32 = 32;
+
+/// **A lower bound on the distance from `m` to the edge of `e`**, a line
+/// or a circle arc, by evaluation alone: a segment's exact distance, or
+/// for an arc the greater of two, each never above the true distance —
+/// `m`'s distance from the arc's whole circle (its carrier's closed-form
+/// clearance, [`geom::Curve3::clearance`]), and the least distance from
+/// `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of its span
+/// less half the arc length between two of them. `None` for another edge.
+pub(crate) fn edge_clearance<T: Decide>(body: &Body<T>, e: &FaceEdge, m: Point3<T>) -> Option<T> {
+    let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
+    let curve = body
+        .get_edge(e.edge)
+        .and_then(|ed| body.get_curve_geom(ed.curve))
+        .and_then(crate::null::CurveGeom::certified)?;
+    match *curve.carrier() {
+        geom::Curve3::Line { .. } => Some(crate::sector_shape::point_segment_distance(
+            at(e.ends[0])?,
+            at(e.ends[1])?,
+            m,
+        )),
+        geom::Curve3::Circle { radius, .. } => {
+            let (t0, t1) = curve.params();
+            let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
+            let mut least: Option<T> = None;
+            for k in 0..=CLEARANCE_SAMPLES {
+                let p = curve
+                    .carrier()
+                    .eval(t0 + (t1 - t0) * T::from_f64(f64::from(k)) / n);
+                let d = (p - m).norm();
+                least = Some(least.map_or(d, |l: T| l.min(d)));
+            }
+            let gap = radius.abs() * (t1 - t0).abs() / (n * T::from_f64(2.0));
+            Some(curve.carrier().clearance(m)?.max(least? - gap))
+        }
+        _ => None,
+    }
+}
+
+/// Whether every edge bounding `face` is one of `read`: a seam inside it
+/// (an edge both of whose sides are the face) bounds nothing, owes no
+/// reading, and is never one of `read`.
+fn every_bound_read<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+    read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
+) -> bool {
+    face_edges(body, face).is_ok_and(|edges| {
+        edges
+            .iter()
+            .all(|e| e.across == face || read.contains(&e.edge))
+    })
+}
+
+/// Whether every edge of `face`, a seam inside it included, is one of
+/// `read`.
 fn every_edge_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -3713,10 +4016,13 @@ fn root_held<T: Decide>(
 /// - on a face not every edge of which is a line edge read exactly, lies
 ///   near the passage or is definitely held by the face.
 ///
-/// A planar face whose edges are all line edges so decided, and clear of the ray,
-/// is crossed where the turn of its loops says ([`crosses_by_turn`]);
-/// another takes its in-face walk, and each root of a curved face no
-/// edge stands for its face's trim. A ray within the band of a vertex,
+/// A planar face whose edges are all lines and circle arcs, each decided
+/// clear of the ray, is crossed where the turn of its loops says
+/// ([`crosses_by_turn`]); another takes its in-face walk. Each root of a
+/// curved face no edge stands for is tested against its face's trim,
+/// except a cylinder face's whose edges are all rulings and circles, each
+/// decided clear of the ray, which is held where the turn of its loops on
+/// an image of its wall says ([`wall_crosses_by_turn`]). A ray within the band of a vertex,
 /// or a wedge, is marked there and reads nothing where its count reaches
 /// the mark ([`RayHit::mark`]).
 pub(crate) fn ray_crossings<T: Decide>(
@@ -3729,6 +4035,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     rows: RayRows,
 ) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
     let mut crossings = Crossings::new();
+    let turn_ray = TurnRay { band, rows };
     // A crossing at advance `t`, somewhere in `span`; behind `q` it is
     // none.
     let mut offer = |hit: RayHit<T>, span: (T, T), sideless: bool| {
@@ -3855,7 +4162,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
             // An edge of the face no reading here decides could lie in band
             // of the ray too.
-            if !every_edge_read(body, f, &meets.read) {
+            if !every_bound_read(body, f, &meets.read) {
                 stands = false;
             }
             // A face whose edges are all read exactly is met at each edge
@@ -3924,12 +4231,13 @@ pub(crate) fn ray_crossings<T: Decide>(
         // crossing at all — in particular a `t = 0` hit on a face plane
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
-        let inside = if every_edge_read(body, face, &meets.lines) {
-            Some(crosses_by_turn(
-                body, face, c.normal, c.p, reach, band, rows,
-            )?)
-        } else {
-            point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?
+        let turned = match every_bound_read(body, face, &meets.clear) {
+            true => crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray)?,
+            false => None,
+        };
+        let inside = match turned {
+            Some(inside) => Some(inside),
+            None => point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?,
         };
         let point = (c.t, c.t);
         match inside {
@@ -3977,7 +4285,28 @@ pub(crate) fn ray_crossings<T: Decide>(
             let Some(geo) = geo_of(r.face) else {
                 continue;
             };
-            match root_held(r.face, geo, q + d * r.t, band) {
+            // A wall face met at no edge, every edge of which the ray was
+            // decided clear of, is held where the turn of its loops says.
+            let p = q + d * r.t;
+            let turned = match *geo {
+                FaceGeo::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    ..
+                } if !meets.met.iter().any(|m| m.faces.contains(&r.face))
+                    && every_bound_read(body, r.face, &meets.clear) =>
+                {
+                    wall_crosses_by_turn(body, r.face, (origin, axis, radius), (p, reach), turn_ray)
+                }
+                _ => Ok(None),
+            };
+            let reading = match turned {
+                Ok(Some(inside)) => Ok(Some(inside)),
+                Ok(None) => root_held(r.face, geo, p, band),
+                Err(fault) => Err(fault),
+            };
+            match reading {
                 Ok(Some(true)) => held = held.or(Some((r, geo))),
                 Ok(Some(false)) => {}
                 Ok(None) => boundary = boundary.or(Some(r)),
@@ -5316,6 +5645,112 @@ mod kind_arm_tests {
                 !ray_crosses(kind),
                 "{kind:?}: the dispatch has an arm iff rays cross it"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod arc_turn_rows {
+    //! [`arc_turn`] against the turn a fine polyline along the arc makes,
+    //! and, nearer the arc than a polyline's chords lie, against the turn's
+    //! closed form.
+
+    use super::*;
+
+    /// **Near the arc, and at the spans the turn is fed at its ends**: arcs
+    /// of exactly half a turn either way (the halves of a closed circle),
+    /// of a millionth of a radian, and between, about points `10⁻⁹` and
+    /// `10⁻¹²` inside and outside the circle at the arc's middle and its
+    /// quarter, against the closed form: the angle from `a − p` to
+    /// `b − p`, taken the arc's way round past the cut where `p` lies
+    /// inside the circle. A point that near reads on the right side of the
+    /// arc's one cut, or the turn is `2π` off.
+    #[test]
+    fn an_arcs_turn_is_its_closed_form_within_rounding_of_it() {
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let on = |r: f64, t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
+        let pi = core::f64::consts::PI;
+        for span in [pi, -pi, 1e-6, -1e-6, 0.5, -2.5] {
+            for t0 in [0.0, 1.0, -2.5] {
+                let t1 = t0 + span;
+                let (a, m, b) = (on(1.0, t0), on(1.0, t0 + span / 2.0), on(1.0, t1));
+                for at in [t0 + span / 2.0, t0 + span / 4.0] {
+                    for (r, inside) in [
+                        (1.0 - 1e-9, true),
+                        (1.0 + 1e-9, false),
+                        (1.0 - 1e-12, true),
+                        (1.0 + 1e-12, false),
+                    ] {
+                        let p = on(r, at);
+                        let (u, w) = (a - p, b - p);
+                        let principal = normal.dot(u.cross(w)).atan2(u.dot(w));
+                        let want = match (inside, span > 0.0) {
+                            (true, true) if principal <= 0.0 => principal + 2.0 * pi,
+                            (true, false) if principal >= 0.0 => principal - 2.0 * pi,
+                            _ => principal,
+                        };
+                        let got = arc_turn(normal, p, (a, m, b));
+                        assert!(
+                            (got - want).abs() < 1e-6,
+                            "span {span}, t0 {t0}, r {r} at {at}: {got} against {want}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// **An arc's turn about a point is its polyline's**, for arcs of a
+    /// tenth to nine tenths of a half turn either way round, about points
+    /// inside and outside the circle, on the chord and on its line past
+    /// the arc, on the circle past the arc and on the axis through the
+    /// arc's middle (the poses where
+    /// a chord's turn, or a test of which side of the chord the point
+    /// lies, ties): a cut anywhere but on the arc reads `2π` off.
+    #[test]
+    fn an_arcs_turn_is_its_polylines_wherever_the_point_is_off_it() {
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let on = |r: f64, t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
+        let polyline = |p: Point3<f64>, t0: f64, t1: f64| {
+            let n = 4096;
+            (0..n)
+                .map(|k| {
+                    let (a, b) = (
+                        on(1.0, t0 + (t1 - t0) * f64::from(k) / f64::from(n)),
+                        on(1.0, t0 + (t1 - t0) * f64::from(k + 1) / f64::from(n)),
+                    );
+                    let (u, w) = (a - p, b - p);
+                    normal.dot(u.cross(w)).atan2(u.dot(w))
+                })
+                .sum::<f64>()
+        };
+        for span in [0.1, 0.5, 0.9, -0.1, -0.5, -0.9].map(|f| f * core::f64::consts::PI) {
+            for t0 in [0.0, 1.0, -2.5] {
+                let t1 = t0 + span;
+                let mid = t0 + span / 2.0;
+                let (a, m, b) = (on(1.0, t0), on(1.0, mid), on(1.0, t1));
+                let chord = Point3::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, 0.0);
+                let points = [
+                    Point3::new(0.0, 0.0, 0.0),
+                    on(0.5, mid),
+                    on(0.97, mid),
+                    on(1.03, mid),
+                    on(3.0, mid),
+                    on(0.5, mid + core::f64::consts::PI),
+                    on(1.0, mid + core::f64::consts::PI),
+                    on(1.0, t1 + span.signum() * 0.3),
+                    chord,
+                    Point3::new(b.x * 2.0 - a.x, b.y * 2.0 - a.y, 0.0),
+                ];
+                for p in points {
+                    let (got, want) = (arc_turn(normal, p, (a, m, b)), polyline(p, t0, t1));
+                    assert!(
+                        (got - want).abs() < 1e-6,
+                        "span {span}, t0 {t0}, p {p:?}: {got} against {want}"
+                    );
+                }
+            }
         }
     }
 }

@@ -10,11 +10,19 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**15 points** of dispatchable work against a ceiling of 32 (2026-10-27, after PR 5772 made the n-ary union and intersect a kernel door). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**45 points** of dispatchable work against a ceiling of 32 (2026-10-31, after PR 5781 closed the aims' ties and filed its residue), so the slate is over budget and splits along its seam: the five P2 rows PR 5781 left on the side reader's ties go to a track of their own, in the next tracker PR. FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced. `work/flush/program.md` states why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | H | the curved aims still decide exact ties at a document's nominal: `cut_cylinder` reads 62 exact zeros (the cap's aim and in-face walk; the wall's region walk at each root); unparked by PR 5697 |
+| P1 | `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side` | M | an aimed ray started far past a seam split's ellipse loses its wall roots, and a correct split refuses inside out (live on main, PR 5781) |
+| P2 | `a-wall-root-bounded-by-an-oblique-section-still-walks-and-ties-at-the-nominal` | H, design | `cut_cylinder`'s 22 exact ties (PR 5781's residue) |
+| P2 | `cone-sphere-patch-and-torus-patch-roots-still-walk-their-regions` | H | PR 5781's residue |
+| P2 | `a-torus-face-aims-at-a-fixed-chart-point-that-a-symmetric-pose-holds` | M | PR 5781's residue |
+| P2 | `the-census-ladder-asks-at-symmetric-points-unmeasured` | M | PR 5781's residue |
+| P2 | `the-ruled-aims-on-axis-fallback-hulls-at-interval` | M | PR 5781's residue |
+| P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
+
+In flight: `main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond` (P1 M).
 
 Parked, and not counted:
 
