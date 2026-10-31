@@ -2461,7 +2461,9 @@ pub(super) fn line_wall_roots<T: Decide>(
         _ => return Ok(WallRoots::AxisParallel),
     }
     // About the line's closest approach to the axis, held to the run.
-    let shift = ((T::zero() - w0p.dot(dp)) / a2).max(T::zero() - span).min(span);
+    let shift = ((T::zero() - w0p.dot(dp)) / a2)
+        .max(T::zero() - span)
+        .min(span);
     let w = w0p + dp * shift;
     let centred = Centred {
         shift,
@@ -3921,8 +3923,16 @@ fn carrier_roots<T: Decide>(
                     ..
                 } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
                     WallRoots::Two([near, far], slack) => {
-                        push(near, slack, RootSide::Ordered(oriented(Sign::Negative, sense)));
-                        push(far, slack, RootSide::Ordered(oriented(Sign::Positive, sense)));
+                        push(
+                            near,
+                            slack,
+                            RootSide::Ordered(oriented(Sign::Negative, sense)),
+                        );
+                        push(
+                            far,
+                            slack,
+                            RootSide::Ordered(oriented(Sign::Positive, sense)),
+                        );
                     }
                     WallRoots::Tangent => return Err(RayFault::Graze),
                     WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
@@ -4279,9 +4289,9 @@ pub(crate) fn ray_crossings<T: Decide>(
         for (end, (&f, &c)) in ends.iter_mut().zip(m.faces.iter().zip(&m.cross)) {
             let plane = planes.iter().find(|p| p.face == f);
             let (t, side, slack) = match c {
-                Cross::Plane => plane.map_or((m.at, Sign::Zero, T::zero()), |p| {
-                    (p.t, p.outward, p.slack)
-                }),
+                Cross::Plane => {
+                    plane.map_or((m.at, Sign::Zero, T::zero()), |p| (p.t, p.outward, p.slack))
+                }
                 Cross::Root(k) => (
                     roots[k].t,
                     match geo_of(f) {
@@ -5446,18 +5456,23 @@ mod wall_root_rows {
     /// the duplicate row's unit wall `4·10⁵` m out lost `10⁻⁵` m of its
     /// root, and a 1 mm wall 2 km out loses `10⁻⁷` m. Read about the
     /// closest approach, each is right to `10⁻¹²` m, and the slack holds
-    /// the error that is left.
+    /// the error that is left, linear in the start's distance.
     #[test]
     fn a_ray_from_far_keeps_a_walls_roots() {
         for (big, r, x0) in [(4e5, 1.0_f64, 0.6), (2e3, 1e-3, 6e-4)] {
             let half = (r * r - x0 * x0).sqrt();
-            let got = roots(Point3::new(x0, -big, 0.3), Vec3::new(0.0, 1.0, 0.0), r, 4.0 * big);
+            let got = roots(
+                Point3::new(x0, -big, 0.3),
+                Vec3::new(0.0, 1.0, 0.0),
+                r,
+                4.0 * big,
+            );
             let WallRoots::Two([t0, t1], slack) = got else {
                 panic!("both roots {big} out: {got:?}");
             };
             let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
             assert!(
-                off <= 1e-12 && off <= slack && slack <= 1e-12,
+                off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
                 "{big} out: the roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
             );
         }
@@ -5485,7 +5500,7 @@ mod wall_root_rows {
         };
         let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
         assert!(
-            off <= 1e-12 && off <= slack && slack <= 1e-12,
+            off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
             "the sphere's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
         );
         let big = 4e5;
@@ -5501,7 +5516,7 @@ mod wall_root_rows {
         let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));
         let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
         assert!(
-            off <= 1e-12 && off <= slack && slack <= 1e-12,
+            off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
             "the cone's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
         );
     }

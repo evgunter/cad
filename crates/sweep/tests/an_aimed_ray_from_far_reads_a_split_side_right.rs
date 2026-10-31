@@ -77,7 +77,11 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
             let mut volume = 0.0;
             for (word, part) in [("above", &r.above), ("below", &r.below)] {
                 let SplitPart::Body(b) = part else { continue };
-                assert_eq!(validate_geometric(b, tol), Ok(()), "{pose}: the {word} side");
+                assert_eq!(
+                    validate_geometric(b, tol),
+                    Ok(()),
+                    "{pose}: the {word} side"
+                );
                 volume += mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                     .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
                     .met()
@@ -147,12 +151,17 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
                 .into_iter()
                 .map(|(i, psi)| (azimuth(i), psi, 0.0, 1.0)),
         );
-    let reads: Vec<Read> = family.map(|(phi, psi, l, sign)| read(phi, psi, l, sign, tol)).collect();
+    let reads: Vec<Read> = family
+        .map(|(phi, psi, l, sign)| read(phi, psi, l, sign, tol))
+        .collect();
     #[allow(clippy::print_stdout)]
     {
         println!("SEAM-FAMILY eps={:e}: {reads:?}", tol.eps());
     }
-    assert!(!reads.contains(&Read::InsideOut), "no pose reads a side inside out: {reads:?}");
+    assert!(
+        !reads.contains(&Read::InsideOut),
+        "no pose reads a side inside out: {reads:?}"
+    );
 }
 
 /// The census: 24 seam azimuths, four tilts, two offsets, both normals.
@@ -197,10 +206,11 @@ fn the_seam_split_census_reads_no_side_inside_out() {
 
 /// **A rod 1 km long and 1 mm across reads its side.** Its aimed rays
 /// start about 2 km out, where a wall quadratic read about the start
-/// loses `u·(2 km)²` against the radius's `10⁻⁶ m²`, which moves a
-/// root by about `10⁻⁷ m`, past the band. Read about the closest
-/// approach, the rod finishes at every ε row, as does each side of a
-/// plane cut across it a hair off square.
+/// loses `u·(2 km)²` against the radius's `10⁻⁶ m²` and moves a root by
+/// about `10⁻⁷` m, past the band (`solid_contain`'s
+/// `a_ray_from_far_keeps_a_walls_roots` holds the roots themselves). The
+/// rod finishes at every ε row, as does each side of a plane cut across
+/// it a hair off square.
 #[test]
 fn a_kilometre_rod_a_millimetre_across_reads_its_side() {
     let tol = Tol::witness();

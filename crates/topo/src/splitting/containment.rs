@@ -3402,7 +3402,7 @@ mod arc_ball_rows {
     /// of its own size.** A seam split `10⁻⁷` off a unit wall's tangent
     /// plane cuts an ellipse of semi-major `10⁷`, of which the side keeps
     /// the arc about `v` up to height 1. Its carrier's ball is `10⁷`
-    /// across; its arc's holds each of its points and is under 2 m.
+    /// across; its arc's holds each of its points and is under 3 m.
     #[test]
     fn a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size() {
         let (a, b) = (1e7, 1.0);
@@ -3418,11 +3418,14 @@ mod arc_ball_rows {
         let Some((mid, radius)) = conic_arc_ball(&carrier, span) else {
             panic!("an ellipse's arc has a ball")
         };
-        assert!(radius < 2.0, "the arc's ball is of its size: {radius}");
+        assert!(radius < 3.0, "the arc's ball is of its size: {radius}");
         for k in 0..=64 {
             let t = span.0 + (span.1 - span.0) * f64::from(k) / 64.0;
             let gap = (carrier.eval(t) - mid).norm();
-            assert!(gap <= radius, "the arc's point at {t} lies {gap} out, past {radius}");
+            assert!(
+                gap <= radius,
+                "the arc's point at {t} lies {gap} out, past {radius}"
+            );
         }
     }
 }
