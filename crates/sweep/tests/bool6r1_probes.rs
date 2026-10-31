@@ -149,7 +149,7 @@ fn the_two_section_slab_margin_is_the_step_itself() {
             (Ok(Sign::Positive), Ok(())) => {}
             (Ok(Sign::Zero), Err(LoftError::DegenerateStacking { slab: 0 })) => {}
             (Ok(Sign::Negative), Err(LoftError::ReversedStacking { slab: 0 })) => {}
-            (Err(_), Err(LoftError::StackingEscalated { slab: 0, .. })) => {}
+            (Err(_), Err(LoftError::CornerEscalated { slab: 0, .. })) => {}
             _ => panic!("step {step:e}: decide said {want:?}, the loft said {got:?}"),
         }
     }
@@ -185,7 +185,7 @@ fn an_interior_slab_at_the_band_edges_tracks_the_run_band() {
             (Ok(Sign::Positive), Ok(())) => {}
             (Ok(Sign::Zero), Err(LoftError::DegenerateStacking { slab: 1 })) => {}
             (Ok(Sign::Negative), Err(LoftError::ReversedStacking { slab: 1 })) => {}
-            (Err(_), Err(LoftError::StackingEscalated { slab: 1, .. })) => {}
+            (Err(_), Err(LoftError::CornerEscalated { slab: 1, .. })) => {}
             _ => panic!("interior step {step:e}: decide said {want:?}, loft said {got:?}"),
         }
     }

@@ -876,7 +876,8 @@ mod kernel {
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            FarSectionNotForward, FarStackingEscalated, StackingEscalated,
+            PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
+            ClearanceUndecided, FarSectionNotForward, FarStackingEscalated, StackingEscalated,
         ];
     }
 
@@ -3446,6 +3447,10 @@ fn skin() -> Vec<(String, NodeErrorKind)> {
 fn loft() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::LoftError as E;
+    let segment = |loop_index, segment| sweep::LoopSegment {
+        loop_index,
+        segment,
+    };
     [
         ("Band", E::Band(band_error())),
         (
@@ -3493,6 +3498,56 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        (
+            "PinnedCorner",
+            E::PinnedCorner {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+                moving: 11,
+            },
+        ),
+        (
+            "PinnedCornerUnsupported",
+            E::PinnedCornerUnsupported {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+            },
+        ),
+        (
+            "CornerEscalated",
+            E::CornerEscalated {
+                loop_index: 1,
+                corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "SectionsTouch",
+            E::SectionsTouch {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                shared: true,
+            },
+        ),
+        (
+            "ClearanceUndecided",
+            E::ClearanceUndecided {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                source: None,
+            },
+        ),
+        (
+            "ClearanceUndecided(Escalated)",
+            E::ClearanceUndecided {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                source: Some(diag()),
+            },
+        ),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
         (
             "FarStackingEscalated",
