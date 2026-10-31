@@ -31,3 +31,15 @@ FALSE). Both designers recommend a random id. The store's module doc
 already says interactive authoring should mint one. The open question
 is whether anything relies on a name-derived id: a test fixture, a
 demo, or the tour. Check that before switching.
+
+## 2026-10-31 — what the store route makes of it
+
+Since PR 6135, Save goes through `Workspace::save_at`. A second
+"bracket" saved over the first's `bracket.pncad` is a resave of the same
+id: the store allows it, so the first drawing is replaced with no
+refusal. Before, `docio::save_path` overwrote it too, but only after the
+OS chooser's "replace file?" prompt. Now a typed `bracket` gains
+`.pncad` after the dialog returns, so the dialog never saw a name that
+existed, and the prompt is skipped. A file holding a DIFFERENT id now
+refuses `SaveWouldReplaceDocument`. Only this same-id case stays silent,
+and a random id would close it.

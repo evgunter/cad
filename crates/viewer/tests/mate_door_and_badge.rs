@@ -8,14 +8,14 @@ use crate::common;
 
 use common::asm;
 use pncad::geom_core::Tol;
-use viewer::history::History;
 use viewer::session::SessionOp;
 
 /// **The mate door through the session's history**: committing a mate
 /// between post_b, in a space of its own, and the shelf writes post_b's
 /// bundle and leaves the shelf's as it was; undo
-/// restores the document, redo commits it again, and the log replays to
-/// the same document with no store.
+/// restores the document, redo commits it again, and the mate's edit
+/// log replays to the same document with no store — the load path a
+/// file that still carries a log takes.
 #[test]
 fn the_mate_door_commits_through_undo_redo_and_replay() {
     let tol = Tol::witness();
@@ -43,10 +43,16 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     assert!(out.refusal.is_none());
     assert!(session.doc().bit_eq(&after), "redo commits it again");
     let h = session.history();
-    let root = h.entry(h.root()).doc().clone();
-    let replayed = History::replayed(root, &h.path_edits(), tol).expect("replays with no store");
+    let edits: Vec<_> = h
+        .path()
+        .into_iter()
+        .flat_map(|id| h.entry(id).edits().to_vec())
+        .collect();
+    let text = pncad::document::save(h.entry(h.root()).doc(), &edits, tol)
+        .expect("a file carrying the log saves");
+    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying with no store");
     assert!(
-        replayed.doc().bit_eq(&after),
+        loaded.doc.bit_eq(&after),
         "the log replays to the same document"
     );
 }

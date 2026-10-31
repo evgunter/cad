@@ -72,7 +72,7 @@ use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, SessionOp, Step};
+use crate::session::{DocSession, Refusal, SaveChoice, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -180,14 +180,6 @@ const FEATURES_SHARE_CAP: f32 = 0.5;
 /// Points of breathing room under the feature tree when its height is
 /// what sizes the tile.
 const FEATURES_SLACK: f32 = 8.0;
-
-/// The document file extension the dialog filters on.
-///
-/// `cfg`-ed with the dialogs it filters for: the browser build links
-/// no chooser, so the constant has no reader there and an
-/// unconditional one would be dead code under CI's `-D warnings`.
-#[cfg(not(target_family = "wasm"))]
-const DOC_EXTENSION: &str = "pncad";
 
 /// What the toolbar says while a canceled run leaves an older picture
 /// on screen (`frame::Progress::Canceled`).
@@ -511,9 +503,14 @@ pub struct ViewerApp {
     /// nothing here survives into the next one.
     notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
-    /// once at startup ([`platform::chooser_backend`]); the Open/Save As
-    /// controls read it every frame.
+    /// once at startup ([`platform::chooser_backend`]); the Open, Save
+    /// and Save As controls read it every frame.
     chooser: platform::ChooserBackend,
+    /// **The choice a refused save left standing** ([`SaveChoice`]):
+    /// drawn on the toolbar until the person picks one of its two
+    /// saves, dismisses it, or a later save, open or new document
+    /// answers it.
+    save_choice: Option<SaveChoice>,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -923,6 +920,7 @@ impl ViewerApp {
             status: frame::startup_notices(&notices),
             notices: Vec::new(),
             chooser: platform::chooser_backend(),
+            save_choice: None,
             store,
             keys_pref: saved.keys,
             last_dir: saved.last_dir,
@@ -1235,12 +1233,15 @@ impl ViewerApp {
         // refusal; this loop only performs and collects (`frame`'s
         // module docs).
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
+        let mut answered_save_choice = false;
         for op in ops {
             performed.push(op.clone());
             let replaced = op.replaces_the_document();
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
+            let answers = answers_a_save_choice(&op);
             let mut outcome = self.session.perform(op);
+            answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody
@@ -1284,6 +1285,14 @@ impl ViewerApp {
             self.respeak_held();
         }
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
+        // A refusal that offers a choice stands it up; a save, fork or
+        // replacement that LANDED answers it; any other refusal leaves
+        // the standing one where it is.
+        if let Some(choice) = refusal.as_ref().and_then(Refusal::save_choice) {
+            self.save_choice = Some(choice);
+        } else if answered_save_choice {
+            self.save_choice = None;
+        }
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
@@ -1416,7 +1425,8 @@ impl ViewerApp {
     /// to the chrome by disabling both buttons.
     #[cfg(not(target_family = "wasm"))]
     fn file_dialog(&mut self, kind: FileDialog) -> Option<std::path::PathBuf> {
-        let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
+        let mut dialog =
+            rfd::FileDialog::new().add_filter("document", &[pncad::workspace::DOC_EXTENSION]);
         if let Some(dir) = frame::dialog_dir(
             self.session.path(),
             self.last_dir.as_deref(),
@@ -1436,7 +1446,7 @@ impl ViewerApp {
                 {
                     dialog = dialog.set_file_name(name);
                 }
-                dialog.save_file()
+                dialog.save_file().map(with_doc_extension)
             }
         }?;
         self.remember_dir(&path);
@@ -1657,6 +1667,24 @@ impl ViewerApp {
                     ops.push(SessionOp::Open(path));
                 }
             }
+            // Save writes at the session's own path and needs no
+            // dialog; with no path it is Save As….
+            let save = match (self.session.path(), no_chooser) {
+                (None, Some(reason)) => ui
+                    .add_enabled(false, egui::Button::new("Save"))
+                    .on_disabled_hover_text(reason),
+                _ => ui.button("Save"),
+            };
+            if save.clicked() {
+                let path = self.session.path().map(std::path::Path::to_path_buf);
+                // The dialog is unreachable on wasm, for the reason the
+                // Open… arm above states.
+                #[cfg(not(target_family = "wasm"))]
+                let path = path.or_else(|| self.file_dialog(FileDialog::SaveAs));
+                if let Some(path) = path {
+                    ops.push(SessionOp::Save(path));
+                }
+            }
             let save_as = match no_chooser {
                 Some(reason) => ui
                     .add_enabled(false, egui::Button::new("Save As…"))
@@ -1669,6 +1697,18 @@ impl ViewerApp {
                 #[cfg(not(target_family = "wasm"))]
                 if let Some(path) = self.file_dialog(FileDialog::SaveAs) {
                     ops.push(SessionOp::Save(path));
+                }
+            }
+            if let Some(choice) = self.save_choice.clone() {
+                ui.separator();
+                if ui.button(choice.over_label()).clicked() {
+                    ops.push(choice.over());
+                }
+                if ui.button(choice.fork_label()).clicked() {
+                    ops.push(choice.fork());
+                }
+                if ui.button("Dismiss").clicked() {
+                    self.save_choice = None;
                 }
             }
             ui.separator();
@@ -2318,6 +2358,29 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
+/// **Whether `op`, landing, answers a standing [`SaveChoice`]**: a
+/// save or a fork, and every door that puts another document under the
+/// session.
+fn answers_a_save_choice(op: &SessionOp) -> bool {
+    op.replaces_the_document() || matches!(op, SessionOp::Save(_) | SessionOp::SaveAsNewDocument(_))
+}
+
+/// **A chosen save path, as the store will see it**: a `.pncad` file.
+/// A name typed without the extension gains it, since the Linux
+/// dialogs return what was typed (`rfd`'s GTK and portal backends
+/// append nothing).
+#[cfg(not(target_family = "wasm"))]
+fn with_doc_extension(path: std::path::PathBuf) -> std::path::PathBuf {
+    use pncad::workspace::DOC_EXTENSION;
+    if path.extension().is_some_and(|ext| ext == DOC_EXTENSION) {
+        return path;
+    }
+    let mut named = path.into_os_string();
+    named.push(".");
+    named.push(DOC_EXTENSION);
+    named.into()
+}
+
 /// Which of the two file dialogs [`ViewerApp::file_dialog`] puts up.
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Copy, Debug)]
@@ -2604,7 +2667,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
-    use crate::session::SessionOp;
+    use crate::session::{SaveChoice, SessionOp};
     use eframe::egui;
 
     /// **A share that could not be computed is not a share.**
@@ -3522,12 +3585,82 @@ mod tests {
         );
     }
 
+    /// **A refused save beside the original leaves its choice on the
+    /// toolbar**, in the refusal's own file names, and the save that
+    /// answers it takes it down.
+    #[test]
+    fn a_save_beside_the_original_puts_its_choice_on_the_toolbar() {
+        let dir = std::env::temp_dir().join(format!("save-choice-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let (original, copy) = (dir.join("a.pncad"), dir.join("b.pncad"));
+        let row = toolbar_drawn(
+            NARROW,
+            |app| {
+                app.perform_batch(vec![SessionOp::Save(original.clone())]);
+                assert!(
+                    app.save_choice.is_none(),
+                    "a save that lands offers nothing"
+                );
+                app.perform_batch(vec![SessionOp::Save(copy.clone())]);
+            },
+            None,
+        );
+        for label in [
+            "Save over a.pncad",
+            "Save b.pncad as a new document",
+            "Dismiss",
+        ] {
+            assert!(
+                row.painted.iter().any(|text| text == label),
+                "the toolbar offers {label:?}: {:?}",
+                row.painted
+            );
+        }
+        // A second app over the same startup document, so the same id.
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        app.perform_batch(vec![SessionOp::Save(copy.clone())]);
+        let standing = app.save_choice.clone();
+        let fork = standing.as_ref().map(SaveChoice::fork);
+        // A refusal that answers nothing leaves the choice standing.
+        app.perform_batch(vec![SessionOp::SaveAsNewDocument(dir.join("notes.txt"))]);
+        assert_eq!(app.save_choice, standing, "a refused fork answers nothing");
+        app.perform_batch(vec![fork.expect("the refusal left its choice standing")]);
+        let removed = std::fs::remove_dir_all(&dir);
+        assert!(app.save_choice.is_none(), "the fork answered the choice");
+        assert_eq!(app.session.path(), Some(copy.as_path()));
+        removed.expect("the fixture removes its folder");
+    }
+
+    /// **A typed name gains the document extension** the store reads,
+    /// and one that has it is left alone.
+    #[test]
+    fn a_chosen_save_path_gains_the_document_extension() {
+        use std::path::PathBuf;
+        assert_eq!(
+            super::with_doc_extension(PathBuf::from("/d/part")),
+            PathBuf::from("/d/part.pncad")
+        );
+        assert_eq!(
+            super::with_doc_extension(PathBuf::from("/d/part.v2")),
+            PathBuf::from("/d/part.v2.pncad")
+        );
+        assert_eq!(
+            super::with_doc_extension(PathBuf::from("/d/part.pncad")),
+            PathBuf::from("/d/part.pncad")
+        );
+    }
+
     /// **The document's name is cut at the panel's edge**: the user
     /// chose it, so it can be wider than any window.
     #[test]
     fn a_long_document_name_is_truncated_inside_the_panel() {
         let name = "a document name its author made long enough to run past any narrow toolbar";
-        let path = std::env::temp_dir().join(format!("{name} {}.pncad", std::process::id()));
+        // A folder of its own: a save scans the folder it writes into.
+        let dir = std::env::temp_dir().join(format!("long-name-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join(format!("{name}.pncad"));
         let shown = super::document_name(Some(&path));
         let row = toolbar_drawn(
             NARROW,
@@ -3535,9 +3668,9 @@ mod tests {
                 let outcome = app.session.perform(SessionOp::Save(path.clone()));
                 // The name is read off the session's path, not the
                 // file, so the file goes before anything can fail.
-                let removed = std::fs::remove_file(&path);
+                let removed = std::fs::remove_dir_all(&dir);
                 assert!(outcome.refusal.is_none(), "the fixture saves: {outcome:?}");
-                removed.expect("the fixture removes the document it saved");
+                removed.expect("the fixture removes the folder it saved into");
             },
             Some(&shown),
         );
@@ -5722,15 +5855,16 @@ mod properties_pane_tests {
         assert_eq!(driven.app.drafts.sketch_face, None, "new document");
 
         let (mut driven, _top) = Driven::holding_the_top_cap();
-        let path = std::env::temp_dir().join(format!(
-            "held face across open {}.pncad",
-            std::process::id()
-        ));
+        // A folder of its own: a save scans the folder it writes into.
+        let dir =
+            std::env::temp_dir().join(format!("held face across open {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("doc.pncad");
         driven
             .app
             .perform_batch(vec![SessionOp::Save(path.clone())]);
         driven.perform(SessionOp::Open(path.clone()));
-        let removed = std::fs::remove_file(&path);
+        let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(driven.app.drafts.sketch_face, None, "open");
         removed.expect("the row removes the document it saved");
     }
@@ -5823,15 +5957,16 @@ mod properties_pane_tests {
         );
 
         let mut driven = picked();
-        let path = std::env::temp_dir().join(format!(
-            "tool picks across open {}.pncad",
-            std::process::id()
-        ));
+        // A folder of its own: a save scans the folder it writes into.
+        let dir =
+            std::env::temp_dir().join(format!("tool picks across open {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("doc.pncad");
         driven
             .app
             .perform_batch(vec![SessionOp::Save(path.clone())]);
         driven.perform(SessionOp::Open(path.clone()));
-        let removed = std::fs::remove_file(&path);
+        let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(
             held(&driven),
             (Some(crate::tools::ToolKind::Transform), None),
@@ -5870,15 +6005,17 @@ mod properties_pane_tests {
         assert_eq!(driven.app.derived, DocumentDerived::owed(), "new document");
 
         let mut driven = settled();
-        let path =
-            std::env::temp_dir().join(format!("framing across open {}.pncad", std::process::id()));
+        // A folder of its own: a save scans the folder it writes into.
+        let dir = std::env::temp_dir().join(format!("framing across open {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("doc.pncad");
         driven
             .app
             .perform_batch(vec![SessionOp::Save(path.clone())]);
         driven
             .app
             .perform_batch(vec![SessionOp::Open(path.clone())]);
-        let removed = std::fs::remove_file(&path);
+        let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(driven.app.derived, DocumentDerived::owed(), "open");
         driven.settle();
         let derived = driven.app.derived;
@@ -5934,8 +6071,10 @@ mod properties_pane_tests {
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let plate = camera_pose(&driven.app);
-        let path =
-            std::env::temp_dir().join(format!("reframe across doors {}.pncad", std::process::id()));
+        // A folder of its own: a save scans the folder it writes into.
+        let dir = std::env::temp_dir().join(format!("reframe across doors {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("doc.pncad");
         driven
             .app
             .perform_batch(vec![SessionOp::Save(path.clone())]);
@@ -5959,7 +6098,7 @@ mod properties_pane_tests {
         driven.perform(SessionOp::Open(path.clone()));
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        let removed = std::fs::remove_file(&path);
+        let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
         removed.expect("the row removes the document it saved");
     }
@@ -6777,7 +6916,7 @@ mod properties_pane_tests {
             std::fs::create_dir_all(&dir).expect("a scratch directory");
             let path = dir.join("doc.pncad");
             let tol = pane.app.session.tol();
-            crate::docio::save_path(&path, pane.app.session.history(), tol).expect("saves");
+            crate::docio::save(&path, pane.app.session.committed_doc(), tol).expect("saves");
             let reopened = crate::docio::open(&path, tol).expect("reopens");
             assert!(*reopened.doc() == after, "a save reopens as written");
         }

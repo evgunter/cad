@@ -996,7 +996,6 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     );
     let volume = body_volume(&mut authoring, fused, tol);
     let authored = authoring.committed_doc().clone();
-    let edits = authoring.history().path_edits().len();
 
     let dir = common::tempdir("gauth4-placed-union");
     let path = dir.join("fused.pncad");
@@ -1017,11 +1016,6 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     assert!(
         reopened.committed_doc().bit_eq(&authored),
         "the reopened document is the authored one, bit for bit"
-    );
-    assert_eq!(
-        reopened.history().path_edits().len(),
-        edits,
-        "the reopened history replays exactly the saved log"
     );
     let reloaded = body_volume(&mut reopened, fused, tol);
     assert_eq!(
@@ -2581,6 +2575,51 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     // check the picture itself raises is the witness that they do not
     // meet.
     assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
+}
+
+/// **A duplicate saved and reopened is the document it left**, and undo
+/// ends at the open: the file is the document's state, so the reopened
+/// session has no history in which the duplicate's edits could come
+/// apart.
+#[test]
+fn a_duplicate_saved_and_reopened_has_nothing_to_undo() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    // A duplicate steps clear of the drawn body, so a run lands first.
+    drawn_volume(&mut session, tol);
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let world = common::world(session.committed_doc());
+    assert_eq!(world.len(), 2, "the original and its copy");
+
+    let dir = common::tempdir("vseam-duplicate-reopen");
+    let path = dir.join("duplicated.pncad");
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    let opened = session.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert_eq!(
+        common::world(session.committed_doc()),
+        world,
+        "both copies reopen"
+    );
+    assert!(
+        matches!(
+            session.perform(SessionOp::Undo).refusal,
+            Some(Refusal::NothingToDo { .. })
+        ),
+        "undo ends at the open"
+    );
+    assert_eq!(
+        common::world(session.committed_doc()),
+        world,
+        "and the refused undo drew no single copy"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
 /// **One gesture, one undo**: the two inserts are one action, so one
