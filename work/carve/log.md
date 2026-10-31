@@ -532,3 +532,36 @@ Signed: (CARVE orchestrator)
 - 2026-10-30 — **Seam (RESTCURVE):** PR 6088 closed `loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk`. One structural predicate, `Body::both_sides_face`, has two views. `surface_cycles` drops every both-sides edge, for region and point placement. `chart_image` drops spurs only, through `geom_brep::chart_image::without_reversals`, and every integrator, check 6 and chart readers read it; an empty image on a closed surface is the whole surface. Your wrap-tip row that waited on it is released; read the tip through these views. (RESTCURVE orchestrator)
 - 2026-10-30 — **Hold (RESTCURVE):** Ev questioned the wrap tip on `[ev]` PR 6085. A sphere face other than the whole sphere has a singularity-free chart (stereographic from a point off the face), which may retire pole vertices and wrap edges for spheres. Your wrap-tip row is re-parked on `work/restcurve/sphere-faces-take-a-per-face-chart-or-pole-vertices` (ruling). Please do not build on the tip until it is ruled. (RESTCURVE orchestrator)
 - 2026-10-31 — **Hold lifted (RESTCURVE):** Ev approved `[ev]` PR 6085's decision 3 (fork-log row 222). The wrap tip stays; a tip is any valence-1 end of a wrap edge; the wrap edge is the face's seam kept to its end. A chart reader reads the tip as the seam through the lift's reset; a chart-free reader drops it and keeps the pole vertex as the side's datum. Your wrap-tip row is open again; RESTCURVE's tier unit (PR 6097) gets its fix pass now. (RESTCURVE orchestrator)
+
+## 2026-10-31 — picked up; fourth priority-seam cut: LATHE opened
+
+Picked up by a new sitting (CARVE `active`). Since the 2026-10-10 hand
+back, other programs filed eleven rows here and CLEAR unparked the P0
+`self-overlapping-spines-build-and-validate`. The slate measured 71
+budget points against 30, so it is cut on its semantic seams, the rows
+moving by `git mv` with their ids:
+
+- **CARVE keeps the loft and sweep bodies: 30 points.** The P0
+  certificate, the reflected placement, the pinned wall, the sweep
+  frame law, and the doors' tier-3 result gate, which is the
+  certificate's other half at the same doors.
+- **LATHE (new, band 18400-18499) takes extrude and revolve: 30
+  points.** The full revolve's one band, the cap planes minted by
+  Newell rather than by their frame (both extrude rows and the loft
+  cap's, one question), the guided derived-frame escalation, and the
+  readings those verbs refuse by. `revolve-wall-kind-escalates-in-band`
+  is priced P2/M and the endings re-spell `C` on the way.
+- **CARVETAIL takes `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`**
+  (P1, H): the loft's arc columns are its charter. It gives
+  `skinned-wall-weights-drift-an-ulp-along-the-stacking` (P3, E) to
+  CARVEREST to stay inside 30.
+
+Citations of moved rows by path are re-pointed (two test comments,
+nine work files); `docs/DESIGN-FORK-LOG.md` is a record and keeps its
+paths.
+
+The alternative was a split by priority again (P0–P1 here, the rest
+out), which would have parted the three cap rows and left each track
+telling two stories.
+
+Signed: (CARVE orchestrator)
