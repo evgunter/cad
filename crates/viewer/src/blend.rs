@@ -70,7 +70,7 @@ use pncad::document::{
 };
 use pncad::prelude::StableName;
 
-use crate::pickindex::EdgeNamesRefused;
+use crate::pickindex::{EdgeNamesRefused, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
@@ -327,13 +327,22 @@ impl core::fmt::Display for BlendEvent {
 /// **The blend tool**: one target body, an accumulating set of its
 /// edges, and one committed blend edit.
 ///
-/// The set is a `BTreeSet` of stable names, which makes three of this
+/// The set is a `BTreeSet` of stable names, which makes two of this
 /// tool's rules structural rather than checked: a name cannot be held
-/// twice, the live count is the set's size, and what
-/// [`BlendTool::selection`] hands the canonicalizing constructor is
-/// already in canonical order. Picking a held edge again REMOVES it —
-/// the per-pick add/remove the plan asks for, and the only correction
-/// a set-valued pick needs.
+/// twice, and what [`BlendTool::selection`] hands the canonicalizing
+/// constructor is already in canonical order. Picking a held edge
+/// again REMOVES it — the per-pick add/remove the plan asks for, and
+/// the only correction a set-valued pick needs.
+///
+/// # A drawn circle is one pick
+///
+/// **A pick is the whole drawn edge** ([`PickIndex::whole_edge`]): on
+/// a rim the picture draws as one circle but the body holds as several
+/// arcs, one click holds every arc. `rims` records which held names
+/// came in together, so the live count is the picks the user made
+/// rather than the names a commit stores, and un-picking any arc of a
+/// rim drops the whole rim. Every rim is a subset of `edges`, the rims
+/// are disjoint, and each holds two names or more.
 ///
 /// # The invariant the two fields keep together
 ///
@@ -350,6 +359,7 @@ impl core::fmt::Display for BlendEvent {
 pub struct BlendTool {
     target: Option<HeldTarget>,
     edges: BTreeSet<StableName>,
+    rims: BTreeSet<BTreeSet<StableName>>,
 }
 
 /// The body the held edges are on, and its node as the document last
@@ -372,9 +382,10 @@ impl BlendTool {
         self.target.as_ref().map(|held| held.at)
     }
 
-    /// How many edges are held — the panel's live count.
+    /// How many edges are held — the panel's live count, a rim
+    /// counting once.
     pub fn count(&self) -> usize {
-        self.edges.len()
+        self.edges.len() - self.rims.iter().map(|rim| rim.len() - 1).sum::<usize>()
     }
 
     /// Whether this edge is one of the held ones.
@@ -422,14 +433,23 @@ impl BlendTool {
         })
     }
 
-    /// **Feed one edge pick**: add it, or REMOVE it when it is already
-    /// held.
+    /// **Feed one edge pick**: add the whole drawn edge it is part of,
+    /// or REMOVE it when it is already held.
+    ///
+    /// `index` says what the pick's whole is ([`PickIndex::whole_edge`]):
+    /// every arc of a rim drawn as one circle. With no index there is
+    /// no picture the pick was made on, and it is taken as named.
     ///
     /// The first pick fixes the target; un-picking the last edge
     /// releases it again (the struct's invariant). A pick on another
     /// body is refused ([`BlendEvent::OtherTarget`]) and changes
     /// nothing. `doc` says the target's node when the pick fixes it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Option<BlendEvent> {
+    pub fn pick(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        edge: &EdgeSelection,
+        index: Option<&PickIndex>,
+    ) -> Option<BlendEvent> {
         let picked = BlendTarget::of(edge);
         match self.target() {
             Some(held) if held != picked => {
@@ -438,11 +458,49 @@ impl BlendTool {
             Some(_) => {}
             None => self.fix(doc, picked),
         }
-        if !self.edges.remove(&edge.name) {
-            self.edges.insert(edge.name.clone());
+        if self.holds(&edge.name) {
+            self.drop_pick(&edge.name);
+        } else {
+            self.take(
+                index.map_or_else(|| vec![edge.name.clone()], |index| index.whole_edge(edge)),
+            );
         }
         self.release_if_empty();
         None
+    }
+
+    /// Hold one pick's names: a rim absorbs any of its arcs already
+    /// held, so the rims stay disjoint.
+    fn take(&mut self, whole: Vec<StableName>) {
+        let whole: BTreeSet<StableName> = whole.into_iter().collect();
+        if whole.len() > 1 {
+            let (met, apart) = core::mem::take(&mut self.rims)
+                .into_iter()
+                .partition::<BTreeSet<_>, _>(|rim| !rim.is_disjoint(&whole));
+            self.rims = apart;
+            self.rims.insert(
+                met.into_iter()
+                    .flatten()
+                    .chain(whole.iter().cloned())
+                    .collect(),
+            );
+        }
+        self.edges.extend(whole);
+    }
+
+    /// Drop the pick holding `name`: its whole rim, or the name alone.
+    fn drop_pick(&mut self, name: &StableName) {
+        match self.rims.iter().find(|rim| rim.contains(name)).cloned() {
+            Some(rim) => {
+                self.rims.remove(&rim);
+                for arc in &rim {
+                    self.edges.remove(arc);
+                }
+            }
+            None => {
+                self.edges.remove(name);
+            }
+        }
     }
 
     /// **The all-edges affordance**: load every edge of `target` as it
@@ -498,7 +556,7 @@ impl BlendTool {
         target: BlendTarget,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        index: &crate::pickindex::PickIndex,
+        index: &PickIndex,
     ) -> Option<BlendEvent> {
         if let Err(standing) = eval.usable(target.node) {
             return Some(BlendEvent::TargetHasNoValue {
@@ -524,6 +582,20 @@ impl BlendTool {
             return Some(BlendEvent::NoEdgesOnTarget { target });
         }
         self.fix(doc, target);
+        self.rims = edges
+            .iter()
+            .map(|name| {
+                index
+                    .whole_edge(&EdgeSelection {
+                        name: name.clone(),
+                        node: target.node,
+                        body: target.body,
+                    })
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+            })
+            .filter(|rim| rim.len() > 1 && rim.is_subset(&edges))
+            .collect();
         self.edges = edges;
         None
     }
@@ -554,9 +626,14 @@ impl BlendTool {
     /// state a fresh tool is in, which is what lets the next click
     /// start on any body.
     pub fn clear(&mut self) {
-        let Self { target, edges } = self;
+        let Self {
+            target,
+            edges,
+            rims,
+        } = self;
         *target = None;
         edges.clear();
+        rims.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the
@@ -613,7 +690,7 @@ impl BlendTool {
             return Vec::new();
         };
         if doc.node(target.node).is_none() {
-            let edges = self.edges.len();
+            let edges = self.count();
             self.clear();
             return vec![BlendEvent::TargetLost {
                 target,
@@ -647,11 +724,14 @@ impl BlendTool {
         for name in &names {
             self.edges.remove(name);
         }
+        // A rim that lost an arc is no longer one drawn circle held
+        // whole: what is left of it stands as single picks.
+        self.rims.retain(|rim| rim.is_subset(&self.edges));
         self.release_if_empty();
         vec![BlendEvent::EdgesLost {
             target,
             names,
-            kept: self.edges.len(),
+            kept: self.count(),
         }]
     }
 
@@ -730,7 +810,7 @@ mod tests {
             node: copy,
             body: 0,
         };
-        assert_eq!(tool.pick(&doc, &held), None);
+        assert_eq!(tool.pick(&doc, &held, Some(&index)), None);
         let before = tool.clone();
 
         let first = index.unname_edge(drawn[2]);

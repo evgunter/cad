@@ -2499,7 +2499,7 @@ mod tools_respeak {
             .into_iter()
             .map(SessionOp::Select)
             .collect();
-        let declined = tools.feed(session.doc(), &picks);
+        let declined = tools.feed(session.doc(), None, &picks);
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);

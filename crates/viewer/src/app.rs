@@ -2096,7 +2096,9 @@ impl eframe::App for ViewerApp {
         // back as a notice through the same door as a survival drop.
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
-        let declined = self.tools.feed(self.session.doc(), &ops);
+        let declined = self
+            .tools
+            .feed(self.session.doc(), self.picks.index(), &ops);
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -5522,7 +5524,7 @@ mod properties_pane_tests {
     /// the frame's batch.
     fn clicked(app: &mut ViewerApp, selections: Vec<Selection>) {
         let ops: Vec<SessionOp> = selections.into_iter().map(SessionOp::Select).collect();
-        let declined = app.tools.feed(app.session.doc(), &ops);
+        let declined = app.tools.feed(app.session.doc(), app.picks.index(), &ops);
         assert!(declined.is_empty(), "{declined:?}");
         app.perform_batch(ops);
     }

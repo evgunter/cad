@@ -864,6 +864,93 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **The drawn edges that are one circle**: each closed rim of two or
+/// more arcs among a drawn body's edges, by (node, body), as the names
+/// of its arcs in rim order.
+///
+/// A rim is `topo::query::rim_of`'s answer on the body the index drew:
+/// the closed chain of circle arcs between one pair of surfaces. The
+/// picture draws such a chain as one circle, and a full revolve of a
+/// profile touching the axis splits every latitude circle into its
+/// `BandRim` and `BandRimPi` halves, so without this table one click
+/// on the circle means half of it.
+///
+/// An edge on no rim of two or more is absent, and stands for itself.
+/// So is an arc whose rim the walk refuses (a chain that dangles or
+/// branches), or one with an arc the body's name table does not name:
+/// that edge is the index's loud unnamed arm already
+/// ([`PickIndex::edge_names_in`]), and a partial rim would be half a
+/// circle again under another spelling.
+#[derive(Debug, Default)]
+struct Rims {
+    rims: Vec<Vec<StableName>>,
+    of: BTreeMap<(RecipeNodeId, u32), BTreeMap<StableName, usize>>,
+}
+
+impl Rims {
+    /// Walk the rims through one drawn part's named edges, reading the
+    /// body and the name table the part's names came from
+    /// ([`Evaluation::body_read_of`], the read `NodePick`'s own name
+    /// doors make).
+    fn push<'a>(
+        &mut self,
+        node: RecipeNodeId,
+        body: u32,
+        eval: &Evaluation<f64>,
+        names: impl Iterator<Item = &'a StableName>,
+    ) {
+        use editor_core::{EntityKey, EntityRef, Entry};
+        let Some((var, at)) = eval.body_read_of(node, body) else {
+            return;
+        };
+        let (Some(table), Ok(Ok(solid))) = (eval.table(var), eval.read_body(var, at)) else {
+            return;
+        };
+        let mut found: BTreeMap<StableName, usize> = BTreeMap::new();
+        for name in names {
+            if found.contains_key(name) {
+                continue;
+            }
+            let Some(Entry::Unique(EntityRef {
+                key: EntityKey::Edge(edge),
+                ..
+            })) = table.lookup(name)
+            else {
+                continue;
+            };
+            let Ok(rim) = pncad::topo::query::rim_of(solid.body(), *edge) else {
+                continue;
+            };
+            let arcs: Option<Vec<StableName>> = rim
+                .iter()
+                .map(|&arc| {
+                    table
+                        .name_of(&EntityRef {
+                            body: at,
+                            key: EntityKey::Edge(arc),
+                        })
+                        .cloned()
+                })
+                .collect();
+            let Some(arcs) = arcs.filter(|arcs| arcs.len() > 1) else {
+                continue;
+            };
+            for arc in &arcs {
+                found.insert(arc.clone(), self.rims.len());
+            }
+            self.rims.push(arcs);
+        }
+        if !found.is_empty() {
+            self.of.insert((node, body), found);
+        }
+    }
+
+    fn rim_of(&self, edge: &EdgeSelection) -> Option<&[StableName]> {
+        let rim = *self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
+        self.rims.get(rim).map(Vec::as_slice)
+    }
+}
+
 /// **What a picture IS**: the landed generation an index describes and
 /// the δ its copies were tessellated at.
 ///
@@ -952,6 +1039,8 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
+    /// The drawn edges that are one circle ([`Rims`]).
+    rims: Rims,
     /// Each drawn placement's space, the one its copy is placed into
     /// ([`Doc::node_space`]): the pick orders faces within one space
     /// only.
@@ -1043,9 +1132,14 @@ impl PickIndex {
         // written the same way.
         let mut patches = PartWindows::<Patches>::new();
         let mut edges = PartWindows::<Edges>::new();
+        let mut rims = Rims::default();
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
+            let named = edges
+                .named_in(part.node(), part.body())
+                .filter_map(|(_, name)| name.as_ref().ok());
+            rims.push(part.node(), part.body(), eval, named);
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
@@ -1054,6 +1148,7 @@ impl PickIndex {
             ids,
             patches,
             edges,
+            rims,
             spaces,
         })
     }
@@ -1519,6 +1614,21 @@ impl PickIndex {
     /// wider answer instead of a silently chosen one.
     pub fn edges_of_target(&self, edge: &EdgeSelection) -> Vec<EdgeId> {
         self.edges.of_target(edge.node, edge.body, &edge.name)
+    }
+
+    /// **The whole drawn edge an edge pick is part of**: every arc of
+    /// its rim, in rim order, when the picked edge is one arc of a
+    /// closed rim of two or more (`topo::query::rim_of` on the body this
+    /// index drew); the pick's own name otherwise.
+    ///
+    /// The picture draws a rim as one circle, so this is what a click
+    /// on that circle means, and a consumer that takes edge picks asks
+    /// here rather than reading the half the cursor happened to be
+    /// nearest.
+    pub fn whole_edge(&self, edge: &EdgeSelection) -> Vec<StableName> {
+        self.rims
+            .rim_of(edge)
+            .map_or_else(|| vec![edge.name.clone()], <[StableName]>::to_vec)
     }
 
     /// The tessellated part drawing one (node, body).

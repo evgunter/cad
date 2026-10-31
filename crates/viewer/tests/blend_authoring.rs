@@ -106,7 +106,11 @@ fn whole(session: &DocSession, node: RecipeNodeId) -> BlendTarget {
 /// through the selection op stream, which is what makes single-select
 /// and tool accumulation one mechanism rather than two.
 fn pick(tools: &mut Tools, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Vec<ToolNotice> {
-    tools.feed(doc, &[SessionOp::Select(Selection::Edge(edge.clone()))])
+    tools.feed(
+        doc,
+        None,
+        &[SessionOp::Select(Selection::Edge(edge.clone()))],
+    )
 }
 
 /// A node's volume, with the seam pumped — **only if its value is a
@@ -1261,5 +1265,117 @@ fn the_freeze_note_states_the_ratified_semantics_and_no_more() {
     assert!(
         !FREEZE_NOTE.contains("never"),
         "no unqualified never-shrinks claim: {FREEZE_NOTE}"
+    );
+}
+
+/// A full revolve of a rectangle with one side on the axis: a cylinder
+/// whose two cap circles are each two arcs, `BandRim` and `BandRimPi`,
+/// meeting at two seam vertices.
+fn axis_cylinder(session: &mut DocSession) -> RecipeNodeId {
+    let profile = session_insert(
+        session,
+        SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([0.0, 0.0], SIDE * 0.5, SIDE)],
+        },
+    );
+    session_insert(
+        session,
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: common::ang(core::f64::consts::TAU),
+        },
+    )
+}
+
+/// **One click on a drawn circle blends the whole circle.** On a full
+/// revolve touching the axis the cap rim is two edges, and the picture
+/// draws one circle: the index answers the circle for either arc, a
+/// click on it holds both arcs as one pick, a second click drops both,
+/// and the fillet one click commits builds a tier-3 valid body rather
+/// than refusing `UnsupportedCorner { SeamVertex }` at the seam vertex.
+#[test]
+fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
+    use pncad::select::RoleSeg;
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let cylinder = axis_cylinder(&mut session);
+    session.pump();
+    let index = plate_index(&session);
+    let drawn = drawn_edges(&session, cylinder);
+    let arc = |edge: &&EdgeSelection, pi: bool| match edge.name.path.as_slice() {
+        [.., RoleSeg::BandRim(_)] => !pi,
+        [.., RoleSeg::BandRimPi(_)] => pi,
+        _ => false,
+    };
+    let rim = drawn
+        .iter()
+        .find(|edge| arc(edge, false))
+        .unwrap_or_else(|| panic!("a cap rim is drawn: {drawn:?}"));
+    let whole = index.whole_edge(rim);
+    assert_eq!(whole.len(), 2, "the drawn circle is two arcs: {whole:?}");
+    let other = drawn
+        .iter()
+        .find(|edge| edge.name != rim.name && whole.contains(&edge.name))
+        .expect("the circle's other arc is drawn");
+    assert!(
+        arc(&other, true),
+        "its other arc is the BandRimPi half: {other:?}"
+    );
+    let mut sorted = whole.clone();
+    sorted.sort();
+    let mut from_other = index.whole_edge(other);
+    from_other.sort();
+    assert_eq!(sorted, from_other, "either arc answers the same circle");
+    let straight = drawn
+        .iter()
+        .find(|edge| !whole.contains(&edge.name))
+        .map(|edge| (edge, index.whole_edge(edge)));
+    if let Some((edge, alone)) = straight {
+        assert_eq!(
+            alone,
+            vec![edge.name.clone()],
+            "an edge on no rim is itself"
+        );
+    }
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    let click = |tools: &mut Tools, edge: &EdgeSelection| {
+        tools.feed(
+            session.committed_doc(),
+            Some(&index),
+            &[SessionOp::Select(Selection::Edge(edge.clone()))],
+        )
+    };
+    assert!(click(&mut tools, other).is_empty());
+    assert_eq!(blend(&tools).count(), 1, "the circle is one pick");
+    assert_eq!(blend(&tools).selection(), sorted, "both arcs are held");
+    assert!(click(&mut tools, rim).is_empty());
+    assert_eq!(
+        blend(&tools).count(),
+        0,
+        "un-picking either arc drops the circle"
+    );
+    assert_eq!(blend(&tools).target(), None);
+
+    assert!(click(&mut tools, rim).is_empty());
+    let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    if let Some(error) = eval.result(fillet).and_then(NodeResult::error) {
+        panic!("the one-click rim fillet builds: {:?}", error.kind);
+    }
+    let radius = SIDE * 0.5;
+    let solid = core::f64::consts::PI * radius * radius * SIDE;
+    let filleted = plain_body_volume(&mut session, fillet, tol);
+    assert!(
+        filleted < solid && filleted > 0.95 * solid,
+        "a 1 mm fillet round one cap takes a little off the cylinder: {filleted} of {solid}"
     );
 }
