@@ -42,7 +42,7 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::props::quad::{LaneEnd, LaneRun, LaneStop, RoundWindow};
 use geom_brep::props::{
-    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_holding, planar_face,
 };
 use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::interval::{self, Interval};
@@ -1634,6 +1634,7 @@ fn rederived<T: Decide>(
 type ClosedFormAt<T> = fn(
     &Surface<T>,
     &[Vec<LoopEdge<T>>],
+    &[Point3<T>],
     bool,
     Band,
     Point3<Interval>,
@@ -1653,17 +1654,19 @@ fn closed_form_or_carried<T: Decide>(
     closed_form: ClosedFormAt<T>,
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
     from: Point3<Interval>,
 ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
-    if let Ok(read) = closed_form(surface, loops, sense, band, from, None) {
+    if let Ok(read) = closed_form(surface, loops, held, sense, band, from, None) {
         return Ok(read);
     }
-    let (origin, _) = closed_form(surface, loops, sense, band, Point3::origin(), None)?;
+    let (origin, _) = closed_form(surface, loops, held, sense, band, Point3::origin(), None)?;
     let (carried, _) = closed_form(
         surface,
         loops,
+        held,
         sense,
         band,
         from,
@@ -1753,6 +1756,7 @@ fn rederive_faces<T: Decide>(
         let (face, surface) = resolve_face(body, run.face);
         let flat = flat_loops(body, face)?;
         let loops = edges_of(&flat);
+        let held = face_tips(body, face)?;
         let refused = |source| MassPropsError::Face {
             face: run.face,
             source,
@@ -1803,6 +1807,7 @@ fn rederive_faces<T: Decide>(
                     lane.closed_form,
                     surface,
                     &loops,
+                    &held,
                     face.sense,
                     band,
                     from,
@@ -4255,6 +4260,7 @@ fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
+    held: &[Point3<U>],
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<U>, PropsError> {
@@ -4264,7 +4270,7 @@ fn closed_form_of<U: Decide>(
         Surface::Plane { origin, .. } if !loops.is_empty() => planar_face(origin, loops),
         _ => {
             let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
-            curved_face_loops(surface, &loops, sense, band)
+            curved_face_holding(surface, &loops, held, sense, band)
         }
     }
 }
@@ -4277,6 +4283,7 @@ fn closed_form_of<U: Decide>(
 fn closed_form_about<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
+    held: &[Point3<U>],
     sense: bool,
     band: Band,
     about: Point3<U>,
@@ -4285,7 +4292,11 @@ fn closed_form_about<U: Decide>(
         what: "a closed-form face whose carrier has no datum to carry to its shell's reference",
     };
     let (moved, loops) = quad_lane::moved_by(surface, loops, about).ok_or_else(unmoved)?;
-    closed_form_of(&moved, &loops, sense, band)
+    let held: Vec<Point3<U>> = held
+        .iter()
+        .map(|&p| quad_lane::moved_point(p, about))
+        .collect();
+    closed_form_of(&moved, &loops, &held, sense, band)
 }
 
 /// The stored start vertex of the outer loop of the face `face`.
@@ -4934,9 +4945,10 @@ fn seam_refusals<T: Decide>(
     use geom_brep::props::{MaterialSign, SeamCover};
     let own = |member: FaceKey| {
         let (rec, surface) = resolve_face(body, member);
+        let held = face_tips(body, rec).ok()?;
         face_loops(body, rec).ok().and_then(|loops| {
             let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
-            geom_brep::props::boundary_material_sign_loops(surface, &loops, band).ok()
+            geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band).ok()
         })
     };
     let mut seams = std::collections::BTreeMap::new();
@@ -5278,6 +5290,7 @@ fn face_flux_about<T: Decide>(
     let mut enclosure = None;
     let mut state = FaceState::Closed;
     let loops = flat_loops(body, face)?;
+    let held = face_tips(body, face)?;
     let plane_loops = match surface {
         Surface::Plane { .. } => Some(edges_of(&loops)),
         _ => None,
@@ -5290,7 +5303,7 @@ fn face_flux_about<T: Decide>(
             geom_brep::props::curved_face_loops(surface, &[], face.sense, band).map_err(wrap)?
         }
         Some(loops) if !takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier)) => {
-            closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
+            closed_form_about(surface, &loops, &held, face.sense, band, about).map_err(wrap)?
         }
         _ => {
             let trimmed = loops
@@ -5371,7 +5384,8 @@ fn face_flux_about<T: Decide>(
                 None => {
                     let loops: Vec<Vec<LoopEdge<T>>> =
                         loops.into_iter().map(|(edges, _)| edges).collect();
-                    closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
+                    closed_form_about(surface, &loops, &held, face.sense, band, about)
+                        .map_err(wrap)?
                 }
             }
         }
@@ -5494,11 +5508,65 @@ pub(crate) fn image_of_cycle<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
 ) -> Result<FlatLoop<T>, LoopEdgesError> {
+    Ok(image_with_tips(body, cycle)?.0)
+}
+
+/// [`image_of_cycle`] with the stored point of every tip the chart image
+/// drops ([`crate::surface_boundary::tips`]), the datum of the face's
+/// side ([`geom_brep::props::boundary_material_sign_holding`]).
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn image_with_tips<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<(FlatLoop<T>, Vec<Point3<T>>), LoopEdgesError> {
     let image =
         crate::surface_boundary::chart_image(body, cycle).ok_or(LoopEdgesError::Corrupt {
             what: "half-edge mate does not resolve",
         })?;
-    Ok((run_edges(body, &image)?, image))
+    let tips = tip_points(body, &image.tips)?;
+    Ok((
+        (run_edges(body, &image.half_edges)?, image.half_edges),
+        tips,
+    ))
+}
+
+/// The stored points of the tips of every loop of `face`
+/// ([`crate::surface_boundary::tips`]), each loop's as
+/// [`image_with_tips`] reads them: the points the face holds that its
+/// chart image drops.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn face_tips<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Result<Vec<Point3<T>>, LoopEdgesError> {
+    let mut held = Vec::new();
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let (_, cycle) = loop_edges(body, lk)?;
+        let tips = crate::surface_boundary::tips(body, &cycle).ok_or(LoopEdgesError::Corrupt {
+            what: "half-edge mate does not resolve",
+        })?;
+        held.extend(tip_points(body, &tips)?);
+    }
+    Ok(held)
+}
+
+/// The stored point of each vertex of `tips`.
+fn tip_points<T: Real>(
+    body: &Body<T>,
+    tips: &[VertexKey],
+) -> Result<Vec<Point3<T>>, LoopEdgesError> {
+    tips.iter()
+        .map(|&v| body.points.get(body.vertices.get(v)?.point).copied())
+        .collect::<Option<Vec<_>>>()
+        .ok_or(LoopEdgesError::Corrupt {
+            what: "tip vertex or point key does not resolve",
+        })
 }
 
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
@@ -6578,7 +6646,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().closed_form,
-            quad_lane::closed_form::<T> as fn(_, _, _, _, _, _) -> _,
+            quad_lane::closed_form::<T> as fn(_, _, _, _, _, _, _) -> _,
         ) {
             return Err("closed_form is not `quad_lane::closed_form`");
         }
@@ -9075,6 +9143,7 @@ mod shell_reference_rows {
     fn refusing_up_planes(
         surface: &Surface<f64>,
         loops: &[Vec<LoopEdge<f64>>],
+        held: &[Point3<f64>],
         sense: bool,
         band: Band,
         centre: Point3<Interval>,
@@ -9091,7 +9160,7 @@ mod shell_reference_rows {
                 what: "the row's planted refusal about the shell's reference",
             });
         }
-        quad_lane::closed_form(surface, loops, sense, band, centre, measured)
+        quad_lane::closed_form(surface, loops, held, sense, band, centre, measured)
     }
 
     /// **A closed-form face that refuses about its shell's reference is
@@ -9161,9 +9230,16 @@ mod shell_reference_rows {
             let (face, surface) = resolve_face(&body, run.face);
             let loops = face_loops(&body, face).unwrap();
             let from = corner_of(lane, run);
-            let (c, moved) =
-                closed_form_or_carried(refusing_up_planes, surface, &loops, face.sense, band, from)
-                    .unwrap();
+            let (c, moved) = closed_form_or_carried(
+                refusing_up_planes,
+                surface,
+                &loops,
+                &face_tips(&body, face).unwrap(),
+                face.sense,
+                band,
+                from,
+            )
+            .unwrap();
             carried += usize::from(!moved);
             flux = flux + c.flux;
         }
