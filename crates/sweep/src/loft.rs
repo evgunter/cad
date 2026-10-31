@@ -791,9 +791,10 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     ///   one, the walls are lifted ([`lift_loop_walls`]), and the fold
     ///   reads the `f64` canonical form lifted onto the lane's own
     ///   placements ([`ValidatedProfile::lift_onto`]). The caps and rims
-    ///   are placed on the frames the skin was selected on, lifted as
-    ///   computed values: a path sweep's lane placements are carried
-    ///   along the path at `T` and only enclose those frames.
+    ///   are placed on the frames the skin was selected on: a lane
+    ///   placement that is a point is its frame, and one wider than a
+    ///   point (a path sweep's, carried along the path at `T`) gives way
+    ///   to the frame lifted as the computed value it is.
     /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
     ///   section of loops validated at `T` with its decisions certified
     ///   there. The skin's structure is what every value of the family
@@ -841,12 +842,20 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|u| T::from_computed(*u))
             .collect();
-        // The walls are the `f64` skin, so the rims are placed on the
-        // frames it was skinned on, which the lane's own placements only
-        // enclose: a rim and the wall row it bounds are then one value.
-        let skinned: Vec<Affine3<T>> = channel_places
+        // The walls are the `f64` skin, so a rim is placed on the frame
+        // its wall row was skinned on: the lane's placement where it is
+        // that frame's point, and the frame itself where the lane's only
+        // encloses it.
+        let skinned: Vec<Affine3<T>> = places
             .iter()
-            .map(|p| p.placement().map(T::from_computed))
+            .zip(channel_places)
+            .map(|(lane, skin)| {
+                if lane.frame().point_value().is_some() {
+                    lane.placement()
+                } else {
+                    skin.placement().map(T::from_computed)
+                }
+            })
             .collect();
         assemble(&skinned, &walls, &lifted, params, self.tol)
     }
