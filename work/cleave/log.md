@@ -1720,6 +1720,68 @@ Signed (CLEAVE orchestrator).
 - 2026-10-27 — Dispatched:
   - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
   - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5793's narrow re-review:
+  - B1, B3 (the multi-face `divide` now builds) and "Crossed read as not lying" hold.
+  - One blocking regression: a bisector single cap at δ = √(2cKε), c ∈ (1, 4/3], refuses `NoNormal` where main builds. Two causes: `carrier_on_surface` lets an in-band sample pre-empt a definite off, and the new `face_outward_normal_near` answers in band but refuses definitely off.
+  - That door is catch-and-answer in shape, though exact for the quadric kinds. The third pass replaces it with one direct foot-normal reading.
+
+  Third pass sent. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5842 (the P0: the boolean's volume relations a test oracle) handed back with CI green:
+  - the backstop and its four errors are removed;
+  - an oracle is added at `topo::test_support::{volume_relations, assert_volume_relations}`;
+  - the P0 table is pinned;
+  - 13 rows are closed across eight programs and others re-pointed.
+
+  The lane reports no wrong body hidden by the backstop. A combined claims and style review is dispatched. Disk fell to 1.6 GB with four lanes building; finished lanes' caches were freed (back to 6.7 GB). (CLEAVE orchestrator)
+- 2026-10-31 — Resumed after the weekly usage limit stopped every lane on 10-27. All four were resumed from their transcripts:
+  - the 5793 third pass;
+  - the 5842 fix pass;
+  - the crescent lane;
+  - the kept-side lane.
+
+  Main moved more than 1000 commits meanwhile, and a full `git fetch` times out, while `--depth=50` works. Open P1s waiting for a lane slot:
+  - the cone-reader second link;
+  - the two-lumps pinch rays;
+  - the one-segment ellipse rims and through-cylinder;
+  - the fillet junction;
+  - the touch-end placement and the orbit tie sites, held until the crescent lane, which edits `fate.rs`, lands.
+
+  The two backstop P1s close with 5842. (CLEAVE orchestrator)
 - 2026-10-27 — PR 5842 (the P0, under `[ev]` PR 5780): the volume backstop leaves the operation path; its relations are `topo::test_support::volume_relations`, a test oracle wired into the sector-pass corpus, the partition corpus and sweep's every-op corpus. 13 rows closed across CLEAVE, HONE, TALLY, REACHHOLD, CONTACTHOLD, QUAD, FLUSHTAIL, NEARPOINT; the rest re-pointed. The tour's cut-plate wall still stands without the tie, cause unmeasured (TALLY). (CLEAVE implementer)
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones. It also adds `crates/topo/src/boolean/carrier_eq.rs` `exact_curved`, the cylinder and sphere kinds the undeclared ladder decides exactly, as the one home of that list for the census's curved aligned arm and its flush door; no behaviour moves.
+- 2026-10-31 — PR 5842 merged (`aed0b727c8`). The P0 is done:
+  - the boolean's volume relations are a test oracle (`topo::test_support::{volume_relations, assert_volume_relations}`), which forgives up to ε·(area A + area B) and says so;
+  - the backstop and its four errors are gone;
+  - 15 rows across ten programs are closed, and TALLY's rest shaft is measured as a mate in every op.
+
+  Follow-ups:
+  - [ev] PR 6161 asks Ev to retire `[tolerance.margins]` (i)'s backstop sentence and clause (iv), which no code follows any more (`decide_invariant` has no kernel caller);
+  - PR 6162 fixes the nightly rustdoc red, `section_cert.rs`'s ambiguous `pair_section` links;
+  - PR 5848 (kept side in one place) is in review.
+  
+  Ruled on 5848's two questions: non-Boolean merges keep the arena-first member's description (one rule), and "description" is surface and sense, so the surviving face key and lineage are unchanged. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5848 reviewed: nothing blocking.
+  - Every body is valid across plug offsets and in-band tilts at three ε, and the 280 merge/plug/hole slow tests pass.
+  - Small fix pass sent: S1 (arena-first is not first-written; the face `SlotMap` reuses slots), S2 (make `kept_first`'s operand typed), the duplication with `set_face_surface`/`drop_rows_on_chart_change`, a Boolean row with B arena-first, the reflows.
+  - M1, raised with Ev rather than changed: with the plug written first and tilted in band, the merged cap carries the tilt across the whole host face, so a next union with a flush brick escalates where main built. It follows from the ruled rule. Main already did this where A's small face was kept outside a hole.
+
+  PR 6162 merged (nightly rustdoc red). (CLEAVE orchestrator)
+- 2026-10-31 — Ev merged [ev] PR 6161, retiring `[tolerance.margins]` (i)'s consistency-backstop sentence and clause (iv). PR 6164 merged (`908905d931`): it deletes `k_stats::decide_invariant`, re-points its door tests to `decide`, and marks the audit's invariant-lane paragraph retired. The backstop thread (P0 → [ev] 5780 → 5842 → 6161 → 6164) is closed. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5848 merged (`9fc2720b5e`): the kept side of a glued pair is decided once (`glue::kept_first`, operand-typed), and the zip and the merge read it.
+  - The merge's hole exception is gone, and non-Boolean merges keep the arena-first member's description.
+  - Two P2 rows were filed for the remaining second places (the Eq. 15.3 lump's kept copy; the zip's smallest point key).
+  - Raised with Ev, no action: with the plug written first and tilted in band, the whole merged cap takes the tilt, so a later flush union can escalate.
+
+  Dispatched `two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner` (P1 H, an operand-order asymmetry) on `cleave/two-lumps-pinch-rays`. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5793's third pass handed back at `8d0aa75f61`, with CI green.
+  - F1 is addressed: one off sample decides, and the floor's normal is read at its carrier's foot.
+  - The merge of main adopted main's `CurvedFace` gate, retiring the PR's own `CurvedRing`. It keeps one departure: a tangent wall bending away from a curved face builds.
+  - The lane also fixed main's `census::line_on_quadric_carrier` to the same one-off rule.
+
+  A narrow re-review was dispatched over the third pass and the reconciliation. (CLEAVE orchestrator)
+- 2026-10-31 — The crescent lane handed back PR 5852. It now merges main, and main's OFFSET reach lever replaced half of the original fix; what the PR still adds is the one-order-down bend reading (`bool_fate_corner_bend`).
+  - Against main: S10's remaining fate-cut `ClassificationInvariant` cells turn sound (16/8/20 at the three ε), with no regressions.
+  - It closes `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit` and files a P1: a seam ruling on the crescent's tangent line ships a `B ∖ A` that tier 3′ refuses (main's behaviour).
+  - The union-across-a-crescent row goes back to open with `design: true`. It needs a second-order vertex classifier, which is larger than one lane.
+  - The PR conflicts with main, so it went back to the lane for a merge before review. (CLEAVE orchestrator)
