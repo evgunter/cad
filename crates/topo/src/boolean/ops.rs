@@ -1903,29 +1903,28 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
-    let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => {
-            of_pair_section(
-                held,
-                (fa.surface.kind(), fb.surface.kind()),
-                |_| match sections.carried((a, fa.face), (b, fb.face)) {
-                    Some(Ok(carried)) => of_carried(Ok(carried)),
-                    Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
-                    Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
-                        super::section_cert::Section::Unmarched
+    let section =
+        match sections.held((a, fa.face), (b, fb.face)) {
+            Some(held) => {
+                of_pair_section(held, (fa.surface.kind(), fb.surface.kind()), band, |_| {
+                    match sections.carried((a, fa.face), (b, fb.face)) {
+                        Some(Ok(carried)) => of_carried(Ok(carried)),
+                        Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
+                        Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
+                            super::section_cert::Section::Unmarched
+                        }
                     }
-                },
-            )
-        }
-        None => classify(
-            &fa.surface,
-            &fb.surface,
-            overlap_reach(&fa.bbox, &fb.bbox),
-            sections.region_for(&fa.surface, &fb.surface),
-            T::ssi_lane(),
-            band,
-        ),
-    };
+                })
+            }
+            None => classify(
+                &fa.surface,
+                &fb.surface,
+                overlap_reach(&fa.bbox, &fb.bbox),
+                sections.region_for(&fa.surface, &fb.surface),
+                T::ssi_lane(),
+                band,
+            ),
+        };
     let mut torn = None;
     let verdict = certify(
         &section,
