@@ -62,6 +62,16 @@
 //!   by no box inside the domain, so it refuses like any other
 //!   unaccounted box, an open chart's edge and a closed chart's seam
 //!   alike.
+//! - **The sector at an end.** An end whose foot lies on an edge of the
+//!   chart's domain, the face's rim, is read first by its departure
+//!   ([`Pair::sector`]): the span's tangent over a window leaving the
+//!   end, against the chart's partials over a window inside that edge,
+//!   along the rim and across it. Where the span leaves on the far side
+//!   of the rim from the face's inward departure, every solution in that
+//!   box of the state lies within the band of the end, at a tangent touch
+//!   as at a transverse one and on a crease as off one; the box is the
+//!   end's, and the walk does not read past that end. A departure to the
+//!   face's side of the rim, or along it, certifies nothing.
 //! - A meeting must read ON the chart, the carrier's point within the
 //!   band of the chart's at the meeting's chart point; two within the
 //!   band of each other refuse.
@@ -144,6 +154,11 @@ const AT_THE_END: &str = "spline_face_at_the_end";
 /// `zero / (1024·escalate) < 1/1024` rad, and any other is the end's box's
 /// to account for or refuses. No answer but a refusal rests on its size.
 const END_REACH: f64 = 1024.0;
+
+/// The reaches a sector at an end is tried at ([`Pair::sector`]), as
+/// fractions of the walk's `rho`, largest first: each is certified before
+/// it is used, so the ladder bounds work, never a decision.
+const SECTOR_REACHES: [f64; 4] = [1.0 / 8.0, 1.0 / 64.0, 1.0 / 512.0, 1.0 / 4096.0];
 
 /// The growth an isolating box is tried at, largest first, in
 /// escalation lengths mapped through `Y`: each is re-proved by the test
@@ -552,6 +567,157 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         })
     }
 
+    /// **The sector at an end** (module docs): the box of the state
+    /// `[end, end + τ]` (into the span, `into` its sign) by a window of
+    /// the chart on the inner side of the domain edge nearest the end's
+    /// foot, if every solution in it is certified within the band of the
+    /// end, tried at each of [`SECTOR_REACHES`] of `rho`, largest first.
+    ///
+    /// The base is the end's parameter and its foot moved onto that edge,
+    /// `g = F` there. Over the box, `F − g = c·Δt − r·Δr − q·Δq` by the
+    /// mean value theorem along the segment from the base (the chart is
+    /// continuous across a crease, so its partials' hull over the window
+    /// holds every one-sided value the segment meets): `c` the span's
+    /// departure `±C′`, `r` the partial along the edge (the rim's
+    /// tangent), `q` the partial across it, signed inward, `Δt, Δq ≥ 0`.
+    /// With `z` along `r` and `w` the face's inward departure, `q` less
+    /// its part along `z`: the `z` row bounds `|Δr|`, and where the span
+    /// leaves against `w` (`w·c ≤ −α`) while the face enters along it
+    /// (`w·q ≥ β`), the `w` row bounds `Δt` and `Δq` by `g` alone. A
+    /// departure into the face's side, or one along the rim, certifies
+    /// nothing.
+    // `!(a > 0)` is deliberate: a NaN bound certifies nothing.
+    #[allow(clippy::too_many_arguments, clippy::neg_cmp_op_on_partial_ord)]
+    fn sector(
+        &self,
+        end: f64,
+        into: f64,
+        span: (f64, f64),
+        chart: &NurbsSurface<T>,
+        domain: Cell,
+        rho: f64,
+        band: Band,
+    ) -> Option<Cell> {
+        let foot = self.end_state(end, chart)?.at.0;
+        // The domain edge nearest the foot, in metres: its coordinate (1
+        // for `u`, 2 for `v`), its value, and the inward sign.
+        let (k, edge, inward) = [(1, 0), (1, 1), (2, 0), (2, 1)]
+            .into_iter()
+            .map(|(k, side)| {
+                let e = if side == 0 {
+                    domain.0[k].0
+                } else {
+                    domain.0[k].1
+                };
+                let gap = (foot[k].0 - e).abs() * self.speeds[k];
+                (gap, k, e, if side == 0 { 1.0 } else { -1.0 })
+            })
+            .min_by(|p, q| p.0.total_cmp(&q.0))
+            .map(|(_, k, e, s)| (k, e, s))?;
+        let j = 3 - k;
+        let mut base = [end, foot[1].0, foot[2].0];
+        base[k] = edge;
+        let g = self.at(base);
+        let dot = |a: [f64; 3], b: [Interval; 3]| {
+            (0..3).fold(exact(0.0), |acc, i| acc + exact(a[i]) * b[i])
+        };
+        let mag = |v: Interval| v.lo().abs().max(v.hi().abs());
+        let mid = |b: [Interval; 3]| b.map(|c| c.lo() + (c.hi() - c.lo()) * 0.5);
+        let unit = |v: [f64; 3]| {
+            let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            (n > 0.0 && n.is_finite()).then(|| v.map(|c| c / n))
+        };
+        for reach in SECTOR_REACHES {
+            let r = rho * reach;
+            let dt = (r / self.speeds[0]).min(span.1 - span.0);
+            let t = if into > 0.0 {
+                (end, end + dt)
+            } else {
+                (end - dt, end)
+            };
+            let mut x = Cell([t, (0.0, 0.0), (0.0, 0.0)]);
+            let along = r / self.speeds[j];
+            x.0[j] = (
+                (base[j] - along).max(domain.0[j].0),
+                (base[j] + along).min(domain.0[j].1),
+            );
+            let across = r / self.speeds[k];
+            x.0[k] = if inward > 0.0 {
+                (edge, (edge + across).min(domain.0[k].1))
+            } else {
+                ((edge - across).max(domain.0[k].0), edge)
+            };
+            let w = window(x.0[1], x.0[2])?;
+            let part = |along_u: bool| {
+                let b = self.boxes.deriv_box(w, along_u);
+                [b.x, b.y, b.z]
+            };
+            let c = self.path.tangent(x.interval(0)).map(|v| exact(into) * v);
+            let rr = part(j == 1);
+            let q = part(k == 1).map(|v| exact(inward) * v);
+            let Some(z) = unit(mid(rr)) else { continue };
+            let qm = mid(q);
+            let along_z = qm[0] * z[0] + qm[1] * z[1] + qm[2] * z[2];
+            let Some(wd) = unit(core::array::from_fn(|i| qm[i] - along_z * z[i])) else {
+                continue;
+            };
+            let (wc, wq, wr) = (dot(wd, c), dot(wd, q), dot(wd, rr));
+            let (zc, zq, zr) = (dot(z, c), dot(z, q), dot(z, rr));
+            let (wg, zg) = (dot(wd, g), dot(z, g));
+            if ![wc, wq, wr, zc, zq, zr, wg, zg]
+                .iter()
+                .all(|v| v.is_certified())
+            {
+                continue;
+            }
+            // `α`, `β`, `μ`: how far the span leaves, the face enters and
+            // the rim runs, each from below; `γ`: the face's lean along
+            // `w` as it runs along the rim, from above.
+            let (alpha, beta, mu, gamma) = (
+                exact(-wc.hi()),
+                exact(wq.lo()),
+                exact(zr.lo()),
+                exact(mag(wr)),
+            );
+            if !(mu.lo() > 0.0) {
+                continue;
+            }
+            let lean = gamma / mu;
+            let alpha = alpha - lean * exact(mag(zc));
+            let beta = beta - lean * exact(mag(zq));
+            if !(alpha.lo() > 0.0 && beta.lo() > 0.0) {
+                continue;
+            }
+            let reach_g = exact(mag(wg)) + lean * exact(mag(zg));
+            let t_far = reach_g / exact(alpha.lo());
+            let q_far = reach_g / exact(beta.lo());
+            let r_far = (exact(mag(zg))
+                + exact(mag(zc)) * exact(t_far.hi())
+                + exact(mag(zq)) * exact(q_far.hi()))
+                / exact(mu.lo());
+            let metres = [
+                exact(norm(c).hi()) * exact(t_far.hi()),
+                exact(norm(rr).hi()) * exact(r_far.hi()),
+                exact(norm(q).hi()) * exact(q_far.hi()),
+            ];
+            if !metres.iter().all(|m| m.is_certified()) {
+                continue;
+            }
+            let far = metres.iter().fold(0.0f64, |a, m| a.max(m.hi()));
+            if matches!(
+                decide(
+                    AT_THE_END,
+                    Margin::of(Interval::from_bounds(0.0, far)),
+                    band
+                ),
+                Ok(Sign::Zero)
+            ) {
+                return Some(x);
+            }
+        }
+        None
+    }
+
     /// The coordinate whose side of `x` is the longest in metres, and
     /// that length.
     fn widest(&self, x: Cell) -> (usize, f64) {
@@ -662,33 +828,6 @@ pub fn isolate<T: CertifiedBounds>(
     if !speeds.iter().all(|s| s.is_finite() && *s > 0.0) {
         return Err(unread("the chart's speeds do not certify"));
     }
-    // Past each end of the span, as far as the carrier runs smoothly: to
-    // its domain's end or its nearest crease beyond the end, whichever
-    // comes first. A crease at an end is then a side of the walk, not a
-    // line through it, so the end's meeting is the end's.
-    let reach = END_REACH * band.escalate() / pace;
-    let before = ts
-        .iter()
-        .copied()
-        .filter(|&k| k <= a)
-        .fold(carried.0, f64::max);
-    let after = ts
-        .iter()
-        .copied()
-        .filter(|&k| k >= b)
-        .fold(carried.1, f64::min);
-    let t = ((a - reach).max(before), (b + reach).min(after));
-    let mut tcuts = vec![t.0];
-    tcuts.extend(ts[1..ts.len() - 1].iter().filter(|&&k| t.0 < k && k < t.1));
-    tcuts.push(t.1);
-    let mut blocks: Vec<Cell> = Vec::new();
-    for t in tcuts.windows(2) {
-        for u in us.windows(2) {
-            for v in vs.windows(2) {
-                blocks.push(Cell([(t[0], t[1]), (u[0], u[1]), (v[0], v[1])]));
-            }
-        }
-    }
     let pair = Pair {
         path,
         boxes,
@@ -702,6 +841,50 @@ pub fn isolate<T: CertifiedBounds>(
     let reach_of = |(lo, hi): (f64, f64), speed: f64| (hi - lo) * speed;
     let rho = reach_of((a, b), pace).min(reach_of(du, speeds[1]) + reach_of(dv, speeds[2]));
     let floor = (rho * band.escalate()).sqrt() / 8.0;
+    // The sector at each end (module docs): where it holds, the end's
+    // solutions are accounted for on the span's side and the walk does
+    // not read past it.
+    let whole = Cell([(a, b), du, dv]);
+    let sectors = [(a, 1.0), (b, -1.0)]
+        .map(|(end, into)| pair.sector(end, into, (a, b), chart, whole, rho, band));
+    // Past each other end of the span, as far as the carrier runs
+    // smoothly: to its domain's end or its nearest crease beyond the end,
+    // whichever comes first. A crease at an end is then a side of the
+    // walk, not a line through it, so the end's meeting is the end's.
+    let reach = END_REACH * band.escalate() / pace;
+    let before = ts
+        .iter()
+        .copied()
+        .filter(|&k| k <= a)
+        .fold(carried.0, f64::max);
+    let after = ts
+        .iter()
+        .copied()
+        .filter(|&k| k >= b)
+        .fold(carried.1, f64::min);
+    let t = (
+        if sectors[0].is_some() {
+            a
+        } else {
+            (a - reach).max(before)
+        },
+        if sectors[1].is_some() {
+            b
+        } else {
+            (b + reach).min(after)
+        },
+    );
+    let mut tcuts = vec![t.0];
+    tcuts.extend(ts[1..ts.len() - 1].iter().filter(|&&k| t.0 < k && k < t.1));
+    tcuts.push(t.1);
+    let mut blocks: Vec<Cell> = Vec::new();
+    for t in tcuts.windows(2) {
+        for u in us.windows(2) {
+            for v in vs.windows(2) {
+                blocks.push(Cell([(t[0], t[1]), (u[0], u[1]), (v[0], v[1])]));
+            }
+        }
+    }
     let cut_lines = Cuts {
         lines: [
             &tcuts[1..tcuts.len() - 1],
@@ -714,7 +897,7 @@ pub fn isolate<T: CertifiedBounds>(
         .into_iter()
         .filter_map(|end| pair.end_state(end, chart))
         .collect();
-    let mut ends: Vec<Cell> = Vec::new();
+    let mut ends: Vec<Cell> = sectors.into_iter().flatten().collect();
     let mut found: Vec<Found> = Vec::new();
     let pieces = blocks.iter().map(|&x| (x, x));
     let walked = bisect(pieces, |(x, block): (Cell, Cell)| {
@@ -962,6 +1145,9 @@ pub fn settle<T: Decide>(
 
 #[cfg(test)]
 mod rows;
+
+#[cfg(test)]
+mod sector_rows;
 
 #[cfg(test)]
 mod review_r2_rows;

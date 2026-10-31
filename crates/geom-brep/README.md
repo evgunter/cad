@@ -1034,7 +1034,14 @@ end of the span is the end vertex's meeting: the walk reads past it as
 far as the carrier runs, and a box holding the end's state on which
 every solution lies within the band of the end, by the mean value
 theorem, is accounted for by it, so an end at the carrier's domain end
-or on the chart's edge is read without reading past either. A spiric
+or on the chart's edge is read without reading past either. An end on
+the chart's domain edge, the face's rim, is first read by its sector:
+where the span's departure, enclosed over a window leaving the end,
+leaves on the far side of the rim from the face's inward departure,
+enclosed by the chart's partials over a window inside the edge, every
+solution in that box of the state lies within the band of the end, a
+tangent touch and an end on a crease included, and the walk does not
+read past that end. A spiric
 span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,

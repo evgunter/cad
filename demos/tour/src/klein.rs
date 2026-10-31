@@ -607,7 +607,8 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
 }
 
 /// Wall 3's pinned refusal: the bulb's cone seam, a line in the plane
-/// `y = 0`, meets a NURBS wall of the loop on the joint of the wall's two
+/// `y = 0` slanting off the axis (the neck's seam, which ends on the
+/// loop's rim, is cleared there by its departure), meets a NURBS wall of the loop on the joint of the wall's two
 /// rational arcs, which lies in that plane. The joint is a knot run of
 /// multiplicity the degree, a crease by its knots: the wall is tangent
 /// continuous across it, but its parametric derivative jumps there, and
@@ -638,7 +639,7 @@ pub fn wall3_pinned<S: Scalar>(
                     if [origin.y, dir.y].iter().all(|&c| {
                         let (lo, hi) = (pncad::geom_core::Bounds::lo(c), pncad::geom_core::Bounds::hi(c));
                         lo.abs() < 1e-12 && hi.abs() < 1e-12
-                    })
+                    }) && pncad::geom_core::Bounds::lo(dir.x).abs() > 0.1
             ),
             _ => false,
         });
