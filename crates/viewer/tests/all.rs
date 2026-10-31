@@ -163,14 +163,14 @@ mod review_gui3_r1;
 mod review_gui3_r2;
 #[path = "review_gui4_r1.rs"]
 mod review_gui4_r1;
-#[path = "review_vseam_6135.rs"]
-mod review_vseam_6135;
 #[path = "review_gui4_r2.rs"]
 mod review_gui4_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+#[path = "review_vseam_6135.rs"]
+mod review_vseam_6135;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
