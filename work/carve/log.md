@@ -565,3 +565,24 @@ out), which would have parted the three cap rows and left each track
 telling two stories.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — dispatched: the certificate, the reflected placement, the frame weighing
+
+- **`self-overlapping-spines-build-and-validate`** (`carve/embedding-certificate`),
+  in two phases. The first measures the body-level injectivity certificate
+  on today's loft and sweep bodies (verdicts, price, false refusals by
+  CLEAR row) and proposes the door's shape, then stops for a go-ahead.
+  The certificate fixes what every loft and sweep door promises, which
+  would be hard to change later, so the review tier is **DUAL**.
+- **`a-reflected-loft-placement-evades-both-normal-checks`** (`carve/reflected-placement`):
+  a rigidity decide at the loft and sweep doors, plus the sweep across
+  every door that takes an `Affine3` documented as rigid. Review: **single
+  FULL**. A wrong rigidity decide would be a confident wrong answer, and
+  the unit is small enough to read whole.
+- **`sweep-frame-is-a-minimal-rotation-from-the-start-tangent`**: the
+  designer pair (one Opus, one Fable), with the problem stated and no
+  options given. The blinding byte is on `analysis/design-fork/carve-sweep-frame`.
+
+The pinned wall waits on the certificate's head, as `plan.md` says.
+
+Signed: (CARVE orchestrator)

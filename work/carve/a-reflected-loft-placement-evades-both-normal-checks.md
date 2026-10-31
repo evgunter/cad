@@ -2,10 +2,11 @@
 id: a-reflected-loft-placement-evades-both-normal-checks
 kind: issue
 title: A loft section placed with a reflected (left-handed) frame passes both stacking decides and builds a zero-volume body that tier 3 accepts
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: carve/reflected-placement
 ---
 
 
