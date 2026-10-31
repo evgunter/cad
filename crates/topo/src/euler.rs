@@ -2268,18 +2268,23 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// **A lone vertex at `point`, minted as a new empty ring of the face
-    /// `anchor`'s loop is on**: `mev` of a line strut from `start(anchor)`
-    /// to `point` at [`MevSite::Fan`] `{ anchor, anchor }`, then `kemr` of
-    /// the strut, which detaches its tip as an `Empty` ring. Returns the
+    /// **A lone vertex at `point`, as a new empty ring of the face
+    /// `anchor`'s loop is on.** Not an Euler operator: `mev` then `kemr`
+    /// with the chord's rows never minted. It runs `mev` of a line strut
+    /// from `start(anchor)` to `point` at [`MevSite::Fan`]
+    /// `{ anchor, anchor }`, with that operator's own preconditions,
+    /// surgery, minting order and arena delta, then [`Body::kemr`] of the
+    /// strut, which detaches its tip as an `Empty` ring. It returns the
     /// vertex and the ring.
     ///
-    /// The pair's net delta adds no half-edge to any loop and changes no
-    /// carrier, so no pcurve row is owed on any chart: the face's rows
-    /// stand exactly as found, the joint into `anchor` keeps its element,
-    /// and an `Empty` ring holds no row. The strut is never given a row,
-    /// so a complete spline face takes a ring here where a bare `mev`
-    /// refuses [`crate::pcurves::SiteRowRefusal::SplineChart`].
+    /// The pcurve rows are planned once, for the net result (C4: a
+    /// topology door may drop rows mid-surgery). The pair adds no
+    /// half-edge to any loop and changes no carrier, so no row is owed
+    /// on any chart. The face's rows stand as found, and the joint into
+    /// `anchor` keeps its element, which the strut's link would drop and
+    /// `kemr`'s sum would not restore. So a complete spline face takes a
+    /// ring here where a bare `mev` refuses
+    /// [`crate::pcurves::SiteRowRefusal::SplineChart`].
     ///
     /// Atomic: every refusal (the fan's, and the strut's certification)
     /// precedes the mutation, and `kemr` of a certified strut that is
@@ -2328,6 +2333,8 @@ impl<T: Decide> Body<T> {
                 },
             },
         );
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEV, "ring_vertex's mev");
         let killed = self
             .kemr(strut.he_plus, strut.he_minus)
             .unwrap_or_else(|e| {
@@ -2337,16 +2344,6 @@ impl<T: Decide> Body<T> {
                 )
             });
         self.write_joint(anchor, element);
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                loops: 1,
-                vertices: 1,
-                ..ArenaDelta::ZERO
-            },
-            "ring_vertex",
-        );
         Ok((strut.vertex, killed.ring))
     }
 

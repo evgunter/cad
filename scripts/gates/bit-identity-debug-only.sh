@@ -225,7 +225,7 @@ SUBJECTS=(
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
   'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'
   'crates/mesh/src/trimmed.rs overused_identified_edge_in 1 the trimmed lane call of the identified-vertex fan census'
-  'crates/topo/src/euler.rs ArenaDelta|assert_euler_postcondition|arena_counts|ArenaCounts 25 the arena delta the euler operators declare'
+  'crates/topo/src/euler.rs ArenaDelta|assert_euler_postcondition|arena_counts|ArenaCounts 23 the arena delta the euler operators declare'
   'crates/topo/src/euler_ring.rs ArenaDelta|assert_euler_postcondition|arena_counts 26 the arena delta the ring operators declare'
   'crates/topo/src/euler_kill.rs ArenaDelta|assert_euler_postcondition|arena_counts 27 the arena delta the kill-direction operators declare'
   'crates/topo/src/null.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the null-entity operators declare'

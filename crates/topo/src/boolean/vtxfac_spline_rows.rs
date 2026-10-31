@@ -392,3 +392,54 @@ fn a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint() {
         rows_of(&body, face)
     );
 }
+
+/// **[`crate::Body::ring_vertex`] is `mev` then `kemr`**: on a planar
+/// face, where neither operator owes a row, it leaves the body the two
+/// operators called in turn leave, key for key, record for record and
+/// row for row, returning the same vertex and ring. A door that mints its
+/// vertex and ring by its own mutation reds here, as does one that runs
+/// the pair in another minting order.
+#[test]
+fn a_ring_vertex_is_mev_then_kemr() {
+    let cube = crate::test_support_fixtures::prism::<f64>(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        1.0,
+        Tol::witness(),
+    );
+    let outer = cube.body.get_face(cube.top_face).unwrap().outer;
+    let crate::entity::LoopBoundary::Cycle { first: anchor } =
+        cube.body.get_loop(outer).unwrap().boundary
+    else {
+        unreachable!("the cube's top is a cycle")
+    };
+    let p = Point3::new(0.4, 0.3, 1.0);
+    let mut fused = cube.body.clone();
+    let got = fused.ring_vertex(anchor, p, Tol::witness()).unwrap();
+    let mut pair = cube.body;
+    let start = pair.get_half_edge(anchor).unwrap().start;
+    let p_u = *pair
+        .get_point(pair.get_vertex(start).unwrap().point)
+        .unwrap();
+    let strut = pair
+        .mev(
+            crate::euler::MevSite::Fan {
+                he1: anchor,
+                he2: anchor,
+            },
+            p,
+            geom_brep::EdgeCurveSpec::line_between(p_u, p),
+            Tol::witness(),
+        )
+        .unwrap();
+    let ring = pair.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+    assert_eq!(
+        got,
+        (strut.vertex, ring),
+        "the vertex and ring the door returns"
+    );
+    assert_eq!(
+        format!("{fused:?}"),
+        format!("{pair:?}"),
+        "the door's body is not the pair's"
+    );
+}
