@@ -1523,7 +1523,7 @@ pub struct SsiLane<T: Real> {
     /// classification carried.
     whole: fn(&PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
-    pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
 }
 
 /// What one seating answers: the component opened at the parameter
@@ -1542,7 +1542,7 @@ impl SsiLane<f64> {
             seat: seat_at,
             spline: plane_spline::section,
             whole: plane_spline::whole,
-            pair: spline_pair::section,
+            spline_pair: spline_pair::section,
         }
     }
 }
@@ -2008,6 +2008,12 @@ mod wiring {
             super::plane_spline::whole as fn(_, _) -> _,
         ) {
             return Err("whole is not `plane_spline::whole`");
+        }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().spline_pair,
+            super::spline_pair::section as fn(_, _) -> _,
+        ) {
+            return Err("spline_pair is not `spline_pair::section`");
         }
         Ok(())
     }

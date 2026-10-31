@@ -170,7 +170,7 @@ pub(super) fn classified<T: Decide>(
         })?
         .with_known(rows, corners);
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
-    (lane.pair)(pose, band)
+    (lane.spline_pair)(pose, band)
 }
 
 /// **The section read whole** (module docs).
