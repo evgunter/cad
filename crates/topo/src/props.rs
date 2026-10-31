@@ -5547,20 +5547,10 @@ pub(crate) fn face_tips<T: Decide>(
 ) -> Result<Vec<Point3<T>>, LoopEdgesError> {
     let mut held = Vec::new();
     for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-        let corrupt = |what| LoopEdgesError::Corrupt { what };
-        let LoopBoundary::Cycle { first } = body
-            .loops
-            .get(lk)
-            .ok_or(corrupt("loop key does not resolve"))?
-            .boundary
-        else {
-            continue;
-        };
-        let cycle = body
-            .loop_cycle(first)
-            .ok_or(corrupt("broken half-edge cycle"))?;
-        let tips = crate::surface_boundary::tips(body, &cycle)
-            .ok_or(corrupt("half-edge mate does not resolve"))?;
+        let (_, cycle) = loop_edges(body, lk)?;
+        let tips = crate::surface_boundary::tips(body, &cycle).ok_or(LoopEdgesError::Corrupt {
+            what: "half-edge mate does not resolve",
+        })?;
         held.extend(tip_points(body, &tips)?);
     }
     Ok(held)

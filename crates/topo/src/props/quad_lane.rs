@@ -228,7 +228,7 @@ fn loops_vector_area(
 }
 
 /// A point carried by `−by`, as [`moved_by`] carries a face's geometry.
-pub(super) fn moved_point<U: geom_core::Real>(p: Point3<U>, by: Point3<U>) -> Point3<U> {
+pub(super) fn moved_point<U: Decide>(p: Point3<U>, by: Point3<U>) -> Point3<U> {
     Point3::origin() + (p - by)
 }
 
