@@ -123,14 +123,62 @@ impl Frame {
     }
 }
 
-/// The face of `body` on the surface `kind` picks, and its frame.
+/// The face of `body` on the surface `kind` picks, and its frame with
+/// its azimuth turned so that `u = 0` is the middle of the face's rim:
+/// `revolve` may make a wall of more than one face, and a row's windows
+/// are placed within `±π/2` of that middle.
 fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
-    body.faces()
+    let (face, frame) = body
+        .faces()
         .find_map(|(k, f)| {
             let s = body.get_surface(f.surface)?;
             kind(s).then(|| (k, Frame::of(s)))
         })
-        .expect("the wall")
+        .expect("the wall");
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the outer loop is a cycle")
+    };
+    let rim = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .find_map(|h| {
+            let edge = body.get_edge(body.get_half_edge(h)?.edge)?;
+            let curve = body.get_curve_geom(edge.curve)?.certified()?;
+            let (t0, t1) = curve.params();
+            matches!(curve.carrier(), Curve3::Circle { .. })
+                .then(|| curve.carrier().eval(0.5 * (t0 + t1)))
+        })
+        .expect("a rim arc");
+    let w = rim - frame.origin;
+    let u = w.dot(frame.axis.cross(frame.e1)).atan2(w.dot(frame.e1));
+    // A cylinder's heights from its face's lowest vertex along its axis;
+    // a cone's slants from its apex.
+    let low = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|h| {
+            let v = body.get_vertex(body.get_half_edge(h).unwrap().start).unwrap();
+            (*body.get_point(v.point).unwrap() - frame.origin).dot(frame.axis)
+        })
+        .fold(f64::INFINITY, f64::min);
+    let origin = match frame.radius {
+        Some(_) => frame.origin + frame.axis * low,
+        None => frame.origin,
+    };
+    (
+        face,
+        Frame {
+            origin,
+            e1: frame.radial(u),
+            ..frame
+        },
+    )
 }
 
 fn is_cylinder(s: &Surface<f64>) -> bool {
@@ -171,7 +219,7 @@ fn plant(body: &mut Body<f64>, face: FaceKey, frame: Frame, us: (f64, f64), ss: 
     let c = body
         .mev(fan(b.he_minus), p[3], frame.arc(ss.1, us, false), tol())
         .unwrap();
-    let plug = body
+    let close = body
         .mef(
             MefSite::Chords {
                 he1: a.he_plus,
@@ -181,9 +229,13 @@ fn plant(body: &mut Body<f64>, face: FaceKey, frame: Frame, us: (f64, f64), ss: 
             FaceSurface::Inherit,
             tol(),
         )
-        .unwrap()
-        .face;
+        .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    for edge in [a.edge, b.edge, c.edge, close.edge] {
+        body.describe_at_rest(edge, tol()).unwrap();
+    }
+    topo::mint_pcurves(body, tol()).unwrap();
+    let plug = close.face;
     assert!(
         !body.get_face(face).unwrap().rings.is_empty(),
         "the window is a ring of the wall"
@@ -230,7 +282,8 @@ fn honest_then_misplaced(name: &str, honest: &Body<f64>, misplaced: &Body<f64>, 
 
 /// **P09, a cone band less a window outside it** (CONEARM's probe, the
 /// cone of half-angle ½ at the apex): the band over slant `[1, 2]` with a
-/// window over slant `[3, 3.3]`, azimuth `[1, 2]`. The honest twin's
+/// window over slant `[3, 3.3]` and an azimuth span of 1 (the probe's
+/// `[1, 2]`, centred on the wall, [`wall`]). The honest twin's
 /// window is over slant `[1.3, 1.7]`.
 #[test]
 fn a_cone_band_refuses_a_window_beyond_its_rim() {
@@ -238,31 +291,32 @@ fn a_cone_band_refuses_a_window_beyond_its_rim() {
     let band = revolved(&[(s, c), (2.0 * s, 2.0 * c), (0.0, 2.0 * c), (0.0, c)]);
     let (face, frame) = wall(&band, is_cone);
     let mut honest = band.clone();
-    plant(&mut honest, face, frame, (1.0, 2.0), (1.3, 1.7));
+    plant(&mut honest, face, frame, (-0.5, 0.5), (1.3, 1.7));
     let mut misplaced = band;
-    plant(&mut misplaced, face, frame, (1.0, 2.0), (3.0, 3.3));
+    plant(&mut misplaced, face, frame, (-0.5, 0.5), (3.0, 3.3));
     honest_then_misplaced("P09", &honest, &misplaced, face);
 }
 
 /// **P47, a cone cap with a window outside it**: the cap from the apex
-/// to the rim at slant 2, with a window over slant `[3, 3.5]`, azimuth
-/// `[1, 2]`. The honest twin's is over slant `[1, 1.5]`.
+/// to the rim at slant 2, with a window over slant `[3, 3.5]` and an
+/// azimuth span of 1. The honest twin's is over slant `[1, 1.5]`.
 #[test]
 fn a_cone_cap_refuses_a_window_beyond_its_rim() {
     let (c, s) = (0.5_f64.cos(), 0.5_f64.sin());
     let cap = revolved(&[(0.0, 0.0), (2.0 * s, 2.0 * c), (0.0, 2.0 * c)]);
     let (face, frame) = wall(&cap, is_cone);
     let mut honest = cap.clone();
-    plant(&mut honest, face, frame, (1.0, 2.0), (1.0, 1.5));
+    plant(&mut honest, face, frame, (-0.5, 0.5), (1.0, 1.5));
     let mut misplaced = cap;
-    plant(&mut misplaced, face, frame, (1.0, 2.0), (3.0, 3.5));
+    plant(&mut misplaced, face, frame, (-0.5, 0.5), (3.0, 3.5));
     honest_then_misplaced("P47", &honest, &misplaced, face);
 }
 
 /// **P49, a window face holding a hole outside it**: on the band over
 /// slant `[0.5, 2.5]`, the plug of the window slant `[1, 2]` × azimuth
-/// `[1, 2]` holds a hole over slant `[1.2, 1.4]`, azimuth `[3, 3.5]`.
-/// The honest twin's hole is over azimuth `[1.2, 1.5]`.
+/// `[-0.5, 0.5]` (centred on the wall) holds a hole over slant
+/// `[1.2, 1.4]` and azimuth `[1, 1.5]`, beside it as the probe's `[3, 3.5]`
+/// is beside `[1, 2]`. The honest twin's hole is over azimuth `[-0.3, 0]`.
 #[test]
 fn a_cone_window_refuses_a_hole_beside_it() {
     let (c, s) = (0.5_f64.cos(), 0.5_f64.sin());
@@ -273,11 +327,11 @@ fn a_cone_window_refuses_a_hole_beside_it() {
         (0.0, 0.5 * c),
     ]);
     let (wall_face, frame) = wall(&band, is_cone);
-    let window = plant(&mut band, wall_face, frame, (1.0, 2.0), (1.0, 2.0));
+    let window = plant(&mut band, wall_face, frame, (-0.5, 0.5), (1.0, 2.0));
     let mut honest = band.clone();
-    plant(&mut honest, window, frame, (1.2, 1.5), (1.2, 1.4));
+    plant(&mut honest, window, frame, (-0.3, 0.0), (1.2, 1.4));
     let mut misplaced = band;
-    plant(&mut misplaced, window, frame, (3.0, 3.5), (1.2, 1.4));
+    plant(&mut misplaced, window, frame, (1.0, 1.5), (1.2, 1.4));
     honest_then_misplaced("P49", &honest, &misplaced, window);
 }
 
@@ -288,11 +342,11 @@ fn a_cylinder_wall_refuses_a_ring_inside_another() {
     let tube = revolved(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
     let (face, frame) = wall(&tube, is_cylinder);
     let mut honest = tube.clone();
-    plant(&mut honest, face, frame, (1.0, 2.0), (0.5, 1.5));
-    plant(&mut honest, face, frame, (3.0, 4.0), (0.5, 1.5));
+    plant(&mut honest, face, frame, (-0.9, -0.1), (0.5, 1.5));
+    plant(&mut honest, face, frame, (0.1, 0.9), (0.5, 1.5));
     let mut misplaced = tube;
-    plant(&mut misplaced, face, frame, (1.0, 2.0), (0.5, 1.5));
-    plant(&mut misplaced, face, frame, (1.2, 1.8), (0.8, 1.2));
+    plant(&mut misplaced, face, frame, (-0.9, -0.1), (0.5, 1.5));
+    plant(&mut misplaced, face, frame, (-0.7, -0.3), (0.8, 1.2));
     honest_then_misplaced("cylinder rings", &honest, &misplaced, face);
     assert_eq!(
         region_findings(&misplaced).len(),
