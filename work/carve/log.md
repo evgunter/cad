@@ -586,3 +586,24 @@ Signed: (CARVE orchestrator)
 The pinned wall waits on the certificate's head, as `plan.md` says.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-31 — the frame law weighed; implementer dispatched
+
+The designer pair on `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`
+converged in round one: a rotation-minimizing frame by double
+reflection, pivoting at the path's start point, with the sweep's v
+becoming the path parameter. The row's "Weighed" section has the
+detail. Nothing went to Ev: both designers found it is the only
+kernel-owned law left, and it changes no ratified text. Ev is told
+about the visible roll of the tour coil's wire, and about the held
+need (a frame held to a direction).
+
+CARVETAIL's P0 `a-half-turn-spine-sweeps-only-off-its-exact-tangents`
+is the same law's singular point. It moved here and rides with this
+row; CARVE is at 33 points with it, a passenger rather than new work.
+
+Dispatched as `carve/sweep-frame`. Review: **single FULL**. The law is
+decided, and the risk is in the discretization and the re-baselines,
+which one reviewer can falsify.
+
+Signed: (CARVE orchestrator)
