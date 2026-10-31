@@ -301,4 +301,3 @@ fn a_full_turn_helical_sweeps_walls_face_out() {
 fn a_two_turn_helical_sweeps_walls_face_out() {
     assert_helix_walls_face_out(2.0, 65);
 }
-
