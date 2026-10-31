@@ -145,7 +145,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
         match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
             Entry::Occupied(held) => Some(&held.into_mut().read),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::pair_section(sa, sb, band) {
+                let read = match geom_brep::pair_section(sa, sb, None, None, band) {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),

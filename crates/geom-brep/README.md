@@ -316,8 +316,8 @@ parametric pair in ℝ⁴ on `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD
 projections of one traced object on one shared parameter. The trace's
 **domain** is the compact part of its state space: a chart side
 contributes its knot rectangle; two residual sides have no compact set
-of their own, so the pose's ball where one is proved, else the
-operation's region, bounds them. No face's trim sizes a domain. A
+of their own, so the pose's ball where one is proved, cut by the
+operation's region, bounds them, and the region alone where none is. No face's trim sizes a domain. A
 component is closed, or ends on the domain's boundary (a rim end on a
 rectangle's side, or a cut end on the region's), or ends at a node. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
@@ -482,7 +482,16 @@ zero by enclosure, the boundary pass's mean-value enclosure of a strip
 or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+`SsiError::ExhaustivenessInconclusive`. Where the pose counts the
+section's components (C5), exhaustiveness closes by that count: the
+march, seeded from the counted cut ends and witnesses, returns
+certified branches matched one to one to them, else a desync; the cell
+sweep runs where no pose counts. For a pair with a ruled side (a
+cylinder or cone against a plane, cylinder, cone or sphere) the count
+is the ruling sweep's, and a `debug_assert` re-derives it: each cell of
+the ruling angle has its rulings' meetings with the partner (the roots
+of a quadratic, in closed form) outside the domain the march ends at or
+inside a found branch's tube (DESIGN's error taxonomy, row 5). Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
 one that is not a positive finite width, or one narrower than the
@@ -857,14 +866,16 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
-declared-equal cylinder×cylinder, axis-aligned plane×torus (its
-axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
+axis-aligned plane×torus (its axis-parallel pose off the axis the
+`Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
+rulings and its bisector ellipses closed form, every other crossing pose
+marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
-section value (`pair_section_with`, through the march door), built
+section value (`pair_section`, through its march door), built
 from the whole-section reading `all()`:
 - each closed branch is a loop component, with its witness and carrier;
 - each open branch, `Side` region and `Corner` region is a component
@@ -882,9 +893,10 @@ pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
-at `f64`, and lists the components: a counted section's, the march a
-cross-check of the count (as many distinct branches, each listed
-witness on one branch, each claimed winding held, else a desync), and
+at `f64`, and lists the components: a counted section's, the count the
+proof and the march matched to it one to one (each boundary crossing
+the end of exactly one branch, each listed witness on exactly one
+branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
 operand's axis and core circle, read off the loop in ℝ³, say
@@ -904,9 +916,11 @@ carriers, placed in closed form, and a site at it reads as the node.
 Two cylinders decide their pose on closed-form margins: parallelism as
 `sin θ · L` at the region's radius `L`; then the gap `e` along the
 common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
-distance where parallel. A cone pair's critical gap is the sweep of the
-discriminant along one carrier's rulings, its double root decided on
-the pose and its apex a closed-form margin. Each torus pair's pose
+distance where parallel. A pair with a ruled side reads its pose on the
+sweep of the discriminant along that side's rulings: its double root
+the tangency, decided on the pose, the arcs where it is positive the
+components, a cone's apex a closed-form margin, and for two cylinders
+the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`

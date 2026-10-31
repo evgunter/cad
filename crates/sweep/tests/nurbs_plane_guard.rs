@@ -246,9 +246,13 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let Ok(geom_brep::SectionRead::Built(section)) =
-        geom_brep::pair_section_with(&plane, &ridge, Some(geom_brep::SsiLane::marched()), band)
-    else {
+    let Ok(geom_brep::SectionRead::Built(section)) = geom_brep::pair_section(
+        &plane,
+        &ridge,
+        None,
+        Some(geom_brep::SsiLane::marched()),
+        band,
+    ) else {
         panic!("the ridge's section is read")
     };
     let geom_brep::Components::Counted(components) = section.components() else {
@@ -292,9 +296,13 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     // as the box stores it, so the witness and pad the edge is set by are
     // that reading's.
     let loop_on = |floor: &Surface<f64>| {
-        let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section_with(&ridge, floor, Some(geom_brep::SsiLane::marched()), band)
-        else {
+        let Ok(geom_brep::SectionRead::Built(section)) = geom_brep::pair_section(
+            &ridge,
+            floor,
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            band,
+        ) else {
             panic!("the ridge's section with the floor is read")
         };
         let geom_brep::Components::Counted(components) = section.components() else {

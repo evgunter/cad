@@ -262,9 +262,10 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         (false, Ok(vec![Cleared::Reaches(Side::G)])),
     ] {
         let s = read(&level(0.5), &tube(closed));
-        let built = geom_brep::pair_section_with(
+        let built = geom_brep::pair_section(
             &level(0.5),
             &tube(closed),
+            None,
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
@@ -276,7 +277,7 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
                 built.components(),
                 geom_brep::Components::Counted(c) if c.len() == 1 && matches!(
                     c[0].shape,
-                    geom_brep::ComponentShape::Open { reaches: [_, r] }
+                    geom_brep::ComponentShape::Open { ends: geom_brep::ComponentEnds { rims: [_, r], .. } }
                         if r.sides().count() == 2
                             && r.sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
                 )

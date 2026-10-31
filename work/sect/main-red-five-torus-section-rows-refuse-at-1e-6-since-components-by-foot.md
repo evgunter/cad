@@ -2,7 +2,7 @@
 id: main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot
 kind: issue
 title: main red at ε 1e-6: five torus section and germ rows refuse (Winds(Unseparated), a zero-margin tube straddle, an indeterminate carrier straddle) since PR 6011
-status: open
+status: dispatched
 opened: 2026-10-30
 priority: P1
 cost: M

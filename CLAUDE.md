@@ -49,7 +49,8 @@ question — is a PR titled `[ev] ...` ("Ev's channel" in
 `work/README.md`).
 
 - **A design fork is weighed first** by one Opus and one Fable
-  designer (`docs/prompts/designer.md`), reconciled until the
+  designer, and on some forks a second Opus
+  (`docs/prompts/designer.md`), reconciled until the
   recommendations are clear; the procedure is in
   `memories/orchestration-model.md`.
 

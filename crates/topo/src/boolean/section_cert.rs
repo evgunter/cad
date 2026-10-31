@@ -333,7 +333,7 @@
 //!   the control net's every point is certified strictly on one side of
 //!   the plane — the patch lies in the net's convex hull, its weights
 //!   being positive. Any other pose is the section value's whole reading
-//!   ([`geom_brep::pair_section_with`], C3's `all()`), which the march
+//!   ([`geom_brep::pair_section`] with a march door, C3's `all()`), which the march
 //!   door reads (at `f64`; with no door, R-lane): a closed branch is a
 //!   loop, read by W3, W4 or the no-event decision; an open branch, a
 //!   `Side` region and a `Corner` region reach the wall's chart boundary
@@ -735,13 +735,15 @@ pub(crate) fn classify<T: Decide>(
         (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. }, S::Cylinder { .. })
-        | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, band) {
-            Ok(geom_brep::SectionRead::Built(section)) => {
-                of_pair_section(&Ok(section), band, marched)
+        | (S::Cylinder { .. }, S::Sphere { .. }) => {
+            match geom_brep::pair_section(f, g, None, None, band) {
+                Ok(geom_brep::SectionRead::Built(section)) => {
+                    of_pair_section(&Ok(section), band, marched)
+                }
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+                Err(e) => of_pair_section(&Err(e), band, marched),
             }
-            Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-            Err(e) => of_pair_section(&Err(e), band, marched),
-        },
+        }
         (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
         (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
             swapped(torus_pair(g, f, reach, band))
@@ -798,7 +800,7 @@ pub(crate) fn classify<T: Decide>(
 /// positive), so a net whose every point is certified strictly on one
 /// side of the plane meets it nowhere (W0); an approximating surface is
 /// read as its fit. Any other pose is the section value's whole reading
-/// ([`geom_brep::pair_section_with`]) through `lane`; with no lane the
+/// ([`geom_brep::pair_section`]) through `lane`; with no lane the
 /// scalar does not march, R-lane.
 fn spline_plane<T: Decide>(
     f: &geom::Surface<T>,
@@ -832,7 +834,7 @@ fn spline_plane<T: Decide>(
         return none();
     }
     let no_march = |_: &geom_brep::PairSection<T>| Section::Unmarched;
-    match geom_brep::pair_section_with(f, g, lane, band) {
+    match geom_brep::pair_section(f, g, None, lane, band) {
         Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, no_march),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
         Err(geom_brep::SectionError::NoMarch { scalar }) => Section::NoLane(scalar),
@@ -1876,7 +1878,7 @@ pub(super) fn of_pair_section<T: Decide>(
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }
-            | SectionError::UnequalRadii
+            | SectionError::NoRegion { .. }
             | SectionError::BeyondOperandExtent { .. }
             | SectionError::Carrier(_)
             | SectionError::Spiric(_)
@@ -1915,8 +1917,14 @@ pub(super) fn of_pair_section<T: Decide>(
                 essential_g: c.winds[1],
                 witness: c.witness,
                 reaches: match c.shape {
+                    // Only rim ends reach a chart side; a cut end or a
+                    // node end clears nothing here, so such a component
+                    // is read as a loop is, by its witness.
                     ComponentShape::Open {
-                        reaches: [on_f, on_g],
+                        ends:
+                            geom_brep::ComponentEnds {
+                                rims: [on_f, on_g], ..
+                            },
                     } => {
                         if bounds(on_f, f) {
                             Some(Side::F)

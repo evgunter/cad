@@ -49,7 +49,8 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Bounds, Interval, Point3, Real, Vec3};
 
 use super::{
-    ChartReach, ClassCarrier, ComponentShape, Components, PairPose, PairSection, SectionComponent,
+    ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
+    SectionComponent,
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
@@ -444,16 +445,19 @@ pub(super) fn section(
     let out = crate::ssi::plane_nurbs_ssi(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(refused)?;
     let open = |on_wall: ChartReach| ComponentShape::Open {
-        reaches: pose.order(ChartReach::default(), on_wall),
+        ends: ComponentEnds {
+            rims: pose.order(ChartReach::default(), on_wall),
+            ..ComponentEnds::default()
+        },
     };
     let mut components = Vec::with_capacity(out.branches.len() + out.boundary.len());
     for b in out.branches {
         let shape = match b.end {
             BranchEnd::Closed => ComponentShape::Loop,
-            BranchEnd::Crossings { from, to } => {
+            BranchEnd::Rim { from, to } => {
                 open(ChartReach::side(from.side).or(ChartReach::side(to.side)))
             }
-            BranchEnd::Slab | BranchEnd::SlabInBand => {
+            BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
                     cause: "a branch of the plane × spline reading ended off the wall's \
                             rectangle, where no side of the wall's chart holds it"
@@ -488,6 +492,7 @@ pub(super) fn section(
         pose: PairPose::PlaneSpline(Box::new(pose)),
         decided: Vec::new(),
         components: Components::Counted(components),
+        nodes: Vec::new(),
         lever,
     })
 }

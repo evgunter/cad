@@ -760,6 +760,7 @@ pub(super) fn sphere_torus<T: Decide>(
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
+        nodes: Vec::new(),
     })
 }
 
@@ -1022,6 +1023,7 @@ pub(super) fn cylinder_torus<T: Decide>(
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
+        nodes: Vec::new(),
     })
 }
 
@@ -1262,5 +1264,6 @@ pub(super) fn torus_torus<T: Decide>(
         pose: PairPose::TorusTorus(pose),
         decided,
         components,
+        nodes: Vec::new(),
     })
 }

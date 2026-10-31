@@ -99,6 +99,8 @@ mod coplanar_ellipses_one_locus;
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
 mod cylinder_green_conditioning;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
