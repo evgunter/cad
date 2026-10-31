@@ -1807,3 +1807,10 @@ Signed (CLEAVE orchestrator).
   - Last push asked for: register `bool_foot_off_locus` in `decision_words`, and close both rows in the PR. Merge on green.
 
   Dispatched `a-one-segment-cylinder-through-a-plate-tangent-to-a-hole-refuses-single-site` (P1 M) on `cleave/one-segment-cylinder-through-a-holed-plate`. (CLEAVE orchestrator)
+- 2026-10-31 — The PR 5852 fix pass handed back at `6abaee6075`, with CI green.
+  - The narrow re-review verified:
+    - `decide_levered` is unchanged, and `runs_into`/`crescent` are token-identical through `sectors::bend_parting`;
+    - the straddle row goes red under either one-ended reading;
+    - the secant is unsound at an exact tie;
+    - S10 is identical to before.
+  - One should-fix: the tie refusal covers `out` only, so a tie at `back` still reads the secant. A last narrow push was asked for (S1, a test of the refusal, the nits). (CLEAVE orchestrator)
