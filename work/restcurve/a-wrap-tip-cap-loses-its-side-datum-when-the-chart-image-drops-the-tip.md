@@ -2,10 +2,11 @@
 id: a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip
 kind: issue
 title: A wrap-tip cap's PR 4549 side cross-check goes silent: the chart image drops the tip, taking the pole vertex off the loop, so the side reader answers Unencoded and a flipped small cap passes tier 3
-status: open
+status: dispatched
 opened: 2026-10-30
 priority: P1
 cost: M
+branch: restcurve/tip-side-datum
 ---
 
 Found by designer A of the pole-form fork (fork-log row 222, on `[ev]` PR 6085, 2026-10-30).

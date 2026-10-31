@@ -78,3 +78,5 @@ The fork-log rows 221 and 222 carry the recommendation halves. Their second comm
 - Always pass FULL SHAs to cloud review sessions; a short one failed silently and cost an hour.
 - Never force-push.
 - Read a ratified sentence's code before explaining it to Ev: "a seam is a property of a face" was misread.
+
+**One more lesson (2026-10-31):** never create a cloud session in the same tool batch as the lookup of its SHA. A parallel call sent a short SHA and a placeholder prompt; it failed at start and touched nothing.
