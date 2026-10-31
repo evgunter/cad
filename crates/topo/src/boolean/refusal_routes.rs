@@ -2638,6 +2638,7 @@ pub(in crate::boolean) mod tests {
                     SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                     SizedPass::Negative => v < 0.0,
                     SizedPass::NonZero | SizedPass::AnySign => true,
+                    SizedPass::Zero => false,
                 }
         };
         match margin.diagnostic_f64_for_error_text() {
