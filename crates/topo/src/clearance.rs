@@ -3987,7 +3987,7 @@ mod receipt_rule {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod cone_window {
     use core::f64::consts::{FRAC_PI_2, PI};
 

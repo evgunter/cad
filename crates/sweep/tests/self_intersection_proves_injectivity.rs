@@ -26,9 +26,8 @@
 //! - the cylinder–cylinder tee refuses typed at a vertex its junction
 //!   shares with a cap and nothing else;
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
-//!   holds at both scalars, and the klein elbow's cavity (at a spiric
-//!   cap edge) and the cone frustum's (at its apex, by budget) refuse
-//!   typed.
+//!   and the cone frustum's cavity hold at both scalars, and the klein
+//!   elbow's cavity refuses typed at a spiric cap edge.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
