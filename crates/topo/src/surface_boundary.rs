@@ -11,10 +11,9 @@
 //! - **The surface boundary** ([`surface_cycles`]) drops every such edge:
 //!   what remains is the cycles of edges that have another face on their
 //!   far side, the face's boundary on its surface. Region and point
-//!   placement read it. `boolean::region::boundary` keeps the same edges
-//!   by filtering each loop with the predicate, in loop order rather than
-//!   walk order, so the two agree on the set by construction; the region
-//!   arm (the next unit of this row) reads the walk itself. A face every
+//!   placement read it: `boolean::region::boundary` reads its cycles, and
+//!   tier 3's region arm (`crate::one_region`) reads each cycle against
+//!   the others, a torus's by their windings ([`cycle_winding`]). A face every
 //!   edge of which it lies on both sides of (the one-face ball) has an
 //!   empty surface boundary, and covers its surface.
 //! - **The chart image** ([`chart_image`]) drops only the spurs: a

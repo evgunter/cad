@@ -46,3 +46,16 @@ whose shared walk this one can become.
 
 Filed by the RESTCURVE implementer in PR 6054's fix pass (adjudication
 A2, Q6).
+
+## Tier 3 no longer walks (region arm, 2026-10-31)
+
+Tier 3's chart-singularity arm reads a singular point's side through the
+face's point-in-face door (`boolean::cycle_side`, every surface cycle
+kept), and places it on the boundary by
+`geom_brep::chart_singularity::place_on_boundary`. It no longer calls
+`walk_loop`, so the tier-3 exemption this row names is gone; the doors'
+own residue replaces it
+(`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`).
+Import still walks (its normalization runs before a body exists), and the
+retirement of `walk_loop` waits on
+`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-no-longer-reads.md`.

@@ -183,7 +183,11 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
             let t = 0.5 * (t0 + t1);
             let tangent = curve.carrier().deriv(t) * if h == edge.he_plus { 1.0 } else { -1.0 };
             let at = curve.carrier().eval(t);
-            let sense = if body.get_face(face)?.sense { 1.0 } else { -1.0 };
+            let sense = if body.get_face(face)?.sense {
+                1.0
+            } else {
+                -1.0
+            };
             matches!(curve.carrier(), Curve3::Circle { .. })
                 .then(|| (at, (at - frame.origin).cross(tangent) * sense))
         })
@@ -205,7 +209,9 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
         .unwrap()
         .into_iter()
         .map(|h| {
-            let v = body.get_vertex(body.get_half_edge(h).unwrap().start).unwrap();
+            let v = body
+                .get_vertex(body.get_half_edge(h).unwrap().start)
+                .unwrap();
             (*body.get_point(v.point).unwrap() - frame.origin).dot(frame.axis)
         })
         .fold(f64::INFINITY, f64::min);
@@ -240,7 +246,13 @@ fn is_sphere(s: &Surface<f64>) -> bool {
 /// face filling it and its loop a ring of `face`. Grown off `face`'s
 /// outer loop wherever the rectangle lies: the Euler doors read no
 /// geometry. Returns the plug.
-fn plant(body: &mut Body<f64>, face: FaceKey, frame: Frame, us: (f64, f64), ss: (f64, f64)) -> FaceKey {
+fn plant(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    frame: Frame,
+    us: (f64, f64),
+    ss: (f64, f64),
+) -> FaceKey {
     let f = body.get_face(face).unwrap();
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
         panic!("the outer loop is a cycle")
@@ -252,7 +264,14 @@ fn plant(body: &mut Body<f64>, face: FaceKey, frame: Frame, us: (f64, f64), ss: 
         frame.at(us.0, ss.1),
     ];
     let strut = body
-        .mev_line(MevSite::Fan { he1: first, he2: first }, p[0], tol())
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            p[0],
+            tol(),
+        )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
     let a = body
@@ -322,7 +341,10 @@ fn honest_then_misplaced(name: &str, honest: &Body<f64>, misplaced: &Body<f64>, 
         )),
         "[{name}] only the region arm refuses, on the wall: {errors:?}"
     );
-    assert!(!errors.is_empty(), "[{name}] the misplaced window is refused");
+    assert!(
+        !errors.is_empty(),
+        "[{name}] the misplaced window is refused"
+    );
 }
 
 /// **P09, a cone band less a window outside it** (CONEARM's probe, the
@@ -524,7 +546,13 @@ fn a_cycle_read_in_band_escalates_with_its_margin() {
     let d = 3.0 * tol().eps();
     let mut body = tube;
     plant(&mut body, face, frame, (-0.6, 0.6), (0.5, 1.5));
-    plant(&mut body, face, frame, (-0.6 - d, 0.6 + d), (0.5 - d, 1.5 + d));
+    plant(
+        &mut body,
+        face,
+        frame,
+        (-0.6 - d, 0.6 + d),
+        (0.5 - d, 1.5 + d),
+    );
     let errors = topo::validate_geometric_structural(&body, tol()).unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(

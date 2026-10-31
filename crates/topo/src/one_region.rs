@@ -157,7 +157,10 @@ fn read_cycle<T: Decide>(
         let Some(vertex) = body.get_half_edge(h).map(|h| h.start) else {
             continue;
         };
-        let Some(q) = body.get_vertex(vertex).and_then(|v| body.points.get(v.point)) else {
+        let Some(q) = body
+            .get_vertex(vertex)
+            .and_then(|v| body.points.get(v.point))
+        else {
             continue;
         };
         match crate::boolean::cycle_side(body, face, unit, *q, band) {

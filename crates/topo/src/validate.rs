@@ -1581,8 +1581,11 @@ pub enum ValidationError {
     /// it** — a sphere's pole or a cone's apex in the face's interior or
     /// inside one of its edges (`docs/DESIGN.md` `[topology.tiers]`:
     /// every chart singularity in a face's closure is a vertex of it).
-    /// Read by `geom_brep::chart_singularity::locate`, the one reading
-    /// STEP import makes such a point a vertex by; `lies` says where.
+    /// Placed on the boundary by
+    /// `geom_brep::chart_singularity::place_on_boundary`, the reading STEP
+    /// import makes such a point a vertex by, and in the interior by the
+    /// face's point-in-face door at the point (`crate::one_region`'s
+    /// reading); `lies` says where.
     ChartSingularityNotAVertex {
         /// The face.
         face: FaceKey,
@@ -1594,9 +1597,8 @@ pub enum ValidationError {
     /// Tier 3, check 6's chart-singularity arm, **undecided**: whether a
     /// chart singularity of the face's surface lies at a vertex of it,
     /// inside it or outside it cannot be read — its distance to the
-    /// face's boundary is in band, or the side of one of its loops it
-    /// lies on does not clear its reading's bound
-    /// (`geom_brep::chart_singularity::Undecided`, whose ending it
+    /// face's boundary is in band, or the face's door read its side in
+    /// band (`geom_brep::chart_singularity::Undecided`, whose ending it
     /// carries).
     ChartSingularityUndecided {
         /// The face.
@@ -5627,10 +5629,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    pole or a cone's apex in a face's interior or inside one of its
 ///    edges refuses ([`ValidationError::ChartSingularityNotAVertex`]),
 ///    and one whose distance to the boundary is in band, or whose side
-///    of a loop its reading cannot clear of its error bound, refuses as
-///    undecided ([`ValidationError::ChartSingularityUndecided`]). The
-///    reading is `geom_brep::chart_singularity::locate`, the one STEP
-///    import makes such a point a vertex by, read off the face's region:
+///    the face's door reads in band, refuses as undecided
+///    ([`ValidationError::ChartSingularityUndecided`]). The boundary is
+///    read by `geom_brep::chart_singularity::place_on_boundary`, the
+///    reading STEP import makes such a point a vertex by, and the side by
+///    the face's point-in-face door at the point (`crate::one_region`):
 ///    it never asks whether a loop has a meridian.
 /// 7. **The orientation invariant, PER SOLID** (solids, arena order):
 ///    each solid's own faces leave infinity outside its material, read
@@ -5707,8 +5710,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   owe their own typed refusal for a wedge-0/2π edge: this pass
 ///   decides legality at rest and says nothing about what an operation
 ///   may then do with a legal cusp.
-/// - **Face-boundary containment on curved surfaces** (a face's loops
-///   actually bounding a region of its surface) — tracked at #638.
+/// - **Face-boundary containment** (a face's loops bounding one region
+///   of its surface; #638), what is covered and what is not.
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
@@ -5722,11 +5725,25 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   own carrier ([`crate::splitting::containment::point_in_loop`]).
 ///   The **curved analytic** kinds' orientation half is covered by
 ///   check 6's curved arm (M6-6: boundary material side vs the sense
-///   bit).
+///   bit), and their NESTING half — each surface cycle on the face's side
+///   of every other, a torus's essential cycles one pair — by check 9's
+///   arm off the plane ([`crate::one_region`]).
 ///
 ///   What remains deferred:
-///   - containment against curved surfaces, and the region-bounding
-///     statement for curved faces;
+///   - containment against curved surfaces: check 5's between-vertices
+///     residual off the plane;
+///   - off the plane, the faces and cycles the region arm cannot read,
+///     each its doors' own residue: a face on a spline chart (no door
+///     reads one cycle of its trim); a face with an edge of a kind its
+///     door does not admit (a cylinder's or a cone's other than a line,
+///     a circle or an ellipse; a sphere's other than a circle, or one
+///     with no certified curve; a torus's other than a circle or a
+///     spiric); a torus face one of whose cycles has no stored joint
+///     element to read its winding from; and a cycle no vertex of which
+///     any path of its door settles
+///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
+///   - a ring inside another ring on a plane
+///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
 ///   - on a plane, the loops that walk cannot read at a point — a NURBS
 ///     edge on the outer loop, or a `Spiric` edge every ray from the
 ///     point was abandoned on, the nesting arm's own residue,
@@ -5745,17 +5762,15 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     cylinder and the tilted-split washer).
 /// - **A chart singularity the reading cannot place** (check 6's
 ///   chart-singularity arm, exempt where
-///   `geom_brep::chart_singularity::locate` answers neither a place nor
-///   an undecided reading): an edge on a sampled carrier (not a line or
-///   a circle) whose refinement against its speed bound settles neither
-///   on nor off within its budget, or one with no speed bound that holds
-///   at every scalar (a rational spline among them)
+///   `geom_brep::chart_singularity::place_on_boundary` answers neither a
+///   place nor an undecided reading, or the face's door no side): an edge
+///   on a sampled carrier (not a line or a circle) whose refinement
+///   against its speed bound settles neither on nor off within its
+///   budget, or one with no speed bound that holds at every scalar (a
+///   rational spline among them)
 ///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
-///   and a loop whose chart image states no certified winding about the
-///   surface axis: a sample with no chart point away from every singular
-///   point, a step not certified to turn by less than a sixteenth of a
-///   turn within the walk's budget, or a loop winding more than once
-///   (`work/restcurve/a-loop-the-chart-singularity-walk-cannot-certify-is-exempt.md`).
+///   and a face its door does not read or reads with no path settled (the
+///   region arm's residue above).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,

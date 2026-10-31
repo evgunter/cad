@@ -662,12 +662,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
    a pole or apex), **chart singularities as vertices** (every sphere
-   pole and cone apex in a face's closure is a vertex of it, read off
-   the face's region by `geom_brep::chart_singularity::locate`, the
-   reading STEP import normalizes by; one in the interior or inside an
-   edge is `ChartSingularityNotAVertex`, and one whose distance to the
-   boundary is in band, or whose side of a loop its reading cannot clear
-   of its own error bound, is `ChartSingularityUndecided`),
+   pole and cone apex in a face's closure is a vertex of it, placed on
+   the boundary by `geom_brep::chart_singularity::place_on_boundary`,
+   the reading STEP import normalizes by, and in the interior by the
+   face's point-in-face door; one in the interior or inside an edge is
+   `ChartSingularityNotAVertex`, and one whose distance to the boundary
+   is in band, or whose side the door reads in band, is
+   `ChartSingularityUndecided`), **one region per face** off the plane
+   (each surface cycle on the face's side of every other, read by the
+   point-in-face doors cut to one cycle, a torus's essential cycles as
+   one pair: `CycleOffFaceSide`, `CycleSideUndecided`,
+   `EssentialCyclesUnpaired`; `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
