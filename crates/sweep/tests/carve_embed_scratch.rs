@@ -544,3 +544,171 @@ fn carve_embed_scratch_coincident_and_others() {
         1,
     );
 }
+
+/// The arc-spine family at the curls BOOL-6 builds (no self-overlap),
+/// and 3.5 rad at fewer stations: where the price starts.
+#[test]
+#[ignore = "measurement scratch: prints, asserts nothing"]
+fn carve_embed_scratch_arc_curls() {
+    let sq = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
+    for (curl, stations) in [
+        (0.45, 17),
+        (1.0, 17),
+        (2.0, 17),
+        (3.0, 17),
+        (3.5, 5),
+        (3.5, 9),
+        (1.0, 5),
+    ] {
+        loft_row(
+            &format!("arc spine {curl} rad / {stations} stations"),
+            false,
+            &vec![sq.clone(); stations],
+            &arc_spine_places(curl, stations),
+            stations.min(4) - 1,
+        );
+    }
+}
+
+/// Which face pair holds the frontier on the 3.5 rad / 17-station arc
+/// spine: every candidate pair asked alone, at f64.
+#[test]
+#[ignore = "measurement scratch: prints, asserts nothing"]
+fn carve_embed_scratch_arc_pairs() {
+    let curl: f64 = std::env::var("CARVE_EMBED_CURL")
+        .ok()
+        .and_then(|c| c.parse().ok())
+        .unwrap_or(3.5);
+    let l = if std::env::var_os("CARVE_EMBED_HELIX").is_some() {
+        // m8_14's half-turn helix at 33 stations (refuses Departure whole).
+        let sq = quad([(-0.08, -0.08), (0.08, -0.08), (0.08, 0.08), (-0.08, 0.08)]);
+        let path = helix_path(0.5);
+        sweep_at::<f64>(&sq, normal_start_place(&path), &path, 33, 3).unwrap()
+    } else {
+        let sq = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
+        loft_at::<f64>(&vec![sq; 17], &arc_spine_places(curl, 17), 3).unwrap()
+    };
+    let body = &l.body;
+    // Each section parameter against the dyadic k/(n-1) a bisection
+    // lands on, in ulps: a knot a few ulps off a split point leaves a
+    // sliver span every descendant cell on that line restricts to.
+    let n = l.section_params.len() - 1;
+    let off: Vec<String> = l
+        .section_params
+        .iter()
+        .enumerate()
+        .map(|(k, &p)| {
+            let d = (k as f64) / (n as f64);
+            format!("{:+}", ((p - d) / f64::EPSILON).round())
+        })
+        .collect();
+    println!("[pair] params - k/{n} in eps: {}", off.join(" "));
+    let wall = l.side_faces[0][0][0];
+    if let geom::Surface::Nurbs(net) = body
+        .get_surface(body.get_face(wall).unwrap().surface)
+        .unwrap()
+    {
+        let knots: Vec<String> = net
+            .knot_values_v()
+            .values()
+            .iter()
+            .map(|&k| {
+                let dy = (k * 64.0).round() / 64.0;
+                #[allow(clippy::cast_possible_wrap)]
+                let ulps = k.to_bits() as i64 - dy.to_bits() as i64;
+                format!("{k:.6}({ulps:+})")
+            })
+            .collect();
+        println!(
+            "[pair] wall v knots (ulps of the value off the nearest 1/64): {}",
+            knots.join(" ")
+        );
+        println!(
+            "[pair] sliver v knots: {:?} u knots: {:?}",
+            sliver_knots(net.knot_values_v().values()),
+            sliver_knots(net.knot_values_u().values())
+        );
+    }
+    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    if std::env::var_os("CARVE_EMBED_PARAMS_ONLY").is_some() {
+        return;
+    }
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget(),
+        },
+    };
+    for (i, &a) in faces.iter().enumerate() {
+        for &b in &faces[i..] {
+            let wa = Side {
+                body,
+                faces: vec![a],
+            }
+            .windows(Which::First);
+            let wb = Side {
+                body,
+                faces: vec![b],
+            }
+            .windows(Which::First);
+            let (Ok(wa), Ok(wb)) = (wa, wb) else {
+                println!("[pair] {} x {}: WINDOW REFUSED", role(&l, a), role(&l, b));
+                continue;
+            };
+            let t = Instant::now();
+            let r = sweep.run(&wa, &wb, true, verify(body));
+            println!(
+                "[pair] arc {curl} {} x {}: {} | {:.3}s | deepest {} | {:?}",
+                role(&l, a),
+                role(&l, b),
+                say(&l, Some(&l), &r),
+                t.elapsed().as_secs_f64(),
+                r.widths.deepest,
+                r.receipt
+            );
+        }
+    }
+}
+
+/// The fold's reversed MIDDLE slab (z 0, 1, 0.5, 2), built past it.
+#[test]
+#[ignore = "measurement scratch: prints, asserts nothing"]
+fn carve_embed_scratch_reversed_middle() {
+    let sq = sweep::test_support::loft_prism_sections()[0].clone();
+    loft_row(
+        "reversed middle slab (z 0,1,0.5,2; 4 squares, deg 2)",
+        true,
+        &vec![sq; 4],
+        &stacked_at(&[0.0, 1.0, 0.5, 2.0]),
+        2,
+    );
+}
+
+/// Every interior knot of a NURBS face that sits within 64 ulps of a
+/// dyadic split point `m/2^d` (d <= 40) WITHOUT being on it: the
+/// bisection lands there, and the cell on the far side restricts to a
+/// span a few ulps wide. `axis(depth, ulps)` per such knot.
+fn sliver_knots(knots: &[f64]) -> Vec<String> {
+    let mut out = Vec::new();
+    for &k in knots {
+        if k <= 0.0 || k >= 1.0 {
+            continue;
+        }
+        for d in 1..=40 {
+            let scale = f64::from(1u32 << d.min(31)) * f64::from(1u32 << (d - d.min(31)));
+            let dy = (k * scale).round() / scale;
+            #[allow(clippy::cast_possible_wrap)]
+            let ulps = k.to_bits() as i64 - dy.to_bits() as i64;
+            if ulps == 0 {
+                break;
+            }
+            if ulps.abs() <= 64 {
+                out.push(format!("{k:.6}@2^-{d}({ulps:+})"));
+                break;
+            }
+        }
+    }
+    out
+}
