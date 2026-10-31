@@ -785,8 +785,7 @@ fn conic_pairs<T: Decide>(
 
 /// [`conic_pairs`] over bare sites, each its point, whether it starts at
 /// an above end, and the section's direction into the face there; the
-/// pairs come back as site indices. The boolean's turn order is held
-/// against this walk (`boolean/join_walk_order_rows.rs`).
+/// pairs come back as site indices.
 #[cfg(test)]
 pub(crate) fn conic_pairs_of_sites<T: Decide>(
     wall: &geom::Surface<T>,

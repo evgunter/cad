@@ -12,9 +12,15 @@
 //! own seam (`θ = ±π`, where the split's walk starts); a pair straddling
 //! the germ's half-turn (one `Ahead`, one `Behind`); and two behind.
 //! Each straddling pair sits fifteen bands either side, clear of the
-//! band's escalation edge (ten) and of the turn's off-conic slack. The
-//! lanes take them in a scrambled insertion order, so neither inherits
-//! the answer from its input.
+//! band's escalation edge ([`Band::escalate`]) and of the turn's
+//! off-conic slack. Every lane takes them in one scrambled insertion
+//! order, so none inherits the answer from its input.
+//!
+//! Each set is read twice: on the conic, then with every site moved
+//! within the band off it, across it in the section plane and to
+//! alternate sides, so neighbours sit up to two band widths apart across
+//! the conic. That drives the turn's off-conic slack
+//! ([`super::off_conic_slack`]), which the split's walk does not read.
 //!
 //! The circle on a sphere is also the coaxial cylinder × sphere section
 //! the table carries ([`geom_brep::pair_section`]), so there the carried
@@ -26,7 +32,7 @@
 
 use super::super::section_table::SectionTable;
 use super::super::{Branch, HalfGerm, Locus};
-use super::{Faced, GermArm, Reach, Turn, along_facing, germ_arm, nearer_along};
+use super::{Faced, Reach, Turn, along_facing, germ_arm, keep_nearer, nearer_along};
 use crate::HalfEdgeKey;
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -100,19 +106,18 @@ fn from_germ(order: &[usize]) -> Vec<usize> {
     cycle
 }
 
-/// The candidates ranked as [`super::partners`] picks among them: the
-/// nearest by `nearer_along` first, the incumbent keeping a tie, again
-/// over the rest.
+/// The candidates ranked by the join's own pick: [`keep_nearer`] under
+/// [`nearer_along`] folded over them in input order, as
+/// `loose_partners` folds a germ's partners; then again over the rest.
 fn ranked(mut left: Vec<(usize, Reach<f64>)>) -> Vec<usize> {
     let mut out = Vec::new();
     while !left.is_empty() {
-        let mut best = 0;
-        for k in 1..left.len() {
-            if nearer_along(left[k].1, left[best].1, band()).unwrap() {
-                best = k;
-            }
+        let mut best = None;
+        for (k, &(_, reach)) in left.iter().enumerate() {
+            best = keep_nearer(best, (reach, k), |c, b| nearer_along(c, b, band())).unwrap();
         }
-        out.push(left.remove(best).0);
+        let (_, k) = best.expect("a candidate is left");
+        out.push(left.remove(k).0);
     }
     out
 }
@@ -129,7 +134,12 @@ fn hold(
 ) {
     let n = ts.len();
     let split_conic = crate::chord_join::section_conic(conic.clone()).unwrap();
-    for (sense, way) in [(1.0, "ccw"), (-1.0, "cw")] {
+    let walks = [(1.0, "ccw"), (-1.0, "cw")];
+    for ((sense, way), (off, place)) in walks
+        .into_iter()
+        .flat_map(|w| [(w, (0.0, "on")), (w, (0.9, "off"))])
+    {
+        let way = &format!("{way} {place} the conic");
         let walk: Vec<usize> = if sense > 0.0 {
             (0..n).collect()
         } else {
@@ -140,7 +150,12 @@ fn hold(
             down[i] = k % 2 == 0;
         }
         let slots = scrambled(&walk);
-        let site = |i: usize| at(conic, ts[i], sense);
+        let site = |i: usize| {
+            let (p, ahead) = at(conic, ts[i], sense);
+            let side = if i % 2 == 0 { off } else { -off };
+            let across = frame(conic).1.cross(ahead).normalize();
+            (p + across * (side * band().zero()), ahead)
+        };
 
         let input: Vec<_> = slots
             .iter()
@@ -159,7 +174,11 @@ fn hold(
         let split = from_germ(&walked);
 
         let (g, dir) = site(0);
-        let partners = (1..n).map(|i| (i, site(i))).collect::<Vec<_>>();
+        let partners = slots
+            .iter()
+            .filter(|&&i| i != 0)
+            .map(|&i| (i, site(i)))
+            .collect::<Vec<_>>();
         let turned = partners
             .iter()
             .map(|&(i, (p, ahead))| {
@@ -229,7 +248,7 @@ fn feet(
                 Err(e) => panic!("site {i}: {e:?}"),
             };
             let reach = Reach {
-                arm: GermArm::Ahead,
+                arm: germ_arm::<f64>(None, band()).unwrap(),
                 chord: (p - g).norm(),
                 turn: None,
                 along: Some(along),
