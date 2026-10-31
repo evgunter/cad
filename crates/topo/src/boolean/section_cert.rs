@@ -448,9 +448,9 @@ pub(crate) struct Component<T: Real> {
     /// `F` where it reaches both faces' (one is enough).
     pub reaches: Option<Side>,
     /// **How far the witness may stand from the component**, in metres:
-    /// a marched loop's pad ([`geom_brep::CarriedComponent::pad`], where
-    /// closeness is argued: the component within it of the carrier, the
-    /// carrier within it of each surface), zero for a closed form. W3
+    /// a marched loop's reach ([`geom_brep::CarriedComponent::reach`]:
+    /// a box of its uniqueness tube holds both the witness and a piece of
+    /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
     /// (`certify`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
@@ -1964,9 +1964,9 @@ fn bounding<'a, T: Decide>(
 /// **A section no closed form counts, read from its march** (W0 to W4
 /// on the march's components): no branch is W0, its receipt being the
 /// march's exhaustiveness; each loop winds as its turns about each
-/// surface's axis and core read off the loop do (W2,
+/// surface's axis and core read over its uniqueness tube do (W2,
 /// `geom_brep::pair_section::winds`); its witness is its carrier's
-/// middle point, within its tube of the component, so W3 places it with
+/// middle point, within its reach of the component, so W3 places it with
 /// that pad ([`Component::pad`]); and the march's count is certified, so
 /// a lone loop is W4's. At
 /// a scalar with no march it is R-lane; a march or loop reading that
@@ -1983,6 +1983,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::March(_)
             | CarryError::Winds(_)
             | CarryError::PadShort { .. }
+            | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_),
@@ -1998,7 +1999,7 @@ pub(super) fn of_carried<T: Decide>(
                 essential_g: c.winds[1],
                 witness: Some(c.witness),
                 reaches: None,
-                pad: c.pad,
+                pad: c.reach,
             })
             .collect(),
         single: components.len() == 1,
