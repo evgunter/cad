@@ -33,13 +33,18 @@
 //!   ([`Components::Marched`]: a general cylinder × torus or torus ×
 //!   torus pose), the components are the march's, listed only once
 //!   carried. An empty count is the surfaces disjoint; `Marched` never
-//!   reads as that.
+//!   reads as that. Where a plane × spline pose's regularity sweep
+//!   proves no component closed ([`Components::Reaching`]), none is
+//!   counted or listed: each ends on a side of the wall's chart the
+//!   verdict names, and a reader that needs the list reads the pose
+//!   whole ([`PairSection::read_whole`]).
 //!
 //! # Classified, then carried
 //!
 //! The value is built in two states. [`PairSection`] is the
 //! classification: it costs no march and needs no lane, but on a plane
-//! and a spline, whose classification is C3's whole reading
+//! and a spline past its hull, whose classification is the regularity
+//! sweep and, where that declines, C3's whole reading
 //! ([`plane_spline`]), read through the march door.
 //! [`PairSection::carry`] turns it into a [`CarriedSection`], which lists
 //! the components, every one holding a carrier a reader can take a foot
@@ -748,6 +753,12 @@ pub enum Components<T: Real> {
     /// No closed form counts them: they are the march's closed branches,
     /// listed by [`PairSection::carry`].
     Marched,
+    /// None is closed: each is open, its ends on the sides of each
+    /// surface's chart listed `[on the first, on the second]`, and none
+    /// is counted or listed. A plane × spline pose's regularity sweep
+    /// answers it ([`plane_spline`]); a reader that needs the list reads
+    /// the pose whole ([`PairSection::read_whole`]).
+    Reaching([ChartReach; 2]),
 }
 
 /// **The section of two distinct surfaces, classified** (module docs).
@@ -952,10 +963,9 @@ pub fn pair_section<T: Decide>(
                 }),
             }
         }
-        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => match lane {
-            Some(lane) => (lane.spline)(a, b, band).map(SectionRead::Built),
-            None => Err(SectionError::NoMarch { scalar: T::NAME }),
-        },
+        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => {
+            plane_spline::classified(a, b, lane, band).map(SectionRead::Built)
+        }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
         | (Cylinder, Plane | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
@@ -1108,7 +1118,7 @@ impl<T: Decide> PairSection<T> {
     pub fn counted(&self) -> Option<&[SectionComponent<T>]> {
         match &self.components {
             Components::Counted(listed) => Some(listed),
-            Components::Marched => None,
+            Components::Marched | Components::Reaching(_) => None,
         }
     }
 
@@ -1159,6 +1169,24 @@ impl<T: Decide> PairSection<T> {
         self.listed(marched, band)
     }
 
+    /// **The section read whole, where its classification lists no
+    /// component** ([`Components::Reaching`]): the pose's whole reading
+    /// through `lane`, every component listed. Any other section is
+    /// already its listing.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::NoMarch`] with no `lane`, and the whole reading's
+    /// refusal ([`plane_spline`]).
+    pub fn read_whole(&self, lane: Option<SsiLane<T>>, band: Band) -> Result<Self, SectionError> {
+        if !matches!(self.components, Components::Reaching(_)) {
+            return Ok(self.clone());
+        }
+        let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
+        let (a, b) = self.pose.operands();
+        (lane.whole)(a, b, band)
+    }
+
     /// **The components listed from the march's branches** as
     /// [`Self::carry`] lists them, `branches` asked for only where a
     /// component is the general rung's.
@@ -1175,6 +1203,9 @@ impl<T: Decide> PairSection<T> {
                     .collect::<Result<_, _>>()?,
                 band,
             )?,
+            Components::Reaching(_) => {
+                return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+            }
             Components::Counted(listed) => {
                 for c in listed {
                     if let ClassCarrier::Unminted(why) = c.carrier {
@@ -1430,8 +1461,12 @@ pub struct SsiLane<T: Real> {
     /// One closed fitted component seated at a parameter, re-certified
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
-    /// The section of a plane and a spline wall ([`plane_spline`]).
+    /// The section of a plane and a spline wall past the hull
+    /// ([`plane_spline`]): the regularity sweep, then where it declines
+    /// the whole reading.
     spline: SplineSection<T>,
+    /// The section of a plane and a spline wall read whole.
+    whole: SplineSection<T>,
 }
 
 /// What reads a plane and a spline's section ([`plane_spline`]).
@@ -1452,6 +1487,7 @@ impl SsiLane<f64> {
             march: march_over_the_ball,
             seat: seat_at,
             spline: plane_spline::section,
+            whole: plane_spline::whole,
         }
     }
 }

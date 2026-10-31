@@ -888,6 +888,13 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
+A plane × spline pair is classified before `all()` is read: the hull
+decides it apart at every scalar, and the regularity sweep's loop-free
+verdict, every component open with its ends on the sides of the wall's
+rectangle the sweep names (`Components::Reaching`), is the value's,
+with no `all()`; the guard clears it where each of those sides bounds
+the face, and otherwise reads it whole. Where the sweep declines, the
+value is `all()`'s.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a

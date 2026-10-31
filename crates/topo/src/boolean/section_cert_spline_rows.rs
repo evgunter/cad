@@ -249,12 +249,14 @@ fn tube(closed: bool) -> Surface<f64> {
 
 /// **A branch across a closed channel's seam is not cleared by reaching
 /// it.** A plane square to the tube's axis meets it in one branch from
-/// one `u` side of its chart to the other. Where the `u` row closes on
+/// one `u` side of its chart to the other: the sweep proves it open,
+/// ending on the `u` sides, and read whole it is that one branch. Where the `u` row closes on
 /// itself those sides are a seam a face may lie across with no edge on
 /// it, so W1′ does not clear the branch and, placed nowhere, it refuses
 /// undecided; where the row stops short they are the wall's boundary,
 /// and it clears. Red against W1′ read of the kind (the seam's branch
-/// clears).
+/// clears), and against the sweep's verdict read as clearing whatever
+/// sides it ends on (the seam's clears with no whole reading).
 #[test]
 fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
     for (closed, want) in [
@@ -272,6 +274,17 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         let Ok(geom_brep::SectionRead::Built(built)) = built else {
             panic!("closed {closed}: the section is read: {built:?}")
         };
+        assert!(
+            matches!(
+                built.components(),
+                geom_brep::Components::Reaching([_, r])
+                    if r.sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
+            ),
+            "closed {closed}: the sweep's verdict, open ends on the u sides: {built:?}"
+        );
+        let built = built
+            .read_whole(Some(geom_brep::SsiLane::marched()), band())
+            .expect("the tube reads whole");
         assert!(
             matches!(
                 built.components(),
@@ -334,43 +347,77 @@ fn a_plane_on_a_walls_side_is_cleared() {
     );
 }
 
-/// **A graze is refused by name.** The trough `z = (x − ½)² − y/2` cut
-/// at `z = 0` meets the plane in `y = 2(x − ½)²`, which touches the
-/// rectangle's side `y = 0` at `x = ½` while the surfaces cross: the
-/// boundary pass refuses the graze, and the guard reads it as a
-/// tangency, named by the row that decided it. Red against the whole
-/// reading's refusals all read as R-reach.
+/// **A graze the sweep proves loop-free clears; read whole, it is
+/// refused by name.** The trough `z = (x − ½)² − y/2` cut at `z = 0`
+/// meets the plane in `y = 2(x − ½)²`, which touches the rectangle's
+/// side `y = 0` at `x = ½` while the surfaces cross. The plane's normal
+/// is never the wall's (`n·S_v = −½`), so the regularity sweep proves
+/// every component open, ending on sides that bound the wall, and the
+/// guard clears it by W1′ with no whole reading. The whole reading
+/// refuses the graze, and the guard reads that refusal as a tangency,
+/// named by the row that decided it.
+///
+/// Red against the sweep removed (the pair refuses R-tan), and against
+/// the whole reading's refusals all read as R-reach.
 #[test]
-fn a_graze_is_refused_by_name() {
+fn a_graze_clears_by_the_sweep_and_is_refused_whole_by_name() {
     let g = [0.25, -0.25, 0.25];
     let trough = net(&|i, j| g[i] - 0.25 * f64::from(u8::try_from(j).unwrap()));
     let s = read(&level(0.0), &trough);
+    assert_eq!(
+        certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
+        Ok(vec![Cleared::Reaches(Side::G)]),
+        "the sweep clears the graze: {s:?}"
+    );
+    let lane = Some(geom_brep::SsiLane::marched());
+    let Ok(geom_brep::SectionRead::Built(built)) =
+        geom_brep::pair_section(&level(0.0), &trough, None, lane, band())
+    else {
+        panic!("the pose is classified")
+    };
     assert!(
-        matches!(s, Section::Tangent("ssi_boundary_crossing")),
-        "the graze is a tangency: {s:?}"
+        matches!(built.components(), geom_brep::Components::Reaching(_)),
+        "the sweep's verdict: {built:?}"
+    );
+    let whole = of_pair_section(&built.read_whole(lane, band()), band(), |_| {
+        Section::Unmarched
+    });
+    assert!(
+        matches!(whole, Section::Tangent("ssi_boundary_crossing")),
+        "read whole, the graze is a tangency: {whole:?}"
     );
 }
 
-/// **W0 stays the first door.** A plane clear of the dome's net is apart
-/// before any reading, and with no march door a plane that cuts it is
-/// R-lane: the scalar does not march.
+/// **The hull is the first door, read with no march door.** A plane
+/// clear of the dome's net (its middle control point stands at `z = ½`)
+/// is apart (W0) before any reading, with or
+/// without a lane: the pair's classification decides it at every scalar.
+/// With no march door a plane that cuts the dome is R-lane: the scalar
+/// does not march. Red against the hull read only behind the lane.
 #[test]
-fn w0_is_the_first_door_and_no_lane_has_no_arm() {
-    let apart = read(&level(0.5), &dome());
-    assert!(
-        matches!(&apart, Section::Components { parts, .. } if parts.is_empty()),
-        "{apart:?}"
-    );
-    let unread = classify(
-        &level(-0.1),
-        &dome(),
-        Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: 1.0,
-        },
-        None,
-        band(),
-    );
+fn the_hull_is_the_first_door_and_no_lane_has_no_arm() {
+    let unlaned = |f: &Surface<f64>| {
+        classify(
+            f,
+            &dome(),
+            Reach {
+                centre: p(0.0, 0.0, 0.0),
+                radius: 1.0,
+            },
+            None,
+            band(),
+        )
+    };
+    for (what, apart) in [
+        ("through the lane", read(&level(0.6), &dome())),
+        ("with no lane", unlaned(&level(0.6))),
+    ] {
+        assert!(
+            matches!(&apart, Section::Components { parts, .. } if parts.is_empty()),
+            "{what}: {apart:?}"
+        );
+    }
+    let unread = unlaned(&level(-0.1));
     assert!(matches!(unread, Section::NoLane("f64")), "{unread:?}");
 }
 
