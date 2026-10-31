@@ -57,9 +57,9 @@ docs/DESIGN-FORK-PROTOCOL.md`, after a fetch).
 5. **Reconciliation.** When the designers disagree, the orchestrator
    may hand each the others' reports, and/or dispatch further designers to
    weigh them, until there is a clear recommendation or a clearly
-   stated split. A round in which designers cross (each moves to
-   another's previous position) does not end reconciliation: another
-   round follows, each shown the others' revised reports. The row
+   stated split. A round in which any designer moves to another's
+   previous position (a crossing) does not end reconciliation:
+   another round follows, each shown the others' revised reports. The row
    records each round: who was dispatched, what they were shown, and
    what moved; a further designer's model goes
    in the analysis-branch record, not the row, until Ev has decided.
