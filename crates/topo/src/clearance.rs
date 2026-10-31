@@ -2691,8 +2691,8 @@ fn full_latitude() -> (f64, f64) {
 ///   `(p − apex)·axis = v·cos α`, so `v` is an affine function of
 ///   position with no critical point on the carrier but the apex: it
 ///   takes the boundary's range of that projection over `cos α`, widened
-///   to the apex's `0` unless the face misses its apex
-///   ([`misses_apex`]): one that holds it may hold it inside. A window
+///   to the apex's `0` unless the boundary winds nowhere
+///   ([`winds_nowhere`]): a face may hold the apex inside. A window
 ///   symmetric about the apex would hold the mirror
 ///   nappe, and on it halving `u` never narrows the enclosure (each
 ///   azimuth's generator meets its opposite's), so no subdivision could
@@ -2769,8 +2769,18 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             half_angle,
             ..
         } => {
+            // `slant` encloses `v` over the boundary. The face's `v`
+            // peaks on its boundary or at the apex, so `slant` widened
+            // to `0` holds it, and `slant` alone does wherever it holds
+            // `0` already. It does when the apex is on the boundary,
+            // and when the boundary meets both nappes. Otherwise the
+            // boundary lies on one nappe, off the apex; were the apex
+            // inside the face, a small circle about it would be
+            // homologous, on the punctured nappe, to the whole boundary,
+            // which would wind once. So a boundary winding nowhere
+            // leaves the apex off the face, or `0` inside `slant`.
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            let v = if misses_apex(body, f, slant) {
+            let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
                 (slant.lo().min(0.0), slant.hi().max(0.0))
@@ -2805,24 +2815,16 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     })
 }
 
-/// **Whether a cone face misses its apex**, read off its boundary's
-/// slant enclosure `slant` and its loops' joint elements: the enclosure
-/// excludes `0`, and the elements of every joint of every loop compose
-/// to the identity, with no reset.
+/// **Whether a face's boundary winds nowhere**: the elements of all its
+/// joints, over every loop together, compose to the identity with no
+/// reset. A missing joint, a loop that does not close, or an outer loop
+/// with no edges reads as winding.
 ///
-/// The enclosure keeps the apex off the boundary, which then lies on one
-/// nappe. A reset is written at a joint on the apex ([`crate::joint`]);
-/// absent one, each loop's composed `u` is its winding about the axis,
-/// and the face's loops wind in total as its boundary does. A compact
-/// face holding the apex off its boundary holds it inside, and a small
-/// circle about it, on the punctured nappe, is homologous to the whole
-/// boundary: they wind alike, once. So a total of zero puts the apex off
-/// the face. A missing joint, a reset, or an outer loop with no edges
-/// reads as reaching it.
-fn misses_apex<T: Decide>(body: &Body<T>, f: &Face, slant: Interval) -> bool {
-    if !(slant.is_certified() && (slant.hi() < 0.0 || slant.lo() > 0.0)) {
-        return false;
-    }
+/// On a cone a reset is written at a joint on the apex
+/// ([`crate::joint`]); absent one, the composed `u` of the whole
+/// boundary is its winding about the axis. What a total of zero tells
+/// [`window_of`] is argued there.
+fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
     let mut elements = Vec::new();
     for (i, lk) in core::iter::once(f.outer)
         .chain(f.rings.iter().copied())
@@ -4089,17 +4091,18 @@ mod cone_window {
     /// `v` window ends at its rims' slants, short of the apex's `0`, and
     /// holds every point of the face. A cap bounded by its circle at
     /// `z = 1` holds the apex inside, though none of its boundary reaches
-    /// it: its window runs from the apex to its rim. Red if the decision
-    /// reads every face as reaching the apex, or none, or if the window
-    /// ends short of the wall's rims.
+    /// it: its window runs from the apex to its rim, and so it does with
+    /// any one of its joints missing. Red if the decision reads every
+    /// face as reaching the apex, or none, or reads past a missing joint,
+    /// or if the wall's window ends anywhere but at its rims.
     #[test]
     fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
         let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let w = window_of(&body, face, Which::First).unwrap();
         assert!(
-            w.v.0 > 0.0,
-            "the wall's window ends short of the apex: {:?}",
+            (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
+            "the wall's window ends at its rims, short of the apex: {:?}",
             w.v
         );
         for z in [0.5, 0.75, 1.0] {
@@ -4128,5 +4131,21 @@ mod cone_window {
             "the cap's window runs from the apex it holds to its rim: {:?}",
             w.v
         );
+        let cycle = body
+            .loop_lift(lp)
+            .unwrap()
+            .iter()
+            .map(|row| row.half_edge)
+            .collect::<Vec<_>>();
+        for he in cycle {
+            let (mut body, face) = cone_cap(1.0);
+            body.detach_joint(he);
+            let w = window_of(&body, face, Which::First).unwrap();
+            assert!(
+                w.v.0 <= 0.0,
+                "the cap missing its joint into {he:?} still reaches the apex: {:?}",
+                w.v
+            );
+        }
     }
 }

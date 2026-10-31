@@ -24,8 +24,10 @@ apex vertex on a cone face that reaches its apex, and merging its
 halves keeps the vertex and a seam, where the boundary's range takes
 the apex's `0`; booleans were not checked), but the
 construction API does: `clearance::cone_window`'s `cone_cap` fixture
-is one. `clearance::misses_apex` is the decision that tells the two
-apart (the boundary's slant enclosure excludes `0`, and the loops'
-joint elements compose to the identity with no reset); the fix is
-that reading here, widening to the apex where it fails, plus a row
-offsetting the cap.
+is one. `clearance::winds_nowhere` is the reading that tells the two
+apart (the joint elements of all the face's loops compose in total to
+the identity with no reset; the argument is at `window_of`'s cone
+arm); the fix is that reading here, widening to the apex where it
+fails, plus a row offsetting the cap. Moving that reading out of
+`clearance` to a shared home is
+`work/splitdoor/cone-axial-window-widens-a-seamed-frustum-to-its-apex.md`.
