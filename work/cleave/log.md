@@ -1820,3 +1820,13 @@ Signed (CLEAVE orchestrator).
   - One sampling reading: `census::points_on_surface`.
   - The foot door is band-guarded (`foot_off_locus`).
   - Both riders rows are closed in the PR. (CLEAVE orchestrator)
+- 2026-10-31 — PR 6170 reviewed (claims and style): nothing blocking.
+  - The claims lane widened the family to about 3,100 cells: 207 `PinchRaysInAFace` and 21 `Merge` cells move to sound builds, and nothing else moves.
+  - `tie_winding` is needed: `best_arc` alone refuses 6 steep wedge-beside cells where capture ranks both arcs Clean.
+  - The fix pass sent covers:
+    - no silent pick when the two ends' tie readings disagree;
+    - an enforced adjacency in `germ_order`;
+    - witnesses for both fixes;
+    - both union orders in the keel test;
+    - one row owning the remaining `PinchRaysInAFace` arms;
+    - the stale honeone row, and style. (CLEAVE orchestrator)
