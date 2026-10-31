@@ -8,7 +8,7 @@ priority: P1
 cost: M
 refs: [aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots]
 branch: flush/aimed-ray-reach
-pr: PRNUM
+pr: 6174
 ---
 
 **Live on main: a correct split is refused at its at-rest gate.**
