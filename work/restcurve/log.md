@@ -39,3 +39,6 @@
   - Dispatched PR 6097's fix pass.
   - My slip: a merge of main into the `[ev]` branch committed conflict markers (`b38160f`). It was resolved in `43b0347` before merge and reported on the PR.
 - 2026-10-31 — `[ev]` PR 6085 merged. Containment unit 2 (the region arm: (b) cycle sides through the doors, (c) open ends, (d) torus windings from the lift, (e) chart-singularity inside test, walk_loop retires, region::boundary through surface_cycles) specced and dispatched. Branch `restcurve/region-arm`; tier dual, concurrent (H). (a) the meeting arms stays its own P3.
+- 2026-10-31 — **PR 6097 merged** (the wrap-tip tier rules; closes this row and the riding incidence row).
+  - Review: single FULL, then one fix pass. F1: a tip is any valence-1 end, so the one-face ball passes. F3: `SizedPass::Zero` gives the undecided tip an ending that offers no tolerance. F4: a cylinder tip gets its own variant, and the dead plane arm is gone.
+  - Filed: F2 on TESSWALK; F5 on SPLITDOOR, a tip defect rather than a seam defect, per the probe; the not-owed gap here.
