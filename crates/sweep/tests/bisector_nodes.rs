@@ -631,12 +631,11 @@ fn the_near_node_poses_at_the_witness_band() {
 /// **A single cap just past the band builds as the parting leaves it**:
 /// A's or B's cap `δ = √(2·c·K·ε)` off the other rod's axis, `c` 1.1,
 /// 1.2 and 1.3, and `δ = 1e-4`. The cap's rim arcs from each pierce to
-/// the node lie about `δ²/2 = c·K·ε` off the other rod's wall at their
-/// middles and nearer it toward their ends, so some of their points
-/// read in band of the wall and their middles off it: the arc does not
-/// lie in the wall, and the parting leaves it alone (an in-band point
-/// beside a definite one decides nothing, and the wall's side is read
-/// at its carrier's foot). Every op, both orders and both poses, at
+/// the node lie within about `δ²/2 = c·K·ε` of the other rod's wall,
+/// in band of it, and the arc's two faces leave it on opposite sides of
+/// the wall: the parting's gate reads that as the arc not lying in the
+/// wall (`Crossed`), the wall's side read at its carrier's foot, and
+/// leaves it alone. Every op, both orders and both poses, at
 /// every ε: no cell refuses at the parting (`EdgeInFace`), and each
 /// that builds is at its closed form. At ε 1e-9 and 1e-6 every cell
 /// builds; at 1e-12 the merge refuses some, as it does without the

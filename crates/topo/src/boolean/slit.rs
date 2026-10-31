@@ -146,8 +146,10 @@ use crate::live::proven;
 /// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EdgeInFaceGap {
-    /// The face the edge lies in, or one of the edge's own faces, has no
-    /// normal at the edge's midpoint to read the side by.
+    /// The face the edge lies in has no normal at its carrier's foot of
+    /// the edge's midpoint, or one of the edge's own faces none at the
+    /// midpoint (a spline or approximating face, which this reading does
+    /// not read, among them), to read the side by.
     NoNormal,
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
@@ -236,8 +238,9 @@ impl EdgeInFaceGap {
     pub(super) const fn words(self) -> &'static str {
         match self {
             Self::NoNormal => {
-                "the face, or one of the edge's own faces, has no normal at the edge's midpoint \
-                 to read the side by"
+                "the face has no normal at its carrier's foot of the edge's midpoint, or one of \
+                 the edge's own faces none at the midpoint (a spline face among them), to read \
+                 the side by"
             }
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
@@ -1201,29 +1204,9 @@ fn carrier_on_surface<T: Decide>(
             t1,
         ],
     };
-    let mut in_band = None;
-    for &t in at {
-        let p = carrier.eval(t);
-        match crate::validate::decide(
-            site,
-            Margin::of(geom_brep::implicit_residual(surface, p)),
-            band,
-        ) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Ok(false),
-            Err(diag) => {
-                in_band.get_or_insert(diag);
-            }
-        }
-    }
-    match in_band {
-        None => Ok(true),
-        Some(diag) => Err(BooleanError::coincidence(
-            coincide,
-            DeclarationRead::Moot,
-            diag,
-        )),
-    }
+    let points: Vec<Point3<T>> = at.iter().map(|&t| carrier.eval(t)).collect();
+    crate::census::points_on_surface(surface, &points, site, band)
+        .map_err(|diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag))
 }
 
 /// Whether both faces of edge `e` leave its line on the material side of
@@ -1284,18 +1267,24 @@ fn walls_inside<T: Decide>(
         }
         Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
     };
-    let normal_at = |face: FaceKey| {
-        normal(crate::face_normal::face_outward_normal_at(
-            body, face, mid, band,
-        ))
-    };
+    // A face the point door reads no normal on (a spline or an
+    // approximating face, `Ok(None)`) is an input this reading does not
+    // read; a key that no longer resolves is the parting's own desync.
+    let normal_at =
+        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
+            Ok(None) if body.get_face(face).is_some() => Err(refused(EdgeInFaceGap::NoNormal)),
+            Ok(None) => Err(desync()),
+            read => normal(read),
+        };
     // The edge is read as lying on the floor's surface, or within the
     // band of it where `holding` asks whether that reading matters: the
     // floor's side is read at its carrier's foot of the midpoint, which
     // asks nothing of where the midpoint stands.
-    let floor = normal(crate::face_normal::face_outward_normal_at_foot(
-        body, f, mid, band,
-    ))?;
+    let floor = match crate::face_normal::face_outward_normal_at_foot(body, f, mid, band) {
+        Ok(Some(n)) => n.vec(),
+        Ok(None) => return Err(desync()),
+        Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
+    };
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?
             == super::sectors::FaceShape::Plane;
@@ -1331,61 +1320,51 @@ fn walls_inside<T: Decide>(
         {
             Sign::Negative => true,
             Sign::Positive => false,
-            // Tangent to a curved face along a straight line: the wall
-            // leaves the line along the face's tangent plane, and its
-            // sheet lies in the face's material where it bends off that
-            // plane further toward the material than the face does
+            // Tangent to the face along a straight line: the wall leaves
+            // the line along the face's tangent plane, and its sheet lies
+            // in the face's material where it bends off that plane
+            // further toward the material than the face does
             // ([`RIDER_WALL_BEND_ACROSS`]): the difference of the two
-            // normal sections' bends across the line, against the face's
-            // outward normal, is the second-order gap between the two
-            // sheets, `Δκ·s²/2` at arc length `s` off the line, read at
-            // the wall's reach, in metres. A wall going in, or bent as
-            // the face is, would part the edge on a curved face, which is
-            // neither meshed nor measured: it refuses `CurvedFace`. A wall
-            // bending away leaves the face's material alone.
-            Sign::Zero if !floor_flat => {
+            // normal sections' bends across the line ([`bend_across`], a
+            // plane's none), against the face's outward normal, is the
+            // second-order gap between the two sheets, `Δκ·s²/2` at arc
+            // length `s` off the line, read at the wall's reach, in
+            // metres. Bent alike, the two sheets are one to that order
+            // ([`coplanar_wall_inside`]). On a curved face a wall going
+            // in, or bent as the face is, would part the edge there,
+            // which is neither meshed nor measured: it refuses
+            // `CurvedFace`. A wall bending away leaves the face's material
+            // alone.
+            Sign::Zero => {
+                let unread = if floor_flat {
+                    EdgeInFaceGap::Tangent
+                } else {
+                    EdgeInFaceGap::CurvedFace
+                };
                 let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line { .. }) = (
                     bend_across(surface(wall)?, mid, tangent),
                     bend_across(surface(f)?, mid, tangent),
                     curve.carrier(),
                 ) else {
-                    return Err(refused(EdgeInFaceGap::CurvedFace));
+                    return Err(refused(unread));
                 };
                 let apart =
                     (floor_bend - wall_bend).dot(floor) * arm.powi(2) / (T::one() + T::one());
-                match crate::validate::decide(RIDER_WALL_BEND_ACROSS, Margin::of(apart), band)
-                    .map_err(sectors)?
-                {
+                let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, Margin::of(apart), band)
+                    .map_err(sectors)?;
+                match side {
                     Sign::Negative => false,
-                    Sign::Positive | Sign::Zero => return Err(refused(EdgeInFaceGap::CurvedFace)),
-                }
-            }
-            // Tangent to a plane face along the line: the side its sheet
-            // lies on is the side it bends to, toward its centre of
-            // curvature (`bool_rider_wall_bend`), in metres.
-            Sign::Zero => {
-                flat[k] = true;
-                let toward = match *surface(wall)? {
-                    geom::Surface::Cylinder { origin, axis, .. } => toward_axis(origin, axis, mid),
-                    geom::Surface::Cone { apex, axis, .. } => toward_axis(apex, axis, mid),
-                    geom::Surface::Sphere { center, .. } => center - mid,
-                    // A plane wall tangent along the line lies in the
-                    // floor's plane.
-                    geom::Surface::Plane { .. } => {
-                        inside[k] = coplanar()?;
-                        continue;
+                    Sign::Positive | Sign::Zero if !floor_flat => {
+                        return Err(refused(EdgeInFaceGap::CurvedFace));
                     }
-                    _ => return Err(refused(EdgeInFaceGap::Tangent)),
-                };
-                match crate::validate::decide_nonzero(
-                    "bool_rider_wall_bend",
-                    Margin::of(toward.dot(floor)),
-                    band,
-                )
-                .map_err(sectors)?
-                {
-                    geom_core::k_stats::NonzeroSign::Negative => true,
-                    geom_core::k_stats::NonzeroSign::Positive => false,
+                    Sign::Positive => {
+                        flat[k] = true;
+                        true
+                    }
+                    Sign::Zero => {
+                        flat[k] = true;
+                        coplanar()?
+                    }
                 }
             }
         };
@@ -1667,15 +1646,19 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> =
         faces.iter().map(|&f| (f, face_edges(body, f))).collect();
     // The face whose loops hold `cell`, which a refusal about it names.
-    let at_fault = |cell: Cell| {
-        loops
+    // The face whose loops hold `cell`, which a refusal about it names:
+    // the edge itself lies in all of them, and is named against the
+    // first.
+    let at_fault = |cell: Cell| match cell {
+        Cell::Edge(e) if e == edge => Some(face),
+        _ => loops
             .iter()
             .find(|(f, edges)| match cell {
                 Cell::Edge(g) => edges.contains(&g),
                 Cell::Vertex(v) => on_face_loops(body, *f, v),
                 Cell::Face(_) => false,
             })
-            .map_or(face, |&(f, _)| f)
+            .map(|&(f, _)| f),
     };
     let (carrier, span) = span_of(body, edge).ok_or_else(desync)?;
     let along = Span::new(&carrier, span);
@@ -1703,10 +1686,12 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         Crossed::Edge(g, _) => Cell::Edge(g),
         Crossed::Corner(v) => Cell::Vertex(v),
     };
-    let refused_at = |cell: Cell, gap| BooleanError::EdgeInFace {
-        edge,
-        face: at_fault(cell),
-        gap,
+    // A crossed edge, a crossing's corner or a resting vertex's edge
+    // outside every face's loops is a crossing read against no face:
+    // the division ran past its own reading.
+    let refused_at = |cell: Cell, gap| match at_fault(cell) {
+        Some(face) => BooleanError::EdgeInFace { edge, face, gap },
+        None => desync(),
     };
     for crossing in crossings {
         let slot = slot_from_far_end(

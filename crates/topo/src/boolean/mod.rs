@@ -288,7 +288,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_facing"
         | "bool_cone_apart"
         | "bool_rider_wall_side"
-        | "bool_rider_wall_bend"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
         | "bool_touch_sheets_part"
@@ -4431,9 +4430,6 @@ impl BooleanError {
                 operand,
                 face,
                 band,
-            },
-            NormalAtError::NoFoot => Self::ClassificationInvariant {
-                what: "the pierce door read a normal at a foot, which it does not ask",
             },
             // Decided and in band alike, as the sector walk's crease
             // refuses: the arm has no escalating half.

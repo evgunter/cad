@@ -34,36 +34,41 @@ the edge's midpoint, so it carries over.
 
 ## 2026-10-26 — read on cylinders, cones and quadrics (CLEAVE, `cleave/riders-read-every-edge-in-a-face`)
 
-- `slit::carrier_on_surface` (`crates/topo/src/boolean/slit.rs:1124`)
+- `slit::carrier_on_surface` (`crates/topo/src/boolean/slit.rs:1127`)
   reads a line on a cylinder or cone face through
   `census::line_on_quadric_carrier` (`crates/topo/src/census.rs:4133`,
   `bool_line_face_carrier_offset`, the one reading of a line on a
   quadric), and a conic on a sphere, cylinder or cone face at its ends,
   midpoint and quarter points (`bool_rider_on_curved`). Both read every
-  sample before answering: one definitely off decides "not on" beside
-  others in band. `slit::holding` (`slit.rs:982`) then reads the edge
+  sample before answering (`census::points_on_surface`, with unit rows
+  `points_on_surface_rows`): one definitely off decides "not on" beside
+  others in band. `slit::holding` (`slit.rs:985`) then reads the edge
   as on a plane face, by its records and crossings.
 - Where the edge lies in a curved face with both its faces going into
   the face's material, the parting refuses `EdgeInFace` (`CurvedFace`,
-  `slit::part_riders`, `slit.rs:415`): a slit or a zero-area ring in a
+  `slit::part_riders`, `slit.rs:418`): a slit or a zero-area ring in a
   curved face is neither meshed nor measured, the gate main's keel lane
   set (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`,
   which lists the rows this branch moves onto it and what each owes
   back). An arc refuses `Curved` before that, as on a plane face.
-- `walls_inside` (`slit.rs:1248`) reads the face's side at its
+- `walls_inside` (`slit.rs:1231`) reads the face's side at its
   carrier's foot of the edge's midpoint
-  (`face_normal::face_outward_normal_at_foot`, `face_normal.rs:389`:
-  the implicit gradient's direction, the carrier's normal at the foot
-  exactly, which asks nothing of where the midpoint stands). A wall
-  tangent to a curved face along a line is read second order
-  (`slit.rs:1346`, `bend_across` at `slit.rs:1449`, under
-  `bool_rider_wall_bend_across`, the gap `Δκ·s²/2` at the wall's reach
-  as `sectors.rs`'s crescent reads it): bending away from the face's
-  material it leaves the face alone, and going in, or bent as the face
-  is, it refuses `CurvedFace`. A rod seated in a bore along a ruling
-  (`pi_seam_and_kiss_through_the_boolean.rs`
+  (`face_normal::face_outward_normal_at_foot`, `face_normal.rs:424`:
+  on a cylinder, cone or sphere the implicit gradient's direction, the
+  carrier's normal at the foot exactly, which asks nothing of where the
+  midpoint stands; within the band of the carrier's axis, centre or a
+  cone's apex plane it refuses, `NoNormal` here). A wall tangent to the
+  face along a line is read at second order (`slit.rs:1338`,
+  `bend_across` at `slit.rs:1428`, under `bool_rider_wall_bend_across`,
+  the gap `Δκ·s²/2` at the wall's reach as `sectors.rs`'s crescent reads
+  it), one reading for a plane face and a curved one: bending away from
+  the face's material it leaves the face alone; on a curved face, going
+  in or bent as the face is, it refuses `CurvedFace`. A rod seated in a
+  bore along a ruling (`pi_seam_and_kiss_through_the_boolean.rs`
   `a_rod_in_a_bore_refuses_at_the_crossing_layer`) reads its wall
-  bending away from the bore's material and builds as on main.
+  bending away from the bore's material and builds as on main. The
+  census reads the same tangent wall as undecided
+  (`work/cleave/the-census-reads-a-wall-tangent-to-a-curved-face-as-undecided-where-the-parting-reads-its-bend.md`).
 - Moved from main's one edge (the rider form, which tiers 3 and 3′
   pass on a curved face, or 3′ refuses) to a typed refusal, each
   re-pinned: `CurvedFace` for the box corner edge resting in a pipe's
@@ -90,12 +95,13 @@ the edge's midpoint, so it carries over.
   (`walls_inside`, whose own errors `slit::holding` raises, but
   `Crossed`: faces leaving on opposite sides say the edge does not lie
   there), and a face only a crossing record names is not asked where
-  its reading is in band (`bisector_nodes`
-  `the_near_node_poses_at_the_witness_band` and
+  its reading is in band. The gate is what builds the bisector caps
+  (`bisector_nodes` `the_near_node_poses_at_the_witness_band` and
   `a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it`: a
   cap's rim arc `2δ` long about `δ²/2` off the other rod's wall, whose
   faces leave it on opposite sides, at δ = 1e-4 and
-  `δ = √(2·c·K·ε)`, c 1.1 to 1.3, building as on main).
+  `δ = √(2·c·K·ε)`, c 1.1 to 1.3, building at their closed forms,
+  where main `aed0b727c8` escalates the δ = 1e-4 pose).
 - Not read: an edge lying in a torus or spline face
   (`work/cleave/the-parting-reads-no-edge-lying-in-a-torus-or-spline-face.md`),
   and a closed edge

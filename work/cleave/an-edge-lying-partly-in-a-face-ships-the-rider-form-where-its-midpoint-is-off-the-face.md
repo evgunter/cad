@@ -59,31 +59,31 @@ an arc of the loops crossed is its `CrossedCurve` gap.
 
 ## 2026-10-26 — read by its crossings (CLEAVE, `cleave/riders-read-every-edge-in-a-face`)
 
-- `slit::riders` (`crates/topo/src/boolean/slit.rs:836`) asks a face
+- `slit::riders` (`crates/topo/src/boolean/slit.rs:839`) asks a face
   of an edge where both of the edge's ends lie on it (a vertex-on-edge
   record naming an edge of its loops counts as lying on it), an edge-on-face
   record names the pair, or a record names a crossing of the edge with
   the face's loops: an edge-edge record with an edge of them, or a
   vertex-on-edge record of a vertex of them (`crossed_faces`,
-  `slit.rs:925`).
-- `slit::holding` (`slit.rs:982`) reads the edge as lying in the face
+  `slit.rs:928`).
+- `slit::holding` (`slit.rs:985`) reads the edge as lying in the face
   where its carrier lies on the face's surface (`carrier_on_surface`,
-  `slit.rs:1124`) and an edge-on-face record names the pair, or the face
+  `slit.rs:1127`) and an edge-on-face record names the pair, or the face
   holds the midpoint of one of the pieces the recorded crossings cut it
-  into (`cuts`, `slit.rs:1058`). The edge's own midpoint decides
+  into (`cuts`, `slit.rs:1061`). The edge's own midpoint decides
   nothing. The edge is divided first unless both its ends lie on the
   face and no record names a crossing. A face on the surface one of
   the edge's own faces lies on is not asked: the edge bounds that sheet.
-- `slit::divide` (`slit.rs:1656`) reads each crossing through
+- `slit::divide` (`slit.rs:1635`) reads each crossing through
   `curve_pair::meet` for any certified carrier of the loops
-  (`crossing_named`, `slit.rs:1883`), so an arc of the loops is divided
+  (`crossing_named`, `slit.rs:1868`), so an arc of the loops is divided
   where the edge crosses it, once or twice per arc; the resting
   vertices on a crossed edge go to the piece holding them, ordered
-  along it (`slot_from_far_end`, `slit.rs:1959`). A meeting the reader
+  along it (`slot_from_far_end`, `slit.rs:1944`). A meeting the reader
   does not settle refuses `CrossedCurve`.
 - An edge lying partly in several faces (each holding a piece of it) is
   divided against all of them at once and each piece parted from the
-  face holding it (`slit::part_riders`, `slit.rs:342`); where one of
+  face holding it (`slit::part_riders`, `slit.rs:345`); where one of
   them holds it whole the parting refuses `Shared`. An arc lying in
   several faces refuses `Curved` before it is divided.
 - Witnesses, `sweep/tests/edges_lying_in_a_face_part_wherever_they_lie.rs`:

@@ -281,8 +281,11 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
 /// carrier's normal at the point of it nearest `p`, on the carrier or
 /// off it, wherever that point is one point; this door reads no
 /// residual, and a caller that needs `p` ON `s` certifies it. Where the
-/// foot is not one point (a cylinder's axis, a sphere's centre, a
-/// cone's axis, a torus's axis or core circle) the answer is poison.
+/// foot is not one point the answer is no normal of it: poison on a
+/// cylinder's axis, a sphere's centre, a cone's axis and a torus's axis
+/// or core circle, and on the plane through a cone's apex square to its
+/// axis, where the two nappes are equally near, one nappe's normal by
+/// the sign of zero. A caller reading a foot guards those loci itself.
 ///
 /// INVARIANT, enforced by the caller and not here: `sense` is a
 /// `Face::sense` the caller resolved, never a decided sign. A door that

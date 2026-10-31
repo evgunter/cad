@@ -151,8 +151,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
     }
 }
 
-/// Why [`face_outward_normal_at`] or [`face_outward_normal_at_foot`]
-/// could not answer.
+/// Why [`face_outward_normal_at`] could not answer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum NormalAtError {
     /// A margin landed in the band: the torus's own convention, or the
@@ -185,11 +184,6 @@ pub(crate) enum NormalAtError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// `p` stands where the carrier's nearest point is not one point (a
-    /// cylinder's axis, a sphere's centre, a torus's axis or core
-    /// circle), so the gradient there is no direction
-    /// ([`face_outward_normal_at_foot`] only).
-    NoFoot,
     /// A spline face's chart point lies within the band of a line its
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam): the face
@@ -404,9 +398,9 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 
 /// **The outward normal of a face's carrier at the foot of `p`**: at
 /// the point of the carrier nearest `p`, for a point on the carrier or
-/// off it. For the five implicit kinds the level sets of the implicit
-/// form are the carrier's parallel offsets, so the gradient's direction
-/// at `p` is the carrier's normal at `p`'s foot exactly
+/// off it. On a cylinder, a cone and a sphere the level sets of the
+/// implicit form are the carrier's parallel offsets, so the gradient's
+/// direction at `p` is the carrier's normal at `p`'s foot exactly
 /// ([`geom_brep::implicit_outward_normal`]), wherever that foot is one
 /// point. Nothing about `p` is certified, so it reads the side of a
 /// face at a point the caller places near it by a reading of its own
@@ -414,55 +408,65 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 /// it, [`crate::boolean`]'s parting). A plane answers as
 /// [`plane_outward_normal`].
 ///
+/// The foot is one point only off the carrier's degenerate locus, so a
+/// point within the band of it refuses, decided on the band as the
+/// cone's axis is ([`cone_axis_clearance`]): a cylinder's axis, a
+/// sphere's centre, a cone's axis, and the plane through a cone's apex
+/// square to its axis, where the two nappes are equally near
+/// (`bool_foot_off_locus`).
+///
 /// # Errors
 ///
-/// [`NormalAtError::AtConeApex`] where `p` stands within the band of a
-/// cone's axis, as at [`face_outward_normal_at`];
-/// [`NormalAtError::DegenerateTorus`] or [`NormalAtError::Escalated`]
-/// for a torus outside the ring convention; [`NormalAtError::NoFoot`]
-/// where the gradient at `p` is no direction (a cylinder's axis, a
-/// sphere's centre, a torus's axis or core circle). A spline or
-/// approximating carrier has no implicit form: `Ok(None)`, as a face
-/// key that no longer resolves.
+/// [`FootNormalError::NoFoot`] within the band of the locus;
+/// [`FootNormalError::Unread`] for a carrier this door reads no foot on
+/// (a torus, a spline, an approximating surface). A face key that no
+/// longer resolves is `Ok(None)`.
 pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
     let Some(f) = body.get_face(face) else {
         return Ok(None);
     };
+    let clear = |margin: Margin<T>| match decide("bool_foot_off_locus", margin, band) {
+        Ok(Sign::Positive | Sign::Negative) => Ok(()),
+        Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
+    };
     let surface = body.face_surface_linked(face, f);
-    match surface {
-        geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, *normal))),
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            ring_half(
-                TorusConvention::Tube,
-                geom::torus_tube(*minor_radius, band),
-                band,
-            )?;
-            ring_half(
-                TorusConvention::Ring,
-                geom::ring_torus(*major_radius, *minor_radius, band),
-                band,
-            )?;
+    match *surface {
+        geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            let q = p - origin;
+            clear(Margin::norm3(q - axis * q.dot(axis)))?;
         }
-        geom::Surface::Cone { apex, axis, .. } => cone_axis_clearance(*apex, *axis, p, band)?,
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } => {}
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return Ok(None),
+        geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
+        geom::Surface::Cone { apex, axis, .. } => {
+            cone_axis_clearance(apex, axis, p, band)
+                .map_err(|_| FootNormalError::NoFoot { band })?;
+            clear(Margin::of((p - apex).dot(axis)))?;
+        }
+        geom::Surface::Torus { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            return Err(FootNormalError::Unread);
+        }
     }
-    let n = geom_brep::implicit_outward_normal(surface, f.sense, p);
-    let v = n.vec();
-    if [v.x, v.y, v.z].into_iter().all(geom_core::is_finite_length) {
-        Ok(Some(n))
-    } else {
-        Err(NormalAtError::NoFoot)
-    }
+    Ok(Some(geom_brep::implicit_outward_normal(
+        surface, f.sense, p,
+    )))
+}
+
+/// Why [`face_outward_normal_at_foot`] could not answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum FootNormalError {
+    /// `p` stands within the band of the carrier's degenerate locus,
+    /// where its foot is not one point.
+    NoFoot {
+        /// The band the distance from the locus was classified against.
+        band: Band,
+    },
+    /// The carrier is one this door reads no foot on.
+    Unread,
 }
 
 /// A spline face's OUTWARD normal **at the chart point `uv` a point

@@ -16,7 +16,7 @@ The point of the line `origin + s·axis` (`axis` unit) nearest `p` is `origin + 
 
 - `crates/geom-brep/src/extent.rs:182` — `fn foot`, private, behind `Ball::foot_on`.
 - `crates/topo/src/boolean/join.rs:4075` — the cylinder×sphere germ frame's `foot` of the sphere's centre.
-- `crates/topo/src/boolean/slit.rs:1296` — `fn toward_axis`, the foot less the point, for the riders' bend across a ruling.
+- `crates/topo/src/boolean/slit.rs:1413` — `fn toward_axis`, the foot less the point, for the riders' bend across a ruling.
 - `crates/sweep/src/blend/arms.rs:925` — the rim's `on_axis` in the round support trace.
 
 Each is a one-line reading of an axis carrier, so they cannot drift far, but they are four spellings of one fact (D3, "One reading per question"), and the next caller writes a fifth. A route is a `pub` foot on the axis carriers' home in geom (`foot` lifted out of `extent.rs`, or a method on whichever axis type `[one-way.readings]` names), with the three other sites repointed.

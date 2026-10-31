@@ -22,9 +22,12 @@ and "B's cap" poses), in every op, both operand orders and both poses,
 and asserts the volume only. At ε = 1e-9, δ = 1e-4 and δ = 1.34e-4
 (`δ = √(2·c·Kε)` at c = 0.5 and 0.9), every `∪` cell and the
 capped-minus-full `∖` cells (12 of 24 per δ) build at the closed-form
-volume, and tier 3′ refuses each on its own contact records. Main and
-the branch agree cell for cell. The same cells at δ = 1e-8 and 1e-6
-fail 3′ too, where they build.
+volume, and tier 3′ refuses each on its own contact records. PR 5793
+builds them so, and so did its merge base `8f321f5436` cell for cell
+in the reviewer's scan; main `aed0b727c8` escalates at δ = 1e-4 instead
+(`work/tint/eighteen-sweep-slow-rows-are-red-on-main.md`), so main has
+no body there to read. The same cells at δ = 1e-8 and 1e-6 fail 3′ too,
+where they build.
 
 Witness: the reviewer's probe
 (`rev5793r_probe.rs`, `bisector_scan`, env `PROBE_BIS`, `BIS_D`), which
