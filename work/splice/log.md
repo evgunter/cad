@@ -1011,5 +1011,54 @@ APPROVE-WITH-FIXES. I read the fix pass myself.
   tangent at two points refuses.
 - The two SPLICECARRIER flush rows go back from P1 to P3: no live
   consumer remains.
+
+## 2026-10-30 — the curved lane reads a spline span (branch `splice/spline-span-curved-crossing`)
+
+- Closed `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`.
+  The curved lane now dispatches a spline span to the ring composite
+  against a cylinder, cone, sphere or torus. Two of the three owed
+  items are built: the chart frame is formed in certification
+  arithmetic, and an unsettled count goes through
+  `carrier_touch::off_face` on both lanes, which now reads a plane. The
+  third, the divisor's region, rests on a gradient premise that does
+  not hold, because the divisor is a factor of the form at each point.
+  A row now pins that.
+- Lily wall 8 re-pinned at 1e-9 and 1e-6 on `CurvedBooleanUnsupported
+  { operand: B, kind: Nurbs }` from the vertex-on-face pass. Filed
+  `a-vertex-piercing-a-spline-face-reads-no-outward-normal` (P1).
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note.** `[ev]` PR 6121 (SECTARMS's P0) proposes one section arm for a NURBS face against any implicit surface, `φ = f∘S` over the knot rectangle. It generalises the `(Plane, Nurbs)` arm PR 6026 is adding to `pair_section`, and it proposes building `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` as the plane instance of one pre-march regularity sweep, keeping the ratified home and order (fork row 223). Nothing is asked of 6026. If Ev approves, the W5 row's shape may move: please read 6121 before building W5.
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note on PR 6026.** SECTARMS's cylinder × cylinder unit (branch `sectarms/cylinder-pair-on-the-value`, stage 1) lands the component-with-ends type the approved designs share (forks 224 and 226): `ComponentShape::Open { ends }` carrying the rims reached per operand (`[ChartReach; 2]`, your shape), a cut end and node ids. It is meant to subsume 6026's `Open { reaches }`, so 6026's three construction sites and its W1′ reader become one-line rewrites. The unit also adds a region to `pair_section`'s inputs, where 6026 adds a march door (`pair_section_with`). One combined door struct would avoid two signature changes. Is that agreeable? If SPLICE prefers to land 6026 first, say so on SECTARMS's log and the unit will adopt 6026's shape instead.
+- 2026-10-31 — **The curved lane reads a spline span through the ring composite** (PR 6136, closing `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`). Review tier: single FULL. The span against a cylinder, cone, sphere or torus face was correctness-bearing: the divisor's lean, the far nappe, covers.
+  - **Review** (frozen at `f6058492`): APPROVE-WITH-FIXES, no MAJOR. Owed item (c), the divisor as a pointwise factor, holds on all four kinds. The reviewer's three rows are on `splice/review-6136` @ `3737cea9`, merged into the branch.
+  - **Adjudicated: fixed.**
+    - Three guarantees no row could red: the meter's direction, the covered touch deferred, an end on the unadmitted side.
+    - The `projected.rs` divisor docs, which stated the inequality backwards: now |f| ≤ d·divisor.
+    - Degenerate geometry (`CompositeRefusal::FaceDegenerate`), typed `InvalidInput`, not a kernel invariant.
+    - The tightened lily pin, traced at both ε.
+    - The stale parity-guard note and the vestigial binding.
+  - **Class: two copies of one policy had drifted** (Q1, sure). The nappe and trim policy now has one home (`place_crossing`): below the own nappe is `Unplaced`, the gap is `NappeGap` escalated located. The spline copy had sent the gap to the frontier. The composite refusal's typing also has one home (`composite_count`, `Counted`).
+  - **The lane's calls, taken:** `Counted` as an enum; `off_face`'s reach as `Reach { Bounded, Unbounded }`; the bounds-allowlist claim verified (10 → 11).
+  - **Filed:** `the-cone-nappe-gap-arm-has-no-reaching-row` (P3). Its arm has no reaching fixture: the root doors and the composite refuse first.
+  - **Weights** are positive by construction (`NurbsCurve3::new`), as the hull argument needs.
+  - **Lily wall 8's next stop:** `vtxfac::classify_vertex_on_face` (`a-vertex-piercing-a-spline-face-reads-no-outward-normal`, P1). It is being built on `splice/vertex-on-spline-face`, with the normal read at the sweep's own certified chart point. Its second-sheet question was ruled the placement read's gap and filed separately; no partial check is built.
+
+## 2026-10-31 — PR 6026 merges: the interior-loop guard reads a NURBS face against a plane
+
+Review tier: a concurrent pair (letter H: a new arm of the interior-loop
+guard), then one re-review. I read the final pass myself. The review-log
+row is `docs/dual-review-log/rows/PR-6026.md`.
+- **W1′ (a component reaching its chart's boundary clears)** is now
+  checked per face. A side clears only if its channel does not close and
+  it is not collapsed (`chart_side_bounds`). R1 had raised it as a MAJOR
+  by inspection; it is now closed.
+- **The witness's pad** is a certified bracket on the wall, inside the
+  branch's own tube window. It scales with ε and is tight (1–1.25× the
+  true distance).
+- **The pivot's f64 shift** is charged to the band.
+- **The demo-tour reds** at 1e-6 (chaintol) and 1e-12 (the stem's torus
+  KernelLimit) are identical at base and head, so they are not this PR's.
+
+Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
+SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
+general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
+6026's shapes.

@@ -22,9 +22,9 @@ use crate::session::{
 };
 use crate::theme::Theme;
 use crate::widgets::{
-    FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
-    free_move_gesture, length_picker, number_field, pick_unit, unit_field, value_field_ops,
-    value_gesture, vec3_row_ops,
+    FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker,
+    delete_button, free_move_gesture, length_picker, number_field, pick_unit, unit_field,
+    value_field_ops, value_gesture, vec3_row_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -177,36 +177,18 @@ impl ViewerBehavior<'_> {
         self.add_variable_ui(ui);
     }
 
-    /// **A feature's editing rows**: its slot rows — and, for a
-    /// profile, the add-profile form's own editor above them
-    /// ([`ViewerBehavior::edit_profile_ui`]).
-    ///
-    /// Under the editor the slot rows are FOLDED, not dropped: they are
-    /// the door for what the editor's number fields do not carry —
-    /// driving an argument by an expression, re-noting its unit,
-    /// probing its range. A profile the editor cannot hold (an argument
-    /// already driven) shows its refusal and the rows open.
+    /// **A feature's editing rows**: its slot rows — or, for a
+    /// profile, the add-profile form's own editor
+    /// ([`ViewerBehavior::edit_profile_ui`]), whose fields ARE its
+    /// slots' fields. Only a profile the editor cannot hold shows its
+    /// refusal and the slot rows instead.
     fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
         let profile = admits(self.session.committed_doc(), node, NodeKindWanted::Profile);
         if profile && self.edit_profile_ui(ui, node) {
-            egui::CollapsingHeader::new("arguments")
-                .id_salt(("profile_arguments", node.0))
-                .show(ui, |ui| {
-                    crate::widgets::message_toned(
-                        ui,
-                        "each argument as a slot: drive it by an expression, change the unit it \
-                         is written in, or probe its range — an edit here reloads the editor above",
-                        &self.theme,
-                        Tone::Advisory,
-                    );
-                    for group in groups {
-                        self.slot_group_ui(ui, node, group);
-                    }
-                });
-        } else {
-            for group in groups {
-                self.slot_group_ui(ui, node, group);
-            }
+            return;
+        }
+        for group in groups {
+            self.slot_group_ui(ui, node, group);
         }
     }
 
@@ -684,18 +666,13 @@ impl ViewerBehavior<'_> {
                 for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
                 }
-                ui.horizontal(|ui| {
-                    ui.weak("range");
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
-                        self.range_button(ui, node, row, axis.label());
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.weak("name");
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
-                        self.name_button(ui, node, row, axis.label());
-                    }
-                });
+                let tagged: Vec<(&SlotRow, &str)> = rows
+                    .iter()
+                    .zip(Axis3::ALL)
+                    .map(|(row, axis)| (row, axis.label()))
+                    .collect();
+                ui.horizontal(|ui| self.tagged_doors(ui, node, &tagged, SlotDoor::Range));
+                ui.horizontal(|ui| self.tagged_doors(ui, node, &tagged, SlotDoor::Name));
             }
         }
     }
@@ -745,6 +722,162 @@ impl ViewerBehavior<'_> {
             self.ops,
             self.notices,
         );
+    }
+
+    /// **One slot's field over a HELD number** — the slot row's value
+    /// field ([`Self::slot_value_ui`]: the same widget, the same text
+    /// door, the same echo rule) drawn over a number a draft holds, so
+    /// a template or a profile editor can give one argument the slot
+    /// row's doors without a second copy of them.
+    ///
+    /// What it holds is the draft's: a dragged or typed number writes
+    /// `held` (canonical) every frame it moves, which is what makes the
+    /// draft's preview follow the drag, and nothing reaches the
+    /// document until the draft commits. The number is shown and
+    /// authored in the unit the slot is written in, with `name` in the
+    /// field.
+    ///
+    /// **A slot an expression drives is locked**: the field shows the
+    /// expression's reading, a drag moves nothing, and a number typed
+    /// over it takes the slot row's own door (`SessionOp::SetSlot`,
+    /// which refuses it with the affordance).
+    ///
+    /// **Text is an expression, and it lands at once**
+    /// (`SessionOp::SetSlotExpression`, as at the slot row) — which
+    /// moves the program the draft was loaded from, and the draft
+    /// reloads. So it is taken only while the draft is `untouched`;
+    /// otherwise it is refused as news ([`HELD_EDITS_FIRST`]), the held
+    /// edits kept.
+    pub(crate) fn held_slot_field_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        row: &SlotRow,
+        name: &str,
+        held: &mut f64,
+        untouched: bool,
+    ) {
+        let draft = (self.drafts.expr_target == Some((node, row.slot)))
+            .then_some(self.drafts.expr_text.as_str());
+        let mut showing = slot_showing(row, draft, *self.notation);
+        showing.name = Some(name.to_owned());
+        let driven = row.driver.is_driven();
+        if !driven {
+            showing.number = props::shown_value(showing.writing.unit, *held);
+        }
+        let slot = row.slot;
+        let mut acts = Vec::new();
+        value_field_ops(
+            ui,
+            showing,
+            GestureVocabulary::held(
+                move |value| {
+                    if driven {
+                        HeldAct::Rest
+                    } else {
+                        HeldAct::Hold(value)
+                    }
+                },
+                HeldAct::Rest,
+            ),
+            FieldVocabulary {
+                number: move |value: SlotValue| {
+                    if driven {
+                        HeldAct::Op(Box::new(SessionOp::SetSlot { node, slot, value }))
+                    } else {
+                        HeldAct::Hold(value.as_f64())
+                    }
+                },
+                text: move |text| {
+                    if untouched {
+                        HeldAct::Op(Box::new(SessionOp::SetSlotExpression { node, slot, text }))
+                    } else {
+                        HeldAct::Refused
+                    }
+                },
+            },
+            &mut acts,
+            self.notices,
+        );
+        for act in acts {
+            match act {
+                HeldAct::Hold(value) => *held = value,
+                HeldAct::Op(op) => self.ops.push(*op),
+                HeldAct::Refused => self.notices.push(crate::frame::tool_news(
+                    &crate::tools::FormKind::EditProfile.refuses(&HELD_EDITS_FIRST),
+                )),
+                HeldAct::Rest => {}
+            }
+        }
+    }
+
+    /// **The doors under a row of held slot fields**
+    /// ([`Self::held_slot_field_ui`]), each tagged by its field's name:
+    /// one line of range probes and naming buttons
+    /// ([`Self::tagged_doors`], the vector group's), then each slot's
+    /// notes ([`Self::slot_notes_ui`]): its expression, its range
+    /// reading, its offer and its naming field.
+    ///
+    /// **Naming and offers wait on held edits**, as an expression does
+    /// ([`HELD_EDITS_FIRST`]): naming an argument's variable, or taking
+    /// an offer, makes the slot read a named variable, which moves the
+    /// program the draft was loaded from, and the draft would reload
+    /// over what it holds. While the draft is not `untouched` the name
+    /// buttons are not drawn and the notes leave out the offer.
+    pub(crate) fn held_slot_doors_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        rows: &[(SlotRow, String)],
+        untouched: bool,
+    ) {
+        let tagged: Vec<(&SlotRow, &str)> = rows
+            .iter()
+            .map(|(row, name)| (row, name.as_str()))
+            .collect();
+        ui.horizontal(|ui| {
+            self.tagged_doors(ui, node, &tagged, SlotDoor::Range);
+            if untouched
+                && rows
+                    .iter()
+                    .any(|(row, _)| self.unnamed(node, row).is_some())
+            {
+                self.tagged_doors(ui, node, &tagged, SlotDoor::Name);
+            }
+        });
+        for (row, _) in rows {
+            if untouched {
+                self.slot_notes_ui(ui, node, row);
+            } else {
+                self.slot_readings_ui(ui, node, row);
+            }
+        }
+    }
+
+    /// **One door per component, tagged**: `range` or `name`, then a
+    /// small button per row labelled by its tag — the line a vector's
+    /// group and a row of held fields both draw.
+    fn tagged_doors(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        rows: &[(&SlotRow, &str)],
+        door: SlotDoor,
+    ) {
+        match door {
+            SlotDoor::Range => {
+                ui.weak("range");
+                for (row, tag) in rows {
+                    self.range_button(ui, node, row, tag);
+                }
+            }
+            SlotDoor::Name => {
+                ui.weak("name");
+                for (row, tag) in rows {
+                    self.name_button(ui, node, row, tag);
+                }
+            }
+        }
     }
 
     /// The written-unit picker for a document variable's row.
@@ -918,9 +1051,17 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// What a slot has to SAY, under its row ([`slot_notes`]), with the
-    /// session's range reading when one has been taken for this field.
+    /// What a slot has to SAY, under its row ([`Self::slot_readings_ui`]),
+    /// then its offer and its naming field.
     pub(crate) fn slot_notes_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        self.slot_readings_ui(ui, node, row);
+        self.offer_ui(ui, node, row.slot);
+        self.name_field_ui(ui, node, row.slot);
+    }
+
+    /// The notes a slot says under its row ([`slot_notes`]), with the
+    /// session's range reading when one has been taken for this field.
+    fn slot_readings_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
         let target = BoundsTarget::Slot {
             node,
             slot: row.slot,
@@ -929,8 +1070,6 @@ impl ViewerBehavior<'_> {
         if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
             self.ops.push(SessionOp::Select(Selection::Variable(var)));
         }
-        self.offer_ui(ui, node, row.slot);
-        self.name_field_ui(ui, node, row.slot);
     }
 
     /// **The offer a typed value earns** (D10), under its row: each
@@ -992,13 +1131,9 @@ impl ViewerBehavior<'_> {
     /// proposes a name (Ev, PR 4247), and the document holds none until
     /// the person types one and commits it (VR2).
     fn name_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
-        let doc = self.session.committed_doc();
-        let Some(var) = doc.slot(node, row.slot) else {
+        let Some(var) = self.unnamed(node, row) else {
             return;
         };
-        if doc.var_name(var).is_some() || doc.var(var).is_none() {
-            return;
-        }
         if ui
             .add(egui::Button::new(label).small())
             .on_hover_text(NAME_HOVER)
@@ -1012,6 +1147,14 @@ impl ViewerBehavior<'_> {
                 text: String::new(),
             });
         }
+    }
+
+    /// The unnamed variable `row`'s slot reads, which its naming
+    /// button names — `None` where it reads a named one, or none.
+    fn unnamed(&self, node: RecipeNodeId, row: &SlotRow) -> Option<VarId> {
+        let doc = self.session.committed_doc();
+        let var = doc.slot(node, row.slot)?;
+        (doc.var_name(var).is_none() && doc.var(var).is_some()).then_some(var)
     }
 
     /// **The naming field**, under the row whose button opened it: the
@@ -1188,6 +1331,34 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// Why a held slot field refuses an expression while its draft holds
+/// edits ([`ViewerBehavior::held_slot_field_ui`]).
+pub(crate) const HELD_EDITS_FIRST: &str = "an expression lands in the document at once, and the \
+     editor reloads over the steps and numbers not yet applied — apply or revert them first";
+
+/// Which tagged door a line of them offers ([`ViewerBehavior::tagged_doors`]).
+#[derive(Clone, Copy, Debug)]
+enum SlotDoor {
+    /// The range probe.
+    Range,
+    /// The naming button.
+    Name,
+}
+
+/// What one gesture or keyboard edit of a held slot field does
+/// ([`ViewerBehavior::held_slot_field_ui`]).
+#[derive(Clone, Debug)]
+enum HeldAct {
+    /// The held number moves to this canonical value.
+    Hold(f64),
+    /// The slot row's own operation.
+    Op(Box<SessionOp>),
+    /// An expression typed over held edits ([`HELD_EDITS_FIRST`]).
+    Refused,
+    /// A gesture's press, release or Escape: nothing is opened to land.
+    Rest,
+}
+
 /// **A selected node's heading**: as the document holds it while it is
 /// present ([`crate::tree::node_label`]), and once it is deleted as the
 /// last document that held it spoke it (`DocSession::selection_said`),
@@ -1353,6 +1524,7 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         None => (None, None),
     };
     FieldShowing {
+        name: None,
         writing,
         dimension: row.dimension,
         number,
@@ -1367,6 +1539,7 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
 pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
+        name: None,
         writing,
         dimension: row.dimension,
         number: props::shown_value(writing.unit, row.value.as_f64()),
@@ -1383,6 +1556,7 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
 pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, None, notation);
     FieldShowing {
+        name: None,
         writing,
         dimension: row.dimension,
         number: props::shown_value(writing.unit, row.value.map_or(0.0, SlotValue::as_f64)),

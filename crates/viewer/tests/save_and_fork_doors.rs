@@ -373,6 +373,58 @@ fn a_save_over_a_file_holding_a_third_document_refuses_and_offers_no_fork() {
     std::fs::remove_dir_all(&dir).expect("removable");
 }
 
+/// **Two documents created under one name are two parts**: each
+/// `NewDocument` mints its own id, so the second, saved at the first's
+/// file, refuses that it would replace another document instead of
+/// resaving over it.
+#[test]
+fn a_second_new_document_of_one_name_refuses_to_save_over_the_first() {
+    let tol = Tol::witness();
+    let new_bracket = || {
+        let mut session = DocSession::inline(Doc::empty_derived("save-fork-name-start", tol), tol);
+        let created = session.perform(SessionOp::NewDocument {
+            name: "bracket".to_owned(),
+        });
+        assert!(created.refusal.is_none(), "{:?}", created.refusal);
+        session
+    };
+    let mut first = new_bracket();
+    let mut second = new_bracket();
+    let first_id = first.committed_doc().id();
+    assert_ne!(
+        first_id,
+        second.committed_doc().id(),
+        "one name, two identities"
+    );
+
+    let dir = common::tempdir("save-fork-one-name");
+    let file = dir.join("bracket.pncad");
+    let saved = first.perform(SessionOp::Save(file.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    common::box_in(&mut second, [0.04, 0.02, 0.01]);
+    let refusal = second
+        .perform(SessionOp::Save(file.clone()))
+        .refusal
+        .expect("refuses: bracket.pncad holds the first document");
+    assert!(
+        matches!(
+            refusal,
+            Refusal::Workspace(ref error)
+                if matches!(**error, WorkspaceError::SaveWouldReplaceDocument { id, .. } if id == first_id)
+        ),
+        "{refusal:?}"
+    );
+    assert_eq!(file_id(&file, tol), first_id, "the first document survives");
+    assert!(
+        docio::open(&file, tol)
+            .expect("the file opens")
+            .doc()
+            .is_empty(),
+        "and its content is the first's, not the second's box"
+    );
+    std::fs::remove_dir_all(&dir).expect("removable");
+}
+
 /// **A file still carrying a non-empty edit log opens** at its replayed
 /// state, with no undo.
 #[test]
