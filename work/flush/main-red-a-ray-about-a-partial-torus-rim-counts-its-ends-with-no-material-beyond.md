@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
 branch: flush/partial-torus-rim-ray
+pr: 6168
 ---
 
 
