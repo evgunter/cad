@@ -925,6 +925,8 @@ mod m9_3_wall_door;
 
 #[path = "a_boolean_on_a_pole_touching_octant.rs"]
 mod a_boolean_on_a_pole_touching_octant;
+#[path = "a_ringed_wall_divided_by_a_carried_chord.rs"]
+mod a_ringed_wall_divided_by_a_carried_chord;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
