@@ -1599,9 +1599,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner.place_pending(&mut red.a, (ea, ra))?;
         sb.joiner.place_pending(&mut red.b, (eb, rb))?;
+        let (a_tie, b_tie) = (
+            tie_winding(red, Operand::A, (ea, ra)),
+            tie_winding(red, Operand::B, (eb, rb)),
+        );
         let a_lane = choose_roles(
             (&red.a, Operand::A),
-            (ea, ra),
+            ((ea, ra), a_tie),
             &a_loose,
             seg_a,
             a_closure,
@@ -1610,7 +1614,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(
             (&red.b, Operand::B),
-            (eb, rb),
+            ((eb, rb), b_tie),
             &b_loose,
             seg_b,
             b_closure,
@@ -1819,10 +1823,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         };
         // The ring lane's order, wound with the curve.
         let a_roles = a_lane
-            .resolve((&red.a, Operand::A), (ea, ra), &a_loose, &curve_a, band)
+            .resolve(
+                (&red.a, Operand::A),
+                ((ea, ra), a_tie),
+                &a_loose,
+                &curve_a,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::A, (ea, ra), &a_loose))?;
         let b_roles = b_lane
-            .resolve((&red.b, Operand::B), (eb, rb), &b_loose, &curve_b, band)
+            .resolve(
+                (&red.b, Operand::B),
+                ((eb, rb), b_tie),
+                &b_loose,
+                &curve_b,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
         sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -4732,7 +4748,7 @@ fn loose_partners<T: Decide>(
 /// the runtime witness.
 fn choose_roles<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
-    (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+    ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
     segment: Option<EdgeKey>,
     closure: RingClosure<T>,
@@ -4856,7 +4872,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             let ccw = ring_run_ccw(
                 (body, operand),
                 face,
-                (ea, ra),
+                ((ea, ra), tie),
                 IslandClosing::Wall(section),
                 band,
             )?;
@@ -4908,7 +4924,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     fn resolve(
         self,
         (body, operand): (&Body<T>, Operand),
-        (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+        ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
         loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
         curve: &SegmentCurve<T>,
         band: Band,
@@ -4919,7 +4935,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
             RoleLane::CarriedRing { face } => (face, IslandClosing::Carried(curve)),
             RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
-        let ccw = ring_run_ccw((body, operand), face, (ea, ra), closing, band)?;
+        let ccw = ring_run_ccw((body, operand), face, ((ea, ra), tie), closing, band)?;
         ring_order(body, (ea, ra), loose, ccw)
     }
 }
@@ -4963,7 +4979,8 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). A spline run edge refuses first
+/// merges), unless the run walls off a tie's corner of no angle, which
+/// winds as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
 /// and `face`) on every closing but a carried chord's, whose path reads
 /// one where it is certified on the face
@@ -4984,7 +5001,7 @@ fn ring_order<T: Decide>(
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
     face: FaceKey,
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    ((h1, h2), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
     closing: IslandClosing<'_, T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -5004,7 +5021,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Quadric(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5015,7 +5032,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 closing.as_ref(),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Carried(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5026,7 +5043,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 (closing.as_ref(), curve.carried_arc()),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
@@ -5048,7 +5065,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 },
             })
         })?;
-    ring_winding_order(wound.map(|decided| decided.sign))
+    ring_winding_order(wound.map(|decided| decided.sign), tie)
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
@@ -5094,9 +5111,9 @@ fn run_spline_edge<T: Decide>(
 /// A degenerate ring-run winding ([`DEGENERATE_RING_WINDING`]) at a run
 /// of `side`'s from `h1` through `h2` that passes the point of a ring
 /// whose cones touch along a ray in its face
-/// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
-/// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
-/// naming that ring's face; one that passes the tip of a slit or ring
+/// ([`super::PierceRingRecord::ties`]) where neither end of the run faces
+/// a tied germ ([`tie_winding`]): the unbuilt shape, refused
+/// [`BooleanError::PinchRaysInAFace`] naming that ring's face; one that passes the tip of a slit or ring
 /// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
@@ -5136,7 +5153,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
     }
     red.pierce_rings
         .iter()
-        .filter(|r| r.tied && r.operand == side)
+        .filter(|r| !r.ties.is_empty() && r.operand == side)
         .find(|r| point(r.ring_vertex).is_some_and(|k| on_run.contains(&k)))
         .map(|r| BooleanError::PinchRaysInAFace {
             operand: side.other(),
@@ -5234,13 +5251,53 @@ fn glued_slit_roles<T: Decide>(
     }
 }
 
+/// **How a ring run that walls off a tie's corner of no angle winds**
+/// (`side`'s run `h1 → h2`, closed back to `h1` by its chord): where two
+/// cones touch along a ray in a face, each cone's section runs along that
+/// ray, and the ring places their two germs apart in an order
+/// ([`super::PierceRingRecord::ties`]), the first clockwise about the
+/// face's outward normal first. A chord along one of those germs that
+/// closes against the other's copy encloses no area; it runs back along
+/// that copy beside it, on the side the order puts it, so the run winds
+/// counterclockwise where the chord leaves `start(h1)` along the first
+/// germ, or reaches `end(h2)` along the second. `None` where neither end
+/// of the run faces a tied germ.
+fn tie_winding<T: geom_core::Real>(
+    red: &BooleanReduction<T>,
+    side: Operand,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Option<bool> {
+    let ties = || {
+        red.pierce_rings
+            .iter()
+            .filter(move |r| r.operand == side)
+            .flat_map(|r| &r.ties)
+    };
+    let at = |h: HalfEdgeKey, first: bool| {
+        ties().find_map(|&[a, b]| {
+            if h == a {
+                Some(first)
+            } else if h == b {
+                Some(!first)
+            } else {
+                None
+            }
+        })
+    };
+    at(h1, true).or_else(|| at(h2, false))
+}
+
 /// The ring lane's refusal of a run that encloses no area.
 const DEGENERATE_RING_WINDING: &str = "ring-run winding is degenerate (zero enclosed area)";
 
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
-/// kernel's too.
-fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<bool, BooleanError> {
+/// kernel's too, unless the run closes on a tie's corner of no angle,
+/// whose order `tie` reads ([`tie_winding`]).
+fn ring_winding_order(
+    wound: Result<Sign, geom_core::Indeterminate>,
+    tie: Option<bool>,
+) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
@@ -5249,7 +5306,7 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(desync(DEGENERATE_RING_WINDING)),
+        Sign::Zero => tie.ok_or(desync(DEGENERATE_RING_WINDING)),
     }
 }
 
@@ -6083,7 +6140,7 @@ mod self_check_rows {
         let err = super::ring_run_ccw(
             (body, super::super::Operand::A),
             prism.top_face,
-            (h1, h2),
+            ((h1, h2), None),
             up,
             b,
         )

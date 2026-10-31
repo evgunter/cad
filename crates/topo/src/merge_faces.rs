@@ -2285,7 +2285,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// it wears ([`Body::kept_description`]).
     ///
     /// A member lies in another's hole when that member's ring borders
-    /// it — a coplanar face plugging a hole of a group face. The
+    /// it — a coplanar face plugging a hole of a group face — or when it
+    /// shares an edge with a member in that hole, the plug being several
+    /// faces, of which the ring borders some. The
     /// absorption keeps the survivor and kills every other member with
     /// `kef` across a shared edge, after re-homing the dying face's
     /// rings onto the survivor; a survivor inside the dying face's ring
@@ -2309,8 +2311,20 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let group: BTreeSet<FaceKey> = core::iter::once(seed)
             .chain(members.iter().copied())
             .collect();
+        // Each member's neighbours in the group, across an edge.
+        let mut across: BTreeMap<FaceKey, BTreeSet<FaceKey>> = BTreeMap::new();
+        for (edge_key, edge) in self.edges() {
+            let (hp, hm) = self.edge_halves(edge_key, edge);
+            if hp.face != hm.face && group.contains(&hp.face) && group.contains(&hm.face) {
+                across.entry(hp.face).or_default().insert(hm.face);
+                across.entry(hm.face).or_default().insert(hp.face);
+            }
+        }
         let mut nested: BTreeSet<FaceKey> = BTreeSet::new();
         for &f in &group {
+            // The members `f`'s rings border, then every member they
+            // meet but `f`: a plug lies wholly in the hole.
+            let mut inside: Vec<FaceKey> = Vec::new();
             let face = proven(&self.faces, f, EntityId::Face);
             for &lk in &face.rings {
                 let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
@@ -2334,10 +2348,17 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     let facts =
                         self.half_edge_facts(claim.mate, EntityId::Edge(edge), claim.mate_field());
                     if facts.face != f && group.contains(&facts.face) {
-                        nested.insert(facts.face);
+                        inside.push(facts.face);
                     }
                 }
             }
+            let mut seen = BTreeSet::new();
+            while let Some(g) = inside.pop() {
+                if g != f && seen.insert(g) {
+                    inside.extend(across.get(&g).into_iter().flatten());
+                }
+            }
+            nested.extend(seen);
         }
         if !nested.contains(&seed) {
             return (seed, members);

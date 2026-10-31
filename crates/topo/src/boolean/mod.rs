@@ -2217,10 +2217,12 @@ pub struct PierceRingRecord {
     /// The piercing vertices the ring serves, in the other operand's
     /// clone keys.
     pub pierces: Vec<VertexKey>,
-    /// Whether two of those pierces' germs lie along one direction (two
+    /// Each two of those pierces' germs that lie along one direction (two
     /// cones touching along a ray in the face), an order the ring broke
-    /// by their chords (`vtxfac::germ_order`): a corner of no angle.
-    pub tied: bool,
+    /// by their chords (`vtxfac::germ_order`), leaving a corner of no
+    /// angle between them: the strut halves facing them, the germ first
+    /// clockwise about the face's outward normal first.
+    pub ties: Vec<[HalfEdgeKey; 2]>,
 }
 
 /// **Two pierces of one face decided one point** (`vtxfac::ring_groups`):

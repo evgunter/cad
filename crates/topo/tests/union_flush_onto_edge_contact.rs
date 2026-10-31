@@ -2305,11 +2305,12 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
 /// review r1): a cutter whose near face holds the whole pinch line, so at
 /// each end of the line the two bricks' pierces of that face share a
 /// germ along the line, and the ring orders the two by their chords
-/// (`vtxfac::tie_breaks_after`). With the face's normal at slopes 0.5
-/// (either side) and 2 the join cannot wind a run round the corner of no
-/// angle the tie leaves, and every op refuses typed `PinchRaysInAFace`,
-/// not as the kernel's defect. At slope −0.5 every op builds, passing 3′:
-/// the unions 33, `pinch ∖` and both `∩`s 1, `cutter ∖` 31.
+/// (`vtxfac::tie_breaks_after`). A join that closes the corner of no
+/// angle the tie leaves winds as that order places the two apart
+/// (`join::tie_winding`). With the face's normal at slopes 0.5 (either
+/// side), 2 and −0.5 every op builds, passing 3′: the face halves the
+/// pinch's point-symmetric pair, so the unions are 33, `pinch ∖` and
+/// both `∩`s 1, `cutter ∖` 31.
 #[test]
 fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
     let tol = Tol::witness();
@@ -2375,29 +2376,22 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
             ),
         ] {
             let pose = format!("slope={slope} side={side} {what}");
-            if slope < 0.0 {
-                let Ok(BooleanResult::Body(out)) = r else {
-                    panic!("{pose}: {r:?}")
-                };
-                let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-                    .expect("mass")
-                    .met()
-                    .expect("the pinned resolution is met")
-                    .volume;
-                let want = match what {
-                    "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,
-                    "cutter ∖ pinch" => 31.0,
-                    _ => 1.0,
-                };
-                assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
-                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
-                assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
-            } else {
-                assert!(
-                    matches!(r, Err(BooleanError::PinchRaysInAFace { .. })),
-                    "{pose}: {r:?}"
-                );
-            }
+            let Ok(BooleanResult::Body(out)) = r else {
+                panic!("{pose}: {r:?}")
+            };
+            let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+                .expect("mass")
+                .met()
+                .expect("the pinned resolution is met")
+                .volume;
+            let want = match what {
+                "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,
+                "cutter ∖ pinch" => 31.0,
+                _ => 1.0,
+            };
+            assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
+            let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+            assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
         }
     }
 }
