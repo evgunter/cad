@@ -16,10 +16,12 @@
 //! ([`sphere_poles`]) and a cone's apex, from the chart's own frame.
 //!
 //! **On the boundary.** A point is at a vertex of the face where its
-//! distance to the vertex's stored point decides zero, and inside an
-//! edge where its distance to the edge's nearest interior point does,
-//! both at the caller's band and each decided once
-//! ([`on_boundary`], `chart_singularity_on_boundary`); a distance the
+//! distance to the vertex's stored point decides zero
+//! ([`vertex_at_singular_point`], the one reading of that incidence,
+//! which the loop walk's reset joint reads too), and inside an edge where
+//! its distance to the edge's nearest interior point does
+//! ([`on_boundary`]), both at the caller's band and each decided once; a
+//! distance the
 //! band cannot call is undecided and carries its margin
 //! ([`Unread::Boundary`]). Lines and circles are read in closed form
 //! ([`foot`]); any other carrier by samples refined against its
@@ -71,6 +73,18 @@ pub const ON_BOUNDARY: SizedDecision = SizedDecision {
     lever: "move the face's boundary, or its vertex, onto that point or clear of it",
     size: "distance",
     passes: SizedPass::AnySign,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
+/// **Whether a wrap edge's tip lies on its face's chart singularity**,
+/// a sized decision passing zero alone: the tip has to sit on the pole
+/// or the apex, so no tolerance keeps it a nonzero distance off, and
+/// the one ending of every refusal of it is the lever.
+pub const WRAP_TIP: SizedDecision = SizedDecision {
+    lever: "move the wrap edge's tip onto its face's pole or apex",
+    size: "distance",
+    passes: SizedPass::Zero,
     side: RefusedSide::Lever,
     no_size: None,
 };
@@ -300,17 +314,39 @@ pub struct Located<T: Real> {
     pub lies: Result<Lies<T>, Unread<T>>,
 }
 
-/// **Whether a distance `d` from a singular point to a vertex or edge
-/// puts it on that feature**, at `band` (`chart_singularity_on_boundary`,
-/// [`ON_BOUNDARY`]): on it where `d` decides zero, off it where it
-/// decides clear. The one site every on-or-off decision of [`locate`]
-/// is taken at, once per distance.
+/// **Whether a distance `d` from a singular point to an edge's nearest
+/// interior point puts it on that edge**, at `band`
+/// (`chart_singularity_on_boundary`, [`ON_BOUNDARY`]): on it where `d`
+/// decides zero, off it where it decides clear. The one site every
+/// inside-an-edge decision of [`locate`] is taken at, once per distance.
 ///
 /// # Errors
 ///
 /// The escalation of a distance in the band.
 pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
     decide("chart_singularity_on_boundary", Margin::of(d), band).map(|s| s == Sign::Zero)
+}
+
+/// **Whether the vertex whose stored point is `vertex` lies on the
+/// singular point `point`** of its chart, at the caller's `band`
+/// (`chart_singularity_at_vertex`, [`ON_BOUNDARY`]): their 3-D distance
+/// decided zero. The one reading of that incidence. [`locate`] places a
+/// singular point at a face's vertex by it, and the loop walk resets a
+/// joint's first channel at a vertex it reads on (`topo::pcurves`,
+/// `singular_at`), which is also where tier 3 reads a wrap edge's tip.
+/// So a reset joint and a point [`Lies::AtVertex`] cannot disagree on one
+/// vertex at one band.
+///
+/// # Errors
+///
+/// The escalation of a distance in the band.
+pub fn vertex_at_singular_point<T: Decide>(
+    vertex: Point3<T>,
+    point: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let d = (vertex - point).norm();
+    decide("chart_singularity_at_vertex", Margin::of(d), band).map(|s| s == Sign::Zero)
 }
 
 /// **Every singular point of `surface` against the face** whose loops
@@ -380,7 +416,7 @@ fn locate_one<T: Decide>(
         })
         .reduce(|a, b| if below(b.2, a.2) { b } else { a });
     if let Some((l, k, distance)) = nearest {
-        match on_boundary(distance, band) {
+        match vertex_at_singular_point(loops[l].corners[k], x, band) {
             Ok(true) => return Ok(Lies::AtVertex { r#loop: l, edge: k }),
             Ok(false) => {}
             Err(cause) => return Err(Unread::Boundary { cause, distance }),
