@@ -259,9 +259,9 @@ prefix `sectarms/`; tag `(SECTARMS orchestrator)`.
 |---|---|---|---|---|---|---|---|
 | P0 | `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | issue | H | open | A NURBS face against a cone or sphere face has no C5 section arm, and no boolean reads a rung-3 section, so klein wall 3 and teapot wall 3 cannot join |  |  |
 | P1 | `a-nurbs-face-against-a-torus-has-no-section-arm` | issue | H | open | A NURBS face against a torus face has no C5 section arm, so lily wall 8 (the leaf grown out of the stem) cannot join once its spline seams cross |  |  |
-| P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | issue | H +design | open | A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame names its section |  |  |
+| P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | issue | H | open | A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame names its section |  |  |
 | P1 | `conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter` | issue | H | open | The conic germ pairs still on the frame lane rank partners by the frame's turn, not the section value's foot parameter |  |  |
-| P1 | `skew-cylinder-germ-pair-has-no-section-frame` | issue | H +design | open | Two cylinder walls with skew axes, or coplanar axes and unequal radii, refuse GermFrameUnsupported: cylinder x cylinder is not on the section value |  |  |
+| P1 | `skew-cylinder-germ-pair-has-no-section-frame` | issue | H | open | Two cylinder walls with skew axes, or coplanar axes and unequal radii, refuse GermFrameUnsupported: cylinder x cylinder is not on the section value |  |  |
 | P3 | `the-splits-walk-decides-off-conic-sites-the-band-cannot-order` | issue | M | open | The split's conic walk decides an order for off-conic sites the band cannot order, and refuses it as NotAlternating |  |  |
 
 ## `kernel/geom/numeric/frame` — FRAME — who answers "give me a frame", and by what rule
