@@ -3482,6 +3482,54 @@ fn workspace_save_at_refuses_a_second_file_for_one_identity() {
     assert_eq!(reopened.documents().get(&doc.id()), Some(&original));
 }
 
+/// A save at a file that holds ANOTHER document refuses typed, before
+/// any write: the write would delete that part from the store. The
+/// store's map and the directory are as they were, and a fork aimed
+/// at the original's own file refuses the same way.
+#[test]
+fn workspace_save_at_refuses_to_replace_another_document() {
+    let dir = WsDir::new("save-replace");
+    let (held, text) = ws_doc("ws-save-replace-held");
+    let held_path = dir.write("held.pncad", &text);
+    let (doc, _) = ws_doc("ws-save-replace-incoming");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let refused = ws.save_at(&doc, "held.pncad", Tol::witness());
+    match &refused {
+        Err(pncad::workspace::WorkspaceError::SaveWouldReplaceDocument { id, path }) => {
+            assert_eq!(
+                *id,
+                held.id(),
+                "the refusal names the document the file holds"
+            );
+            assert_eq!(path, &held_path);
+        }
+        other => panic!("expected SaveWouldReplaceDocument, got {other:?}"),
+    }
+    let said = refused.expect_err("refused").to_string();
+    assert!(
+        said.contains(pncad::workspace::SAVE_WOULD_REPLACE_RECOURSE),
+        "the sentence ends on its recourse: {said}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&held_path).expect("the held file reads"),
+        text,
+        "nothing was written"
+    );
+    assert_eq!(ws.documents().len(), 1);
+    assert!(ws.documents().get(&doc.id()).is_none());
+
+    // The fork goes through the same door, so it cannot replace the
+    // file it forks from either.
+    assert!(matches!(
+        ws.save_as_new_document(&held, "held.pncad", Tol::witness()),
+        Err(pncad::workspace::WorkspaceError::SaveWouldReplaceDocument { .. })
+    ));
+    assert_eq!(ws_listing(&dir), vec!["held.pncad".to_string()]);
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents().get(&held.id()), Some(&held_path));
+}
+
 /// A save at the id's OWN scanned path is a resave: the file keeps its
 /// name, the identity does not move and the content does.
 #[test]
@@ -3583,10 +3631,10 @@ fn workspace_save_as_new_document_mints_a_fresh_identity() {
     let inbound = pncad::document::DocRef { id: doc.id(), pin };
 
     let (new_id, new_path) = ws
-        .save_as_new_document(&doc, Tol::witness())
+        .save_as_new_document(&doc, "copy.pncad", Tol::witness())
         .expect("the fork writes");
     assert_ne!(new_id, doc.id(), "a fork is a new part");
-    assert_eq!(new_path, dir.0.join(format!("{new_id}.pncad")));
+    assert_eq!(new_path, dir.0.join("copy.pncad"), "at the caller's name");
 
     // The original is untouched, so the inbound reference still names
     // it — which is what a fork MEANS.

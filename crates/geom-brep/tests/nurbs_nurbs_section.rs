@@ -104,7 +104,7 @@ fn two_bilinear_patches_cross_at_their_closed_form() {
         off <= 2.0 * eps(),
         "the carrier is {off:e} m off the closed form"
     );
-    let BranchEnd::Crossings { from, to } = at.end else {
+    let BranchEnd::Rim { from, to } = at.end else {
         panic!("an open branch between crossings, got {:?}", at.end);
     };
     for p in [from, to] {

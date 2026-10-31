@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-31
 priority: P1
 cost: H
-design: true
 ---
 
 
@@ -47,3 +46,36 @@ The candidate answers:
   changes C3.
 
 The cylinder unit's stage 1 lands without it: its refusals are typed.
+
+## Decided (2026-10-31, Ev on `[ev]` PR 6137; fork row 227)
+
+A pair with a ruled side (a cylinder or cone against a plane, cylinder,
+cone or sphere) reads its pose on the ruling sweep. The sweep is a
+certified 1-D pass over the ruling angle; each ruling meets the partner
+at a closed-form quadratic's roots. It does four jobs:
+- it decides the tangency;
+- it counts the components;
+- it gives the cut ends where each component crosses the domain the
+  march ends at, plus a witness on each interior component;
+- it seeds the march.
+
+**Exhaustiveness closes by the count.** The certified branches are
+matched one to one to the cut ends and witnesses; anything else is a
+desync. No 3-D accounting sweep runs for these pairs.
+
+**A 1-D coverage of the ruling angle is a `debug_assert`** (DESIGN's
+error taxonomy, row 5): every cell's meetings lie outside the domain or
+inside a found tube. Ev: "in production we don't want to waste time
+double checking things".
+
+**Build items:**
+- one ruling-sweep module, shared with the cone pose;
+- one-to-one end matching in `carry`'s desync check;
+- the march ends at the region's ball, not the caller's cube;
+- seeds come from the sweep;
+- the tube ladder stays at the region's scale;
+- the orchestrator's earlier "count only when the pose's ball lies
+  inside the region" ruling is retired.
+
+This row closes when the cylinder unit's stage that builds the sweep
+lands.
