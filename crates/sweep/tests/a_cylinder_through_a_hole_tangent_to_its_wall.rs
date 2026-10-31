@@ -26,11 +26,10 @@
 //! (`boolean::sectors`'s `closed_on_partner`).
 //!
 //! With the cylinder's vertex alone at the ruling, its wrap edge lies
-//! along the hole's wall from the top face to the bottom, an edge lying
-//! in a curved face the boolean's parting does not read yet: the op that
-//! keeps both walls refuses `EdgeInFace` there
-//! (`work/cleave/a-boolean-edge-lying-in-a-curved-face-is-not-read.md`)
-//! or builds sound.
+//! along the hole's wall from the top face to the bottom: the op that
+//! keeps both walls would part the hole's wall along it, and refuses
+//! `EdgeInFace` with the `CurvedFace` gap, a slit in a curved face that
+//! the chart walk does not mesh nor the curved mass properties measure.
 //!
 //! Every op runs in both operand orders, each run read through
 //! `differential::outcome` (tiers 2 and 3′, the certificate, the legal
@@ -116,19 +115,28 @@ enum Vertices {
 }
 
 /// One run's verdict: a body `SOUND` at its closed form that passes
-/// tier 3, or, where `edge_in_face` admits it, the typed
-/// refusal of the cylinder's wrap edge lying along the hole's wall.
-fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, edge_in_face: bool) {
-    match &r {
-        Err(BooleanError::EdgeInFace {
-            gap: topo::EdgeInFaceGap::CurvedFace,
-            ..
-        }) if edge_in_face => return,
-        Ok(BooleanResult::Body(b)) => {
-            topo::validate_geometric(&b.body, tol())
-                .unwrap_or_else(|e| panic!("{row}: tier 3: {e:?}"));
-        }
-        _ => {}
+/// tier 3, or, where `slit` says so, the typed refusal of the cylinder's
+/// wrap edge lying along the hole's wall.
+// Pinned red: the `CurvedFace` gap retires when the walk meshes a slit
+// in a curved face (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)
+// and its mass properties measure one
+// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, slit: bool) {
+    if slit {
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::EdgeInFace {
+                    gap: topo::EdgeInFaceGap::CurvedFace,
+                    ..
+                })
+            ),
+            "{row}: {r:?}"
+        );
+        return;
+    }
+    if let Ok(BooleanResult::Body(b)) = &r {
+        topo::validate_geometric(&b.body, tol()).unwrap_or_else(|e| panic!("{row}: tier 3: {e:?}"));
     }
     let line = outcome(r, want, tol());
     assert!(line.starts_with("OK SOUND"), "{row}: {line}");
@@ -165,16 +173,16 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
     for (op, r, want) in every_op_both_orders(&cylinder, &plate, (va, vb, vab), tol()) {
         // The op that keeps the cylinder's wall along the hole's.
         let both_walls = matches!((inside, op), (false, "B ∖ A") | (true, "A ∩ B" | "B ∩ A"));
-        let edge_in_face = both_walls && matches!(vertices, Vertices::CylindersAlone);
-        holds(&format!("{what}: {op}"), r, want, edge_in_face);
+        let slit = both_walls && matches!(vertices, Vertices::CylindersAlone);
+        holds(&format!("{what}: {op}"), r, want, slit);
     }
 }
 
 /// **By pose, at rest**: holes `r = 0.1` and `0.15`, outside the wall
 /// and inside it, both vertices on the ruling, the cylinder's alone, and
-/// the two-arc form. Each op builds at its closed form; with the
-/// cylinder's vertex alone there, the op keeping both walls may refuse
-/// that the wrap edge lies along the hole's wall.
+/// the two-arc form. Each op builds at its closed form, but, with the
+/// cylinder's vertex alone there, the op keeping both walls, which
+/// refuses the slit its wrap edge would leave in the hole's wall.
 #[test]
 fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
     let rest = Affine3::identity();
