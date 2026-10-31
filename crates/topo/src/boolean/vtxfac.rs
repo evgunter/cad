@@ -775,6 +775,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     branch: Option<super::Branch>,
+    chart: Option<(f64, f64)>,
     tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
@@ -808,25 +809,33 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // algebra, which needs an ORIGIN as well as a direction; the
     // curved lane refuses there rather than building one (below).
     let plane = face_plane(pierced_body, contact.face);
+    let unbuilt = || BooleanError::CurvedBooleanUnsupported {
+        operand: pierced_op,
+        face: contact.face,
+        kind: pierced_kind,
+    };
+    let refused = |refusal| BooleanError::of_pierced_normal(refusal, pierced_op, contact.face);
     let n_pierced =
         match crate::face_normal::face_outward_normal_at(pierced_body, contact.face, p, band) {
             Ok(Some(n)) => n,
-            // NURBS / `Approx` pierced faces: the C5 typed refusal,
-            // naming the kind that has no arm.
+            // A spline face, read at the chart point the sweep placed the
+            // pierce at (`chart`); one it placed at none refuses C5's
+            // typed refusal, naming the kind. That `p` has no second foot
+            // on another in-trim sheet within the band is the placement's
+            // claim (`work/spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
-                return Err(BooleanError::CurvedBooleanUnsupported {
-                    operand: pierced_op,
-                    face: contact.face,
-                    kind: pierced_kind,
-                });
-            }
-            Err(refusal) => {
-                return Err(BooleanError::of_pierced_normal(
-                    refusal,
-                    pierced_op,
+                let uv = chart.ok_or_else(unbuilt)?;
+                crate::face_normal::spline_outward_normal_at(
+                    pierced_body,
                     contact.face,
-                ));
+                    uv,
+                    p,
+                    band,
+                )
+                .map_err(refused)?
+                .ok_or_else(unbuilt)?
             }
+            Err(refusal) => return Err(refused(refusal)),
         };
     // The pierced face's smallest radius of curvature within each
     // bound's reach — the lever the sector side verdicts charge their
@@ -835,10 +844,25 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // and on a cone the bend tightens toward the axis. A plane reports
     // `f64::MAX`, so its charge is vacuous and the planar lane's
     // verdicts are unmoved.
-    let pierced_lever = PierceLever::of(pierced_surface, p);
     let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
     let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
     let n = sectors.len();
+    // A spline face's lever is its chart's certified arm over the
+    // sectors' farthest reach: where none is read (a cell the patch
+    // bound refuses, a crease within the reach, a dual), the face has no
+    // bend to charge and refuses as a kind with no arm.
+    let pierced_lever = match pierced_surface.spline_chart() {
+        None => PierceLever::of(pierced_surface, p),
+        Some(chart) => {
+            let reach = sectors.iter().map(BoolSector::span).reduce(T::max).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "a pierce has no sector",
+                },
+            )?;
+            let arm = T::spline_chart_arm(chart, p, reach).ok_or_else(unbuilt)?;
+            PierceLever::Within(T::from_f64(arm))
+        }
+    };
 
     // Entries = the bounds in orbit order (entry k = sector k's END
     // bound: real chord or subdivision bisector), classed against the
@@ -4321,6 +4345,7 @@ mod tests {
                 &super::super::ReductionContacts::default(),
                 None,
                 None,
+                None,
                 &crate::sector_shape::SlitTips::default(),
                 band,
             )
@@ -4380,3 +4405,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "vtxfac_spline_rows.rs"]
+mod vtxfac_spline_rows;

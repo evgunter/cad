@@ -946,6 +946,10 @@ pub(super) enum PierceLever<T: geom_core::Real> {
     Everywhere(T),
     /// A cone's `ρ` at the pierce point.
     ConeAt(T),
+    /// A bound on every bend within this radius of the pierce point (a
+    /// spline chart's certified arm, [`geom_brep::NurbsLane::chart_arm`]),
+    /// which no charge reads past: it reads at most half its lever.
+    Within(T),
 }
 
 impl<T: Decide> PierceLever<T> {
@@ -961,7 +965,7 @@ impl<T: Decide> PierceLever<T> {
     /// The lever for a bound reaching `reach` from the pierce point.
     pub(super) fn within(self, reach: T) -> T {
         match self {
-            Self::Everywhere(lever) => lever,
+            Self::Everywhere(lever) | Self::Within(lever) => lever,
             Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
         }
     }

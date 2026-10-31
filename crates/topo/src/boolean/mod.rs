@@ -2953,8 +2953,9 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// A vertex the sector walk reads sits within the band of a crease
-    /// or an irregular point of a spline face of `operand`: a line its
+    /// A vertex the sector walk reads, or a point the pierce pass reads a
+    /// pierced face's normal at, sits within the band of a crease or an
+    /// irregular point of a spline face of `operand`: a line its
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam), where
     /// the face has a normal on each side and the sector's side of the
@@ -2966,7 +2967,8 @@ pub enum BooleanError {
     /// No operand the boolean builds today reaches it: a crossing on a
     /// spline edge's own crease refuses first, at the crossing rung, and
     /// an at-rest body carries no pole. `sectors`' `spline_refusal_rows`
-    /// pins the mapping on the shared walk's fixture.
+    /// pins the mapping on the shared walk's fixture, and `vtxfac`'s
+    /// spline pierce rows on the pierce's.
     NormalAtSplineCrease {
         /// The operand the spline face belongs to.
         operand: Operand,
@@ -4482,6 +4484,13 @@ impl BooleanError {
                 face,
                 band,
             },
+            NormalAtError::SplineCrease { band } | NormalAtError::SplineIrregular { band } => {
+                Self::NormalAtSplineCrease {
+                    operand,
+                    face,
+                    band,
+                }
+            }
         }
     }
 
@@ -5966,6 +5975,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
     }
+    let charts = acc.take_charts();
     let (mut contacts, mut pending) = acc.finish();
     let mut glued = Vec::with_capacity(declared.verified.touches.len());
     for touch in &declared.verified.touches {
@@ -6023,6 +6033,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 branches.get(&(operand, c.vertex)).copied(),
+                charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
             ) {
@@ -6060,6 +6071,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
                             branches.get(&(operand, c.vertex)).copied(),
+                            charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,
                         ) {

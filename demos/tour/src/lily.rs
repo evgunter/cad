@@ -159,7 +159,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, EulerOpError, Operand,
+    PairRefusalSite, SiteRowRefusal,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2454,13 +2455,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //
     //    The union's sweep reads the leaf's spline seams against the
     //    tube's torus wall through the curve × face table's ring
-    //    composite, and gets past them. What refuses next is the
-    //    vertex-on-face pass: a vertex of the stem, operand A, pierces
-    //    a NURBS wall of the leaf, and the pass needs the pierced face's
-    //    outward normal at the point, which a spline face does not give
-    //    (`face_normal::face_outward_normal_at` answers none), at 1e-9 and
-    //    1e-6 alike
-    //    (`work/splice/a-vertex-piercing-a-spline-face-reads-no-outward-normal`).
+    //    composite, and gets past them. A vertex of the stem, operand A,
+    //    pierces a NURBS wall of the leaf, and the vertex-on-face pass
+    //    reads the wall's outward normal at the chart point the sweep
+    //    placed the pierce at. The pierce crosses the wall, so the pass
+    //    mints its ring there, and that refuses: the ring vertex's chord
+    //    strut is a new edge in a complete spline face, whose row the
+    //    Euler operators cannot derive (`PcurveMint { SplineChart }`), at
+    //    1e-9 and 1e-6 alike
+    //    (`work/splice/a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`).
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
     //    declared frontier stands the lily walls down before this one.
@@ -2472,11 +2475,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
-                    operand: Operand::B,
+                BooleanError::Euler(EulerOpError::PcurveMint {
                     face,
-                    kind: SurfaceKind::Nurbs,
-                } if query::face_surface_kind(leaf_a, *face) == Some(SurfaceKind::Nurbs)
+                    refusal: SiteRowRefusal::SplineChart,
+                }) if query::face_surface_kind(leaf_a, *face) == Some(SurfaceKind::Nurbs)
             )
         },
         "join the long leaf to the stem it grows from",

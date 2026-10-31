@@ -95,3 +95,20 @@ There are two doors for that:
   which the `Decide`-generic containment door does not have.
 
 Moved from SPLICE to SPLICEFACE on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## The normal door its second half needs (2026-10-31)
+
+`splice/a-vertex-piercing-a-spline-face-reads-no-outward-normal` leaves
+this row's site as it stands. `held_reads` still reads its spline wall
+through `contain::curved_face_placement_decided` and still refuses
+`placed: true` for a wall read `In`. What that lane added is the door
+the second half needs:
+- `contain::curved_face_placement_charted` returns the in-trim foot an
+  `In` placement was decided at;
+- `face_normal::spline_outward_normal_at` reads the wall's outward
+  normal at that chart point.
+
+The wall's bend there is `T::spline_chart_arm`, as the pierce now reads
+its pierced spline face's (`PierceLever::Within`). The placement's
+uniqueness on the wall is
+`the-spline-placement-read-certifies-no-second-in-trim-foot`.
