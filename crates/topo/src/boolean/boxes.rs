@@ -1700,7 +1700,9 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 /// face's `sense`, which places the face on the rectangle's side of its
 /// boundary. The trim's class then
 /// holds no pole inside the face, so the face lies in the rectangle its
-/// boundary spans. A face whose side is unencoded, refused, or in
+/// boundary spans. The side is read without the tips the chart image
+/// drops: a wrap-tip cap holds the pole at its tip, outside that class,
+/// and its rim alone encodes no side. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
 /// scaffolding, one outside the trim's class, one whose trim escalates,
 /// and one whose axis is not decided unit all keep the

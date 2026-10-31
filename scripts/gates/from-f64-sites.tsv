@@ -138,6 +138,9 @@ crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/solid_contain.rs	1	constant	<block> if plus	a fixed fraction of a circle arc's span, as the half-edge walks it: a sample point of the arc whose turn is read
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a sample's index along an arc's span (edge_clearance): a count read as a scalar
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(CLEARANCE_SAMPLES)	the count of even steps an arc's clearance samples (edge_clearance): a count read as a scalar
 crates/topo/src/boolean/solid_contain.rs	1	constant	super::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule

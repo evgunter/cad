@@ -1133,8 +1133,6 @@ enum Tip {
     Sectors,
     /// `CurvedPierceUnsupported`.
     Pierce,
-    /// `ResultVolumeImplausible` on `vol(A ∪ B) ≤ vol(A) + vol(B)`.
-    Backstop,
 }
 
 /// What `r` reads as a [`Tip`] other than [`Tip::Built`].
@@ -1155,11 +1153,6 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             ..
         } => Tip::Sectors,
         BooleanError::CurvedPierceUnsupported { .. } => Tip::Pierce,
-        BooleanError::ResultVolumeImplausible { which, .. }
-            if which.starts_with("vol(A ∪ B) ≤") =>
-        {
-            Tip::Backstop
-        }
         _ => return None,
     })
 }
@@ -1242,13 +1235,10 @@ fn united_at_the_run(
 /// the reading as a run here (`coincident_run` admits arcs of at most a
 /// half-turn).
 ///
-/// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`. At
-/// ε 1e-6 `B ∪ A` of the `s = 1e-4` poses meets the volume backstop
-/// within an ulp of `vol(A) + vol(B)`
-/// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
+/// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`.
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
+    use Tip::{Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1270,7 +1260,7 @@ fn short_arcs_at_a_crescents_tip() {
             "both, s = 1e-4",
             tip(1e-4),
             tip(3e-4),
-            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+            [[Unprofiled; 2], [Built; 2], [Pierce; 2]],
         ),
         (
             "no vertex at the tip",
@@ -1282,7 +1272,7 @@ fn short_arcs_at_a_crescents_tip() {
             "no vertex at the tip, s = 1e-4",
             span(1e-4),
             span(3e-4),
-            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+            [[Unprofiled; 2], [Built; 2], [Pierce; 2]],
         ),
         (
             "the boss's spans the tip",

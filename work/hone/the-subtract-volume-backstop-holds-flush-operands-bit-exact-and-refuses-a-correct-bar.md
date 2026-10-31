@@ -2,10 +2,12 @@
 id: the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar
 kind: issue
 title: vol(A ∖ B) ≥ vol(A) − vol(B) charges no rounding for the operands' flush faces, so a correct turned bar refuses ResultVolumeImplausible
-status: open
+status: closed
 opened: 2026-10-25
 priority: P2
 cost: M
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -39,3 +41,7 @@ rounding over the area the result glued or dropped, or skip the arm
 where the margin lies within that charge (the backstop is a kernel
 self-check, so an uncharged margin it calls certain is a false
 `ResultVolumeImplausible`). Then pin the turned ε 1e-6 30ε bar.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The turned 30ε bar `slab ∖ fill` at ε 1e-6 builds: `shell_role_reader`'s `a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void` and `a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam` take it as a cell that builds (tier 3′, one bar, its channel's closed-form volume, its corners) where they pinned the refusal.

@@ -294,7 +294,7 @@ fn directions() -> Vec<Vec3<f64>> {
     (0..13)
         .map(|i| {
             let z = 1.0 - (2.0 * f64::from(i) + 1.0) / 13.0;
-            let phi = f64::from(i) * PI * (3.0 - 5f64.sqrt()) + 0.3;
+            let phi = f64::from(i) * geom_core::GOLDEN_ANGLE + 0.3;
             let r = (1.0 - z * z).sqrt();
             Vec3::new(r * phi.cos(), z, r * phi.sin())
         })

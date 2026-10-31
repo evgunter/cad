@@ -1,6 +1,8 @@
-//! **The interior-loop guard reads a NURBS face against a plane through
-//! C3's whole reading.** Lily's blade and sheath meet cap to wall, and a
-//! plane cuts the blade's loft across its spine and lengthwise. The
+//! **The interior-loop guard reads a NURBS face against a plane off the
+//! pair's classification**: the regularity sweep's loop-free verdict
+//! where it holds, C3's whole reading where it declines. Lily's blade
+//! and sheath meet cap to wall, and a plane cuts the blade's loft across
+//! its spine and lengthwise. The
 //! union of blade and sheath stops at the rim first (their walls touch
 //! at one point of it, `a_sheath_grafted_on_its_blade`), so the cap
 //! pairs are read by the guard outside the boolean.
@@ -77,17 +79,17 @@ fn kind(body: &Body<f64>, face: topo::FaceKey) -> geom::SurfaceKind {
         .kind()
 }
 
-/// **Lily's four cap × wall pairs clear through the whole reading.**
-/// Each body's base cap is the plane `x = 0`, and the other body's two
-/// walls stand on it along their rim: the plane holds a side of each
-/// wall's rectangle, a `Side` region, the one component, which reaches
-/// the wall's chart boundary (W1′). Read in both operand orders, at the
-/// run's ε (the suite runs it at 1e-9, 1e-6 and 1e-12). Red against the
-/// whole reading dropped (each pair refuses on reach, as before), and
-/// against a `Side` region listed as a loop (it carries no witness, so
-/// R-undec).
+/// **Lily's four cap × wall pairs clear.** Each body's base cap is the
+/// plane `x = 0`, and the other body's two walls stand on it along
+/// their rim: the plane holds a side of each wall's rectangle, and the
+/// wall's normal is never the plane's, so the regularity sweep proves
+/// every component open, ending on sides that bound the wall (W1′).
+/// Read in both operand orders, at the run's ε (the suite runs it at
+/// 1e-9, 1e-6 and 1e-12). Red against the plane × spline arm dropped
+/// (each pair refuses on reach), and against the sweep's verdict read
+/// as a loop.
 #[test]
-fn lilys_four_cap_pairs_clear_through_the_whole_reading() {
+fn lilys_four_cap_pairs_clear() {
     let tol = Tol::witness();
     let (leaf, sheath) = lily(tol);
     for (what, a, b) in [
@@ -132,7 +134,7 @@ fn lilys_four_cap_pairs_clear_through_the_whole_reading() {
 /// wall's rectangle, so every component reaches its chart boundary and
 /// the guard clears the pair (W1′). The timing of each reading is
 /// printed. Red against the open branches read as loops (no witness
-/// places them: R-undec), and against the whole reading dropped
+/// places them: R-undec), and against the plane × spline arm dropped
 /// (R-reach).
 #[test]
 fn a_plane_cutting_the_blades_loft_clears() {
@@ -174,6 +176,134 @@ fn a_plane_cutting_the_blades_loft_clears() {
                 "plane {what} × wall {i}: every component reaches the wall's boundary: {got}"
             );
         }
+    }
+}
+
+/// The plane `x = 0` among `body`'s faces, and its spline walls.
+fn cap_and_walls(body: &Body<f64>) -> (Surface<f64>, Vec<Surface<f64>>) {
+    let mut cap = None;
+    let mut walls = Vec::new();
+    for (_, face) in body.faces() {
+        match body.get_surface(face.surface) {
+            Some(s @ Surface::Plane { origin, normal, .. })
+                if normal.y.abs() < 1e-9 && normal.z.abs() < 1e-9 && origin.x.abs() < 1e-9 =>
+            {
+                cap = Some(s.clone());
+            }
+            Some(s @ Surface::Nurbs(_)) => walls.push(s.clone()),
+            _ => {}
+        }
+    }
+    (cap.expect("a base cap on x = 0"), walls)
+}
+
+/// Lily's cap × wall pairs and the blade's cuts, named.
+fn lilys_pairs(tol: Tol) -> Vec<(String, Surface<f64>, Surface<f64>)> {
+    let (leaf, sheath) = lily(tol);
+    let (leaf_cap, leaf_walls) = cap_and_walls(&leaf);
+    let (sheath_cap, sheath_walls) = cap_and_walls(&sheath);
+    let across = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let cut = |origin: Point3<f64>, normal: Vec3<f64>| Surface::Plane {
+        origin,
+        normal: normal * (1.0 / normal.norm()),
+        u_ref: Vec3::unit_y(),
+    };
+    let cuts = [
+        (
+            "z = −0.01",
+            cut(Point3::new(0.0, 0.0, -0.01), Vec3::unit_z()),
+        ),
+        ("x = 1.15", cut(Point3::new(1.15, 0.0, 0.0), Vec3::unit_x())),
+        (
+            "tilted 30°",
+            cut(Point3::new(0.6, 0.0, 0.0), Vec3::new(0.866, 0.0, 0.5)),
+        ),
+    ];
+    let mut pairs = Vec::new();
+    for (i, w) in sheath_walls.iter().enumerate() {
+        pairs.push((
+            format!("blade cap × sheath wall {i}"),
+            leaf_cap.clone(),
+            w.clone(),
+        ));
+    }
+    for (i, w) in leaf_walls.iter().enumerate() {
+        pairs.push((
+            format!("sheath cap × blade wall {i}"),
+            sheath_cap.clone(),
+            w.clone(),
+        ));
+        pairs.push((
+            format!("x = 0.5 × blade wall {i}"),
+            across.clone(),
+            w.clone(),
+        ));
+        for (what, p) in &cuts {
+            pairs.push((format!("{what} × blade wall {i}"), p.clone(), w.clone()));
+        }
+    }
+    pairs
+}
+
+/// The pair's classification through the march door.
+fn classified(p: &Surface<f64>, w: &Surface<f64>, band: Band) -> geom_brep::PairSection<f64> {
+    match geom_brep::pair_section(p, w, None, Some(geom_brep::SsiLane::marched()), band) {
+        Ok(geom_brep::SectionRead::Built(s)) => s,
+        other => panic!("the pair is classified: {other:?}"),
+    }
+}
+
+/// **Lily's cap pairs and the blade's cuts are proved loop-free, with
+/// no whole reading.** The probe's pairs: each cap against the other
+/// body's walls, and the blade's walls cut across the spine, near the
+/// tip, lengthwise through the keel and tilted 30°. The regularity
+/// sweep answers each pair's classification (`Reaching`): no component
+/// closes in the wall's chart. The sweep's time per pair is printed. Red against the sweep removed (each pair
+/// is read whole: a list).
+#[test]
+fn lilys_cap_pairs_and_the_blades_cuts_are_proved_loop_free() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("band");
+    for (what, p, w) in lilys_pairs(tol) {
+        let t = std::time::Instant::now();
+        let s = classified(&p, &w, band);
+        eprintln!("{what}: classified in {:.2?}", t.elapsed());
+        assert!(
+            matches!(s.components(), geom_brep::Components::Reaching(_)),
+            "{what}: the sweep's verdict: {s:?}"
+        );
+    }
+}
+
+/// **The sweep's cost against the whole reading it skips**, per pair,
+/// printed: a measurement for review, asserting nothing. Run with
+/// `cargo nextest run -p sweep --run-ignored only
+/// the_sweep_against_the_whole_reading_it_skips --no-capture`, at each
+/// `CAD_TOLERANCE_EPS`.
+#[test]
+#[ignore = "a timing for review: asserts nothing"]
+fn the_sweep_against_the_whole_reading_it_skips() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("band");
+    for (what, p, w) in lilys_pairs(tol) {
+        let t = std::time::Instant::now();
+        let s = classified(&p, &w, band);
+        let swept = t.elapsed();
+        let t = std::time::Instant::now();
+        let whole = s.read_whole(Some(geom_brep::SsiLane::marched()), band);
+        eprintln!(
+            "{what}: classified {:?} in {swept:.2?}; whole {} in {:.2?}",
+            s.components(),
+            match &whole {
+                Ok(s) => format!("{:?}", s.components()).chars().take(60).collect(),
+                Err(e) => format!("refused: {e}"),
+            },
+            t.elapsed()
+        );
     }
 }
 

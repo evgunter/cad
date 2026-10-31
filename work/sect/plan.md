@@ -68,7 +68,7 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 | P1 | `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot` | M | dispatched | Five torus rows refuse at ε 1e-6 since PR 6011 (pinned red by GREEN) |
 | P1 | `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord` | M | dispatched | The seam-region door row runs 15× slower since PR 5894; held out of the nightly's 1e-12 row |
 | P3 | `a-surface-pairs-march-is-repeated-per-operation-and-per-germ` | M | open (PR 6056 measured) | Cross-operation sharing of a carried section (≤ ~11 %; waits on canonical order) |
-| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | dispatched | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
+| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | closed (PR 6047) | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
 | P0 | `a-general-torus-pose-lists-no-components` | H (decided) | closed (PR 6011) | A section's components are the march's; a site's component is its foot (fork row 212) |
 | P1 | `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose` | M | closed (PR 5994) | Two tori decided one surface twice (C5: decided once) |
 | P1 | `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane` | M | closed (PR 5994) | A tube-circle tangency read twice (C5: decided once) |

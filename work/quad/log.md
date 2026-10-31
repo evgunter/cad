@@ -334,6 +334,7 @@ PR 5568's fix pass.
   - P2 and below only where context makes it easy (2026-10-27).
 - **Practice:** lanes and reviews ran as cloud sessions after three local container restarts. A cloud session given a short sha never starts; always pass a branch or a full sha.
 - **Next:** a sweep of P2–P4 rows the door dissolved (`quad/sweep-dissolved-rows`). What remains is ordinary P2–P4 work.
+- 2026-10-27 — (seam, CLEAVE PR 5842) The volume backstop left the boolean's operation path under `[ev]` PR 5780 (its relations are a test oracle, `topo::test_support::volume_relations`): closed `quadrature-interval-floor-grows-with-the-body-past-the-band`: its consequence on the operation path is gone.
 - 2026-10-27 — **Seam (FLUX re-cut):** FLUX and FLUXTAIL are closed and re-cut by logical thread into CONEARM, NEARPOINT, SPIRICARM, SPANFOLD and MEASUREDOOR (`docs/doc-ledger/flux-leaves-the-tracker.md`). Your shared ground now has these neighbours: SPIRICARM on `props/spiric.rs` and `topo/src/props/quad_lane.rs`, SPANFOLD on `props/quad/trimmed.rs`, MEASUREDOOR on `topo/src/props.rs`. Seam notes that used to go to FLUX's log go to the successor that owns the file.
 - 2026-10-27 — **Handed back:** the orchestrator has stopped; status flipped `active` → `ready` (Ev, in chat). Open rows remain dispatchable.
 
