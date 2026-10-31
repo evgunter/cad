@@ -1009,10 +1009,11 @@ pub enum SessionOp {
         bodies: Vec<Operand>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
-    /// `DocEdit::SetLabel` on the node it created last, as ONE action
-    /// and one undo. The insert carries no label, because what an
-    /// insert carries is what its node's id is minted from; the label
-    /// is the second edit of the same action.
+    /// `DocEdit::SetLabel` on the node it made (`world::made`: the last
+    /// node it minted that is not a placement), as ONE action and one
+    /// undo. The insert carries no label, because what an insert
+    /// carries is what its node's id is minted from; the label is the
+    /// last edit of the creation's own run.
     CreateLabelled {
         /// The creation.
         creation: Creation,
@@ -1690,6 +1691,78 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
+        }
+    }
+
+    /// **Whether this operation puts another document under the
+    /// session**, when it lands: the doors that run
+    /// `DocSession::clear_for_new_document`. Everything the viewer
+    /// holds about the outgoing document is owed a reset by exactly
+    /// these, and a refusal raised before one says nothing about the
+    /// ids of the document after it.
+    ///
+    /// Every operation is listed, so a new one is sorted here by
+    /// whoever adds it.
+    #[must_use]
+    pub fn replaces_the_document(&self) -> bool {
+        match self {
+            Self::Open(_) | Self::NewDocument { .. } => true,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewVariableGesture { .. }
+            | Self::CommitVariableGesture { .. }
+            | Self::CancelGesture
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
+            | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginVariableGesture { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::AddMate { .. }
+            | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
+            | Self::EditProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddFusedPattern { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::SetProduct { .. } => false,
+            Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
 }
