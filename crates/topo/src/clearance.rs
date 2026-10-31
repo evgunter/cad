@@ -3190,14 +3190,33 @@ type Image = (
 
 /// **A harmonic chart image's coefficients, lifted**
 /// ([`injective::Harmonic`]); `None` for every other variant.
+///
+/// An angle channel's rate is its winding count, read off the count:
+/// the rate is a ratio of two equal periods
+/// ([`geom_brep::pcurve_cache::angle_rate`]), which an interval scalar
+/// encloses wider than the integer it is.
 fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic> {
-    let (p0, pa, pb, pl) = p.harmonic_form()?;
-    let lift = |x: T, y: T| [Interval::from_certified(x), Interval::from_certified(y)];
+    let Pcurve::Harmonic { u, v } = *p else {
+        return None;
+    };
+    let lift = |ch: Channel<T>| match ch {
+        Channel::Angle { phase, winding } => {
+            let zero = Interval::from_f64(0.0);
+            [
+                Interval::from_certified(phase),
+                zero,
+                zero,
+                Interval::from_f64(f64::from(winding)),
+            ]
+        }
+        Channel::Free { c, a, b, l } => [c, a, b, l].map(Interval::from_certified),
+    };
+    let ([cu, au, bu, lu], [cv, av, bv, lv]) = (lift(u), lift(v));
     Some(injective::Harmonic {
-        p0: lift(p0.x, p0.y),
-        pa: lift(pa.x, pa.y),
-        pb: lift(pb.x, pb.y),
-        pl: lift(pl.x, pl.y),
+        p0: [cu, cv],
+        pa: [au, av],
+        pb: [bu, bv],
+        pl: [lu, lv],
     })
 }
 
@@ -3855,6 +3874,44 @@ mod extent_rows {
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod winding_rate {
+    use super::harmonic_of;
+    use crate::injective;
+    use geom_brep::{Channel, Pcurve};
+    use geom_core::Real;
+    use geom_core::interval::Interval;
+
+    /// **An angle channel's rate is its winding count, exactly**, at an
+    /// interval scalar. Red if it is read off the quotient of two
+    /// enclosures of a turn, which is wider than the integer.
+    #[test]
+    fn a_windings_rate_is_its_count() {
+        for winding in [-2, -1, 1, 3] {
+            let zero = Interval::from_f64(0.0);
+            let image = Pcurve::Harmonic {
+                u: Channel::Angle {
+                    phase: Interval::from_f64(core::f64::consts::PI),
+                    winding,
+                },
+                v: Channel::Free {
+                    c: zero,
+                    a: zero,
+                    b: zero,
+                    l: zero,
+                },
+            };
+            let h = harmonic_of(&image).expect("a harmonic image");
+            assert!(
+                injective::exactly(h.pl[0], f64::from(winding)),
+                "winding {winding}: rate {:?}",
+                h.pl[0]
+            );
+        }
     }
 }
 

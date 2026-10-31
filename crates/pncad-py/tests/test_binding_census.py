@@ -3872,6 +3872,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
+    "StepImportError::C0KnotUnsplit": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",

@@ -2,11 +2,12 @@
 id: tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity
 kind: issue
 title: Tier 2 admits a valence-1 vertex only at a wrap edge's tip, and tier 3 refuses a wrap tip off its face's chart singularity
-status: dispatched
+status: parked
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity, import-mints-the-wrap-tip-at-a-chart-singularity, 6014]
+blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 branch: restcurve/wrap-tip-tiers
 ---
 
@@ -50,3 +51,31 @@ Released by PR 6088. A spur, a wrap tip included, is dropped from the chart imag
    - A valence-1 vertex on an edge that is not a wrap edge: tier 2 still refuses.
    - A mint and validate pair at an in-band vertex, showing that the one incidence reading answers both the same way.
 5. **Out of scope:** the mesher (TESSWALK), the sectors (SPLITDOOR), revolve (CARVE) and import (FOREIGN). If a row's body reaches one of those, assert the refusal it makes today and name the owning row.
+
+## Held (2026-10-30)
+
+Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling open on `[ev]` PR 6085). Ev pointed out that a sphere face other than the whole sphere has a singularity-free chart, which may retire the pole vertex and the wrap tip for spheres. Do not build on the wrap tip until it is ruled. (RESTCURVE orchestrator)
+
+## Review of PR 6097 (2026-10-30, held, so no fix pass dispatched yet)
+
+The review was a single FULL review on `fcb3aa32`, cloud session `session_018u3gVHsR1apTedFDkr6LzE`. Probes are on `restcurve/review-lantern-6097`. Verdict: **NOT-MERGEABLE-AS-IS**. C2–C6 held. No decision moved on the corpus: 1226 tests on base, 1234 on head.
+
+**MAJOR**
+- **F1 (with C7):** "a lone strut has no tip" contradicts the seam clause. It refuses the one-face ball, which measures right (4π/3, 4π) and is FOREIGN's planned `EdgeFreeSphere`. Splitting the meridian once at the equator defeats the rule.
+  - **Fix:** a tip is any valence-1 end of a wrap edge.
+  - **Rows:** flip the lone-strut row so the ball passes, and add a row where a short lone strut refuses at tier 3.
+
+**MINOR**
+- **F2, a missed sweep:** `mesh/src/walk.rs` `pole_index` and `topo/src/coherence.rs:605` each read a vertex at a pole by their own distance. The coherence one is kept equal to the walk by hand.
+- **F3:** `WrapTipUndecided` ends on `ON_BOUNDARY`'s "or clear of it", which only leads to another refusal. It needs a sized decision that passes only zero.
+- **F5:** a wrap-tip hemisphere is now a boolean operand. With a brick across the wrap edge, every op refuses `UnpairedLooseEnds` and no row owns it.
+
+**NOTE**
+- **F4:** the plane arm is unreachable, because a wrap description is refused on a plane at mint (mutant M5 survives). A cylinder wrap tip's message names a pole the cylinder does not have.
+
+**Style**
+- `is a wrap edge` is spelled in four places.
+- `TipOff.undecided: Option`.
+- The not-owed gap has no row.
+
+**Waiting:** all of it presupposes sphere pole vertices and wrap tips, which `sphere-faces-take-a-per-face-chart-or-pole-vertices` may retire. Once that ruling lands, either dispatch this fix pass (the cone apex keeps a tip in any case) or re-scope the unit.

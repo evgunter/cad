@@ -18,64 +18,6 @@ resolve against this file at commit `95c77e152a`, and
 Update an old citation as a drive-by when touching the text that
 holds it.
 
-## State of the build
-
-**The intent refactor is in progress, and much of what
-[intent], [variables], [operations], [repetition], [placement],
-[coincidence] and [assertions] describe is not built yet.** The INTENT
-program builds it in stages (`work/intent/plan.md`), with COINCIDE,
-REFS and INLANE as its successors; every other program holds off
-starting units that meaningfully touch dependency, placement or
-intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
-
-- **Built:** variables (stage 1); operations that read and define
-  variables, selections as definitions, the product as a list
-  (stage 2); poses as defined variables, read off geometry, read
-  through their roles and moved by lengths and angles, a revolve's
-  axis a point and a heading, and a lone `0` the constant zero
-  (stage 3 A and A′); a placement as the bundle of its mates, the
-  world a node and spaces as kinds, with gauges, offsets and the
-  mates' spanning tree retired (stage 3 B); a mate relating two poses,
-  `Transform` retired into a placement, a placement naming its target
-  space with mates reading only geometry and values charted on it,
-  `assemble` as the `⊔` operator and the product a slot, an operation
-  computing in a frame of its reads, a mate on a pinned copy refusing,
-  and repetition by index with patterns retired (stage 3 C–G); the
-  coincidence door with its rungs and the `unproven-coincidence` lint,
-  with declared pairs, a mate's `ContactClass` and the undeclared
-  refusals retired (stage 4); booleans gluing on a Zero verdict
-  and the boolean declare surface retired (stage 4 E and F); assertions
-  relating by `=`, interference at rest as a finding, and the at-rest
-  census as a check whose contacts a holding `Gap = 0` quiets, with A5's
-  at-rest gate (`assemble` and its refusal) and CHECKS DS6's
-  product-separation resident (`Separation`) retired (stage 5); an
-  operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way; coaxiality read at the door as one `Axis` read
-  twice, and tangency constructions, a sketch drawn on a frame
-  continuing tangent to a face's trace, proven at the door and written
-  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
-  its record at every consuming site, with the declared rung and its
-  bridged verdict retired (CONTACTHOLD).
-- **Not built:** an assertion quieting an unproven row no `Gap = 0` says (a tangency,
-  a coaxiality, a blend's turn, a split's ON verdict).
-- **What retires as the build reaches it.** Where a companion clause
-  disagrees with these sections, these govern, and the companion
-  clause retires when the program reaches it: the declared-contact
-  seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a
-  mate's `ContactClass`, C6's `Fit` as a class); the
-  undeclared-coincidence, undeclared-contact and undeclared-tangency
-  refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; the axis
-  declaration channel;
-  `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
-  `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's gathered product and
-  sink rule, and A12's
-  reading edges.
-
-The program's exit walk checks that list against the code
-(`work/intent/plan.md`, "Exit criteria").
-
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the
@@ -158,7 +100,14 @@ is checked against what was meant.
   checks every coincidence decided from values against what the
   document proves, and reports one that holds only at the current
   values together with the edit that would make it one construction;
-  an assertion at its site quiets it ([coincidence], [assertions]). A
+  an assertion that says what it decided quiets it ([coincidence],
+  [assertions.quiet]). A coincidence between quantities only the
+  operation computes (a blend turn's two feet), or between written
+  values (two radii typed alike), has no such assertion: the
+  construction is its recourse, and its finding never refuses. Where a
+  construction could also say it (one variable written for both
+  sides), the assertion quiets all the same, and the finding names
+  the edit that would make it one construction. A
   lint reports and never changes a body.
 - **What counts as established.** `[intent.structural]` The principle
   is that an identity the document establishes is one that very likely
@@ -624,10 +573,16 @@ certified export promise.
 `[tolerance.measure]`
 A certified measurement (volume, area, moments) is an enclosure, never a
 number alone, and its width is part of the value. There is one door. It
-refines a face until a predicate over the enclosure resolves, until
-refinement stops paying (a floor no round removes), or until the per-face
-work bound (one bound, in one unit, for every lane). It returns the
-narrowest enclosure reached and why it stopped.
+refines the measured surface where its enclosure is widest, until a
+predicate over the enclosure resolves, until refinement stops paying (a
+floor no round removes), or until the work budget the caller states with
+its predicate, in one unit for every lane, as a multiple of reading the
+measured surface once. The kernel's own questions (the validity gate, a
+boolean's decisions, a document's assertions) state a fixed constant per
+question. What a measurement spends
+depends on what it asks and on the geometry, never on how its surface is
+cut into faces. It returns the narrowest enclosure reached and why it
+stopped.
 
 A consumer that decides something passes its predicate: a sign, a
 relation against a bound as an assertion states it, or a containment. At
@@ -638,14 +593,20 @@ enclosure lies wholly in the band, and is recorded at every round it is
 asked.
 
 A consumer that hands the number on passes a resolution, the width
-predicate: the mean boundary displacement it needs. That is a sizing,
-decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+predicate: the mean boundary displacement it needs over the measured
+surface as a whole. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded. It
+is for a consumer that wants the number and nothing else: one that would
+compare the result against anything passes that comparison as its
+predicate instead, so a decision is never made on a bracket sized by a
+guess.
 The model defines its measures only to ε of boundary displacement, so no
 finer resolution is offered. There is no default: every caller states
-its predicate, a resolution included, at the call, so the precision a
-measurement buys is always the one its consumer asked for.
+its predicate, a resolution included, and its budget at the call, so the
+precision a measurement buys, and what it may spend buying it, are always
+the ones its consumer asked for.
 
-A deciding predicate still undecided at the work bound is the one
+A deciding predicate still undecided at the budget is the one
 quadrature refusal, and it carries the enclosure. A resolution unmet
 there is the bracket, with the resolution it reached.
 
@@ -1427,8 +1388,11 @@ are on equal footing, and a constraint any of whose equations the
 others already fix refuses as an overconstraint, pinned or not,
 decided by subgroup algebra (A11 (1)) without measuring. A mate that
 would take a freedom a value sets refuses as well. Where two copies
-meet beyond what their mates fix is a contact like any other, recorded
-and linted, and its recourse is an assertion ([assertions]).
+meet beyond what their mates fix is a coincidence like any other,
+recorded and linted, and its recourse is an assertion ([assertions]):
+a relation the placement can still carry is a mate, of a richer kind
+where none says it yet, and one the mates already fix is claimed,
+never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
@@ -1693,7 +1657,8 @@ coincidence such a meeting implies is a face pair of its own. Two faces on one c
 facing the same way, whose boundaries meet while their interiors do
 not are a flush pair: no contact, but a coincidence the census infers
 from values, so a finding unless established, by a flag mate or by
-the replay. Contact is an `unproven-coincidence` finding
+the replay (two faces' offsets written with one variable), or
+asserted, by a `Gap = 0` over the two faces read on their sides. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
@@ -1720,7 +1685,14 @@ pair of faces of the two bodies, those faces bound the overlap, and
 every face bounding it lies between the carriers of an asserted pair.
 A `Gap` reads bodies of one space ([placement.spaces]), so an
 assertion quiets only findings between bodies of the space it is in.
-An assertion speaks for nothing else, so a new contact or overlap
+A contact is a touch on one carrier or on two, opposed, so a tangency
+between opposed faces (a rod resting on a plate) is a contact, and its
+`Gap` reads each face's material side. A coincidence of poses the
+document reads off its cells (a centre on an axis, two axes one or
+meeting, a vertex on a split's plane) is quiet under a holding
+`Distance = 0` between those poses, read off the row's cells or the
+split's tool. Only a relation against zero quiets: a bound is a
+tolerance, not the row. An assertion speaks for nothing else, so a new contact or overlap
 anywhere else is loud until something says otherwise, and an overlap
 the kernel cannot bound is loud and nothing quiets it.
 
@@ -2370,7 +2342,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, placements as mate bundles into a target space with the world a node (A3), pins, split and inline, the constructive solve, the at-rest check (A5) |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
@@ -2487,7 +2459,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D7 | [import] |
 | D8 | [recipe]; "The recipe keeps the form that was written" is [recipe.forms] |
 | D9 | [failure] (the never-panic rule and the bug-vs-invalid-state taxonomy, [failure.taxonomy]); [determinism] (bit-identity, libm, replay with kills, deterministic parallelism, the GPU boundary, equivariance as [determinism.equivariance]); [engineering] (the other engineering conventions) |
-| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the retirement list is in [State of the build](#state-of-the-build) |
+| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the clauses it superseded are retired (`docs/doc-ledger/intent-leaves-the-tracker.md`) |
 | Q1 | [scalars] and [verdicts] |
 | Q2, Q4, Q6, Q7, Q8 (resolved) | [tolerance], [tolerance.units] and [units], [recipe], [determinism], OFFSET-DESIGN O1–O6 |
 | Q3 | [open.sketch-solver] |

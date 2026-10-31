@@ -18,3 +18,7 @@ The same row is also red on two `SelectionRefusal` sites in editor-core, filed o
 **Reproduce.** `cargo nextest run -p pncad-py -E 'test(=prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason)'`
 
 **What closing it takes.** Rewrite the two reads so the census can decide them, or give the site its `UNDECIDED` line with the reason.
+
+## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
+
+Pinned: `("crates/geom-brep/src/certify.rs", "CertifyError", "check"): 2` is named in `prose_census.rs`'s `UNDECIDED`, under a comment citing this row. The two sites are not the `RowRefusal::decision` arms the body cites (`Self::Image(check)`, `Self::ImageEscalated { check, cause }`); those are not in a `Display` impl. They are `CertifyError`'s `Display` arms for `Row`, which render `{check:?}` with `check` bound inside the field pattern, `refusal: RowRefusal::Image(Some(check))` and `refusal: RowRefusal::ImageEscalated { check, cause }`. The census reads no type through a nested pattern, the same reason `ReplayError`'s `verb` carries, and that is the reason on the line. Closing strikes the line. The census reads source and stops on nothing, so un-pinning owes no re-measure.

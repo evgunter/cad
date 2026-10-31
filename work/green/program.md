@@ -2,7 +2,7 @@
 id: green
 kind: program
 title: GREEN — a green main and a fast gate: the infra rows that matter now
-status: active
+status: ready
 opened: 2026-10-28
 group: infra/ci
 prefix: green/
