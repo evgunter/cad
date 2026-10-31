@@ -917,6 +917,6 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     }
     eprintln!("near the node: {read} sites read, {refused} refusals");
     // The row is a reading, not a run of refusals: 2716 of its 3104
-    // sites read on main at every ε.
+    // sites read at every ε when it landed.
     assert!(read >= 2500, "{read} sites read, {refused} refusals");
 }
