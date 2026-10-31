@@ -29,3 +29,14 @@ and bodies unchanged. No orchestrator yet.
   - **Premise corrections carried in the PR:** the row's fitted-cubic vs per-span fork is false, no demo joins on the arm alone, and klein also needs cone × NURBS.
   - **Off-question findings:** `boundary_section` and `sweep_chart_plane` hand-roll `f∘C` beside `geom_core::spline::compose`, and the route table's note plans a chart tube for the analytic partner. Both retire inside the arm's build (named in the PR), so neither is filed separately. Measure before the build: does klein's rim read Zero or in band at ε 1e-9 (cap tilt 3.99e-4 rad)?
   - The P0 row keeps `design: true` until Ev answers.
+- 2026-10-31 — **Unbounded-pair fork converged; `[ev]` PR 6127 opened** (fork row 224, record `analysis/design-fork/unbounded-pair-section`). It covers the skew-cylinder and cone-frame rows.
+  - **The design:** one region per operation, the ball about the operands' overlap, owned like the band. A pair's domain is its own ball cut by that region. Components can be open, or end at a node (D2's page). Every node is a recorded Zero tangency in closed form, with no node march built. Cylinder × cylinder goes on the value in every pose, on closed-form margins. The cone pose is `section_cert/ruling.rs`'s sweep with its double root decided. C5's no-face-extent sentence is restated.
+  - **Rounds:** round 1 crossed on nodes and on whether D2 lets a branch end at a node. I settled D2 myself: the sentence is in the geom-brep README's Edge descriptions. Round 2 converged.
+  - **Coupling:** shares the "component with ends" type with PR 6121. The two builds are sequenced so `Components`/`CarriedComponent` change once.
+  - **Build-time items (not forks):**
+    - Reading a pinch as the guard's `Touch` needs its own argument (A).
+    - A Zero double root needs an upper clearance bound at the root (A).
+    - `of_pair_section` must read a node's connected set as one component (B).
+    - The cylinder march door seeds on the thinner wall's chart cut by the region, since a 3-D tree is `(L/r)³` (B).
+  - **Off-question, retires inside the build:** `cylinder_cylinder_section` decides radii before parallelism, so parallel unequal radii reach only the frame.
+  - Both rows keep `design: true` until Ev answers.
