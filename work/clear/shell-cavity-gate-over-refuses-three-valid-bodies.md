@@ -71,6 +71,23 @@ operand, or on the shelled body's cavity faces. The three rows live in
   `cornered = 0`).
 - **The same cause** is behind the `cornered = 8` route that RIMSCALAR
   pinned on SHELL-4's vessel at `Interval`.
+- **Fixed at the source.** In `pcurve_cache`'s cylinder moving arm,
+  `cylinder_rim_axial` writes a rim's axial terms as zero where both
+  are enclosures holding zero and their sup is decided `Zero` at
+  `pcurve_cylinder_chart_axial`. That is the cone arm's
+  `pcurve_cone_chart_axial` read on the cylinder; `f64` is unmoved.
+- **A route split it does not remove.** On a cylinder whose axis is not
+  a coordinate axis, `f64` rounds a rim's axial terms to nonzero values
+  and reads a curve. `Interval` now reads the line. On main the two
+  scalars read bit-identical receipts there.
+  - Nine pipe rows (`a_seamless_pipe_cut_by_an_oblique_plane_measures`)
+    split from a bit-identical `f64` receipt on main: all five
+    `[1.5, 2.5, −0.5]` poses, four of five `[1000, −700, 400]` poses, and
+    the `[1.5, …]` mitre. The fifth `[1000, …]` pose was already apart on
+    main (351 vs 347 discharged) and moves too (to 445), as does the
+    axis-aligned `[0, 0, 0]` mitre (260 → 438). The `Interval` work
+    grows, for example 17 → 436 discharged, and the mitre 1158 → 1984.
+  - Every verdict class still matches.
 
 ### 2. The klein elbow's cavity: class (b), not built
 
@@ -136,12 +153,19 @@ operand, or on the shelled body's cavity faces. The three rows live in
   sound superset of the face there. `Boundary::extent`'s docs give it
   for a loop that does not wrap. Alternatively, stop `window_of` at
   the boundary's own `v` range when the apex is not on the face.
+- **Reviewer's view (CAVITYDIAG's review):** of the two, ending
+  `window_of` at the boundary's `v` range when the apex is not on the
+  face looks the simpler.
 
 ## Rows
 
 In `crates/sweep/tests/self_intersection_proves_injectivity.rs`:
 - `the_corpus_pot_holds_at_both_scalars`. Red under the fix reverted:
-  `Interval` refuses as on main.
+  `Interval` refuses as on main. So is `shell_4s_vessel_holds`.
+- In `geom-brep`'s `pcurve_cache`:
+  `a_rims_axial_terms_are_zeroed_only_where_both_hold_zero_within_the_band`,
+  red under a lax decision, under `b`'s gate dropped, and under the fix
+  reverted.
 - `the_klein_elbows_cavity_refuses_at_its_spiric_caps`: pinned typed,
   at both scalars.
 - `a_cone_frustums_cavity_exhausts_the_budget_at_its_apex`: pinned

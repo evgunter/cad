@@ -21,8 +21,8 @@
 //!   cell-pair counts printed;
 //! - kernel-built oblique cuts, whose arcs meet seam lines at corners,
 //!   hold, some certificates read through a corner, and SHELL-4's vessel
-//!   holds on one receipt at both scalars; a folded cut reads `Violated`
-//!   off its corners;
+//!   holds, on one receipt at both scalars as an axis-aligned body; a
+//!   folded cut reads `Violated` off its corners;
 //! - the cylinder–cylinder tee refuses typed at a vertex its junction
 //!   shares with a cap and nothing else;
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
@@ -1167,10 +1167,13 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// as two arcs. Holds at both scalars, nothing refused, on one receipt:
 /// the wall reads the rims as coordinate lines, so the pairs certify off
 /// the wall's presentation by the disc's carrier, reading no corner. At
-/// `Interval` the rim images' heights oscillate about the line by an
-/// enclosure of zero, which the presentation reads as the line at
-/// `self_intersection_level`. Red if it does not: the wall then reads
-/// each rim as a curve through its corners (`cornered` 8).
+/// `Interval` the rims' axial terms on the wall's chart are enclosures of
+/// zero, which the pcurve derivation decides zero at
+/// `pcurve_cylinder_chart_axial`. Red if it does not: the wall then reads
+/// each rim as a curve through its corners (`cornered` 8). One receipt at
+/// both scalars is this axis-aligned vessel's: on a cylinder whose axis
+/// is not a coordinate axis, `f64` rounds a rim's terms to nonzero values
+/// and reads a curve where `Interval` reads the line.
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
@@ -1362,12 +1365,13 @@ fn corpus_pot<T: Scalar>() -> Body<T> {
 /// `Interval` the circle where the foot meets the belly has, on the
 /// cylinder's chart, an axial coordinate `0 + a·cos t` with `a` an
 /// enclosure of zero, the rounding of the rim's reference direction
-/// against the axis; at `f64` it is `0.0`. The presentation reads it as
-/// the line `v = 0` at `self_intersection_level`. Read as a curve, the
+/// against the axis; at `f64` it is `0.0`. The pcurve derivation decides
+/// it zero at `pcurve_cylinder_chart_axial`, so the presentation reads
+/// the line `v = 0`. Read as a curve, the
 /// cylinder half refuses `Departure` at the vertex where its seam meets
 /// the sphere's other half, which is how the cavity gate over-refused
 /// this pot's operand (`shell-cavity-gate-over-refuses-three-valid-bodies`).
-/// Red if the level is not read: the `Interval` twin then refuses where
+/// Red if the rim is not decided: the `Interval` twin then refuses where
 /// `f64` holds.
 #[test]
 fn the_corpus_pot_holds_at_both_scalars() {

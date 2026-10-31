@@ -2,10 +2,11 @@
 id: a-cylinder-rims-axial-channel-holds-zero-only-to-an-enclosure-at-interval
 kind: issue
 title: A circle's image on a cylinder's chart carries its axial cos and sin terms as raw dot products, so at Interval a rim's height holds zero only to an enclosure where the cone arm decides it
-status: open
+status: closed
 opened: 2026-10-30
 priority: P3
 cost: M
+closed: 2026-10-31
 ---
 
 
@@ -47,3 +48,16 @@ enclosures holding zero, or `f64` pcurves move for every cylinder rim
 whose axial terms round to a nonzero value inside the band (oblique
 pipes). With it in place, `line_of`'s amplitude arm is dead, and can
 come out with its concession.
+
+## Closed (CAVITYDIAG, PR #6105)
+
+The fix at the home landed in CAVITYDIAG's fix pass. The cylinder
+arm's moving case now passes its axial terms through
+`cylinder_rim_axial`: where both are enclosures holding zero, not both
+exactly zero, and their sup is decided `Zero` at
+`pcurve_cylinder_chart_axial`, it writes them as zero. That is the
+cone arm's `pcurve_cone_chart_axial`, read on the cylinder. At `f64` a
+value holds zero only when it is zero, so nothing there is decided or
+moved. The topo-side concession is gone.
+
+`monotone_line`'s exact test now reads a rim exactly too.

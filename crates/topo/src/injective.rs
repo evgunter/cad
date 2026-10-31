@@ -48,12 +48,12 @@
 //!
 //! # The ε concessions
 //!
-//! A presentation drops points of the face in seven places, each stated
+//! A presentation drops points of the face in six places, each stated
 //! where it is decided. Every point dropped lies within a few ulps, in
 //! the chart, of a line the face's boundary or extent is placed on, or
 //! within a few ulps, in the curve's parameter, of a closed edge's
-//! vertex, or within the band, in metres, of a shared edge's image, of
-//! a corner's other edge or of the line an edge's image is read as:
+//! vertex, or within the band, in metres, of a shared edge's image or
+//! of a corner's other edge:
 //!
 //! - **the sliver** ([`SLIVER`], [`present_chart`]): a rectangle within
 //!   the band of a shared line reads as holding nothing off it;
@@ -73,13 +73,7 @@
 //! - **the vertex** ([`on_vertex`]): at a corner the two edges' points at
 //!   the vertex, decided within the band of each other, are read as one,
 //!   so a face point between the two edges within the band of the corner's
-//!   other edge goes unread;
-//! - **the level** ([`LEVEL`], [`Use::iso`]): an edge's chart image whose
-//!   held coordinate oscillates about a line by an amplitude whose
-//!   enclosure holds zero, decided within the band of it, reads as the
-//!   line, so a face point between the image and the line goes unread.
-//!   At `f64` such an amplitude is exactly zero, and nothing is
-//!   decided.
+//!   other edge goes unread.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -133,12 +127,6 @@ pub(crate) const MONOTONE: &str = "self_intersection_monotone";
 /// The funnel site of a torus's ring condition: major radius less minor
 /// radius, metres.
 pub(crate) const RING_TORUS: &str = "self_intersection_ring_torus";
-/// The funnel site of a chart image read as a coordinate line whose held
-/// coordinate it does not hold exactly: the amplitude it oscillates by
-/// about the line, an enclosure holding zero, metres. `Zero` reads the
-/// image as the line — one of the presentation's ε concessions (the
-/// module docs list them).
-pub(crate) const LEVEL: &str = "self_intersection_level";
 
 // ------------------------------------------------- the lifted boundary
 
@@ -207,25 +195,10 @@ pub(crate) struct Use {
     pub(crate) plus: bool,
     /// Its chart image's points at the curve's start and end parameters.
     pub(crate) image: Option<[Point2<Interval>; 2]>,
-    /// The image as a coordinate line, and the amplitude its held
-    /// coordinate oscillates by about it: `[0, 0]` where the image holds
-    /// it exactly. Read through [`Use::iso`].
-    pub(crate) line: Option<(Iso, Interval)>,
+    /// The image, where it is a coordinate line.
+    pub(crate) iso: Option<Iso>,
     /// The image, where it is harmonic.
     pub(crate) harmonic: Option<Harmonic>,
-}
-
-impl Use {
-    /// **The image, where it is a coordinate line**: one that holds its
-    /// coordinate exactly, or one whose oscillation about it is decided
-    /// within the band of zero at [`LEVEL`] — an ε concession (the module
-    /// docs list them).
-    pub(crate) fn iso(&self, band: Band) -> Option<Iso> {
-        let (iso, amplitude) = self.line?;
-        (exactly(amplitude, 0.0)
-            || matches!(decide(LEVEL, Margin::of(amplitude), band), Ok(Sign::Zero)))
-        .then_some(iso)
-    }
 }
 
 /// **A harmonic chart image**, per chart axis `[u, v]`:
@@ -1282,7 +1255,6 @@ fn vacuous(
     surface: &Surface<Interval>,
     cell: ((f64, f64), (f64, f64)),
     outside: &[(Side, Interval, usize)],
-    band: Band,
 ) -> bool {
     outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
@@ -1292,19 +1264,19 @@ fn vacuous(
         };
         let axis = side.axis().other();
         touches
-            && edge_ranges(b, &[ei], side.axis(), band)
+            && edge_ranges(b, &[ei], side.axis())
                 .is_some_and(|r| covered(axis.of(cell), &r, periodic(surface, axis)))
     })
 }
 
 /// The ranges the uses of `edges` holding `held` run over on the other
 /// axis: a whole turn's image covers everything.
-fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis, band: Band) -> Option<Vec<Interval>> {
+fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval>> {
     let mut out = Vec::new();
     for &ei in edges {
         let e = b.edges.get(ei)?;
         for u in &e.uses {
-            let iso = u.iso(band)?;
+            let iso = u.iso?;
             if iso.held != held {
                 continue;
             }
@@ -1433,7 +1405,7 @@ fn present_chart<'a>(
             continue;
         }
         for u in &e.uses {
-            let Some(iso) = u.iso(band) else {
+            let Some(iso) = u.iso else {
                 return Err(unread(ei, near_edges));
             };
             let (lo, hi) = iso.held.of(cell);
@@ -1485,7 +1457,7 @@ fn present_chart<'a>(
         }
     }
     if !inside && !outside.is_empty() {
-        return if vacuous(b, piece.surface, cell, &outside, band) {
+        return if vacuous(b, piece.surface, cell, &outside) {
             Ok(Presentation::Vacuous)
         } else {
             Err(Unpresented::Local)
@@ -1582,7 +1554,7 @@ fn present_chart<'a>(
         }
         let axis = c.side.axis().other();
         let want = axis.of((x, y));
-        let Some(ranges) = edge_ranges(b, &c.edges, c.side.axis(), band) else {
+        let Some(ranges) = edge_ranges(b, &c.edges, c.side.axis()) else {
             return Err(Unpresented::Local);
         };
         if !covered(want, &ranges, periodic(piece.surface, axis)) {
@@ -1599,7 +1571,7 @@ fn present_chart<'a>(
                 {
                     continue;
                 }
-                if !convex(b, c, d, band) {
+                if !convex(b, c, d) {
                     return Err(Unpresented::Local);
                 }
             }
@@ -1658,11 +1630,11 @@ fn present_chart<'a>(
 
 /// Whether the face is the quadrant two clips cut at the vertex their
 /// edges share: each edge leaves the vertex into the other's face side.
-fn convex(b: &Boundary, c: &Clip, d: &Clip, band: Band) -> bool {
+fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
     let away = |ei: usize, v: VertexKey| -> Option<f64> {
         let e = b.edges.get(ei)?;
         let u = e.uses.first()?;
-        let forward = forward(u, u.iso(band)?)?;
+        let forward = forward(u, u.iso?)?;
         // Away from `v` along the curve: forward from its start.
         if e.ends[0] == v {
             Some(forward)
@@ -2322,10 +2294,10 @@ fn reads_curve(surface: &Surface<Interval>, rim: &Rim) -> bool {
 
 /// Whether a face reads an edge as curved: on a plane, any carrier but
 /// a line; on a chart, an image that is no coordinate line.
-fn is_curved(surface: &Surface<Interval>, rim: &Rim, band: Band) -> bool {
+fn is_curved(surface: &Surface<Interval>, rim: &Rim) -> bool {
     match surface {
         Surface::Plane { .. } => !matches!(rim.arc, Some((Curve3::Line { .. }, _))),
-        _ => rim.uses.iter().any(|u| u.iso(band).is_none()),
+        _ => rim.uses.iter().any(|u| u.iso.is_none()),
     }
 }
 
@@ -2341,26 +2313,13 @@ fn curved_walls<'a>(
     band: Band,
 ) -> Option<Result<Presentation<'a>, Unpresented>> {
     let b = piece.boundary;
-    let curved = |i: &usize| {
-        b.edges
-            .get(*i)
-            .is_some_and(|e| is_curved(piece.surface, e, band))
-    };
+    let curved = |i: &usize| b.edges.get(*i).is_some_and(|e| is_curved(piece.surface, e));
     let &first = walls.iter().find(|i| curved(i))?;
     Some(match walls {
         [e] => present_curved(piece, *e, None, near_edges, near_vertices, band),
         _ => corner_of(b, walls, near_edges)
             .and_then(|c| present_corner(piece, c, near_edges, near_vertices, band))
-            .unwrap_or_else(|| {
-                Err(beside_curve(
-                    piece,
-                    walls,
-                    first,
-                    near_edges,
-                    near_vertices,
-                    band,
-                ))
-            }),
+            .unwrap_or_else(|| Err(beside_curve(piece, walls, first, near_edges, near_vertices))),
     })
 }
 
@@ -2376,18 +2335,13 @@ fn beside_curve(
     first: usize,
     near_edges: &[usize],
     near_vertices: &[VertexKey],
-    band: Band,
 ) -> Unpresented {
     let b = piece.boundary;
     let ends = |i: usize| b.edges.get(i).map_or(Vec::new(), |e| e.ends.to_vec());
     let curved: Vec<usize> = walls
         .iter()
         .copied()
-        .filter(|&i| {
-            b.edges
-                .get(i)
-                .is_some_and(|e| is_curved(piece.surface, e, band))
-        })
+        .filter(|&i| b.edges.get(i).is_some_and(|e| is_curved(piece.surface, e)))
         .collect();
     let on_shared = |v: &VertexKey| {
         near_vertices.contains(v) || near_edges.iter().any(|&i| ends(i).contains(v))
@@ -2401,7 +2355,7 @@ fn beside_curve(
             .collect();
         on_shared(v)
             && curved.iter().any(|&c| at_v.contains(&c) && at_v.len() > 1)
-            && corner_of(b, &at_v, near_edges).is_none_or(|c| reading(piece, c, band).is_none())
+            && corner_of(b, &at_v, near_edges).is_none_or(|c| reading(piece, c).is_none())
     });
     if unread_corner {
         return Unpresented::Structural;
@@ -2694,7 +2648,7 @@ fn present_corner<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Option<Result<Presentation<'a>, Unpresented>> {
-    Some(match reading(piece, c, band)? {
+    Some(match reading(piece, c)? {
         Reading::Curve => present_curved(piece, c.read, Some(c), near_edges, near_vertices, band),
         Reading::Line => present_line_corner(piece, c, band),
     })
@@ -2712,12 +2666,12 @@ enum Reading {
 
 /// **Which reading a corner has, if any**: one fixed by the two edges'
 /// kinds, so a corner with none has none at any depth.
-fn reading(piece: &Piece<'_>, c: Corner, band: Band) -> Option<Reading> {
+fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     let b = piece.boundary;
     let (e, o) = (b.edges.get(c.read)?, b.edges.get(c.other)?);
-    let (s, curved) = (piece.surface, |r: &Rim| is_curved(piece.surface, r, band));
+    let (s, curved) = (piece.surface, |r: &Rim| is_curved(piece.surface, r));
     if curved(e) {
-        (reads_curve(s, e) && straight(s, o, c.vertex, band).is_some()).then_some(Reading::Curve)
+        (reads_curve(s, e) && straight(s, o, c.vertex).is_some()).then_some(Reading::Curve)
     } else {
         // The argument is made on the cylinder's chart, which never
         // collapses. A sphere's images are its parallels and meridians,
@@ -2726,7 +2680,7 @@ fn reading(piece: &Piece<'_>, c: Corner, band: Band) -> Option<Reading> {
         // apex in reach is a vertex the reading refuses. A torus is not
         // read until its curves, which turn on both axes, are argued.
         let chart = matches!(s, Surface::Cylinder { .. }) && !piece.whole;
-        let line = matches!(e.uses.as_slice(), [u] if u.iso(band).is_some_and(|i| !i.full));
+        let line = matches!(e.uses.as_slice(), [u] if u.iso.is_some_and(|i| !i.full));
         let harmonic = matches!(o.uses.as_slice(), [u] if u.harmonic.is_some());
         (chart && line && curved(o) && harmonic).then_some(Reading::Line)
     }
@@ -2739,7 +2693,6 @@ fn straight(
     surface: &Surface<Interval>,
     rim: &Rim,
     v: VertexKey,
-    band: Band,
 ) -> Option<([Interval; 2], [Point2<Interval>; 2])> {
     let from_start = rim.ends[0] == v;
     if !from_start && rim.ends[1] != v {
@@ -2765,7 +2718,7 @@ fn straight(
         let [u] = rim.uses.as_slice() else {
             return None;
         };
-        let iso = u.iso(band)?;
+        let iso = u.iso?;
         if iso.full {
             return None;
         }
@@ -2873,7 +2826,7 @@ fn leaves_graph(
 ) -> Option<Result<(), Unpresented>> {
     let surface = piece.surface;
     let o = piece.boundary.edges.get(th.corner.other)?;
-    let (d, [near, far]) = straight(surface, o, th.corner.vertex, band)?;
+    let (d, [near, far]) = straight(surface, o, th.corner.vertex)?;
     let k = turns_to(surface, [near.x, near.y], vertex);
     let reach = reach_of([[near.x, near.y], [far.x, far.y]].into_iter());
     // Another copy meets `R` only where the edge, a segment from the
@@ -2934,7 +2887,7 @@ fn present_line_corner<'a>(
     let ([ue], [uo]) = (e.uses.as_slice(), o.uses.as_slice()) else {
         return Err(Unpresented::Local);
     };
-    let (Some(iso), Some(h), Some((_, span))) = (ue.iso(band), uo.harmonic, o.arc.as_ref()) else {
+    let (Some(iso), Some(h), Some((_, span))) = (ue.iso, uo.harmonic, o.arc.as_ref()) else {
         return Err(Unpresented::Local);
     };
     if iso.full {
@@ -4325,14 +4278,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: Some([p2(a), p2(b)]),
-                line: Some((
-                    Iso {
-                        held,
-                        at: iv0(at),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held,
+                    at: iv0(at),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         }
@@ -4622,7 +4572,7 @@ mod presentation_rows {
         let up = Use {
             plus: true,
             image: Some([p2((1.0, 0.0)), p2((1.0, 1.0))]),
-            line: None,
+            iso: None,
             harmonic: None,
         };
         assert_eq!(
@@ -4638,7 +4588,7 @@ mod presentation_rows {
         let east = Use {
             plus: true,
             image: Some([p2((0.0, 0.0)), p2((1.0, 0.0))]),
-            line: None,
+            iso: None,
             harmonic: None,
         };
         assert_eq!(
@@ -4658,7 +4608,7 @@ mod presentation_rows {
         let flat = Use {
             plus: true,
             image: Some([p2((0.0, 0.0)), p2((0.0, 0.0))]),
-            line: None,
+            iso: None,
             harmonic: None,
         };
         assert_eq!(
@@ -4680,46 +4630,8 @@ mod presentation_rows {
             edges: vec![i],
             collapsed: None,
         };
-        assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3), band()));
-        assert!(!convex(
-            &b,
-            &clip(Side::XLo, 0),
-            &clip(Side::YLo, 3),
-            band()
-        ));
-    }
-
-    /// **The level** ([`Use::iso`]): a line held exactly reads as the
-    /// line with nothing decided; one whose amplitude about it is an
-    /// enclosure of zero reads as the line only where [`LEVEL`] decides
-    /// it within the band. Red if the amplitude is ignored, or if no
-    /// amplitude is admitted.
-    #[test]
-    fn a_level_line_reads_as_its_line_only_within_the_band() {
-        let line = Iso {
-            held: Axis::V,
-            at: iv0(0.0),
-            full: false,
-        };
-        let with = |amplitude: Interval| Use {
-            plus: true,
-            image: None,
-            line: Some((line, amplitude)),
-            harmonic: None,
-        };
-        let held = |u: Use| u.iso(band()).map(|i| (i.held, i.at.lo(), i.at.hi()));
-        let want = Some((Axis::V, 0.0, 0.0));
-        assert_eq!(held(with(iv0(0.0))), want, "held exactly");
-        assert_eq!(
-            held(with(Interval::from_bounds(0.0, 1e-17))),
-            want,
-            "an amplitude of rounding"
-        );
-        assert_eq!(
-            held(with(Interval::from_bounds(0.0, 1e-3))),
-            None,
-            "an amplitude past the band"
-        );
+        assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3)));
+        assert!(!convex(&b, &clip(Side::XLo, 0), &clip(Side::YLo, 3)));
     }
 
     /// **`zero_of`**: the sides on the shared cell. One shared line is a
@@ -4781,7 +4693,7 @@ mod presentation_rows {
                 uses: vec![Use {
                     plus: true,
                     image: None,
-                    line: None,
+                    iso: None,
                     harmonic: None,
                 }],
             }],
@@ -4872,7 +4784,7 @@ mod presentation_rows {
                 uses: vec![Use {
                     plus,
                     image: None,
-                    line: None,
+                    iso: None,
                     harmonic: None,
                 }],
             }],
@@ -5034,7 +4946,7 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: None,
-                line: None,
+                iso: None,
                 harmonic: None,
             }],
         }
@@ -5062,7 +4974,7 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: None,
-                line: None,
+                iso: None,
                 harmonic: None,
             }],
         };
@@ -5259,7 +5171,7 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: None,
-                line: None,
+                iso: None,
                 harmonic: Some(h),
             }],
         }
@@ -5297,14 +5209,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: Some([p2((1.0, 0.5)), p2((1.0, 1.0))]),
-                line: Some((
-                    Iso {
-                        held: Axis::U,
-                        at: iv0(1.0),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held: Axis::U,
+                    at: iv0(1.0),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         };
@@ -5408,14 +5317,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: false,
                 image: Some([p2((0.5, 0.5)), p2((1.0, 0.5))]),
-                line: Some((
-                    Iso {
-                        held: Axis::V,
-                        at: iv0(0.5),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.5),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         };
@@ -5493,14 +5399,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: Some([p2((2.5, 0.5)), p2((0.0, 0.5))]),
-                line: Some((
-                    Iso {
-                        held: Axis::V,
-                        at: iv0(0.5),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.5),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         };
@@ -5654,14 +5557,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: false,
                 image: Some([p2((0.0, 0.0)), p2((core::f64::consts::FRAC_PI_2, 0.0))]),
-                line: Some((
-                    Iso {
-                        held: Axis::V,
-                        at: iv0(0.0),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.0),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         };
@@ -5678,14 +5578,11 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: Some([p2((0.0, 0.0)), p2((0.0, 0.3))]),
-                line: Some((
-                    Iso {
-                        held: Axis::U,
-                        at: iv0(0.0),
-                        full: false,
-                    },
-                    Interval::from_f64(0.0),
-                )),
+                iso: Some(Iso {
+                    held: Axis::U,
+                    at: iv0(0.0),
+                    full: false,
+                }),
                 harmonic: None,
             }],
         };
@@ -5985,7 +5882,7 @@ mod presentation_rows {
                 uses: vec![Use {
                     plus: true,
                     image: None,
-                    line: None,
+                    iso: None,
                     harmonic: None,
                 }],
             }],
@@ -6052,7 +5949,7 @@ mod presentation_rows {
                 uses: vec![Use {
                     plus: true,
                     image: None,
-                    line: None,
+                    iso: None,
                     harmonic: Some(Harmonic {
                         p0: [iv0(0.0), iv0(0.0)],
                         pa: [iv0(0.0), iv0(0.0)],
@@ -6098,7 +5995,7 @@ mod presentation_rows {
             uses: vec![Use {
                 plus: true,
                 image: None,
-                line: None,
+                iso: None,
                 harmonic: None,
             }],
         });

@@ -9111,6 +9111,7 @@ fn derive_class<T: Decide>(
                         |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
+                    let (a, b) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
@@ -9119,8 +9120,8 @@ fn derive_class<T: Decide>(
                             },
                             v: Channel::Free {
                                 c: w.dot(axis),
-                                a: form.a.dot(axis),
-                                b: form.b.dot(axis),
+                                a,
+                                b,
                                 l: form.l.dot(axis),
                             },
                         },
@@ -9956,6 +9957,37 @@ impl From<PcurveCertifyError> for Underived {
 
 /// [`derive_class`] for a caller that wants a closed-form image or a
 /// refusal: the sphere's general circle has none.
+/// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
+/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where both
+/// are enclosures holding zero and their sup is decided `Zero` at
+/// `pcurve_cylinder_chart_axial` — the cone arm's
+/// `pcurve_cone_chart_axial` read on the cylinder. Otherwise as given.
+///
+/// An interval scalar encloses a rim's terms, dot products of its frame
+/// with the axis, as intervals about zero that an exact test does not
+/// read as zero. At `f64` a value holds zero only when it is zero, so
+/// nothing there is decided or moved. The dropped drift is within the
+/// band, and the certificate's envelope bounds what it moves.
+fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
+    let holds_zero = |x: T| {
+        x.structure_bracket()
+            .is_some_and(|(lo, hi)| lo <= 0.0 && 0.0 <= hi)
+    };
+    if (geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b))
+        || !(holds_zero(a) && holds_zero(b))
+    {
+        return (a, b);
+    }
+    match decide(
+        "pcurve_cylinder_chart_axial",
+        Margin::of(harmonic_sup_scalar(a, b)),
+        band,
+    ) {
+        Ok(Sign::Zero) => (T::zero(), T::zero()),
+        _ => (a, b),
+    }
+}
+
 fn derive_harmonic<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -14255,5 +14287,60 @@ mod limb2_quick_rows {
         let alone = bits(&limb2_quick::without(|| limb2_offset_sup(&c, w, &p, band)));
         assert_eq!(read, alone, "Interval: the rounds' reading");
         miss("Interval", &read);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod cylinder_rim_rows {
+    use super::cylinder_rim_axial;
+    use geom_core::interval::Interval;
+    use geom_core::predicate::Band;
+    use geom_core::{Bounds, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+    }
+
+    fn iv(lo: f64, hi: f64) -> Interval {
+        Interval::from_bounds(lo, hi)
+    }
+
+    fn bits(x: Interval) -> (f64, f64) {
+        (x.lo(), x.hi())
+    }
+
+    /// **A rim's axial terms are zero only where both hold zero and their
+    /// sup is decided `Zero`** ([`cylinder_rim_axial`]). Red if the
+    /// decision is lax (an amplitude past the band zeroed), if `b`'s
+    /// holding-zero gate is dropped (an in-band `b` beside an exact
+    /// zero `a` zeroed, which at `f64` moves a pcurve), or if the rim is
+    /// not decided (an enclosure of zero kept).
+    #[test]
+    fn a_rims_axial_terms_are_zeroed_only_where_both_hold_zero_within_the_band() {
+        let rounding = iv(-1e-17, 1e-17);
+        let zero = iv(0.0, 0.0);
+        let (a, b) = cylinder_rim_axial(rounding, zero, band());
+        assert_eq!(
+            (bits(a), bits(b)),
+            ((0.0, 0.0), (0.0, 0.0)),
+            "a rim's rounding"
+        );
+        let wide = iv(-1e-3, 1e-3);
+        let (a, _) = cylinder_rim_axial(wide, zero, band());
+        assert_eq!(bits(a), bits(wide), "an amplitude past the band is kept");
+        let off = iv(1e-17, 2e-17);
+        let (_, b) = cylinder_rim_axial(rounding, off, band());
+        assert_eq!(bits(b), bits(off), "a term that excludes zero is kept");
+        assert_eq!(
+            cylinder_rim_axial(0.0_f64, 1e-17, band()),
+            (0.0, 1e-17),
+            "at f64 a nonzero term is kept, however small"
+        );
+        assert_eq!(
+            cylinder_rim_axial(1e-17_f64, 0.0, band()),
+            (1e-17, 0.0),
+            "at f64 a nonzero term is kept, however small"
+        );
     }
 }
