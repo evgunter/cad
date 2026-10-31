@@ -37,3 +37,19 @@ FRUSTUM review (#6114) and reproduced on base `2d49bebbc7`.
 A row that pins one exact refusal arm, run under the ε matrix, pins that
 arm at every ε. That holds only if the arm is ε-independent, and nothing
 checks it before the nightly does.
+
+## Cause, as found
+
+- **The helix's failing build was the `Interval` one, not `f64`.** The
+  margin is an enclosure (`MarginDiag::Enclosure { lo: 0, hi: 1.86e-12 }`),
+  which `f64`'s `Decide` never reports; `helical::<f64>()` built. The
+  path sweep's lane frames were carried along the path at `Interval`
+  (~3e-14 wide), while the walls were the lifted `f64` skin. The rim
+  carrier and the wall row it lies on came from two computations, so
+  the probe's distance was an interval-dependency bound: `u = t / span`
+  over an uncertain span, through a row `(1 − u)·P0 + u·P1`. Since
+  #6138 the carry is one `f64` computation composed onto each lane's
+  start frame, and the row builds and passes at every ε with no change
+  here.
+- **The tee** pinned one ε's refusal arm. It now pins that the union
+  refuses typed.
