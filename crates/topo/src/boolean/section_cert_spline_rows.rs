@@ -360,3 +360,79 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
     );
     assert!(matches!(unread, Section::NoLane("f64")), "{unread:?}");
 }
+
+/// A dome of revolution about `z`, its apex `(0, 0, 0)` the collapsed
+/// side `v = 0` of its chart, its `u` row the rational circle (closed).
+fn revolved_dome() -> Surface<f64> {
+    let ku = KnotVector::clamped(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+    )
+    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0, 1.0),
+        (1.0, 1.0, s),
+        (0.0, 1.0, 1.0),
+        (-1.0, 1.0, s),
+        (-1.0, 0.0, 1.0),
+        (-1.0, -1.0, s),
+        (0.0, -1.0, 1.0),
+        (1.0, -1.0, s),
+        (1.0, 0.0, 1.0),
+    ];
+    let profile = [(0.0, 0.0), (0.5, 0.0), (1.0, -0.5)];
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for &(x, y, w) in &ring {
+        for &(r, z) in &profile {
+            control.push(p(r * x, r * y, z));
+            weights.push(w);
+        }
+    }
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(ku, kv, control, weights).unwrap(),
+    ))
+}
+
+/// Rereview probe (green at c45d83cf): a plane through the apex of a
+/// revolved dome, tilted 0.3 rad, meets it in a closed curve of diameter
+/// `2·tan 0.3` through the apex, interior to a face bounded by the rim
+/// alone. The apex is the chart's collapsed side `v = 0`, an open
+/// channel with no edge on it, so W1′'s premise (a point of an open side
+/// in `X` lies on an edge) fails there. Today the boundary pass refuses
+/// the pole side as a graze (`ssi_boundary_crossing`) within the band;
+/// at `d = ±1e-5` the reading refuses on reach (469 s, not kept). The
+/// row pins that no such pose clears by reaching the pole side.
+#[test]
+fn rereview_a_loop_through_a_pole_is_not_cleared_by_reaching_the_pole_side() {
+    for (a, d) in [
+        (0.3_f64, 0.0),
+        (0.3, 0.3 * band().zero()),
+        (0.3, -0.3 * band().zero()),
+    ] {
+        let tilted = plane(p(0.0, 0.0, -d), v(a.sin(), 0.0, a.cos()));
+        let s = read(&tilted, &revolved_dome());
+        let built = geom_brep::pair_section_with(
+            &tilted,
+            &revolved_dome(),
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
+        eprintln!(
+            "a {a} d {d:e} zero {:e}\n  section {s:?}\n  verdict {verdict:?}",
+            band().zero()
+        );
+        let _ = built;
+        {
+            assert!(
+                !matches!(verdict, Ok(ref c) if !c.is_empty() && c.iter().all(|c| matches!(c, Cleared::Reaches(_)))),
+                "a {a}: the loop through the apex is cleared by W1': {verdict:?}"
+            );
+        }
+    }
+}
