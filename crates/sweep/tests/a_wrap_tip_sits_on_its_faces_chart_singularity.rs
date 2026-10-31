@@ -20,6 +20,9 @@
 //!   at tier 3;
 //! - a wrap tip on a cylinder, which has no singular point, refuses as
 //!   such;
+//! - a small wrap-tip cap reads its side off the tip its chart image
+//!   drops, passes and measures, and flipped is refused by the side
+//!   reader, on a sphere and on a cone;
 //! - at a tip near the pole, the mint's joint and tier 3's two readings of
 //!   the pole answer by the one incidence reading: on, all three admit;
 //!   in band, all three stop short of a decision, on one escalation.
