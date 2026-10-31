@@ -570,11 +570,42 @@ fn small_tip_cone() -> (Body<f64>, FaceKey, VertexKey) {
 /// The side `face`'s loops encode, read by tier 3's side reader over their
 /// chart images, holding the points `held`.
 fn side(body: &Body<f64>, face: FaceKey, held: &[Point3<f64>]) -> geom_brep::props::MaterialSign {
+    side_about(body, face, None, held)
+}
+
+/// [`side`], with the sphere's chart axis turned to `axis` where given,
+/// so its poles sit where a row needs them.
+fn side_about(
+    body: &Body<f64>,
+    face: FaceKey,
+    axis: Option<Vec3<f64>>,
+    held: &[Point3<f64>],
+) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
     let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
-    let surface = body.get_surface(f.surface).unwrap();
+    let mut surface = body.get_surface(f.surface).unwrap().clone();
+    if let (Some(turned), geom::Surface::Sphere { axis, .. }) = (axis, &mut surface) {
+        *axis = turned;
+    }
     let band = Band::linear(tol()).unwrap();
-    geom_brep::props::boundary_material_sign_holding(surface, &[&image], held, band).unwrap()
+    geom_brep::props::boundary_material_sign_holding(&surface, &[&image], held, band).unwrap()
+}
+
+/// The side the small tip cap's bit claims, and its other side.
+fn claimed_and_other(
+    body: &Body<f64>,
+    face: FaceKey,
+) -> (
+    geom_brep::props::MaterialSign,
+    geom_brep::props::MaterialSign,
+) {
+    use geom_brep::props::MaterialSign::Encoded;
+    let s = if body.get_face(face).unwrap().sense {
+        geom_core::Sign::Positive
+    } else {
+        geom_core::Sign::Negative
+    };
+    (Encoded(s), Encoded(s.flip()))
 }
 
 /// **A wrap-tip cap reads its side off the tip its chart image drops.**
@@ -634,7 +665,8 @@ fn a_small_tip_cap_reads_its_side_off_its_tip_and_measures() {
 
 /// **A flipped small wrap-tip cap refuses at tier 3 through the side
 /// reader.** The cap's side, read off the tip its chart image drops,
-/// disagrees with the flipped bit (`CurvedSenseInverted`); the sphere cap
+/// disagrees with the flipped bit (`CurvedSenseInverted`, and the
+/// closed-form lane's `SenseContradicted` by the same datum); the sphere cap
 /// so flipped claims the sphere's far side, and the chart-singularity arm
 /// also finds the far pole inside it. The cone's side reader refuses it
 /// alone.
@@ -655,6 +687,17 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
         }),
         "the sphere cap flipped: the south pole inside the face: {got:?}"
     );
+    let measured = topo::test_support::face_reading(&flipped, face, tol(), 1e-6);
+    assert!(
+        matches!(
+            measured,
+            Err(topo::props::MassPropsError::Face {
+                source: geom_brep::props::PropsError::SenseContradicted,
+                ..
+            })
+        ),
+        "the sphere cap flipped: the flux arm's cross-check refuses it too: {measured:?}"
+    );
 
     let (body, face, _) = small_tip_cone();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
@@ -662,5 +705,72 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
         topo::validate_geometric(&flipped, tol()),
         Err(vec![ValidationError::CurvedSenseInverted { face }]),
         "the cone flipped: the side reader alone"
+    );
+}
+
+/// **A face holding two tips lies on the side that holds both.** With the
+/// chart's axis turned to `x`, both poles lie off the small cap, so its
+/// rim bounds the cap (holding neither) and the complement (holding
+/// both). Held at both poles, the face is the complement, whichever tip
+/// comes first. Held at one, the poles read on opposite sides and the
+/// loop encodes none. Every tip held counts, not only the last.
+#[test]
+fn a_face_holding_two_tips_lies_on_the_side_holding_both() {
+    use geom_brep::props::MaterialSign::Unencoded;
+    let (body, face, _) = small_tip_cap();
+    let (claimed, other) = claimed_and_other(&body, face);
+    let x = Some(Vec3::new(1.0, 0.0, 0.0));
+    let (px, mx) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
+    assert_eq!(side_about(&body, face, x, &[]), claimed, "no tip: the cap");
+    assert_eq!(
+        side_about(&body, face, x, &[px, mx]),
+        other,
+        "both tips: the complement"
+    );
+    assert_eq!(
+        side_about(&body, face, x, &[mx, px]),
+        other,
+        "both tips, the other order: the complement"
+    );
+    assert_eq!(
+        side_about(&body, face, x, &[px]),
+        Unencoded,
+        "one tip of two poles off the cap: no side"
+    );
+}
+
+/// **A held tip read in band leaves its pole unread, and the other pole
+/// decides.** A tip a band-straddling distance from the north pole is
+/// neither at it nor clear of it: the north pole reads nothing, and the
+/// south pole, held by nothing, puts the cap on its far side, the side
+/// the bit claims. A tip clearly off the pole is not the face's pole, so
+/// both poles read as held by nothing, on opposite sides, and the loop
+/// encodes none. With the axis turned to `x`, a tip held at `+x` beside
+/// one in band of `−x` reads the complement off `+x` alone.
+#[test]
+fn a_held_tip_in_band_leaves_its_pole_unread() {
+    use geom_brep::props::MaterialSign::Unencoded;
+    let (body, face, _) = small_tip_cap();
+    let (claimed, other) = claimed_and_other(&body, face);
+    let band = Band::linear(tol()).unwrap();
+    let d = (band.zero() * band.escalate()).sqrt();
+    let near_north = Point3::new(d, (1.0 - d * d).sqrt(), 0.0);
+    assert_eq!(
+        side(&body, face, &[near_north]),
+        claimed,
+        "in band of the north pole: the south decides"
+    );
+    let off_north = Point3::new(0.01, (1.0f64 - 1e-4).sqrt(), 0.0);
+    assert_eq!(
+        side(&body, face, &[off_north]),
+        Unencoded,
+        "clearly off the north pole: no pole is the face's"
+    );
+    let x = Some(Vec3::new(1.0, 0.0, 0.0));
+    let near_minus_x = Point3::new(-(1.0 - d * d).sqrt(), d, 0.0);
+    assert_eq!(
+        side_about(&body, face, x, &[Point3::new(1.0, 0.0, 0.0), near_minus_x]),
+        other,
+        "+x held, −x in band: +x decides"
     );
 }
