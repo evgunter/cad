@@ -313,6 +313,20 @@ pub fn revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
     rev: crate::Revolution<T>,
     tol: Tol,
 ) -> Body<T> {
+    try_revolved_about_y_at(verts, rev, tol).unwrap()
+}
+
+/// [`revolved_about_y_at`] with the revolve door's refusal handed back,
+/// for a row that pins one.
+///
+/// # Errors
+///
+/// The revolve door's.
+pub fn try_revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    rev: crate::Revolution<T>,
+    tol: Tol,
+) -> Result<Body<T>, crate::RevolveError> {
     let profile = Profile::new(SketchPlane::<T>::xy(), vec![bulge_loop(verts)])
         .validate(tol)
         .unwrap();
@@ -320,7 +334,7 @@ pub fn revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
         origin: Point2::new(T::zero(), T::zero()),
         dir: Vec2::new(T::zero(), T::one()),
     };
-    crate::revolve(&profile, axis, rev, tol).unwrap().body
+    crate::revolve(&profile, axis, rev, tol).map(|r| r.body)
 }
 
 /// **The dome**: a sphere zone of radius `r` from the equator up 45°,

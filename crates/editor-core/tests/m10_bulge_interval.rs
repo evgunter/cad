@@ -231,10 +231,9 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// **D′2** (a value charts on the target space): the fold no longer
 /// takes the mated direction back through the target body's motion, so
 /// the chart decides one direction fewer (`pose_unit_norm` 0/5 -> 0/4).
-/// Nothing else moved. `segment_gap` 0/6 is the tab profile's own
-/// validation, which the tree D′2 branched from (`6652164d`) already
-/// decided and this table did not list: this row was red there, in the
-/// slow set, before D′2 touched it.
+/// Nothing else moved. `segment_gap` is the tab profile's own
+/// validation, over its line pairs that share no vertex (a pair that
+/// shares one is not read; `profile::seg`'s `line_line`).
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -270,10 +269,18 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_interval_forward", [0, 20]),
     ("pcurve_loop_branch", [0, 42]),
     ("pcurve_map_residual", [36, 0]),
-    ("segment_gap", [0, 6]),
+    ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
+    // Limb 2's distance bound (C2), owed by every Intersection carrier:
+    // 40 = the 20 Intersection edges (180 = 20 × 9 samples on
+    // `carrier_on_surface_1`) × 2 operands. 36 are theorems: the margin
+    // carries the carrier's free-parameter residual against the operand
+    // as its identity (fork row 204), whose form is zero; the other 4
+    // are the enclosure's own Zero, their identity not reaching the zero
+    // form at the shipped rules.
+    ("ssi_hull_sup", [36, 4]),
     ("transform_rigid_col01_orth", [1, 0]),
     ("transform_rigid_col02_orth", [1, 0]),
     ("transform_rigid_col0_unit", [1, 0]),
@@ -449,6 +456,11 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_map_residual", [36, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
+            // Limb 2's distance bound (C2), owed by every Intersection
+            // carrier: 28 = the 14 Intersection edges (one witness each,
+            // below) × 2 operands. Each a theorem on the carrier's
+            // free-parameter residual (fork row 204).
+            ("ssi_hull_sup", [28, 0]),
             ("transform_rigid_col01_orth", [1, 0]),
             ("transform_rigid_col02_orth", [1, 0]),
             ("transform_rigid_col0_unit", [1, 0]),
@@ -474,7 +486,7 @@ fn d_tab_table(mapped_source: [u64; 2]) -> Vec<(&'static str, [u64; 2])> {
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
 /// with `carrier_matches_mapped_source` 126/0/44/10 (188/10 since its
-/// map runs) — six of the
+/// map runs, 192/6 with rule H's angle sums) — six of the
 /// eighteen that used to stand went to the DOOR with SYM-5's rule E,
 /// and two more with the schedule's assigned last sample.
 #[test]
@@ -484,7 +496,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([188, 10]),
+        &d_tab_table([192, 6]),
     );
 }
 

@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished, prism_z};
 use geom_core::Decide;
@@ -333,8 +334,8 @@ fn null_edge_operand_refuses() {
     let he = b.vertices().next().and_then(|(_, v)| v.emanating).unwrap();
     let strut = b
         .mev_null(
-            topo::MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::MevSite::Fan { he1: he, he2: he },
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     let errors = AtRestBody::validate(b, Tol::witness()).unwrap_err();
@@ -391,9 +392,9 @@ fn non_maximal_operand_refuses() {
     };
     let (p0, p1) = (at(&b, he1), at(&b, he2));
     b.mef(
-        topo::MefSite::Chords { he1, he2 },
+        topo::construction::MefSite::Chords { he1, he2 },
         common::line(p0, p1),
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();

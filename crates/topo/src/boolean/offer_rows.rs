@@ -20,7 +20,7 @@
 //! arm has withdrawn its tolerance asserts it stays withdrawn, and
 //! executes the offer it withdrew to show what that offer would meet.
 //! A case that declares a pair declares it through the Boolean's
-//! declaration door (`verify_declared_contacts`); the site cases that
+//! declaration door (`verify_glued_contacts`); the site cases that
 //! hand a declared-`Tangent` question its read directly (`tangent_side`,
 //! `tangent_side_of`) say so, on the plane x cylinder pair that door
 //! admits.
@@ -113,6 +113,10 @@ enum Because {
     /// It refuses as the join's invariant break with this `what`, so a
     /// different desync turns the row red.
     Desyncs(&'static str),
+    /// It refuses at the germ mint's march of the pair's section, whose
+    /// refusal says this, so a refusal of the classification (the same
+    /// `GermSectionUnbuilt`) turns the row red.
+    MarchRefuses(&'static str),
     /// It passes on this pose: the offer is withdrawn for a pose where it
     /// would be false, which the case's comment names.
     Passes,
@@ -219,11 +223,6 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    // Declared `Rest` through the door, the walls are one carrier and the
-    // arc's ends are read; a smaller tolerance decides the radii apart.
-    arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("ContactContradicted")) =>
-        arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
@@ -329,8 +328,9 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::recl::parallel_same_dir(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0, band()
+        super::super::sectors::parallel_same(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0,
+            super::RAY_COLLINEAR, band()
         ).map(|_| ());
     direction_along_a_short_arm: "DirectionSense", D, CORNER_SITE, Valued =>
         super::super::sectors::direction_sense(
@@ -361,24 +361,27 @@ cases! {
         pierced_torus(1.0, D);
     horn_torus_at_the_band: "Torus(Ring)", D, NORMAL_SITE, Valued =>
         pierced_torus(1.0, 1.0 - D);
-    // The join reaches this guard through `cs_germ_frame` on a
-    // cylinder × sphere germ pair whose axis offset decides Zero: the
-    // section asks its radius guard on the coaxial arm only.
+    // The join reaches this guard through the section door on a
+    // cylinder × sphere germ pair: the pose asks its radius guards first.
     coaxial_thin_cylinder: "Radius(Cylinder)", D, FRAME_SITE, Valued =>
         coaxial_frame(D, 1.0);
     // The cylinder's guard asks first, so a sphere radius in band beside
     // a clear cylinder radius is a pair that does not meet: decided, it
-    // is no section, which a real germ pair never is (the frame's defect).
+    // is no section, which a real germ site never lies on (a desync).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Desyncs("cylinder×sphere section is not a locus")) =>
+        Withdrawn(Because::Desyncs("a site lies on no component of its section")) =>
         coaxial_frame(0.5, D);
-    // The transverse frame's reach a band past and short of the walls'
+    // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
-    // tolerance; the tolerance it withdrew decides the loop count.
+    // tolerance; the tolerance it withdrew decides the loop count. On
+    // either side the loops nearly meet at the far ruling (two loops
+    // past it, the figure-eight's lobes short of it), and the germ mint's
+    // march over them cannot prove one arc per tube there.
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
-        Withdrawn(Because::Passes) => transverse_frame(D);
+        Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Passes) => transverse_frame(-D);
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
+        transverse_frame(-D);
     // Two parallel walls whose axes stand a band apart: their radical
     // plane's normal has no decided length. The coincidence names no
     // tolerance; the tolerance it withdrew decides the offset.
@@ -478,13 +481,15 @@ const NORMAL_SITE: Door = Door::Site(
      directly",
 );
 const FRAME_SITE: Door = Door::Site(
-    "the radius guards run on the coaxial cylinder and sphere frame, whose radii are set \
-     directly",
+    "the radius guards run on the cylinder and sphere pose at the section door, whose radii \
+     are set directly",
 );
+/// What the march's tube refusal says ([`geom_brep::SsiError::TubeStraddles`]).
+const TUBE_STRADDLES: &str = "the uniqueness tube's lower bound on the crossing angle";
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
-    "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
-     directly: a ball whose wall reaches the cylinder's far side within the band crosses it \
-     near-tangent, which the crossing layer meets first",
+    "the cylinder and sphere pose's far reach is read at the section door on the two \
+     surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
+     crosses it near-tangent, which the crossing layer meets first",
 );
 const RADICAL_PLANE_SITE: Door = Door::Site(
     "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
@@ -628,9 +633,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
         &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
         Tol::witness(),
     );
-    let accel = |s: &geom::Surface<f64>| {
-        -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
-    };
+    let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
     let arm = if arm_gate {
         D
     } else {
@@ -718,14 +721,19 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     .map(|_: CurvedEvent<f64>| ())
 }
 
-/// The rim arcs of a radius-`r` wall sheet against a unit wall sheet
-/// sharing its axis, the pair declared `class` through the Boolean's
-/// declaration door (`verify_declared_contacts`, which also says whether
-/// the two are one carrier): the first arc's raise.
-fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
+/// The rim arcs of a unit wall sheet against a unit wall sheet sharing
+/// its axis, opposed, the pair glued `Rest` as the face-pair door reads
+/// it ([`GluedPair::read`]): the first arc's raise.
+fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
+    let xw = cyl_wall_sheet(
+        &mut x,
+        CylFrame::canonical(1.0),
+        (0.5, 1.0),
+        (0.25, 0.5),
+        tol,
+    );
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
@@ -737,13 +745,10 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
         tol,
     );
     let decls = Glue {
-        pairs: class
-            .map(|class| vec![GluedPair::new(xw, yw, class)])
-            .unwrap_or_default(),
+        pairs: vec![GluedPair::read((&x, xw), (&y, yw), GlueClass::Rest, band())],
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &x, &y, band())?;
+    let declared = GluedPairs::without_struts(&decls, [(xw, yw)].into_iter().collect());
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -887,7 +892,6 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
             face_facing(&block, 1.0),
             &wedge,
             face_facing(&wedge, -1.0),
-            false,
             band,
         )
     };
@@ -1174,9 +1178,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
         Tol::witness(),
     );
-    let accel = |s: &geom::Surface<f64>| {
-        -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
-    };
+    let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
     let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
@@ -1230,10 +1232,10 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
         .map_err(|refusal| BooleanError::of_pierced_normal(refusal, Operand::B, st.face))
 }
 
-/// The coaxial frame of a cylinder of radius `cyl` and a
-/// sphere of radius `sph` on one axis.
+/// The section door's reading of a germ site on the coaxial pair of a
+/// cylinder of radius `cyl` and a sphere of radius `sph` on one axis,
+/// as the germ mint reads it.
 fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
-    use super::super::join::{cs_pair_frame, frame_refusal};
     let c = geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1246,10 +1248,38 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
+    // On the upper circle, `z = √(R² − r²)`, where the sphere meets the
+    // wall; a sphere too small to meet it has no such point, and the
+    // site stands where the wall's would.
+    let z = (sph * sph - cyl * cyl).max(0.0).sqrt();
+    section_site(&c, &s, Point3::new(cyl, 0.0, z))
+}
+
+/// **The germ mint's reading of the site `site` on the section of `c`
+/// and `s`**: the pair classified, carried through the march's lane,
+/// and the site's foot on it ([`geom_brep::CarriedSection::foot`]).
+fn section_site(
+    c: &geom::Surface<f64>,
+    s: &geom::Surface<f64>,
+    site: Point3<f64>,
+) -> Result<(), BooleanError> {
     let face = crate::entity::FaceKey::default();
-    cs_pair_frame(&c, &s, band())
+    let kinds = ((face, c.kind()), (face, s.kind()));
+    let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
+        super::super::join::section_unbuilt(why, kinds.0, kinds.1)
+    };
+    let section = match geom_brep::pair_section(c, s, None, None, band()) {
+        Ok(geom_brep::SectionRead::Built(section)) => section,
+        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
+        Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
+    };
+    let carried = section
+        .carry(Some(geom_brep::SsiLane::marched()), band())
+        .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
+    carried
+        .foot(site, band())
         .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+        .map_err(super::super::join::site_refusal)
 }
 
 /// The radical plane of a radius-0.5 cylinder about `z` and a
@@ -1266,11 +1296,10 @@ fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
         .map(|_| ())
 }
 
-/// The transverse frame of a radius-0.5 cylinder about `z` and a
-/// sphere centred 0.25 off its axis whose radius reaches `reach` past
-/// the cylinder's far side.
+/// The section door's reading of a germ site on a radius-0.5 cylinder
+/// about `z` and a sphere centred 0.25 off its axis whose radius
+/// reaches `reach` past the cylinder's far side.
 fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
-    use super::super::join::{frame_refusal, pair_section_frame};
     let c = geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1283,10 +1312,10 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let face = crate::entity::FaceKey::default();
-    pair_section_frame(&c, &s, Point3::new(0.0, 0.0, 0.0), None, band())
-        .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    // On the nearest ruling, where the sphere meets the wall at
+    // `h² = R² − (r − d)²`.
+    let h = ((0.75 + reach).powi(2) - 0.0625).sqrt();
+    section_site(&c, &s, Point3::new(0.5, 0.0, h))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -1541,14 +1570,19 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
-            vec![GluedPair::new(fa, fb, GlueClass::Rest)]
+            vec![GluedPair::read(
+                (&pa.body, fa),
+                (&pb.body, fb),
+                GlueClass::Rest,
+                band(),
+            )]
         } else {
             Vec::new()
         },
         ..Glue::none()
     };
-    let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let one = super::super::verify_glued_contacts(&pa.body, &pb.body, &decls, band())?;
+    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
     let sa = [sector(z, x, fa), sector(x, z, fa)];
     let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(
@@ -2104,6 +2138,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
             (Outcome::Refused { key, text, .. }, Because::Desyncs(what)) => {
                 key == "JoinDesync" && text.contains(what)
             }
+            (Outcome::Refused { key, text, .. }, Because::MarchRefuses(what)) => {
+                key == "GermSectionUnbuilt" && text.contains(what)
+            }
             (Outcome::Pass, Because::Passes) => true,
             _ => false,
         };
@@ -2144,6 +2181,16 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         BooleanErrorKind::Escalated => every_decision()
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
+            .collect(),
+        BooleanErrorKind::CurvedPierceEscalated => every_decision()
+            .into_iter()
+            .map(|decision| BooleanError::CurvedPierceEscalated {
+                operand,
+                face,
+                edge: crate::entity::EdgeKey::default(),
+                decision,
+                diag,
+            })
             .collect(),
         BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
@@ -2193,6 +2240,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::NormalAtSplineCrease
+        | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::SplineCrossingUnsettled
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2208,10 +2256,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::DeclarationContradicted
         | BooleanErrorKind::ContactContradicted
-        | BooleanErrorKind::ContinuationContradicted
-        | BooleanErrorKind::UnsupportedDeclarationClass
+        | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
@@ -2228,6 +2274,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
+        | BooleanErrorKind::GermSectionUnbuilt
         | BooleanErrorKind::GermSectionOpenConic
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
@@ -2243,10 +2290,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
-        | BooleanErrorKind::ResultVolumeImplausible
-        | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::PoisonedCarrierDatum
-        | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
@@ -2257,7 +2301,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
-        | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
@@ -2326,7 +2369,8 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
 
 /// **Every decision a Boolean site names, keyed per site**: each mention
 /// of a `Coincide`, `BooleanDecision`, `LeverArm`, `SphereQuestion` or
-/// `SelfCheck` variant in the Boolean's production code, by file and
+/// `SelfCheck` variant in the Boolean's production code, and each
+/// [`Parallelism`] reading passed, as its coincidence, by file and
 /// enclosing function, with its count. The executed census above is keyed
 /// per decision, so a site that raises one decision under another
 /// decision's key (MY5: the declared-`Tangent` witness's `TangentLocus`
@@ -2352,6 +2396,28 @@ fn every_site_names_the_decision_it_raises() {
         for line in source.lines() {
             if let Some(name) = top_level_fn(line) {
                 function = name;
+            }
+            // A site that passes a parallelism reading raises its
+            // coincidence: `sectors::parallel_same` names none of its own.
+            if !line.trim_start().starts_with("use ") {
+                for (name, reading) in PARALLEL_READINGS {
+                    let passed = line
+                        .match_indices(name)
+                        .filter(|&(at, _)| {
+                            let ident = |c: char| c.is_alphanumeric() || c == '_';
+                            !line[..at].ends_with(ident)
+                                && !line[at + name.len()..].starts_with(ident)
+                        })
+                        .count();
+                    if passed > 0 {
+                        *got.entry((
+                            file.clone(),
+                            function.clone(),
+                            format!("Coincide::{:?}", reading.coincide),
+                        ))
+                        .or_default() += passed;
+                    }
+                }
             }
             for (at, _) in line.match_indices("::") {
                 let head = &line[..at];
@@ -2390,6 +2456,27 @@ fn every_site_names_the_decision_it_raises() {
         "sites whose decision moved:\n{}",
         moved.join("\n")
     );
+}
+
+/// The [`Parallelism`] readings by the names a site passes them under.
+const PARALLEL_READINGS: [(&str, Parallelism); 2] = [
+    ("BOUNDS_PARALLEL", BOUNDS_PARALLEL),
+    ("RAY_COLLINEAR", RAY_COLLINEAR),
+];
+
+/// **The census sees every parallelism reading**: each of
+/// [`PARALLELISMS`] is named in [`PARALLEL_READINGS`], so a site that
+/// passes one is credited with its coincidence.
+#[test]
+fn the_census_names_every_parallelism_reading() {
+    for reading in PARALLELISMS {
+        assert!(
+            PARALLEL_READINGS
+                .iter()
+                .any(|(_, named)| named.predicate == reading.predicate),
+            "{reading:?} is passed under no name the census reads"
+        );
+    }
 }
 
 /// The decision types a site names.
@@ -2465,6 +2552,18 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::BoundaryMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "meeting",
+        "BooleanDecision::CurveMeeting",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
         "escalated",
         "BooleanDecision::Crossing",
         1,
@@ -2507,6 +2606,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "ellipse_torus.rs",
+        "torus_walk",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
+    (
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::VertexOnVertex",
@@ -2531,6 +2636,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
+    ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
@@ -2538,7 +2644,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CutRingWinding",
         1,
     ),
-    ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2553,7 +2658,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Radius",
         1,
     ),
-    ("join.rs", "cs_pair_frame", "BooleanDecision::Radius", 1),
+    ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
+    (
+        "join.rs",
+        "section_undecided",
+        "BooleanDecision::Coincidence",
+        1,
+    ),
+    ("join.rs", "section_undecided", "Coincide::Section", 1),
     (
         "join.rs",
         "cylinder_pair_axes",
@@ -2612,7 +2724,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
-    ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     (
         "mod.rs",
@@ -2635,19 +2746,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::of_plane_rung",
         1,
     ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    (
-        "mod.rs",
-        "screen_contradiction",
-        "SelfCheck::CarrierLadder",
-        1,
-    ),
-    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     ("mod.rs", "route_rim", "Coincide::Rim", 1),
     (
         "mod.rs",
@@ -2658,13 +2756,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
-    (
-        "ops.rs",
-        "decide_left",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
@@ -2723,7 +2814,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
-    ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
+    ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
         "recl.rs",
@@ -2767,6 +2858,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         3,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
         "line_cone_roots",
@@ -2820,7 +2913,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "reduce.rs",
-        "wall_crossing",
+        "cone_nappe",
         "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
@@ -2829,11 +2922,47 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
         "reduce.rs",
         "spline_plane_crossings",
         "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCoveredFace",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCurvedFace",
         1,
     ),
     (
@@ -2856,9 +2985,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
-    ("sectors.rs", "crescent", "Coincide::Sectors", 1),
+    ("sectors.rs", "crescent", "Coincide::Sectors", 3),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2868,7 +2998,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "on_planar_face", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
-    ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "read_side",
@@ -2877,7 +3006,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
-    ("sectors.rs", "runs_into", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
+    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -2886,6 +3016,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "LeverArm::SectorCurving",
         1,
     ),
+    ("sectors.rs", "within_half_turn", "Coincide::Sectors", 1),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
     (
         "slit.rs",
@@ -2893,6 +3024,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    ("slit.rs", "lies_in", "Coincide::EdgeOnCurvedFace", 1),
     ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
     (
         "slit.rs",
@@ -2932,12 +3064,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConicBend",
         1,
     ),
-    (
-        "vtxfac.rs",
-        "classify_vertex_on_face",
-        "Coincide::Sectors",
-        1,
-    ),
+    ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
@@ -2974,6 +3101,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
+    ("vtxfac.rs", "ring_struts", "Coincide::Sectors", 1),
     (
         "zip.rs",
         "one_vertex_sense",
@@ -3008,14 +3136,11 @@ lever_rows! {
     // `CurvedFlankSense`: the faces along the edge reshaped to planes that
     // only touch there, at a clear arm.
     curved_flank_reshaped_to_touching_planes: None => planar_flank_membership_at(true, false, 1e-3);
-    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex moved
-    // clearly onto the face it is declared to touch (the arc's ends with
-    // it) passes; moved clearly clear of it, the declaration is
-    // contradicted, which is why the lever no longer names that side.
-    covered_vertex_moved_onto_its_face: None =>
-        arc_against_a_wall(1.0, Some(GlueClass::Rest));
-    covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
-        arc_against_a_wall(1.1, Some(GlueClass::Rest));
+    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex on the
+    // face the door glued it to touch (the arc's ends with it) passes. A
+    // wall moved clear of it is a pair the door does not glue, so no
+    // covered arm reads it.
+    covered_vertex_on_its_glued_face: None => arc_on_its_glued_wall();
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

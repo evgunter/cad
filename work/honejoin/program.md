@@ -4,7 +4,7 @@ kind: program
 title: HONEJOIN — the curved and chord join's P3 residue: arms its gates admit, invariants it only argues, refusals it misfiles
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/join
 prefix: honejoin/
 tag: (HONEJOIN orchestrator)
 ab_band: 9940-9959

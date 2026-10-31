@@ -52,7 +52,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
-                witness: e.eval(core::f64::consts::FRAC_PI_4),
+                selector: geom_brep::CurveSelector::Witness(e.eval(core::f64::consts::FRAC_PI_4)),
             },
             carrier: e.clone(),
             param_start: 0.0,
@@ -65,6 +65,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             |k| surfaces.get(k).cloned(),
             1.0,
             band,
+            geom_brep::NurbsLane::certified(),
         )
     };
     assert!(certify(a, b, x).is_ok(), "the ordinary frame certifies");

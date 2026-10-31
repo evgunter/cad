@@ -29,6 +29,7 @@ ground:
   `motion()` (`crates/editor-core/tests/refusal_concision_chains.rs:2931`).
 - `FaceFrameReadback` forwards `topo::readback::ReadbackError` (three
   arms, `crates/topo/src/readback.rs:142`, each with a row).
+- `MemberRefused` forwards the `NodeErrorKind` a family's member refused with (`crates/editor-core/src/eval/mod.rs`), one level of the same roster, unwelded as a recursive forward.
 - `FrameDirection` forwards `DirectionRefusal`
   (`crates/editor-core/src/eval/wire.rs:1504`).
 

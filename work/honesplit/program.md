@@ -4,7 +4,7 @@ kind: program
 title: HONESPLIT — split and carve bookkeeping: lineage, unproven walks, null-face records, one shoulder orientation, and the reads nothing reaches
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/split
 prefix: honesplit/
 tag: (HONESPLIT orchestrator)
 ab_band: 9990-9999

@@ -188,7 +188,7 @@ pub(crate) fn seat_edits(
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let edits = fixture::bundle_edits(&doc, placement, placed.bundle());
@@ -358,19 +358,22 @@ pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
 
 /// The one body a node's value holds: a body, or a placement's copies
 /// gathered as one.
-pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
-    let one = |bodies: &[Arc<Body<T>>]| {
+pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Arc<Body<T>> {
+    let one = |bodies: &[editor_core::Framed<T>]| {
         let [b] = bodies else {
             panic!("{id:?} holds {} bodies, not one", bodies.len());
         };
-        Arc::clone(b)
+        Arc::new(crate::fixture::in_space(b))
     };
     match &ev
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Body(b) => Arc::clone(b),
+        ValuePayload::Body(b) => Arc::new(crate::fixture::in_space(b)),
         ValuePayload::Instances(bodies) => one(bodies),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
@@ -478,11 +481,11 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     );
     let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain(
             TargetAxis::ALL
                 .into_iter()
-                .map(|axis| (Coord::Spin(Some(axis)), ang(0.0))),
+                .map(|axis| (Coord::Spin(Some(axis)), Formula::zero(Dimension::Angle))),
         )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
@@ -702,8 +705,7 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
         world(base).to_bits(),
         "the product is the world's material alone"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness())
-        .expect("the gate certifies the world and the top's own space");
+    crate::fixture::could_look(&doc, &ev).expect("the world and the top's own space are at rest");
     // The measure across the two spaces is refused at the edit door,
     // before any evaluation (D′1).
     let error = fixture::insert_refused(&doc, measure());
@@ -910,19 +912,11 @@ pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 2],
 }
 
 /// **A cut of `ids` in `doc`, with the world copies of what it
-/// moves**: each `Part` selecting a copy of a cut pattern, then every
-/// world placement of a cut body ([`fixture::with_placements`]) — a
-/// part delivers only its world, so a split moves a body with its
-/// placements.
+/// moves**: every world placement of a cut body or of a member of a cut
+/// family ([`fixture::with_placements`]) — a part delivers only its
+/// world, so a split moves a body with its placements.
 pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
-    let mut out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
-    for id in doc.ids() {
-        if let Some(Node::Part { of, .. }) = doc.node(id)
-            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
-        {
-            out.insert(id);
-        }
-    }
+    let out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
     fixture::with_placements(doc, &out)
 }
 

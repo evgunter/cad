@@ -99,6 +99,7 @@ fn loft_doc_of(
         Node::Profile(ProfileProgram {
             loops: vec![lower],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, upper) = fixture::insert(
@@ -106,6 +107,7 @@ fn loft_doc_of(
         Node::Profile(ProfileProgram {
             loops: vec![upper],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(
@@ -179,7 +181,8 @@ fn loft_digest(ev: &editor_core::Evaluation<f64>, loft: RecipeNodeId) -> Vec<u64
     let Some(editor_core::ValuePayload::Body(body)) = ev.value(loft).map(|v| &v.payload) else {
         panic!("the loft is a body");
     };
-    body.points()
+    body.body()
+        .points()
         .flat_map(|(_, p)| p.to_array().map(f64::to_bits))
         .collect()
 }
@@ -208,6 +211,7 @@ fn a_seed_on_a_section_radius_moves_the_lofted_wall() {
         panic!("the loft is a body");
     };
     let moved: Vec<f64> = body
+        .body()
         .points()
         .filter(|(_, p)| p.z.value == 0.0)
         .map(|(_, p)| p.x.deriv.hypot(p.y.deriv))

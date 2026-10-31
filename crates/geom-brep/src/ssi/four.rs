@@ -24,11 +24,12 @@
 
 use std::rc::Rc;
 
-use geom::NurbsSurface;
+use geom::{NurbsCurve2, NurbsSurface};
 use geom_core::interval::certification::Certification;
-use geom_core::{Bounds, CertifiedBounds, Interval};
+use geom_core::{Bounds, CertifiedBounds, Interval, Point2};
 
 use super::enclose::{Box3, NurbsBoxes, UvWindow, refused_box};
+use super::exhaust::UvRect;
 use super::one_arc::{EXIT_CUT, EXIT_DEPTH, Shortfall};
 use super::section::sign;
 use crate::krawczyk::{det3, inverse3};
@@ -81,6 +82,24 @@ impl Box4 {
         Some(Self(s))
     }
 
+    /// The least box holding both; a `NaN` side in either poisons that
+    /// side (`f64::min` and `max` would drop it).
+    fn hull(self, o: Self) -> Self {
+        let pick = |p: f64, q: f64, f: fn(f64, f64) -> f64| {
+            if p.is_nan() || q.is_nan() {
+                f64::NAN
+            } else {
+                f(p, q)
+            }
+        };
+        Self(core::array::from_fn(|k| {
+            (
+                pick(self.0[k].0, o.0[k].0, f64::min),
+                pick(self.0[k].1, o.0[k].1, f64::max),
+            )
+        }))
+    }
+
     /// Whether `self` lies inside `o`, sides included.
     pub(crate) fn contained_in(self, o: Self) -> bool {
         (0..4).all(|k| o.0[k].0 <= self.0[k].0 && self.0[k].1 <= o.0[k].1)
@@ -119,6 +138,16 @@ pub(crate) struct PairBoxes<'a, T: CertifiedBounds> {
     pub(crate) speeds: [f64; 4],
 }
 
+/// How [`PairBoxes`] reads a wall's derivative box over a box.
+#[derive(Clone, Copy)]
+enum DerivRead {
+    /// Each touched cell's net cut to the box ([`NurbsBoxes::deriv_box`]).
+    Cut,
+    /// Over the closed box, through the cells it has width in
+    /// ([`NurbsBoxes::deriv_box_closed`]).
+    Closed,
+}
+
 impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// The pair over the two operands' own cells (the enclosures they
     /// hold, shared), with its four chart speeds.
@@ -148,11 +177,26 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// An enclosure of `F`'s Jacobian over `x`: column `j` is `∂F/∂xⱼ`,
     /// rows the three components.
     pub(crate) fn jacobian(&self, x: Box4) -> [[Interval; 4]; 3] {
-        self.jacobian_read(x, true)
+        self.jacobian_read(x, DerivRead::Cut)
     }
 
-    /// The Jacobian, each net cut to `x` or read whole.
-    fn jacobian_read(&self, x: Box4, cut: bool) -> [[Interval; 4]; 3] {
+    /// The Jacobian over the closed box `x`, read only through the span
+    /// cells `x` has width in ([`NurbsBoxes::deriv_box_closed`]).
+    pub(crate) fn jacobian_closed(&self, x: Box4) -> [[Interval; 4]; 3] {
+        self.jacobian_read(x, DerivRead::Closed)
+    }
+
+    /// Whether both walls' first partials are continuous inside `x`
+    /// ([`NurbsBoxes::first_order_continuous_in`]).
+    pub(crate) fn first_order_continuous_in(&self, x: Box4) -> bool {
+        x.window_a()
+            .is_some_and(|w| self.a.first_order_continuous_in(w))
+            && x.window_b()
+                .is_some_and(|w| self.b.first_order_continuous_in(w))
+    }
+
+    /// The Jacobian, each wall's derivative box read as `how` says.
+    fn jacobian_read(&self, x: Box4, how: DerivRead) -> [[Interval; 4]; 3] {
         let col = |b: Box3, s: f64| {
             [
                 b.x * Interval::point(s),
@@ -161,12 +205,9 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
             ]
         };
         let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
-            w.map_or_else(refused_box, |w| {
-                if cut {
-                    n.deriv_box(w, u)
-                } else {
-                    n.cell_deriv_box(w, u)
-                }
+            w.map_or_else(refused_box, |w| match how {
+                DerivRead::Cut => n.deriv_box(w, u),
+                DerivRead::Closed => n.deriv_box_closed(w, u),
             })
         };
         let (wa, wb) = (x.window_a(), x.window_b());
@@ -363,23 +404,27 @@ fn free_of(k: usize) -> [usize; 3] {
 }
 
 /// The solutions on the face `x` held at coordinate `k`, pushed onto
-/// `roots` (module docs). `None` when a piece resolves no way within
-/// [`EXIT_DEPTH`] cuts, or `pieces` passes `budget`.
+/// `roots` (module docs).
+///
+/// # Errors
+///
+/// The piece that resolved no way within [`EXIT_DEPTH`] cuts; `None`
+/// where `pieces` passes `budget` or `x` is no box.
 fn face_walk<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     (x, k): (Box4, usize),
     roots: &mut Vec<Box4>,
     (pieces, budget): (&mut u32, u32),
-) -> Option<()> {
+) -> Result<(), Option<Box4>> {
     let free = free_of(k);
     if !x.is_box() {
-        return None;
+        return Err(None);
     }
     let mut stack = vec![(x, 0u32)];
     while let Some((x, depth)) = stack.pop() {
         *pieces += 1;
         if *pieces > budget {
-            return None;
+            return Err(None);
         }
         if pair.residual(x).iter().any(|c| sign(*c).is_some()) {
             continue;
@@ -393,7 +438,7 @@ fn face_walk<T: CertifiedBounds>(
             None => {}
         }
         if depth >= EXIT_DEPTH {
-            return None;
+            return Err(Some(x));
         }
         let a = pair.widest(x, &free);
         let (lo, hi) = x.0[a];
@@ -404,7 +449,7 @@ fn face_walk<T: CertifiedBounds>(
         stack.push((h, depth + 1));
         stack.push((l, depth + 1));
     }
-    Some(())
+    Ok(())
 }
 
 /// The most pieces one box's walk examines in a tube's one-arc proof.
@@ -425,6 +470,16 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     r: Box4,
     budget: u32,
 ) -> Option<Vec<(Box4, usize, bool)>> {
+    walk_faces(pair, r, budget).ok()
+}
+
+/// [`face_roots`], with the piece its walk stopped in where it stopped
+/// at [`EXIT_DEPTH`] ([`face_walk`]).
+fn walk_faces<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    r: Box4,
+    budget: u32,
+) -> Result<Vec<(Box4, usize, bool)>, Option<Box4>> {
     let mut out = Vec::new();
     let mut pieces = 0u32;
     for k in 0..4 {
@@ -439,7 +494,7 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
             out.extend(roots.into_iter().map(|q| (q, k, high)));
         }
     }
-    Some(out)
+    Ok(out)
 }
 
 /// The near reading of an end ([`reaches_end`]).
@@ -452,8 +507,8 @@ enum Near {
 /// **The box `r`'s piece reaches the carrier's end `at`**, `k` the
 /// coordinate the carrier's state runs most along there, in metres.
 /// - One of `r`'s own boundary solutions, `roots`, each narrowed
-///   ([`narrow`]), lies in a box about the end, its half-width `eps/8`
-///   metres at each axis's chart speed.
+///   ([`narrow`]), lies in the box about the end ([`end_box`]), its
+///   half-width `eps/8` metres at each axis's chart speed.
 ///   This is the reading of an end on a side of the domain: the slice's
 ///   solution there lies on the slice's own boundary, where no Krawczyk
 ///   test isolates it.
@@ -470,15 +525,16 @@ enum Near {
 /// [`Shortfall::Short`] only where the slice and the box about the end
 /// are both certified to hold none (a root of `r` in the box lies on
 /// the box's boundary too, so that covers the first reading); an end
-/// whose slice lies outside `r` along `k` is [`Shortfall::Undecided`].
+/// whose slice lies outside `r` along `k`, or that no reading resolves,
+/// is [`Shortfall::Undecided`], which [`one_arc_pair`] may rename by the
+/// carrier's shape.
 fn reaches_end<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     (r, roots): (Box4, &[(Box4, usize, bool)]),
     (at, k): ([f64; 4], usize),
     eps: f64,
 ) -> Result<(), Shortfall> {
-    let h: [f64; 4] = core::array::from_fn(|i| eps / 8.0 / pair.speeds[i]);
-    let ball = Box4::at(at).pad(h);
+    let ball = end_box(pair, at, eps);
     if roots
         .iter()
         .any(|&(q, face, _)| narrow(pair, (q, face)).contained_in(ball))
@@ -495,7 +551,8 @@ fn reaches_end<T: CertifiedBounds>(
         (r.holding(k, c), k),
         &mut on_slice,
         (&mut 0, PAIR_EXIT_PIECES),
-    );
+    )
+    .ok();
     if !on_slice.is_empty() {
         return Ok(());
     }
@@ -545,28 +602,58 @@ pub(crate) fn heaviest(axes: &[usize], w: impl Fn(usize) -> f64) -> usize {
 ///   start, the last box's its end ([`reaches_end`]); `ends` holds each
 ///   end's state and the coordinate the carrier runs most along there.
 ///
+/// A walk or end reading that resolves nothing, at a box or an end, is
+/// [`Shortfall::Undecided`], renamed after the fact where the carrier's
+/// shape accounts for it. Nothing else is renamed:
+/// - [`Shortfall::AlongSide`] where `along` names the chart whose image
+///   lies along a side of its domain ([`along_side`], read by the
+///   caller);
+/// - else [`Shortfall::EndOnSides`] where the failure is an end's: its
+///   reading in [`reaches_end`], or a box walk that stopped in a piece
+///   meeting that end's box ([`end_box`]), the end lying on two or more
+///   of `domain`'s sides ([`sides_at`]), that end's count alone.
+///
+/// A box missing `domain` stays unnamed.
+///
 /// # Errors
 ///
 /// The first [`Shortfall`] met, boxes in order, then links in order,
 /// then the start and the end.
 pub(crate) fn one_arc_pair<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
-    (boxes, domain): (&[Box4], Box4),
+    (boxes, domain, along): (&[Box4], Box4, Option<u32>),
     ends: [([f64; 4], usize); 2],
     eps: f64,
 ) -> Result<(), Shortfall> {
+    let end_boxes = [0, boxes.len().saturating_sub(1)];
+    // `failed` is the end the failure is that end's, if any.
+    let named = |failed: Option<usize>| {
+        if let Some(k) = along {
+            return Shortfall::AlongSide(k);
+        }
+        match failed.map(|j| sides_at(pair, domain, ends[j].0, eps)) {
+            Some(on) if on >= 2 => Shortfall::EndOnSides(on),
+            _ => Shortfall::Undecided,
+        }
+    };
     let cut = boxes
         .iter()
         .map(|b| b.meet(domain))
         .collect::<Option<Vec<Box4>>>()
         .ok_or(Shortfall::Undecided)?;
     let mut roots = Vec::with_capacity(cut.len());
-    for r in &cut {
-        match face_roots(pair, *r, PAIR_EXIT_PIECES) {
-            Some(v) if v.len() == 2 => roots.push(v),
+    for (i, r) in cut.iter().enumerate() {
+        match walk_faces(pair, *r, PAIR_EXIT_PIECES) {
+            Ok(v) if v.len() == 2 => roots.push(v),
             #[allow(clippy::cast_possible_truncation)]
-            Some(v) => return Err(Shortfall::Count(v.len() as u32)),
-            None => return Err(Shortfall::Undecided),
+            Ok(v) => return Err(Shortfall::Count(v.len() as u32)),
+            Err(stopped) => {
+                let at_end = |j: usize| {
+                    end_boxes[j] == i
+                        && stopped.is_some_and(|p| p.meet(end_box(pair, ends[j].0, eps)).is_some())
+                };
+                return Err(named((0..2).find(|&j| at_end(j))));
+            }
         }
     }
     (1..cut.len()).try_for_each(|k| {
@@ -583,8 +670,69 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
     else {
         return Err(Shortfall::Undecided);
     };
-    reaches_end(pair, (first, r0), ends[0], eps)?;
-    reaches_end(pair, (last, r1), ends[1], eps)
+    let read = |j: usize, s: Shortfall| match s {
+        Shortfall::Undecided => named(Some(j)),
+        s => s,
+    };
+    reaches_end(pair, (first, r0), ends[0], eps).map_err(|s| read(0, s))?;
+    reaches_end(pair, (last, r1), ends[1], eps).map_err(|s| read(1, s))
+}
+
+/// The half-width, in chart units, of the box about a carrier's end
+/// that [`reaches_end`] looks in: `eps/8` metres at the axis's chart
+/// `speed`. `0` where that is not finite. It bounds the chart IMAGE's
+/// distance from the end, not the locus's.
+pub(crate) fn end_reach(eps: f64, speed: f64) -> f64 {
+    let h = eps / 8.0 / speed;
+    if h.is_finite() { h } else { 0.0 }
+}
+
+/// The box about the state `x` [`reaches_end`] looks in ([`end_reach`]
+/// on each axis).
+fn end_box<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, x: [f64; 4], eps: f64) -> Box4 {
+    Box4::at(x).pad(core::array::from_fn(|k| end_reach(eps, pair.speeds[k])))
+}
+
+/// How many sides of `domain` the state `x` lies on, each read as the
+/// side meeting [`end_box`] about it.
+#[allow(clippy::cast_possible_truncation)]
+fn sides_at<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    domain: Box4,
+    x: [f64; 4],
+    eps: f64,
+) -> u32 {
+    let near = |k: usize, side: f64| (x[k] - side).abs() <= end_reach(eps, pair.speeds[k]);
+    (0..4)
+        .filter(|&k| near(k, domain.0[k].0) || near(k, domain.0[k].1))
+        .count() as u32
+}
+
+/// Whether the chart image `pcurve` lies along a side of `domain`: every
+/// control point's `u` within `within.0` of one `u` side, or every one's
+/// `v` within `within.1` of one `v` side, each bracket whole. The weights
+/// are positive, so the image lies in its control points' hull, that
+/// near the side. `within` is [`end_reach`] on each axis. This places
+/// the IMAGE, not the locus.
+///
+/// A control whose bracket does not certify is not along any side: the
+/// answer moves a refusal from `Undecided` to the sign-certain
+/// `AlongSide`, so it rests only on certified controls.
+pub(crate) fn along_side<T: CertifiedBounds>(
+    pcurve: &NurbsCurve2<T>,
+    domain: UvRect,
+    within: (f64, f64),
+) -> bool {
+    let on = |read: fn(&Point2<T>) -> T, (lo, hi): (f64, f64), h: f64| {
+        [lo, hi].into_iter().any(|side| {
+            pcurve.control().iter().all(|p| {
+                read(p)
+                    .certified_bracket()
+                    .is_some_and(|(lo, hi)| (lo - side).abs() <= h && (hi - side).abs() <= h)
+            })
+        })
+    };
+    on(|p| p.x, domain.u, within.0) || on(|p| p.y, domain.v, within.1)
 }
 
 /// The graph margin over a box: the determinant of `F`'s Jacobian, each
@@ -605,7 +753,15 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     x: Box4,
     e: [f64; 4],
 ) -> Interval {
-    let mut j = pair.jacobian(x);
+    margin_of(pair, pair.jacobian(x), e)
+}
+
+/// [`graph_margin`] of a Jacobian `j` read over a box.
+fn margin_of<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    mut j: [[Interval; 4]; 3],
+    e: [f64; 4],
+) -> Interval {
     for row in &mut j {
         for (c, v) in row.iter_mut().enumerate() {
             *v = *v * Interval::point(1.0 / pair.speeds[c]);
@@ -615,6 +771,170 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
         let sgn = if c % 2 == 0 { -1.0 } else { 1.0 };
         acc + Interval::point(sgn * e[c]) * det3(minor(&j, c))
     })
+}
+
+/// The pieces a row's span is first cut into ([`row_crossing`]).
+const ROW_PIECES: usize = 8;
+
+/// How many times [`row_crossing`] may halve a piece before it stops.
+const ROW_DEPTH: u32 = 10;
+
+/// The share of a chart's domain a row's box is widened by across the row
+/// ([`row_crossing`]).
+const ROW_SLIVER: f64 = 1.0 / (1u64 << 40) as f64;
+
+/// `raw`, a direction in the state's chart coordinates, scaled to metres
+/// by each coordinate's chart `speeds` and made a unit vector: the axis a
+/// [`graph_margin`] is read across. `None` for a zero or non-finite one.
+pub(crate) fn scaled_unit(raw: [f64; 4], speeds: [f64; 4]) -> Option<[f64; 4]> {
+    let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
+    let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
+    (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+}
+
+/// Why [`row_crossing`] gave no reading: wall `0` or `1` has no chart
+/// speeds to scale its Jacobian by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RowUnreadable(pub(crate) usize, pub(crate) super::ChartSpeedRefusal);
+
+/// What [`row_crossing`] read over a row's cover.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum RowCrossing {
+    /// Two zero-free pieces read opposite signs with both walls' first
+    /// partials continuous over the stretch between them: the walls'
+    /// tangent planes coincide at a state of the row there.
+    Turns,
+    /// Every piece read zero-free, with no turn: the least graph margin
+    /// over the cover.
+    Clear(f64),
+    /// A piece, halved [`ROW_DEPTH`] times, still read no sign, and no
+    /// turn was read.
+    Unread,
+}
+
+/// **Two walls' crossing along a shared row, over its whole span**: the
+/// [`graph_margin`] read over a cover of `[t0, t1]`, ends and joins
+/// included. `read(lo, hi)` gives a piece's state box (holding both row
+/// images over `[lo, hi]`) and the images' chord across it, in chart
+/// coordinates.
+///
+/// A zero-free graph margin over a box says the pair's Jacobian has rank
+/// three at every state in it: the two tangent planes differ there. A
+/// piece that is not zero-free is halved, up to [`ROW_DEPTH`] times. Each
+/// piece is read over its closed box through each wall's spans that the
+/// box has width in ([`PairBoxes::jacobian_closed`]), so a piece ending
+/// on a knot reads that knot through its own span's polynomial, and the
+/// pieces' boxes meet: every state of the row images as evaluated is
+/// read. A `NaN` in a box or a chord poisons its piece, which then reads
+/// no sign.
+///
+/// **Opposite signs.** With the images exact, `F` vanishes along the row,
+/// so the row's tangent `d` lies in the Jacobian's kernel. Write `n` for the Jacobian's
+/// generalized cross product (scaled as the margin's): continuous wherever
+/// the first partials are, zero exactly where the rank drops, and along
+/// the kernel otherwise, so `n = λ·d`. The margin at a row state is `n·e`.
+/// The caller states that each image moves along one chart coordinate,
+/// strictly monotonically with nonzero speed, and that a chord component
+/// is zero or of its coordinate's sign; so with `σ` the coordinates' sign
+/// pattern, `d·σ > 0` and `d·e > 0` on every piece, and the margin's sign
+/// there is `λ`'s, and `n·σ`'s. Two zero-free pieces of opposite signs,
+/// with both walls' first partials continuous inside the hull of the boxes
+/// from one to the other ([`PairBoxes::first_order_continuous_in`]), give
+/// the continuous `n·σ` both signs between them: it is zero at a state of
+/// the row there, where `λ`, and so the rank, drops and the tangent
+/// planes coincide. Across a knot of full multiplicity the partials jump,
+/// and a sign change there says nothing. Where the images hold only to
+/// their certified residual, a turn may read a crossing at an angle of
+/// about that residual as an exact zero, a refusal either way.
+///
+/// The caller's `read` gives the states of two images
+/// `description::row_of` admits; nothing here checks it.
+///
+/// A box with no width across the row is widened into the domain when its
+/// fixed coordinate is a domain end, so no net is cut to a point (a box
+/// of no width would read its whole cell); elsewhere it is read as it
+/// stands, a sound and looser reading.
+pub(crate) fn row_crossing<T: CertifiedBounds>(
+    (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
+    (t0, t1): (f64, f64),
+    read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
+) -> Result<RowCrossing, RowUnreadable> {
+    let ca = super::ChartedNurbs::mint(a).map_err(|e| unreadable(0, e))?;
+    let cb = super::ChartedNurbs::mint(b).map_err(|e| unreadable(1, e))?;
+    let (sa, sb) = (ca.speeds(), cb.speeds());
+    let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
+    let domain = Box4::of_charts(a, b);
+    #[allow(clippy::cast_precision_loss)]
+    let mut work: std::collections::VecDeque<(f64, f64, u32)> = (0..ROW_PIECES)
+        .map(|k| {
+            let at = |k: usize| t0 + (t1 - t0) * (k as f64 / ROW_PIECES as f64);
+            (at(k), at(k + 1), 0)
+        })
+        .collect();
+    // Each read piece: its start, its box, and its margin's sign where it
+    // is zero-free (`None` for a piece read at depth with no sign).
+    let mut pieces: Vec<(f64, Box4, Option<bool>)> = Vec::new();
+    let mut least = f64::INFINITY;
+    while let Some((lo, hi, depth)) = work.pop_front() {
+        let (x, chord) = read(lo, hi);
+        let x = Box4(core::array::from_fn(|k| {
+            let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
+            let w = (d1 - d0) * ROW_SLIVER;
+            if l < h {
+                (l, h)
+            } else if l == d0 {
+                (l, (l + w).max(l.next_up()))
+            } else if l == d1 {
+                ((l - w).min(l.next_down()), l)
+            } else {
+                (l, h)
+            }
+        }));
+        let margin = scaled_unit(chord, pair.speeds)
+            .map(|e| margin_of(&pair, pair.jacobian_closed(x), e))
+            .and_then(|i| {
+                let m = super::enclose::tube_margin(i)?;
+                (m > 0.0).then_some((m, i.lo() > 0.0))
+            });
+        match margin {
+            Some((m, positive)) => {
+                least = least.min(m);
+                pieces.push((lo, x, Some(positive)));
+            }
+            None if depth < ROW_DEPTH => {
+                let half = lo * 0.5 + hi * 0.5;
+                work.push_back((lo, half, depth + 1));
+                work.push_back((half, hi, depth + 1));
+            }
+            None => pieces.push((lo, x, None)),
+        }
+    }
+    pieces.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let signed: Vec<usize> = (0..pieces.len())
+        .filter(|&k| pieces[k].2.is_some())
+        .collect();
+    let turns = signed.windows(2).any(|w| {
+        let (i, j) = (w[0], w[1]);
+        pieces[i].2 != pieces[j].2
+            && pair.first_order_continuous_in(
+                pieces[i..=j].iter().fold(pieces[i].1, |h, p| h.hull(p.1)),
+            )
+    });
+    Ok(if turns {
+        RowCrossing::Turns
+    } else if pieces.iter().any(|p| p.2.is_none()) {
+        RowCrossing::Unread
+    } else {
+        RowCrossing::Clear(least)
+    })
+}
+
+/// Wall `wall`'s chart speeds refused.
+fn unreadable(wall: usize, e: super::SsiError) -> RowUnreadable {
+    match e {
+        super::SsiError::ChartSpeed(r) => RowUnreadable(wall, r),
+        other => unreachable!("a chart's mint refuses only its speeds: {other:?}"),
+    }
 }
 
 #[cfg(test)]
@@ -661,7 +981,7 @@ mod tests {
         eps: f64,
     ) -> Result<(), Shortfall> {
         let domain = Box4::of_charts(a, b);
-        one_arc_pair(&boxed(a, b), (&[domain], domain), ends, eps)
+        one_arc_pair(&boxed(a, b), (&[domain], domain, None), ends, eps)
     }
 
     /// The walls `x = 0`, `(u, v) ↦ (0, u, v)`, and `y = ½`,
@@ -709,6 +1029,165 @@ mod tests {
             spans((&a, &b), past, 1e-9),
             Err(Shortfall::Short),
             "a carrier overrunning the arc refuses as short"
+        );
+    }
+
+    /// **An end at a corner of a chart refuses by name.** The walls
+    /// `(u, v) ↦ (0, u, v)` and `(u, v) ↦ (u − ½, 2v − ½, 2v − ½)` cross on
+    /// the first's diagonal `u₁ = v₁`, from its corner `(0, 0)` to its
+    /// corner `(1, 1)`: each end's root lies on two faces of the box at
+    /// once, where neither face's walk isolates it. The walk is undecided
+    /// at every ε, and names the two sides the end lies on.
+    #[test]
+    fn an_end_at_a_charts_corner_refuses_by_its_sides() {
+        let (a, b) = (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [i - 0.5, 2.0 * j - 0.5, 2.0 * j - 0.5]),
+        );
+        let ends = [([0.0, 0.0, 0.5, 0.25], 1), ([1.0, 1.0, 0.5, 0.75], 1)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            assert_eq!(
+                spans((&a, &b), ends, eps),
+                Err(Shortfall::EndOnSides(2)),
+                "the start lies on the first chart's u and v sides at ε = {eps:e}"
+            );
+        }
+    }
+
+    /// **An end's refusal counts that end's sides alone.** The walls
+    /// `(u, v) ↦ (0, u, v)` and `(u, v) ↦ (u − ½, 2v − 1, 2v − 1)` cross on
+    /// the first's diagonal, from its corner `(0, 0)`, where the second is
+    /// at `(½, ½)`, to its corner `(1, 1)`, where the second is on its
+    /// `v = 1` side: the start lies on two domain sides, the end on three.
+    /// Over one box both ends are that box's, and the walk stops first at
+    /// the start's corner, on the face `u₁ = 0`: it names the start's two
+    /// sides, not the end's three.
+    #[test]
+    fn an_end_refusal_counts_that_ends_sides_alone() {
+        let (a, b) = (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [i - 0.5, 2.0 * j - 1.0, 2.0 * j - 1.0]),
+        );
+        let ends = [([0.0, 0.0, 0.5, 0.5], 1), ([1.0, 1.0, 0.5, 1.0], 1)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            assert_eq!(
+                spans((&a, &b), ends, eps),
+                Err(Shortfall::EndOnSides(2)),
+                "the start's two sides at ε = {eps:e}"
+            );
+        }
+    }
+
+    /// **An image off a side by twice the end box is not along it.** A
+    /// polyline at `v = d` over `[0, 1]²`, at unit speed: along the
+    /// `v = 0` side for `d` inside the end box `ε/8` ([`end_reach`]),
+    /// not for `d = 2·ε/8`. Red under an end box loosened to `ε`.
+    #[test]
+    fn an_image_off_a_side_by_twice_the_end_box_is_not_along_it() {
+        use geom::NurbsCurve2;
+        use geom_core::Point2;
+        let domain = super::UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        let at = |d: f64| {
+            NurbsCurve2::new(
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![Point2::new(0.2, d), Point2::new(0.8, d)],
+                vec![1.0; 2],
+            )
+            .unwrap()
+        };
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let within = (super::end_reach(eps, 1.0), super::end_reach(eps, 1.0));
+            for (d, along) in [(0.0, true), (eps / 16.0, true), (2.0 * eps / 8.0, false)] {
+                assert_eq!(
+                    super::along_side(&at(d), domain, within),
+                    along,
+                    "v = {d:e} at ε = {eps:e}"
+                );
+            }
+        }
+    }
+
+    /// **A control that does not certify places no image along a side.**
+    /// The polyline at `v = 0` lifted to intervals: along the side with
+    /// point controls, not with a refused point bracket on the side for
+    /// one control's `v`. Red under a read of the bracket's ends, which
+    /// would move an `Undecided` refusal to the sign-certain `AlongSide`.
+    #[test]
+    fn a_refused_control_is_not_along_a_side() {
+        use geom::NurbsCurve2;
+        use geom_core::{Interval, Point2};
+        let domain = super::UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        // The second control's `v` is marked by a value no other datum
+        // takes, and lifted to `v`; every other datum to its point.
+        const MARK: f64 = 0.5;
+        let line = NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point2::new(0.2, 0.0), Point2::new(0.8, MARK)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let at = |v: Interval| {
+            line.map_scalar(|x| {
+                if x == MARK {
+                    v
+                } else {
+                    Interval::from_bounds(x, x)
+                }
+            })
+        };
+        let within = (super::end_reach(1e-9, 1.0), super::end_reach(1e-9, 1.0));
+        assert!(super::along_side(
+            &at(Interval::from_bounds(0.0, 0.0)),
+            domain,
+            within
+        ));
+        let refused = geom_core::test_support::refused_point(0.0);
+        assert!(!super::along_side(&at(refused), domain, within));
+    }
+
+    /// **A carrier along a chart's side refuses by name, and only where
+    /// the walk is undecided.** The wall `(u, v) ↦ (0, u, v)` and the
+    /// floor `(u, v) ↦ (2v − 1, u, 0)` meet along the wall's `v = 0` row,
+    /// the state `(s, 0, s, ½)`: a face of the box holds the whole locus.
+    /// Told the wall's image lies along a side, the undecided walk names
+    /// it; told nothing, it stays undecided. The crossing of
+    /// [`an_end_on_a_domain_side_is_reached_by_the_root_there`]'s walls,
+    /// told the same, still proves its arc: a proof is never named away.
+    #[test]
+    fn a_carrier_along_a_charts_side_refuses_by_name() {
+        let (wall, floor) = (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [2.0 * j - 1.0, i, 0.0]),
+        );
+        let domain = Box4::of_charts(&wall, &floor);
+        let ends = [([0.25, 0.0, 0.25, 0.5], 0), ([0.75, 0.0, 0.75, 0.5], 0)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let walk =
+                |along| one_arc_pair(&boxed(&wall, &floor), (&[domain], domain, along), ends, eps);
+            assert_eq!(
+                walk(None),
+                Err(Shortfall::Undecided),
+                "unnamed at ε = {eps:e}"
+            );
+            assert_eq!(
+                walk(Some(0)),
+                Err(Shortfall::AlongSide(0)),
+                "named at ε = {eps:e}"
+            );
+        }
+        let (a, b) = walls();
+        let domain = Box4::of_charts(&a, &b);
+        let ends = [([0.5, 0.0, 0.5, 0.25], 3), ([0.5, 1.0, 0.5, 0.75], 3)];
+        assert_eq!(
+            one_arc_pair(&boxed(&a, &b), (&[domain], domain, Some(0)), ends, 1e-9),
+            Ok(()),
+            "a proved arc stays proved"
         );
     }
 

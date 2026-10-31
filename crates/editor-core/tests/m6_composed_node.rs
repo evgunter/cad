@@ -250,7 +250,8 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
     let editor_core::ValuePayload::Body(body) = &v.payload else {
         panic!("a body")
     };
-    let entities = body.faces().count() + body.edges().count() + body.vertices().count();
+    let entities =
+        body.body().faces().count() + body.body().edges().count() + body.body().vertices().count();
     let table = ev.table_at(result).expect("the composed die's table");
     assert_eq!(
         table.len(),

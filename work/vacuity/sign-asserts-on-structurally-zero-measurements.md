@@ -4,9 +4,7 @@ kind: issue
 title: Test-integrity class - sign/positivity asserts riding cancellation noise on structurally-zero measurements (the washer donut instance)
 status: open
 opened: 2026-08-31
-github: 1396
 refs: [1362, 303, 1361, 1389]
-track: W
 priority: P3
 cost: E
 ---

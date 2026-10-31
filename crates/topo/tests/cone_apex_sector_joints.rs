@@ -8,7 +8,9 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Bounds, Point3, Real, Tol, Vec3};
-use topo::{AtRestPolicy, Body, FaceSurface, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{AtRestPolicy, Body};
 
 /// Slant of the rim from the apex.
 const SL: f64 = 1.0;

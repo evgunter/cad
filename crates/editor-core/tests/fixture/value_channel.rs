@@ -218,12 +218,12 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                 }
                 ValuePayload::Body(b) => {
                     d.u64(14);
-                    d.body(b);
+                    d.body(b.body());
                 }
                 ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                 ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                     d.u64(16);
-                    d.body(body);
+                    d.body(body.body());
                 }
                 ValuePayload::Split { above, below } => {
                     d.u64(17);
@@ -232,7 +232,7 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                             SplitSide::Empty => d.u64(0),
                             SplitSide::Body(b) => {
                                 d.u64(1);
-                                d.body(b);
+                                d.body(b.body());
                             }
                         }
                     }
@@ -241,7 +241,7 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(18);
                     d.u64(bodies.len() as u64);
                     for b in bodies {
-                        d.body(b);
+                        d.body(b.body());
                     }
                 }
                 // 20 and 25 were a mate's and a gauge's, and 28 a
@@ -280,6 +280,9 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         AssertionVerdict::Unevaluated { .. } => {}
                     }
                 }
+                // A family of no bodies: its members are its own nodes'
+                // values, digested where each is read.
+                ValuePayload::Family => d.u64(25),
             }
         }
     }
@@ -352,4 +355,39 @@ pub fn value_digest_nodes<T: Decide + ValueChannelBits>(
             (id, d.hash(), d.fed())
         })
         .collect()
+}
+
+/// **A body node's word, its body where it stands**: the record
+/// [`value_digest_nodes`] feeds for a `Body` payload, with the body
+/// composed into its space ([`crate::fixture::in_space`]) first, and
+/// the words fed; a family's word is each member's body, in member
+/// order. `None` for a node whose value is neither.
+///
+/// A placement's copy is its source's body under its frame (D10
+/// `[placement.frame]`), so the plain word digests the source's
+/// coordinates; this one digests where the copy stands.
+pub fn placed_body_digest(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(u64, usize)> {
+    let Some(NodeResult::Ok(v)) = ev.result(id) else {
+        return None;
+    };
+    let mut d = Digest::new();
+    d.u64(u64::from(id.0.ordinal()));
+    d.u64(id.0.digest());
+    d.u64(3);
+    match &v.payload {
+        ValuePayload::Body(b) => {
+            d.u64(14);
+            d.body(&crate::fixture::in_space(b));
+        }
+        // A family: each member's body, in member order.
+        ValuePayload::Instances(members) => {
+            d.u64(15);
+            d.u64(members.len() as u64);
+            for b in members {
+                d.body(&crate::fixture::in_space(b));
+            }
+        }
+        _ => return None,
+    }
+    Some((d.hash(), d.fed()))
 }

@@ -4,7 +4,7 @@ kind: program
 title: COMB — the roll-ups and the sweeps that go last
 status: ready
 opened: 2026-09-11
-area: infra
+group: infra/sweeps
 prefix: comb/
 tag: (COMB orchestrator)
 ab_band: 4300-4399

@@ -1747,3 +1747,6 @@ Signed (CLEAVE orchestrator).
   - the touch-end placement and the orbit tie sites, held until the crescent lane, which edits `fate.rs`, lands.
 
   The two backstop P1s close with 5842. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5842 (the P0, under `[ev]` PR 5780): the volume backstop leaves the operation path; its relations are `topo::test_support::volume_relations`, a test oracle wired into the sector-pass corpus, the partition corpus and sweep's every-op corpus. 13 rows closed across CLEAVE, HONE, TALLY, REACHHOLD, CONTACTHOLD, QUAD, FLUSHTAIL, NEARPOINT; the rest re-pointed. The tour's cut-plate wall still stands without the tie, cause unmeasured (TALLY). (CLEAVE implementer)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones. It also adds `crates/topo/src/boolean/carrier_eq.rs` `exact_curved`, the cylinder and sphere kinds the undeclared ladder decides exactly, as the one home of that list for the census's curved aligned arm and its flush door; no behaviour moves.

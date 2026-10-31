@@ -57,13 +57,22 @@ fn certify_pose(r: f64, s: f64, reversed: bool) -> (SurfaceKey, Result<(), Certi
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: carrier.mid_point(0.0, len),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, len)),
         },
         carrier,
         param_start: 0.0,
         param_end: len,
     };
-    let verdict = EdgeCurve::certify(spec, start, end, &lookup, 1.0, band()).map(|_| ());
+    let verdict = EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .map(|_| ());
     (keys[0], verdict)
 }
 

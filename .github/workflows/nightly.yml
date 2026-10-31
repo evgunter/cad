@@ -186,6 +186,29 @@ jobs:
         run: |
           scripts/doc-gate.sh --selftest
           scripts/doc-gate.sh
+  gate-selftests:
+    # ci.yml runs every gate plain; this runs each one's --selftest, which
+    # is what shows the gate still fires on a planted breach. About two
+    # minutes, so the nightly carries it and ordinary PRs do not.
+    name: gate self-tests (scripts/gates)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - name: every gate's --selftest
+        run: scripts/run-gates.sh --selftest
+      # Per-PR this runs only when the script changes; its premise checks
+      # read the whole tree, so the nightly takes every other change.
+      - name: change filter self-test
+        if: '!cancelled()'
+        run: python3 scripts/ci-filter.py --selftest
   rebuild-latency:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
@@ -355,18 +378,44 @@ jobs:
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
         if: matrix.row == 'dev-probe'
-        run: cd demos/tour && cargo test --features probe --test k_probe_brackets
-      - name: large-K lint (gate — a flagged margin fails this row)
+        run: cd demos/tour && cargo test --features probe --test all k_probe_brackets
+      - name: large-K lint (pinned red — the gate must still fail, and reports its counts)
         if: matrix.row == 'dev-probe'
+        # Pinned at main's verdict while
+        # work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md
+        # stays open: the gate must fail (exit 2). A pass means that row's
+        # fix landed and this step goes back to a plain gate; any other exit
+        # is the tool breaking.
         run: |
-          cd tools/k-lint && cargo run -- \
+          # +e: the runner's `bash -e` would exit on the pinned exit 2
+          # before the case below reads it.
+          set +e -uo pipefail
+          cd tools/k-lint
+          cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
-            ../../target/k-fresh/k-eps-1e-12.csv
+            ../../target/k-fresh/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-large.out
+          status=${PIPESTATUS[0]}
+          counts=$(grep -oE 'k-eps-[0-9e-]+\.csv: [0-9]+ samples \([^)]*\), [0-9]+ flagged — rule 1 \(undecided/invalid\): [0-9]+, rule 2 \(near a threshold\): [0-9]+, rule 3 \(below a floor\): [0-9]+' ../../k-lint-large.out \
+            | LC_ALL=C sort -u | paste -sd ';' -)
+          case "$status" in
+            2)
+              echo "::warning title=large-K lint pinned red::fails, as pinned (work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md): $counts"
+              ;;
+            0)
+              echo "::error title=large-K lint passed::the pinned red's row has landed its fix: restore this step as a plain gate and close the row"
+              exit 1
+              ;;
+            *)
+              echo "::error title=large-K lint broke::k-lint exited $status (a pinned red expects 2)"
+              exit 1
+              ;;
+          esac
       - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
         if: matrix.row == 'dev-probe'
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           cd tools/k-lint
           status=0
           cargo run -- --gate-rule-1-only \
@@ -460,6 +509,100 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
       # Last, so the failing rows close the log whatever ran after them.
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
+  all-features:
+    # The suite with every workspace feature on at once: the probe-gated
+    # suites, the test-only meters and payload features, which no other
+    # row executes together. Default eps, the ci profile's set (the slow
+    # set is left to the rows above). Two things are held out, each
+    # with the open row that owns it:
+    # - viewer, whose `app` feature needs the GPU stack the viewer job
+    #   installs and runs;
+    # - topo's `per-op-postcondition` scalpel, under which mfkrh leaves
+    #   an orphan surface across 21 sweep rows
+    #   (work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md;
+    #   the row that brings the scalpel back is
+    #   work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md).
+    name: suite under --all-features (default eps)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 150
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      HELD_OUT_FEATURES: topo/per-op-postcondition
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # No rust-cache: a warm build saves about 5 of 32 minutes here, and a
+      # whole --all-features target would compete for the repo's cache
+      # quota with the PR gate's.
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      - name: every workspace feature but the held-out ones
+        id: features
+        run: |
+          set -o pipefail
+          features=$(cargo metadata --no-deps --format-version 1 | python3 -c '
+          import json, os, sys
+          held = set(os.environ["HELD_OUT_FEATURES"].split())
+          pkgs = {p["name"]: p["features"] for p in json.load(sys.stdin)["packages"]}
+          def reaches(pkg, feat, seen):
+              # Every pkg/feature this one turns on, through workspace forwards.
+              if (pkg, feat) in seen or feat not in pkgs.get(pkg, {}):
+                  return
+              seen.add((pkg, feat))
+              for e in pkgs[pkg][feat]:
+                  if e.startswith("dep:"):
+                      continue
+                  dep, _, f = e.replace("?/", "/").partition("/")
+                  if f:
+                      reaches(dep, f, seen)
+                  else:
+                      reaches(pkg, dep, seen)
+          missing = {h for h in held if h.partition("/")[2] not in pkgs.get(h.partition("/")[0], {})}
+          if missing:
+              sys.exit(f"held-out features that no member declares: {sorted(missing)}")
+          out = []
+          for pkg, feats in pkgs.items():
+              if pkg == "viewer":
+                  continue
+              for f in sorted(feats):
+                  seen = set()
+                  reaches(pkg, f, seen)
+                  if f != "default" and not {a + "/" + b for a, b in seen} & held:
+                      out.append(pkg + "/" + f)
+          print(",".join(out))
+          ')
+          echo "features: $features"
+          echo "list=$features" >> "$GITHUB_OUTPUT"
+      - name: build
+        timeout-minutes: 60
+        run: cargo nextest run --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" --no-run
+      - name: the suite, every feature on
+        timeout-minutes: 30
+        run: |
+          r=0
+          cargo nextest run --profile ci --workspace --exclude viewer \
+            --features "${{ steps.features.outputs.list }}" \
+            --no-fail-fast || r=$?
+          scripts/nextest-failures.py "all-features" "$r"
+          exit "$r"
       - name: failing tests (name, panic, seed)
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
@@ -699,7 +842,7 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, full-suite, k-lint, python, topo-release, step-import, interval, renders]
+    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, gate-selftests, full-suite, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write

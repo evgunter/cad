@@ -18,14 +18,14 @@ use crate::common;
 use pncad::document::Bodies;
 
 use common::asm;
-use pncad::document::{Frame, RecipeNodeId, SlotId, VarId, product};
+use pncad::document::{Frame, RecipeNodeId, VarId, product};
 use pncad::geom_core::Tol;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
 use viewer::marks;
 use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, PatternRuleSpec, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -445,7 +445,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
 
 #[test]
 fn the_at_rest_badge_lands_with_the_evaluation() {
-    // The A5 verdict lives past the commit: the mate-less assembly
+    // The at-rest badge lives past the commit: the mate-less assembly
     // certifies, and so does a seated one — the seat is a touch between
     // copies the census records at the door, never an overlap.
     let tol = Tol::witness();
@@ -453,7 +453,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let mut session = asm::open_bench(&bench, tol);
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        Some(&viewer::session::AtRestBadge {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
     asm::unpin(&mut session, bench.post_b);
@@ -463,7 +467,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        Some(&viewer::session::AtRestBadge {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "a seated mate certifies, its touch recorded at rest"
     );
 }
@@ -975,23 +983,21 @@ fn a_replacement_takes_the_landings_untaken_report() {
     );
 }
 
-/// **A slot a value gesture drags, on the bench**: a pattern over
-/// post_a, whose spacing the gesture writes. It places nothing, so no
+/// **A value a gesture drags, on the bench**: a document variable
+/// nothing reads, which the gesture writes. It places nothing, so no
 /// picture changes. Landed before it answers.
-fn drag_slot(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let pattern = common::session_insert(
-        session,
-        SessionOp::AddPattern {
-            input: bench.post_a.into(),
-            count: 2,
-            rule: PatternRuleSpec::Linear {
-                direction: common::scl3([1.0, 0.0, 0.0]),
-                spacing: common::len(0.03),
-            },
-        },
-    );
+fn drag_slot(session: &mut DocSession, _bench: &asm::Bench) -> VarId {
+    let name = pncad::document::VarName::new("drag").expect("a name");
+    let outcome = session.perform(SessionOp::DeclareVar {
+        name,
+        value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Length, 0.03),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    pattern
+    session
+        .committed_doc()
+        .var_named("drag")
+        .expect("the variable is declared")
 }
 
 /// A committed free-move frame on `instance`'s space.
@@ -1009,19 +1015,12 @@ fn commit_frame(session: &mut DocSession, instance: RecipeNodeId) {
     }
 }
 
-/// Open a value gesture on `pattern`'s spacing, preview it, and pump:
-/// the landing that arrives is the scratch's.
-fn drag_and_land(session: &mut DocSession, pattern: RecipeNodeId) {
+/// Open a value gesture on `var`, preview it, and pump: the landing
+/// that arrives is the scratch's.
+fn drag_and_land(session: &mut DocSession, var: VarId) {
     for op in [
-        SessionOp::BeginGesture {
-            node: pattern,
-            slot: SlotId::Spacing,
-        },
-        SessionOp::PreviewGesture {
-            node: pattern,
-            slot: SlotId::Spacing,
-            value: 0.04,
-        },
+        SessionOp::BeginVariableGesture { var },
+        SessionOp::PreviewVariableGesture { var, value: 0.04 },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -1052,7 +1051,7 @@ fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
     let tol = Tol::witness();
     let bench = asm::bench("fmovertaken", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let pattern = drag_slot(&mut session, &bench);
+    let dragged = drag_slot(&mut session, &bench);
     let own = asm::unpin(&mut session, bench.post_b);
     commit_frame(&mut session, bench.post_b);
 
@@ -1075,7 +1074,7 @@ fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
         withdrawn.cause
     );
     assert!(session.display().free_move_of(own).is_none());
-    drag_and_land(&mut session, pattern);
+    drag_and_land(&mut session, dragged);
     assert!(
         landed_superseded(&mut session).is_empty(),
         "and the scratch landing has nothing left to say"
@@ -1122,7 +1121,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     let tol = Tol::witness();
     let bench = &asm::bench("fmgesturerefused", tol);
     let mut session = asm::open_bench(bench, tol);
-    let pattern = drag_slot(&mut session, bench);
+    let dragged = drag_slot(&mut session, bench);
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
@@ -1135,7 +1134,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     let seat = session.perform(asm::no_centre_op(bench, bench.post_a));
     assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
     assert!(seat.withdrawn.killed_gesture.is_none(), "the edit keeps it");
-    drag_and_land(&mut session, pattern);
+    drag_and_land(&mut session, dragged);
     assert!(
         session
             .take_landed_withdrawals()
@@ -1667,4 +1666,59 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
          one thing the quiet door still says, and it says it to the \
          chrome rather than to the user"
     );
+}
+
+/// **A frame on a space whose copies a placed product fuses goes at
+/// the edit, saying so.** The shelf and post_b share a space with a
+/// frame held on it; placing a union of the two reads that space's
+/// bodies, so the space is no longer shown and the frame is dropped,
+/// rather than kept on copies whose sections can no longer offer the
+/// probe that resets it (each refuses `FusedGeometry`).
+#[test]
+fn a_frame_whose_copies_are_fused_goes_saying_so() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmfuse", tol);
+    let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
+    );
+    session.pump();
+    let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's space");
+    commit_frame(&mut session, bench.post_b);
+    assert!(session.display().free_move_of(space).is_some());
+
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: union.into(),
+        beside: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    for instance in [bench.shelf_i, bench.post_b] {
+        assert!(
+            matches!(
+                display::display_check(session.doc(), instance),
+                Err(AdmissionFault::FusedGeometry { .. })
+            ),
+            "the family's union fuses {instance:?}"
+        );
+    }
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the edit drops the space's frame: {:?}",
+            outcome.withdrawn.superseded
+        )
+    };
+    assert_eq!(withdrawn.instance, bench.post_b);
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::NotShown { space: left, .. } if left.id() == space
+        ),
+        "the cause names the space the fuse reads: {}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(space).is_none());
 }

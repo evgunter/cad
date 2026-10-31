@@ -33,3 +33,7 @@ whole locus, or a face of it, off the plane's band, and `sector_face`'s
 `Torus` arm refuses `CurvedBooleanUnsupported` behind it. The finding is
 the boolean's alone; a cure lands once, in
 `crates/geom-brep/src/conic_bend.rs`.
+
+## The edge extent's new home (OFFSET, 2026-10-27)
+
+`geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). `ConicDeparture`, which this row's citation reads, levers at `edge_extent_inf`, which now also reads the spiric's sampled pairs.

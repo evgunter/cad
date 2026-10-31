@@ -1,6 +1,6 @@
-//! **The plane × NURBS lane read off the scalar's policy, through the
+//! **The plane × NURBS class through the scalar's edge door, at the
 //! public doors** — the M7-8 cube (`fixture::m7_8`) driven through the
-//! transform at every scalar that holds the lane, the void door, and
+//! transform at every certifying scalar, the void door, and
 //! the two boolean fallbacks that graft. Authored across PR 3678's lane
 //! and both of its review lanes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

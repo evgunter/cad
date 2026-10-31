@@ -230,7 +230,7 @@ pub(crate) fn readback_err(
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
 
     // Every field on every arm, `None` where the arm does not carry
-    // it: the `AssemblyError` shape, so `getattr` never raises and a
+    // it: the `ProductError` shape, so `getattr` never raises and a
     // caller reads the payload without first branching on `variant`.
     // The tuple is positional and the match is exhaustive, so an arm
     // added kernel-side arrives here as a compile error rather than

@@ -2,10 +2,11 @@
 id: a-through-senses-names-are-invisible-to-the-name-walkers
 kind: issue
 title: Sense::Through's entering names are invisible to select.rs name_args and resolve's embedded walk, and Sense::other_half keeps a Through that names neither half
-status: open
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -23,3 +24,5 @@ Found by PR 5758's FULL review (2026-10-26), by inspection.
 - `RemapError` now has one variant, destructured three times.
 - `EdgeSense.sense` drops `edge_reading`'s error (`.ok()`), and `sense_of` then re-raises it as `UNSIDED`.
 - `Through { entering: [] }` reads as "entering along none of its things".
+
+Closed by PR 5870 (2026-10-27). `embedded` walks a `Through`'s names as partners, on the Include walk only. `name_args` classifies the sense, because a pattern has no sense axis. Both are destructured field by field. `other_half` returns `Option` and refuses `Unwalked::Misplaced` where it cannot complement.

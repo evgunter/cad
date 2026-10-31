@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use eframe::egui;
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
-use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
@@ -20,7 +19,7 @@ use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize}
 use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
-use crate::pickindex::{PickError, PickIndex, PictureKey};
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::screen::{self, view_of};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
@@ -588,9 +587,7 @@ fn cursor_news(
         cursor,
         display,
     } = question;
-    let from_ray: Result<Vec<StableName>, PickError> = index
-        .faces_under_cursor(eval, camera, viewport, cursor, display)
-        .map(|faces| faces.into_iter().map(|face| face.name).collect());
+    let from_ray = index.faces_under_cursor(eval, camera, viewport, cursor, display);
     let refusal = match &from_ray {
         Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal, (doc, eval))),
         _ => None,
@@ -1241,19 +1238,19 @@ mod tests {
     use crate::pickindex::{IdMap, PatchNameFault, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
-    use crate::session::{DocSession, SessionOp};
+    use crate::session::{DocSession, FaceSelection, SessionOp};
     use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
     use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
-    use pncad::prelude::StableName;
     use pncad::select::HitTestError;
 
     fn framed() -> Camera {
         Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("the plate frames")
     }
 
-    /// The re-frame `fit_on_scene` books when a document lands — the
-    /// operation the viewport folds and lands on that very frame.
+    /// The re-frame `DocumentDerived::fit_camera` books when a document
+    /// lands — the operation the viewport folds and lands on that very
+    /// frame.
     fn the_re_frame_an_open_books() -> CameraOp {
         CameraOp::Frame {
             extent: Some(scene::plate_bounds()),
@@ -1696,9 +1693,8 @@ mod tests {
 
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
-            .name_of(id)
-            .expect("an id of this index names its patch cleanly")
-            .clone();
+            .face_of(id)
+            .expect("an id of this index names its patch cleanly");
 
         let serial = 7u32;
         let nothing = idpass::IdReply {
@@ -1737,7 +1733,7 @@ mod tests {
         camera: Camera,
         pane: ViewportSize,
         cursor: [f64; 2],
-        named: StableName,
+        named: FaceSelection,
         /// The id the named face is drawn under.
         id: u32,
         serial: u32,
@@ -1755,9 +1751,8 @@ mod tests {
         foreign.pump();
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
-            .name_of(id)
-            .expect("an id of this index names its patch cleanly")
-            .clone();
+            .face_of(id)
+            .expect("an id of this index names its patch cleanly");
         let serial = 7u32;
         RefusedRay {
             index,
@@ -1857,7 +1852,7 @@ mod tests {
             serial,
             read: Ok(IdMap::NOTHING),
         };
-        let none: &[StableName] = &[];
+        let none: &[FaceSelection] = &[];
         let rays = [
             (
                 "a ray that names a face",
@@ -2013,11 +2008,11 @@ mod tests {
     /// the clear value, it was misreported both ways: as *id buffer
     /// nothing* against a ray that named a face, and as silent
     /// agreement against a ray that named nothing. The two rows below
-    /// each ask one of those cursors. The ray's names come back in
+    /// each ask one of those cursors. The ray's faces come back in
     /// words, as the landed document speaks them within its evaluation.
     fn unassigned_id_news(
-        wanted: impl Fn(&[StableName]) -> bool,
-    ) -> (u32, Vec<StableName>, Vec<String>, Vec<frame::Message>) {
+        wanted: impl Fn(&[FaceSelection]) -> bool,
+    ) -> (u32, Vec<FaceSelection>, Vec<String>, Vec<frame::Message>) {
         let tol = Tol::witness();
         let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);
@@ -2043,12 +2038,9 @@ mod tests {
                 let faces = index
                     .faces_under_cursor(eval, &camera, pane, cursor, &display)
                     .expect("the plate's ray path answers");
-                (
-                    cursor,
-                    faces.into_iter().map(|face| face.name).collect::<Vec<_>>(),
-                )
+                (cursor, faces)
             })
-            .find(|(_, names)| wanted(names))
+            .find(|(_, faces)| wanted(faces))
             .expect("some cursor's ray answer is the one asked for");
 
         let mut log = idpass::IdQueryLog::new();
@@ -2076,9 +2068,9 @@ mod tests {
         let news = cursor_news(&index, question, Some(&answer), log.outstanding(), true);
         let spoken = from_ray
             .iter()
-            .map(|name| {
+            .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                by.name(name).to_string()
+                idpass::SaidFace(by, face).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -2088,7 +2080,7 @@ mod tests {
     /// not agreed with.
     #[test]
     fn an_unassigned_id_over_empty_space_is_said_as_that_id() {
-        let (id, _, _, news) = unassigned_id_news(<[StableName]>::is_empty);
+        let (id, _, _, news) = unassigned_id_news(<[FaceSelection]>::is_empty);
         assert_eq!(
             news,
             vec![frame::Message::new(
@@ -2106,13 +2098,13 @@ mod tests {
     /// id, not as the id buffer naming nothing.
     #[test]
     fn an_unassigned_id_against_a_named_face_is_said_as_that_id() {
-        let (id, from_ray, spoken, news) = unassigned_id_news(|names| names.len() == 1);
-        let (named, said) = from_ray
+        let (id, from_ray, spoken, news) = unassigned_id_news(|faces| faces.len() == 1);
+        let (face, said) = from_ray
             .first()
             .zip(spoken.first())
             .expect("the helper returns the one-face answer it was asked for");
         assert!(
-            said.contains("Extrude") && !said.contains(&format!("{:?}", named.path)),
+            said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
         let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
@@ -2284,9 +2276,8 @@ mod tests {
             .first()
             .expect("the plate's placement draws patches");
         let named = index
-            .name_of(id)
-            .expect("an id of this index names its patch cleanly")
-            .clone();
+            .face_of(id)
+            .expect("an id of this index names its patch cleanly");
         let hidden = DisplayView {
             hidden_placements: std::collections::BTreeSet::from([copy]),
             ..DisplayView::none()

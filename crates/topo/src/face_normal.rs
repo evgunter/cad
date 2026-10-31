@@ -7,13 +7,18 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Three doors, one flip. By key: [`face_outward_normal`] answers for
-//! a PLANE, where the normal does not depend on where you stand, and
+//! Six doors, one flip. By key: [`face_outward_normal`] answers for
+//! a PLANE, where the normal does not depend on where you stand,
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
-//! curved carrier requires and what the plane arm returns unchanged.
+//! curved carrier requires and what the plane arm returns unchanged,
+//! and [`spline_outward_normal_at`] answers on a spline face at the
+//! CHART POINT its caller placed a point at.
 //! By value, for a caller that has already resolved the face and must
 //! not discard a failed lookup: [`plane_outward_normal`] takes the
-//! [`Face`] and its plane's chart normal. Every one of them spells the
+//! [`Face`] and its plane's chart normal, [`chart_outward_normal`]
+//! takes a chart normal of any carrier and the bit, and
+//! [`surface_outward_normal`] takes a carrier, a point on it and the
+//! bit, for a reader that holds no face. Every one of them spells the
 //! fold through [`OutwardNormal::from_chart`], the type's only
 //! constructor, and this file is the only one under `topo/src` that
 //! names it in a file that ALSO destructures a plane pattern — that
@@ -89,6 +94,35 @@ pub(crate) fn plane_outward_normal<T: Real>(
     OutwardNormal::from_chart(chart_normal, face.sense)
 }
 
+/// A face's OUTWARD normal from a chart normal its caller computed
+/// (`du × dv` of the face's chart at a station), with the face's `sense`
+/// folded in. The by-value door for a reader that holds a chart rather
+/// than a face key — the injectivity check's cusp reading — so the fold
+/// stays in this file whatever the carrier: on a plane the chart's
+/// `du × dv` is the plane's normal, and this is [`plane_outward_normal`]'s
+/// flip.
+pub(crate) fn chart_outward_normal<T: Real>(
+    chart_normal: Vec3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(chart_normal, sense)
+}
+
+/// The OUTWARD normal of a carrier at a point on it, from its implicit
+/// gradient ([`geom_brep::implicit_gradient`]) with `sense` folded in —
+/// the by-value door for a reader that holds a surface and the bit
+/// rather than a face (a trace's crossing sense). On a plane the
+/// gradient is the plane's normal and this is [`plane_outward_normal`]'s
+/// flip. Nothing here certifies `p` onto the surface; that gate is
+/// [`face_outward_normal_at`]'s.
+pub(crate) fn surface_outward_normal<T: Real>(
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, p), sense)
+}
+
 /// A planar face's OUTWARD normal — the chart normal with the face's
 /// `sense` folded in, minted as an [`OutwardNormal`] so no consumer
 /// can multiply again. The keyed door, and the one a consumer outside
@@ -144,6 +178,40 @@ pub(crate) enum NormalAtError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
+    /// A spline face's chart point lies within the band of a line its
+    /// chart's normal is not continuous across (an interior knot run of
+    /// multiplicity at least the degree, a closed chart's seam): the face
+    /// has a normal on each side, and no one of them is the normal there
+    /// ([`geom_brep::chart_normal_at`]).
+    SplineCrease {
+        /// The band the distance from the line was classified against.
+        band: Band,
+        /// That distance, as decided: zero, or in band.
+        reading: geom_brep::CreaseReading,
+    },
+    /// A spline face's chart point lies within the band of a point where
+    /// `S_u × S_v` vanishes (a pole, coincident control rows): the face
+    /// has no normal there ([`geom_brep::regular_jet`]).
+    SplineIrregular {
+        /// The band the distance from the point was classified against.
+        band: Band,
+        /// That distance, as decided: zero, or in band.
+        reading: geom_brep::CreaseReading,
+    },
+}
+
+/// Why [`spline_outward_normal_at`] could not answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum SplineNormalError {
+    /// The face key no longer resolves.
+    StaleFace,
+    /// The face's carrier is not a spline chart: the point door
+    /// ([`face_outward_normal_at`]) answers for it.
+    NotSpline,
+    /// The face's chart is the placeholder, which has no locus.
+    PlaceholderChart,
+    /// The chart point read no normal ([`NormalAtError`]).
+    At(NormalAtError),
 }
 
 /// Which decision [`face_outward_normal_at`] escalated on.
@@ -196,8 +264,8 @@ fn ring_half(
 ///
 /// **The gate is on the kind and on the point, in that order.**
 /// `Nurbs`/`Approx` have no implicit form at all, so those kinds get
-/// `Ok(None)` and the caller mints its own typed refusal naming the
-/// kind. A ring torus is
+/// `Ok(None)` here: their arm reads a chart point, not a point
+/// ([`spline_outward_normal_at`]). A ring torus is
 /// singular only on its axis, which no point of the tube reaches
 /// (`ρ ≥ R − r > 0`), so it has an arm; a torus outside the ring
 /// convention is refused as a shape ([`NormalAtError::DegenerateTorus`]),
@@ -306,21 +374,95 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(OutwardNormal::from_chart(
-                    geom_brep::implicit_gradient(surface, p),
-                    f.sense,
-                ))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
                 }),
             }
         }
-        // Nurbs, Approx: no arm here. The pair has no implicit form to
-        // differentiate. The caller names the kind in its own refusal
-        // rather than this door guessing which refusal it wants.
+        // Nurbs, Approx: no arm at a point alone. There is no implicit
+        // form to differentiate, and a foot of `p` can land on another
+        // sheet: a caller holding the chart point it placed `p` at takes
+        // [`spline_outward_normal_at`], and one without names the kind in
+        // its own refusal.
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Ok(None),
     }
+}
+
+/// A spline face's OUTWARD normal **at the chart point `uv` a point
+/// `p` was placed at** — the spline arm of [`face_outward_normal_at`],
+/// which a curved reader holding a point alone cannot take: a spline
+/// face has no implicit form, and a projection foot of `p` can land on
+/// another sheet of the carrier. `uv` is the caller's, the chart point
+/// it certified `p` at on the face's own sheet (a curve's meeting with
+/// the chart, or the placement read's in-trim foot). Whether `p` has a
+/// second foot on another in-trim sheet within the band is that
+/// placement's claim, not this door's.
+///
+/// An `Approx` face's chart is its fit ([`geom::Surface::spline_chart`]),
+/// so this door would read the fit; the boolean admits no `Approx`
+/// operand (`boolean::reduce::boolean_arm_exists`), so no pierce reaches
+/// it with one.
+///
+/// The chart point is read by [`geom_brep::chart_point_normal`], the one
+/// reading of a chart point, over the carrier's farthest reach from `p`,
+/// its control net's: regular, then `S(uv)` decided onto `p`, then the
+/// normal where it is continuous. The bit is handed to it, and it folds
+/// the bit through [`OutwardNormal::from_chart`].
+///
+/// # Errors
+///
+/// [`SplineNormalError::StaleFace`], [`SplineNormalError::NotSpline`]
+/// and [`SplineNormalError::PlaceholderChart`] for a face this door has
+/// no chart point to read on; otherwise [`SplineNormalError::At`]:
+/// [`NormalAtError::OffSurface`] or an [`NormalDecision::OnSurface`]
+/// escalation where `S(uv)` is not decided onto `p`, and
+/// [`NormalAtError::SplineIrregular`] and [`NormalAtError::SplineCrease`]
+/// where the chart has no one normal at `uv`.
+///
+/// # Panics
+///
+/// Where the surface a resolved face names does not resolve (D2 row 4).
+pub(crate) fn spline_outward_normal_at<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u, v): (f64, f64),
+    p: Point3<T>,
+    band: Band,
+) -> Result<OutwardNormal<T>, SplineNormalError> {
+    use geom_brep::ChartPointRefusal;
+    let f = body.get_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let surface = body.face_surface_linked(face, f);
+    let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
+    if surface.is_placeholder_chart() {
+        return Err(SplineNormalError::PlaceholderChart);
+    }
+    let uv = (T::from_computed(u), T::from_computed(v));
+    let reach = geom_brep::control_net_reach(chart.control(), p);
+    geom_brep::chart_point_normal(
+        chart,
+        f.sense,
+        uv,
+        p,
+        reach,
+        "bool_pierce_normal_on_spline",
+        band,
+    )
+    .map(|(normal, _)| normal)
+    .map_err(|refusal| {
+        SplineNormalError::At(match refusal {
+            ChartPointRefusal::Irregular(reading) => {
+                NormalAtError::SplineIrregular { band, reading }
+            }
+            ChartPointRefusal::Apart(_) => NormalAtError::OffSurface,
+            ChartPointRefusal::Undecided(diag) => NormalAtError::Escalated {
+                decision: NormalDecision::OnSurface,
+                diag,
+            },
+            ChartPointRefusal::Crease(reading) => NormalAtError::SplineCrease { band, reading },
+        })
+    })
 }
 
 /// The nappe a cone face's points are certified on: the face's own
@@ -349,26 +491,65 @@ fn face_nappe_or_double<T: Decide>(
     }
 }
 
-/// **Whether `p` stands definitely off a cone's axis**, the one place
-/// the boolean decides it has a normal at a point of a cone face. The
-/// implicit gradient is `0/0` on the axis, and the apex is the axis
-/// point ON the surface, so a point of the surface within the band of
-/// the axis has no tangent plane to read: `Zero` and in band refuse
-/// alike ([`NormalAtError::AtConeApex`]). The test is the distance off
-/// the axis, not off the apex: on a cone of half-angle `α` it refuses
-/// surface points up to `band / sin α` along the generator from the
-/// apex, which on a needle cone is a long way.
+/// Where a point of a cone face stands against the cone's axis
+/// ([`cone_point`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConePoint {
+    /// Definitely off the axis: the face has a tangent plane there.
+    OffAxis,
+    /// Within the band of the axis, but definitely not at the apex: the
+    /// gradient reads, ill-conditioned (on a needle cone this reaches
+    /// `band / sin α` along a generator).
+    NearAxis,
+    /// At the apex, to the band: the face has no tangent plane there.
+    Apex,
+}
+
+/// **Where `p` stands against a cone's axis**: its distance off the axis
+/// (`cone_off_axis`, metres), and where that is not definitely positive,
+/// its distance from the apex (`cone_at_apex`, metres). The one test of
+/// a point of a cone face for the crate's readers of a normal there
+/// ([`cone_axis_clearance`], which refuses both of the last two, and
+/// [`crate::sector_face::resolve`], which reads the apex as its rulings
+/// and only the apex). The implicit gradient is `0/0` on the axis, and
+/// the apex is the axis point ON the surface.
+///
+/// # Errors
+///
+/// The escalation of either reading.
+pub(crate) fn cone_point<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<ConePoint, geom_core::Indeterminate> {
+    let q = p - apex;
+    let radial = q - axis * q.dot(axis);
+    // An off-axis reading in the band reads on: the apex test below
+    // decides whether the point is the apex or only near the axis.
+    if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
+        return Ok(ConePoint::OffAxis);
+    }
+    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
+        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+        Sign::Zero => ConePoint::Apex,
+    })
+}
+
+/// [`cone_point`] as the pierce door reads it: a point with no
+/// tangent plane, definitely or in band, has no normal to answer with
+/// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
-    match decide("bool_cone_off_axis", Margin::norm3(radial), band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => Err(NormalAtError::AtConeApex { band }),
+    match cone_point(apex, axis, p, band) {
+        Ok(ConePoint::OffAxis) => Ok(()),
+        Ok(ConePoint::NearAxis | ConePoint::Apex) | Err(_) => {
+            Err(NormalAtError::AtConeApex { band })
+        }
     }
 }
 
@@ -528,7 +709,7 @@ mod tests {
         };
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(cone, face, true)],
+                vec![crate::construction::Rechart::new(cone, face, true)],
                 &[],
                 Tol::witness(),
             )
@@ -810,9 +991,10 @@ mod tests {
     /// belongs at a door or a scalar that is added here in the open
     /// with its reason. The vector class's expected count is zero.
     ///
-    /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`)
-    /// and this file (the planar door's flip row spells the
-    /// expectation by hand on purpose).
+    /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`),
+    /// and this file's test module, whose rows spell the expected flip by
+    /// hand on purpose. This file's doors are read like any other file's,
+    /// so a fold in one of them is a hit.
     ///
     /// **What it cannot match**: a bit renamed at a boundary before it
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
@@ -825,26 +1007,44 @@ mod tests {
     #[test]
     fn no_source_file_folds_the_bit_by_hand() {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        let exempt = [
-            "crates/geom-brep/src/enters.rs",
-            "crates/topo/src/face_normal.rs",
-        ];
+        let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
         // as D6 spells it: a jet curvature measured along the plus
         // face's outward normal, the sphere's radial flux term
-        // `R·Area`, a witness's implicit residual read as its height
-        // above the face, a loop's chart-frame area, an offset distance
-        // into the material.
+        // `R·Area` and a closed surface's whole flux, a witness's
+        // implicit residual read as its height above the face, a loop's
+        // chart-frame area, an offset distance into the material.
         let sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
+            // A closed surface's whole flux, three times the volume it
+            // encloses, for a face whose chart image is empty.
+            ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
+            // The quarter-turn that rotates a line edge's chart direction
+            // toward its face, in the plane's chart frame.
+            ("crates/topo/src/injective.rs", "1.0"),
+            // A face's side of an iso edge's line, as the sign of the held
+            // chart coordinate.
+            ("crates/topo/src/injective.rs", "side"),
             ("crates/topo/src/shell.rs", "thickness"),
         ]
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
+        // Pinned red, NOT sanctioned: hand folds main carries while the
+        // row that owns their repair is open, so the repair landing reds
+        // here too and strikes them
+        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
+        let pinned = [
+            ("crates/mesh/src/trimmed.rs", "1.0"),
+            ("crates/mesh/src/trimmed.rs", "area"),
+            ("crates/mesh/src/trimmed.rs", "radial"),
+        ];
+        let mut expected = sanctioned;
+        expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));
+        expected.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -863,7 +1063,13 @@ mod tests {
                 }
                 walked += 1;
                 let text = std::fs::read_to_string(&path).expect("a readable source file");
-                let code = test_utils::source::code_only(&text);
+                let mut code = test_utils::source::code_only(&text);
+                if rel == "crates/topo/src/face_normal.rs" {
+                    let tests = code
+                        .find("mod tests {")
+                        .expect("face_normal.rs has its test module");
+                    code.truncate(tests);
+                }
                 for negated in hand_folds_of_sense(&code) {
                     hits.push((rel.clone(), negated));
                 }
@@ -875,11 +1081,12 @@ mod tests {
         );
         hits.sort();
         assert_eq!(
-            hits, sanctioned,
-            "a value is negated by hand under a face's sense bit outside the sanctioned \
-             scalar negations. A NORMAL folds through `OutwardNormal::from_chart` or a \
-             `face_normal` door; a genuinely signed scalar is named in this row's list \
-             with what it negates."
+            hits, expected,
+            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
+             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
+             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
+             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
+             from `pinned`."
         );
     }
 
@@ -1044,5 +1251,186 @@ mod tests {
         assert_torn_op_panics("face_outward_normal_at", &mut body, &premise, |b| {
             face_outward_normal_at(b, face, p, band()).map(|n| n.is_some())
         });
+    }
+
+    /// The quadratic bump `z = 1 + 0.4·u(1 − u)` over the unit square,
+    /// `x = u`, `y = v`, on `ku` at degree `pu` with control columns at
+    /// `xs` (heights `zs`): its chart normal at `u` is `(−z′(u), 0, 1)`
+    /// normalized, `z′(u) = 0.4(1 − 2u)`.
+    fn bump(ku: Vec<f64>, pu: usize, xs: &[f64], zs: &[f64]) -> geom::Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(ku, pu).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control: Vec<_> = xs
+            .iter()
+            .zip(zs)
+            .flat_map(|(&x, &z)| [0.0, 1.0].map(|y| Point3::new(x, y, z)))
+            .collect();
+        let n = control.len();
+        geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap(),
+        ))
+    }
+
+    fn smooth_bump() -> geom::Surface<f64> {
+        bump(
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            2,
+            &[0.0, 0.5, 1.0],
+            &[1.0, 1.2, 1.0],
+        )
+    }
+
+    /// **A spline face's outward normal is its chart's at the placed
+    /// chart point, in the face's sense.** At `(¼, ½)` on the bump the
+    /// chart normal leans `(−0.2, 0, 1)`, not the `+z` of its corners'
+    /// plane; the `false` face reads its negation. A point the chart point
+    /// does not carry, `0.1` above it, is refused off the surface.
+    #[test]
+    fn a_spline_face_reads_its_chart_normal_at_the_placed_point_in_either_sense() {
+        let (mut body, face) = face_on(smooth_bump());
+        let uv = (0.25, 0.5);
+        let p = Point3::new(0.25, 0.5, 1.0 + 0.4 * 0.25 * 0.75);
+        let lean = Vec3::new(-0.2, 0.0, 1.0).normalize();
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let n = super::spline_outward_normal_at(&body, face, uv, p, band())
+                .expect("a spline face reads at its chart point")
+                .vec();
+            let want = if sense { lean } else { -lean };
+            assert!(
+                (n - want).norm() < 1e-12,
+                "sense {sense}: {n:?}, want {want:?}"
+            );
+        }
+        let off = p + Vec3::new(0.0, 0.0, 0.1);
+        assert!(
+            matches!(
+                super::spline_outward_normal_at(&body, face, uv, off, band()),
+                Err(super::SplineNormalError::At(NormalAtError::OffSurface))
+            ),
+            "a point off the chart point is refused"
+        );
+        assert!(
+            matches!(face_outward_normal_at(&body, face, p, band()), Ok(None)),
+            "the point door has no spline arm: it reads a chart point"
+        );
+    }
+
+    /// **A chart point on a crease refuses by name, and one beside it
+    /// reads.** The bump with a double knot at `u = ½` at degree 2 is C⁰
+    /// there (`crease_runs`): each side has its own normal. The smooth
+    /// bump's simple knot at `½` is no crease. (`crease_runs` reads the
+    /// knots, not the geometry; this fold is a real one, a ridge.)
+    #[test]
+    fn a_spline_chart_point_on_a_crease_refuses_by_name() {
+        let creased = bump(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
+            2,
+            &[0.0, 0.25, 0.5, 0.75, 1.0],
+            &[1.0, 1.1, 1.2, 1.1, 1.0],
+        );
+        let smooth = bump(
+            vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
+            2,
+            &[0.0, 0.25, 0.75, 1.0],
+            &[1.0, 1.1, 1.1, 1.0],
+        );
+        for (surface, crease) in [(creased, true), (smooth, false)] {
+            let chart = surface.spline_chart().unwrap().clone();
+            let (body, face) = face_on(surface);
+            for u in [0.5, 0.4] {
+                let p = chart.eval(u, 0.5);
+                let got = super::spline_outward_normal_at(&body, face, (u, 0.5), p, band());
+                if crease && u == 0.5 {
+                    assert!(
+                        matches!(
+                            got,
+                            Err(super::SplineNormalError::At(NormalAtError::SplineCrease {
+                                reading: Ok(_),
+                                ..
+                            }))
+                        ),
+                        "on the crease: {got:?}"
+                    );
+                } else {
+                    assert!(got.is_ok(), "crease {crease}, u {u}: {got:?}");
+                }
+            }
+        }
+    }
+
+    /// **A chart point where `S_u × S_v` vanishes refuses by name.** The
+    /// bilinear chart through `(0, 0), (0, 1), (1, 0), (½, ½)` at `z = 1`
+    /// has Jacobian `1 − (u + v)/2`, zero at the corner `(1, 1)` alone:
+    /// the face has no normal there, though it is a plane, and reads `+z`
+    /// at its middle.
+    #[test]
+    fn a_spline_chart_point_at_a_degenerate_normal_refuses_by_name() {
+        use geom_core::spline::KnotVector;
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let chart = geom::NurbsSurface::new(
+            lin(),
+            lin(),
+            vec![
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(0.5, 0.5, 1.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let (body, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(chart.clone())));
+        let at = |uv: (f64, f64)| {
+            super::spline_outward_normal_at(&body, face, uv, chart.eval(uv.0, uv.1), band())
+        };
+        let corner = at((1.0, 1.0));
+        assert!(
+            matches!(
+                corner,
+                Err(super::SplineNormalError::At(
+                    NormalAtError::SplineIrregular { reading: Ok(_), .. }
+                ))
+            ),
+            "at the degenerate corner: {corner:?}"
+        );
+        let n = at((0.25, 0.25)).unwrap().vec();
+        assert!((n - Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12, "{n:?}");
+    }
+
+    /// **The spline door names each face it has no chart point to read
+    /// on**: a key that no longer resolves, a carrier that is not a spline
+    /// chart, a placeholder chart.
+    #[test]
+    fn the_spline_door_names_a_stale_a_non_spline_and_a_placeholder_face() {
+        use super::SplineNormalError;
+        let p = Point3::new(0.0, 0.0, 1.0);
+        let read = |body: &crate::body::Body<f64>, face| {
+            super::spline_outward_normal_at(body, face, (0.5, 0.5), p, band())
+        };
+        let (plane, face) = face_on(geom::Surface::Plane {
+            origin: p,
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(matches!(
+            read(&plane, face),
+            Err(SplineNormalError::NotSpline)
+        ));
+        let (placeholder, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::placeholder(),
+        )));
+        let got = read(&placeholder, face);
+        assert!(
+            matches!(got, Err(SplineNormalError::PlaceholderChart)),
+            "{got:?}"
+        );
+        let (mut stale, face) = face_on(smooth_bump());
+        stale.faces.remove(face);
+        assert!(matches!(
+            read(&stale, face),
+            Err(SplineNormalError::StaleFace)
+        ));
     }
 }

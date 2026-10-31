@@ -4,7 +4,6 @@ kind: issue
 title: Pick-priority has no filter vocabulary - a tool states which entity kinds it takes, and only the mate tool's case is served
 status: deferred
 opened: 2026-08-31
-github: 1379
 refs: [1407]
 priority: P3
 cost: D

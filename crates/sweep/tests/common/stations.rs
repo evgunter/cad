@@ -8,6 +8,7 @@
 
 use geom::Curve3;
 use geom_core::{Point3, Tol};
+use topo::construction::Construct;
 use topo::{Body, EdgeKey, VertexKey};
 
 /// `body` with the line or circle edge `rim` cut at each of `points`,

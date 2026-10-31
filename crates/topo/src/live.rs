@@ -463,6 +463,40 @@ impl<T: Real> Body<T> {
         .next
     }
 
+    /// **Where a run of duplicate entries alone hangs its strut**: the
+    /// corner after `corner`, a half-edge out of `at`, before its orbit
+    /// successor, the first real entry of `past` (the entries past the
+    /// run in orbit order, each its half-edge and whether it is a real
+    /// edge). The split's insertion and the Boolean's pierce site both
+    /// strut a corner's duplicates there, `what` naming the run.
+    ///
+    /// # Panics
+    ///
+    /// Where that entry is not `corner`'s orbit successor at `at`: an
+    /// earlier mint moved the corner, which neither caller's runs do.
+    #[track_caller]
+    pub(crate) fn strut_before_next_real(
+        &self,
+        (at, corner): (VertexKey, HalfEdgeKey),
+        past: impl IntoIterator<Item = (HalfEdgeKey, bool)>,
+        what: impl FnOnce() -> String,
+    ) -> HalfEdgeKey {
+        let next_real = past
+            .into_iter()
+            .find_map(|(he, real)| real.then_some(he))
+            .unwrap_or_else(|| unreachable!("an orbit has a real half-edge"));
+        if self.proven_orbit_step(corner) != next_real
+            || proven(&self.half_edges, next_real, EntityId::HalfEdge).start != at
+        {
+            unreachable!(
+                "{}'s corner before {next_real:?} left {at:?} or gained a half: no other run's \
+                 mint touches it",
+                what()
+            );
+        }
+        next_real
+    }
+
     /// `he`'s end vertex, `start(next(he))` ([`Body::half_edge_end`]),
     /// for a `he` this call proved: its `next` is a link, and a miss
     /// panics.

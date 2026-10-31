@@ -56,6 +56,25 @@ pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
 
+/// The constant zero translation: three lengths no one wrote, so they
+/// mint no variables (`[variables.literals]`).
+pub fn no_translation() -> [Formula; 3] {
+    std::array::from_fn(|_| Formula::zero(Dimension::Length))
+}
+
+/// A translation from its three components: each zero is the constant
+/// `0` and each other component a literal, so only the components
+/// written mint variables (`[variables.literals]`).
+pub fn translation(v: [f64; 3]) -> [Formula; 3] {
+    v.map(|c| {
+        if c == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(c)
+        }
+    })
+}
+
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Formula; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
@@ -177,6 +196,7 @@ pub fn rectangle(origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -487,6 +507,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -562,7 +583,7 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
         other => panic!("expected a body, got {other:?}"),
     };
     pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+        &pncad::topo::AtRestBody::validate(body.body().clone(), tol)
             .expect("the measured body passes tier 3"),
         tol,
         pncad::topo::test_support::pinned_resolution(tol),

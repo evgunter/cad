@@ -14,13 +14,13 @@
 //! WHICH one a pose takes turns on whether the walls cross:
 //!
 //! - **The crossing coaxial pose gets through the crossing layer and
-//!   the germ frame, and refuses at the join, `CurvedBooleanUnsupported`
+//!   the matcher, and refuses at the join, `CurvedBooleanUnsupported`
 //!   naming the cylinder.** The cylinder's SEAM LINE crossing the ball's
 //!   SPHERE face used to be the door (a line × sphere pair with no root
 //!   lane); the crossing layer has that lane now, so the pose reaches
-//!   `boolean::join::cs_pair_frame`, which decides the pair coaxial by
-//!   margin and names its frame; the join has no wired arm for the
-//!   coaxial cylinder × sphere germ pair.
+//!   the join, whose section table decides the pair coaxial by margin
+//!   (the section's two circles) and matches its germs on them; the join
+//!   has no wired arm for the coaxial cylinder × sphere germ pair.
 //! - **A non-crossing pose — a ball wholly inside a wider cylinder —
 //!   builds**: no crossing is found, the containment fallback runs, and
 //!   the section pass certifies the sphere × wall pair apart.
@@ -36,6 +36,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::construction::Construct;
 use topo::{AtRestBody, Body, BooleanError};
 
 /// The cylinder: a circle of radius `r` at the origin, extruded along
@@ -119,14 +120,14 @@ fn fixture() -> [(&'static str, AtRestBody<f64>, AtRestBody<f64>); 2] {
 }
 
 /// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
-/// the CROSSING layer and the GERM FRAME in both poses and dies at the
+/// the CROSSING layer and the MATCHER in both poses and dies at the
 /// join, with the same typed variant, naming the cylinder's wall.
 ///
 /// The crossing layer used to stop it: operand A's seam LINE crossing
 /// the ball's SPHERE face had no root lane. With the line × sphere
 /// roots the seam pierces, and the germ pair this crossing mints is a
-/// cylinder×sphere pair whose frame `cs_pair_frame` decides coaxial by
-/// margin; the join has no arm for that pair.
+/// cylinder×sphere pair whose section the section table decides coaxial
+/// by margin; the join has no arm for that pair.
 #[test]
 fn the_coaxial_union_refuses_at_the_join() {
     for (label, c, s) in fixture() {
@@ -175,15 +176,46 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "CurvedBooleanUnsupported", "{doors:?}");
 }
 
+/// **No coaxial pose builds, in either operand order, any op, either
+/// pose**: the section door decides the circles a coincidence, which the
+/// join does not build until the door records it, so every op refuses
+/// at the join's lane dispatch.
+#[test]
+fn coaxial_poses_build_nothing() {
+    let c = cyl(1.0, -2.0, 2.0);
+    for (r, z) in [(1.5, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
+        let s = ball_at(r, Vec3::new(0., 0., z));
+        for (c, s) in [(c.clone(), s.clone()), (posed(&c), posed(&s))] {
+            let (c, s) = (
+                finished("c", c, Tol::witness()),
+                finished("s", s, Tol::witness()),
+            );
+            for (x, y) in [(&c, &s), (&s, &c)] {
+                for got in [
+                    topo::union(x, y, Tol::witness()),
+                    topo::intersect(x, y, Tol::witness()),
+                    topo::subtract(x, y, Tol::witness()),
+                ] {
+                    assert!(
+                        matches!(got, Err(BooleanError::CurvedBooleanUnsupported { .. })),
+                        "R {r} z {z}: {:?}",
+                        got.err()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **The non-coaxial transversal pose crosses, passes the germ frame
-/// and reaches the join's lane.** The crossing that used to keep the
-/// pierce door is certified now by the conic × quadric root door
-/// (`topo::boolean::conic_quadric`), its pierce's sector side
-/// certifies, and the cylinder × sphere germ pair it mints has the
-/// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
-/// chord lane takes its quartic section
-/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
-/// poses.
+/// and the join, and refuses at the result gate's volume.** The
+/// crossing that used to keep the pierce door is certified now by the
+/// conic × quadric root door (`topo::boolean::conic_quadric`), its
+/// pierce's sector side certifies, the matcher pairs the cylinder ×
+/// sphere germs by foot on the section's one loop (`R < r + d`), and the
+/// join cuts both sides' chords from that loop; the cylinder face they
+/// bound has no volume lane for a projected boundary
+/// (`crate::cylinder_sphere_frame::Door::Projected`), in both poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
@@ -196,15 +228,10 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no cyl×sphere chord lane");
-        assert!(
-            matches!(
-                err,
-                BooleanError::CurvedBooleanUnsupported {
-                    kind: geom::SurfaceKind::Cylinder,
-                    ..
-                }
-            ),
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no projected volume lane");
+        assert_eq!(
+            crate::cylinder_sphere_frame::door(&err),
+            Some(crate::cylinder_sphere_frame::Door::Projected),
             "{label}: {err:?}"
         );
     }
@@ -335,11 +362,11 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// cylinder's wall, the conic × quadric root door
 /// (`topo::boolean::conic_quadric`). Their pierces' sector sides
 /// certify, and what refuses is a germ pair's section — never a body.
-/// A germ's branch is read where it is minted, so the first section
-/// read is the end cap's against the torus: the cap plane stands
-/// parallel to the torus's axis at its inner equator, a general-rung
-/// spiric (`GermSectionSpiric`), ahead of the cylinder × torus pair,
-/// which has no frame either.
+/// A germ's branch is read where it is minted: the wall × torus pair
+/// stands square to the torus's axis, a section the value counts and
+/// carries, each germ its site's foot; the end cap's against the torus,
+/// the cap plane parallel to the torus's axis at its inner equator, is a
+/// general-rung spiric (`GermSectionSpiric`), which refuses.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -397,7 +424,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         &finished("the torus", torus, Tol::witness()),
         Tol::witness(),
     )
-    .expect_err("the cap plane × torus germ pair's section is a general spiric");
+    .expect_err("a germ pair's section refuses");
     assert!(
         matches!(
             err,
@@ -407,7 +434,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
                 ..
             }
         ),
-        "expected the cap's spiric section door, got {err:?}"
+        "expected a germ pair's section door, got {err:?}"
     );
 }
 
@@ -448,7 +475,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
             sense: true,
         },

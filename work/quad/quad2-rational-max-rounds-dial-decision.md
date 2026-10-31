@@ -4,7 +4,6 @@ kind: issue
 title: QUAD2_RATIONAL_MAX_ROUNDS 7→8 would flip dm1 first-class and two shipped refusals — a dial decision owing a row-by-row refusal argument
 status: closed
 opened: 2026-08-30
-github: 1315
 refs: [1314]
 priority: P1
 cost: H

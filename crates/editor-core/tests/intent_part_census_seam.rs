@@ -5,19 +5,19 @@
 //! one copy, and the census over that document's product finds the
 //! part's own findings again inside the copy. The part's verdict
 //! crosses with it instead, and each finding is reported once, as the
-//! part's: an overlap between its copies on
-//! `Assembly::carried_interference`, never a refusal (D10), and a
-//! finding its own gate refuses as `AssemblyError::CarriedAtRest`, raised
-//! before the instantiating document's own verdict. The census's
-//! re-finding inside the copy is not a second finding.
+//! part's, by the at-rest check: an overlap between its copies as a
+//! carried interference finding, and a pair it could not look at as a
+//! carried could-not-look finding, neither ever a refusal (D10). The
+//! census's re-finding inside the copy is not a second finding where it
+//! names the pair it is about.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::resolver::{PartStore, with_resolver};
 use crate::fixture::{in_world, insert, insert_pinned, len, on_frame, pin, square};
 use editor_core::{
-    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, assemble, evaluate,
+    AtRestEvidence, CancelToken, CarriedAtRestFinding, CarriedInterference, CheckEvidence,
+    EvalOptions, Evaluation, Frame, InterferenceFinding, Node, ProfileDoc, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
@@ -58,7 +58,7 @@ fn two_blocks(label: &str, x: f64) -> ProfileDoc {
 
 /// The two copies overlap in one slab, 0.05 deep: one interference
 /// finding, which the part's own gate reports and does not refuse.
-fn overlapping(label: &str) -> ProfileDoc {
+pub(crate) fn overlapping(label: &str) -> ProfileDoc {
     two_blocks(label, 0.45)
 }
 
@@ -70,9 +70,8 @@ fn in_band_gap() -> f64 {
 
 /// The two copies stand three ε apart, inside the sliver band: the faces
 /// they stand off over read one carrier in band, one pair the census
-/// cannot look at, which the part's own gate refuses, naming none of its
-/// declarations.
-fn in_band(label: &str) -> ProfileDoc {
+/// cannot look at, which the part's own check reports.
+pub(crate) fn in_band(label: &str) -> ProfileDoc {
     two_blocks(label, 0.5 + in_band_gap())
 }
 
@@ -80,14 +79,46 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn gate(doc: &ProfileDoc, opts: &EvalOptions) -> Result<Assembly<f64>, AssemblyError> {
-    assemble(doc, &run(doc, opts), Tol::witness())
+/// **What the at-rest check reports**, by kind.
+#[derive(Debug)]
+struct AtRest {
+    interference: Vec<InterferenceFinding>,
+    carried_interference: Vec<CarriedInterference>,
+    could_not_look: Vec<AtRestEvidence>,
+}
+
+impl AtRest {
+    /// What a part below could not look at, carried.
+    fn carried_at_rest(&self) -> Vec<&CarriedAtRestFinding> {
+        self.could_not_look
+            .iter()
+            .filter_map(|evidence| match evidence {
+                AtRestEvidence::Carried(row) => Some(&**row),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+fn gate(doc: &ProfileDoc, opts: &EvalOptions) -> Result<AtRest, editor_core::ChecksError> {
+    let findings = crate::fixture::at_rest(doc, &run(doc, opts))?;
+    Ok(AtRest {
+        interference: crate::fixture::interference(&findings),
+        carried_interference: findings
+            .iter()
+            .filter_map(|f| match &f.evidence {
+                CheckEvidence::CarriedInterference { finding } => Some((**finding).clone()),
+                _ => None,
+            })
+            .collect(),
+        could_not_look: crate::fixture::could_not_look(&findings),
+    })
 }
 
 /// A document instantiating `part` `n` times, each copy pinned to the
 /// world 3 m along x from the last; the instances, and the options that
 /// resolve the part.
-fn instantiating(
+pub(crate) fn instantiating(
     label: &str,
     part: &ProfileDoc,
     n: usize,
@@ -121,12 +152,12 @@ fn instantiating(
 #[test]
 fn a_parts_overlap_crosses_the_seam_as_the_parts_finding() {
     let part = overlapping("seam-overlap-part");
-    let own = gate(&part, &EvalOptions::default()).expect("the part's own gate reports it");
+    let own = gate(&part, &EvalOptions::default()).expect("the part's own check reports it");
     let [finding] = own.interference.as_slice() else {
         panic!("one overlap in the part: {:?}", own.interference)
     };
     let (doc, ids, opts) = instantiating("seam-overlap", &part, 1);
-    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
+    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer check could not run: {e}"));
     assert!(
         outer.interference.is_empty(),
         "the overlap is inside one copy here: not this document's {:?}",
@@ -160,7 +191,7 @@ fn a_parts_overlap_crosses_the_seam_as_the_parts_finding() {
 fn a_part_placed_twice_reports_its_overlap_once() {
     let part = overlapping("seam-twice-part");
     let (doc, ids, opts) = instantiating("seam-twice", &part, 2);
-    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
+    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer check could not run: {e}"));
     assert!(outer.interference.is_empty(), "{:?}", outer.interference);
     let [carried] = outer.carried_interference.as_slice() else {
         panic!("once per part row: {:?}", outer.carried_interference)
@@ -184,7 +215,8 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let opts = with_resolver(store);
     let mid = ProfileDoc::empty_derived("seam-deep-mid", Tol::witness());
     let (mid, inner) = insert_pinned(mid, crate::fixture::mated_instance(part_ref), &opts);
-    let mid_own = gate(&mid, &opts).unwrap_or_else(|e| panic!("the middle refused: {e}"));
+    let mid_own =
+        gate(&mid, &opts).unwrap_or_else(|e| panic!("the middle's check could not run: {e}"));
     assert_eq!(mid_own.carried_interference.len(), 1);
     let mut store = PartStore::new();
     let part = crate::fixture::assemble_world_copies(part);
@@ -194,7 +226,8 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-top", Tol::witness());
     let (top, outer) = insert_pinned(top, crate::fixture::mated_instance(mid_ref), &opts);
-    let assembly = gate(&top, &opts).unwrap_or_else(|e| panic!("the top refused: {e}"));
+    let assembly =
+        gate(&top, &opts).unwrap_or_else(|e| panic!("the top's check could not run: {e}"));
     assert!(
         assembly.interference.is_empty(),
         "{:?}",
@@ -219,30 +252,35 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     );
 }
 
-/// **A finding the part's own gate refuses refuses the instantiating
-/// gate as the part's.** The part's two copies stand in the sliver
-/// band, so its census cannot look at the faces they stand off over,
-/// and its gate refuses that, naming none of its declarations. The
-/// part's refusal is raised first, so the outer document's own verdict
-/// is never reached. The document
-/// instantiating it refuses `CarriedAtRest` with the part's findings,
-/// verbatim and by the route through the instance, rather than refusing
-/// the census's re-finding inside the copy as its own.
+/// **What the part could not look at is reported as the part's.** The
+/// part's two copies stand in the sliver band, so its census cannot look
+/// at the faces they stand off over: its own check reports could-not-look
+/// findings. The document instantiating it reports each, verbatim and by
+/// the route through the instance, and refuses nothing. The census's
+/// re-finding inside the copy names the copy's faces, so the in-arrival
+/// discard drops it, and it is reported once.
 ///
-/// *Breaks if* the outer gate refuses the re-found pair unattributed
-/// (`AtRest`, as it did), or the carried findings are not the part's.
+/// *Breaks if* the carried findings are not the part's, the re-finding
+/// is reported again as this document's, or a part's finding refuses
+/// the instantiating document.
 #[test]
-fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
+fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
     let part = in_band("seam-in-band-part");
-    let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
-        panic!("the part's own gate refuses the undecided pair")
-    };
-    assert!(!own.is_empty(), "the premise: the part refuses: {own:?}");
+    let own = gate(&part, &EvalOptions::default())
+        .expect("the part's own check runs")
+        .could_not_look;
+    assert!(
+        !own.is_empty(),
+        "the premise: the part could not look: {own:?}"
+    );
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
-    let err = gate(&doc, &opts).expect_err("the part is not at rest, so neither is this");
-    let AssemblyError::CarriedAtRest { findings } = &err else {
-        panic!("the part's refusal, carried: {err}")
-    };
+    let outer = gate(&doc, &opts).expect("nothing refuses");
+    let findings = outer.carried_at_rest();
+    assert_eq!(
+        findings.len(),
+        outer.could_not_look.len(),
+        "every finding is the part's, once: {outer:?}"
+    );
     assert_eq!(
         findings.iter().map(|f| &f.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
@@ -254,32 +292,29 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
             .all(|f| (f.route.through, f.route.of) == (ids[0], part.id())),
         "each by the route through the instance"
     );
-    let line = err.spoken(&doc);
+    let line = findings[0].to_string();
     assert!(
-        line.contains("documents below this one")
-            && line.contains("is not at rest by its own census"),
+        line.contains("reports what its own census could not look at"),
         "the sentence sends the author to the part: {line}"
     );
 }
 
 /// **An in-band pair two documents down is reported once, as the
-/// part's.** A sub-assembly instantiates the in-band part, and a top
-/// document instantiates the sub-assembly. The sub-assembly's census
-/// finds the part's in-band pair again inside its copy, naming the
-/// copy's faces rather than the part's, so nothing matches it; but its gate
-/// refuses over the part's carried refusal before its own at-rest
-/// stage, so it crosses none of its own census, and the top reports the
-/// part's findings once, by the route through the sub-assembly.
+/// part's, by its whole route.** A sub-assembly instantiates the in-band
+/// part, and a top document instantiates the sub-assembly: the top
+/// reports each of the part's findings once, by the route through the
+/// sub-assembly. The sub-assembly's census finds the part's pair again
+/// inside its copy and discards it there, so nothing of the
+/// sub-assembly's own crosses.
 ///
-/// *Breaks if* the sub-assembly's seam verdict reads its census though
-/// its gate never reaches it (the top then also reports the re-found
-/// pair, as the sub-assembly's own).
+/// *Breaks if* a carried finding stops at the first seam, or a
+/// re-finding is reported as the sub-assembly's or the top's own.
 #[test]
 fn an_in_band_pair_two_documents_down_is_reported_once_as_the_parts() {
     let part = in_band("seam-deep-band-part");
-    let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
-        panic!("the part's own gate refuses its in-band pair")
-    };
+    let own = gate(&part, &EvalOptions::default())
+        .expect("the part's own check runs")
+        .could_not_look;
     let mut store = PartStore::new();
     let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
@@ -294,14 +329,17 @@ fn an_in_band_pair_two_documents_down_is_reported_once_as_the_parts() {
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-band-top", Tol::witness());
     let (top, outer) = insert_pinned(top, crate::fixture::mated_instance(mid_ref), &opts);
-    let err = gate(&top, &opts).expect_err("the part is not at rest, so neither is the top");
-    let AssemblyError::CarriedAtRest { findings } = &err else {
-        panic!("the part's refusal, carried: {err}")
-    };
+    let reported = gate(&top, &opts).expect("nothing refuses");
+    let findings = reported.carried_at_rest();
+    assert_eq!(
+        findings.len(),
+        reported.could_not_look.len(),
+        "nothing of the sub-assembly's or the top's own: {reported:?}"
+    );
     assert_eq!(
         findings.iter().map(|f| &f.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
-        "the part's findings, once each, and nothing of the sub-assembly's"
+        "the part's findings, once each"
     );
     assert!(
         findings.iter().all(|f| (
@@ -335,7 +373,7 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
     };
     let (doc, second) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
     let (doc, _) = crate::fixture::into_new_space(doc, second);
-    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
+    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer check could not run: {e}"));
     assert!(outer.interference.is_empty(), "{:?}", outer.interference);
     let [carried] = outer.carried_interference.as_slice() else {
         panic!("once per part row: {:?}", outer.carried_interference)
@@ -346,24 +384,22 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
     );
 }
 
-/// **A part placed twice reports its own refusal once.** Both copies
-/// carry the in-band part's finding up, and it is one part row's
-/// findings, reported by the first instance's route.
+/// **A part placed twice reports what it could not look at once.** Both
+/// copies carry the in-band part's finding up, and it is one part
+/// row's findings, reported by the first instance's route.
 ///
-/// *Breaks if* each instance reports the part's refusal again (the
-/// at-rest arm of the once-per-part-row rule).
+/// *Breaks if* each instance reports the part's findings again (the
+/// could-not-look arm of the once-per-part-row rule).
 #[test]
-fn a_refusing_part_placed_twice_reports_its_refusal_once() {
+fn a_part_placed_twice_reports_what_it_could_not_look_at_once() {
     let part = in_band("seam-band-twice-part");
-    let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
-        panic!("the part's own gate refuses its in-band pair")
-    };
+    let own = gate(&part, &EvalOptions::default())
+        .expect("the part's own check runs")
+        .could_not_look;
     let (doc, ids, opts) = instantiating("seam-band-twice", &part, 2);
-    let err = gate(&doc, &opts).expect_err("the part is not at rest");
-    let AssemblyError::CarriedAtRest { findings } = &err else {
-        panic!("the part's refusal, carried: {err}")
-    };
-    assert_eq!(findings.len(), own.len(), "once per part row: {err}");
+    let reported = gate(&doc, &opts).expect("nothing refuses");
+    let findings = reported.carried_at_rest();
+    assert_eq!(findings.len(), own.len(), "once per part row: {reported:?}");
     assert!(
         findings.iter().all(|f| f.route.through == ids[0]),
         "by the first instance's route"
@@ -416,9 +452,11 @@ fn two_pins_of_one_document_are_two_part_rows() {
     let v1 = in_band("seam-two-pins-part");
     let (v2, _) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
     let v2 = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5).0;
-    let count = |doc: &ProfileDoc| match gate(doc, &EvalOptions::default()) {
-        Err(AssemblyError::AtRest { findings }) => findings.len(),
-        other => panic!("each version refuses in band: {other:?}"),
+    let count = |doc: &ProfileDoc| {
+        gate(doc, &EvalOptions::default())
+            .expect("each version's check runs")
+            .could_not_look
+            .len()
     };
     let (n1, n2) = (count(&v1), count(&v2));
     assert!(n2 > n1, "the premise: the later version finds more");
@@ -433,10 +471,11 @@ fn two_pins_of_one_document_are_two_part_rows() {
         let (doc, _) = insert_pinned(doc, crate::fixture::mated_instance(refs[0]), &opts);
         let (doc, id) = insert(doc, crate::fixture::mated_instance(refs[1]));
         let doc = pin(doc, id, &Frame::translation([30.0, 0.0, 0.0]), &opts);
-        let err = gate(&doc, &opts).expect_err("neither version is at rest");
-        let AssemblyError::CarriedAtRest { findings } = &err else {
-            panic!("the versions' refusals, carried: {err}")
-        };
-        assert_eq!(findings.len(), n1 + n2, "every finding of both versions");
+        let reported = gate(&doc, &opts).expect("nothing refuses");
+        assert_eq!(
+            reported.carried_at_rest().len(),
+            n1 + n2,
+            "every finding of both versions"
+        );
     }
 }

@@ -270,9 +270,9 @@ pub(crate) fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &
                 .expect("the read holds the cell's body");
             let live = match e.key {
                 EntityKey::Body => true,
-                EntityKey::Face(k) => body.faces().any(|(f, _)| f == k),
-                EntityKey::Edge(k) => body.edges().any(|(f, _)| f == k),
-                EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
+                EntityKey::Face(k) => body.body().faces().any(|(f, _)| f == k),
+                EntityKey::Edge(k) => body.body().edges().any(|(f, _)| f == k),
+                EntityKey::Vertex(k) => body.body().vertices().any(|(f, _)| f == k),
             };
             assert!(live, "{}", at("denotes no entity of its read's body"));
             held.cells += 1;
@@ -314,7 +314,9 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
     let Some(editor_core::Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
         return None;
     };
-    let body = ev.read_body(*input, e.body).ok()?.ok()?;
+    // Where the cell stands in its space: the rows across cells read
+    // through two reads compare there.
+    let body = &crate::fixture::in_space(ev.read_body(*input, e.body).ok()?.ok()?);
     match e.key {
         editor_core::EntityKey::Vertex(v) => Some(Carrier::Point(crate::fixture::point(body, v))),
         editor_core::EntityKey::Edge(k) => {
@@ -425,7 +427,7 @@ fn built(
     }
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(ev, union)),
+        topo::Body::clone(&(body_of(ev, union))),
         Tol::witness(),
     );
     let topology = (
@@ -464,9 +466,13 @@ fn judged(
     pair.sort();
     let mut cells: Vec<String> = r.cells.iter().map(|c| format!("{c:?}")).collect();
     cells.sort();
+    // A margin of exactly zero is read without its sign: the union
+    // computes in its first member's frame (D10 `[placement.frame]`),
+    // and which way a zero rounds is that frame's, not the row's.
+    let margin = format!("{:?}", r.margin).replace("Value(-0.0,", "Value(0.0,");
     Some(format!(
-        "{cells:?} {:?} {:?} {:?} {:?} {pair:?}",
-        r.relation, r.site, r.margin, r.discharge
+        "{cells:?} {:?} {:?} {margin} {:?} {pair:?}",
+        r.relation, r.site, r.discharge
     ))
 }
 
@@ -901,12 +907,12 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
             other => format!("{other:?}"),
         };
         let statement = |k: u32| statement(&value.coincidences[k as usize], &cell);
-        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
-            contacts, ..
-        }) = &value.payload
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { .. }) =
+            &value.payload
         else {
             panic!("{order:?}: a union of three blocks is a boolean body");
         };
+        let contacts = &value.carry.contacts;
         let mut cited: Vec<(String, Vec<String>)> = contacts
             .rows()
             .iter()
@@ -1058,11 +1064,11 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
         }
         other => format!("{other:?}"),
     };
-    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
-        &value.payload
+    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { .. }) = &value.payload
     else {
         panic!("{order:?}: a union of bodies is a boolean body");
     };
+    let contacts = &value.carry.contacts;
     value
         .coincidences
         .iter()

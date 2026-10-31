@@ -1,8 +1,9 @@
 //! **A cylinder wall crossing a sphere off the cylinder's axis**: the
 //! germ pair's section is a space quartic, one loop or two, and the
-//! join's matcher reads it through the transverse frame
-//! (`topo::boolean::join`'s `cs_transverse_frame`): a centre and an axis
-//! each loop turns about once.
+//! join's matcher reads it through the operation's section table
+//! (`topo::boolean::section_table`): each germ's site by its foot on
+//! the marched and fitted loop it lies on, its partner the next foot
+//! along that loop in the direction the germ leaves.
 //!
 //! Two families of poses, each under ∪, ∩ and both differences in both
 //! operand orders:
@@ -15,9 +16,15 @@
 //!
 //! Each run builds a body that is SOUND by
 //! `common::differential::outcome` (tiers 2 and 3′, the certificate, a
-//! legal operand, the volume) or refuses at the join's lane door for the
-//! cylinder × sphere pair, `CurvedBooleanUnsupported` naming the wall or
-//! the sphere (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`).
+//! legal operand, the volume) or refuses at its pinned door past the
+//! join ([`Door`]): the join cuts both sides' chords from the section's
+//! carried loop, and every run stops downstream of it, at the result
+//! gate's volume or at the spline edge join. [`door`] is the one reading
+//! of those doors the other cylinder × sphere rows share. The turned-chart
+//! pose's ops close a carried chord's ring-lane island on the drum's wall,
+//! and the two-loop poses' on the ball (`IslandClosing::Carried`), so the
+//! path reading of a spline-bounded island is reached through the public
+//! ops here; `topo::ring_path::spline_fuzz` searches its answers.
 //! The matched segments are checked against the analytic loops, where
 //! every segment joins two sites that are neighbours along their loop.
 //!
@@ -46,13 +53,13 @@ const R: f64 = 0.5;
 /// `z` over `z ∈ [z0, z1]`, below the plane through `(0, 0, cut.0)` with
 /// normal `(sin cut.1, 0, cos cut.1)` where there is a cut.
 #[derive(Clone, Copy)]
-struct Drum {
+pub(crate) struct Drum {
     z0: f64,
     z1: f64,
     cut: Option<(f64, f64)>,
 }
 
-const FULL: Drum = Drum {
+pub(crate) const FULL: Drum = Drum {
     z0: -1.0,
     z1: 1.0,
     cut: None,
@@ -79,7 +86,7 @@ fn gk(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
 /// inside `drum`. Sliced at `y`, the ball is a disc about `(c.x, c.z)` of
 /// radius `√(big² − (y − c.y)²)` and the drum the convex polygon
 /// `|x| ≤ √(R² − y²)`, `z0 ≤ z ≤ z1`, below the cut's line.
-fn oracle(big: f64, c: [f64; 3], drum: Drum) -> f64 {
+pub(crate) fn oracle(big: f64, c: [f64; 3], drum: Drum) -> f64 {
     let slice = |y: f64| {
         let w2 = R * R - y * y;
         let rho2 = big * big - (y - c[1]) * (y - c[1]);
@@ -261,7 +268,7 @@ fn runs(va: f64, vb: f64, vi: f64) -> [(&'static str, BooleanOp, bool, f64); 6] 
     ]
 }
 
-fn run(
+pub(crate) fn run(
     op: BooleanOp,
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,
@@ -274,43 +281,118 @@ fn run(
     }
 }
 
-/// The join's lane door for the cylinder × sphere germ pair: no chord lane
-/// for its section, naming the wall or the sphere.
-fn at_the_lane_door(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::CurvedBooleanUnsupported {
-            kind: geom::SurfaceKind::Cylinder | geom::SurfaceKind::Sphere,
-            ..
-        }
-    )
+/// **Where a run that does not build stops**, past the join: every
+/// door is downstream of the chord lane, and none is this lane's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Door {
+    /// The result gate's volume on a cylinder face bounded by a chord:
+    /// its pcurve is a projected image with no harmonic form on the
+    /// analytic chart
+    /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+    Projected,
+    /// The result gate's volume on a sphere face bounded by a chord: the
+    /// curved-cut face lane's flux algebra is the cylinder's (the same
+    /// row).
+    Sphere,
+    /// The result gate's volume on a sphere face holding a ring, which
+    /// the sphere reads only where circles bound it (the same row).
+    Ring,
+    /// The edge join: two chords meeting at a valence-2 vertex on one
+    /// spline carrier (`work/splice/joining-a-spline-carrier-is-unbuilt.md`).
+    Join,
 }
 
-/// **Every run builds SOUND or stops at the lane door**, never at the
-/// germ frame, in the join's own kernel-bug words, or on a wrong body.
-/// Each run's `outcome` line is printed, so the rows double as a
-/// battery.
-#[test]
-fn a_ball_across_a_cylinder_wall_builds_sound_or_stops_at_the_lane() {
-    let tol = Tol::witness();
-    for pose in poses() {
-        let (a, b) = pose.operands();
-        let (va, vb, vi) = pose.volumes();
-        for (op_label, op, swapped, want) in runs(va, vb, vi) {
-            let label = format!("{}, {op_label}", pose.label);
-            let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
-            let got = run(op, x, y);
-            if let Err(e) = &got {
-                assert!(at_the_lane_door(e), "{label}: refused {e:?}");
-            }
-            let line = outcome(got, want, tol);
-            println!("{label}: {line}");
-            assert!(
-                line.starts_with("ERR") || line.contains("SOUND") || line == "EMPTY ok",
-                "{label}: {line}"
-            );
-        }
+/// The door `e` is, where it is one of [`Door`]'s.
+pub(crate) fn door(e: &BooleanError) -> Option<Door> {
+    use geom_brep::PropsError;
+    use topo::{MassPropsError, ValidationError};
+    match e {
+        BooleanError::ResultInvalid { errors } => match errors.as_slice() {
+            [ValidationError::VolumeUncomputable { source, .. }] => match source {
+                MassPropsError::Face {
+                    source: PropsError::QuadratureUnsupported { what },
+                    ..
+                } if what.starts_with(
+                    "curved-cut face half-edge carries a pcurve with no harmonic form",
+                ) =>
+                {
+                    Some(Door::Projected)
+                }
+                MassPropsError::Face {
+                    source: PropsError::QuadratureUnsupported { what },
+                    ..
+                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
+                    Some(Door::Sphere)
+                }
+                MassPropsError::RingOnCurvedFace { .. } => Some(Door::Ring),
+                _ => None,
+            },
+            _ => None,
+        },
+        BooleanError::JoinCarrierUnsupported {
+            carrier: geom::CurveKind::Nurbs,
+            closed: false,
+            ..
+        } => Some(Door::Join),
+        _ => None,
     }
+}
+
+/// **Every run of pose `index` builds SOUND or refuses at its pinned
+/// door past the join**, `doors` in [`runs`]' order: never at the
+/// matcher or the chord lane, in the join's own kernel-bug words, or on
+/// a wrong body. Each run's `outcome` line is printed, so the rows
+/// double as a battery.
+fn builds_sound_or_refuses_past_the_join(index: usize, doors: [Door; 6]) {
+    let tol = Tol::witness();
+    let pose = &poses()[index];
+    let (a, b) = pose.operands();
+    let (va, vb, vi) = pose.volumes();
+    for ((op_label, op, swapped, want), pinned) in runs(va, vb, vi).into_iter().zip(doors) {
+        let label = format!("{}, {op_label}", pose.label);
+        let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
+        let got = run(op, x, y);
+        if let Err(e) = &got {
+            assert_eq!(door(e), Some(pinned), "{label}: refused {e:?}");
+        }
+        let line = outcome(got, want, tol);
+        println!("{label}: {line}");
+        assert!(
+            line.starts_with("ERR") || line.contains("SOUND") || line == "EMPTY ok",
+            "{label}: {line}"
+        );
+    }
+}
+
+/// One test per pose, each its six runs, so the poses run side by side.
+macro_rules! pose_rows {
+    ($($name:ident: $index:expr => [$($door:ident),*];)*) => {$(
+        #[test]
+        fn $name() {
+            builds_sound_or_refuses_past_the_join($index, [$(Door::$door),*]);
+        }
+    )*};
+}
+
+pose_rows! {
+    a_ball_across_a_cylinder_wall_centre_on_the_wall:
+        0 => [Projected, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_centre_inside:
+        1 => [Join, Join, Join, Join, Projected, Join];
+    a_ball_across_a_cylinder_wall_centre_outside:
+        2 => [Projected, Projected, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_turned_chart:
+        3 => [Projected, Sphere, Sphere, Sphere, Projected, Sphere];
+    a_ball_across_a_cylinder_wall_wider_than_the_wall:
+        4 => [Projected, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_in_two_loops:
+        5 => [Projected, Ring, Sphere, Projected, Projected, Ring];
+    a_ball_across_a_cylinder_wall_in_two_loops_turned:
+        6 => [Projected, Ring, Sphere, Projected, Projected, Ring];
+    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim:
+        7 => [Sphere, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim:
+        8 => [Join, Join, Join, Join, Projected, Join];
 }
 
 /// A site's place on its loop of the analytic section, read off the
@@ -340,7 +422,8 @@ fn place(pose: &Pose, p: Point3<f64>) -> (i8, f64, f64) {
 
 /// **Every segment joins two neighbouring sites along their loop**, and
 /// every arc between neighbours is one segment: the matcher's pairing,
-/// read through the frame, against the loops' own order. Every germ is
+/// by foot parameter on the section's fitted loops, against the analytic
+/// loops' own order. Every germ is
 /// consumed (one segment per pair record).
 #[test]
 fn every_segment_joins_neighbouring_sites_along_its_loop() {
@@ -417,4 +500,62 @@ fn the_oracle_agrees_with_a_second_slicing() {
     // And the cut: a ball wholly below it and inside the wall is whole.
     let inside = oracle(0.1, [0.0, 0.0, 0.2], LOWER);
     assert!((inside - 4.0 / 3.0 * PI * 0.001).abs() < 1e-13, "{inside}");
+}
+
+/// **A rod through a ball pairs both loops alike**: the unit ball and a
+/// rod of radius 0.3 about the line `x = 0.1, y = 0` through it, mirror-symmetric in
+/// `z → −z`, so each op's segments on the upper loop are the lower
+/// loop's mirrored, and no segment joins a site of one loop to a site of
+/// the other. A matcher that faces germs on two components pairs one
+/// loop's sites the other way round.
+#[test]
+fn a_rod_through_a_ball_pairs_both_loops_alike() {
+    let tol = Tol::witness();
+    let unit = sweep::test_support::finished(
+        "the ball",
+        sweep::test_support::ball_poled(1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_z(), tol),
+        tol,
+    );
+    let rod = {
+        let lp = profile::circle(geom_core::Point2::new(0.1, 0.0), 0.3, tol).unwrap();
+        let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
+        let profile = profile::Profile::new(plane, vec![lp.into()])
+            .validate(tol)
+            .unwrap();
+        let body = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance {
+                depth: 4.0,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body;
+        sweep::test_support::at_rest(&body, tol)
+    };
+    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+        let (_, segs) = topo::test_support::boolean_segment_sites(op, &unit, &rod, tol)
+            .unwrap()
+            .unwrap();
+        let key = |p: Point3<f64>| ((p.x * 1e6).round() as i64, (p.y * 1e6).round() as i64);
+        let loop_of = |up: bool| {
+            let mut v: Vec<_> = segs
+                .iter()
+                .filter(|[p, _]| (p.z > 0.0) == up)
+                .map(|[p, q]| (key(*p), key(*q)))
+                .collect();
+            v.sort();
+            v
+        };
+        assert!(
+            segs.iter().all(|[p, q]| (p.z > 0.0) == (q.z > 0.0)),
+            "{op:?}: a segment joins the two loops"
+        );
+        assert_eq!(
+            loop_of(true),
+            loop_of(false),
+            "{op:?}: the mirror-symmetric pose pairs its loops differently"
+        );
+    }
 }

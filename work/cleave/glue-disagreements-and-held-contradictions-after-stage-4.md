@@ -8,7 +8,7 @@ priority: P1
 cost: M
 design: true
 parent: topo-mints-indeterminates-outside-the-funnel
-refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, declared-pairs-retire]
+refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
 ---
 
 Unit 5 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope

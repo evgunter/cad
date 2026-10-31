@@ -1,13 +1,11 @@
 //! CERT-5 R2 adversarial probes: knot-aligned composite cells and the
 //! `w`-uniform-in-v exact arm.
 //!
-//! **Adopted into the unit by merge, authorship kept.** Unchanged
-//! apart from rustfmt. The sliver rows here are the ones that found
-//! the hairline-cell hazard; two of the three now certify or refuse
-//! honestly, and the third (`knot_one_ulp_from_a_block_edge`) still
-//! carries a large width for a reason that is NOT this unit's cut
-//! rule — see `RefinedNet`'s exact-equality insertion guard, measured
-//! and reported rather than changed here.
+//! **Adopted into the unit by merge, authorship kept.** The sliver
+//! rows that aimed a knot an ulp from a hull-block edge are gone: the
+//! blocks are laid per knot span, so a knot is a span end and the
+//! blocks beside it restart there, and no block edge can stand an ulp
+//! from one.
 //!
 //! Every probe drives the PUBLIC props door `nurbs_patch_face` and
 //! checks the returned bracket against an INDEPENDENT plain-f64
@@ -386,33 +384,6 @@ fn c0_multiplicity_knot_under_the_exact_arm() {
     drive("c0-kink EXACT arm", &ku, &kv, &cp, &ws);
 }
 
-/// The sliver attack: an interior v knot one ulp above a coarse BLOCK
-/// edge (`HULL_BLOCKS_PER_AXIS = 8`), so two cut points sit one ulp apart
-/// and the cell between them is one ulp wide.
-#[test]
-fn knot_one_ulp_from_a_block_edge() {
-    let ku = kv_offgrid_deg2();
-    // block edge 3/8 of [0,1]
-    let edge: f64 = 3.0 / 8.0;
-    let k = f64::from_bits(edge.to_bits() + 1);
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
-    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-    drive("sliver: knot 1 ulp above block edge", &ku, &kv, &cp, &ws);
-}
-
-/// The same sliver, one ulp BELOW the block edge, and under the exact
-/// arm, where the whole v integral of that cell is taken through the
-/// span located by the cell's own midpoint.
-#[test]
-fn knot_one_ulp_below_a_block_edge_exact_arm() {
-    let ku = kv_offgrid_deg2();
-    let edge: f64 = 3.0 / 8.0;
-    let k = f64::from_bits(edge.to_bits() - 1);
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
-    let (cp, ws) = tile(&ku, &kv, &|i, _| 1.0 + 0.20 * i as f64);
-    drive("sliver-below EXACT arm", &ku, &kv, &cp, &ws);
-}
-
 /// A knot one ulp inside the trim rectangle's own edge.
 #[test]
 fn knot_one_ulp_inside_the_rectangle_edge() {
@@ -482,34 +453,4 @@ fn many_dyadic_knots_per_axis_stay_sound() {
     let (ku, kv) = (mk(), mk());
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
     drive("12+12 dyadic knots", &ku, &kv, &cp, &ws);
-}
-
-/// **The isolation control for the sliver finding.** One interior v
-/// knot, placed at a graded distance from the coarse block edge 3/8.
-/// The geometry is the SAME surface class at every gap; only the
-/// distance from a cut point the engine adds by itself changes, and
-/// each rung asserts, under its own `gap <label>` name, that the door
-/// answers with a bracket containing the oracle or with an honest
-/// typed posture.
-///
-/// Three rungs span what the scan is for: `1e-15` inside the hazard,
-/// `1e-12` at the knee where the refusal width falls back towards the
-/// round target, and the far control clear of every block edge. The
-/// gap-zero end of the scan is the ulp-adjacent knot, which
-/// `knot_one_ulp_from_a_block_edge` above drives as its own row on
-/// this exact fixture; the rungs between `1e-12` and the far control
-/// sit on a plateau the far control already stands for.
-#[test]
-fn width_versus_gap_from_a_block_edge() {
-    let edge: f64 = 3.0 / 8.0;
-    let ku = kv_offgrid_deg2();
-    let scan = |label: &str, k: f64| {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
-        let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-        let (post, w) = drive(&format!("gap {label}"), &ku, &kv, &cp, &ws);
-        println!("R2 GAPSCAN gap={label} -> {post} width={w:?}");
-    };
-    scan("1e-15", edge + 1e-15);
-    scan("1e-12", edge + 1e-12);
-    scan("far control 0.313", 0.313);
 }

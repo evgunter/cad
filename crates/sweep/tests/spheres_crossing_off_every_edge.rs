@@ -12,8 +12,7 @@
 //! - a trimmed face, or a closed ball crossed along two non-parallel
 //!   axes, is cut along its own chart's meridian through each circle;
 //!   the circle then lies tilted against the face's chart, and such a
-//!   face does not mesh yet
-//!   (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+//!   face meshes through the trimmed lane's sphere arm.
 //!
 //! Every ball here is the `y`-poled full revolve, its two seam
 //! meridians in the plane `z = c_z`, so a centre line along `z` keeps
@@ -32,7 +31,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Draws, Refuses, Tilted};
+use Want::{Budget, Draws, Folds, Refuses};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -86,22 +85,17 @@ fn unit() -> AtRestBody<f64> {
 enum Want {
     /// `SOUND`, and the body meshes and checks.
     Draws,
-    /// `SOUND`, and the mesher refuses a sphere face bounded by a
-    /// circle tilted against its chart (TESS's tilted-circle row).
-    Tilted,
+    /// `SOUND`, and the mesher refuses a triangle folded over the chord
+    /// beside it near a chart pole
+    /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+    Folds,
+    /// `SOUND`, and the mesher refuses at once: the tilted circle passes
+    /// so near a chart pole that its uniform chord schedule asks one edge
+    /// for more chords than the sphere arm's budget
+    /// (`SphereTrimShape { ChordBudget }`).
+    Budget,
     /// A typed refusal the predicate accepts.
     Refuses(fn(&BooleanError) -> bool),
-}
-
-/// The mesher's refusal of a sphere face its tilted circle bounds.
-fn tilted_refusal(body: &topo::Body<f64>) -> bool {
-    matches!(
-        mesh::tessellate(body, 5e-3, Tol::witness()),
-        Err(mesh::TessellateError::UnsupportedCurvedShape {
-            source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-            ..
-        })
-    )
 }
 
 /// One op's `out` against `want`, its volume against `volume` to
@@ -128,11 +122,30 @@ fn check(
             let m = mesh::tessellate(&bb.body, 5e-3, tol)
                 .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+            crate::common::differential::assert_meshed_geometry(label, &bb.body, &m, 5e-3);
         }
-        Tilted => assert!(
-            tilted_refusal(&bb.body),
-            "{label}: the tilted-circle mesh refusal"
-        ),
+        Folds => {
+            let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
+            assert!(
+                matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
+                "{label}: the folded-triangle refusal, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
+        Budget => {
+            let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
+            assert!(
+                matches!(
+                    &drawn,
+                    Err(mesh::TessellateError::SphereTrimShape {
+                        cause: mesh::types::SphereTrimCause::ChordBudget,
+                        ..
+                    })
+                ),
+                "{label}: the chord-budget refusal, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
         Refuses(_) => unreachable!(),
     }
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
@@ -208,7 +221,7 @@ fn both_witnesses_build_under_every_boolean() {
             ball_volume(0.3),
             lens(1.0, 0.3, 0.95),
         ),
-        [Tilted; 6],
+        [Draws; 6],
     );
 }
 
@@ -382,7 +395,7 @@ fn two_trimmed_spheres_build() {
             ball_volume(0.3) - cap_volume(0.3, 0.05),
             lens(1.0, 0.3, 1.2),
         ),
-        [Tilted; 6],
+        [Draws; 6],
     );
 }
 
@@ -392,6 +405,12 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
+/// At `10⁻³` the mesher draws every op. At `10⁻⁵` the uniform chord
+/// schedule the circle asks near the pole draws the unit ball's
+/// remnant in three ops and folds a triangle over the chord beside the
+/// pole in the other three, which refuse typed ([`Want::Folds`]). At
+/// `10⁻⁷` the schedule asks one edge for more chords than the sphere
+/// arm's budget, and the mesher refuses at once ([`Want::Budget`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
@@ -424,7 +443,13 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            [Tilted; 6],
+            if delta > 1e-4 {
+                [Draws; 6]
+            } else if delta > 1e-6 {
+                [Folds, Folds, Folds, Draws, Draws, Draws]
+            } else {
+                [Budget; 6]
+            },
         );
     }
 }
@@ -455,7 +480,7 @@ fn a_ball_crossing_both_faces_of_a_lens_builds() {
             ball_volume(0.2),
             lens(1.0, 0.2, 0.93) + lens(0.8, 0.2, to_top) - ball_volume(0.2),
         ),
-        [Tilted; 6],
+        [Draws; 6],
     );
 }
 
@@ -492,7 +517,7 @@ fn a_ball_crossed_by_two_partners_builds() {
         &unit(),
         &partners(Vec3::new(-s, 0.0, -c)),
         volumes,
-        [Tilted; 6],
+        [Draws; 6],
     );
 }
 

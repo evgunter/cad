@@ -64,9 +64,9 @@ pub use hit::{
     HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name,
 };
 pub use pick::{
-    Answer, ChordFaces, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
-    NodePickError, PickHit, PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face,
-    ray_segment_point, ray_triangle,
+    Answer, BoundaryRim, ChordFaces, Crossing, FaceAnswer, MeshPick, MeshPickError,
+    NameLookupError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, RimNameFault, TSpan,
+    answer_of, crossing, pick_face, ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -83,8 +83,8 @@ use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{
-    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, fragment_tail_start,
-    name_free_seg,
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, Sense, StableName,
+    fragment_tail_start, name_free_seg,
 };
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
@@ -223,7 +223,7 @@ impl ResolveError {
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
                      tie is never broken by picking. {}",
                     tie.width,
-                    crate::sentence::Recourse("refine the reference until one candidate remains")
+                    crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
             Self::ReadGone { name, read, edit } => {
@@ -323,10 +323,10 @@ impl ResolveError {
     /// own, decided there; issue
     /// `a-part-name-in-the-host-is-spelled-in-the-parts-ids` holds what
     /// that leaves open.
-    pub(crate) fn part_name(
+    pub(crate) fn part_name<P: crate::ProfilePayload>(
         name: &StableName,
         read: crate::VarId,
-        doc: &Doc<ProfileProgram>,
+        doc: &Doc<P>,
     ) -> bool {
         !doc.has_minted(name.node) && doc.reaches_instance(read)
     }
@@ -344,7 +344,7 @@ impl ResolveError {
     /// document has nothing to add to either — ids are not reused, so
     /// a node the prior run held and this one does not is deleted,
     /// which is what `Doc::has_minted` already says.
-    pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
+    pub(crate) fn node_gone<P>(name: &StableName, doc: &Doc<P>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;
         }
@@ -457,6 +457,14 @@ pub enum Diagnosis {
         node: RecipeNodeId,
         /// The structural slot.
         param: SlotId,
+    },
+    /// The count of an index a node on the derivation path is repeated
+    /// over changed (D10 `[repetition]`): the family has other members.
+    IndexCount {
+        /// The node repeated over the index.
+        node: RecipeNodeId,
+        /// The index.
+        index: crate::VarId,
     },
     /// A recipe edit touched the derivation path.
     RecipeEdit {
@@ -644,6 +652,13 @@ pub enum UpstreamCause {
         /// The structural slot.
         param: SlotId,
     },
+    /// The count of an index a node is repeated over changed.
+    IndexCount {
+        /// The node repeated over the index.
+        node: RecipeNodeId,
+        /// The index.
+        index: crate::VarId,
+    },
     /// A recipe edit.
     RecipeEdit {
         /// The edit, by its structural effect.
@@ -692,6 +707,12 @@ impl crate::spoken::Say for UpstreamCause {
                 f,
                 "a structural parameter changed: slot {} of {}",
                 param.label(),
+                by.node(*node)
+            ),
+            Self::IndexCount { node, index } => write!(
+                f,
+                "the count of {}, an index {} is repeated over, changed",
+                by.read(*index),
                 by.node(*node)
             ),
             Self::RecipeEdit { edit } => write!(f, "the recipe changed ({})", Said(edit, by)),
@@ -777,6 +798,13 @@ impl crate::spoken::Say for Diagnosis {
                 param.label(),
                 by.node(*node)
             ),
+            Self::IndexCount { node, index } => write!(
+                f,
+                "the count of {}, an index {} on the derivation path is repeated over, \
+                 changed",
+                by.read(*index),
+                by.node(*node)
+            ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
             // never-edited document pair).
@@ -828,6 +856,7 @@ impl Diagnosis {
             | Self::BorderDelta { .. }
             | Self::GroupResized { .. }
             | Self::StructuralParam { .. }
+            | Self::IndexCount { .. }
             | Self::RecipeEdit { .. }
             | Self::Upstream { .. } => write!(f, ". {}", Recourse("rebind it")),
         }
@@ -1452,6 +1481,9 @@ impl<U: Decide> Prior<'_, U> {
         {
             return Some(Evidence::Param(node, param));
         }
+        if let Some((node, index)) = index_count_change(new.doc, &ddiff, nodes) {
+            return Some(Evidence::Index(node, index));
+        }
         recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
     }
 }
@@ -1488,6 +1520,7 @@ fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId,
 enum Evidence {
     Flip(RecipeNodeId, VerdictFlip),
     Param(RecipeNodeId, SlotId),
+    Index(RecipeNodeId, crate::VarId),
     Edit(RecipeEditRef),
 }
 
@@ -1532,6 +1565,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         Some(match self.lanes(new, &flips, path)? {
             Evidence::Flip(_, f) => flip(f),
             Evidence::Param(node, param) => Diagnosis::StructuralParam { node, param },
+            Evidence::Index(node, index) => Diagnosis::IndexCount { node, index },
             Evidence::Edit(edit) => Diagnosis::RecipeEdit { edit },
         })
     }
@@ -1555,6 +1589,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
                 to: f.to,
             },
             Evidence::Param(node, param) => UpstreamCause::StructuralParam { node, param },
+            Evidence::Index(node, index) => UpstreamCause::IndexCount { node, index },
             Evidence::Edit(edit) => UpstreamCause::RecipeEdit { edit },
         };
         Some(Diagnosis::Upstream {
@@ -2035,14 +2070,13 @@ fn border_delta<T: Decide>(
 /// seam name of its own (a `Seam` edge zipped along the piece's line)
 /// is not the parent's descendant by that descent and is not counted.
 ///
-/// Two TIED parents share one base. Where the emitter groups by parent
+/// Two TIED parents share one base. The emitter groups by parent
 /// ENTITY — a face or an edge by the operand entity it descends from,
-/// a split face by its face and side — each forms its own group, the
-/// tie lane gives their members' rows one set of names, and each group
-/// is counted on its own: `was` and `now` are one parent's group, never
-/// the tie's sum. Where it groups by parent NAMES — a seam edge or seam
-/// vertex by its two faces' names — tied parents' pieces land in one
-/// group, no one parent's count is on record, and the rung declines.
+/// a seam edge by its two parents' entities, a joined edge by the
+/// operand edges it lies along, a split face by its face and side — so
+/// each forms its own group, the tie lane gives their members' rows one
+/// set of names, and each group is counted on its own: `was` and `now`
+/// are one parent's group, never the tie's sum.
 ///
 /// `now == 0` says no entity of the node's output is in that group:
 /// none descends from the parent there by the emitter's descent, or — for a split, whose group
@@ -2055,8 +2089,7 @@ fn border_delta<T: Decide>(
 /// changing — and the current count differs. It declines, to the
 /// evidence-free fallback, when the name has no fragment tail, when
 /// either run has no value at the minting node, when the prior record
-/// holds no group under the base, when a group under the base was
-/// formed by tied parents' names or the groups a tie shares a base
+/// holds no group under the base, when the groups a tie shares a base
 /// among are not all one size (there is then no one parent's count to
 /// state), when a union's record cannot be read in its published space
 /// or two of one fold step's bases publish as one, when either count
@@ -2346,7 +2379,11 @@ impl SeamParent {
                     .map(|(_, l)| &*l.line)
                     .collect()
             }
-            RoleSeg::Crossing { edge, face, .. } => self
+            RoleSeg::Crossing {
+                edge,
+                face,
+                sense: _,
+            } => self
                 .holds(base, edge)
                 .then_some(&**face)
                 .into_iter()
@@ -2715,8 +2752,8 @@ fn upstream_nodes(
 }
 
 /// Whether a name walk visits discriminator PARTNERS: a `Borders`
-/// qualifier's walls, and the `band` of a [`RoleSeg::BandCross`] or
-/// [`RoleSeg::BandSlit`]. Partners are discrimination references — an
+/// qualifier's walls, the `band` of a [`RoleSeg::BandCross`] or
+/// [`RoleSeg::BandSlit`], and a crossing's [`Sense::Through`] things. Partners are discrimination references — an
 /// edit at a partner's node can re-qualify the name (N7 localization),
 /// but the name is not DERIVED from the partner (suggestions must not
 /// offer the other body's fragments for a painted cutter wall — review
@@ -2725,10 +2762,11 @@ fn upstream_nodes(
 enum Partners {
     /// Visit partner names (localization).
     Include,
-    /// Visit a band, and not a piece's walls (cascade): a wall is cited
-    /// by its parent's name, which no table holds once the wall is
-    /// itself cut, so a wall that does not resolve is no vanished
-    /// operand; a change of walls is the border delta's to state. A
+    /// Visit a band, and not a piece's walls or a sense's things
+    /// (cascade): each is cited by its whole name, which no table holds
+    /// once it is itself cut, so one that does not resolve is no
+    /// vanished operand; a change of walls is the border delta's to
+    /// state. A
     /// `Merged` set's constituents are read through and not visited:
     /// each retired into the merge (N3), so none is an operand
     /// ([`first_vanished`] states the rest of that rule).
@@ -2740,9 +2778,10 @@ enum Partners {
 /// Visits every name embedded in `name`'s role path, at every depth,
 /// in path order (operand names, seam pairs, pattern masters, merged
 /// constituents unless `partners` is [`Partners::Cascade`], which reads
-/// through them — and discriminator partners iff `partners` says so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
-/// [`Qualifier`] variant embedding names must be
-/// classified here or the compile breaks — or, if it embeds no name,
+/// through them — and discriminator partners iff `partners` says so).
+/// [`embedded`]'s match is EXHAUSTIVE on purpose, field by field: a
+/// future [`RoleSeg`] or [`Qualifier`] variant or field embedding names
+/// must be classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
@@ -2775,12 +2814,11 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
     for seg in &name.path {
         match seg {
             // Structural embeddings: the entity derives from these.
-            RoleSeg::From { of: n, .. }
-            | RoleSeg::SectionEdge { face: n, .. }
-            | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::CrossingVertex { edge: n, .. }
-            | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::Instance { of: n, .. }
+            RoleSeg::From { of: n, read: _ }
+            | RoleSeg::SectionEdge { face: n }
+            | RoleSeg::SplitFragment { parent: n }
+            | RoleSeg::OnToolVertex { of: n }
+            | RoleSeg::Member { of: n, at: _ }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
@@ -2788,7 +2826,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
             | RoleSeg::TurnFoot { vertex: n }
-            | RoleSeg::BandTrim { edge: n, .. }
+            | RoleSeg::BandTrim { edge: n, support: _ }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
             // The shell vocabulary: each argument is the SOURCE entity
@@ -2797,7 +2835,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             // not a name).
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
-            | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
+            | RoleSeg::HoleRim { of: n, hole: _ } => visit(n, partners, f),
             RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -2830,16 +2868,23 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
                     }
                 }
             }
-            RoleSeg::Seam { a, b }
-            | RoleSeg::Crossing {
-                edge: a, face: b, ..
-            } => {
+            RoleSeg::Seam { a, b } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }
+            RoleSeg::CrossingVertex { edge, sense } => {
+                visit(edge, partners, f);
+                sense_partners(sense, partners, f);
+            }
+            RoleSeg::Crossing { edge, face, sense } => {
+                visit(edge, partners, f);
+                visit(face, partners, f);
+                sense_partners(sense, partners, f);
+            }
             RoleSeg::EdgeCrossing(run) => {
-                for l in run {
-                    visit(&l.line, partners, f);
+                for crate::names::RunLine { line, sense } in run {
+                    visit(line, partners, f);
+                    sense_partners(sense, partners, f);
                 }
             }
             RoleSeg::Merged(names) => {
@@ -2858,6 +2903,19 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             },
             name_free_seg!() => {}
         }
+    }
+}
+
+/// A crossing's sense's things: partners, since they say which way the
+/// crossing runs and not what it derives from.
+fn sense_partners<'a>(sense: &'a Sense, partners: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+    match sense {
+        Sense::Through { entering } => {
+            if partners == Partners::Include {
+                f.extend(entering.iter().map(|n| (&**n, true)));
+            }
+        }
+        Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => {}
     }
 }
 
@@ -2905,6 +2963,30 @@ fn structural_param_change(
         }
     }
     None
+}
+
+/// The first node of `path`, in document order, repeated over an index
+/// whose definition changed, with that index (D10 `[repetition]`: a
+/// count is an index's, not a node's slot). The node's own payload is
+/// unchanged by it, so this is no recipe edit of the node.
+fn index_count_change(
+    new: &Doc<ProfileProgram>,
+    ddiff: &crate::diff::DocDiff,
+    path: &BTreeSet<RecipeNodeId>,
+) -> Option<(RecipeNodeId, crate::VarId)> {
+    new.ids()
+        .iter()
+        .copied()
+        .filter(|id| path.contains(id))
+        .find_map(|id| {
+            let reached = new.node_reach(id);
+            let index = reached
+                .chain()?
+                .iter()
+                .copied()
+                .find(|index| ddiff.vars.contains(index))?;
+            Some((id, index))
+        })
 }
 
 /// The first recipe edit touching the (optionally restricted) node
@@ -3274,6 +3356,60 @@ mod walk_tests {
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    /// A name whose only mention of node 3 is the thing a `Through`
+    /// sense enters along, in each segment that carries a sense: the
+    /// localization walk, and so the derivation path, reach it as a
+    /// partner, and the structural and cascade walks do not.
+    #[test]
+    fn a_walk_reaches_the_things_a_through_sense_enters_along() {
+        use crate::names::{RunLine, Sense};
+        let through = || Sense::Through {
+            entering: vec![NameRef::new(leaf(3))],
+        };
+        let segs = [
+            RoleSeg::Crossing {
+                edge: NameRef::new(leaf(1)),
+                face: NameRef::new(leaf(2)),
+                sense: through(),
+            },
+            RoleSeg::CrossingVertex {
+                edge: NameRef::new(leaf(1)),
+                sense: through(),
+            },
+            RoleSeg::EdgeCrossing(vec![RunLine {
+                line: NameRef::new(leaf(1)),
+                sense: through(),
+            }]),
+        ];
+        for seg in segs {
+            let name = StableName {
+                kind: EntityKind::Vertex,
+                node: RecipeNodeId::new(0, 9),
+                path: vec![seg],
+            };
+            let walked = |partners| {
+                let mut seen = Vec::new();
+                walk_names(&name, partners, &mut |n| seen.push(n.node.0.digest()));
+                seen
+            };
+            assert_eq!(
+                walked(Partners::Include).last(),
+                Some(&3),
+                "{name:?}: included"
+            );
+            for partners in [Partners::Skip, Partners::Cascade] {
+                assert!(
+                    !walked(partners).contains(&3),
+                    "{name:?}: a partner, not derivation"
+                );
+            }
+            assert!(
+                derivation_nodes(&name).contains(&RecipeNodeId::new(0, 3)),
+                "{name:?}: on the derivation path"
+            );
+        }
     }
 
     /// A merged face at node 9 whose constituents wrap the operand caps

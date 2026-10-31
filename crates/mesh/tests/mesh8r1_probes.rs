@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::*;
 use geom::{Curve3, Surface};
@@ -28,7 +29,8 @@ use geom_core::{Point2, Tol};
 use geom_core::{Point3, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
-use topo::{Body, CoherenceCondition, FaceSurface, MefSite, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, CoherenceCondition};
 
 /// The byte instrument's own `band(rho)` body, re-derived here because
 /// `r2_bytes.rs` keeps it private.

@@ -72,7 +72,7 @@ fn copy_of(
 ) -> Result<
     (
         RecipeNodeId,
-        std::sync::Arc<topo::Body<f64>>,
+        crate::eval::Framed<f64>,
         crate::names::NameTable,
     ),
     PinRefusal,
@@ -87,7 +87,7 @@ fn copy_of(
 /// the motion its placement moved it by.
 pub(crate) type ReadBody = (
     RecipeNodeId,
-    std::sync::Arc<topo::Body<f64>>,
+    crate::eval::Framed<f64>,
     crate::names::NameTable,
     Option<geom_core::RigidMotion<f64>>,
 );
@@ -110,6 +110,26 @@ pub(crate) fn read_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
+    // A family is read through its first member, in that member's own
+    // names: what a reader evaluated once per member reads at each
+    // (D10 `[repetition]`).
+    if let Some(members) = &value.members {
+        let (_, first) = members
+            .members
+            .first()
+            .ok_or(PinRefusal::NotABody { node })?;
+        let (ValuePayload::Body(solid)
+        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: solid, .. })) =
+            &first.payload
+        else {
+            return Err(PinRefusal::NotABody { node });
+        };
+        let table = first
+            .output(0)
+            .ok_or(PinRefusal::NotABody { node })?
+            .table();
+        return Ok((node, solid.clone(), table.clone(), first.motion));
+    }
     let port = match body {
         Operand::Output { port, .. } => *port,
         Operand::Var(var) => match doc.var(*var).map(crate::Var::def) {
@@ -120,9 +140,7 @@ pub(crate) fn read_of(
     };
     let solid = match &value.payload {
         ValuePayload::Body(b)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => {
-            std::sync::Arc::clone(b)
-        }
+        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => b.clone(),
         ValuePayload::Instances(bodies) => bodies
             .first()
             .cloned()
@@ -136,7 +154,7 @@ pub(crate) fn read_of(
                 below
             };
             match side {
-                crate::eval::SplitSide::Body(b) => std::sync::Arc::clone(b),
+                crate::eval::SplitSide::Body(b) => b.clone(),
                 crate::eval::SplitSide::Empty => return Err(PinRefusal::NotABody { node }),
             }
         }
@@ -176,7 +194,10 @@ pub fn corner_frame_in(
     toward: [f64; 3],
 ) -> Result<Operand, PinRefusal> {
     use geom_core::linalg::Point3;
-    let (node, solid, table) = copy_of(doc, ev, body)?;
+    let (node, framed, table) = copy_of(doc, ev, body)?;
+    // The corners are stated in the body's space: its geometry is read
+    // there.
+    let solid = framed.body();
     let no_frame = || PinRefusal::NoFrame { node };
     let at = |p: [f64; 3]| Point3::new(p[0], p[1], p[2]);
     let (corner, up, toward) = (at(corner), at(up), at(toward));
@@ -190,7 +211,8 @@ pub fn corner_frame_in(
         solid
             .vertices()
             .find(|(v, _)| {
-                topo::readback::vertex_point(&solid, *v)
+                topo::readback::vertex_point(solid, *v)
+                    .map(|q| framed.point_in_space(q))
                     .is_ok_and(|q| [q.x, q.y, q.z] == [p.x, p.y, p.z])
             })
             .map(|(v, _)| v)
@@ -202,7 +224,7 @@ pub fn corner_frame_in(
     let edge = solid
         .edges()
         .find(|(e, _)| {
-            topo::readback::edge_carrier_kind(&solid, *e) == Ok(geom::CurveKind::Line)
+            topo::readback::edge_carrier_kind(solid, *e) == Ok(geom::CurveKind::Line)
                 && solid.get_edge(*e).is_some_and(|edge| {
                     let start = solid.get_half_edge(edge.he_plus).map(|h| h.start);
                     let end = solid.half_edge_end(edge.he_plus);
@@ -212,14 +234,14 @@ pub fn corner_frame_in(
         })
         .map(|(e, _)| e)
         .ok_or_else(no_frame)?;
-    let line = topo::readback::edge_pose(&solid, edge).map_err(|_| no_frame())?;
+    let line = topo::readback::edge_pose(solid, edge).map_err(|_| no_frame())?;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let axis = read(PoseDef::Axis {
         of: Operand::select(body.clone(), vec![name(EntityKey::Edge(edge))?]),
     });
     // The edge's axis reads its carrier's sense; the frame's `z` runs
     // from `corner` to `up`.
-    let axis = if line.axis.dot(up - corner) < 0.0 {
+    let axis = if framed.vec_in_space(line.axis).dot(up - corner) < 0.0 {
         read(PoseDef::Flip { pose: axis })
     } else {
         axis

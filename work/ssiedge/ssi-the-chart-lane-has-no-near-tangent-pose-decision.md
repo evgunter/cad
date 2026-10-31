@@ -22,7 +22,8 @@ march's states, the Hermite's ends, refinement's chord midpoint:
 over regions it certifies (the boundary strip, limb 3's tube). It has
 no decision for a pose of the pair that lies within the band of tangent
 where no branch is marched. The ℝ³ lane has one for its cylinder ×
-sphere door (`SsiError::PairTangent`, `ssi_cs_tangency`); the chart
+sphere door (`SsiError::PairTangent`, decided by the pair's pose since
+2026-10-27: `cs_wall_reach`, `cs_near_reach`, `cs_far_reach`); the chart
 lane does not, and the sweep (`crates/geom-brep/src/ssi/exhaust.rs`,
 `sweep`, the `SsiError::CellBudget` arm ~856) spends its budget there
 instead of refusing as a tangency.

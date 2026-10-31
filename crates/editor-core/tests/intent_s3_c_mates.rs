@@ -19,6 +19,7 @@
 )]
 
 use crate::fixture::{self, ang, len};
+use editor_core::Dimension;
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
@@ -570,8 +571,14 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         written,
         // The wall faces `+x`, which the mate takes: the slides across it.
         [
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Z),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, ang(30.0_f64.to_radians())),
         ],
     );
@@ -683,7 +690,12 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         to: down,
         orient: editor_core::Orientation::IDENTITY,
     };
-    let doc = seat(doc, placement, written, [(Coord::SPIN, ang(0.0))]);
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [(Coord::SPIN, Formula::zero(Dimension::Angle))],
+    );
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
@@ -875,7 +887,7 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     // The world's vertices, sorted: a re-pin re-composes the pose, so
     // the copy stands where it stood to the rounding of that one step.
     let world = |doc: &ProfileDoc, o: &EvalOptions| {
-        let body = editor_core::product(doc, &fixture::run(doc, o), Tol::witness())
+        let body = crate::fixture::product_in_world(doc, &fixture::run(doc, o), Tol::witness())
             .expect("the world gathers");
         let mut points: Vec<[f64; 3]> =
             body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
@@ -982,8 +994,11 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         written,
         [
             (Coord::Slide(TargetAxis::X), slide),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let seeded = EvalOptions {
@@ -1150,8 +1165,14 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         placement,
         written,
         [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, turn),
         ],
     );
@@ -1230,8 +1251,14 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         placement,
         written,
         [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, turn),
         ],
     );
@@ -1450,7 +1477,8 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
     let own = match fixture::run(&part, &EvalOptions::default()).result(body) {
         Some(NodeResult::Ok(v)) => match &v.payload {
             editor_core::ValuePayload::Body(b) => sorted(
-                b.vertex_points()
+                b.body()
+                    .vertex_points()
                     .map(|(_, p)| Vec3::new(p.x, p.y, p.z))
                     .collect(),
             ),
@@ -1479,7 +1507,7 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
             .unwrap_or_else(|e| panic!("inline {level} lands: {e}"))
             .doc;
     }
-    let product = editor_core::product(
+    let product = crate::fixture::product_in_world(
         &doc,
         &fixture::run(&doc, &EvalOptions::default()),
         Tol::witness(),

@@ -88,7 +88,7 @@ use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
-fn poison<T: Real>() -> T {
+pub(crate) fn poison<T: Real>() -> T {
     T::from_f64(f64::NAN)
 }
 
@@ -466,6 +466,46 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // one — for the spline fit or the description behind it.
         Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
+}
+
+/// How fast `s` leaves the line through `p` along the unit tangent
+/// `d`, toward the unit `across` (perpendicular to `d`): the second
+/// derivative `−dᵀ(∇²F)d / (∇F·across)` of the surface's graph over
+/// the plane normal to `across`, at unit speed along `d`. Equally, the
+/// acceleration along `across` of the curve the plane spanned by `d`
+/// and `across` cuts from `s` (differentiate `F(c(t)) = 0` twice). A
+/// graph only where `∇F·across` is bounded away from zero; poison in,
+/// poison out.
+pub fn implicit_graph_acceleration<T: Real>(
+    s: &Surface<T>,
+    p: Point3<T>,
+    d: Vec3<T>,
+    across: Vec3<T>,
+) -> T {
+    T::zero() - implicit_hessian_form(s, p, d) / implicit_gradient(s, p).dot(across)
+}
+
+/// How fast the section `reference ∩ other` leaves the line through
+/// `p` along its unit tangent `d`, toward the unit `across` in
+/// `reference`'s tangent plane (perpendicular to `d`): the `across`
+/// component of the section's acceleration at unit speed along `d`.
+/// Differentiating `F(c(t)) = G(c(t)) = 0` twice puts the acceleration's
+/// component along `∇F/|∇F|` at `−dᵀ(∇²F)d/|∇F|`, so its `across`
+/// component is `(dᵀ(∇²F)d·(∇G·∇F)/|∇F|² − dᵀ(∇²G)d)/(∇G·across)`.
+/// Against a plane (`∇²F = 0`) it is [`implicit_graph_acceleration`]
+/// of `other`. Poison where either surface is singular at `p` or has
+/// no implicit form; unbounded where the two meet tangentially there.
+pub fn implicit_section_acceleration<T: Real>(
+    reference: &Surface<T>,
+    other: &Surface<T>,
+    p: Point3<T>,
+    d: Vec3<T>,
+    across: Vec3<T>,
+) -> T {
+    let (f, g) = (implicit_gradient(reference, p), implicit_gradient(other, p));
+    (implicit_hessian_form(reference, p, d) * g.dot(f) / f.norm_squared()
+        - implicit_hessian_form(other, p, d))
+        / g.dot(across)
 }
 
 /// The trace of [`implicit_hessian_form`]'s Hessian restricted to the

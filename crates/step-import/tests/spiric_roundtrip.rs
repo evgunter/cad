@@ -116,17 +116,19 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// stood at `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
 /// a cap's `loop_vector_area`, before that lane).
 ///
-/// The import stops earlier, at adoption. The rim comes back as a
+/// The import stops at tier 3, past adoption. Each rim comes back as a
 /// spline, the export's sagitta-bounded stand-in for the spiric
-/// (uncertainty 1e-4 m), and its `Intersection` reading is a rung-3
-/// carrier between the plane and the torus. Limb 2 holds against both
-/// (the spline lies within about 3e-13 m of the torus), and the edge
-/// certificate's uniqueness tube (C2's limb 3) has no enclosure of the
-/// torus's gradient, so the reading refuses naming the torus. Until the
-/// tube has a torus arm
-/// (`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`)
-/// no spline on a torus wall adopts as an `Intersection`, however close
-/// it lies.
+/// (uncertainty 1e-4 m; `step_export::spiric_export_spline`), whose
+/// `Intersection` reading is a rung-3 carrier between the cutting plane
+/// and the torus. That reading certifies: rebuilt here from each native
+/// rim by the writer's own door, the spline passes the edge certificate
+/// against the plane and the torus (limbs 2 and 3; the spline lies
+/// within about 3e-13 m of the torus). Check 7 then measures the torus
+/// wall the spline bounds: the cavity's walls are planes, cylinders and
+/// tori, a plane goes to the rim lane, and the conic-trim fallback
+/// refuses every chart but the cylinder's, so the refused face is a
+/// torus wall — no quadrature lane reads one trimmed by a spline
+/// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
 #[test]
 fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     let native = vessel_cavity();
@@ -161,26 +163,84 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
         "the native cavity passes tier 3, its spiric faces measured"
     );
 
+    let band = Band::linear(tol()).expect("band");
+    let mut adopted = 0;
+    for (key, e) in native.edges() {
+        let Some(curve) = native.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            continue;
+        };
+        let &geom::Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } = curve.carrier()
+        else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let (spline, _) = step_export::spiric_export_spline(
+            1e-4,
+            curve.carrier(),
+            key,
+            t0,
+            t1,
+            major_radius,
+            minor_radius,
+            offset,
+        )
+        .expect("the writer's spline");
+        let plane = geom::Surface::Plane {
+            origin: center + u_ref * offset,
+            normal: u_ref,
+            u_ref: axis,
+        };
+        let torus = geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        };
+        assert_eq!(
+            geom_brep::analytic_rung3(&spline, spline.domain(), &plane, &torus, band),
+            Ok(()),
+            "the rim's spline certifies as the plane × torus intersection"
+        );
+        adopted += 1;
+    }
+    assert_eq!(adopted, rims, "every rim's spline read");
+    assert!(
+        native.faces().all(
+            |(_, f)| native.get_surface(f.surface).is_some_and(|s| matches!(
+                s,
+                geom::Surface::Plane { .. }
+                    | geom::Surface::Cylinder { .. }
+                    | geom::Surface::Torus { .. }
+            ))
+        ),
+        "the cavity's walls are planes, cylinders and tori"
+    );
+
     let back = import_step(&text, &ImportOptions::default(), tol());
     println!("[roundtrip] import door: {back:?}");
-    let Err(step_import::StepImportError::Adoption { attempts, .. }) = &back else {
-        panic!("the imported rim's spline refuses adoption, got {back:?}");
+    let Err(step_import::StepImportError::TierInvalid { errors, .. }) = &back else {
+        panic!("the imported cavity refuses at tier 3, got {back:?}");
     };
     assert!(
         matches!(
-            attempts.first(),
-            Some(step_import::AdoptionAttempt {
-                candidate: step_import::AdoptionCandidate::Intersection,
-                refusal: topo::EulerOpError::Certification {
-                    error: geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Torus,
-                        }
-                    ),
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::props::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::QuadratureUnsupported { what },
+                    ..
                 },
-            })
+                ..
+            }] if what.starts_with("conic trim on a cone/sphere/torus chart")
         ),
-        "the spline's Intersection reading refuses at the tube for want of a torus enclosure, \
-         got {attempts:?}"
+        "the spline's Intersection reading adopts, and check 7 meets a torus wall trimmed by a \
+         spline, got {errors:?}"
     );
 }

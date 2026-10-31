@@ -628,6 +628,24 @@ impl Band {
     pub fn escalate(self) -> f64 {
         self.escalate
     }
+
+    /// **The band read about a point known only within `pad` metres** of
+    /// the one the reading is about: both thresholds moved out by `pad`,
+    /// so a length that moves by at most `pad` with the point decides
+    /// nothing the true point's reading would not.
+    ///
+    /// # Errors
+    ///
+    /// [`Band::new`]'s, for a `pad` that is negative or not finite.
+    pub fn padded(self, pad: f64) -> Result<Self, BandError> {
+        if !(pad.is_finite() && pad >= 0.0) {
+            return Err(BandError::InvalidValue {
+                field: BandField::Zero,
+                value: pad,
+            });
+        }
+        Self::new(self.zero + pad, self.escalate + pad)
+    }
 }
 
 /// A Margin is dimensionally a length, minted only through the blessed
@@ -789,12 +807,12 @@ impl<T: crate::real::Real> Margin<T> {
     /// are unmoved.
     ///
     /// What this door deliberately does NOT serve (Ev's #213
-    /// layering ruling): the **consistency backstops** — inequalities
-    /// between integral RESULTS, the `volume_backstop` family. Those
-    /// are outside the length seam by design: they decide on bare `T`
-    /// through the invariant lane
-    /// ([`crate::k_stats::decide_invariant`]), and their firing is a
-    /// kernel-invariant (Corrupt-class) error, not a validity refusal.
+    /// layering ruling): a **consistency backstop** — an inequality
+    /// between integral RESULTS. One is outside the length seam by
+    /// design: it decides on bare `T` through the invariant lane
+    /// ([`crate::k_stats::decide_invariant`], which has no kernel caller
+    /// today), and its firing is a kernel-invariant (Corrupt-class)
+    /// error, not a validity refusal.
     pub fn over_lever(measure: T, lever: T) -> Self {
         Self(measure / lever)
     }
@@ -1270,6 +1288,10 @@ pub enum SizedPass {
     /// margin it cannot call, and a smaller tolerance calls any nonzero
     /// one.
     AnySign,
+    /// A zero margin only: an incidence the geometry must meet, which no
+    /// tolerance a run admits decides passing at a nonzero size, so no
+    /// refusal of it offers one.
+    Zero,
 }
 
 impl SizedPass {
@@ -1277,8 +1299,8 @@ impl SizedPass {
     pub(crate) fn admits(self, sign: Sign) -> bool {
         match sign {
             Sign::Zero => self.passes_zero(),
-            Sign::Positive => !matches!(self, Self::Negative),
-            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative),
+            Sign::Positive => !matches!(self, Self::Negative | Self::Zero),
+            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative | Self::Zero),
         }
     }
 
@@ -1287,7 +1309,7 @@ impl SizedPass {
     pub fn passes_zero(self) -> bool {
         match self {
             Self::Positive | Self::NonZero | Self::Negative => false,
-            Self::NonNegative | Self::AnySign => true,
+            Self::NonNegative | Self::AnySign | Self::Zero => true,
         }
     }
 
@@ -2929,6 +2951,42 @@ pub trait Decide: SpanLocate {
     fn enclosure_probe(self) -> Option<(f64, f64)> {
         None
     }
+
+    /// **Limb 2's identity door** (ERROR-DESIGN E12 at C2's limb 2):
+    /// this margin, carrying as its symbolic identity the residual
+    /// `identity` builds from a FREE parameter.
+    ///
+    /// `identity` is handed a minting function: given the value at
+    /// which a carrier is read, it returns that value as the identity's
+    /// free variable. The identity is the residual of the carrier's own
+    /// description against a surface, written in that variable: zero as
+    /// a form exactly when the carrier lies on the surface at every one
+    /// of its parameters, for every member of the box, which is what
+    /// limb 2's margin (a bound on the carrier's distance from the
+    /// surface) is zero for.
+    ///
+    /// At every scalar but [`crate::Sym`] this is `self`, and
+    /// `identity` is never called: the margin is its numeric channel.
+    /// At `Sym` the value channel is `self`'s, unchanged, and the node
+    /// is the identity's, so the ordinary decision
+    /// ([`Decide::sign_within`]) reads the numeric channel first and
+    /// asks the identity's normal form only where that channel does not
+    /// decide. The free variable is an indeterminate of its own with no
+    /// bracket (a [`crate::Sym::param`] minted outside a session reads
+    /// the same), so no decision read can certify a sign over it: it
+    /// reaches the zero test and nothing else.
+    ///
+    /// The door's one caller is limb 2 (`geom_brep::edge_nurbs`;
+    /// `scripts/gates/free-identity-allowlist.sh`): the identity is a
+    /// claim about the margin, and only the limb that formed both can
+    /// make it.
+    fn free_identity<F>(self, identity: F) -> Self
+    where
+        F: FnOnce(&dyn Fn(Self) -> Self) -> Self,
+    {
+        let _ = identity;
+        self
+    }
 }
 
 /// `f64` classification: |m| ≤ `zero` ⇒ `Zero`; |m| ≥ `escalate` ⇒ the
@@ -3081,8 +3139,11 @@ mod tests {
     /// two-sided set any nonzero one, and none tightens zero.
     #[test]
     fn each_pass_set_tightens_the_margins_it_accepts() {
-        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive, Zero};
         let rows = [
+            (Zero, 5e-9, false),
+            (Zero, -5e-9, false),
+            (Zero, 0.0, false),
             (AnySign, 5e-9, true),
             (AnySign, -5e-9, true),
             (AnySign, 0.0, false),
@@ -3114,6 +3175,7 @@ mod tests {
                 && !Negative.passes_zero()
                 && NonNegative.passes_zero()
                 && AnySign.passes_zero()
+                && Zero.passes_zero()
         );
     }
 
@@ -3128,11 +3190,14 @@ mod tests {
     /// moves class.
     #[test]
     fn each_reading_shows_one_class() {
-        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive, Zero};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let v = MarginDiag::value;
         let e = MarginDiag::enclosure;
         let rows = [
+            (Zero, v(5e-9), Shows::NoSize),
+            (Zero, e(-2e-9, 3e-9), Shows::Unresolved),
+            (Zero, v(5e-8), Shows::Refused),
             (NonZero, e(2e-9, 5e-9), Shows::Offer(2e-10)),
             (NonZero, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (NonZero, e(-2e-9, 3e-9), Shows::Unresolved),

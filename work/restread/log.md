@@ -144,3 +144,22 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Main reds:** the lanes' unfiled ones were confirmed and filed in PR 5828: SPLICE, from PR 5789, and FLUX, from PR 5734. — (RESTREAD orchestrator)
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/a-crossing-touch-is-interference` touches this program's ground. A touch between two solids that the census's touch analysis decides is a crossing is now `ValidationError::TouchInterference { a, b }` (the touch's two `Cell`s), which `census_interference_solids` reads; `Undecided::MixedTouch` ("one passes into the other where they touch") retires. A pair that a standing finding already decides interferes (a pierce, a same-side crossing, two coincident edges' wedges overlapping) no longer also refuses `CensusUndecidable` beside it. New exhaustive-match arm: `boolean/ops.rs`, `checks/at_rest.rs` `finding_solids`, pncad-py `touch_interference`. Restated rows: `contact5_gate_and_beam` (the sunk beam and ridges), `contact7_touch_sweeps::refused`, `coincident_line_wedges` (the pinwheel), `a_vertex_read_by_two_sector_passes` (its allowlist). (ATREST crossing-touch lane)
+- 2026-10-27 (ATREST orchestrator): filed `main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817` (P1, E) here: #5817 moved one `kitchen_sink` census verdict, and the slow perf12 goldens are red on main at three ε. Bisected to the #5817 merge `48910f2b`.
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` edits `crates/topo/src/census.rs`, which this program also claims: `face_interiors_meet` now certifies an arc or curved pair apart (`arc_interiors_meet`), `curved_same_side_pairs` returns the pairs certified apart (arm 1 of `sweep_cross_solid_backstop` skips them), and `flush_at_rest` gains a curved half (`curved_flush_at_rest`).
+- 2026-10-28 — PR 5858 (`restread/arm1-third-face-directions`) merges. It closes `census-arm-1-reads-directions-from-the-pairs-own-faces-only` (P1): arm 1 also proposes each arc's chord direction and the line between the carriers.
+  - **Results:** FLUSH's pocket battery goes 12 → 0 `BAD`, and JOIN-2's grid holds at 794.
+  - **INTENT row:** INTENT's `intent_s5_b_interference` undecided-pair row is re-fixtured again. Its witness now sits 1.5 pads clear, undecided because of the pads, with a seam note in INTENT's log.
+  - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. The pair is excluded under 6(e): a restart killed R2 mid-run.
+  - **Fix pass:** the chord taken as `n̂ × (q − p)` and the common normal of two axes removed. Verifier: VERIFIED-WITH-NITS.
+  - **Rows filed:** `arm-one-has-no-row-for-a-cone-pair-only-the-common-normal-would-part` (P3). — (RESTREAD orchestrator)
+- 2026-10-28 — PR 5856 (`restread/curved-edge-in-face`) merges. It closes `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P1).
+  - **The row's diagnosis was wrong.** The 42 refusals measured on main (not 38) were planar faces with a curved edge elsewhere on their boundary, not curved edge faces. They read now as a cleared fan about the point, with its rim past the face and its radius capping where a crossing is confirmed. All 42 pass.
+  - **Tier:** dual, arm concurrent (class H), fair. R2 found a false Rest at link level (a cleared sector read at its radius, not the face's reach), which R1 contradicted. The coder sided with R2: +1 R2 (blinding byte 214).
+  - **Fix passes:**
+    - Pass 1 put the rim past the face. The verifier found the ball cap ungated.
+    - Pass 2 gated it.
+  - **Process:** the orchestrator removed the implementer's worktree before the PR merged, so a fresh lane took the fix pass. Worktrees stay until merge.
+  - **Rows filed:**
+    - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
+    - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)

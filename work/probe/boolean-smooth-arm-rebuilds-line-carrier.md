@@ -4,7 +4,6 @@ kind: issue
 title: boolean's smooth-arm stale-flat branch rebuilds line carriers via line_between instead of restating the certified carrier
 status: closed
 opened: 2026-08-31
-github: 1382
 refs: [1152, 1378, 1107, 1362, D95]
 priority: P3
 cost: E

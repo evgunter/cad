@@ -16,9 +16,9 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
-    Frame, MateFault, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, assemble, evaluate,
-    product, product_named, product_recorded,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation, Frame,
+    MateFault, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, evaluate, product,
+    product_named, product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, solve, square};
@@ -367,11 +367,11 @@ fn err_text(err: &ProductError) -> String {
     format!("{err}")
 }
 
-/// A3 — `assemble` refuses through the gather: the pairing is checked
-/// on the ONE path that reaches the at-rest gate, so no predicate here
+/// A3 — the at-rest check refuses through the gather: the pairing is
+/// checked on the ONE path that reaches the census, so no predicate here
 /// ever runs on a mispaired argument.
 #[test]
-fn assemble_refuses_an_evaluation_of_another_document() {
+fn the_at_rest_check_refuses_an_evaluation_of_another_document() {
     let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-asm-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -379,14 +379,11 @@ fn assemble_refuses_an_evaluation_of_another_document() {
     let (b, _) = assembly_of(DocumentId::derive("docm4-a3-asm-b"), part_ref, &opts);
     let ev_a = run(&a, None, &opts);
 
-    match assemble(&b, &ev_a, Tol::witness()).expect_err("refuses") {
-        AssemblyError::Product(inner) => match *inner {
-            ProductError::EvaluationOfAnotherDocument { expected, found } => {
-                assert_eq!((expected, found), (b.id(), a.id()));
-            }
-            other => panic!("expected the pairing refusal, got {other:?}"),
-        },
-        other => panic!("expected an inherited gather refusal, got {other:?}"),
+    match crate::fixture::at_rest(&b, &ev_a).expect_err("refuses") {
+        editor_core::ChecksError::EvaluationOfAnotherDocument { expected, found } => {
+            assert_eq!((expected, found), (b.id(), a.id()));
+        }
+        other => panic!("expected the pairing refusal, got {other:?}"),
     }
 }
 
@@ -452,7 +449,7 @@ fn a_matched_pair_gathers_bit_identically() {
         product_shape(&p2),
         "the assembly's product"
     );
-    assemble(&asm, &warm, Tol::witness()).expect("the matched pair passes the gate");
+    crate::fixture::could_look(&asm, &warm).expect("the matched pair is at rest");
 }
 
 // ---- A4: the memo still works ----

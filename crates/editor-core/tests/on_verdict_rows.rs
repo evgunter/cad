@@ -5,13 +5,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{Recorder, len, scl};
+use crate::fixture::{Recorder, len};
 use topo::BooleanOp;
 
 use editor_core::{
-    BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Formula, Node, NodeError,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Node, NodeError, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 use topo::BooleanResultKind;
@@ -94,13 +93,13 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**body),
+                    topo::Body::clone(body.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),
             )
             .volume;
-            Some((volume, body.shells().count(), *kind))
+            Some((volume, body.body().shells().count(), *kind))
         }
         other => panic!("node {} is a {}, not a boolean", id.0, other.kind_name()),
     }
@@ -135,30 +134,18 @@ fn assert_answers(ev: &Evaluation<f64>, rows: &[Row]) {
     }
 }
 
-/// A 1 × 1 × 0.75 box patterned twice, and two `Part(Instance(1))`
-/// of it: one body at both seats.
+/// A 1 × 1 × 0.75 box in a row of two, and two copies of `row[1]`
+/// standing where the member does: one body at both seats.
 fn two_parts_of_one_copy(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.75);
-    let pat = r.insert(Node::Pattern {
-        input: cube.into(),
-        count: Formula::count(2),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(3.0),
-        },
-    });
-    let copy = || Node::Part {
-        of: pat.into(),
-        select: PartSelect::Instance(Formula::count(1)),
-    };
-    let p = r.insert(copy());
-    let q = r.insert(copy());
+    let (_, pat) = r.linear(cube, [1.0, 0.0, 0.0], 3.0, 2);
+    let p = r.member(pat, 1);
+    let q = r.member(pat, 1);
     (p, q)
 }
 
-/// **Two `Part(Instance(1))` of one pattern**: ∪ and ∩ are the copy,
-/// A's; − is the typed empty result. The n-ary union of the two is the
-/// copy too.
+/// **Two copies of `row[1]`**: ∪ and ∩ are the member, A's; − is the
+/// typed empty result. The n-ary union of the two is the member too.
 #[test]
 fn two_parts_of_one_copy_answer_under_every_op() {
     let mut r = Recorder::new();
@@ -171,7 +158,9 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     for (op, &id) in OPS.iter().zip(&nodes) {
         let got = answer(&ev, id);
         match op {
-            BooleanOp::Subtract => assert_eq!(got, None, "Part − Part is the typed empty result"),
+            BooleanOp::Subtract => {
+                assert_eq!(got, None, "a member less itself is the typed empty result")
+            }
             _ => assert_eq!(
                 got.map(|(v, n, k)| ((v - 0.75).abs() < 1e-9, n, k)),
                 Some((true, 1, BooleanResultKind::OperandA)),
@@ -182,7 +171,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     let copy = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(&ev, union)),
+            topo::Body::clone(&(crate::corpus::body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -196,7 +185,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     );
 }
 
-/// **The kept `On` shell is named from both seats**: the two parts
+/// **The kept `On` shell is named from both seats**: the two copies
 /// hold one body, so every face of the result is held by both members,
 /// and the union names each as the `Merged` of the two seats' names,
 /// each carried in through its own read — exactly the six faces of the
@@ -251,34 +240,25 @@ fn the_kept_copy_is_named_from_both_seats() {
     );
 }
 
-/// **`master` with `Part(Instance(0))`**: instance 0 is the master's own
-/// body, so the two seats hold one body. Both orders under − are empty.
+/// **`master` with a copy of `row[0]`**: member 0 stands where the
+/// master does and shares its body, so the two seats hold one body.
+/// Both orders under − are empty.
 #[test]
-fn a_master_and_its_instance_zero_answer() {
+fn a_master_and_its_member_zero_answer() {
     let mut r = Recorder::new();
     let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let pat = r.insert(Node::Pattern {
-        input: cube.into(),
-        count: Formula::count(3),
-        kind: PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(3.0),
-        },
-    });
-    let p0 = r.insert(Node::Part {
-        of: pat.into(),
-        select: PartSelect::Instance(Formula::count(0)),
-    });
+    let (_, pat) = r.linear(cube, [1.0, 0.0, 0.0], 3.0, 3);
+    let p0 = r.member(pat, 0);
     let mut rows = Vec::new();
     for op in OPS {
         let want = (op != BooleanOp::Subtract).then_some((1.0, 1));
         rows.push((
-            format!("master {op:?} Part(0)"),
+            format!("master {op:?} row[0]"),
             boolean(&mut r, op, cube, p0),
             want,
         ));
         rows.push((
-            format!("Part(0) {op:?} master"),
+            format!("row[0] {op:?} master"),
             boolean(&mut r, op, p0, cube),
             want,
         ));

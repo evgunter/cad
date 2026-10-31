@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
@@ -89,7 +90,9 @@ fn restate(
     spec.description = if intersection {
         EdgeDescriptionSpec::Intersection {
             pair,
-            witness: spec.carrier.eval(0.5 * (spec.param_start + spec.param_end)),
+            selector: geom_brep::CurveSelector::Witness(
+                spec.carrier.eval(0.5 * (spec.param_start + spec.param_end)),
+            ),
         }
     } else {
         EdgeDescriptionSpec::on_pair(pair)
@@ -190,14 +193,14 @@ fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
             spec.carrier.eval(spec.param_end),
         );
         let surfaces = |k| body.get_surface(k).cloned();
-        let built = geom_brep::EdgeCurve::certify_via(
+        let built = geom_brep::EdgeCurve::certify(
             spec,
             start,
             end,
             surfaces,
             1.0,
             Band::linear(tol()).unwrap(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the builder's image certifies too");
         assert_eq!(

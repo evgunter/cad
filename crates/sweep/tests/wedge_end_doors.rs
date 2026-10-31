@@ -25,6 +25,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
+use topo::construction::Construct;
 use topo::{Body, BooleanErrorKind, ContactMark, EdgeKey, KnifeEdgeSite, ShellError};
 
 fn tol() -> Tol {

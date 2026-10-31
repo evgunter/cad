@@ -63,6 +63,8 @@ A second definite sibling of the same shape: the declared-coaxial
 cylinder × sphere arm's radius guards (`BooleanDecision::Radius`). Their
 decided arm, `SectionError::DegenerateOperand`, reaches
 `join::cs_pair_frame`'s catch-all and renders as `BooleanError::JoinDesync`
+(2026-10-27: `cs_pair_frame` retired; the pose's decided arm now reaches
+the join as `BooleanError::GermSectionUnbuilt`, `SectionUnbuilt::Refused`)
 ("A/B lockstep invariant violated … kernel bug"), while the in-band arm
 names the radius lever. No in-tree caller passes
 `CoaxialEvidence::Declared` yet, so neither arm is reachable from a

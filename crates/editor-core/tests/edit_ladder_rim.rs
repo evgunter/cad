@@ -232,6 +232,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = fixture::insert(
@@ -481,7 +482,7 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let cap = face_of(t, "the host support", &host_support(&doc, block, fillet));
-    let extent = face_vertices(body, cap);
+    let extent = face_vertices(&body, cap);
     for rim in rims() {
         // The blend's closing join (`docs/DESIGN.md`, maximal edges)
         // takes the host foot the band's slit does not reach, between two
@@ -505,9 +506,9 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
         );
         for (j, source, name) in standing {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
-            let s = point(sbody, vertex_of(src, &what, &source));
+            let s = point(&sbody, vertex_of(src, &what, &source));
             let foot = vertex_of(t, &what, &name);
-            let p = point(body, foot);
+            let p = point(&body, foot);
             assert_eq!(
                 p.z, s.z,
                 "{what}: the foot stands at z = {}, not in the cap plane of the rim vertex \
@@ -557,7 +558,7 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    let all = all_meridians(&doc, src, sbody, block);
+    let all = all_meridians(&doc, src, &sbody, block);
     for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, meridian {j}", rim.loop_index);
@@ -574,7 +575,7 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                     },
                 ),
             );
-            let p = point(body, cross);
+            let p = point(&body, cross);
             for &(l, k, ends) in &all {
                 let d = footprint_gap(p, ends);
                 if (l, k) == (rim.loop_index, j) {
@@ -642,7 +643,7 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    let population = all_rim_vertices(&doc, src, sbody, block);
+    let population = all_rim_vertices(&doc, src, &sbody, block);
     for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
         let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(&doc, block, rim, s)).collect();
@@ -653,7 +654,7 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
             &what,
             &minted(EntityKind::Face, fillet, RoleSeg::BandFace(set)),
         );
-        let got: BTreeSet<StableName> = face_edges(body, band)
+        let got: BTreeSet<StableName> = face_edges(&body, band)
             .into_iter()
             .filter_map(|e| {
                 t.iter().find_map(|(n, entry)| match (&n.path[0], entry) {
@@ -671,8 +672,8 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
             "{what}: the band's boundary trimlines carry {got:?}, not the rim edge set the \
              band's own name carries"
         );
-        for v in face_vertices(body, band) {
-            let p = point(body, v);
+        for v in face_vertices(&body, band) {
+            let p = point(&body, v);
             let nearest = population
                 .iter()
                 .min_by(|a, b| {
@@ -759,16 +760,16 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
                 RoleSeg::BandFoot(NameRef::new(cap_vertex(&doc, block, rim, j))),
             ),
         );
-        let got = ends(body, edge_of(t, &what, n));
+        let got = ends(&body, edge_of(t, &what, n));
         assert!(
             (got[0] == cross && got[1] == foot) || (got[0] == foot && got[1] == cross),
             "{what}: it runs {got:?}, not from the crossing {cross:?} on the meridian its \
              name carries to that meridian's foot {foot:?}"
         );
-        let m = point(sbody, ends(sbody, edge_of(src, &what, source))[0]);
+        let m = point(&sbody, ends(&sbody, edge_of(src, &what, source))[0]);
         let axis = axis_distance(rim, m);
         for v in got {
-            let p = point(body, v);
+            let p = point(&body, v);
             let (wx, wy) = retracted(rim, m, axis_distance(rim, p) - axis);
             assert!(
                 (p.x - wx).abs() < NEAR && (p.y - wy).abs() < NEAR,
@@ -915,7 +916,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
         for j in 0..2 {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
             let v = cap_vertex(&doc, block, rim, j);
-            let s = point(sbody, vertex_of(src, &what, &v));
+            let s = point(&sbody, vertex_of(src, &what, &v));
             // A foot the closing join took is no longer named
             // (`a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex`).
             let foot_name = minted(
@@ -924,12 +925,12 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                 RoleSeg::BandFoot(NameRef::new(v)),
             );
             if t.lookup(&foot_name).is_some() {
-                let foot = point(body, vertex_of(t, &what, &foot_name));
+                let foot = point(&body, vertex_of(t, &what, &foot_name));
                 min = min.min(dist(foot, s));
             }
             let m = meridian(&doc, block, rim, j);
             let cross = point(
-                body,
+                &body,
                 vertex_of(
                     t,
                     &what,
@@ -943,8 +944,8 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                     ),
                 ),
             );
-            for e in ends(sbody, edge_of(src, &what, &m)) {
-                min = min.min(dist(cross, point(sbody, e)));
+            for e in ends(&sbody, edge_of(src, &what, &m)) {
+                min = min.min(dist(cross, point(&sbody, e)));
             }
         }
     }
@@ -980,7 +981,7 @@ fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
     let (doc, block, _fillet) = plate();
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (src, sbody) = (table(&ev, block), corpus::body_of(&ev, block));
-    let all = all_meridians(&doc, src, sbody, block);
+    let all = all_meridians(&doc, src, &sbody, block);
     let mut min = f64::INFINITY;
     for (i, &(_, _, a)) in all.iter().enumerate() {
         for &(_, _, b) in &all[i + 1..] {

@@ -13,7 +13,8 @@
 //! `span_reach_differential.rs` (twice — 1e-12 with the run's K, the ε
 //! its pinned counterexamples were drawn at) and
 //! `coplanar_ellipses_one_locus.rs` (three named ε with the run's K,
-//! through `Band::linear_at`). Each says at its own site why
+//! through `Band::linear_at`) and `section_bounds.rs` (a fixed 1e-6 ..
+//! 1e-5, so a cone section beside its apex is still minted). Each says at its own site why
 //! it is pinned to the row's scale rather than to ε, and a shared home
 //! must not make them follow ε by accident. `pcurve_p1b_r2_probes.rs`
 //! spells its half through `Band::linear_at`, the door for a named ε

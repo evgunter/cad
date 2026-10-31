@@ -9,8 +9,8 @@
 //! [`validate_pseudomanifold_certificate`], each with its `_structural`
 //! twin (the door roster below counts them) — which runs the same pass
 //! and returns the [`crate::SignCertificate`] check 7 decided on instead
-//! of dropping it; a `_structural` form holds no lane, and its check 7
-//! is the closed form's. Every tier-3 door makes check 7 the same way
+//! of dropping it; a `_structural` form holds no quadrature lane, and its
+//! check 7 is the closed form's. Every tier-3 door makes check 7 the same way
 //! (`plus_v_by_sign`, through the lane it holds): one walk per SOLID, check
 //! 7's subject, each stopped at the round where that solid's sign is
 //! certain, assembled into one body certificate over the face arena —
@@ -35,7 +35,8 @@
 //! **Tier 2 — "closed solid"** ([`validate_closed`]): tier 1 plus the
 //! at-rest bans on construction scaffolding — no empty loops
 //! ([`ValidationError::ScaffoldingEmptyLoop`]), no valence-1 vertices
-//! (struts, [`ValidationError::ScaffoldingStrutVertex`]), every
+//! (struts, [`ValidationError::ScaffoldingStrutVertex`]) but a wrap
+//! edge's tip ([`wrap_tips`]), every
 //! shell's incidence complex connected (c = 1,
 //! [`ValidationError::ShellDisconnected`]), and — since M3 PR 1 — no
 //! null entities ([`ValidationError::NullEdgeAtRest`] /
@@ -211,9 +212,10 @@
 //! - **`_certificate`** returns the [`crate::SignCertificate`] check 7
 //!   decided on instead of `()`.
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
-//!   through the closed form, no NURBS lane at check 2 (so no claim
-//!   about an edge whose certificate needs that lane), and at
-//!   tier 3′ no chart-region door in the census. Every door without it
+//!   through the closed form, and at tier 3′ no chart-region door in the
+//!   census. Check 2 is the scalar's at every door: each edge re-derived
+//!   through [`crate::AtRestPolicy::reattach_edge`], the certificate in
+//!   full at a certifying scalar and the mint at a dual. Every door without it
 //!   has a twin with it. At tier 3 the twin also GATES check 7
 //!   differently: it runs the battery in one call, so check 7 waits on
 //!   checks 1–6 only, where the composed door's `?` makes it wait on the
@@ -404,7 +406,7 @@ use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactRefusal, DeclaredContact};
+use crate::contact::{ContactPair, ContactRefusal};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
@@ -515,6 +517,55 @@ pub(crate) fn decide_reported<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Decided, Indeterminate> {
     geom_core::k_stats::decide_reported(name, margin, band)
+}
+
+/// **One reading taken at both bounds of its lever**: `lower` and
+/// `upper` are the reading levered at the bound from below and from
+/// above ([`geom_brep::LeverBounds`]), each decided under `name`. A
+/// verdict both give is the reading's; where they differ no verdict
+/// answers for the lever between them, and the reading is their
+/// straddle of the band under `straddle`, the site's own row
+/// ([`geom_core::k_stats::straddle`]), refused as an in-band reading is.
+///
+/// # Errors
+///
+/// Either reading's escalation, or the straddle.
+pub(crate) fn decide_agreed<T: Decide>(
+    (name, straddle): (&'static str, &'static str),
+    lower: Margin<T>,
+    upper: Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let a = decide_reported(name, lower, band)?;
+    let b = decide_reported(name, upper, band)?;
+    if a.sign == b.sign {
+        return Ok(a.sign);
+    }
+    let (lower, upper) = if a.sign < b.sign { (a, b) } else { (b, a) };
+    Err(geom_core::k_stats::straddle(straddle, lower, upper, band))
+}
+
+/// `x`, a dimensionless reading, levered at `lever`: decided once where
+/// the lever is exact, else at both its bounds ([`decide_agreed`]).
+///
+/// # Errors
+///
+/// As [`decide_agreed`].
+pub(crate) fn decide_levered<T: Decide>(
+    names: (&'static str, &'static str),
+    x: T,
+    lever: geom_brep::LeverBounds<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    match lever {
+        geom_brep::LeverBounds::Exact(arm) => decide(names.0, Margin::levered(x, arm), band),
+        geom_brep::LeverBounds::Between { below, above } => decide_agreed(
+            names,
+            Margin::levered(x, below),
+            Margin::levered(x, above),
+            band,
+        ),
+    }
 }
 
 /// [`decide`] gated on a nonzero margin, for a side read off a sign
@@ -704,12 +755,10 @@ impl core::fmt::Display for CensusSubject {
 /// façade carries the cause, delete this paragraph and the
 /// disposition row with it.
 ///
-/// It carries no bearing on ATTRIBUTION:
-/// `editor_core::assembly::attribute` reads which variant refused and
-/// what its [`CensusSubject`] was, and a decline is the census
-/// neither certifying nor contradicting a declaration whichever lane
-/// declined. So this widens what the refusal SAYS and moves no
-/// `AssemblyError` verdict.
+/// It carries no bearing on what the editor's at-rest check reports: a
+/// decline is the census neither certifying nor contradicting a
+/// declaration whichever lane declined, so this widens what the refusal
+/// SAYS and moves no finding.
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(
@@ -1445,9 +1494,10 @@ pub enum ValidationError {
     /// (cylinder, cone, sphere, torus). The face's two orientation
     /// encodings are the S10 `sense` bit and the stored loop traversal
     /// (interior-left), read per kind off the quantity its flux
-    /// integrates (`geom_brep::props::boundary_material_sign_loops`:
+    /// integrates (`geom_brep::props::boundary_material_sign_holding`:
     /// the chart Green form's area, the cone's axial vector area, the
-    /// sphere's Gauss–Bonnet area or pole-free side); a face where the
+    /// sphere's Gauss–Bonnet area or the side holding its own singular
+    /// vertices, a wrap tip's among them); a face where the
     /// two disagree is INSIDE-OUT at that face. Tier 3 refuses it here,
     /// per face: on every kind but the sphere the flux is
     /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
@@ -1483,11 +1533,11 @@ pub enum ValidationError {
     ///   two faces or more, whatever its members' own boundaries encode,
     ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
-    ///   side — a rim-only cap or a tilted cap holding a pole. Under
-    ///   either sense it holds a pole, which breaks the rule that a
-    ///   chart singularity inside a face is a vertex of it, so its loop
-    ///   says nothing about the bit; refusing
-    ///   such a face is this validity's rule to state, not check 6's;
+    ///   side, neither at a tip its chart image drops — a rim-only cap
+    ///   or a tilted cap holding a pole. Under either sense it holds a
+    ///   pole that is not its vertex, so its loop says nothing about
+    ///   the bit; the chart-singularity arm refuses the face
+    ///   ([`Self::ChartSingularityNotAVertex`]);
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
@@ -1528,6 +1578,77 @@ pub enum ValidationError {
     SeamRegionCoverUnresolved {
         /// The member the region was first read from.
         face: FaceKey,
+    },
+    /// Tier 3, check 6's chart-singularity arm: **a chart singularity
+    /// of the face's surface lies in its closure and is not a vertex of
+    /// it** — a sphere's pole or a cone's apex in the face's interior or
+    /// inside one of its edges (`docs/DESIGN.md` `[topology.tiers]`:
+    /// every chart singularity in a face's closure is a vertex of it).
+    /// Read by `geom_brep::chart_singularity::locate`, the one reading
+    /// STEP import makes such a point a vertex by; `lies` says where.
+    ChartSingularityNotAVertex {
+        /// The face.
+        face: FaceKey,
+        /// Which singular point of its surface.
+        point: geom_brep::chart_singularity::Singularity,
+        /// Where it lies.
+        lies: SingularityLies,
+    },
+    /// Tier 3, check 6's chart-singularity arm, **undecided**: whether a
+    /// chart singularity of the face's surface lies at a vertex of it,
+    /// inside it or outside it cannot be read — its distance to the
+    /// face's boundary is in band, or the side of one of its loops it
+    /// lies on does not clear its reading's bound
+    /// (`geom_brep::chart_singularity::Undecided`, whose ending it
+    /// carries).
+    ChartSingularityUndecided {
+        /// The face.
+        face: FaceKey,
+        /// Which singular point of its surface.
+        point: geom_brep::chart_singularity::Singularity,
+        /// What could not be read.
+        reading: geom_brep::chart_singularity::Undecided,
+    },
+    /// Tier 3, chart singularities as vertices (`docs/DESIGN.md`
+    /// `[topology.tiers]`): **a wrap edge's tip does not lie on its face's
+    /// chart singularity** — a meridian walked out and back that stops
+    /// short of the pole. Read
+    /// at the joint between the edge's two halves by the incidence the
+    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
+    /// a distance of its own.
+    WrapTipOffChartSingularity {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip (`wrap_tips`).
+        tip: VertexKey,
+    },
+    /// [`Self::WrapTipOffChartSingularity`] where the face's surface has
+    /// **no singular point at all** (a cylinder, a torus, a spline net
+    /// whose `u` sweep moves a point): no place on it is a tip's.
+    WrapTipWithoutChartSingularity {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip.
+        tip: VertexKey,
+    },
+    /// [`Self::WrapTipOffChartSingularity`], **undecided**: the tip's
+    /// distance to its chart's nearest singular point is in band. Its
+    /// ending is `geom_brep::chart_singularity::WRAP_TIP`'s, which passes
+    /// zero alone, so it offers no tolerance.
+    WrapTipUndecided {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip.
+        tip: VertexKey,
+        /// The escalation, carrying the margin.
+        cause: Indeterminate,
     },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
     /// leave infinity inside its material, so the volume they enclose is
@@ -1890,7 +2011,7 @@ pub enum ValidationError {
     /// wins over every declaration.
     ContactContradicted {
         /// The face pair and class that were declared.
-        declaration: DeclaredContact,
+        declaration: ContactPair,
         /// Where the contradiction holds, as a place read after
         /// "contradicted" in the message, preposition included: across
         /// both faces (the face–face record confirm pass's Door 1,
@@ -2418,7 +2539,9 @@ pub enum ValidationError {
         loop_: LoopKey,
     },
     /// **Tier 2 only.** A valence-1 vertex (the tip of a strut edge) on
-    /// a body validated as a closed solid — construction scaffolding.
+    /// a body validated as a closed solid — construction scaffolding —
+    /// on an edge that is not a wrap edge (a wrap edge's valence-1 end
+    /// is its tip, [`wrap_tips`]).
     ScaffoldingStrutVertex {
         /// The valence-1 vertex.
         vertex: VertexKey,
@@ -2485,7 +2608,7 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// **Tier 2 (M3 PR 1).** A null face at rest: the face carries an
-    /// F9 loop-role record (`crate::NullFacePair`) — mid-surgery
+    /// F9 loop-role record (`crate::construction::NullFacePair`) — mid-surgery
     /// scaffolding that must be consumed before a body rests.
     NullFaceAtRest {
         /// The marked face.
@@ -2883,7 +3006,7 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// The recourse for a tolerance that forms no usable band. A run's ε
 /// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
 /// form a band is K·ε overflowing: the repair is a smaller ε.
-const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+pub(crate) const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
                          run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
@@ -3080,8 +3203,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     let why = match e {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
-        // decision does (`CertifyError::decision`).
-        CertifyError::OnPairArcRim { iso, limb, bound } => {
+        // decision does (`ArcRimRefusal::decision`).
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal::Refused {
+            iso,
+            limb,
+            bound,
+        })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);
@@ -3095,9 +3222,26 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::Image(_),
+            ..
+        }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
-        CertifyError::DeclaredOffChart { margin, .. } => {
-            incidence_reason(geom_brep::IncidenceRead::of_margin(*margin), true)
+        // A row image's escalation reads as its decision's check, routed
+        // as an arc rim's is (`RowRefusal::decision`).
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ImageEscalated { check, .. },
+            ..
+        } => certify_undecided(geom_brep::certify::arc_rim_check(*check)),
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ChartSpeed(r),
+            ..
+        } => chart_speed_reason(*r),
+        // An incidence refusal, decided or escalated, reads its reason
+        // off the one table, by what was read.
+        _ if let Some(read) = e.incidence_read() => incidence_reason(read),
+        CertifyError::CarrierOffChart { .. } => {
+            unreachable!("a carrier off its chart carries its incidence read")
         }
         CertifyError::NoGeneralLane { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
@@ -3137,16 +3281,20 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
-        CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
-            if limb.check().bounds_a_miss() {
+        CertifyError::AnalyticRung3(A::Limb { .. }) => {
+            if geom_brep::Rung3Limb::HullValue.check().bounds_a_miss() {
                 BOUND
             } else {
                 MISMATCH
             }
         }
+        CertifyError::AnalyticRung3(A::KernelLimit { .. }) => {
+            "the check's certified bound on how far it strays from its faces does not clear the \
+             tolerance, the kernel's approximation limit"
+        }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
-             apex height or the other nappe)"
+             other nappe, or no chart of the face places it)"
         }
         CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
             "its curve lies within the tolerance of both faces, but the check cannot yet \
@@ -3193,8 +3341,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
-        CertifyError::PlaneNurbs(P::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
+        CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
+        | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::OffSide,
+            ..
+        }
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
@@ -3204,16 +3357,22 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::AnalyticRung3(A::TubeNotOneArc { .. }) => {
             "its curve is not proved to span one arc of its faces' crossing"
         }
-        CertifyError::NurbsLaneNotSupplied => {
-            "its certificate needs the NURBS lane, and the check that ran was given none, so \
-             nothing about it was checked"
-        }
         CertifyError::Escalated { check, .. } => certify_undecided(*check),
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        // Both are lifted to `CertifyError::Escalated` at the door
+        // (`from_plane_nurbs`), as every lane escalation is; read here by
+        // their own decision for a caller holding the lane's refusal.
+        CertifyError::PlaneNurbs(
+            p @ (P::Escalated { .. } | P::ArcRim(geom_brep::ArcRimRefusal::Escalated { .. })),
+        ) => p
+            .decision()
+            .map_or(KIND, |(check, _)| certify_undecided(check)),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::AnalyticRung3(A::Stalled { .. }) => {
+            certify_undecided(geom_brep::Rung3Limb::HullSup.check())
+        }
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -3230,21 +3389,24 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
+            | CertifyError::Row {
+                refusal: geom_brep::RowRefusal::OffSide,
+                ..
+            }
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(
                 P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
             )
             | CertifyError::AnalyticRung3(
-                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+                A::NoOffsetBound { .. }
+                | A::NoTubeEnclosure { .. }
+                | A::Unsupported { .. }
+                | A::CarrierEnclosure(_),
             ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::NurbsLaneNotSupplied => {
-                "Recourse: check the body through a door that holds the NURBS lane, \
-                 at a certifying scalar"
-            }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::NoGeneralLane { .. }
-            | CertifyError::DeclaredOffChart { .. }
+            | CertifyError::CarrierOffChart { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3255,7 +3417,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
-            | CertifyError::OnPairArcRim { .. }
+            | CertifyError::Row {
+                refusal:
+                    geom_brep::RowRefusal::Image(_)
+                    | geom_brep::RowRefusal::ImageEscalated { .. }
+                    | geom_brep::RowRefusal::ChartSpeed(_),
+                ..
+            }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -3263,13 +3431,16 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TubeStraddles { .. }
                 | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
+                | P::ArcRim(_)
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_)
                 | P::PcurveFit,
             )
             | CertifyError::AnalyticRung3(
                 A::Limb { .. }
+                | A::KernelLimit { .. }
                 | A::Escalated { .. }
+                | A::Stalled { .. }
                 | A::TubeStraddles { .. }
                 | A::TubeNotOneArc { .. },
             ) => unreachable!("a refusal whose ending its own type gives always has one"),
@@ -3313,7 +3484,12 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ChartClass => {
             geom_core::undecided!("which of its face's own curves it is")
         }
-        CertCheck::DeclaredIncidence => DECLARED_CLOSE,
+        // `classify_certify` reads an incidence refusal by its read first
+        // (`incidence_reason`), so no caller reaches this arm today; it
+        // stays because the table is whole over `CertCheck` (a check added
+        // without a reason does not compile), and it gives the one
+        // table's reason.
+        CertCheck::ChartIncidence => incidence_reasons::UNSHOWN,
         CertCheck::GeneralLane => {
             geom_core::undecided!("whether its face's general image covers it")
         }
@@ -3443,32 +3619,26 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-/// **What a mass-properties refusal says about the body** — the one
-/// reading tier 3's check 7 and the boolean's volume backstop share:
-/// why the volume is missing, what the user can do, and whether that is
-/// a defect in the body. Only structure that does not resolve is one; a
+/// **What a mass-properties refusal says about the body**, as tier 3's
+/// check 7 reads it: why the volume is missing, and what the user can
+/// do, or that it is a defect in the body. Only structure that does not resolve is one; a
 /// face the property layer has no measurement for, a decision too close
 /// to call, a quadrature that ran out are measurements the kernel does
 /// not have, however the face came to need them.
 pub(crate) struct MassPropsReading {
     /// Why the volume is missing, as a clause.
     pub(crate) why: &'static str,
-    /// What to do about it — or the defect ending, when `defect`.
+    /// What to do about it — or the defect ending, where the body's own
+    /// structure is at fault.
     pub(crate) recourse: Cow<'static, str>,
-    /// The body's own structure is at fault.
-    pub(crate) defect: bool,
 }
 
 pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
     use geom_brep::props::{PropsCheck, PropsError as P};
-    let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
-        why,
-        recourse,
-        defect,
-    };
+    let reading = |why, recourse: Cow<'static, str>| MassPropsReading { why, recourse };
     match e {
-        M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
+        M::Band { error } => reading(classify_band(error), TOLERANCE.into()),
         M::Face { source, .. } => match source {
             // **Both halves read the variant's own check**, so this
             // window and the refusal itself cannot disagree about what
@@ -3490,7 +3660,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
-                *check == PropsCheck::Exact,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
@@ -3499,7 +3668,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             | P::QuadratureUnsupported { .. } => reading(
                 "the kernel cannot yet measure a face of this kind",
                 NOT_YET_ENDING.into(),
-                false,
             ),
             // An edge that does not lie on its own face's surface: a
             // premise no valid body violates, so it is the body's own
@@ -3507,7 +3675,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::OffSurface { .. } => reading(
                 "a stored boundary edge does not lie on its own face's surface",
                 DEFECT.into(),
-                true,
             ),
             // A sphere face whose loops do not bound a region of its
             // sphere, or whose bit its boundary contradicts (an inverted
@@ -3516,58 +3683,47 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::SphereLoop { .. } => reading(
                 "a sphere face's boundary does not bound a region of its sphere",
                 DEFECT.into(),
-                true,
             ),
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary, or holds a pole of \
                  its sphere inside it",
                 DEFECT.into(),
-                true,
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionOvercovered { .. } => reading(
                 "the faces of one sphere overlap, covering their region more than once",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionCoverUnresolved => reading(
                 geom_core::undecided!("whether the faces of one sphere overlap"),
                 TOLERANCE.into(),
-                false,
             ),
             P::SeamRegionSensesDisagree => reading(
                 "two faces of one sphere meet with their material on one side of their seam",
                 DEFECT.into(),
-                true,
             ),
             P::ConeLoop { .. } => reading(
                 "a cone face's boundary does not bound a region of its cone once",
                 DEFECT.into(),
-                true,
             ),
             P::HolesExceedFace => reading(
                 "a face's holes cover more area than its outer boundary encloses",
                 DEFECT.into(),
-                true,
             ),
             P::RingWoundWithFace => reading(
                 "a hole in a face is wound the same way as the face",
                 DEFECT.into(),
-                true,
             ),
             P::ChartLoopOpen => reading(
                 "a face's stored boundary does not close on its surface",
                 DEFECT.into(),
-                true,
             ),
             P::LoopsWindChart => reading(
                 "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
-                true,
             ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
@@ -3577,95 +3733,80 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 geom_brep::props::FACE_EXTENT
                     .recourse(RefusedArm::SignCertain(None), Reading::AtRest)
                     .into(),
-                false,
             ),
         },
         M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
             NOT_YET_ENDING.into(),
-            false,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
-            reading("its structure is incomplete", DEFECT.into(), true)
+            reading("its structure is incomplete", DEFECT.into())
         }
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
-            false,
         ),
         M::EmptyContains => reading(
             "a measurement was asked whether the volume lies in a range whose least value is above its greatest",
             "Recourse: give the least value first".into(),
-            false,
         ),
         M::Undecided { .. } => reading(
             "the measurement's question is still undecided where refinement stopped",
             geom_core::NOT_YET_ENDING.into(),
-            false,
         ),
         M::Poisoned { cause } => reading(
             "the measurement's question could not be decided",
             cause.to_string().into(),
-            false,
         ),
     }
 }
 
-/// Why a DECLARED curve refused on its face, at rest: the edge
-/// certificate's reason and a boundary row's alike.
-const DECLARED_OFF: &str = "a declared curve does not lie on its face";
-/// Why a DECLARED curve's incidence on its face is undecided.
-const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lies on its face");
-/// Why a DECLARED curve read, within the band, at a pose where its face
-/// holds no curve of its kind refused ([`geom_brep::OffMargin::InBand`]):
-/// it is not shown off its face, so the reason does not say it is.
-const DECLARED_AT_POSE: &str =
-    "a declared curve sits, within the band, where its face holds no curve of its kind";
 /// Why a stored boundary that does not match its face refused at rest:
-/// a DERIVED boundary decided off its face among them.
+/// a boundary decided off its face among them.
 const WRONG: &str = "the stored boundary does not match the face";
-/// Why a DERIVED boundary read, within the band, at a pose where its face
-/// holds no curve of its kind refused: not decided off, so the reason does
-/// not say it fails to match.
-const DERIVED_AT_POSE: &str =
-    "the stored boundary sits, within the band, where its face holds no curve of its kind";
-/// Why a boundary's reading is undecided at rest: a DERIVED boundary's
-/// incidence on its face among them.
+/// Why a boundary's reading is undecided at rest: a boundary's incidence
+/// on its face among them.
 const CLOSE: &str = geom_core::undecided!("the boundary");
 
-/// **Why a carrier's incidence refused, by what was read and who placed
-/// it**: the one reason table, read by a boundary row at rest
-/// ([`off_face_ending`]) and by the edge certificate's decided declared
-/// arm, `DeclaredOffChart` ([`classify_certify`]). The certificate's
-/// undecided declared arm, an `Escalated` `DeclaredIncidence`, takes
-/// [`DECLARED_CLOSE`] through [`certify_undecided`], as every escalation
-/// of the certificate takes its check's reason.
-fn incidence_reason(read: geom_brep::IncidenceRead<'_>, declared: bool) -> &'static str {
+/// **Why an incidence refusal refused at rest, by what was read**
+/// ([`geom_brep::IncidenceRead`]): one reason per read, the one table an
+/// edge's certification (`classify_certify`) and a face boundary's row
+/// (`off_face_ending`) both read. A definite miss is a stored
+/// contradiction; a read in band, not decided off, is not called a miss.
+pub(crate) mod incidence_reasons {
+    /// Decided off its face.
+    pub(crate) const OFF: &str = "it does not lie on its face";
+    /// Read within the band at a pose where the face holds no curve of
+    /// its kind.
+    pub(crate) const AT_POSE: &str =
+        "it sits, within the band, where its face holds no curve of its kind";
+    /// The incidence reading landed in the band.
+    pub(crate) const UNSHOWN: &str = geom_core::undecided!("whether it lies on its face");
+}
+
+/// The reason [`incidence_reasons`] gives `read`.
+fn incidence_reason(read: geom_brep::IncidenceRead<'_>) -> &'static str {
     use geom_brep::IncidenceRead as R;
-    match (declared, read) {
-        (true, R::Off(_)) => DECLARED_OFF,
-        (true, R::AtPose(_)) => DECLARED_AT_POSE,
-        (true, R::Undecided(_)) => DECLARED_CLOSE,
-        (false, R::Off(_)) => WRONG,
-        (false, R::AtPose(_)) => DERIVED_AT_POSE,
-        (false, R::Undecided(_)) => CLOSE,
+    match read {
+        R::Off(_) => incidence_reasons::OFF,
+        R::AtPose(_) => incidence_reasons::AT_POSE,
+        R::Undecided(_) => incidence_reasons::UNSHOWN,
     }
 }
 
-/// **A boundary curve that misses its face, ended by who placed it**
-/// (D3), at rest: a carrier-off-chart refusal or an undecided incidence
-/// reading ([`geom_brep::IncidenceRead::of`]) takes its reason from
-/// [`incidence_reason`] and its ending from the one map,
-/// [`geom_brep::IncidenceRead::ending`], which the build-time render
-/// reads too; `None` for any other refusal.
+/// **A boundary curve not shown on its face, at rest** (D3): a
+/// carrier-off-chart refusal or an undecided incidence reading
+/// ([`geom_brep::IncidenceRead::of`]) takes its reason from the one table
+/// ([`incidence_reason`]) and its ending from the one map
+/// ([`geom_brep::IncidenceRead::ending`]), which the build-time render
+/// reads too. `None` for any other refusal.
 fn off_face_ending(
     error: &geom_brep::PcurveCertifyError,
-    authority: geom_brep::AuthorityKind,
 ) -> Option<(&'static str, Cow<'static, str>)> {
     let read = geom_brep::IncidenceRead::of(error)?;
     Some((
-        incidence_reason(read, authority.is_declared()),
-        Cow::Owned(read.ending(authority, Reading::AtRest)),
+        incidence_reason(read),
+        Cow::Owned(read.ending(Reading::AtRest)),
     ))
 }
 
@@ -3707,10 +3848,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
         ),
-        M::Certify {
-            error, authority, ..
-        } => {
-            if let Some(ending) = off_face_ending(error, *authority) {
+        M::Certify { error, .. } => {
+            if let Some(ending) = off_face_ending(error) {
                 return ending;
             }
             // A decision's refused arm ends as its check's routing gives
@@ -4026,14 +4165,10 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTRADICTION_REASON,
             crate::contact::CONTRADICTION_RECOURSE,
         ),
-        // A contact site's recourse has no tolerance arm (SELECT §3d,
-        // `CONTACT_RECOURSE`): loosening ε cannot supply intent.
+        // A contact site's recourse has no tolerance arm
+        // (`CONTACT_RECOURSE`): the faces are moved apart or together.
         ContactRefusal::Escalated { .. } => (
-            "whether the declared faces touch is too close to call",
-            crate::contact::CONTACT_RECOURSE_MARKED,
-        ),
-        ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no contact record behind them",
+            "whether the faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -4068,6 +4203,46 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 // arms: those report a damaged structure, and the key is what the bug
 // report needs. A nested refusal renders through its classifier above,
 // never whole.
+/// Where a chart singularity lies in a face it is not a vertex of
+/// ([`ValidationError::ChartSingularityNotAVertex`]).
+///
+/// **Not on a curated `pncad` list, argued** (`scripts/payload-rung-sweep.py`
+/// names this rung): `pncad` re-exports `topo` whole, so a Rust caller
+/// matches it already, and a Python caller reads the arm's word
+/// (`chart_singularity_not_a_vertex`) and the sentence, which names the
+/// place. The recourse is one for every place: state the point as a
+/// vertex. **The
+/// falsifier is a caller who must act differently on an interior point
+/// and one inside an edge** (splitting the edge where the face needs no
+/// cut) without reading the sentence; then the prelude carries this type
+/// and Python a word beside the arm.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SingularityLies {
+    /// In the face's interior.
+    Interior,
+    /// Inside the edge, between its vertices.
+    InsideEdge {
+        /// The edge.
+        edge: EdgeKey,
+    },
+}
+
+/// A face's loops, flattened: each loop's edges and their half-edges, or
+/// each loop's chart image's.
+type FlatLoops<T> = Vec<(
+    Vec<geom_brep::props::LoopEdge<T>>,
+    Vec<crate::entity::HalfEdgeKey>,
+)>;
+
+/// What a chart singularity is, in a sentence.
+fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'static str {
+    match point {
+        geom_brep::chart_singularity::Singularity::North
+        | geom_brep::chart_singularity::Singularity::South => "a pole of a sphere",
+        geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
+    }
+}
+
 impl ValidationError {
     /// Whether this is one of tier 3's check-11 verdicts
     /// ([`ValidationError::JoinableVertexAtRest`],
@@ -4307,6 +4482,74 @@ impl fmt::Display for ValidationError {
                 "whether the faces of one sphere overlap cannot be decided at this tolerance. \
                  Recourse: validate at a finer tolerance"
             ),
+            Self::ChartSingularityNotAVertex { point, lies, .. } => {
+                let what = singularity_noun(*point);
+                match lies {
+                    SingularityLies::Interior => write!(
+                        f,
+                        "{what} lies inside a face on that surface rather than at one of its \
+                         corners. {DEFECT}"
+                    ),
+                    SingularityLies::InsideEdge { .. } => write!(
+                        f,
+                        "{what} lies inside an edge of a face on that surface rather than at \
+                         one of its corners. {DEFECT}"
+                    ),
+                }
+            }
+            Self::WrapTipOffChartSingularity { .. } => write!(
+                f,
+                "an edge a face walks out to its tip and back stops short of that face's pole \
+                 or apex, where its tip has to lie. {DEFECT}"
+            ),
+            Self::WrapTipWithoutChartSingularity { .. } => write!(
+                f,
+                "an edge a face walks out to its tip and back lies on a surface with no pole or \
+                 apex, so its tip has nowhere to lie. {DEFECT}"
+            ),
+            Self::WrapTipUndecided { cause, .. } => write!(
+                f,
+                "{}",
+                cause.undecided(
+                    "whether the tip of an edge a face walks out and back lies on that face's \
+                     pole or apex",
+                    geom_brep::chart_singularity::WRAP_TIP
+                        .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                )
+            ),
+            Self::ChartSingularityUndecided { point, reading, .. } => {
+                use geom_brep::chart_singularity::{SideUnread, Undecided};
+                let what = singularity_noun(*point);
+                let ending = reading.recourse(Reading::AtRest);
+                match reading {
+                    Undecided::Boundary(cause) => write!(
+                        f,
+                        "{}",
+                        cause.undecided(
+                            format_args!(
+                                "whether {what} lies at a corner of a face on that surface or \
+                                 on its boundary"
+                            ),
+                            ending
+                        )
+                    ),
+                    Undecided::Side(SideUnread::Banded(cause)) => write!(
+                        f,
+                        "{}",
+                        cause.undecided(
+                            format_args!(
+                                "which side of a face's boundary on that surface {what} lies on"
+                            ),
+                            ending
+                        )
+                    ),
+                    Undecided::Side(SideUnread::Straddle) => write!(
+                        f,
+                        "which side of a face's boundary on that surface {what} lies on cannot \
+                         be read: the reading lies within its own error bound. {ending}"
+                    ),
+                }
+            }
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
@@ -4498,7 +4741,7 @@ impl fmt::Display for ValidationError {
                 ..
             } => write!(
                 f,
-                "the declared {} contact is contradicted {witness}: {}. {}",
+                "the recorded {} contact is contradicted {witness}: {}. {}",
                 declaration.class.name(),
                 crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,
@@ -4599,7 +4842,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::SameSideInterference { .. } => write!(
                 f,
-                "two instances overlap: a face of each lies on one plane facing the same way, \
+                "two instances overlap: a face of each lies on one surface facing the same way, \
                  sharing an area that both hold material under (an interference fit), which no \
                  declaration can make valid. Recourse: move the instances apart"
             ),
@@ -5102,6 +5345,52 @@ fn count_owner<K: Key, O: Copy>(counts: &mut SecondaryMap<K, (usize, O)>, key: K
     counts.insert(key, (n + 1, owner));
 }
 
+/// Each vertex's valence: the number of half-edges starting at it (a
+/// self-loop contributes two), counted over resolving `start`
+/// references only, so it is meaningful even on bodies with unrelated
+/// tier-1 errors, with one documented echo: a dangling `start` (a pass-1
+/// error) deflates its true vertex's count and can surface in tier 2 as
+/// a spurious strut (module docs, cascade discipline; pinned by the
+/// promoted review probe; unreachable through the public API). A vertex
+/// no half-edge starts at has no entry.
+fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
+    let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
+    for (_, he) in body.half_edges.iter() {
+        if body.vertices.contains_key(he.start) {
+            count_ref(&mut incidence, he.start);
+        }
+    }
+    incidence
+}
+
+/// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
+/// keyed to the one half-edge leaving it: a tip is any valence-1 end
+/// ([`valences`]) of a wrap edge, the face's seam kept to its end, where
+/// the face's loop walks the edge out and straight back. Both ends of a
+/// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
+/// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
+/// reading is structural and takes no ε. Where a tip lies is tier 3's
+/// (`crate::pcurves::pcurve_pass`). The valence-1 end is the vertex
+/// [`crate::surface_boundary::tips`] reads off a loop (a half-edge its
+/// loop follows by its own mate), counted here so that a body whose
+/// rotations tier 1 has not yet closed still reads.
+pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, HalfEdgeKey> {
+    let valence = valences(body);
+    let mut tips = SecondaryMap::new();
+    for (he_key, he) in body.half_edges.iter() {
+        let wraps = body
+            .edges
+            .get(he.edge)
+            .and_then(|edge| body.curves.get(edge.curve))
+            .and_then(CurveGeom::certified)
+            .is_some_and(|curve| curve.description().is_wrap());
+        if wraps && valence.get(he.start) == Some(&1) {
+            tips.insert(he.start, he_key);
+        }
+    }
+    tips
+}
+
 /// The counts of one connected component of a shell's incidence complex
 /// (pass 11 — see the module docs for the glue rules).
 struct ComponentCounts {
@@ -5208,23 +5497,12 @@ pub(crate) fn closed_by_tier<T: Real>(
         }
     }
 
-    // Tier 2, check 2: no valence-1 vertices (vertex-arena order).
-    // Valence = the number of half-edges starting at the vertex (a
-    // self-loop contributes two). Re-derived here rather than threaded
-    // out of pass 1: the count only reads resolving `start` references,
-    // so it is meaningful even on bodies with unrelated tier-1 errors —
-    // with one documented echo: a dangling `start` (a pass-1 error)
-    // deflates its true vertex's count and can surface here as a
-    // spurious strut (module docs, cascade discipline; pinned by the
-    // promoted review probe; unreachable through the public API).
-    let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
-    for (_, he) in body.half_edges.iter() {
-        if body.vertices.contains_key(he.start) {
-            count_ref(&mut incidence, he.start);
-        }
-    }
-    for (vertex_key, _) in body.vertices.iter() {
-        if incidence.get(vertex_key).copied().unwrap_or(0) == 1 {
+    // Tier 2, check 2: no valence-1 vertices but a wrap edge's tip
+    // (vertex-arena order), read off the stored wrap flag and the
+    // valences [`wrap_tips`] counts, so structural and ε-free.
+    let tips = wrap_tips(body);
+    for (vertex_key, valence) in valences(body).iter() {
+        if *valence == 1 && !tips.contains_key(vertex_key) {
             errors.push(ValidationError::ScaffoldingStrutVertex { vertex: vertex_key });
         }
     }
@@ -5352,6 +5630,16 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::LoopRoleInverted`]) and a curved face's
 ///    stored `sense` bit against the material side its own boundary
 ///    traversal encodes ([`ValidationError::CurvedSenseInverted`]).
+///    Beside them, **chart singularities as vertices**: every chart
+///    singularity in a face's closure is a vertex of it, so a sphere's
+///    pole or a cone's apex in a face's interior or inside one of its
+///    edges refuses ([`ValidationError::ChartSingularityNotAVertex`]),
+///    and one whose distance to the boundary is in band, or whose side
+///    of a loop its reading cannot clear of its error bound, refuses as
+///    undecided ([`ValidationError::ChartSingularityUndecided`]). The
+///    reading is `geom_brep::chart_singularity::locate`, the one STEP
+///    import makes such a point a vertex by, read off the face's region:
+///    it never asks whether a loop has a meridian.
 /// 7. **The orientation invariant, PER SOLID** (solids, arena order):
 ///    each solid's own faces leave infinity outside its material, read
 ///    by the reader of a shell's role — a ray aimed at one of its faces
@@ -5365,7 +5653,18 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    and not the body**: a body's total is a sum, and a sum hides a
 ///    sign — an inside-out part beside a larger ordinary solid totals
 ///    positive.
-/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
+/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]). The same
+///    joints read **every wrap edge's tip on its face's chart
+///    singularity** ([`wrap_tips`]): the tip's joint vertex decided off
+///    the chart's singular set refuses
+///    ([`ValidationError::WrapTipOffChartSingularity`]), one on a chart
+///    with no singular point refuses as such
+///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
+///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
+///    incidence is the one the joint resets by
+///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
+///    check 6's at-vertex placement reads too), and a joint check 8
+///    itself refuses or leaves unread reports nothing more.
 /// 9. **A face's loops trim one region** — a ring disjoint from
 ///    and nested in its outer loop ([`ValidationError::RingMeetsOuter`]
 ///    and its siblings), no two rings meeting
@@ -5463,6 +5762,19 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     whole-body inversion by check 6's planar arm at the planar faces
 ///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
 ///     cylinder and the tilted-split washer).
+/// - **A chart singularity the reading cannot place** (check 6's
+///   chart-singularity arm, exempt where
+///   `geom_brep::chart_singularity::locate` answers neither a place nor
+///   an undecided reading): an edge on a sampled carrier (not a line or
+///   a circle) whose refinement against its speed bound settles neither
+///   on nor off within its budget, or one with no speed bound that holds
+///   at every scalar (a rational spline among them)
+///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
+///   and a loop whose chart image states no certified winding about the
+///   surface axis: a sample with no chart point away from every singular
+///   point, a step not certified to turn by less than a sixteenth of a
+///   turn within the walk's budget, or a loop winding more than once
+///   (`work/restcurve/a-loop-the-chart-singularity-walk-cannot-certify-is-exempt.md`).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -5512,9 +5824,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// CERTIFICATION. So this
 /// entry is two private functions composed:
 ///
-/// - a structural phase running checks 1–6, 8, 9 and 11 (with check 2's
-///   certified plane × NURBS lane), at every [`crate::AtRestPolicy`]
-///   scalar;
+/// - a structural phase running checks 1–6, 8, 9 and 11, at every
+///   [`crate::AtRestPolicy`] scalar;
 /// - `validate_geometric_certified`, check 7 and then check 10 through
 ///   [`crate::QuadLane::certified`], bounded on the quantity they
 ///   actually need.
@@ -5634,11 +5945,6 @@ pub fn validate_geometric_certificate<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
-    // The structural phase runs WITH check 2's NURBS lane injected,
-    // which is what keeps this composed door re-deriving the lane's
-    // certificate classes at rest; the public structural door,
-    // whose bound cannot name the lane, runs without it.
-    //
     // The `?` between the two halves is the composition
     // `validate_geometric_certified`'s privacy exists to enforce: no
     // caller takes the certified half without the structural one, so no
@@ -5652,11 +5958,7 @@ pub fn validate_geometric_certificate<
     // and reported first, as the structural doors' one pass reports it
     // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
     // pins both: check 7's verdict, then check 11's).
-    match structural_via(
-        body,
-        tol,
-        StructuralPhase::BeforeCertifiedCheck7(CertifiedLanes::<T>::held().nurbs),
-    ) {
+    match structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7) {
         Ok(_) => validate_geometric_certified(body, tol),
         Err(joinable) if joinable.iter().all(ValidationError::is_check_11) => {
             let mut errors = validate_geometric_certified(body, tol)
@@ -5690,13 +5992,9 @@ pub fn validate_geometric_certificate<
 /// verdicts (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
-/// unbounded. **Check 2 makes no claim about an edge whose
-/// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
-/// edge re-derives only through that lane, which this door does not
-/// hold. Nor does check 8 make it: a fitted row's check 4 bounds its
-/// image against its own chart alone, so neither a spline carrier's
-/// incidence with its mate (limbs 1 and 2) nor the uniqueness tube is
-/// re-derived here.
+/// unbounded. **Check 2 is the scalar's**, as at every door: each edge
+/// re-derived through [`crate::AtRestPolicy::reattach_edge`], its
+/// certificate in full at a certifying scalar and its mint at a dual.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -5707,9 +6005,8 @@ pub fn validate_geometric_certificate<
 ///
 /// # Errors
 ///
-/// As [`validate_geometric`], less the check-2 verdicts on edges whose
-/// certificate needs the NURBS lane and plus the closed form's typed
-/// refusal at check 7.
+/// As [`validate_geometric`], plus the closed form's typed refusal at
+/// check 7.
 pub fn validate_geometric_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -5739,19 +6036,17 @@ pub fn validate_geometric_certificate_structural<
     structural_via(body, tol, StructuralPhase::NoLane).map(certificate_of_a_clean_verdict)
 }
 
-/// **Which of the two callers is running the structural battery** — the
-/// one argument that decides both of the battery's injected derivations
-/// together, because they are only ever right as a pair.
+/// **Which of the two callers is running the structural battery**: it
+/// decides whether the battery makes check 7.
 #[derive(Clone, Copy)]
-enum StructuralPhase<T: geom_core::Decide> {
-    /// The `_structural` doors: no lane at all — check 2 without the
-    /// NURBS lane, check 7 MADE through the closed form.
+enum StructuralPhase {
+    /// The `_structural` doors: no quadrature lane — check 7 MADE
+    /// through the closed form.
     NoLane,
-    /// The composed [`validate_geometric`]'s first phase: check 2 through
-    /// the certified NURBS lane it hands in, and check 7 NOT
+    /// The composed [`validate_geometric`]'s first phase: check 7 NOT
     /// made, because the composed door makes it next through the
     /// certified quadrature.
-    BeforeCertifiedCheck7(geom_brep::NurbsLane<T>),
+    BeforeCertifiedCheck7,
 }
 
 /// The tier-3 battery for one [`StructuralPhase`] — the shared body of
@@ -5767,11 +6062,11 @@ enum StructuralPhase<T: geom_core::Decide> {
 fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &'b Body<T>,
     tol: Tol,
-    phase: StructuralPhase<T>,
+    phase: StructuralPhase,
 ) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
-    let (nurbs_lane, plus_v) = match phase {
-        StructuralPhase::NoLane => (None, PlusVCheck::Through(None)),
-        StructuralPhase::BeforeCertifiedCheck7(lane) => (Some(lane), PlusVCheck::NotMade),
+    let plus_v = match phase {
+        StructuralPhase::NoLane => PlusVCheck::Through(None),
+        StructuralPhase::BeforeCertifiedCheck7 => PlusVCheck::NotMade,
     };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
@@ -5781,7 +6076,6 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
         &mut marks,
         tol,
         plus_v,
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
@@ -6207,19 +6501,12 @@ pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError>
 /// [`crate::AtRestPolicy`] scalar, a dual included, with the certified
 /// door and its `_structural` twin differing in exactly the lane they
 /// hand in.
-///
-/// `nurbs_lane` is check 2's plane × NURBS derivation, taken as an
-/// argument for the same reason and with the same discipline: the
-/// `_structural` doors hand `None` and the certified doors hand the
-/// certified body, and what a `None` costs is written at
-/// [`validate_pseudomanifold_structural`].
 pub(crate) fn tier3_local_checks<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &'b Body<T>,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -6231,7 +6518,6 @@ pub(crate) fn tier3_local_checks<
         &mut marks,
         tol,
         PlusVCheck::Through(quad_lane),
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
 }
@@ -6317,15 +6603,6 @@ pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames 
     walk: PLUS_V,
     certified: PLUS_V_EXACT,
 };
-
-/// Check 7's reading of one volume ([`crate::props::read_role`] under
-/// [`PLUS_V`]).
-pub(crate) fn plus_v_read<T: geom_core::Decide>(
-    reading: crate::props::SignReading<T>,
-    band: Band,
-) -> crate::props::RoleRead {
-    crate::props::read_role(reading, PLUS_V, band)
-}
 
 /// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
 /// a positive volume passes, a negative one refuses; where the walk
@@ -6693,13 +6970,12 @@ pub(crate) fn material_arm_error(
 /// **This pass makes every check in ONE call**, which is why it is not
 /// [`validate_geometric`] with a second return value: the whole
 /// eleven-check battery runs in one call, check 7 included through the
-/// certified quadrature ([`crate::QuadLane::certified`]) and check 2
-/// through the certified plane × NURBS lane, so its bound names the
-/// certification right. Its `Err` is the battery's vector and differs
+/// certified quadrature ([`crate::QuadLane::certified`]), so its bound
+/// names the certification right. Its `Err` is the battery's vector and differs
 /// from the composed door's in one stated way: its check 7 is gated on
 /// checks 1-6 only, where the composed door gates on the whole
 /// structural phase. [`contact_marks_structural`] is the same pass
-/// holding neither lane, at every scalar with a bracket.
+/// holding no quadrature lane, at every scalar with a bracket.
 ///
 /// **No `_certificate` form**, and that is a roster decision rather
 /// than a hole: this pass's product is the marks channel, the check-7
@@ -6717,36 +6993,32 @@ pub fn contact_marks<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    let lanes = CertifiedLanes::<T>::held();
-    contact_marks_via(body, tol, Some(lanes.nurbs), Some(lanes.quad))
+    contact_marks_via(body, tol, Some(CertifiedLanes::<T>::held().quad))
 }
 
-/// **[`contact_marks`] holding NO lane** — the same pass at every
-/// [`crate::AtRestPolicy`] scalar with a bracket, a
+/// **[`contact_marks`] holding NO quadrature lane** — the same pass at
+/// every [`crate::AtRestPolicy`] scalar with a bracket, a
 /// [`Dual`](geom_core::Dual) included, and it says less at every
-/// scalar, for the reasons [`validate_pseudomanifold_structural`]
-/// states: check 7 runs through the closed form alone, and check 2
-/// makes no claim about an edge whose certificate needs the NURBS lane.
+/// scalar, for the reason [`validate_pseudomanifold_structural`]
+/// states: check 7 runs through the closed form alone.
 ///
 /// # Errors
 ///
-/// As [`contact_marks`], less the check-2 verdicts on those edges and
-/// plus the closed form's typed refusal.
+/// As [`contact_marks`], plus the closed form's typed refusal.
 pub fn contact_marks_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_via(body, tol, None, None)
+    contact_marks_via(body, tol, None)
 }
 
-/// The marks pass with its two lanes as arguments — the shared body of
-/// the certified door and its `_structural` twin.
+/// The marks pass with its quadrature lane as an argument — the shared
+/// body of the certified door and its `_structural` twin.
 fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
@@ -6761,7 +7033,6 @@ fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::At
         &mut marks,
         tol,
         PlusVCheck::Through(quad_lane),
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
@@ -7058,13 +7329,9 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// `None` when the check was not made or a subject could not be derived
 /// at all, which the vector then says.
 ///
-/// `nurbs_lane` is check 2's second derivation, handed in for the same
-/// reason and with the same discipline. An edge whose certificate
-/// needs the NURBS lane re-derives only through it, so a caller that
-/// holds none does not re-derive it and this battery SKIPS the edge
-/// rather than reporting it (the lane's absence is its own refusal,
-/// [`geom_brep::CertifyError::NurbsLaneNotSupplied`], which lists the classes).
-/// Every other carrier class is re-certified identically either way.
+/// Check 2 re-derives every edge through the scalar's edge door
+/// ([`crate::AtRestPolicy::reattach_edge`]): the certificate in full at
+/// a certifying scalar, at every door alike, and the mint at a dual.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -7078,12 +7345,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// Every check classifies at the run's linear band, `Band::linear(tol)`:
 /// a body is validated at the ε it was built at (D2, D4), and `Tol` is
 /// committed once per process, so that band is the build's.
-// The seventh parameter is the third INJECTED DERIVATION (`plus_v`,
-// `nurbs_lane`, `offset_fit`), and each is a door whose availability
-// differs by caller: bundling them into one struct would hide behind a
-// single name exactly the thing each parameter is here to make the
-// caller state.
-#[allow(clippy::too_many_arguments)]
+// `plus_v` and `offset_fit` are INJECTED DERIVATIONS, each a door whose
+// availability differs by caller: bundling them into one struct would
+// hide behind a single name exactly the thing each parameter is here to
+// make the caller state.
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -7092,7 +7357,6 @@ pub(crate) fn tier3_local_checks_marked<
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<T>,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -7279,34 +7543,10 @@ pub(crate) fn tier3_local_checks_marked<
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        // Re-certification takes the lane this battery was handed: the
-        // certified doors hand the certified lane and check 2 runs
-        // whole, and the `_structural` doors hand none and make no
-        // claim about an edge whose certificate needs that lane.
-        //
-        // **Read that at its true width, because it is wider than the
-        // class it is about.** `recertify_via_stated` is ONE call and check 2
-        // is a whole-edge check: without the lane the description
-        // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
-        // interval and chart-image checks run, so what a lane-free
-        // caller does not get is every check-2 verdict on that edge —
-        // a drifted endpoint included — and not merely the lane's
-        // limbs. That is why the skip is a skip and
-        // not a report: reporting it would name a defect in the body
-        // for a fact about the caller.
-        //
-        // **An imported or minted body holding such an edge must re-derive
-        // its certificate at rest exactly as it did at attach time.**
-        // That invariant did not move; what moved is which door
-        // honours it. Every door whose bound names the right does
-        // ([`validate_geometric`], [`validate_pseudomanifold`],
-        // [`contact_marks`] and their declared and certificate forms),
-        // and `AtRestPolicy`'s certifying arms and `step-import`'s
-        // aggregate gate take those. The `_structural` doors do not,
-        // and each says so at its own signature.
-        //
-        // Every other carrier class is re-certified the same way at
-        // both doors. Re-certification re-derives, the wedge levered at
+        // Re-certification runs through the scalar's edge door
+        // (`AtRestPolicy::reattach_edge`): the certificate in full at a
+        // certifying scalar, at every door alike, and the mint at a dual.
+        // It re-derives, the wedge levered at
         // the edge's two faces' reach; it never trusts the stored
         // certificate. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
@@ -7326,7 +7566,7 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
-        match crate::policy_lane::recertify_via_stated(
+        if let Err(error) = crate::policy_lane::recertify_stated(
             crate::policy_lane::Origin::Callers,
             curve,
             p_start,
@@ -7334,14 +7574,12 @@ pub(crate) fn tier3_local_checks_marked<
             |k| body.surfaces.get(k).cloned(),
             reach,
             band,
-            nurbs_lane,
             stated.as_ref(),
         ) {
-            Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
-            Err(error) => errors.push(ValidationError::EdgeCertification {
+            errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
                 error,
-            }),
+            });
         }
         let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
@@ -7642,10 +7880,7 @@ pub(crate) fn tier3_local_checks_marked<
             ContactMark::Unmarked
         } else if escalated {
             ContactMark::Unmarked
-        } else if matches!(
-            curve.description(),
-            geom_brep::EdgeDescription::Chart(c) if c.wrap
-        ) {
+        } else if curve.description().is_wrap() {
             ContactMark::Seam
         } else if all_transverse {
             arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
@@ -7868,12 +8103,13 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign_loops` reads every
+    // `geom_brep::props::boundary_material_sign_holding` reads every
     // loop, per kind: the chart Green form's sign on a cylinder or
     // torus (`props_chart_area_side`), the axial vector area's on a
     // cone (`props_cone_area_side`), and on a sphere the side of its
-    // loops with positive area with holes (`props_sphere_face_area`) or
-    // the loop's pole-free side without (`props_sphere_pole_winding`).
+    // loops with positive area with holes (`props_sphere_face_area`) or,
+    // without, the side of the loop holding the face's own singular
+    // vertices and no other pole (`props_sphere_pole_winding`).
     // None rests
     // on an iso-rectangle premise. The final comparison is two exact
     // ±1s, genuinely combinatorial.
@@ -7905,12 +8141,19 @@ pub(crate) fn tier3_local_checks_marked<
     // ([`seam_region`]), whose boundary encodes a side by its area or
     // by a pole on an interior edge (`sphere_region_material_sign`).
     // Exempt: the regions that reader leaves unread, listed on
-    // `CurvedSenseInverted`. So is a face with a pole off its loop on
-    // each side, which holds a pole under either sense.
+    // `CurvedSenseInverted`. A tip the face's chart image drops is
+    // handed to the reader as a point the face holds, so a wrap-tip cap
+    // lies on the side of its loop holding its tip's pole and not the
+    // other. A face with a pole off its loop on each side and neither
+    // at such a tip holds a pole under either sense, and is exempt: the
+    // chart-singularity arm below refuses it.
     // ------------------------------------------------------------------
     // Every seam region of a sphere, read once: the cover census here,
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
+    // Each sphere and cone face's loops as this arm flattens them, kept
+    // for the chart-singularity arm below.
+    let mut flattened: SecondaryMap<FaceKey, (FlatLoops<T>, FlatLoops<T>)> = SecondaryMap::new();
     for region in &regions {
         if let (Some(&face), Some(cover)) = (region.members.first(), region.cover.clone()) {
             errors.extend(census_finding(face, cover));
@@ -7927,18 +8170,36 @@ pub(crate) fn tier3_local_checks_marked<
             // scope.
             continue;
         }
-        // Every loop: a cylinder face reads its side off its whole
-        // boundary's chart Green form, rings included, as its flux does.
-        let Ok(loops) = core::iter::once(face.outer)
+        // Every loop's chart image: a cylinder face reads its side off
+        // its whole boundary's chart Green form, rings included, as its
+        // flux does, each loop that bounds area.
+        let Ok(full) = core::iter::once(face.outer)
             .chain(face.rings.iter().copied())
-            .map(|l| crate::props::loop_edges(body, l).map(|(edges, _)| edges))
-            .collect::<Result<Vec<_>, _>>()
+            .map(|l| crate::props::loop_edges(body, l))
+            .collect::<Result<FlatLoops<T>, _>>()
         else {
             continue; // derivation exempt (posture above)
         };
-        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
-            loops.iter().map(Vec::as_slice).collect();
-        match geom_brep::props::boundary_material_sign_loops(surface, &loops, band) {
+        // The tips the images drop are the face's own: the datum of its
+        // side.
+        let Ok((images, held)) = full
+            .iter()
+            .map(|(_, cycle)| crate::props::image_with_tips(body, cycle))
+            .collect::<Result<(FlatLoops<T>, Vec<Vec<geom_core::Point3<T>>>), _>>()
+        else {
+            continue; // derivation exempt (posture above)
+        };
+        let held: Vec<geom_core::Point3<T>> = held.into_iter().flatten().collect();
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
+            .iter()
+            .map(|(edges, _)| edges.as_slice())
+            .filter(|edges| geom_brep::chart_image::bounds_area(edges))
+            .collect();
+        let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
+        if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
+            flattened.insert(face_key, (full, images));
+        }
+        match side {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
                 // Two exact ±1s: the derived side is definite by
                 // construction, the sense bit is stored — a discrete
@@ -7977,6 +8238,84 @@ pub(crate) fn tier3_local_checks_marked<
             // exception is the conic-trimmed wall named above, whose
             // quadrature flux is winding-derived and answers.
             Err(_) => {}
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 6, CHART-SINGULARITY arm (`docs/DESIGN.md`
+    // `[topology.tiers]`): every chart singularity in a face's closure is
+    // a vertex of it. Each sphere pole and cone apex is read against its
+    // face's region by `geom_brep::chart_singularity::locate`, the reading
+    // STEP import makes such a point a vertex by, so validity refuses
+    // exactly what import re-mints: one in the interior or inside an
+    // edge refuses, and one whose distance to the boundary or side of a
+    // loop is undecided refuses as undecided, carrying its ending. A
+    // face whose reading cannot place the point is exempt (the
+    // not-yet-checked list): an edge on a sampled carrier whose
+    // refinement settles neither on nor off, or a loop whose chart image
+    // states no certified winding. The loops are check 6's curved arm's,
+    // and "at a vertex" reads each vertex's stored point.
+    // ------------------------------------------------------------------
+    for (face_key, (flat, images)) in flattened.iter() {
+        use geom_brep::chart_singularity::{FaceLoop, Lies, Undecided, locate};
+        let (Some(face), Some(surface)) = (
+            body.faces.get(face_key),
+            body.faces
+                .get(face_key)
+                .and_then(|face| body.surfaces.get(face.surface)),
+        ) else {
+            continue; // unreachable: the curved arm read both
+        };
+        let Some(corners) = flat
+            .iter()
+            .map(|(_, hes)| {
+                hes.iter()
+                    .map(|&he| {
+                        let he = body.half_edges.get(he)?;
+                        body.points.get(body.vertices.get(he.start)?.point).copied()
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue; // unreachable on tier-1 input
+        };
+        let loops: Vec<FaceLoop<'_, T>> = flat
+            .iter()
+            .zip(&corners)
+            .map(|((edges, _), corners)| FaceLoop { edges, corners })
+            .collect();
+        let images: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            images.iter().map(|(edges, _)| edges.as_slice()).collect();
+        for located in locate(surface, &loops, &images, face.sense, band) {
+            let (point, face) = (located.singularity, face_key);
+            match located.lies {
+                Ok(Lies::AtVertex { .. } | Lies::Outside) => {}
+                Ok(Lies::Interior) => errors.push(ValidationError::ChartSingularityNotAVertex {
+                    face,
+                    point,
+                    lies: SingularityLies::Interior,
+                }),
+                Ok(Lies::InsideEdge { r#loop, edge, .. }) => {
+                    let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) else {
+                        continue; // unreachable: the flattening resolved it
+                    };
+                    errors.push(ValidationError::ChartSingularityNotAVertex {
+                        face,
+                        point,
+                        lies: SingularityLies::InsideEdge { edge: he.edge },
+                    });
+                }
+                Err(why) => {
+                    if let Some(reading) = Undecided::of(&why) {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading,
+                        });
+                    }
+                }
+            }
         }
     }
 
@@ -8048,8 +8387,35 @@ pub(crate) fn tier3_local_checks_marked<
     // stands (checks 1-6 only), because they answer with one vector
     // rather than a composition.
     // ------------------------------------------------------------------
-    for finding in crate::pcurves::validate_pcurves(body, band) {
+    //
+    // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
+    // chart singularities as vertices): every wrap edge's tip lies on its
+    // face's chart singularity, read by the incidence the joint resets
+    // its first channel by (`crate::pcurves::pcurve_pass`).
+    let pass = crate::pcurves::pcurve_pass(body, band);
+    for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });
+    }
+    for crate::pcurves::TipOff {
+        face,
+        edge,
+        tip,
+        reading,
+    } in pass.tips
+    {
+        use crate::pcurves::TipReading;
+        errors.push(match reading {
+            TipReading::Off => ValidationError::WrapTipOffChartSingularity { face, edge, tip },
+            TipReading::NoSingularSet => {
+                ValidationError::WrapTipWithoutChartSingularity { face, edge, tip }
+            }
+            TipReading::Undecided(cause) => ValidationError::WrapTipUndecided {
+                face,
+                edge,
+                tip,
+                cause,
+            },
+        });
     }
 
     // ------------------------------------------------------------------
@@ -8409,6 +8775,21 @@ fn pinch_corner_errors<T: Decide>(
     if inverted {
         return;
     }
+    for (cycle, group) in loop_point_groups(body, face) {
+        if let Err(error) = pinch_corners_at(body, face_key, &cycle, &group, band) {
+            errors.push(error);
+        }
+    }
+}
+
+/// **Check 9's grouping**: each loop of `face`, and each point key it
+/// passes at two or more corners, as the loop's cycle and the indices
+/// of its corners there. An empty loop has no corner.
+pub(crate) fn loop_point_groups<T: Real>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
+    let mut out = Vec::new();
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
         let Some(cycle) = loop_cycle_of(body, l) else {
             continue;
@@ -8423,19 +8804,145 @@ fn pinch_corner_errors<T: Decide>(
             .collect();
         keyed.sort_unstable();
         for group in keyed.chunk_by(|x, y| x.0 == y.0) {
-            if group.len() < 2 {
-                continue;
-            }
-            if let Err(error) = pinch_corners_at(body, face_key, &cycle, group, band) {
-                errors.push(error);
+            if group.len() >= 2 {
+                out.push((cycle.clone(), group.iter().map(|&(_, i)| i).collect()));
             }
         }
     }
+    out
 }
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
+pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<Departure<T>>);
+
+/// **A departure scaled to its edge's lever**, so a cross product over
+/// its length is a length ([`wedge_holds_named`]): exact where the
+/// lever is (a line's chord, a circle arc's reach), else the one
+/// direction at both bounds of the lever
+/// ([`geom_brep::edge_reach_bounds`]), each sign it levers then read at
+/// both and acted on only where they agree.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Departure<T: Real> {
+    /// Scaled to the lever itself.
+    Exact(geom_core::Vec3<T>),
+    /// Scaled to the lever's bound from below, and from above.
+    Between(geom_core::Vec3<T>, geom_core::Vec3<T>),
+}
+
+impl<T: Real> Departure<T> {
+    /// The unit direction `dir` scaled to `lever`.
+    pub(crate) fn along(dir: geom_core::Vec3<T>, lever: geom_brep::LeverBounds<T>) -> Self {
+        match lever {
+            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm),
+            geom_brep::LeverBounds::Between { below, above } => {
+                Self::Between(dir * below, dir * above)
+            }
+        }
+    }
+
+    /// Scaled to the lever's bound from below.
+    pub(crate) fn below(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Exact(v) | Self::Between(v, _) => v,
+        }
+    }
+
+    /// Scaled to the lever's bound from above (the lever where exact).
+    pub(crate) fn above(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Exact(v) | Self::Between(_, v) => v,
+        }
+    }
+
+    /// `f` of each scaling.
+    #[must_use]
+    pub(crate) fn map(self, f: impl Fn(geom_core::Vec3<T>) -> geom_core::Vec3<T>) -> Self {
+        match self {
+            Self::Exact(v) => Self::Exact(f(v)),
+            Self::Between(lo, hi) => Self::Between(f(lo), f(hi)),
+        }
+    }
+
+    /// `f` of the two departures' scalings, below with below and above
+    /// with above: exact where both are.
+    #[must_use]
+    pub(crate) fn zip(
+        self,
+        other: Self,
+        f: impl Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> geom_core::Vec3<T>,
+    ) -> Self {
+        match (self, other) {
+            (Self::Exact(a), Self::Exact(b)) => Self::Exact(f(a, b)),
+            _ => Self::Between(
+                f(self.below(), other.below()),
+                f(self.above(), other.above()),
+            ),
+        }
+    }
+}
+
+/// A departure scaled to an exact lever.
+impl<T: Real> From<geom_core::Vec3<T>> for Departure<T> {
+    fn from(v: geom_core::Vec3<T>) -> Self {
+        Self::Exact(v)
+    }
+}
+
+impl<T: Real> core::ops::Neg for Departure<T> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        self.map(|v| -v)
+    }
+}
+
+/// One corner of a loop at a point: its vertex, and its leaving and
+/// arriving sides as departures from the point.
+pub(crate) type PointCorner<T> = (VertexKey, [CornerSide<T>; 2]);
+
+/// **Check 9's corners**: the corners of `cycle` at the indices `at`,
+/// the arriving side of each the mate of the half-edge before. A corner
+/// a key of which no longer resolves is left out.
+pub(crate) fn point_corners<T: Decide>(
+    body: &Body<T>,
+    cycle: &[HalfEdgeKey],
+    at: &[usize],
+) -> Vec<PointCorner<T>> {
+    let n = cycle.len();
+    at.iter()
+        .filter_map(|&i| {
+            let he = cycle[i];
+            let prev = mate(body, cycle[(i + n - 1) % n])?;
+            let vertex = body.half_edges.get(he)?.start;
+            Some((vertex, [side(body, he)?, side(body, prev)?]))
+        })
+        .collect()
+}
+
+/// **The normal check 9 reads a corner's wedge about**: `face_key`'s
+/// outward normal at `vertex`'s point
+/// ([`crate::face_normal::face_outward_normal_at`]); `None` where that
+/// door gives none there (`pinch_corner_errors`' residue).
+///
+/// # Errors
+///
+/// The reading's escalation.
+pub(crate) fn corner_normal<T: Decide>(
+    body: &Body<T>,
+    face_key: FaceKey,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<Option<geom_core::Vec3<T>>, Indeterminate> {
+    let Some(p) = vertex_point(body, vertex) else {
+        return Ok(None);
+    };
+    match crate::face_normal::face_outward_normal_at(body, face_key, p, band) {
+        Ok(Some(nrm)) => Ok(Some(nrm.vec())),
+        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => Err(diag),
+        Ok(None) | Err(_) => Ok(None),
+    }
+}
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
@@ -8444,21 +8951,10 @@ fn pinch_corners_at<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
     cycle: &[HalfEdgeKey],
-    group: &[(crate::geometry::PointKey, usize)],
+    group: &[usize],
     band: Band,
 ) -> Result<(), ValidationError> {
-    let n = cycle.len();
-    // Each corner's two sides, leaving and arriving, as departures from
-    // the point: the arriving side is the mate of the half-edge before.
-    let corners: Vec<(VertexKey, [CornerSide<T>; 2])> = group
-        .iter()
-        .filter_map(|&(_, i)| {
-            let he = cycle[i];
-            let prev = mate(body, cycle[(i + n - 1) % n])?;
-            let vertex = body.half_edges.get(he)?.start;
-            Some((vertex, [side(body, he)?, side(body, prev)?]))
-        })
-        .collect();
+    let corners = point_corners(body, cycle, group);
     // Every (corner, other side) pair to read. A side that IS one of
     // the corner's own two half-edges is skipped: it lies on the
     // corner's bound, where a seam's two uses of one edge put it.
@@ -8478,20 +8974,16 @@ fn pinch_corners_at<T: Decide>(
     let Some(&(first, ..)) = pairs.first() else {
         return Ok(());
     };
-    let Some(p) = vertex_point(body, first) else {
-        return Ok(());
-    };
-    let nrm = match crate::face_normal::face_outward_normal_at(body, face_key, p, band) {
-        Ok(Some(nrm)) => nrm.vec(),
-        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
-            return Err(ValidationError::PinchCornerEscalated {
-                face: face_key,
-                vertex: first,
-                source: diag,
-            });
+    // No normal here: the residue (`pinch_corner_errors`).
+    let Some(nrm) = corner_normal(body, face_key, first, band).map_err(|source| {
+        ValidationError::PinchCornerEscalated {
+            face: face_key,
+            vertex: first,
+            source,
         }
-        // No normal here: the residue (`pinch_corner_errors`).
-        Ok(None) | Err(_) => return Ok(()),
+    })?
+    else {
+        return Ok(());
     };
     for (vertex, a, b, edge, d) in pairs {
         let crossed = wedge_holds(nrm, a, b, d, band).map_err(|source| {
@@ -8524,7 +9016,13 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 
 /// `he`'s edge and its departure from `he`'s start, scaled to the
 /// edge's extent so a cross product over its length is a lever: a line
-/// by its chord, a conic or spiric arc by its walk tangent there.
+/// by its chord, a conic or spiric arc by its walk tangent there at the
+/// arc's reach from that start ([`geom_brep::edge_reach_bounds`]). The
+/// wedge acts on every sign, so its lever is the region's own measure
+/// from where it is read; where that is known only from both sides (an
+/// ellipse or spiric arc, whose bound from above can pass it many times
+/// over near a spiric's pinch) the departure carries both
+/// ([`Departure`]) and the wedge acts only on a sign both read.
 /// `None` for the departure of a NURBS edge, the residue.
 pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
@@ -8535,13 +9033,16 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         vertex_point(body, body.half_edge_end(he)?)?,
     );
     let departure = match curve.carrier() {
-        geom::Curve3::Line { .. } => Some(p1 - p0),
+        geom::Curve3::Line { .. } => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
-            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, p0.distance(p1));
-            Some(curve.walk_tangents(plus).0.normalize() * extent)
+            let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
+            Some(Departure::along(
+                curve.walk_tangents(plus).0.normalize(),
+                lever,
+            ))
         }
         geom::Curve3::Nurbs(_) => None,
     };
@@ -8551,17 +9052,21 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
 /// Whether `d` lies strictly inside the wedge swept counterclockwise
 /// about `n` from `a` to `b`, all three departures from one point. Each
 /// sign is a lever: `n · (x × y) / |x|`, how far `y`'s tip stands off
-/// `x`'s line. A side along either bound is not inside, and a wedge
-/// whose bounds leave along one tangent is a cusp, not read.
+/// `x`'s line, so it is levered at `y`'s length; where `y` is known only
+/// between two scalings ([`Departure::Between`]) the sign is read at
+/// both and taken only where they agree, their straddle refusing as an
+/// in-band sign does. A side along either bound is not inside, and a
+/// wedge whose bounds leave along one tangent is a cusp, not read.
 ///
 /// # Errors
 ///
-/// The escalation of a sign the verdict needed.
+/// The escalation of a sign the verdict needed, or the straddle of its
+/// two readings.
 fn wedge_holds<T: Decide>(
     n: geom_core::Vec3<T>,
-    a: geom_core::Vec3<T>,
-    b: geom_core::Vec3<T>,
-    d: geom_core::Vec3<T>,
+    a: impl Into<Departure<T>>,
+    b: impl Into<Departure<T>>,
+    d: impl Into<Departure<T>>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
     wedge_holds_named(&PINCH_CORNER, n, a, b, d, band)
@@ -8578,6 +9083,11 @@ pub(crate) struct WedgeNames {
     pub(crate) turn: &'static str,
     /// Whether a wedge of no turn is straight or a cusp.
     pub(crate) straight: &'static str,
+    /// Where a sign read at both bounds of its lever straddles the band
+    /// ([`decide_agreed`]). Recorded only where a departure is
+    /// [`Departure::Between`]; a caller that hands exact departures alone
+    /// names a row that never records, and says so at its site.
+    pub(crate) straddle: &'static str,
 }
 
 /// Tier 3's pinch-corner names ([`wedge_holds`]).
@@ -8586,6 +9096,7 @@ const PINCH_CORNER: WedgeNames = WedgeNames {
     before_arriving: "pinch_corner_before_arriving",
     turn: "pinch_corner_turn",
     straight: "pinch_corner_straight",
+    straddle: "pinch_corner_straddle",
 };
 
 /// [`wedge_holds`] under the caller's predicate names: the same reading,
@@ -8597,19 +9108,33 @@ const PINCH_CORNER: WedgeNames = WedgeNames {
 pub(crate) fn wedge_holds_named<T: Decide>(
     names: &WedgeNames,
     n: geom_core::Vec3<T>,
-    a: geom_core::Vec3<T>,
-    b: geom_core::Vec3<T>,
-    d: geom_core::Vec3<T>,
+    a: impl Into<Departure<T>>,
+    b: impl Into<Departure<T>>,
+    d: impl Into<Departure<T>>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let left = |name, x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
-        decide(name, Margin::of(n.dot(x.cross(y)) / x.norm()), band).map(|s| s == Sign::Positive)
+    let (a, b, d) = (a.into(), b.into(), d.into());
+    // `f(x, y)` is levered at `y`'s length: read once where it is exact,
+    // else at both its scalings.
+    let read = |name,
+                x: Departure<T>,
+                y: Departure<T>,
+                f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
+        Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
+        Departure::Between(lo, hi) => decide_agreed(
+            (name, names.straddle),
+            Margin::of(f(x.below(), lo)),
+            Margin::of(f(x.above(), hi)),
+            band,
+        ),
     };
+    let off = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| n.dot(x.cross(y)) / x.norm();
+    let left = |name, x, y| read(name, x, y, &off).map(|s| s == Sign::Positive);
     let (after_a, before_b) = (
         left(names.after_leaving, a, d),
         left(names.before_arriving, d, b),
     );
-    match decide(names.turn, Margin::of(n.dot(a.cross(b)) / a.norm()), band)? {
+    match read(names.turn, a, b, &off)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -8622,7 +9147,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match decide(names.straight, Margin::of(a.dot(b) / a.norm()), band)? {
+        Sign::Zero => match read(names.straight, a, b, &|x, y| x.dot(y) / x.norm())? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },
@@ -9758,12 +10283,9 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 ///
 /// # What this door checks, and which door does less
 ///
-/// **Check 2 re-derives an M7-8 edge here** — a plane × described-NURBS
-/// `Intersection` — through the certified plane × NURBS lane, which is
-/// why this door's bound names the certification right: an imported or
-/// minted body carrying that class re-derives its certificate at rest
-/// exactly as it did at attach time, the invariant this pass has always
-/// been the home of. It is the door a certifying caller wants, and the
+/// **Check 7 and the census read through the certified lanes**, which is
+/// why this door's bound names the certification right. It is the door a
+/// certifying caller wants, and the
 /// callers in the tree take it: [`AtRestBody::validate_pseudomanifold`]
 /// (its census over a kept verdict, the whole door over none), which
 /// is [`crate::AtRestPolicy`]'s `f64`, `Probe`, `Interval` and `Sym`
@@ -9771,8 +10293,8 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// the `pncad` prelude's re-export and through it `pncad-py`'s
 /// `Body.validate_pseudomanifold` (monomorphic at `f64`) and the tour's
 /// scenes. [`validate_pseudomanifold_structural`] is the same pass holding
-/// none of the three lanes this door holds (the plane × NURBS lane, the
-/// quadrature lane and the chart-region door), and is the door a
+/// neither of the two lanes this door holds (the quadrature lane and the
+/// chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
@@ -9784,16 +10306,15 @@ pub fn validate_pseudomanifold<
     validate_pseudomanifold_certificate(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`] holding none of its three lanes** — no
-/// plane × NURBS lane, no quadrature lane
-/// ([`crate::QuadLane`]) and no chart-region door
+/// **[`validate_pseudomanifold`] holding neither of its two lanes** — no
+/// quadrature lane ([`crate::QuadLane`]) and no chart-region door
 /// ([`crate::RegionLane`]) — the tier-3′ pass at every
 /// [`crate::AtRestPolicy`] scalar with a bracket, a
 /// [`Dual`](geom_core::Dual) included. This door is what keeps the
 /// tier-3′ pass callable at a scalar that may not certify, which is the
 /// capability H-R3 protects.
 ///
-/// Three things this door does not do, each a statement about the DOOR
+/// Two things this door does not do, each a statement about the DOOR
 /// and never about the scalar it is called at — the `f64` caller of
 /// this door gets exactly what the dual caller gets. **Check 7 runs
 /// through the closed form alone**: a face that needs the certified
@@ -9802,13 +10323,7 @@ pub fn validate_pseudomanifold<
 /// own sums, where the certified door reads their interval
 /// re-derivation — so the two can disagree on a body whose volume is
 /// below its sums' rounding ([`validate_geometric_structural`] says
-/// more). **Check 2 makes no claim
-/// about an edge whose certificate needs the NURBS lane**, at any
-/// scalar, this one's `f64` included: such an edge re-derives only
-/// through that lane,
-/// which this door does not hold, and check 2 is a whole-edge check, so
-/// what goes unmade is every check-2 verdict on such an edge rather
-/// than only its lane's limbs. **The census examines no
+/// more). **The census examines no
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
@@ -9824,8 +10339,8 @@ pub fn validate_pseudomanifold<
 ///
 /// # Errors
 ///
-/// As [`validate_pseudomanifold`], less the check-2 verdicts above,
-/// plus the closed form's typed refusal at check 7, plus the census's
+/// As [`validate_pseudomanifold`], plus the closed form's typed refusal
+/// at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
 /// Door-1-verified patch record, and an `UnrecordedContact` on every
 /// meeting a confirmed pair would have answered for.
@@ -9873,14 +10388,7 @@ pub fn validate_pseudomanifold_certificate<
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let lanes = CertifiedLanes::<T>::held();
-    pseudomanifold_certificate_via(
-        body,
-        contacts,
-        tol,
-        Some(lanes.nurbs),
-        Some(lanes.quad),
-        Some(lanes.region),
-    )
+    pseudomanifold_certificate_via(body, contacts, tol, Some(lanes.quad), Some(lanes.region))
 }
 
 /// [`validate_pseudomanifold_structural`]'s certificate form — the
@@ -9910,7 +10418,7 @@ pub fn validate_pseudomanifold_certificate_structural<
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
+    pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
 /// **A body, and tier 3's verdict on it kept beside it** — so a
@@ -10169,7 +10677,7 @@ impl<T: Real> core::ops::Deref for AtRestBody<T> {
     }
 }
 
-/// The tier-3′ pass with its three lanes as arguments — the shared
+/// The tier-3′ pass with its two lanes as arguments — the shared
 /// body of the certified door and its `_structural` twin. The region
 /// lane is the census's: `None` is the census's own typed refusal at
 /// its two chart-region arms
@@ -10183,7 +10691,6 @@ fn pseudomanifold_certificate_via<
     body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
     region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
@@ -10192,7 +10699,7 @@ fn pseudomanifold_certificate_via<
     // The tier-3 local battery, verbatim: it reads no contact record,
     // so with empty records 3′ is tier 3 exactly. The records are the
     // census's.
-    let (errors, certificate) = tier3_local_checks(body, tol, nurbs_lane, quad_lane);
+    let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -10225,14 +10732,13 @@ fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
     Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
 }
 
-/// **The certified lanes, spelled once**: check 2's plane × NURBS lane,
-/// the quadrature checks 7 and 10 decide through, and the chart-region
+/// **The certified lanes, spelled once**: the quadrature checks 7 and 10
+/// decide through, and the chart-region
 /// door the census's two chart-region arms examine through. The
 /// certified doors read their lanes here, so the tier-3 verdict
 /// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
 /// lanes by construction.
 struct CertifiedLanes<T: geom_core::Decide> {
-    nurbs: geom_brep::NurbsLane<T>,
     quad: crate::props::QuadLane<T>,
     region: crate::chart_region::RegionLane<T>,
 }
@@ -10240,7 +10746,6 @@ struct CertifiedLanes<T: geom_core::Decide> {
 impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
     fn held() -> Self {
         Self {
-            nurbs: geom_brep::NurbsLane::certified(),
             quad: crate::props::QuadLane::certified(),
             region: crate::chart_region::RegionLane::certified(),
         }
@@ -12357,21 +12862,18 @@ mod tests {
         assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
-    /// **A boundary row whose carrier misses its face ends by who placed
-    /// the carrier** (D3, E1b): `off_face_ending`, read at rest through
-    /// the finding's own authority stamp. A declared curve ends in the
-    /// modeler's lever on every arm, decided, undecided and read in band
-    /// at a degenerate pose ([`geom_brep::OffMargin::InBand`]), with no
-    /// tolerance and no defect, and the in-band read's reason does not
-    /// say the curve is off its face; a derived locus keeps the kernel's
-    /// defect (definite or at the pose) and the incidence check's own
-    /// ending (undecided).
+    /// **A boundary row not shown on its face ends by the door, and a read
+    /// in band by its lever** (D3, D4 ¶1 (iv)): `off_face_ending` at rest,
+    /// and the finding's own build-door text. A boundary decided off its
+    /// face is a stored contradiction at rest (the kernel-or-file ending)
+    /// and the kernel's defect at a build; one read in band, at a
+    /// degenerate pose ([`geom_brep::OffMargin::InBand`]) or undecided,
+    /// ends in the geometry's lever at both doors, never a defect, and is
+    /// not said to mismatch its face.
     #[test]
-    fn a_boundary_curve_off_its_face_ends_by_who_placed_it() {
+    fn a_boundary_curve_off_its_face_ends_by_the_door_and_in_band_by_its_lever() {
         use crate::pcurves::PcurveMintError as M;
         use geom_brep::{PcurveCertifyError as C, PcurveCheck};
-        let [derived, declared] = crate::test_support_samples::authorities();
-        assert!(declared.is_declared() && !derived.is_declared());
         let band = Band::new(1e-9, 1e-8).unwrap();
         let off = C::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
@@ -12379,7 +12881,7 @@ mod tests {
             why: "a sphere holds no line",
             margin: None,
         };
-        let in_band = C::Escalated {
+        let undecided = C::Escalated {
             check: PcurveCheck::ChartIncidence,
             sample: 0,
             cause: Indeterminate {
@@ -12397,123 +12899,80 @@ mod tests {
                 4e-10,
             ))),
         };
-        // Each read with the lever worded for it (R4): a curve decided off
-        // is asked onto its face; one at a pose, clear of it; an undecided
-        // one, clearly onto it.
-        for (error, lever) in [
+        // (refusal, its reason at rest, the lever of a read in band)
+        for (error, reason, lever) in [
+            (off, incidence_reasons::OFF, None),
             (
-                off,
-                "Recourse: move the declared curve onto the face it bounds",
-            ),
-            (
-                in_band,
-                "Recourse: the declared curve is not shown on the face it bounds",
+                undecided,
+                incidence_reasons::UNSHOWN,
+                Some(geom_brep::recourse::INCIDENCE_UNSHOWN.lever),
             ),
             (
                 at_pose,
-                "Recourse: move the declared curve clear of that pose by more than the tolerance",
+                incidence_reasons::AT_POSE,
+                Some(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
             ),
         ] {
-            let rest = |authority| {
-                classify_pcurve(&M::Certify {
-                    half_edge: crate::entity::HalfEdgeKey::default(),
-                    error: error.clone(),
-                    authority,
-                })
+            let finding = M::Certify {
+                half_edge: crate::entity::HalfEdgeKey::default(),
+                error: error.clone(),
             };
-            let at_a_pose = matches!(
-                error,
-                C::CarrierOffChart {
-                    margin: Some(geom_brep::OffMargin::InBand(_)),
-                    ..
-                }
-            );
-            let decided_off = matches!(error, C::CarrierOffChart { .. }) && !at_a_pose;
-            let (why, ending) = rest(declared);
-            assert!(why.contains("declared curve"), "{error:?}: {why}");
-            assert_eq!(
-                why.contains("does not lie on"),
-                decided_off,
-                "{error:?}: {why}"
-            );
-            assert!(ending.starts_with(lever), "{error:?}: {ending}");
-            for word in ["defect", "bug", "loosen", "tighten", "repair the body"] {
-                assert!(!ending.contains(word), "{error:?}: {word}: {ending}");
-            }
-            let (why, ending) = rest(derived);
-            assert!(!why.contains("declared"), "{error:?}: {why}");
-            // Only a boundary decided off is said not to match its face.
-            assert_eq!(
-                why.contains("does not match the face"),
-                decided_off,
-                "{error:?}: {why}"
-            );
-            assert!(!ending.contains("declared curve"), "{error:?}: {ending}");
-            if matches!(error, C::CarrierOffChart { .. }) {
-                assert_eq!(ending, DEFECT, "{error:?}");
-            } else {
-                assert_eq!(
-                    Some(ending.into_owned()),
-                    error.ending(Reading::AtRest),
-                    "{error:?}"
-                );
-            }
-            // The build door reads the same map with the same stamp.
-            for (authority, at_rest) in [(declared, true), (derived, false)] {
-                let built = M::Certify {
-                    half_edge: crate::entity::HalfEdgeKey::default(),
-                    error: error.clone(),
-                    authority,
-                }
-                .to_string();
-                assert_eq!(
-                    built.contains("declared curve"),
-                    at_rest,
-                    "{error:?}: {built}"
-                );
-                if authority.is_declared() {
+            let (why, ending) = classify_pcurve(&finding);
+            assert_eq!(why, reason, "{error:?}");
+            let built = finding.to_string();
+            match lever {
+                None => {
+                    assert_eq!(ending, DEFECT, "{error:?}: a definite miss at rest");
                     assert!(
-                        !built.contains("defect") && !built.contains("repair the body"),
-                        "{error:?}: {built}"
+                        built.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                        "{error:?}: a definite miss at a build is the kernel's: {built}"
                     );
-                } else {
-                    let kernels = error.ending(Reading::Build).unwrap();
-                    assert!(built.ends_with(&kernels), "{error:?}: {built}");
+                }
+                Some(lever) => {
+                    for (door, text) in [("rest", ending.as_ref()), ("build", built.as_str())] {
+                        assert!(text.contains(lever), "{error:?} at {door}: {text}");
+                        for word in ["defect", "loosen", "tighten", "declared"] {
+                            assert!(!text.contains(word), "{error:?} at {door}: {word}: {text}");
+                        }
+                    }
                 }
             }
         }
     }
 
-    /// **An edge certificate's declared incidence refusal at rest takes
-    /// the reason of what was read** ([`incidence_reason`]): decided off,
-    /// "does not lie on its face"; read in band at a pose, "sits, within
-    /// the band"; undecided, the undecided reason. Each ends in the
-    /// modeler's lever for that read, with no defect.
+    /// **An edge certificate's incidence refusal at rest takes the reason
+    /// of what was read and ends by the door**, through the one reason
+    /// table both windows read ([`incidence_reasons`]): decided off (with
+    /// no margin or past the pose), [`incidence_reasons::OFF`] and the
+    /// stored culprit; read in band at a pose, [`incidence_reasons::AT_POSE`]
+    /// and the pose lever; undecided, [`incidence_reasons::UNSHOWN`] and
+    /// its lever. A read in band never ends in a defect.
     #[test]
-    fn a_declared_edge_certificate_at_rest_reads_its_incidence() {
+    fn an_edge_certificate_at_rest_reads_its_incidence() {
         use geom_brep::{CertCheck, OffMargin};
         use geom_core::MarginDiag;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let off = |margin| CertifyError::DeclaredOffChart {
+        let off = |margin| CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Circle,
+            why: "WHY",
             margin,
         };
         let rows = [
-            (off(None), DECLARED_OFF, "onto the face it bounds"),
+            (off(None), incidence_reasons::OFF, None),
             (
                 off(Some(OffMargin::Past(MarginDiag::value(4e-7)))),
-                DECLARED_OFF,
-                "onto the face it bounds",
+                incidence_reasons::OFF,
+                None,
             ),
             (
                 off(Some(OffMargin::InBand(MarginDiag::value(4e-10)))),
-                DECLARED_AT_POSE,
-                "clear of that pose",
+                incidence_reasons::AT_POSE,
+                Some(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
             ),
             (
                 CertifyError::Escalated {
-                    check: CertCheck::DeclaredIncidence,
+                    check: CertCheck::ChartIncidence,
                     sample: 0,
                     cause: Indeterminate {
                         margin: MarginDiag::value(5e-9),
@@ -12522,15 +12981,20 @@ mod tests {
                         terminal_sliver: false,
                     },
                 },
-                DECLARED_CLOSE,
-                "is not shown on the face it bounds",
+                incidence_reasons::UNSHOWN,
+                Some(geom_brep::recourse::INCIDENCE_UNSHOWN.lever),
             ),
         ];
         for (error, reason, lever) in rows {
             let (why, ending) = classify_certify(&error);
             assert_eq!(why, reason, "{error:?}");
-            assert!(ending.contains(lever), "{error:?}: {ending}");
-            assert!(!ending.contains("defect"), "{error:?}: {ending}");
+            match lever {
+                None => assert_eq!(ending, geom_core::KERNEL_OR_FILE_DEFECT_ENDING, "{error:?}"),
+                Some(lever) => {
+                    assert!(ending.contains(lever), "{error:?}: {ending}");
+                    assert!(!ending.contains("defect"), "{error:?}: {ending}");
+                }
+            }
         }
     }
 
@@ -12561,7 +13025,6 @@ mod tests {
             finding: crate::pcurves::PcurveMintError::Certify {
                 half_edge: crate::entity::HalfEdgeKey::default(),
                 error,
-                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
             },
         };
         let rows = [
@@ -13527,7 +13990,7 @@ mod tests {
         let check_9 = |body: &Body<f64>| check_9_words(body, tol);
         let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
             let (errors, _) =
-                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+                tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
             errors
                 .into_iter()
                 .filter_map(|e| match e {
@@ -13652,8 +14115,7 @@ mod tests {
 
     /// Check 9's NESTING words, on `body`.
     fn nesting_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) =
-            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+        let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -13668,8 +14130,7 @@ mod tests {
 
     /// Every one of check 9's words, on `body`.
     fn check_9_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) =
-            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+        let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -13902,7 +14363,7 @@ mod tests {
             body.lifting_rechart_refusals_for_tests(|body| {
                 body.set_face_surface(
                     bottom,
-                    crate::FaceSurface::New {
+                    crate::construction::FaceSurface::New {
                         surface: crate::Surface::Cone {
                             apex,
                             axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -14070,7 +14531,7 @@ mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
-                    witness: frame.at((u0 + u1) * 0.5, v0),
+                    selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
                 carrier: geom::Curve3::Circle {
                     center: centre,
@@ -14122,7 +14583,7 @@ mod tests {
                     he2: first.he_plus,
                 },
                 close,
-                crate::FaceSurface::Shared { key: cyl, sense },
+                crate::construction::FaceSurface::Shared { key: cyl, sense },
                 tol,
             )
             .unwrap()
@@ -14147,8 +14608,7 @@ mod tests {
     fn check_9_refuses_a_crossed_corner_on_a_cylinder_wall() {
         let tol = Tol::witness();
         let inverted = |body: &Body<f64>, wall: FaceKey| {
-            let (all, _) =
-                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+            let (all, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
             all.iter().any(
                 |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == wall),
             )
@@ -14277,13 +14737,87 @@ mod tests {
         assert_eq!(wedge_holds(n, a, dir(180.0), dir(270.0), band), Ok(false));
     }
 
+    /// **A departure whose lever is known only from both sides refuses
+    /// where its two readings disagree.** A spline with clustered knots
+    /// and weights 1e±3, on a window where its parameter crawls: its
+    /// reach from the start is read from below by the samples and from
+    /// above through the whole carrier's speed bound, about 90 times
+    /// over. A side `θ = 1e-6` off the corner's first bound stands
+    /// `θ·reach` off it, Zero at the bound from below and definitely
+    /// inside at the bound from above, so neither verdict answers for
+    /// the reach between them: the wedge refuses with their straddle,
+    /// and reads no definite side.
+    #[test]
+    fn a_departure_known_from_both_sides_refuses_where_its_readings_disagree() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = Point3::new;
+        let wild = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.5,
+                        0.500_000_1,
+                        0.500_000_2,
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                    ],
+                    3,
+                )
+                .unwrap(),
+                vec![
+                    p(0.0, 0.0, 0.0),
+                    p(1.0, 2.0, 0.0),
+                    p(2.0, -1.0, 1.0),
+                    p(3.0, 0.5, 0.0),
+                    p(4.0, 1.0, 0.0),
+                    p(5.0, 0.0, 2.0),
+                    p(6.0, 0.0, 0.0),
+                ],
+                vec![1.0, 1e3, 1e-3, 1e3, 1e-3, 1e3, 1.0],
+            )
+            .unwrap(),
+        ));
+        let (t0, t1) = (0.2, 0.2001);
+        let lever = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        let geom_brep::LeverBounds::Between { below, above } = lever else {
+            panic!("a spline's reach is known from both sides, got {lever:?}");
+        };
+        assert!(
+            above > 50.0 * below,
+            "the window's bound from above passes the samples' reach many times: {below}, {above}"
+        );
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let theta = 1e-6_f64;
+        let d = Departure::along(geom_core::Vec3::new(theta.cos(), theta.sin(), 0.0), lever);
+        let (a, b) = (dir(0.0), dir(90.0));
+        // Each bound alone reads a definite verdict, and they differ.
+        assert_eq!(wedge_holds(n, a, b, d.above(), band), Ok(true));
+        assert_eq!(wedge_holds(n, a, b, d.below(), band), Ok(false));
+        // Read at both, the wedge refuses with the straddle.
+        let refused = wedge_holds(n, a, b, d, band).expect_err("the readings disagree");
+        assert_eq!(refused.predicate, Some("pinch_corner_straddle"));
+    }
+
     fn recarry_line(body: &mut Body<f64>, edge: EdgeKey, tol: Tol) {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
         let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
-                .expect("the chord certifies");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            s,
+            t,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .expect("the chord certifies");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14309,9 +14843,16 @@ mod tests {
         };
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
-                .expect("the whole circle certifies against its one end point");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            s,
+            t,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .expect("the whole circle certifies against its one end point");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14398,7 +14939,7 @@ mod tests {
         recarry_full_circle(&mut body, arc_edge, Point3::new(0.0, 0.2, 0.0), axis, tol);
         // The oracle: every side of every corner at P, edges ignored.
         let len = cycle.len();
-        let corners: Vec<[geom_core::Vec3<f64>; 2]> = (0..len)
+        let corners: Vec<[Departure<f64>; 2]> = (0..len)
             .filter(|&i| {
                 let v = body.get_half_edge(cycle[i]).unwrap().start;
                 vertex_point(&body, v).unwrap().distance(p) < 1e-12
@@ -14818,7 +15359,7 @@ mod tests {
             let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::nurbs_placeholder(),
                     sense,
                 },
@@ -15044,7 +15585,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
-                witness: carrier.mid_point(t0, t1),
+                selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
             },
             carrier,
             param_start: t0,
@@ -15058,6 +15599,7 @@ mod tests {
             surfaces,
             1.0,
             Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the ellipse arc certifies");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
@@ -15333,7 +15875,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(torus, plane),
-                        witness: spiric.eval(0.0),
+                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.0)),
                     },
                     carrier: spiric.clone(),
                     param_start: -FRAC_PI_2,
@@ -15524,6 +16066,7 @@ mod tests {
             |_| None,
             1.0,
             Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the arc certifies against its own end points");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
@@ -16934,8 +17477,7 @@ mod tests {
         // that emits it.
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
-                what: "a declared face's surface kind is outside the Rest ladder's \
-                       inventory (plane, sphere, cylinder)",
+                what: crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -16976,8 +17518,7 @@ mod tests {
     /// no way through yet, as the refusal standard asks of a dead end.
     #[test]
     fn no_census_decline_renders_without_a_repair_to_make() {
-        let what = "a declared face's surface kind is outside the Rest ladder's \
-                    inventory (plane, sphere, cylinder)";
+        let what = crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY;
         // The chart lane's own row proves all thirteen of its arms
         // (`chart_region::tests::every_chart_region_arm_names_a_recourse`);
         // what this one adds is that the census's wrapper does not
@@ -17139,7 +17680,7 @@ mod offset_fit_door_rows {
         let (body, face) = approx_faced_body::<T>();
         let mut marks = slotmap::SecondaryMap::new();
         let (errors, _) =
-            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, None, door);
+            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, door);
         (errors, face)
     }
 
@@ -17209,7 +17750,7 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<f64>();
         let (errors, _) =
-            super::tier3_local_checks(&body, tol, None, Some(crate::props::QuadLane::certified()));
+            super::tier3_local_checks(&body, tol, Some(crate::props::QuadLane::certified()));
         assert!(
             !errors.iter().any(
                 |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
@@ -17685,15 +18226,18 @@ mod certify_escalation_rows {
             ),
             (
                 says(CertifyError::AnalyticRung3(
-                    geom_brep::AnalyticRung3Refusal::Limb {
-                        operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::Rung3Limb::HullSup,
+                    geom_brep::AnalyticRung3Refusal::KernelLimit {
+                        operand: geom::SurfaceKind::Torus,
+                        bound: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
+                        width: 2.0e-15,
+                        extent: 3.0,
                     },
                 )),
-                "the check's certified bound on how far it strays from its faces exceeds the \
-                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "the check's certified bound on how far it strays from its faces does not clear \
+                 the tolerance, the kernel's approximation limit. The bound lies far above the \
+                 curve's own enclosure width. Recourse: loosen the tolerance, as a last resort; \
+                 this refusal may indicate a kernel bug worth reporting",
             ),
             // A span shorter than the tolerance is a length a user may
             // intend; one of no length, or reversed, is one no

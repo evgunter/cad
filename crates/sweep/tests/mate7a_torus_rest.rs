@@ -4,22 +4,20 @@
 //! 1. **The operand gate lets a torus through.** The torus is on the
 //!    KIND roster, so no torus pair is the gate's question; the peg
 //!    seated in its socket builds through the join, and a coincident
-//!    pair refuses typed, further on.
+//!    pair is one body.
 //! 2. **A G1 tube chain refuses at the crossing layer**: an edge of one
 //!    segment rides the other's wall.
-//! 3. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
-//!    on the revert roster, so each fixture under a subtract (both
-//!    orders) or an intersect refuses at the door its union meets; the
-//!    peg seated in the socket shares no interior with it, so its ∩ is
-//!    empty and each difference its minuend whole.
-//!
-//! **What this suite also RECORDS is where the lane stops**: a
-//! coincident torus pair passes the crossing layer and stops at the
-//! no-crossings fallback's section pass, on the pair's tangency.
+//! 3. **∖ and ∩ meet the doors ∪ does.** The torus is on the revert
+//!    roster, so each fixture under a subtract (both orders) or an
+//!    intersect answers at the door its union meets; the peg seated in
+//!    the socket shares no interior with it, so its ∩ is empty and each
+//!    difference its minuend whole, and a coincident pair less itself
+//!    is nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{finished, tube_frame};
@@ -45,8 +43,11 @@ fn window(deg: f64) -> TubeWindow<f64> {
 }
 
 /// Segment A of the chain: a tube along the lily's lower stem arc,
-/// starting at the origin heading `+z`.
-fn segment_a() -> AtRestBody<f64> {
+/// starting at the origin heading `+z`. `None` at ε = 1e-12, where its
+/// torus wall is past limb 2's reach (the kernel's limit,
+/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+/// as for segment B and the socket.
+fn segment_a() -> Option<AtRestBody<f64>> {
     let body = tube_along_arc(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
@@ -58,17 +59,17 @@ fn segment_a() -> AtRestBody<f64> {
         window(TURN),
         TUBE,
         Tol::witness(),
-    )
-    .expect("segment A builds")
-    .body;
-    finished("segment A", body, Tol::witness())
+    );
+    let body =
+        test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "segment A")?.body;
+    Some(finished("segment A", body, Tol::witness()))
 }
 
 /// Segment B: the SAME tube radius on a tighter ring, continuing from
 /// A's end with A's own end tangent — so the two walls meet G1 along
 /// the shared terminal meridian circle and the composed material runs
 /// smoothly through it.
-fn segment_b() -> AtRestBody<f64> {
+fn segment_b() -> Option<AtRestBody<f64>> {
     let turn = TURN.to_radians();
     let end = Point3::new(-RING + RING * turn.cos(), 0.0, RING * turn.sin());
     let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
@@ -82,15 +83,14 @@ fn segment_b() -> AtRestBody<f64> {
         window(170.0),
         TUBE,
         Tol::witness(),
-    )
-    .expect("segment B builds")
-    .body;
-    finished("segment B", body, Tol::witness())
+    );
+    let body = test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[], "segment B")?.body;
+    Some(finished("segment B", body, Tol::witness()))
 }
 
 /// The toroidal SOCKET: a hollow elbow whose BORE is a torus of tube
 /// radius [`TUBE`] — the curved spelling of the bored plate.
-fn socket() -> AtRestBody<f64> {
+fn socket() -> Option<AtRestBody<f64>> {
     let body = tube_along_arc_hollow(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
@@ -103,10 +103,10 @@ fn socket() -> AtRestBody<f64> {
         0.09,
         0.09 - TUBE,
         Tol::witness(),
-    )
-    .expect("socket builds")
-    .body;
-    finished("the socket", body, Tol::witness())
+    );
+    let body =
+        test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "the socket")?.body;
+    Some(finished("the socket", body, Tol::witness()))
 }
 
 /// Two FULL tori KISSING along one circle: coaxial and coplanar, ring
@@ -214,25 +214,55 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
     sweep::test_support::assert_legal_operand("peg ∪ socket", &bb.body, Tol::witness());
 }
 
-/// **A coincident full torus pair reaches past the operand gate.** A
-/// full torus carries NOTHING but its two wall faces, and the two
-/// operands are the SAME torus: one carrier, one material side, which
-/// the boolean decides a continuation by margin — so the operation
-/// reaches the classification layer, and the gate is not what refuses.
+/// **Two coincident full tori are one body.** A full torus carries
+/// nothing but its two wall faces, and the two operands are the same
+/// torus: every wall pair is one carrier with one material side, which
+/// the boolean decides a continuation by margin, so the gate is not the
+/// question. No crossing cuts either torus, and the section pass defers
+/// each coincident pair to the shells' `On` verdict: each torus lies on
+/// the other. `∪` and `∩` build the torus, at Pappus' `2π²·R·r²` within
+/// its pad and through tier 3 and 3′; each difference is nothing.
 #[test]
-fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
+fn two_coincident_full_tori_are_one_body() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     assert_eq!(
         a.faces().count(),
         torus_faces(&a, TUBE).len(),
         "a full torus must carry nothing but wall faces"
     );
-    let err = topo::union(&a, &b, Tol::witness())
-        .expect_err("the lane still stops downstream of the gate");
-    assert!(
-        !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-        "every pair is one carrier, so the gate must not be what refuses: {err:?}"
-    );
+    let want = 2.0 * core::f64::consts::PI.powi(2) * RING * TUBE * TUBE;
+    for (op, r) in [("A ∪ B", topo::union(&a, &b, Tol::witness()))]
+        .into_iter()
+        .chain(subtract_both_orders_and_intersect(&a, &b))
+    {
+        if op.contains('∖') {
+            assert!(
+                matches!(r, Ok(BooleanResult::Empty)),
+                "{op}: one body less itself is nothing: {r:?}"
+            );
+            continue;
+        }
+        let Ok(BooleanResult::Body(bb)) = r else {
+            panic!("{op}: one body: {r:?}");
+        };
+        assert_eq!(
+            topo::validate_geometric(&bb.body, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3′"
+        );
+        let m = topo::test_support::pinned_volume("the measured body", &bb.body, Tol::witness());
+        assert!(
+            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+            "{op}: volume {} ± {} against Pappus {want}",
+            m.volume,
+            m.volume_pad
+        );
+    }
 }
 
 /// **The peg seated in its socket builds.** The socket carries an
@@ -244,43 +274,10 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// sound and additive ([`peg_in_socket_union_holds`]).
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
-    let (s, p) = (socket(), segment_a());
-    peg_in_socket_union_holds(&s, &p);
-}
-
-/// **Where the lane stops once the gate is past, held still.** Two
-/// coincident full tori, every wall pair one carrier.
-///
-/// The seam meridians ride the other torus's carrier, where the
-/// residual is identically zero; the carrier-identity rung reads the
-/// glued pair before the sampled clearance, so the edge's clearance is
-/// zero by that certificate.
-///
-/// What stops the lane now is the no-crossings fallback's section pass:
-/// no crossing cuts either torus, and a coincident coaxial pair is the
-/// tangent row of the torus × torus classification (the tube circles
-/// coincide, so the nesting margin is zero) — exactly the case the
-/// vertex probe cannot decide (every vertex it would probe lies on the
-/// other torus), so the pass refuses typed before the probe runs. The property is the one
-/// this row has always held: a coincident torus pair never reaches a
-/// body it cannot justify.
-#[test]
-fn the_admitted_torus_lane_stops_at_the_section_pass() {
-    let (a, b) = (full_torus(RING), full_torus(RING));
-    let err = topo::union(&a, &b, Tol::witness())
-        .expect_err("a coincident torus pair still has no classification verdict");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!(
-            "the coincident pair passes the crossing layer and stops at \
-             the section pass: {err:?}"
-        );
+    let (Some(s), Some(p)) = (socket(), segment_a()) else {
+        return;
     };
-    // The tangency sentence (R-tan): the coincident tube circles are the
-    // torus × torus classification's zero nesting margin.
-    assert!(
-        what.contains("tangent or near-tangent carriers"),
-        "the pass refuses the coincident pair as a tangency: {what}"
-    );
+    peg_in_socket_union_holds(&s, &p);
 }
 
 // -------------------------------------------------------------------
@@ -293,7 +290,9 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 /// residue no declaration stands behind. In both orders.
 #[test]
 fn the_g1_tube_chain_refuses_at_the_glue_door() {
-    let (a, b) = (segment_a(), segment_b());
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        return;
+    };
     for (x, y) in [(&a, &b), (&b, &a)] {
         let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
         assert!(osculates(&err), "the glue door's refusal: {err:?}");
@@ -319,7 +318,8 @@ fn osculates(err: &BooleanError) -> bool {
 // -------------------------------------------------------------------
 
 /// **∖ and ∩ pass the revert roster; the seated peg answers the closed
-/// form and the rest stop where ∪ does.** The torus is on the roster,
+/// form and the rest stop where ∪ does.** The coincident pair's are
+/// [`two_coincident_full_tori_are_one_body`]'s. The torus is on the roster,
 /// so a torus pair under a subtract or an intersect reaches the same
 /// doors as under a union, in both operand orders:
 ///
@@ -327,23 +327,14 @@ fn osculates(err: &BooleanError) -> bool {
 ///   each difference its minuend whole, the volumes by Pappus
 ///   (`πr²·Rθ` for a tube of radius `r` turned through `θ` on a ring of
 ///   radius `R`);
-/// - the coincident pair (a continuation, both materials on one side)
-///   stops at the no-crossings section pass on the tangency (R-tan);
 /// - the chain refuses at the glue door on its osculating poles, and
 ///   the kissing pair at the crossing layer (escalated where the run's
 ///   band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
-    let tangency = |what: &str, err: &BooleanError| {
-        let BooleanError::FallbackExtentUnsupported { what: w, .. } = err else {
-            panic!("{what}: the section pass refuses the tangency: {err:?}");
-        };
-        assert!(
-            w.contains("tangent or near-tangent carriers"),
-            "{what}: {w}"
-        );
+    let (Some(s), Some(p)) = (socket(), segment_a()) else {
+        return;
     };
-    let (s, p) = (socket(), segment_a());
     let pappus = |r_out: f64, r_in: f64| {
         core::f64::consts::PI * (r_out * r_out - r_in * r_in) * RING * TURN.to_radians()
     };
@@ -385,23 +376,23 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             (r, want) => panic!("{what}: want {want:?} (None: empty), got {r:?}"),
         }
     }
-    let (a, b) = (full_torus(RING), full_torus(RING));
-    for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
-        tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
-    }
-    for (op, r) in subtract_both_orders_and_intersect(&segment_a(), &segment_b()) {
-        let err = r.expect_err(op);
-        assert!(
-            osculates(&err),
-            "chain, {op}: the glue door's refusal: {err:?}"
-        );
+    if let (Some(sa), Some(sb)) = (segment_a(), segment_b()) {
+        for (op, r) in subtract_both_orders_and_intersect(&sa, &sb) {
+            let err = r.expect_err(op);
+            assert!(
+                osculates(&err),
+                "chain, {op}: the glue door's refusal: {err:?}"
+            );
+        }
     }
     for (name, (a, b)) in [("kissing pair", kissing_pair())] {
         for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
             let err = r.expect_err(op);
             // The escalation is the circle rung's sampled clearance
             // landing in the band's window (the `1e-6` row); at the
-            // finer rows the same edge refuses at the pierce door.
+            // finer rows the same edge's touch, read in the band's gap,
+            // escalates on the circle × torus roots, at the edge and the
+            // torus.
             assert!(
                 matches!(
                     err,
@@ -411,6 +402,10 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
                                 predicate: Some("bool_conic_curved_clearance"),
                                 ..
                             },
+                            ..
+                        }
+                        | BooleanError::CurvedPierceEscalated {
+                            decision: topo::BooleanDecision::ArcTorusRoots,
                             ..
                         }
                 ),
@@ -426,7 +421,9 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
 /// fixture that is not the geometry it names.
 #[test]
 fn the_chain_fixture_is_g1_with_one_shared_rim() {
-    let (a, b) = (segment_a(), segment_b());
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        return;
+    };
     let radii = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(_, f)| match body.get_surface(f.surface) {

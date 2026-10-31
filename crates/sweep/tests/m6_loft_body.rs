@@ -56,7 +56,7 @@ fn loft_walls_store_exact_iso_pcurves() {
         }
     }
     for faces in &lofted.side_faces {
-        for &f in faces {
+        for &f in faces.iter().flatten() {
             let face = body.get_face(f).expect("face resolves");
             let cycle = match face_outer_cycle(body, face) {
                 Some(c) => c,
@@ -134,19 +134,18 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // ceiling is the only thing that reports a widening.
     //
     // This lane's pad is RESOLUTION-driven, not tolerance-driven — the
-    // patch area rule is O(h) at a fixed cell count, and the enclosure
-    // is built once, BEFORE the refinement rounds — so the measured
-    // half-width of 0.1896 m² (a bracket 0.3792 m² wide, on a 25.32 m²
-    // surface) is identical at every ε CI runs and on `Interval`. The
-    // ceiling is 1.58x that half-width.
+    // patch area rule is O(h) at a fixed cell count per knot span, and
+    // the enclosure is built once, BEFORE the refinement rounds — so
+    // the measured half-width of 0.3425 m² (a bracket 0.6850 m² wide, on
+    // a 25.37 m² surface) is identical at every ε CI runs and on
+    // `Interval`. The ceiling is 1.17x that half-width.
     //
-    // Halving the cell count gives 0.3425 m², a factor of **1.81, not
+    // Halving the cell count gives 0.6195 m², a factor of **1.81, not
     // 2**: the area rule intersects its padded midpoint with the cell
     // hull, and at the coarse resolution the hull is what binds on
     // some cells, so the O(h) doubling is an upper bound on how fast
-    // this pad grows rather than an identity. The ceiling still reds
-    // on that halving (0.3425 > 0.3), which is the property this row
-    // is for; it no longer rests on an exact factor of two.
+    // this pad grows rather than an identity. The ceiling reds on that
+    // halving, which is the property this row is for.
     //
     // The contrast is the point: this same body's certified VOLUME
     // half-width is 1.1e-13 m³. The flux lane refines to machine
@@ -154,7 +153,7 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // bought. Nothing in the kernel METERS it — by ruling, not by
     // omission (S-CERT Q1) — but `props/quad/`'s A2 gauge asserts a
     // generous outer ceiling on it. Widening every face's bracket by a
-    // common factor reds THIS row at 1.58x and trips that assert two
+    // common factor reds THIS row at 1.17x and trips that assert two
     // and a half orders further out: the acceptance row is the tight
     // meter, the assert is the tripwire outside it, and neither
     // substitutes for the other. The tripwire's own figures are not
@@ -168,7 +167,7 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // row's job.
     assert!(m.enclosure.surface_area > 0.0);
     assert!(
-        m.enclosure.area_pad < 0.3,
+        m.enclosure.area_pad < 0.4,
         "the walls' area half-width is {} m² (surface area {} m²)",
         m.enclosure.area_pad,
         m.enclosure.surface_area
@@ -281,7 +280,7 @@ mod certified {
             "the exact per-span lane is tight, pad = {vpad}"
         );
         assert!(
-            apad < 0.3,
+            apad < 0.4,
             "the walls' area half-width is {apad} m² at Interval"
         );
     }

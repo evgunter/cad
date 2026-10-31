@@ -27,6 +27,7 @@ fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, Recip
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(cx, cy, r).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(
@@ -97,7 +98,7 @@ fn fillet_both(
 ) -> (ProfileDoc, RecipeNodeId) {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, body) = (table(&ev, target), corpus::body_of(&ev, target));
-    let mut selection = [rim_names(t, body, lo), rim_names(t, body, hi)].concat();
+    let mut selection = [rim_names(t, &body, lo), rim_names(t, &body, hi)].concat();
     selection.sort();
     fixture::insert(
         doc,
@@ -175,6 +176,7 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
                 LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = fixture::insert(

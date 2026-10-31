@@ -30,11 +30,12 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Formula;
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{body_volume, len, near, scl3, session_insert, shape, translation};
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     VarName,
@@ -323,9 +324,9 @@ fn the_parametric_living_walk() {
             // 0.025 deliberately equals `height - embed` today, so the
             // part is coherent before the drive lands; a literal that
             // stayed driving would be caught by the stage-9/11 ripples.
-            translation: len3([0.0, 0.0, 0.025]),
+            translation: translation([0.0, 0.0, 0.025]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let hull = session_insert(
@@ -392,9 +393,9 @@ fn the_parametric_living_walk() {
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
             // be caught by the stage-9/11 variable ripples.
-            translation: len3([0.0, 0.0, 0.08]),
+            translation: translation([0.0, 0.0, 0.08]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let lighthouse = session_insert(

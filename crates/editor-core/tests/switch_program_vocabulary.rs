@@ -119,8 +119,8 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Formula, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SlotId,
-    StepArg, VarEnv,
+    Formula, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramResolveFault, ProgramStep,
+    ProgramTarget, SlotId, StepArg, VarEnv,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -297,10 +297,67 @@ fn chain_steps() -> Vec<ProgramStep<Formula>> {
     steps
 }
 
-/// The corpus: the chain above plus the two complete-loop carrier
-/// forms, which are `LoopProgram` variants rather than steps.
+/// A chain reading a face's trace: every trace target and both
+/// senses, on the verbs that run to them. It reads a trace, so it
+/// resolves only against an evaluation's; the suites here that resolve
+/// walk [`corpus_lowered`], which leaves it out.
+fn traced_steps() -> Vec<ProgramStep<Formula>> {
+    use editor_core::{TraceCrossing, TracePassage, TraceSense};
+    vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::Angle(ang(0.0)),
+        ProgramStep::LineTo(ProgramTarget::OnTrace {
+            face: 0,
+            crossing: TraceCrossing::first(TracePassage::Enter),
+        }),
+        ProgramStep::AlongTrace {
+            sense: TraceSense::With,
+        },
+        ProgramStep::LineTo(ProgramTarget::AtX(len(3.0))),
+        ProgramStep::ContinueTo(ProgramTarget::AtY(len(4.0))),
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: len2([1.0, 4.0]),
+            winding: profile::ArcSweep::Cw,
+            target: ProgramTarget::OnTrace {
+                face: 0,
+                crossing: TraceCrossing {
+                    passage: TracePassage::Leave,
+                    nth: 2,
+                },
+            },
+        }),
+        ProgramStep::AlongTrace {
+            sense: TraceSense::Against,
+        },
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]
+}
+
+/// The corpus: the chain above, the two complete-loop carrier forms,
+/// which are `LoopProgram` variants rather than steps, and the traced
+/// chain, on a frame and one traced face. Its reads are ids no document
+/// holds: nothing here evaluates them.
 fn corpus() -> ProfileProgram {
-    corpus_lowered().0
+    corpus_whole().0
+}
+
+/// [`corpus`] lowered, and its environment.
+fn corpus_whole() -> (ProfileProgram, VarEnv<f64>) {
+    let (mut program, env) = lowered(&ProfileProgram {
+        loops: vec![
+            LoopProgram::Chain(chain_steps()),
+            LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
+            LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
+            LoopProgram::Chain(traced_steps()),
+        ],
+        ids: Vec::new(),
+        on: None,
+    });
+    program.on = Some(editor_core::DrawnOn {
+        frame: editor_core::VarId::new(0, 9_001),
+        faces: vec![editor_core::VarId::new(0, 9_002)],
+    });
+    (program, env)
 }
 
 /// A program lowered as the door lowers it, and the environment its
@@ -311,31 +368,20 @@ fn lowered(program: &ProfileProgram<Formula>) -> (ProfileProgram, VarEnv<f64>) {
     (program, doc.var_env())
 }
 
-/// The corpus lowered, and its environment.
+/// The corpus lowered, less the loops that read a trace (which
+/// resolve only against an evaluation), and its environment. The
+/// corpus is resolved and serialized directly, never inserted.
 fn corpus_lowered() -> (ProfileProgram, VarEnv<f64>) {
-    lowered(&ProfileProgram {
-        // The corpus is resolved and serialized directly, never
-        // inserted, so the frame it names is scaffolding: no row here
-        // reads what the plane denotes.
-        loops: vec![
-            LoopProgram::Chain(chain_steps()),
-            LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
-            LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
-        ],
-        ids: Vec::new(),
-    })
+    let (mut program, env) = corpus_whole();
+    program.loops.retain(|lp| !lp.reads_a_trace());
+    program.on = None;
+    (program, env)
 }
 
-/// The leading identifier of a `Debug` rendering — the variant name.
-/// `ProgramStep`'s chain variants and `Verb`'s are named identically
-/// because the transition table names both, so comparing the two
-/// strings compares the authored verb against the lifted one.
-fn variant_name(debug: &str) -> String {
-    debug
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_')
-        .collect()
-}
+// `ProgramStep`'s chain variants and `Verb`'s are named identically
+// because the transition table names both, so comparing their
+// `variant_name`s compares the authored verb against the lifted one.
+use crate::fixture::variant_name;
 
 /// The vocabulary members one step carries, kept in the shape the
 /// message wants: the verb, each arc spec on the step paired with the
@@ -408,7 +454,8 @@ fn step_members<S: std::fmt::Debug>(step: &ProgramStep<S>) -> StepMembers {
         | ProgramStep::Line(_)
         | ProgramStep::Fillet(_)
         | ProgramStep::FarEndTo(_)
-        | ProgramStep::CloseTo => (vec![], vec![]),
+        | ProgramStep::CloseTo
+        | ProgramStep::AlongTrace { .. } => (vec![], vec![]),
     };
     StepMembers {
         verb: variant_name(&format!("{step:?}")),
@@ -565,6 +612,7 @@ fn every_target_form_is_a_document_program() {
                 target_witness(*kind),
             )])],
             ids: Vec::new(),
+            on: None,
         });
         let resolved = program
             .resolve(&env)
@@ -669,6 +717,7 @@ fn every_arc_mode_is_a_document_program() {
                 *mode,
             ))])],
             ids: Vec::new(),
+            on: None,
         });
         let resolved = program
             .resolve(&env)
@@ -1015,9 +1064,10 @@ fn literal_count(program: &ProfileProgram) -> usize {
         match v {
             serde_json::Value::Object(map) => {
                 for (key, value) in map {
-                    // A split circle's piece count is a structural
-                    // field, not a slot.
-                    if key != "n" {
+                    // A split circle's piece count, and a trace
+                    // target's face and crossing count, are structural
+                    // fields, not slots.
+                    if !matches!(key.as_str(), "n" | "face" | "nth") {
                         walk(value, out);
                     }
                 }
@@ -1089,6 +1139,7 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
             let alone = ProfileProgram {
                 loops: vec![one],
                 ids: Vec::new(),
+                on: None,
             };
             let (slots, exprs) = (alone.rows().len(), literal_count(&alone));
             if slots != exprs {
@@ -1202,9 +1253,12 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
         match broken.resolve(&env) {
-            Err((reported, _)) if reported == *slot => {}
-            Err((reported, _)) => {
+            Err(ProgramResolveFault::Expr { slot: reported, .. }) if reported == *slot => {}
+            Err(ProgramResolveFault::Expr { slot: reported, .. }) => {
                 misplaced.push(format!("{} refuses at {}", slot.label(), reported.label()))
+            }
+            Err(ProgramResolveFault::Trace(refusal)) => {
+                misplaced.push(format!("{} refuses at a trace: {refusal}", slot.label()))
             }
             Ok(_) => misplaced.push(format!(
                 "{} resolved over an unbound parameter",
@@ -1332,9 +1386,9 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
         let Node::Profile(probe) = probe else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
-        let loops = probe.resolve(&env).unwrap_or_else(|(at, e)| {
-            panic!("the literal corpus refuses at {}: {e:?}", at.label())
-        });
+        let loops = probe
+            .resolve(&env)
+            .unwrap_or_else(|fault| panic!("the literal corpus refuses: {fault}"));
         let resolved = &loops[loop_ as usize][step as usize];
         if field_named(resolved, arg) != Some(sentinel) {
             misread.push(format!("{} resolves into {resolved:?}", slot.label()));
@@ -1430,9 +1484,9 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// unit words — left this list then: the program's wire carries no
 /// expression.
 ///
-/// `frame` left it with INTENT stage 3 D: a profile is 2-D and is drawn
-/// on no frame (`ProfileProgram.plane` retired), so the program's wire
-/// has no `frame` key; the checked-in corpus was regenerated with it.
+/// A free profile is 2-D and is drawn on no frame, so its wire has no
+/// `on` key; a profile drawn on one carries `on`, its `frame` and its
+/// traced `faces`.
 const PERSISTED_SPELLING: &[&str] = &[
     // `ProfileProgram` and `LoopProgram`.
     "Chain",
@@ -1495,6 +1549,25 @@ const PERSISTED_SPELLING: &[&str] = &[
     "Point",
     "Start",
     "StartArriving",
+    // A profile drawn on a frame (`DrawnOn`), and the trace vocabulary:
+    // `ProgramTarget::OnTrace`, `AtX`, `AtY`, `ProgramStep::AlongTrace`
+    // and their structural tags.
+    "on",
+    "frame",
+    "faces",
+    "OnTrace",
+    "face",
+    "crossing",
+    "passage",
+    "nth",
+    "Enter",
+    "Leave",
+    "AtX",
+    "AtY",
+    "AlongTrace",
+    "sense",
+    "With",
+    "Against",
 ];
 
 #[test]

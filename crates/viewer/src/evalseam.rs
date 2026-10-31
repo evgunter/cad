@@ -585,11 +585,9 @@ pub enum FitSubject {
     /// that produced it was paid once, where the result became the
     /// session's (`crate::session::DocSession::land`).
     Landed(Arc<Body<f64>>),
-    /// A landing whose A5 gate consumed the product it judged. There
-    /// is no body to share, so the fit gathers one — **here, on the
-    /// worker**, which is half of what this seam buys: a gather is
-    /// unbounded per-document work, and the frame is where this one
-    /// used to run.
+    /// A pair whose product nobody holds. There is no body to share,
+    /// so the fit gathers one — **here, on the worker**: a gather is
+    /// unbounded per-document work, and the frame is no place for it.
     Ungathered {
         /// The document, shared: this is the landing's own copy, which
         /// nothing edits.

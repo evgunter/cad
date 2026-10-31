@@ -190,6 +190,21 @@ pub(crate) struct Study {
 /// pad 1546/1324 -> 1546/1260. `symbolic` holds. Measured identical with
 /// a written fraction of a turn read as its rounded radian, so exact
 /// turns move none of these.
+///
+/// Re-taken on INTENT stage 3 E (a copy is its source's body under its
+/// frame), identical at all three ε rows: the plate 1253 -> 1105 and the
+/// bracket 1625 -> 1477, 148 each, the decisions of their copies' maps
+/// and re-certification, which no longer run. The annulus, the link and
+/// the pad held; none refuses a registration or disputes a theorem.
+/// Over main's merge at `1f851964` (plate 1249, bracket 1621) the same
+/// 148 each: the plate 1101 and the bracket 1473.
+///
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier), identical at all three ε rows: the plate 1101 -> 1149,
+/// the annulus 630 -> 654, the link 922 -> 954, the bracket 1473 ->
+/// 1535 and the pad 1544 -> 1592. None refuses a registration or
+/// disputes a theorem. Which decisions the added symbolic ones are is
+/// unread (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -203,7 +218,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1249, 1249, 1249],
+            symbolic: [1149, 1149, 1149],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -214,7 +229,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [630, 630, 630],
+            symbolic: [654, 654, 654],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -239,8 +254,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
-            without_the_registry: Some(((722, 702), Some("pcurve_envelope"))),
-            symbolic: [922, 922, 922],
+            // Pinned at what main measures (unbisected between PR 5728
+            // and PR 5811, `work/offset/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
+            // at limb 2's stall against the cylinder rather than at
+            // `pcurve_envelope`, after (709, 585), where it read (722, 702).
+            without_the_registry: Some(((709, 585), Some("Stalled { operand: Cylinder"))),
+            symbolic: [962, 962, 962],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -254,13 +273,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1566, 1384), None)),
+            // Pinned at what main measures: (1566, 1384) -> (1474, 1228),
+            // unbisected between PR 5728 and PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
+            // stopped reading a gap on a line pair that shares a vertex
+            // (PR 5952).
+            without_the_registry: Some(((1474, 1218), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1621, 1621, 1621],
+            symbolic: [1537, 1537, 1537],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -278,11 +302,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1546, 1260), None)),
+            // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
+            // the same receipt as shipped, unbisected between PR 5728 and
+            // PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            without_the_registry: Some(((1592, 1250), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1544, 1544, 1544],
+            symbolic: [1592, 1592, 1592],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -548,6 +575,10 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         .iter()
         .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
         .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"));
+    // A moved count is a measurement, so every study's is gathered and
+    // the row names them all at once; a refusal, a refused registration
+    // or a disputed theorem stops the row where it is found.
+    let mut moved: Vec<String> = Vec::new();
     for study in measured_studies(tol) {
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
@@ -566,12 +597,12 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
                  (`work/pcert/fillet-meridian-radius-term-is-registered-only`): {refusal:?}"
             ),
         }
-        assert_eq!(
-            counts.symbolic, study.symbolic[row],
-            "{name} at eps={eps:e}: the tier proves a DIFFERENT number of decisions than \
-             the measurement — a changed fold rule, a registrant that stopped discharging, \
-             or a re-cut document. Decide which before re-baselining: {counts:?}"
-        );
+        if counts.symbolic != study.symbolic[row] {
+            moved.push(format!(
+                "{name}: {} symbolic, measured {}: {counts:?}",
+                counts.symbolic, study.symbolic[row]
+            ));
+        }
         assert_eq!(
             counts.registrations_refused, 0,
             "{name} at eps={eps:e}: a registration was refused on a real document — at \
@@ -588,6 +619,13 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
              raise has already been answered by the panic that did not happen: {counts:?}"
         );
     }
+    assert!(
+        moved.is_empty(),
+        "at eps={eps:e} the tier proves a DIFFERENT number of decisions than the \
+         measurement — a changed fold rule, a registrant that stopped discharging, or a \
+         re-cut document. Decide which before re-baselining:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **WHAT THE REGISTRY BUYS**, as a differential in decisions and
@@ -784,7 +822,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1546, 1260, 3026), "rule F shut: the pad's receipt");
+    // Pinned at what main measures, (1546, 1260, 3026) -> (1592, 1250,
+    // 2465) at every ε row, unbisected between PR 5728 and PR 5811
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    assert_eq!(got[0], (1592, 1250, 2465), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

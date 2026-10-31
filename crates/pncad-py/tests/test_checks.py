@@ -3,8 +3,8 @@
 Every document here is AUTHORED — profile, extrude, boolean, through
 the ordinary doors — and every finding is one the kernel produced from
 that geometry. Nothing is stubbed: the disjoint union really has two
-components, the overlapping placed bodies really deny the separation
-certificate, and the touching union really fails to evaluate.
+components, the overlapping placed bodies really overlap at rest, and
+the touching union really fails to evaluate.
 
 ONE EXCEPTION, and it is deliberate:
 `TestSubjectBodyCarriesItsDeclarations` instantiates the bench
@@ -26,8 +26,8 @@ positively rather than described:
 - the same report under the same findings is `Ok` at `Warn` and raises
   at `Error`, with nothing about the geometry different between the
   two — `test_severity_moves_only_the_gate`;
-- the separation resident's refusing position is not merely unused, it
-  cannot be SPELLED — `test_the_separation_knob_cannot_express_error`.
+- an advisory resident's refusing position is not merely unused, it
+  cannot be SPELLED — `test_only_the_at_rest_knob_of_the_two_can_express_error`.
 
 The negative half matters as much: `test_a_connected_body_is_clean`
 is the document that trips nothing, so a finding here means the check
@@ -35,7 +35,10 @@ fired on the geometry and not on every document it is handed.
 """
 
 import math
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 import pncad
 from pncad import (
@@ -61,6 +64,7 @@ from pncad import (
     Severity,
     Start,
     VarName,
+    Workspace,
     enforce_checks,
     evaluate,
     m,
@@ -69,7 +73,7 @@ from pncad import (
     subject_body,
 )
 
-from placing import against, assemble_world_copies
+from placing import against, assemble_world_copies, placed
 from test_assembly_eval import identities, opened
 from measuring import pinned
 
@@ -123,26 +127,29 @@ def two_placed(x0):
 
 class TestTheConnectednessResident(unittest.TestCase):
     def test_a_disjoint_union_is_one_finding_naming_its_subject(self):
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(len(report), 1)
         (finding,) = report.findings
         self.assertEqual(finding.check, CheckId.Connectedness)
-        self.assertEqual(finding.root, root)
+        self.assertEqual(finding.placement, placement)
         self.assertEqual(finding.output_ix, 0)
-        self.assertIsNone(finding.node, "a root output's finding is about no lone node")
+        self.assertIsNone(finding.node, "a placement output's finding is about no lone node")
         self.assertEqual(finding.evidence.variant, "connectedness")
         self.assertEqual(finding.evidence.actual, 2)
         self.assertEqual(finding.evidence.expected, 1)
         # Attributes on EVERY arm: the payload another arm carries
         # reads `None` rather than raising, so handling never has to
         # branch on `variant` before reading.
-        self.assertIsNone(finding.evidence.other_root)
-        self.assertIsNone(finding.evidence.other_output)
         self.assertIsNone(finding.evidence.reason)
         self.assertIsNone(finding.evidence.inner_variant)
-        self.assertIsNone(finding.evidence.boolean_variant)
+        self.assertIsNone(finding.evidence.at_rest_variant)
+        self.assertIsNone(finding.evidence.interference)
+        self.assertIsNone(finding.evidence.carried_interference)
+        self.assertIsNone(finding.evidence.at_rest)
+        self.assertIsNone(finding.census)
+        self.assertIsNone(finding.quiet)
         self.assertIn("component", str(finding))
 
     def test_a_connected_body_is_clean(self):
@@ -159,49 +166,56 @@ class TestTheConnectednessResident(unittest.TestCase):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, on=outer)
-        doc.insert(Node.subtract(outer, inner))
+        doc.place(doc.insert(Node.subtract(outer, inner)), doc.world)
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_a_stated_expectation_is_the_acknowledgment(self):
-        doc, root, _ = disjoint_union()
-        cfg = ChecksConfig(expected_components=[(root, 0, 2)])
+        doc, placement, _ = disjoint_union()
+        cfg = ChecksConfig(expected_components=[(placement, 0, 2)])
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc), cfg).findings, [])
-        self.assertEqual(cfg.expected_components, [(root, 0, 2)])
+        self.assertEqual(cfg.expected_components, [(placement, 0, 2)])
 
     def test_an_expectation_nothing_consumed_is_stale_not_ignored(self):
         """Two-directional: the union CONSUMED `a`, so `a` is no
-        root and its expectation binds no subject. A stale
+        placement and its expectation binds no subject. A stale
         acknowledgment must not read as "checked and fine"."""
-        doc, root, consumed = disjoint_union()
-        cfg = ChecksConfig(expected_components=[(root, 0, 2), (consumed, 0, 1)])
+        doc, placement, consumed = disjoint_union()
+        cfg = ChecksConfig(expected_components=[(placement, 0, 2), (consumed, 0, 1)])
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc), cfg)
         (finding,) = report.findings
         self.assertEqual(finding.evidence.variant, "stale_expectation")
-        self.assertEqual(finding.root, consumed)
+        self.assertEqual(finding.placement, consumed)
         self.assertEqual(finding.evidence.expected, 1)
         self.assertIsNone(finding.evidence.actual)
 
     def test_one_subject_cannot_be_expected_twice(self):
-        _, root, _ = disjoint_union()
+        _, placement, _ = disjoint_union()
         with self.assertRaises(ValueError) as caught:
-            ChecksConfig(expected_components=[(root, 0, 2), (root, 0, 1)])
+            ChecksConfig(expected_components=[(placement, 0, 2), (placement, 0, 1)])
         self.assertIn("twice", str(caught.exception))
 
 
-class TestTheSeparationResident(unittest.TestCase):
-    def test_interpenetrating_copies_deny_the_certificate(self):
+class TestTheAtRestResident(unittest.TestCase):
+    def test_interpenetrating_copies_are_one_interference_finding(self):
         doc, first, second = two_placed(0.5)
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         (finding,) = report.findings
-        self.assertEqual(finding.check, CheckId.Separation)
-        self.assertEqual(finding.evidence.variant, "not_separated")
-        self.assertEqual(finding.root, first)
-        self.assertEqual(finding.evidence.other_root, second)
-        self.assertEqual(finding.evidence.other_output, 0)
+        self.assertEqual(finding.check, CheckId.AtRest)
+        self.assertEqual(finding.evidence.variant, "interference")
+        self.assertEqual(finding.census, doc.product, "the `⊔` whose census decided it")
+        self.assertIsNone(finding.placement)
+        self.assertIsNone(finding.node)
+        self.assertIsNone(finding.quiet)
+        interference = finding.evidence.interference
+        self.assertEqual(
+            (interference.a, interference.b), (doc.output(first), doc.output(second))
+        )
+        self.assertTrue(interference.loud)
+        self.assertIsNone(finding.evidence.at_rest)
         self.assertIsNone(finding.evidence.actual)
 
     def test_copies_that_are_apart_are_clean(self):
@@ -209,32 +223,36 @@ class TestTheSeparationResident(unittest.TestCase):
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
-    def test_the_separation_knob_cannot_express_error(self):
+    def test_only_the_at_rest_knob_of_the_two_can_express_error(self):
         """DS6's waiver rule as a TYPE, not as a comment asking
-        callers not to reach: this resident ships no acknowledgment
-        record, so its refusing position does not exist."""
+        callers not to reach: the at-rest check's acknowledgment is the
+        assertion that quiets an overlap, so its knob is a `Severity`;
+        the unproven-coincidence lint's is an `Advisory`, whose
+        refusing position does not exist."""
+        self.assertEqual(ChecksConfig(at_rest=Severity.Error).at_rest, Severity.Error)
         self.assertFalse(hasattr(Advisory, "Error"))
         with self.assertRaises(TypeError):
-            ChecksConfig(separation=Severity.Error)
+            ChecksConfig(unproven_coincidence=Severity.Error)
 
 
 class TestTheReportGateSplit(unittest.TestCase):
     def test_a_flagged_document_is_a_working_document(self):
         """REPORTS, NEVER GATES. The finding says the almost-right
         picture is wrong; it stops nothing."""
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         self.assertEqual(len(run_checks(doc, ev)), 1)
         # Evaluated, measurable, exportable — all of it after the
         # finding, and none of it affected by it.
-        body = ev.value(root).body()
+        body = ev.value(placement).body()
         self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
-        self.assertIn("ISO-10303-21", ev.step_string(root))
+        self.assertIn("ISO-10303-21", ev.step_string(placement))
 
     def test_severity_moves_only_the_gate(self):
         """`Warn` and `Error` produce IDENTICAL findings; the only
         difference is whether `enforce_checks` refuses on them."""
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
         ev = evaluate(doc)
         warn = ChecksConfig(connectedness=Severity.Warn)
         error = ChecksConfig(connectedness=Severity.Error)
@@ -247,7 +265,7 @@ class TestTheReportGateSplit(unittest.TestCase):
             enforce_checks(errored, error)
         (refusing,) = caught.exception.findings
         self.assertEqual(refusing, errored.findings[0])
-        self.assertEqual(refusing.root, root)
+        self.assertEqual(refusing.placement, placement)
         self.assertIsInstance(caught.exception, pncad.PncadError)
 
     def test_the_default_configuration_can_never_refuse(self):
@@ -261,6 +279,7 @@ class TestTheReportGateSplit(unittest.TestCase):
         """"Checked and fine" and "not checked" are different
         answers, and `skipped` is the difference."""
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         off = ChecksConfig(connectedness=Severity.Off)
         report = run_checks(doc, ev, off)
@@ -268,39 +287,54 @@ class TestTheReportGateSplit(unittest.TestCase):
         self.assertEqual(
             report.skipped, [CheckId.Connectedness, CheckId.ChartCoherence]
         )
-        both = ChecksConfig(connectedness=Severity.Off, separation=Advisory.Off)
+        both = ChecksConfig(connectedness=Severity.Off, at_rest=Severity.Off)
         self.assertEqual(
             run_checks(doc, ev, both).skipped,
-            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.Separation],
+            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.AtRest],
         )
 
 
 class TestTheRegistryVocabulary(unittest.TestCase):
     def test_every_resident_carries_its_honesty_label(self):
         self.assertEqual(CheckId.Connectedness.kind, CheckKind.Certified)
-        self.assertEqual(CheckId.Separation.kind, CheckKind.Certified)
+        self.assertEqual(CheckId.AtRest.kind, CheckKind.Certified)
         self.assertEqual(CheckId.ChartCoherence.kind, CheckKind.Certified)
         self.assertEqual(str(CheckId.Connectedness), "connectedness")
+        self.assertEqual(str(CheckId.AtRest), "at-rest")
 
     def test_the_configuration_reads_one_severity_vocabulary(self):
-        cfg = ChecksConfig(connectedness=Severity.Error, separation=Advisory.Off)
+        cfg = ChecksConfig(
+            connectedness=Severity.Error,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Off,
+        )
         self.assertEqual(cfg.connectedness, Severity.Error)
-        self.assertEqual(cfg.separation, Advisory.Off)
+        self.assertEqual(cfg.at_rest, Severity.Off)
+        self.assertEqual(cfg.unproven_coincidence, Advisory.Off)
         # The Advisory widening: one vocabulary at the read door.
         self.assertEqual(cfg.severity(CheckId.Connectedness), Severity.Error)
-        self.assertEqual(cfg.severity(CheckId.Separation), Severity.Off)
-        self.assertEqual(cfg, ChecksConfig(connectedness=Severity.Error,
-                                           separation=Advisory.Off))
+        self.assertEqual(cfg.severity(CheckId.AtRest), Severity.Off)
+        self.assertEqual(cfg.severity(CheckId.UnprovenCoincidence), Severity.Off)
+        self.assertEqual(ChecksConfig().at_rest, Severity.Warn, "the default")
+        self.assertEqual(
+            cfg,
+            ChecksConfig(
+                connectedness=Severity.Error,
+                at_rest=Severity.Off,
+                unproven_coincidence=Advisory.Off,
+            ),
+        )
 
     def test_a_report_speaks_its_placements_from_the_evaluated_document(self):
         """`str()` of the report, of a finding and of the refusal says
         each placement as the evaluated document holds it — kind, label and
         tag — and `repr()` keeps the full id. A label set after
         `evaluate` is not the evaluated document's, so it is not said."""
-        doc, root, _ = disjoint_union()
-        doc.apply(DocEdit.set_label(root, "joined"))
+        doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
+        doc.apply(DocEdit.set_label(placement, "joined"))
         evaluation = evaluate(doc)
-        doc.apply(DocEdit.set_label(root, "renamed"))
+        doc.apply(DocEdit.set_label(placement, "renamed"))
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
@@ -308,9 +342,9 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
-        full = repr(root).removeprefix("NodeId(").removesuffix(")")
-        self.assertNotIn(f"root {full[:12]}", str(finding))
-        self.assertIn(f"root {full},", repr(finding))
+        full = repr(placement).removeprefix("NodeId(").removesuffix(")")
+        self.assertNotIn(f"placement {full[:12]}", str(finding))
+        self.assertIn(f"placement {full},", repr(finding))
         with self.assertRaises(CheckRefusal) as caught:
             enforce_checks(report, strict)
         self.assertIn(spoken, str(caught.exception))
@@ -349,12 +383,36 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertIn("no findings", str(run_checks(clean, evaluate(clean))))
 
 
+class TestTheUnusedResident(unittest.TestCase):
+    def test_what_nothing_uses_is_reported_by_node_and_by_name(self):
+        """An operation none of whose outputs is used is a `node`
+        finding; a named variable nothing reads is a `var` one, spoken
+        by its name."""
+        doc, _ = one_box()
+        assemble_world_copies(doc)
+        spare = slab(doc, 3.0, 4.0)
+        doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.scalar(0.0)))
+        report = run_checks(doc, evaluate(doc))
+        self.assertEqual([f.check for f in report.findings], [CheckId.Unused] * 2)
+        node, var = report.findings
+        self.assertEqual((node.node, node.var), (spare, None))
+        self.assertEqual((var.node, var.var), (None, doc.var(VarName("gap"))))
+        self.assertEqual(var.evidence.variant, "unused")
+        self.assertIn("check unused: gap: used by nothing", str(var))
+        self.assertEqual(CheckId.Unused.kind, CheckKind.Certified)
+        self.assertEqual(ChecksConfig().unused, Advisory.Warn, "the default")
+        off = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Off))
+        self.assertEqual(off.findings, [])
+        self.assertIn(CheckId.Unused, off.skipped)
+
+
 class TestSubjectBody(unittest.TestCase):
     def test_a_findings_attribution_resolves_to_the_flagged_body(self):
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         (finding,) = run_checks(doc, ev).findings
-        body = subject_body(ev, finding.root, finding.output_ix)
+        body = subject_body(ev, finding.placement, finding.output_ix)
         self.assertIsNotNone(body)
         # The two unit cubes the count found, as one body.
         self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
@@ -370,9 +428,9 @@ class TestSubjectBody(unittest.TestCase):
         consumed the entry — and yet its body still resolves here,
         because the node evaluated. Staleness is a fact about the
         placements; this door is a fact about the evaluation."""
-        doc, root, consumed = disjoint_union()
+        doc, placement, consumed = disjoint_union()
         ev = evaluate(doc)
-        self.assertIsNone(subject_body(ev, root, 7))
+        self.assertIsNone(subject_body(ev, placement, 7))
         self.assertIsNotNone(subject_body(ev, consumed, 0))
 
         sliver = Doc("checks-sliver-subject")
@@ -396,17 +454,15 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     made it a diagnosis a caller could not act on rather than a wrong
     blessing.
 
-    The subject here is an INSTANCE of the mated stand, which is the
-    carried-declaration home (`NodeValue.contacts`, the D-1
-    declarations a referenced document's product minted). Its sibling
-    home — a boolean's own `BooleanValue.contacts` — is the same
-    channel and the same `sources_of` reconciliation, but it cannot
-    carry this row: a declared glue WELDS the faces it declares, so
-    its record set comes out empty and its 3′ pass is vacuous
-    (`test_validate`'s module header states the same measurement). So
-    this row is the one of the two homes that can be observed from
-    Python at all, and it is named as such rather than presented as
-    the whole claim.
+    The subject here is an INSTANCE of the mated stand, whose records
+    are the D-1 declarations a referenced document's product minted,
+    carried in its value's carry. A boolean's own records ride the same
+    carry, but they cannot carry this row: a declared glue WELDS the
+    faces it declares, so its record set comes out empty and its 3′
+    pass is vacuous (`test_validate`'s module header states the same
+    measurement). So this row is the one record source that can be
+    observed from Python at all, and it is named as such rather than
+    presented as the whole claim.
     """
 
     def instance_of_the_stand(self):
@@ -462,7 +518,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
 
 
 class TestTheChecksCouldNotRun(unittest.TestCase):
-    def test_a_root_without_a_value_refuses_typed(self):
+    def test_a_placement_without_a_value_refuses_typed(self):
         """A report over a partial evaluation would claim more than
         was checked. `evaluate` is total, so the failure arrives as a
         valueless placement and the registry refuses on it rather than
@@ -488,7 +544,7 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
             ],
         )
         union = doc.insert(Node.union([a, b]))
-        root = doc.place(union, doc.world)
+        placement = doc.place(union, doc.world)
         self.assertAlmostEqual(
             pinned(evaluate(doc).value(union).body()).volume, 2.0, places=9
         )
@@ -496,8 +552,8 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
-        self.assertEqual(caught.exception.variant, "root_without_value")
-        self.assertEqual(caught.exception.node, root)
+        self.assertEqual(caught.exception.variant, "placement_without_value")
+        self.assertEqual(caught.exception.node, placement)
         self.assertIsInstance(caught.exception, pncad.PncadError)
 
 
@@ -542,8 +598,9 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
 
         cfg = ChecksConfig(
             connectedness=Severity.Off,
-            separation=Advisory.Off,
+            at_rest=Severity.Off,
             unproven_coincidence=Advisory.Warn,
+            unused=Advisory.Off,
         )
         report = run_checks(doc, ev, cfg)
         self.assertEqual(len(report.findings), 5)
@@ -553,7 +610,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
         self.assertEqual(finding.check.kind, CheckKind.Certified)
         self.assertEqual(finding.node, glued)
-        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.placement)
         self.assertIsNone(finding.output_ix)
         evidence = finding.evidence
         self.assertEqual(evidence.variant, "unproven_coincidence")
@@ -568,6 +625,53 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
+
+    def test_a_parts_unproven_rest_is_reported_through_its_instance(self):
+        """The resting part, instanced: the instantiating document
+        reports each of the part's five unproven rows once, the part's
+        own finding over the part's document, by the route through the
+        instance and shown there."""
+        part = Doc("pncad-carried-coincidence-part")
+        lower = slab(part, 0.0, 1.0)
+        upper = slab(part, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
+        glued = part.insert(Node.union([lower, upper]))
+        placed(part, glued, Frame.translation((0 * m, 0 * m, 0 * m)))
+        assemble_world_copies(part)
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Warn,
+        )
+        own = run_checks(part, evaluate(part), cfg).findings
+        self.assertEqual(len(own), 5)
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        store.create(part)
+        outer = Doc("pncad-carried-coincidence")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
+        )
+        outer.set_product(instance)
+        found = run_checks(outer, evaluate(outer, resolver=store), cfg).findings
+        self.assertEqual(len(found), len(own), "each of the part's rows, once")
+        for finding, mine in zip(found, own, strict=True):
+            self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
+            self.assertEqual(finding.node, instance, "shown at the instance")
+            self.assertIsNone(finding.quiet)
+            self.assertEqual(finding.evidence.variant, "carried_coincidence")
+            self.assertIsNone(finding.evidence.coincidence, "not this document's row")
+            carried = finding.evidence.carried_coincidence
+            self.assertEqual(carried.finding, mine, "the part's own finding")
+            self.assertEqual(carried.finding.node, glued, "in the part's ids")
+            self.assertEqual(
+                carried.finding.evidence.coincidence.cells, mine.evidence.coincidence.cells
+            )
+            self.assertEqual(carried.of, part.id)
+            self.assertEqual(carried.through, instance)
+            self.assertEqual(carried.via, [instance])
+            self.assertEqual(carried.pin, pncad.content_pin(part))
+            self.assertIn("leaves a coincidence of its own unproven", str(finding))
 
 
 class TestAProfileJunctionTheDoorDecides(unittest.TestCase):

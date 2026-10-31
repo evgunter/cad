@@ -1,26 +1,26 @@
-//! **The impeller** — the recipe layer's CIRCULAR rule, and one
-//! parameter that moves two slots.
+//! **The impeller** — the recipe layer's ring, and one parameter that
+//! moves both its count and its step.
 //!
 //! # What this scene is for
 //!
-//! `heatsink` next door is the tour's recompute story on
-//! `PatternKind::Linear`: one document, a fin count edited 5 → 7 → 9,
-//! exactly the nodes downstream of the edit re-run. The circular rule
-//! is its sibling and had no scene at all — nothing in the tour placed
-//! anything around an axis, and `PlacedUnion::Circular` had no corpus
-//! document either.
+//! `heatsink` next door is the tour's recompute story on a row: one
+//! document, a fin count edited 5 → 7 → 9, exactly the nodes downstream
+//! of the edit re-run. A ring is its sibling — one placement over the
+//! index `k = index(blades)`, an `Axis` mate on the hub's own axis,
+//! blade `k` spun `scalar(k)·(360°/scalar(blades))` about it (D10
+//! `[repetition]`) — and this is the tour's scene that places anything
+//! around an axis.
 //!
-//! It also does something the linear rule cannot, and that is the
-//! reason this scene exists rather than a second comb:
+//! It also does something a row cannot, and that is the reason this
+//! scene exists rather than a second comb:
 //!
 //! **A fan has ONE number, and the recipe layer can say so.** A blade
 //! count and an angular step are two slots, and on a comb they are
 //! genuinely independent — a fin count and a fin spacing say different
 //! things. On a wheel they are not: `N` blades that close the circle
 //! step by `360°/N`, and authoring the two separately is authoring the
-//! same fact twice. So the count slot holds `blades` and the step
-//! holds `360 deg / scalar(blades)`, both against ONE document
-//! parameter, and the tour's 6 → 8 → 12 is a single
+//! same fact twice. So the index's count is `blades` and the step is
+//! `turn / scalar(blades)`, both against ONE document parameter, and the tour's 6 → 8 → 12 is a single
 //! [`DocEdit::SetVarValue`] each time.
 //!
 //! `scalar(n)` is what makes that sayable: a bare `blades` is a
@@ -56,7 +56,7 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, BooleanValue, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, ValuePayload,
+    FreeValue, FreeVar, LoopProgram, Node, Operand, ProfileProgram, RecipeNodeId, ValuePayload,
     VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
@@ -203,6 +203,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Profile(ProfileProgram {
             loops: vec![hub_polygon()],
             ids: Vec::new(),
+            on: None,
         })),
     );
     let hub_e = insert(
@@ -218,6 +219,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Profile(ProfileProgram {
             loops: vec![blade_polygon()],
             ids: Vec::new(),
+            on: None,
         })),
     );
     let blade_e = insert(
@@ -228,17 +230,6 @@ fn build_doc(tol: Tol) -> Recipe {
         }),
     );
 
-    // The blade is drawn on its own `xy`; its copy seated `BLADE_Z0` up
-    // the hub is the blade the pattern steps, in the hub's space.
-    let seated = crate::world::against(
-        &doc,
-        hub_e,
-        blade_e,
-        crate::world::slides([0.0, 0.0, BLADE_Z0]),
-        tol,
-    );
-    doc = seated.doc;
-    let blade_e = seated.placement;
     // The axis the blades step about: the hub's own. A frame read off
     // the hub's corners — `z` up its edge at corner 0, `x` toward the
     // opposite corner — slid the hub's radius along that `x`, onto the
@@ -258,23 +249,86 @@ fn build_doc(tol: Tol) -> Recipe {
         pncad::document::pose::PoseRole::Z,
     );
 
-    // **The two slots, one parameter.** The count IS `blades`; the
-    // step is `360°/blades` through the grammar's Count→Scalar
-    // promotion. Nothing downstream has to be told the blades moved.
-    let group = insert(
-        &mut doc,
-        Box::new(
-            Node::placed_union(
-                blade_e,
-                pe("blades"),
-                PatternKind::Circular {
-                    axis,
-                    step: pe("360 deg / scalar(blades)"),
-                },
-            )
-            .expect("a Circular rule is parametric, so it carries a count"),
+    // The blade's own axis, drawn on its own `xy` about the same centre
+    // as the hub, which is what the ring's mate reads on the copy: a
+    // frame `z` up the blade's root edge at `(BLADE_R0, -BLADE_T)`, `x`
+    // across the root toward `+y` — so its `y` runs toward the centre —
+    // slid `BLADE_T` along `x` and `BLADE_R0` along `y`, onto it.
+    let root = [BLADE_R0, -BLADE_T, 0.0];
+    let on = pncad::document::pose::RoleRead::through(
+        crate::world::frame_on(
+            &doc,
+            blade_e,
+            [
+                root,
+                [BLADE_R0, -BLADE_T, BLADE_H],
+                [BLADE_R0, BLADE_T, 0.0],
+            ],
+            &[
+                pncad::document::FrameMove::Slide(pncad::document::TargetAxis::X, len(BLADE_T)),
+                pncad::document::FrameMove::Slide(pncad::document::TargetAxis::Y, len(BLADE_R0)),
+            ],
+            tol,
         ),
+        pncad::document::pose::PoseRole::Z,
     );
+    // Each axis as a mate operand: the frame's `z` slid zero along
+    // itself, which is that axis.
+    let operand = |axis: pncad::document::pose::RoleRead<Operand>| {
+        Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
+            pose: axis.clone(),
+            along: axis,
+            by: Formula::zero(Dimension::Length),
+        }))
+    };
+    let (on, axis) = (operand(on), operand(axis));
+
+    // **The count and the step, one parameter.** The index's count IS
+    // `blades`; the step is `turn / scalar(blades)` through the
+    // grammar's Count→Scalar promotion. Nothing downstream has to be
+    // told the blades moved.
+    let k = VarName::new("k").expect("an index name");
+    doc = apply(
+        &doc,
+        &pncad::pattern::index_decl(k.clone(), pe("blades"), None),
+        tol,
+    )
+    .expect("the blade index declares")
+    .doc;
+    // The ring: the blade copied into the hub's space by one `Axis`
+    // mate equating its axis with the hub's, blade `k` spun
+    // `scalar(k)·turn/scalar(blades)` about it and slid `BLADE_Z0` up
+    // it, so its base sinks into the hub's slab.
+    let space = doc.node_space(hub_e).expect("the hub is in a space");
+    let step = Formula::div(
+        Formula::turn(),
+        Formula::count_to_scalar(pe("blades")).expect("a count converts"),
+    )
+    .expect("an angle");
+    let placed = pncad::document::Placed::of(
+        &doc,
+        vec![pncad::document::Mate {
+            on,
+            to: axis,
+            orient: pncad::document::Orientation::IDENTITY,
+        }],
+        vec![
+            (
+                pncad::document::Coord::SPIN,
+                Formula::mul(pncad::pattern::scalar_of(&k), step).expect("an angle"),
+            ),
+            (
+                pncad::document::Coord::Slide(pncad::document::TargetAxis::Z),
+                len(BLADE_Z0),
+            ),
+        ],
+    );
+    let ring = Node::place(
+        pncad::document::BodyRead::plain(Operand::Node(blade_e)),
+        Operand::Var(space),
+        placed.bundle(),
+    );
+    let group = insert(&mut doc, Box::new(ring));
     let solid = insert(
         &mut doc,
         Box::new(Node::Union {
@@ -287,7 +341,7 @@ fn build_doc(tol: Tol) -> Recipe {
 /// The document's own final body, read back.
 fn body_of(ev: &Evaluation<f64>, at: RecipeNodeId) -> Body<f64> {
     match &ev.value(at).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.as_ref().clone(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body().clone(),
         other => panic!("the impeller's root is a union, got {other:?}"),
     }
 }
@@ -334,11 +388,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // **The name table is EXACTLY linear in the count**, which is the
     // readable form of "one blade's names per blade". It is not
-    // proportional: at 6 blades the group carries 157 names, and 157
-    // is not a multiple of 6 — there is a name the group has once
-    // rather than once per instance. So what is asserted is the shape
-    // that claim really has, a slope and an intercept, with the second
-    // difference exactly zero.
+    // proportional in general — a name the family carried once rather
+    // than once per member would be an intercept. So what is asserted
+    // is the shape that claim really has, a slope and an intercept, with
+    // the second difference exactly zero.
     let names: Vec<usize> = evs
         .iter()
         .map(|(_, ev, _)| {
@@ -361,8 +414,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // **The volume is additive, exactly** — and only because every
     // count divides the hub's facet count (see [`COUNTS`]). Every
     // blade then meets the hub in the SAME transversal intersection,
-    // and no two blades meet at all (`PlacedUnion` certifies the
-    // disjointness), so the solid's volume is the hub's plus N times
+    // and no two blades meet at all (the union certifies the members
+    // apart), so the solid's volume is the hub's plus N times
     // one blade's protruding part. Read off the bodies rather than
     // derived from the sketch: what is asserted is that the kernel's
     // own numbers are linear in the count with no residue.
@@ -437,12 +490,12 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 name,
                 caption: caption.clone(),
                 montage: *n == COUNTS[2],
-                story: "ONE recipe document: a 24-gon hub, one blade, and a \
-                        `PlacedUnion` that places the blade around the hub's own axis \
-                        and fuses the group into ONE body, folded into the hub by a \
-                        `Boolean` beside it. The blade COUNT and the angular STEP are \
-                        two slots and they read the SAME document parameter — the \
-                        count is `blades`, the step is `360 deg / scalar(blades)` — so \
+                story: "ONE recipe document: a 24-gon hub, one blade, and one \
+                        placement over an index `k` that rings the blade around the \
+                        hub's own axis, its family unioned with the hub into ONE body. \
+                        The blade COUNT and the angular STEP read the SAME document \
+                        parameter — the index's count is `blades`, the step is \
+                        `turn / scalar(blades)` — so \
                         the tour's 6 -> 8 -> 12 is one `SetVarValue` each time \
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
@@ -450,10 +503,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                         it was authored when a box leaving a cylinder through its wall \
                         refused to union; that pose builds now, and the faceted hub is \
                         what the scene was authored as",
-                ops: "Profile(24-gon) -> Extrude; Profile(blade) -> Extrude -> Place \
-                      against the hub; the hub's axis -> Node::placed_union(blade, count = \
-                      blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \
-                      Boolean(Union) with the hub; then DocEdit::SetVarValue",
+                ops: "Profile(24-gon) -> Extrude; Profile(blade) -> Extrude; \
+                      k = index(blades); Place(blade into the hub's space, Axis mate of \
+                      its axis on the hub's, spin = scalar(k) * turn / scalar(blades), \
+                      slid BLADE_Z0 up it) -> Union with the hub; then \
+                      DocEdit::SetVarValue",
                 delta: DELTA,
                 note: Some(format!(
                     "{recompute_note}. V = {vol:.9} m^3 at {n} blades, and the three \
@@ -466,8 +520,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                      72 degrees) breaks that linearity at 8e-5 relative, which is the \
                      faceted hub's own asymmetry in a number. The group's stable names are \
                      EXACTLY linear in the count — {per_blade_names} per blade plus \
-                     {name_intercept} the group carries once rather than once per \
-                     instance — so the instances stay addressable across every edit"
+                     {name_intercept} the family carries once rather than once per \
+                     member — so the members stay addressable across every edit"
                 )),
                 view: View {
                     elev: 34.0,

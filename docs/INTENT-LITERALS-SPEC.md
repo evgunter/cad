@@ -81,7 +81,7 @@ The text door is `parse_formula(src, scope) -> Formula`, replacing `parse_expr`.
 
 `unparse` (and `Formula`'s `Display`) round-trips through the parser up to the identity of anonymous variables.
 
-**Slots** (VR4). `Node<P, S = VarId>` is generic over the slot type, and so are `LoopProgram<S>`, `ProgramStep<S>`, `ArcSpec<S>`, `Placement<S>`, `PatternKind<S>`, `PartSelect<S>`, `Datum<S>` and `TubeWindow<S>`.
+**Slots** (VR4). `Node<P, S = VarId>` is generic over the slot type, and so are `LoopProgram<S>`, `ProgramStep<S>`, `ArcSpec<S>`, `Placement<S>`, `Datum<S>` and `TubeWindow<S>`.
 - The authored form is `S = Formula` and the stored form is `S = VarId`. `ProfilePayload` gains `type Authored` so that the payload follows `S`.
 - `row_readers!` and `expr_table!` take `S`.
 - One `try_map_slots(&self, f) -> Result<Node<P, S2>, E>` is the only conversion. Lowering is `try_map_slots(lower_slot)`, and re-authoring is `map_slots(Formula::var)`.

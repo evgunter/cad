@@ -559,7 +559,76 @@ pub(crate) enum SurgeryPosture {
 /// door the walk may silently lose before anything reds; left far
 /// enough behind, the floor stops being evidence about the walk at all.
 /// Lowering it is only ever correct when doors were deleted.
-const DOORS_MEASURED: usize = 57;
+const DOORS_MEASURED: usize = 72;
+
+/// The names of the construction tier's doors: every `fn` the
+/// `construction` module declares (its trait's forwarding impl).
+fn construction_tier(sources: &[std::path::PathBuf]) -> std::collections::BTreeSet<String> {
+    let path = sources
+        .iter()
+        .find(|f| f.file_stem().is_some_and(|s| s == "construction"))
+        .expect("topo/src/construction.rs");
+    let text = std::fs::read_to_string(path).expect("a readable source file");
+    let code = CodeOnly::of(&text);
+    let names: std::collections::BTreeSet<String> =
+        code.fns().into_iter().map(|f| f.name.to_owned()).collect();
+    assert!(
+        names.len() > 40,
+        "the construction tier read only {} door(s): the module's shape changed",
+        names.len()
+    );
+    names
+}
+
+/// The header of the innermost `impl` block whose braces hold byte `at`
+/// of the blanked text `code`: from the `impl` keyword to its opening
+/// brace. Only an `impl` that opens its line is an item (an `impl Trait`
+/// in a signature is not), and the header runs to its first `{`.
+fn enclosing_impl(code: &str, at: usize) -> Option<&str> {
+    let b = code.as_bytes();
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let mut best = None;
+    let mut from = 0;
+    while let Some(rel) = code[from..].find("impl") {
+        let start = from + rel;
+        from = start + 4;
+        if start > at {
+            break;
+        }
+        let line = code[..start].rfind('\n').map_or(0, |n| n + 1);
+        if !code[line..start].trim().is_empty() || b.get(start + 4).copied().is_some_and(word) {
+            continue;
+        }
+        let Some(open) = code[start..].find('{').map(|r| start + r) else {
+            continue;
+        };
+        let mut depth = 0usize;
+        let mut close = None;
+        for (i, &c) in b.iter().enumerate().skip(open) {
+            match c {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if open < at && close.is_some_and(|c| at < c) {
+            best = Some(&code[start..open]);
+        }
+    }
+    best
+}
+
+/// Whether byte `at` of `code` stands in an inherent `impl` of
+/// [`crate::Body`]: where the construction tier's doors are defined.
+fn in_inherent_body_impl(code: &str, at: usize) -> bool {
+    enclosing_impl(code, at).is_some_and(|h| h.contains("Body<") && !h.contains(" for "))
+}
 
 /// The body of the fn named `name` in the crate source whose file
 /// stem is `stem`, with the items it hosts blanked
@@ -634,15 +703,33 @@ pub(crate) fn fn_body(stem: &str, name: &str) -> Option<String> {
 ///   a field, or a method of another type spelled the same is read as
 ///   the function reached: for a close, the door reads closed.
 ///
+/// **The construction tier is in this population.** Its doors are
+/// `pub(crate)` inherent methods that `crate::construction::Construct`
+/// forwards to, public through the trait, so the walk admits a
+/// `pub(crate)` fn named as one of the trait's methods
+/// ([`construction_tier`]) where it is an inherent method of `Body`
+/// ([`in_inherent_body_impl`]), and no same-named fn elsewhere; the
+/// forwarding impl itself is not `pub` and is not counted twice.
+///
 /// The first, fourth, fifth and sixth are the ones that cost coverage, and
 /// none of them is a lexing problem — see the module docs on why a
 /// parser is not the answer to them.
 pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
+    let sources = crate_sources();
+    let tier = construction_tier(&sources);
     let mut out = Vec::new();
-    for file in crate_sources() {
+    for file in sources {
         let text = std::fs::read_to_string(&file).expect("a readable source file");
         let code = CodeOnly::of(&text);
-        for item in code.public_fns() {
+        let b = code.0.as_bytes();
+        for item in code.fns() {
+            let public = public_qualifiers_precede(b, item.kw);
+            let sealed = item.lead.contains("pub(crate)")
+                && tier.contains(item.name)
+                && in_inherent_body_impl(code.as_str(), item.kw);
+            if item.fn_local || !(public || sealed) {
+                continue;
+            }
             if !item.params.contains("&mut self") && !item.params.contains("&mut Body") {
                 continue;
             }
@@ -666,6 +753,42 @@ pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
 #[cfg(test)]
 mod tests {
     use super::{CodeOnly, DOORS_MEASURED, MutationDoor, SurgeryPosture, mutation_doors};
+
+    /// **Every construction-tier door is a crate-private inherent method
+    /// of `Body`, once** (DESIGN D4 ¶1 (iv)): the trait is the tier's one
+    /// public spelling, so a door made `pub` again is nameable through
+    /// `Body` wherever `Body` is, the façade's included, and reds here.
+    /// A same-named fn outside `Body`'s inherent impls is no door.
+    #[test]
+    fn every_construction_door_is_a_crate_private_body_method() {
+        let sources = super::crate_sources();
+        let tier = super::construction_tier(&sources);
+        let mut seen: std::collections::BTreeMap<String, Vec<String>> =
+            tier.iter().map(|n| (n.clone(), Vec::new())).collect();
+        for file in &sources {
+            let text = std::fs::read_to_string(file).expect("a readable source file");
+            let code = CodeOnly::of(&text);
+            for item in code.fns() {
+                let Some(found) = seen.get_mut(item.name) else {
+                    continue;
+                };
+                if !super::in_inherent_body_impl(code.as_str(), item.kw) {
+                    continue;
+                }
+                let lead = item.lead.trim();
+                found.push(format!("{}: {lead}", file.display()));
+            }
+        }
+        let wrong: Vec<_> = seen
+            .iter()
+            .filter(|(_, at)| at.len() != 1 || !at[0].ends_with("pub(crate)"))
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "construction-tier doors that are not one `pub(crate)` inherent method of `Body`: \
+             {wrong:?}"
+        );
+    }
 
     /// **The item scan and the classification, at the one altitude
     /// where either failure was visible.** Text in, doors out.
@@ -1001,7 +1124,7 @@ fn after() {}
             "the walk found {} mutation door(s) against {DOORS_MEASURED} measured",
             doors.len()
         );
-        for name in ["mint_pcurves", "mev", "merge_coplanar_faces_declared"] {
+        for name in ["mint_pcurves", "mev", "merge_coplanar_faces"] {
             assert!(
                 doors.iter().any(|d| d.name == name),
                 "the walk lost `{name}`, which is a door"

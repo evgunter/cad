@@ -155,16 +155,16 @@ fn corpus_boolean_operands_superset_pin() {
                 read_body(&ev, &d.doc, b.read),
             );
             let (r_ab, r_ba) = sweep_traces(
-                body_a,
-                body_b,
+                &body_a,
+                &body_b,
                 SweepStrategy::Realized,
                 None,
                 Tol::witness(),
             )
             .expect("realized sweep runs on green corpus operands");
             let (i_ab, i_ba) = sweep_traces(
-                body_a,
-                body_b,
+                &body_a,
+                &body_b,
                 SweepStrategy::Idealized,
                 None,
                 Tol::witness(),

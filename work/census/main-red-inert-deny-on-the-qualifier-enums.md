@@ -35,3 +35,24 @@ destructures `Self` in both impls and adds `product.rs` to
 `IMPL_FILES_TODAY`, so both `hand_written_impl_census` rows are green
 there. What stays open here is the two `deny_unknown_fields_census`
 rows.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Both `deny_unknown_fields_census` rows were red at every ε.
+
+- `every_deny_unknown_fields_attribute_has_a_named_field_to_deny` is
+  pinned: `PINNED_INERT` names `names/nest_reference.rs` and
+  `names/role.rs`, and the row requires exactly one inert site in each.
+  It goes red the day either attribute leaves; this row's fix removes
+  both and the pin with them.
+- `the_walk_still_sees_every_attribute_site` is re-blessed:
+  `editor-core/src/var.rs` holds four sites since D′3 (`a752273555`, 2026-10-23: `Var`, a
+  named-field struct the census reads as live), and the table says four.
+- `hand_written_impl_census::the_walk_still_sees_every_file_holding_one`
+  was red too: `editor-core/src/checks/at_rest/carried.rs` arrived with
+  PR 5871 (`PinnedDoc`'s one equality and elided `Debug`, both reading the
+  newtype's `self.0`). `every_hand_written_walk_is_held_to_its_declaration`
+  passes over it, so the line is added (re-blessed).
+
+Reproduce: `cargo nextest run -p test-utils --profile ci
+--ignore-default-filter -E 'test(/deny_unknown_fields_census|hand_written_impl_census/)'`.

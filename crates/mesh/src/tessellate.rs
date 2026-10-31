@@ -257,6 +257,9 @@ pub(crate) fn lane_of(
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
         Surface::Plane { .. } => Lane::Planar,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
+        Surface::Sphere { .. } if crate::trimmed::takes_sphere_arm(body, fk, surface)? => {
+            Lane::Trimmed
+        }
         _ => Lane::Curved,
     })
 }

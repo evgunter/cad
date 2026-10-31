@@ -262,6 +262,32 @@ pub enum VarDef {
     /// **A pick** (D10 `[placement.placement]`): one piece of a copy,
     /// a `Body`.
     Pick(Pick),
+    /// **An index** (D10 `[repetition]`): a `Count` over `0..count`. A
+    /// definition or operation whose reads reach it is evaluated once
+    /// per value, and its outputs are families.
+    Index(Index),
+}
+
+/// **What an index ranges over** ([`VarDef::Index`]): `0..count`, the
+/// count any `Count` expression, and the index it is declared within,
+/// if any. One that reads another index in its count is within it
+/// whether or not `within` says so ([`crate::Doc::index_within`]).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Index {
+    /// How many values it takes.
+    pub count: Expr,
+    /// The index it is declared within.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub within: Option<VarId>,
+}
+
+impl Index {
+    /// Bit-semantic equality.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.within == other.within && self.count.bit_eq(&other.count)
+    }
 }
 
 /// **What a pick names** ([`VarDef::Pick`]): one piece of a placement's
@@ -548,6 +574,7 @@ impl VarDef {
             Self::Pose(def) => def.kind(),
             Self::Output { .. } | Self::Select(_) => None,
             Self::Pick(_) => Some(VarKind::Body),
+            Self::Index(_) => Some(VarKind::Count),
         }
     }
 
@@ -556,11 +583,7 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_)
-            | Self::Output { .. }
-            | Self::Select(_)
-            | Self::Pose(_)
-            | Self::Pick(_) => None,
+            _ => None,
         }
     }
 
@@ -569,11 +592,7 @@ impl VarDef {
     pub fn defined(&self) -> Option<&Expr> {
         match self {
             Self::Defined(expr) => Some(expr),
-            Self::Free(_)
-            | Self::Output { .. }
-            | Self::Select(_)
-            | Self::Pose(_)
-            | Self::Pick(_) => None,
+            _ => None,
         }
     }
 
@@ -582,11 +601,7 @@ impl VarDef {
     pub fn select(&self) -> Option<&Select> {
         match self {
             Self::Select(select) => Some(select),
-            Self::Free(_)
-            | Self::Defined(_)
-            | Self::Output { .. }
-            | Self::Pose(_)
-            | Self::Pick(_) => None,
+            _ => None,
         }
     }
 
@@ -595,11 +610,16 @@ impl VarDef {
     pub fn pose(&self) -> Option<&crate::pose::PoseDef> {
         match self {
             Self::Pose(def) => Some(def),
-            Self::Free(_)
-            | Self::Defined(_)
-            | Self::Output { .. }
-            | Self::Select(_)
-            | Self::Pick(_) => None,
+            _ => None,
+        }
+    }
+
+    /// The index, when the definition is one.
+    #[must_use]
+    pub fn index(&self) -> Option<&Index> {
+        match self {
+            Self::Index(index) => Some(index),
+            _ => None,
         }
     }
 
@@ -617,9 +637,12 @@ impl VarDef {
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
         match *self {
             Self::Output { node, port } => Some((node, port)),
-            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => {
-                None
-            }
+            Self::Free(_)
+            | Self::Defined(_)
+            | Self::Select(_)
+            | Self::Pose(_)
+            | Self::Pick(_)
+            | Self::Index(_) => None,
         }
     }
 
@@ -629,6 +652,7 @@ impl VarDef {
         match (self, other) {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
             (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
+            (Self::Index(a), Self::Index(b)) => a.bit_eq(b),
             (Self::Output { .. }, Self::Output { .. })
             | (Self::Select(_), Self::Select(_))
             | (Self::Pose(_), Self::Pose(_))
@@ -639,7 +663,8 @@ impl VarDef {
                 | Self::Output { .. }
                 | Self::Select(_)
                 | Self::Pose(_)
-                | Self::Pick(_),
+                | Self::Pick(_)
+                | Self::Index(_),
                 _,
             ) => false,
         }
@@ -662,6 +687,8 @@ pub enum WrittenDef {
     Pose(VarKind, crate::pose::PoseDef),
     /// A pick, a `Body`.
     Pick(Pick),
+    /// An index, a `Count`.
+    Index(Index),
 }
 
 impl WrittenDef {
@@ -673,6 +700,7 @@ impl WrittenDef {
             Self::Defined(expr) => VarKind::from(expr.dim()),
             Self::Select(kind, _) | Self::Pose(kind, _) => *kind,
             Self::Pick(_) => VarKind::Body,
+            Self::Index(_) => VarKind::Count,
         }
     }
 }
@@ -685,6 +713,7 @@ impl From<WrittenDef> for VarDef {
             WrittenDef::Select(_, select) => Self::Select(select),
             WrittenDef::Pose(_, def) => Self::Pose(def),
             WrittenDef::Pick(pick) => Self::Pick(pick),
+            WrittenDef::Index(index) => Self::Index(index),
         }
     }
 }
@@ -699,6 +728,15 @@ pub enum VarDecl {
     Free(FreeVar),
     /// A variable defined by an expression over other variables.
     Defined(crate::Formula),
+    /// **An index** over `0..count` ([`VarDef::Index`]), `within` the
+    /// index it is declared within.
+    Index {
+        /// How many values it takes, a `Count`.
+        count: crate::Formula,
+        /// The index it is declared within, read as a lone variable.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        within: Option<crate::Formula>,
+    },
 }
 
 impl VarDecl {
@@ -720,6 +758,7 @@ impl VarDecl {
         match self {
             Self::Free(free) => free.dim(),
             Self::Defined(expr) => expr.dim(),
+            Self::Index { .. } => Dimension::Count,
         }
     }
 }
@@ -777,6 +816,10 @@ impl VarDecl {
         match def {
             VarDef::Free(free) => Some(Self::Free(free)),
             VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
+            VarDef::Index(Index { count, within }) => Some(Self::Index {
+                count: crate::Formula::from(count),
+                within: within.map(|within| crate::Formula::var(within, Dimension::Count)),
+            }),
             VarDef::Output { .. } | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => None,
         }
     }
@@ -847,7 +890,8 @@ impl Var {
             | VarDef::Defined(_)
             | VarDef::Output { .. }
             | VarDef::Pose(_)
-            | VarDef::Pick(_) => None,
+            | VarDef::Pick(_)
+            | VarDef::Index(_) => None,
         }
     }
 

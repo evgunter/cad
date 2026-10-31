@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished};
 use geom_core::Decide;
@@ -457,10 +458,13 @@ fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
 }
 
 /// The duality row's two claims on one pair: `vol(A∖B) + vol(A∩B) =
-/// vol(A)` exactly (the corpus is dyadic), and `revert(B)` refused at
-/// the at-rest gate with `NegativeVolume` alone.
+/// vol(A)` exactly (the corpus is dyadic), each result holding the
+/// volume relations, and `revert(B)` refused at the at-rest gate with
+/// `NegativeVolume` alone.
 pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
-    let volume = |r: BooleanResult<f64>| {
+    let oracle = topo::test_support::VolumeOracle::new(a, b, Tol::witness());
+    let volume = |op: topo::BooleanOp, r: BooleanResult<f64>| {
+        oracle.assert(name, op, a, b, r.body().map(|bb| &*bb.body));
         r.body().map_or(0.0, |bb| {
             mass_properties(
                 &bb.body,
@@ -473,8 +477,14 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
             .volume
         })
     };
-    let minus = volume(subtract(a, b, Tol::witness()).unwrap());
-    let meet = volume(topo::intersect(a, b, Tol::witness()).unwrap());
+    let minus = volume(
+        topo::BooleanOp::Subtract,
+        subtract(a, b, Tol::witness()).unwrap(),
+    );
+    let meet = volume(
+        topo::BooleanOp::Intersect,
+        topo::intersect(a, b, Tol::witness()).unwrap(),
+    );
     let whole = mass_properties(
         a,
         Tol::witness(),
@@ -550,7 +560,11 @@ fn with_reversed_face(
         panic!("exactly one face on the plane: {picked:?}")
     };
     let mut out = body.clone();
-    let charts = vec![topo::Rechart::new(reversed.clone(), *face, *sense)];
+    let charts = vec![topo::construction::Rechart::new(
+        reversed.clone(),
+        *face,
+        *sense,
+    )];
     let specs = out.carried_redescriptions(&charts).unwrap();
     out.set_face_surfaces_describing(charts, &specs, Tol::witness())
         .unwrap();

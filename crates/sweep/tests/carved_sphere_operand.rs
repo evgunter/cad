@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;

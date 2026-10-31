@@ -199,12 +199,12 @@ where
                     }
                     ValuePayload::Body(b) => {
                         d.u64(14);
-                        body_deep(&mut d, b);
+                        body_deep(&mut d, b.body());
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                         d.u64(16);
-                        body_deep(&mut d, body);
+                        body_deep(&mut d, body.body());
                     }
                     ValuePayload::Split { above, below } => {
                         d.u64(17);
@@ -213,16 +213,17 @@ where
                                 SplitSide::Empty => d.u64(0),
                                 SplitSide::Body(b) => {
                                     d.u64(1);
-                                    body_deep(&mut d, b);
+                                    body_deep(&mut d, b.body());
                                 }
                             }
                         }
                     }
+                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            body_deep(&mut d, b);
+                            body_deep(&mut d, b.body());
                         }
                     }
                     // The measured quantity IS a lane value, so it is
@@ -459,6 +460,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let slab = r.insert(Node::Extrude {
         profile: plate.into(),
@@ -467,6 +469,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
         ids: Vec::new(),
+        on: None,
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_profile.into(),
@@ -542,7 +545,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 | ValuePayload::Boolean(editor_core::BooleanValue::Body { body: b, .. }) =
                     &v.payload
             {
-                for (_k, p) in b.points() {
+                for (_k, p) in b.body().points() {
                     points += 1;
                     if p.x.deriv != 0.0 || p.y.deriv != 0.0 || p.z.deriv != 0.0 {
                         tangents_nonzero += 1;
@@ -597,9 +600,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 // dual: `run_checks` is `Decide + AtRestPolicy +
                 // CertifiedBounds`, and no `Dual` implements
                 // `CertifiedEnclosure`. That is DL1 holding one door
-                // further out — the registry's separation resident
-                // GRANTS a certificate (box non-overlap is a genuine
-                // separation claim), and a dual never certifies. The
+                // further out — the registry's residents GRANT
+                // certificates (the at-rest check reads a census a dual
+                // does not run), and a dual never certifies. The
                 // gap this row recorded is closed rather than
                 // unobserved.
                 println!("R1E2E {name}: run_checks is not callable at Dual64 (CertifiedBounds)");
@@ -633,7 +636,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
         && let ValuePayload::Split { above, .. } = &v.payload
         && let editor_core::SplitSide::Body(b) = above
     {
-        let direct = topo::validate_geometric_structural(b.as_ref(), tol);
+        let direct = topo::validate_geometric_structural(b.body(), tol);
         println!(
             "R1E2E direct validate_geometric_structural at Dual64: {}",
             match &direct {

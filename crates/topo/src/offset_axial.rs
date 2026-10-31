@@ -131,9 +131,11 @@
 //! stands beside it, and [`geom_brep::plane_cone_section`]'s generator
 //! pair when the moved plane holds the moved apex, the line the old
 //! edge's middle stands nearer. Beside the apex the cone's section is a
-//! hyperbola, a NURBS arc whose uniqueness tube has no cone enclosure
-//! yet, so the door refuses that edge at its gate, before any corner is
-//! solved ([`ReplaceFaceError::TogetherConicArc`]). The kind is the
+//! hyperbola, and the edge is its exact rational-quadratic arc between
+//! the moved corners, on the branch the old edge's middle stands beside
+//! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
+//! section states the bounds that retire its tube, and an arc that does
+//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -172,10 +174,10 @@
 //! `TogetherNotAxial`'s oblique-plane arm; `TogetherEdgeDisagreement`
 //! (`sf2b_r1_probes`); the window's no-forward-window refusal
 //! (`sf2b_r1_probes::r1p2`'s sliver wedge, whose moved meridian planes
-//! cross outside the shrunk wall); the gate's open-conic refusal,
-//! [`ReplaceFaceError::TogetherConicArc`] (`sf2b_r2_probes`'s quarter-
-//! and 1/12-turn conical wedges, `shell7_seam_corner`'s three-quarter-
-//! turn cone frustum).
+//! cross outside the shrunk wall, and `sf2b_r2_probes`'s 1/12-turn
+//! conical wedge, whose moved caps cross outside the shrunk top disc);
+//! the apex corner of a whole cone's wedge, read as a pole beside two
+//! moved caps, as `TogetherEdgeDisagreement` (`sf2b_r2_probes`).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -230,9 +232,13 @@
 //! mutation that keeps the old azimuth reaches it on the klein elbow)
 //! and its in-plane extrusion refusal (an extrude's vector never lies
 //! in its own sketch plane), and the window's one-point refusal (a
-//! door-built edge has two distinct ends), and the anchor's undecided
+//! door-built edge has two distinct ends), the anchor's undecided
 //! tie-break (a fresh carrier's frame would have to put the old point
-//! within the band of a quarter turn from its old parameter).
+//! within the band of a quarter turn from its old parameter), and the
+//! open-conic refusal, [`ReplaceFaceError::TogetherConicArc`], with
+//! the hyperbola arm's own refusals (every door-built hyperbolic arc's
+//! stretch stands clear of the moved apex's height, and its corners are
+//! on its branch).
 //!
 //! **The lift's rows**, the door run on a cavity it built: the klein
 //! elbow opened at both caps and at one (`verbs_shell`), the lune
@@ -560,14 +566,14 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         .collect();
     let chart_of = |face: FaceKey| chart_row.get(face).map(|&i| &charts[i].1);
 
-    // ---- Decide: no moved edge's section is an arc this door cannot
-    // certify. ----
+    // ---- Decide: every moved cone/cap edge's section reads. ----
+    let mut cone_sections: std::collections::BTreeMap<EdgeKey, ConeCapSection<T>> =
+        std::collections::BTreeMap::new();
     //
     // A cone wall's section with a plane parallel to the axis is a
     // generator pair where the plane holds the moved apex, and a
-    // hyperbola where it stands off it: a NURBS carrier on a cone, whose
-    // uniqueness tube has no cone enclosure yet, so no body carrying it
-    // certifies. Refused here, before any corner is solved.
+    // hyperbola where it stands off it. Read here, before any corner is
+    // solved, so a section the pose leaves undecided refuses first.
     for (edge, edge_data) in body.edges() {
         if !scope.holds_edge(edge) {
             continue;
@@ -591,7 +597,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 what: "it has no curve to move",
             });
         };
-        cone_cap_generators(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
+        let section = cone_cap_section(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
+        cone_sections.insert(edge, section);
     }
 
     // ---- Decide: every corner, before anything is written. ----
@@ -694,6 +701,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
+    let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
     for (edge, edge_data) in body.edges() {
         if !scope.holds_edge(edge) {
             continue;
@@ -742,8 +750,9 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 edge,
                 &old_carrier,
                 (t0_old, t1_old),
-                p_start,
+                (p_start, p_end),
                 (ca, cb),
+                cone_sections.get(&edge),
                 &frame,
                 band,
             )?
@@ -752,6 +761,14 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // Both endpoints are READ onto the new carrier and metered. Two
         // corner solves agreeing about the edge between them is the
         // claim this door makes about every edge, and it is checked.
+        //
+        // A hyperbola's arc was minted between the moved corners, so its
+        // own domain's ends are the ends, each metered against its
+        // moved corner.
+        let arc_ends = match (&carrier, cone_and_cap(ca, cb)) {
+            (Curve3::Nurbs(net), Some(_)) if !held => Some(net.knot_values().domain()),
+            _ => None,
+        };
         let read = |t_old: T, v: VertexKey, q: Point3<T>, p: Point3<T>| {
             if held && !asked_at.contains_key(v) {
                 // Nothing moved under this end: its parameter stands.
@@ -760,8 +777,21 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 param_on(&carrier, t_old, q, p, edge, band)
             }
         };
-        let t0 = read(t0_old, start, q_start, p_start)?;
-        let t1 = read(t1_old, end, q_end, p_end)?;
+        if arc_ends.is_some()
+            && let Some(ConeCapSection::Conic(section)) = cone_sections.get(&edge)
+        {
+            conic_arcs.push((edge, section.conic()));
+        }
+        let (t0, t1) = match arc_ends {
+            Some((lo, hi)) => (
+                end_agrees(&carrier, lo, p_start, edge, band)?,
+                end_agrees(&carrier, hi, p_end, edge, band)?,
+            ),
+            None => (
+                read(t0_old, start, q_start, p_start)?,
+                read(t1_old, end, q_end, p_end)?,
+            ),
+        };
         let t1 = forward_window(&carrier, (t0_old, t1_old), t0, t1, edge, band)?;
 
         // The carrier is VERIFIED onto both moved surfaces at its own
@@ -799,7 +829,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                         (cb.old_key, chart_moves(cb.distance, band)?),
                     ],
                     true,
-                    mid,
+                    (&carrier, t0, t1),
                     |mc| reauthor(mc, &carrier, (p_start, p_end), edge, band),
                     |declared| {
                         crate::offset_restate::re_ask_on_pair(
@@ -867,7 +897,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             &m.faces,
         )?);
     }
-    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
+        .map_err(|error| uncertified_arc(error, &conic_arcs))?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It
@@ -2036,12 +2067,14 @@ fn tie<T: Decide>(vertex: VertexKey) -> ReplaceFaceError<T> {
 /// from the operand, its position taken from the corner solves. The
 /// caller reads both endpoints back onto it and meters the result, and
 /// meters its midpoint against both moved surfaces.
+#[allow(clippy::too_many_arguments)] // the mint's own inputs, the section read once at the gate
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
     old_span: (T, T),
-    p_start: Point3<T>,
+    (p_start, p_end): (Point3<T>, Point3<T>),
     charts: (&MovedChart<T>, &MovedChart<T>),
+    cone_section: Option<&ConeCapSection<T>>,
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Curve3<T>, ReplaceFaceError<T>> {
@@ -2197,23 +2230,41 @@ fn mint_carrier<T: Decide>(
         _ => None,
     };
     // ---- A cone wall and a plane parallel to the axis: the moved
-    // pair's own section, the generator pair where the moved plane holds
-    // the moved apex (the gate refused the hyperbola beside it). The
-    // line is the one the old edge's middle stands nearer, run the old
-    // way. ----
+    // pair's own section. Where the moved plane holds the moved apex it
+    // is the generator pair, and the line is the one the old edge's
+    // middle stands nearer, run the old way; beside the apex it is a
+    // hyperbola, and the edge is its arc between the moved corners on
+    // the branch the old edge's middle stands beside, minted exactly. ----
     if let Some((cone, cap)) = cone_and_cap(ca, cb) {
-        let Some((l1, l2)) = cone_cap_generators(edge, cone, cap, (old, old_span), band)? else {
-            return Err(refuse(
-                "an edge between a cone wall and an axis-parallel cap whose moved cap touches \
-                 the moved cone, or misses it",
-            ));
+        let section = match cone_section {
+            Some(section) => section.clone(),
+            None => cone_cap_section(edge, cone, cap, (old, old_span), band)?,
         };
-        let Curve3::Line { dir: old_dir, .. } = old else {
-            return Err(refuse(
-                "an edge between a cone wall and a plane through its axis whose curve is not a \
-                 generator line",
-            ));
+        let (l1, l2) = match section {
+            ConeCapSection::Generators(l1, l2) => (l1, l2),
+            ConeCapSection::Conic(section) => {
+                let conic = |error: geom_brep::ConicArcError| match error {
+                    geom_brep::ConicArcError::Escalated(source) => {
+                        ReplaceFaceError::Escalated { source }
+                    }
+                    _ => refuse(
+                        "an edge between a cone wall and an axis-parallel cap whose moved \
+                         corners do not bound an arc of the moved pair's hyperbola",
+                    ),
+                };
+                let branch = section
+                    .branch_at(old.mid_point(old_span.0, old_span.1), band)
+                    .map_err(conic)?;
+                return branch.arc(p_start, p_end, band).map_err(conic);
+            }
+            ConeCapSection::Neither => {
+                return Err(refuse(
+                    "an edge between a cone wall and an axis-parallel cap whose moved cap \
+                     touches the moved cone, or misses it",
+                ));
+            }
         };
+        let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
         let off = |l: &Curve3<T>| match l {
             Curve3::Line { origin, dir } => {
@@ -2421,6 +2472,39 @@ fn mint_carrier<T: Decide>(
     }
 }
 
+/// A re-chart refused because an arc this door minted on a cone does not
+/// certify, read as the door's own refusal: the re-chart names the edge
+/// whose re-description does not certify, and an arc's tube is retired
+/// only where the plane×cone section states the bounds (C2) — a cone has
+/// no tube enclosure otherwise — so the arc it names refuses as
+/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+fn uncertified_arc<T: Real>(
+    error: ReplaceFaceError<T>,
+    arcs: &[(EdgeKey, geom_brep::OpenConic)],
+) -> ReplaceFaceError<T> {
+    let ReplaceFaceError::Op {
+        error:
+            crate::EulerOpError::RechartFalsifies {
+                edge,
+                error:
+                    geom_brep::CertifyError::AnalyticRung3(
+                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
+                            operand: geom::SurfaceKind::Cone,
+                        },
+                    ),
+                ..
+            },
+        ..
+    } = &error
+    else {
+        return error;
+    };
+    match arcs.iter().find(|(arc, _)| arc == edge) {
+        Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
+        None => error,
+    }
+}
+
 /// The cone wall and the plane parallel to the axis of an edge between
 /// the two, in that order.
 fn cone_and_cap<'c, T: Real>(
@@ -2434,24 +2518,34 @@ fn cone_and_cap<'c, T: Real>(
     }
 }
 
-/// The two generator lines a plane through a cone's apex cuts.
-type GeneratorPair<T> = (Curve3<T>, Curve3<T>);
+/// **The moved cone wall's section with its moved cap**, read over the
+/// old edge's span.
+#[derive(Clone)]
+enum ConeCapSection<T: Real> {
+    /// The generator pair the moved cap cuts where it holds the moved
+    /// apex.
+    Generators(Curve3<T>, Curve3<T>),
+    /// The hyperbola it cuts beside the apex, in closed form.
+    Conic(geom_brep::OpenConicSection<T>),
+    /// The moved cap touches the moved cone, or misses it.
+    Neither,
+}
 
 /// The moved cone wall's section with its moved cap, read over the old
-/// edge's span: its generator pair where the moved cap holds the moved
-/// apex, and `None` where the cap touches the cone or misses it.
+/// edge's span.
 ///
 /// # Errors
 ///
-/// [`ReplaceFaceError::TogetherConicArc`] where the section is a
-/// parabola or hyperbola, the one place the door raises it.
-fn cone_cap_generators<T: Decide>(
+/// [`ReplaceFaceError::Escalated`] where the section's pose is in band,
+/// and [`ReplaceFaceError::TogetherAxialEdge`] where the section refuses
+/// the moved cone as an operand.
+fn cone_cap_section<T: Decide>(
     edge: EdgeKey,
     cone: &MovedChart<T>,
     cap: &MovedChart<T>,
     (old, (t0, t1)): (&Curve3<T>, (T, T)),
     band: Band,
-) -> Result<Option<GeneratorPair<T>>, ReplaceFaceError<T>> {
+) -> Result<ConeCapSection<T>, ReplaceFaceError<T>> {
     let reach = geom_brep::Reach::Span {
         carrier: old.clone(),
         t0,
@@ -2471,16 +2565,11 @@ fn cone_cap_generators<T: Decide>(
                 },
             }
         })?;
-    match section {
-        geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => Ok(Some((l1, l2))),
-        geom_brep::PlaneConeSection::OpenConic(section) => {
-            Err(ReplaceFaceError::TogetherConicArc {
-                edge,
-                conic: section.conic(),
-            })
-        }
-        _ => Ok(None),
-    }
+    Ok(match section {
+        geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => ConeCapSection::Generators(l1, l2),
+        geom_brep::PlaneConeSection::OpenConic(section) => ConeCapSection::Conic(section),
+        _ => ConeCapSection::Neither,
+    })
 }
 
 /// A circle centre's distance from the tube-centre circle `(ρ, h) =
@@ -2569,6 +2658,24 @@ fn latitude_circle<T: Real>(
         axis,
         radius: frame.radial(p_start).norm(),
         u_ref,
+    }
+}
+
+/// The parameter `t` of an end of `carrier`, metered against the
+/// moved corner `p` it was minted to: [`param_on`]'s agreement read on
+/// an end that needs no reading.
+fn end_agrees<T: Decide>(
+    carrier: &Curve3<T>,
+    t: T,
+    p: Point3<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<T, ReplaceFaceError<T>> {
+    let gap = carrier.eval(t).distance(p);
+    match decide("offset_axial_edge_agreement", Margin::of(gap), band) {
+        Ok(Sign::Zero) => Ok(t),
+        Ok(_) => Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }
 

@@ -13,7 +13,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{euler_poincare_holds, face_polygon, signed_area, start_xyz};
-use crate::{Body, LoopBoundary, MefSite, MevSite, validate};
+use crate::construction::{MefSite, MevSite};
+use crate::{Body, LoopBoundary, validate};
 use geom_core::Point3;
 use geom_core::Tol;
 

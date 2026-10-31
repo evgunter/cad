@@ -16,6 +16,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{lantern, prism, rim_arcs_at};
 use topo::EdgeKey;
+use topo::construction::Construct;
 
 use crate::common::stations::station_vertices;
 
@@ -124,9 +125,9 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
     let ruling = geom_brep::EdgeCurveSpec::line_between(at(stations[0]), at(stations[1]))
         .at_rest_in_chart(body.get_face(wall).unwrap().surface, false);
     body.mef(
-        topo::MefSite::Chords { he1, he2 },
+        topo::construction::MefSite::Chords { he1, he2 },
         ruling,
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol(),
     )
     .unwrap();

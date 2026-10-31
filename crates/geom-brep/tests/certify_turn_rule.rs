@@ -61,7 +61,7 @@ impl Steep {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: self.pair,
-                witness: e.eval(0.5 * (t0 + t1)),
+                selector: geom_brep::CurveSelector::Witness(e.eval(0.5 * (t0 + t1))),
             },
             carrier: e.clone(),
             param_start: t0,
@@ -74,6 +74,7 @@ impl Steep {
             |k| self.surfaces.get(k).cloned(),
             1.0,
             band,
+            geom_brep::NurbsLane::certified(),
         )
     }
 }
@@ -148,7 +149,7 @@ fn new_winding(
     match got {
         Ok(edge) => (
             Winding::Certified,
-            edge.certificate().turn.map(|turn| turn.turn()),
+            edge.turn().copied().map(|turn| turn.turn()),
         ),
         Err(
             CertifyError::WindingExceeded
@@ -201,7 +202,15 @@ fn certification_agrees_with_the_old_winding_check() {
     let certify_circle = |(t0, t1): (f64, f64)| {
         let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
-        EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+        EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
     };
     let certify_ellipse = |(t0, t1): (f64, f64)| fixture.certify(t0, t1, band);
     type Door<'a> = &'a dyn Fn((f64, f64)) -> Result<EdgeCurve<f64>, CertifyError>;
@@ -295,6 +304,7 @@ fn the_stored_turn_is_the_edges_own_interval() {
             |_| None,
             1.0,
             band,
+            geom_brep::NurbsLane::certified(),
         )
         .unwrap(),
     ];
@@ -307,8 +317,8 @@ fn the_stored_turn_is_the_edges_own_interval() {
         for e in mapped {
             let (p0, p1) = e.params();
             let turn = e
-                .certificate()
-                .turn
+                .turn()
+                .copied()
                 .expect("a periodic carrier keeps its turn");
             let (s0, s1) = turn.params();
             assert_eq!(
@@ -368,7 +378,15 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
     let certify = |(t0, t1): (f64, f64)| {
         let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
-        EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+        EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
     };
     let headroom = |(t0, t1): (f64, f64)| Margin::levered(TAU - (t1 - t0), radius);
     let old_split = |span| match decide("bool_split_span_period", headroom(span), band) {
@@ -412,7 +430,7 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             );
             continue;
         };
-        let turn = edge.certificate().turn.expect("a circle's turn").turn();
+        let turn = edge.turn().copied().expect("a circle's turn").turn();
         assert_eq!(old_split(span), Read::Proceeds, "k = {k}: the split");
         assert_eq!(partial(turn), old_meridian(span), "k = {k}: the meridian");
         if k == -0.5 {

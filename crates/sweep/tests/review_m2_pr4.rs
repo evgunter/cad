@@ -572,7 +572,10 @@ fn survives_shallow_corner_strut_keeps_its_canonical_index_both_directions() {
         // Swept order runs the canonical chain backwards for `d < 0`.
         let swept = if d > 0.0 { 1 } else { 4 - 1 };
         match description(&t.body, t.strut_edges()[0][swept].unwrap()) {
-            EdgeDescription::Intersection { witness, .. } => assert_eq!(
+            EdgeDescription::Intersection {
+                selector: geom_brep::CurveSelector::Witness(witness),
+                ..
+            } => assert_eq!(
                 (witness.x, witness.y),
                 (1.0, 0.0),
                 "canonical strut 1 is the shallow corner's for d = {d}"

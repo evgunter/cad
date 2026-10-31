@@ -80,13 +80,31 @@ fn fixed_winding_aliased_arc_interval_refused() {
     // by the winding bound, by detection.
     let aliased = mk(FRAC_PI_2 + 8.0 * TAU);
     assert_eq!(
-        EdgeCurve::certify(aliased, p0, p1, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            aliased,
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Winding(WindingReading::Exceeded),
         }
     );
     // The correct interval still certifies.
-    EdgeCurve::certify(mk(FRAC_PI_2), p0, p1, |_| None, 1.0, band()).unwrap();
+    EdgeCurve::certify(
+        mk(FRAC_PI_2),
+        p0,
+        p1,
+        |_| None,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap();
 }
 
 /// FIXED (was `finding_winding_aliased_full_period_certifies`, same
@@ -117,7 +135,16 @@ fn fixed_winding_aliased_full_period_refused() {
         param_end: 9.0 * TAU,
     };
     assert_eq!(
-        EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            spec,
+            p,
+            p,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Winding(WindingReading::Exceeded),
         }
@@ -164,7 +191,18 @@ fn survives_wrong_carriers_are_rejected() {
         0.0,
         FRAC_PI_2,
     );
-    assert!(EdgeCurve::certify(wrong_radius, p0, p1, |_| None, 1.0, band()).is_err());
+    assert!(
+        EdgeCurve::certify(
+            wrong_radius,
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .is_err()
+    );
     // Wrong center, radius adjusted so both endpoints still lie on the
     // carrier: center on the perpendicular bisector of the chord.
     // Interior samples leave the described locus -> rejected.
@@ -180,7 +218,18 @@ fn survives_wrong_carriers_are_rejected() {
         // Angle subtended at the false center.
         2.0 * ((p0.distance(p1) / 2.0) / c.distance(p0)).asin(),
     );
-    assert!(EdgeCurve::certify(wrong_center, p0, p1, |_| None, 1.0, band()).is_err());
+    assert!(
+        EdgeCurve::certify(
+            wrong_center,
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .is_err()
+    );
     // A 1-turn (not 8k) extra winding IS caught by the interior samples.
     let one_turn = base(
         Curve3::Circle {
@@ -192,7 +241,18 @@ fn survives_wrong_carriers_are_rejected() {
         0.0,
         FRAC_PI_2 + TAU,
     );
-    assert!(EdgeCurve::certify(one_turn, p0, p1, |_| None, 1.0, band()).is_err());
+    assert!(
+        EdgeCurve::certify(
+            one_turn,
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .is_err()
+    );
     // Shifted line vs line description.
     let l0 = Point3::origin();
     let l1 = Point3::new(1.0, 0.0, 0.0);
@@ -201,7 +261,18 @@ fn survives_wrong_carriers_are_rejected() {
         origin: Point3::new(0.0, 100.0 * eps(), 0.0),
         dir: Vec3::unit_x(),
     };
-    assert!(EdgeCurve::certify(line, l0, l1, |_| None, 1.0, band()).is_err());
+    assert!(
+        EdgeCurve::certify(
+            line,
+            l0,
+            l1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .is_err()
+    );
     // Interval affinely misaligned with s ∈ [0,1]: same correct circle,
     // parameters shifted a quarter turn — endpoint pinning fires.
     let shifted = base(
@@ -215,7 +286,16 @@ fn survives_wrong_carriers_are_rejected() {
         PI,
     );
     assert!(matches!(
-        EdgeCurve::certify(shifted, p0, p1, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            shifted,
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::ResidualExceeded {
             check: CertCheck::EndpointStart,
             ..
@@ -250,7 +330,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: Point3::new(0.0, 1.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -261,7 +341,16 @@ fn survives_plane_cylinder_partial_rim_certifies() {
         param_start: 0.0,
         param_end: PI,
     };
-    EdgeCurve::certify(spec, p0, p1, &lookup, 1.0, band()).unwrap();
+    EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap();
 }
 
 /// FIXED (was `finding_intersection_arc_side_and_winding_unpinned`):
@@ -299,7 +388,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: Point3::new(0.0, 1.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -313,7 +402,16 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // The complementary (lower) arc: t runs 0 -> −pi — a decreasing
     // interval, refused by the forward gate (N1).
     assert!(matches!(
-        EdgeCurve::certify(mk(-PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            mk(-PI),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Negative { .. })),
         }
@@ -321,14 +419,32 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
     // refused by the winding bound (S1).
     assert_eq!(
-        EdgeCurve::certify(mk(3.0 * PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            mk(3.0 * PI),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Winding(WindingReading::Exceeded),
         }
     );
     // The honest upper arc (witness at its mid-parameter point (0,1,0))
     // still certifies.
-    EdgeCurve::certify(mk(PI), p0, p1, &lookup, 1.0, band()).unwrap();
+    EdgeCurve::certify(
+        mk(PI),
+        p0,
+        p1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap();
     // And a wrong-arc WITNESS on an otherwise-honest interval is caught
     // by the mid-parameter pin (S2): witness at the lower arc's
     // midpoint, interval traversing the upper arc.
@@ -338,9 +454,18 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     };
     wrong_side.description = EdgeDescriptionSpec::Intersection {
         pair,
-        witness: Point3::new(0.0, -1.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, -1.0, 0.0)),
     };
-    let refusal = EdgeCurve::certify(wrong_side, p0, p1, &lookup, 1.0, band()).unwrap_err();
+    let refusal = EdgeCurve::certify(
+        wrong_side,
+        p0,
+        p1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap_err();
     assert!(
         matches!(
             refusal,
@@ -362,7 +487,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
 /// transversality margin folded in the edge-chord extent, and a closed
 /// edge's chord is ZERO (margin 0 -> "definitely Smooth" ->
 /// NotTransverse). The fix (B2): the extent arm is now
-/// `geom_brep::edge_extent` — for circle carriers
+/// `geom_brep::edge_extent_inf` — for circle carriers
 /// `max(chord, r·(1 − cos(Δt/2)))`, which reaches the honest carrier
 /// diameter 2r at closure — so the 90° rim classifies Transverse and
 /// certifies. The witness sits at the carrier's mid-parameter point
@@ -387,7 +512,7 @@ fn fixed_full_period_rim_intersection_certifies() {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
             // The mid-parameter point of t: 0 → tau is carrier(pi).
-            witness: Point3::new(-1.0, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -398,7 +523,16 @@ fn fixed_full_period_rim_intersection_certifies() {
         param_start: 0.0,
         param_end: TAU,
     };
-    EdgeCurve::certify(spec, p, p, &lookup, 1.0, band()).unwrap();
+    EdgeCurve::certify(
+        spec,
+        p,
+        p,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap();
 }
 
 // =====================================================================
@@ -578,21 +712,21 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
             },
             carrier: carrier.clone(),
             param_start: 0.0,
             param_end: 1.0,
         };
         let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
-        EdgeCurve::certify_via(
+        EdgeCurve::certify(
             spec,
             start,
             end,
             |k| arena.get(k).cloned(),
             1.0,
             band(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         )
         .unwrap_err()
     };
@@ -705,7 +839,16 @@ fn fixed_reversed_interval_refused() {
         param_end: 0.0,
     };
     assert!(matches!(
-        EdgeCurve::certify(spec, p1, p0, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            spec,
+            p1,
+            p0,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Negative { .. })),
         }
@@ -740,7 +883,16 @@ fn fixed_zero_length_edge_refused() {
         param_end: 0.0,
     };
     assert_eq!(
-        EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            spec,
+            p,
+            p,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(
                 geom_brep::recourse::Classified {
@@ -759,12 +911,30 @@ fn fixed_zero_length_edge_refused() {
 fn survives_full_period_mapped_and_endpoint_pinning() {
     let p = Point3::new(-2.0, 0.5, 7.0);
     let spec = EdgeCurveSpec::self_loop_circle_at(p);
-    EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap();
+    EdgeCurve::certify(
+        spec,
+        p,
+        p,
+        |_| None,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .unwrap();
     // Same spec, but the edge's vertices sit elsewhere: pinning fires.
     let q = Point3::new(-2.0, 0.5, 8.0);
     let spec = EdgeCurveSpec::self_loop_circle_at(p);
     assert!(matches!(
-        EdgeCurve::certify(spec, q, q, |_| None, 1.0, band()).unwrap_err(),
+        EdgeCurve::certify(
+            spec,
+            q,
+            q,
+            |_| None,
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified()
+        )
+        .unwrap_err(),
         CertifyError::ResidualExceeded {
             check: CertCheck::EndpointStart,
             ..
@@ -914,6 +1084,7 @@ mod interval_lane {
             |_| None,
             geom_core::Real::from_f64(1.0),
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .unwrap();
         let r = c.certificate().max_residual;
@@ -953,8 +1124,16 @@ mod interval_lane {
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),
         };
-        let err = EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band())
-            .unwrap_err();
+        let err = EdgeCurve::certify(
+            spec,
+            p,
+            p,
+            |_| None,
+            geom_core::Real::from_f64(1.0),
+            band(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert_eq!(
             err,
             CertifyError::StatedInterval {
@@ -988,9 +1167,16 @@ mod interval_lane {
             Interval::from_f64(7.0),
         );
         let spec = EdgeCurveSpec::self_loop_circle_at(p);
-        let curve =
-            EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band())
-                .unwrap();
+        let curve = EdgeCurve::certify(
+            spec,
+            p,
+            p,
+            |_| None,
+            geom_core::Real::from_f64(1.0),
+            band(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .unwrap();
         let r = curve.certificate().max_residual;
         assert!(r.hi().is_finite(), "clean certificate, no poison: {r:?}");
     }

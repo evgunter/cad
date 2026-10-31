@@ -60,3 +60,17 @@ or run `topo` at `--all-features` in one nightly row, which takes the
 probe-gated lib rows above with it. A nightly row, not per-PR: the
 scalpel is a localisation tool, and the per-PR gate is sized for
 latency (`work/ciw/latency-cut.md`).
+
+## Partly answered (2026-10-28, GREEN)
+
+`nightly.yml` now has a `suite under --all-features (default eps)` job
+(GREEN, closing `tests-red-under-all-features-never-run-by-ci`). It runs
+every workspace feature at once, but holds `topo/per-op-postcondition` out,
+along with every feature that forwards to it (`pncad/per-op-postcondition`),
+through its `HELD_OUT_FEATURES` env. The reason is the twenty-one sweep rows
+`work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md`
+holds. Two topo rows that read the default build are now `cfg_attr`-ignored
+under the scalpel
+(`work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel.md`).
+What this row still owes is to bring the scalpel into that job, by
+emptying `HELD_OUT_FEATURES`, once the mfkrh item closes.

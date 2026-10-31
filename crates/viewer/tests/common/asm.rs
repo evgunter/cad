@@ -19,6 +19,7 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
+use pncad::document::Dimension;
 use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -33,7 +34,7 @@ use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-use super::{ang, insert_into, len};
+use super::{insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -325,7 +326,7 @@ pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::docume
             Coord::Slide(TargetAxis::Y),
             len(shelf_at[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0),
         ),
-        (Coord::SPIN, ang(0.0)),
+        (Coord::SPIN, Formula::zero(Dimension::Angle)),
     ]
 }
 

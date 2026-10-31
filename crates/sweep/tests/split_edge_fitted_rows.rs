@@ -27,7 +27,9 @@ use geom_core::{Point2, Point3, Real, Tol, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{AtRestPolicy, Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, Pcurve, SurfaceKey};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{AtRestPolicy, Body, EdgeKey, FaceKey, HalfEdgeKey, Pcurve, SurfaceKey};
 
 /// `m8_4_intersection_iso`'s `INTERIOR_COLUMN_SCALE`: small enough that
 /// the seam's certified sup fits inside every ε the matrix draws.
@@ -121,7 +123,9 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval((t0 + t1) * T::from_f64(0.5)),
+                selector: geom_brep::CurveSelector::Witness(
+                    carrier.eval((t0 + t1) * T::from_f64(0.5)),
+                ),
             },
             carrier,
             param_start: t0,

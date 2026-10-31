@@ -15,6 +15,7 @@ use geom_brep::{
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
+use topo::construction::Construct;
 use topo::{Body, DihedralReading, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
@@ -91,7 +92,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 edge,
                 EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s1, s2),
-                    witness: data.witness,
+                    selector: geom_brep::CurveSelector::Witness(data.witness),
                 },
                 tol,
             )?;

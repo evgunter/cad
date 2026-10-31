@@ -42,6 +42,7 @@ fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, R
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -76,6 +77,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
             }),
         ])],
         ids: Vec::new(),
+        on: None,
     });
     doc.apply(
         &DocEdit::InsertNode {

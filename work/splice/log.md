@@ -669,3 +669,415 @@ concurrent pair.
   rather than copying it.
 - The brief binds the crease class on both curve and surface, the
   sheet-exact placement, ε-scaled rows, and the full slow sets.
+
+## 2026-10-27 — PR 5855 (the spline × spline arm) merges; lily moves
+
+Letter H, concurrent pair, frozen at `015e27412e`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR. Both re-derived the new end bound
+(`krawczyk::solution_reach`) and found it sound, and every swallow probe
+was reported or refused at three ε.
+- Bilateral: the end-box gates had no red row, and an end on a span
+  crease refused needlessly.
+- The fix pass is `4742bb0286`. Every gate mutant now reds a per-PR
+  row. An end on a crease is the end's. `SpanCarrier` pairs a curve
+  with its sheet.
+
+**Lily wall 8 moves past every face reduction.** It now stops at the
+result's seam re-description: `classify_dihedral` reads no spline, on
+the shared rim between two NURBS walls. That is filed as
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`,
+and it is next on lily's path. Klein and teapot are unmoved.
+
+## 2026-10-27 — the spline seam reading dispatched
+
+`splice/spline-seam-dihedral` (`session_01EdpJs76R3BtUnnQPDh3NwV`) takes
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`. It
+is re-banded P1 → P0, as lily wall 8's next stop.
+- Letter M; draw byte 36, and 36 mod 3 = 0, so a holdout: a concurrent
+  pair.
+- The brief: each face's normal is read at the edge's pcurve parameter
+  on that face (sheet-exact, as PR 5802's sector walk), not at a foot.
+  It reuses `dihedral_side`'s regularity and crease guards. The arm is
+  read from certified curvature bounds.
+
+## 2026-10-27 — Ev ratifies C5's ladder of evidence (PR 5860)
+
+Ev asked for C5's curve × face clause to be made general rather than
+given a `twin_edge` exception. PR 5860 rewrites it as one ladder, each
+rung reading only what the rungs before it left undecided:
+1. topology, by incidence, under the boolean's validity precondition,
+   which it names as assumed;
+2. the span's ends;
+3. the face's boundary edges;
+4. the face's interior.
+
+Ev approved it ("5860 looks good!"). Only the wording changed.
+
+## 2026-10-28 — PR 5868 (the spline seam reading) merges; lily's rim reads Transverse
+
+Letter M; draw byte 36, a holdout, so a concurrent pair, frozen at
+`06e486b9af`. Both reviewers found the same MAJOR, so nothing is tallied
+and nothing is missed (row `PR-5868`). The MAJOR: the arm `1/κ̄` over
+the whole chart is the loose direction (`implicit.rs:309-314`), and a
+wall flat near the seam with a far bend read a true corner Smooth.
+- Fix pass 1 made the arm a region-local fixed point, `chart_arm`.
+- A single re-review at `abf40f1d12` found the class still open.
+  `chart_arm` is a certified lower bound with unbounded slack: a flat
+  wall at uneven speed reads arm 0.00375 against 1.0, and a refused cell
+  near an apex shrinks it to its distance.
+- Fix pass 2 (`833da0303c`) brackets the decision. The wedge is read at
+  hi, the spline arm taken as the reach. Transverse also needs
+  `sin θ · lo` decided, and anything else escalates at the arm. So a
+  lower bound's slack costs an escalation, never a class. The
+  orchestrator re-ran the seam rows at three ε, and the "wedge at lo"
+  mutation reds both ported counterexamples.
+
+**Lily wall 8:** the rim reads Transverse, decided at lo. She stops at
+the rim's certification, whose cause moves with ε:
+- at 1e-9 and 1e-12, `PlaneNurbs Limb ImageMiss`;
+- at 1e-6, `PlaneNurbsHullValue` (the sweep row) or the pair's
+  transversality (the tour).
+That is SSIEDGE's `plane-nurbs-certificate-bound-does-not-refine-with-eps`,
+and it is lily's next stop.
+
+Filed by the lane:
+- `the-chart-curvature-bound-over-reads-a-flat-chart-at-uneven-speed`
+- `the-seams-chart-arm-builds-every-cell-of-the-chart-per-read`
+- `a-smooth-seam-between-spline-walls-has-no-second-order-reading`
+- `the-shared-rim-routing-exempts-a-spline-face-by-kind`
+- `a-seam-on-a-creased-spline-chart-reads-no-arm`
+
+**The at-rest main red.** During the fix passes, demo-tour's chain
+gallery read 10 at-rest findings against its pin of 196. That was
+PR 5853's change: its CI skipped demos, and main's push CI runs none.
+The orchestrator reproduced it on main at `2d0d7307`, and the lane filed
+it as `atrest/main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853`.
+Main re-pinned the chain at `0f4502051b`, so the row is ATREST's to
+close.
+
+**Outside SPLICE's ground:** the lane added a new curve-pair
+touch-window fuzz seed (`0xdcf91059414eafd4`) to CPAIR's open row
+`a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12`. It
+turned up in the lane's slow sets.
+
+## 2026-10-28 — the rim's exact image dispatched
+
+Lily wall 8's next stop is the rim's certification. `nurbs_pair_limbs`
+reads each chart's degree-1 image fitted through feet, though the rim is
+an exact `IsoArc` row of each wall. Filed as
+`a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one`
+(P0, lily's blocker), and dispatched on `splice/rim-exact-image`.
+- The precedent is `plane_nurbs_incidence`'s `exact_arc_rim` arm, so
+  this is the same arm on the NURBS-pair lane, not a design fork.
+- SSIEDGE's fixed-schedule design row stays open for edges with no
+  exact image.
+- The ground is shared with `isotail`, `select` (edge_nurbs.rs,
+  certify.rs), `ssiedge`/`ssiarith`/`ssimarch` (ssi/certify.rs) and
+  `pcert`/`pctail` (pcurve_cache.rs). All of them are ready with no live
+  lane, so the seam is announced on the PR.
+- Letter H (a certificate's soundness), so a concurrent pair.
+- The brief binds the full slow sets of geom-brep, topo and sweep, plus
+  demo-tour's three ε rows, which CI does not run (lesson from PR 5868).
+
+## 2026-10-28 — PR 5907 (the rim's exact image) merges; lily reaches limb 3
+
+Letter H, a concurrent pair frozen at `c40a01aa44`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR, so nothing is tallied (row `PR-5907`).
+Both re-derived the mixed certificate's containment and found it sound,
+and both found that the fallback launders nothing.
+
+The reviewers disagreed on a fact: does a rim interior to both charts
+certify at limb 3? The lane settled it by measurement. Limb 3's
+`TubeNotOneArc{Undecided}` is decided by where the carrier lies against
+the domain-cut box, in two shapes:
+1. an arc along a chart's boundary row;
+2. a carrier ending on both charts' domain sides.
+Span, ε and the sub-arc count only decide whether the carrier reaches
+limb 3 at all.
+
+**Lily wall 8:** limbs 1–2 now pass on the exact images, so she reaches
+limb 3. She has both shapes, and shape 2 (her end on a corner of both
+charts) fires first.
+- Shape 1 is `ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`,
+  re-derived in this PR.
+- Shape 2 overlaps `nurbs/a-pair-walk-end-at-a-domain-corner-refuses-undecided`,
+  a P4 that says it has no consumer. Lily is one.
+- Both stand between lily and limb 3. The routing is the orchestrator's
+  next step.
+
+Filed by the lane:
+- `ssiedge/a-tube-whose-graph-margin-straddles-zero-refuses-as-a-decided-zero`
+  (P1): undecided is read as decided. This is lily's tour stop at default ε.
+- `splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band` (P1).
+- `issues/main-red-two-tori-subtract-refuses-on-tangent-carriers-not-on-no-section-classification`.
+  SECT bisected it to its own PR 5869 (not 5886) and is fixing it on
+  `sect/two-tori-subtract-red`. Its PR moves the row into `work/sect/`.
+
+The lane also gave both lanes one `ArcRimRefusal`, behind one mapping
+door. The orchestrator re-ran the arc-rim, any-carrier and on-pair rows
+at three ε, and the exact-never-used mutation reds 5 of 6 rows.
+
+## 2026-10-28 — limb 3's two shapes claimed; a design fork weighed
+
+Lily's next stop is limb 3's one-arc walk (PR 5907's log entry). Its
+two rows move into SPLICE:
+- `ssiedge/…a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  (P0). SSIEDGE is ready with no live lane.
+- `nurbs/…a-pair-walk-end-at-a-domain-corner-refuses-undecided`. It is
+  re-banded P4 → P0, because a blocker inherits the band of what waits
+  on it, and lily is the consumer the row said did not exist.
+
+These are moves with no design implication (CLAUDE.md), so they are
+done and logged.
+
+How to read a solution set that runs along a cut box's face, or ends
+on two faces at once, is a design fork. Candidates include a box
+search over the charts' extension, an edge reading, or the topology
+the operands already state. One Opus and one Fable designer weigh it
+under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
+`analysis/design-fork/limb-three-boundary`. No lane is dispatched
+until they are reconciled.
+
+## 2026-10-28 — PR 5938 (the tube's side tripwire) merges
+
+A single FULL review: APPROVE-WITH-FIXES, with no MAJOR (row `PR-5938`).
+The two-chart tube now names its `Undecided` as `AlongSide` or
+`EndOnSides`, as a rename of a failed walk only. The reviewer's probes
+up to ε/4 inside the row never reached an `Ok`. The single-chart twin
+stays `Undecided`: past PR 4012's side arm, its in-band readings are
+indeterminate.
+
+Lily's sweep row pins `TubeNotOneArc { AlongSide }`. The structural
+rim (PR 5959, in flight) is what moves her past it. With limb 3 stubbed
+she stops at the interior-loop guard, and the first pair it refuses is
+Plane × NURBS (GERMTAIL's `nurbs-plane-section-has-no-component-arm`,
+P3), before the NURBS × NURBS arm
+(`no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`,
+P1, filed here). Both are routed once the structural rim lands.
+## 2026-10-28 — limb 3's fork reconciled; to Ev
+
+Three rounds. The designers converged:
+- lily's rim is a structural selector under D2 (PR 5216), owing no
+  limb 3;
+- the boolean's `describe_edges` must recover the selector, not map
+  `Transverse` to a witness;
+- a carrier along a domain side refuses by name.
+
+The ratified-text change goes to Ev as an `[ev]` PR. C1/C2's limb-3
+wording (PR 5652, 2026-10-25) is later than D2's ruling (PR 5216,
+2026-10-16), so the two conflict in letter. Both designers recommend
+that C2 open on a witness-selected carrier.
+
+The near-rim exclusion belongs to the boolean's interior-loop guard. It
+has no NURBS×NURBS arm and refuses spline pairs. SPLICE files that row.
+
+SELECT owns the selector type (unit 1) and import's recovery (unit 6).
+The boolean-recovery unit is in no program's list yet. SPLICE takes it
+once Ev rules, and asks SELECT's blessing on the PR.
+
+## 2026-10-28 — Ev approves the limb-3 re-wording (PR 5933)
+
+Ev: "nice catch, sounds good!". C2 now opens on a witness-selected
+carrier, and a structural selector is certified per surface, owing no
+limb 3. Fork-log row 208 is completed: B's first recommendation, as
+converged. Next is the boundary-row recovery in the boolean's
+`describe_edges` and the split's `finish`, which SPLICE takes.
+
+## 2026-10-28 — lily's next stop filed on SELECT; the tori red closes
+
+`select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+is filed at P0. It needs SELECT's unit 1, the selector type, and SELECT
+has nothing dispatched. Ev was asked whether to start a SELECT
+orchestrator or have SPLICE take the units. SECT fixed the tori main
+red in PR 5925, so its issue file is closed.
+
+## 2026-10-28 — SPLICE takes the structural selector's lily slice
+
+Ev declined a SELECT orchestrator, since SELECT has one P0 and no P1:
+"you can take it yourself if you like".
+- `select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+  moves to SPLICE (P0).
+- SPLICE builds the slice of SELECT's unit 1 (the selector type, with
+  per-surface certification) that it needs: the boundary-row structural
+  selector and the boolean's recovery.
+- SELECT's umbrella row
+  (`onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`) and its
+  other units stay SELECT's.
+
+Dispatched on `splice/structural-rim`. Letter H (a type every two-surface
+edge reads), so a concurrent pair.
+## 2026-10-28 — SPLICE splits along its seams
+
+The load was 91/30. Ev asked whether to split the track, keeping in
+SPLICE the threads its orchestrator should continue. It split four ways,
+by mechanism, with the rows moved by `git mv`, ids kept and a dated
+Moved note on each:
+- **SPLICE** (20/30 plus the structural-rim row in flight): lily wall
+  8's path. The limb-3 rows, lily at 1e-6, the census main red.
+- **SPLICECARRIER** (20/30, 5 rows): a NURBS carrier has no parameter
+  inverse. The join, the split parameter (teapot wall 3), the two flush
+  readings, the touch floor.
+- **SPLICEFACE** (26/30, 10 rows): a spline face read on its own sheet.
+  End placement, a foot no one placed, closed seams and poles, creases
+  (klein wall 3's G1 joint), the curved-face dispatch, the zero-speed
+  projection, the held pierce.
+- **SPLICESEAM** (25/30, 13 rows): the seam reader's residue after PR
+  5868, and the doors that still read a spline by kind.
+The three new tracks are `ready`, with no orchestrator.
+
+## 2026-10-29 — two main reds filed on their owners (the face_normal fold census)
+
+PR 5959's lane found topo's slow-set row
+`face_normal::tests::no_source_file_folds_the_bit_by_hand` red on
+main, and the orchestrator reproduced it there. It has six hand folds
+of a face's sense bit, from two sources. Filed on their owners:
+`tess/main-red-trimmed-rs-folds-the-face-sense-by-hand` (PR 5920) and
+`clear/main-red-injective-rs-folds-the-face-sense-by-hand` (PR 5955).
+
+## 2026-10-29 — PR 5959 merges: the structural rim; lily stops at a tangent rim
+
+PR 5959 adds D2's selector to `Intersection`, with one structural form,
+a shared row, certified per wall with no limb 3. The boolean recovers
+it for a rim that is a domain-side row of two spline walls. It had a
+concurrent review pair (letter H), three fix passes and two single
+re-reviews; the row is `docs/dual-review-log/rows/PR-5959.md`.
+- **Pair, bilateral MAJOR:** the walls' crossing was read at the 7
+  CERT feet only, so walls tangent between feet certified.
+- **Re-review 1, MAJOR:** the whole-row cover's 1-ulp nudge skipped a
+  tangency on a chart far from 0.
+- **Re-review 2:** APPROVE-WITH-FIXES.
+
+The whole-row bound found lily's walls tangent at two points of one
+rim (u ≈ 0.3024 and 0.6977), confirmed independently by sampling the
+walls' derivatives. Lily wall 8 now refuses at the rim at every ε and
+never reaches the interior-loop guard. The guard's spline arms went to
+a design fork. Its `[ev]` PR 5990 also asks Ev what SPLICE's witness
+becomes.
+
+Filed: `doors-carrying-a-shared-row-have-no-row-at-rest` (P2) and
+`no-row-certifies-a-shared-row-at-interval` (P3).
+
+## 2026-10-29 — PR 6040 merges: the two geom-core census reds
+
+Review tier: a single FULL review, because the unit fixed soundness
+reads. The review (frozen at 889bc2da) was APPROVE-WITH-FIXES with no
+MAJOR.
+- Five reads are fixed: `spline_face` `Path::at`/`tangent`,
+  `offset_meters::cell_distance`, `limb2_offset_sup`,
+  `blossom::whole_bezier_span` and `enclose::first_order_continuous_in`.
+  Each fixed read has a row that reds when its fix is reverted.
+- `four::along_side` now asks `is_certified`. The reviewer showed its
+  "renames only" disposition was untrue: it could move an `Undecided`
+  refusal to `AlongSide`.
+- `chart_arm` refuses a non-finite `p`. A NaN `p` used to answer
+  `Some(reach)`.
+- One plant for a refused point bracket,
+  `geom_core::test_support::refused_point`.
+- `clearance.rs` and `injective.rs` are pinned at main's counts. Their
+  unsound reads are filed on CLEAR, each with its line:
+  `clear/clearance-lifts-trv-brackets-and-reads-their-ends` (P1).
+
+I read the fix pass myself, with no re-review.
+## 2026-10-29 — PR 5990 merges: the guard's spline arms, and `[one-way.readings]` re-phrased
+
+Ev approved the design for the interior-loop guard's spline arms, and
+ratified the W5 stage after a probe settled the factual crux.
+`[one-way.readings]` is re-phrased so that stages always run together
+may jointly prove one rule (fork row 217). Ev also approved re-spelling
+lily's leaf as one loft, with a stem graft as the new wall 8, now in
+flight.
+- Filed `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` (P1),
+  to be built after PR 6026.
+- Re-banded P0 → P3: `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  and `a-pair-walk-end-at-a-domain-corner-refuses-undecided`. Neither
+  has a consumer.
+
+## 2026-10-29 — PR 6042 merges: lily's leaf is one loft, and wall 8 is the leaf grafted onto the stem
+
+Ev approved this change on PR 5990, question 3. Review tier: a single
+STYLE review (a scene change, re-baselines and tracker re-points),
+APPROVE-WITH-FIXES. I read the fix pass myself.
+- The long leaf is one loft. It is authored from a root on the lower
+  stem's axis: the sheath curls out of the stem, and the blade arches
+  over from where the sheath ends.
+- Wall 8 unions the stem and the leaf as they are authored, and they
+  cross transversally. It refuses `EdgeCarrierUnsupported
+  { CurvedCrossing }` (a leaf NURBS seam against the stem's torus) at
+  1e-9 and 1e-6. At 1e-12 the stem's frontier stands it down.
+- SPLICE claims lily's next stop from SPLICEFACE:
+  `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`.
+  Behind it is the NURBS × torus section, filed on SECTARMS.
+- The old two-loft graft stays as the sweep row's witness that a rim
+  tangent at two points refuses.
+- The two SPLICECARRIER flush rows go back from P1 to P3: no live
+  consumer remains.
+
+## 2026-10-30 — the curved lane reads a spline span (branch `splice/spline-span-curved-crossing`)
+
+- Closed `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`.
+  The curved lane now dispatches a spline span to the ring composite
+  against a cylinder, cone, sphere or torus. Two of the three owed
+  items are built: the chart frame is formed in certification
+  arithmetic, and an unsettled count goes through
+  `carrier_touch::off_face` on both lanes, which now reads a plane. The
+  third, the divisor's region, rests on a gradient premise that does
+  not hold, because the divisor is a factor of the form at each point.
+  A row now pins that.
+- Lily wall 8 re-pinned at 1e-9 and 1e-6 on `CurvedBooleanUnsupported
+  { operand: B, kind: Nurbs }` from the vertex-on-face pass. Filed
+  `a-vertex-piercing-a-spline-face-reads-no-outward-normal` (P1).
+- 2026-10-31 — (SECTARMS orchestrator) **Coupling note.** `[ev]` PR 6121 (SECTARMS's P0) proposes one section arm for a NURBS face against any implicit surface, `φ = f∘S` over the knot rectangle. It generalises the `(Plane, Nurbs)` arm PR 6026 is adding to `pair_section`, and it proposes building `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` as the plane instance of one pre-march regularity sweep, keeping the ratified home and order (fork row 223). Nothing is asked of 6026. If Ev approves, the W5 row's shape may move: please read 6121 before building W5.
+- 2026-10-31 — (SECTARMS orchestrator) **Coupling note on PR 6026.** SECTARMS's cylinder × cylinder unit (branch `sectarms/cylinder-pair-on-the-value`, stage 1) lands the component-with-ends type the approved designs share (forks 224 and 226): `ComponentShape::Open { ends }` carrying the rims reached per operand (`[ChartReach; 2]`, your shape), a cut end and node ids. It is meant to subsume 6026's `Open { reaches }`, so 6026's three construction sites and its W1′ reader become one-line rewrites. The unit also adds a region to `pair_section`'s inputs, where 6026 adds a march door (`pair_section_with`). One combined door struct would avoid two signature changes. Is that agreeable? If SPLICE prefers to land 6026 first, say so on SECTARMS's log and the unit will adopt 6026's shape instead.
+- 2026-10-31 — **Seam (CARVE):** `a-span-ending-on-a-faces-rim-has-no-sector-clearance` is open again: its trigger, `a-half-turn-spine-sweeps-only-off-its-exact-tangents`, closed with PR 6138. The klein loop now sweeps its exact spine with no cap tilt, so re-measure its line's end against the rim. (CARVE orchestrator)
+- 2026-10-31 — **The curved lane reads a spline span through the ring composite** (PR 6136, closing `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`). Review tier: single FULL. The span against a cylinder, cone, sphere or torus face was correctness-bearing: the divisor's lean, the far nappe, covers.
+  - **Review** (frozen at `f6058492`): APPROVE-WITH-FIXES, no MAJOR. Owed item (c), the divisor as a pointwise factor, holds on all four kinds. The reviewer's three rows are on `splice/review-6136` @ `3737cea9`, merged into the branch.
+  - **Adjudicated: fixed.**
+    - Three guarantees no row could red: the meter's direction, the covered touch deferred, an end on the unadmitted side.
+    - The `projected.rs` divisor docs, which stated the inequality backwards: now |f| ≤ d·divisor.
+    - Degenerate geometry (`CompositeRefusal::FaceDegenerate`), typed `InvalidInput`, not a kernel invariant.
+    - The tightened lily pin, traced at both ε.
+    - The stale parity-guard note and the vestigial binding.
+  - **Class: two copies of one policy had drifted** (Q1, sure). The nappe and trim policy now has one home (`place_crossing`): below the own nappe is `Unplaced`, the gap is `NappeGap` escalated located. The spline copy had sent the gap to the frontier. The composite refusal's typing also has one home (`composite_count`, `Counted`).
+  - **The lane's calls, taken:** `Counted` as an enum; `off_face`'s reach as `Reach { Bounded, Unbounded }`; the bounds-allowlist claim verified (10 → 11).
+  - **Filed:** `the-cone-nappe-gap-arm-has-no-reaching-row` (P3). Its arm has no reaching fixture: the root doors and the composite refuse first.
+  - **Weights** are positive by construction (`NurbsCurve3::new`), as the hull argument needs.
+  - **Lily wall 8's next stop:** `vtxfac::classify_vertex_on_face` (`a-vertex-piercing-a-spline-face-reads-no-outward-normal`, P1). It is being built on `splice/vertex-on-spline-face`, with the normal read at the sweep's own certified chart point. Its second-sheet question was ruled the placement read's gap and filed separately; no partial check is built.
+
+## 2026-10-31 — PR 6026 merges: the interior-loop guard reads a NURBS face against a plane
+
+Review tier: a concurrent pair (letter H: a new arm of the interior-loop
+guard), then one re-review. I read the final pass myself. The review-log
+row is `docs/dual-review-log/rows/PR-6026.md`.
+- **W1′ (a component reaching its chart's boundary clears)** is now
+  checked per face. A side clears only if its channel does not close and
+  it is not collapsed (`chart_side_bounds`). R1 had raised it as a MAJOR
+  by inspection; it is now closed.
+- **The witness's pad** is a certified bracket on the wall, inside the
+  branch's own tube window. It scales with ε and is tight (1–1.25× the
+  true distance).
+- **The pivot's f64 shift** is charged to the band.
+- **The demo-tour reds** at 1e-6 (chaintol) and 1e-12 (the stem's torus
+  KernelLimit) are identical at base and head, so they are not this PR's.
+
+Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
+SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
+general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
+6026's shapes.
+- 2026-10-31 — **A vertex piercing a spline face reads the face's outward normal** (PR 6152, closing `a-vertex-piercing-a-spline-face-reads-no-outward-normal`). Review tier: single FULL (the face sense, creases and sheets were at stake).
+  - **Fork on the second sheet, ruled by the orchestrator** (no ratified text moves). The normal is read at the chart point the sweep itself certified: `ChartMeeting.uv`, or `spline_region::read`'s In point, carried in `ContactAcc::charts`. It is never a projection foot.
+    - A second in-trim foot within the band is the placement read's own gap: `spline_region::read` returns the first foot it finds. It is filed as `spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot` (P3, H), and cited at the site.
+    - Rejected: a partial check here, which would be a second, weaker predicate for the same fact (`[one-way.readings]`), and an embedding-beyond-band ruling nobody asked for.
+  - **Review** (frozen at `f2681f2c`): APPROVE-WITH-FIXES. The door, the gate, the sense path and the lever are sound.
+  - **MAJOR, coverage:** no kernel row read the sweep's carriage of the chart point. One source was read by nothing at all, and lily wall 8, the only guard, runs nightly only. Fixed: one kernel row per source, each red when its source drops the chart.
+  - **Class: a demo-only guard on a per-PR-gated change is no per-PR guard.** The same shape again: demo pins loose enough that a stop moves unseen (this PR's S11, 6136's lily pin, 6157's klein pin).
+  - **Fixed:**
+    - The lever's refusal near a crease is now its own `PierceLeverUnread { cause }`. The patch bound's over-refusal of an integral chart with any crease is filed as `encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere` (P3).
+    - **Class:** `face_normal.rs` was exempt from the hand-fold lint, so every door added there went unguarded. The exemption is narrowed to its tests.
+    - The door names a stale face, a non-spline carrier and a placeholder chart, rather than one `Ok(None)`.
+    - The crease reading is kept.
+    - There is one chart-point normal door, `geom_brep::chart_point_normal`, which `dihedral_side` now reads too.
+    - There is one placement door.
+    - The Approx text now says what is true.
+  - **The lane's calls, taken:** S6 (newtype) and S7 (comparing two uvs) were not done; S7 would be the forbidden weaker predicate.
+  - **Lily wall 8's next stop:** `Euler(PcurveMint { face 3v1, SplineChart })` at 1e-9 and 1e-6, `vtxfac::ring_vertex_in`. It is filed as `a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex` (P1, M).
+  - **Main reds** found on the way: six editor-core interval rows, hidden by the nightly's cancelled full suite. Filed on GREEN (PR 6156).

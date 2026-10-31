@@ -9,7 +9,7 @@
 //! Two doors leave struts and delete them here:
 //!
 //! - the coplanar merge, whose absorption leaves the dangling legs of a
-//!   seam on its survivor (`Body::merge_coplanar_faces_declared`);
+//!   seam on its survivor (`Body::merge_coplanar_faces`);
 //! - the Boolean, whose zip glues a slit's face to itself where the
 //!   result keeps that face on both sides of the slit's line
 //!   (`boolean::slit::close_struts`).
@@ -60,7 +60,9 @@ pub(crate) enum StrutRefusal {
 
 impl<T: crate::props::AtRestPolicy> Body<T> {
     /// **Does `toward` dangle alone at its start vertex**: is that vertex
-    /// the free end of a strut?
+    /// the free end of a strut? The orbit of one is the vertex
+    /// [`crate::surface_boundary::tips`] reads off a loop; a wrap edge's
+    /// such end is a wrap tip, any other a construction spur's.
     ///
     /// # Panics
     ///
@@ -185,7 +187,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                  it reduces an outline to one"
             ),
         };
-        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        let bridge = self.mekr_chord(
+            crate::construction::MekrSite::EmptyRing { target, ring },
+            tol,
+        )?;
         self.kev(bridge.he_plus)?;
         Ok(())
     }

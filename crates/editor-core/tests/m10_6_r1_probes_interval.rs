@@ -10,32 +10,33 @@
 //! undone. Rows marked EVIDENCE-ONLY print and assert only the shape
 //! (they are not gates).
 //!
-//! What changed under them, for a reader who has the review beside
-//! this file: the enclosure's two ends are now typed about different
-//! sets (`measure::Certified`), so the two assertion arms that would
-//! read the carrier's end refuse `Unevaluated { WindowSuperset }`
-//! instead of answering. Rows 1 and 3-4 below therefore pass by
-//! REFUSING rather than by bracketing — which is the whole content of
-//! the fix, and row 2 keeps the looseness itself visible.
-//!
 //! What the rows attack, in order:
 //!
 //! 1. `min_clearance`'s enclosure over TRIMMED faces: the engine
 //!    subdivides carrier WINDOWS (bounding rectangles), so a non-convex
-//!    face's window covers material the face does not have. The
-//!    `MinSeparation` docs claim a containment-true enclosure "so an
-//!    `AtMost` assertion is sound"; the L-shaped cap below shows the
-//!    bracket EXCLUDING the true separation and an `AtLeast` assertion
-//!    over it reading a certified `Violated` on a pair that holds.
+//!    face's window covers material the face does not have. On the
+//!    L-shaped cap below a window pair straight across the notch belongs
+//!    to neither face; the bracket must still contain the faces' own
+//!    separation, and neither assertion arm may read a verdict the faces
+//!    contradict.
 //! 2. The unary elaboration (D8): `min_clearance(body, body)` on one
-//!    body is the selection's self-clearance.
+//!    body. It was the selection's self-clearance over the pairs the
+//!    wedge rule kept; a clearance is metric now (E7, *Self-intersection
+//!    scope*), so the body meets itself and reads exactly 0, named on
+//!    the shared cell.
 //! 3. `drive::certifying_vector` moves the witness-vector key of every
 //!    assertion-carrying document (claim 1's "bit-identical keys" for
 //!    documents without `min_clearance`).
 //! 4. `report_key` omits the drive/MC config, so two different reports
 //!    over one (slice, box, ε, K) tuple share a key.
 //! 5. Row 1's three reds, as rows: a planted `Violated`, a planted
-//!    engine refusal (priced as refused mass), a budget overrun.
+//!    engine refusal, a budget overrun. The planted refusal was a wall
+//!    against itself (`NoAdmittedPair`), which SELFX retired: that wall
+//!    reads 0 now and its `AtLeast` bound is violated. The pricing that row carried — an engine refusal no smaller
+//!    box can change is refused mass under its own class — is pinned
+//!    with the refusals the engine still raises, beside the classifier
+//!    (`editor-core/src/drive.rs`,
+//!    `a_box_independent_clearance_refusal_is_terminal_refused_mass`).
 //! 6. The mixed priced/forced case and a band axis that splits.
 //! 7. A caption check: an enclosure that STRADDLES the bound is
 //!    `Unevaluated` at the node while `worst_case.lo < bound` — the
@@ -50,35 +51,24 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{
-    ClearanceQuery, MinSepSelection, MinSeparationConfig, Selection, clearance_over, min_separation,
-};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
+use editor_core::clearance::{ClearanceQuery, Selection, clearance_over};
+use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason, UnitSym, ValuePayload,
-    VarName, evaluate,
+    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
+use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
 
-/// The clearance engine has no lane at the symbolic identity tier
-/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
-/// document asks for the numeric-only replay BY NAME. It is a disclosed
-/// limitation of the tier, not a property of these fixtures: with the
-/// tier on the driver refuses this document up front rather than
-/// certifying leaves whose clearance measure was never computed.
-fn numeric_lane() -> DriveConfig {
-    DriveConfig {
-        symbolic: SymbolicDials::off(),
-        ..DriveConfig::default()
-    }
+/// The evaluation's own band, which the engine decides its cells at.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness tolerance has a band")
 }
 
 fn name(n: &'static str) -> VarName {
@@ -98,6 +88,24 @@ fn eval_over<T: editor_core::EvalScalar>(
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+}
+
+/// The assertion's verdict over a certified leaf, replayed on the lane
+/// the drive certified it on ([`editor_core::drive::assertion_at`]).
+fn on_lane(
+    doc: &ProfileDoc,
+    verdict: &editor_core::drive::ParamBoxVerdict,
+    leaf: &editor_core::drive::CertifiedLeaf,
+    assertion: RecipeNodeId,
+) -> AssertionVerdict<geom_core::Interval> {
+    editor_core::drive::assertion_at(
+        doc,
+        assertion,
+        &leaf.box_,
+        verdict.symbolic(),
+        Tol::witness(),
+    )
+    .expect("an assertion node has a verdict over a certified leaf")
 }
 
 fn assertion_verdict<T: geom_core::Decide>(
@@ -133,6 +141,7 @@ fn prism(r: &mut Recorder, corners: &[(f64, f64)], height: f64) -> RecipeNodeId 
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: profile.into(),
@@ -149,13 +158,32 @@ const LIFT: f64 = 0.1;
 const OFFSET: f64 = 0.25;
 
 /// An L-shaped prism (notch at `x, y ∈ [1, 2]`) and a small block parked
-/// over the notch at height `LIFT`. Returns the L's top cap and the
-/// block's bottom cap as measure references, and the measure/assertion
-/// nodes for `min_clearance(cap, underside) ≥ bound`.
+/// over the notch at height `LIFT`, with `min_clearance` between the L's
+/// top cap and the block's underside asserted against `bound`.
 fn notch(
     bound: f64,
     relation: AssertionRelation,
 ) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+    let n = notch_nodes(bound, relation);
+    (n.doc, n.measure, n.assertion)
+}
+
+/// [`notch`]'s nodes, named.
+struct Notch {
+    doc: ProfileDoc,
+    measure: editor_core::VarId,
+    /// The measure node.
+    measure_node: RecipeNodeId,
+    assertion: RecipeNodeId,
+    /// The L, which mints and holds its cap.
+    ell: RecipeNodeId,
+    /// The block, which mints its underside's name.
+    block: RecipeNodeId,
+    /// The block placed over the notch, where the underside is read.
+    block_at: RecipeNodeId,
+}
+
+fn notch_nodes(bound: f64, relation: AssertionRelation) -> Notch {
     let mut r = Recorder::new();
     let ell = prism(
         &mut r,
@@ -180,21 +208,28 @@ fn notch(
         block,
         &editor_core::Frame::translation([0.0, 0.0, 1.0 + LIFT]),
     );
-    let measure = r
-        .measure(
-            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-            &[
-                crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
-            ],
-        )
-        .outputs[0];
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+        ],
+    );
+    let (measure, measure_node) = (measured.outputs[0], measured.measures[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
         relation,
     });
-    (r.doc, measure, assertion)
+    Notch {
+        doc: r.doc,
+        measure,
+        measure_node,
+        assertion,
+        ell,
+        block,
+        block_at,
+    }
 }
 
 /// The true minimum distance between the L's top cap (an L-shaped
@@ -205,88 +240,122 @@ fn true_notch_clearance() -> f64 {
     (OFFSET * OFFSET + LIFT * LIFT).sqrt()
 }
 
-/// **The finding, and the shape the fix gave it.** The L cap's carrier
-/// window is its bounding square, which covers the notch, so the engine
-/// finds a window pair straight under the block at distance `LIFT` and
-/// reports it — BELOW the faces' real separation. The review wrote this
-/// row as "the bracket must contain the truth", and that is not what
-/// was fixed: closing it needs the trim boundary in chart coordinates
-/// (`measure::WINDOW_TIGHTENING`), which is a tracker item, not this
-/// unit.
-///
-/// What was fixed is the CLAIM. The docs said `[lo, hi]` encloses the
-/// faces' separation and that this made an `AtMost` assertion sound;
-/// both sentences were false. The bracket is now typed about two
-/// different sets, and this row pins the half that is true and load-
-/// bearing: **`lo` is a lower bound on the faces' own clearance**,
-/// because the windows contain the faces and so their minimum is no
-/// larger. That is the end every gate reads, and it survives any
-/// amount of window slack.
-///
-/// The other half — `window_hi` bounding the faces from above — is
-/// pinned FALSE by the row below, deliberately, so that tightening the
-/// windows reds it and sends a reader back here.
+/// **The notch bracket contains the faces' separation, at every
+/// budget.** The L cap's carrier window is its bounding square, which
+/// covers the notch, so a window pair straight under the block sits
+/// `LIFT` apart. The engine reads its upper end only off cells decided
+/// inside their faces and stations the point doors place on them, so
+/// the bracket brackets `0.269`, the faces' own separation, and not the
+/// windows' `0.1`: through the measure, and through the engine's door
+/// at four cell budgets.
 #[test]
-fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
-    let (doc, measure, _) = notch(0.2, AssertionRelation::AtLeast);
-    let ev = eval_over::<geom_core::Interval>(&doc, None);
-    let value = fixture::reading(&doc, &ev, measure).expect("the measure has an interval value");
+fn the_notch_bracket_contains_the_faces_separation() {
+    let n = notch_nodes(0.2, AssertionRelation::AtLeast);
+    let ev = eval_over::<geom_core::Interval>(&n.doc, None);
     let truth = true_notch_clearance();
+    let value =
+        fixture::reading(&n.doc, &ev, n.measure).expect("the measure has an interval value");
     eprintln!(
-        "notch: min_clearance windows ∈ [{}, {}], true face separation {truth}",
+        "notch measure [{}, {}] vs faces {truth}",
         value.lo(),
         value.hi()
     );
     assert!(
-        value.lo() <= truth,
-        "`lo` ({}) must bound the faces' true minimum separation {truth} from below — the \
-         windows contain the faces, so their minimum cannot be the larger of the two",
-        value.lo()
-    );
-}
-
-/// The same fixture, read the way the review reads it: the bracket the
-/// engine actually returns, printed, with its receipt. EVIDENCE-ONLY —
-/// it asserts the SHAPE of the looseness (the window's `LIFT` inside
-/// the bracket) so a fix that tightens windows turns it red and says
-/// so, rather than letting the counterexample above silently pass.
-///
-/// **TRIM-3 PR-2 tightened the clearance SWEEP's windows and did not
-/// turn this row red**, which is a finding rather than an oversight.
-/// This door runs INSIDE an evaluation, called by the `min_clearance`
-/// measure primitive, and any decision there records its funnel rows
-/// in the leaf's census while the `f64` witness build records none —
-/// so the two builds differ
-/// `0 -> N` on every box and every leaf refuses `flip_crossing`
-/// (measured:
-/// seven M10-6/R2 drive rows lose their certified leaf). The bracket is
-/// therefore still the window's `LIFT`, `Certified::LowerBoundOnly`
-/// still refuses the two unsound arms, and the recourse is
-/// `work/trim/min-separation-tightening-crosses-the-drive.md`.
-#[test]
-fn the_notch_bracket_is_the_windows_not_the_faces() {
-    let (doc, measure, _) = notch(0.2, AssertionRelation::AtLeast);
-    let ev = eval_over::<geom_core::Interval>(&doc, None);
-    let value = fixture::reading(&doc, &ev, measure).expect("the measure has an interval value");
-    eprintln!(
-        "EVIDENCE notch bracket [{}, {}] vs window distance {LIFT} vs face distance {}",
+        value.lo() <= truth && truth <= value.hi() && LIFT < value.lo(),
+        "the measure [{}, {}] brackets the faces' {truth}, not the windows' {LIFT}",
         value.lo(),
-        value.hi(),
-        true_notch_clearance()
+        value.hi()
     );
-    assert!(
-        value.hi() < true_notch_clearance(),
-        "if this fails the window looseness is closed: un-ignore the row above"
+    // Each side where it stands in its space, so the two are in one
+    // frame; the composition keeps the arena keys the names resolve to.
+    let face = |at: RecipeNodeId, minted: RecipeNodeId, end: CapEnd| {
+        let Some(NodeResult::Ok(v)) = ev.result(at) else {
+            panic!("node {} evaluated", at.0);
+        };
+        let ValuePayload::Body(body) = &v.payload else {
+            panic!("node {} is a body", at.0);
+        };
+        let name = fixture::fname(minted, RoleSeg::Cap(end));
+        let Some(editor_core::Entry::Unique(ent)) =
+            ev.table_at(at).expect("one table").lookup(&name)
+        else {
+            panic!("the cap name resolves uniquely");
+        };
+        let editor_core::EntityKey::Face(k) = ent.key else {
+            panic!("a cap name is a face");
+        };
+        (fixture::in_space(body), k)
+    };
+    let (ell, cap) = face(n.ell, n.ell, CapEnd::End);
+    let (block, underside) = face(n.block_at, n.block, CapEnd::Start);
+    let (cap, underside) = (
+        Side {
+            body: &ell,
+            faces: vec![cap],
+        },
+        Side {
+            body: &block,
+            faces: vec![underside],
+        },
     );
-    // The f64 geometry puts the underside at `1.1 − 1.0`, one ulp-ish
-    // above `0.1`, so the window's own distance is compared with slack.
-    assert!(value.lo() <= LIFT + 1e-15 && LIFT <= value.hi());
+    for pairs in [4usize, 32, 128, 512] {
+        let m = min_separation(
+            &cap,
+            &underside,
+            false,
+            band(),
+            Budgets {
+                max_cell_pairs: pairs,
+                ..Budgets::MIN_SEPARATION
+            },
+        )
+        .expect("admitted");
+        eprintln!(
+            "notch @ pairs={pairs}: {}",
+            m.serialize().replace('\n', " | ")
+        );
+        let hi = m.hi().expect("a station pair is placed on both faces");
+        assert!(
+            m.lo() <= truth && truth <= hi,
+            "budget {pairs}: [{}, {hi}] brackets {truth}",
+            m.lo()
+        );
+    }
 }
 
-/// **Finding (MAJOR, the consequence):** `min_clearance(cap, underside)
-/// ≥ 0.2` HOLDS on the faces (they are 0.269 apart) and the assertion
-/// reads a certified `Violated`, because the bracket's `hi` is the
-/// window's 0.1. A CI row 1 over this document reds a true assertion.
+/// **The engine's region readings stay out of the measure node's log.**
+/// The notch's walk decides cells and stations at every level, and
+/// every one of those readings runs in the unlogged scope (audit row
+/// F28), so the node records none of their rows and none of their
+/// in-band escalations. What it does record is reading the block into
+/// the cap's frame. Breaks if the scope is removed: measured, the node
+/// then holds 3901 more verdicts, under the region doors' names, and
+/// 138 escalations.
+#[test]
+fn the_notch_measure_records_none_of_the_engines_region_readings() {
+    let n = notch_nodes(0.2, AssertionRelation::AtLeast);
+    let ev = eval_over::<geom_core::Interval>(&n.doc, None);
+    let Some(NodeResult::Ok(v)) = ev.result(n.measure_node) else {
+        panic!("the measure node evaluated");
+    };
+    let region = |name: &str| {
+        ["cell_region_", "bool_contact_", "point_in_loop_"]
+            .iter()
+            .any(|door| name.starts_with(door))
+    };
+    let leaked: Vec<_> = v.verdicts.iter().filter(|x| region(x.predicate)).collect();
+    assert!(
+        leaked.is_empty() && v.escalations.is_empty(),
+        "the measure node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
+        leaked.len(),
+        v.escalations.len(),
+        leaked.iter().take(4).collect::<Vec<_>>(),
+        v.escalations.iter().take(4).collect::<Vec<_>>()
+    );
+}
+
+/// `min_clearance(cap, underside) ≥ 0.2` holds on the faces (they are
+/// 0.269 apart), so it never reads `Violated`.
 #[test]
 fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clear_it() {
     let (doc, _, assertion) = notch(0.2, AssertionRelation::AtLeast);
@@ -299,8 +368,7 @@ fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clea
     );
 }
 
-/// **And `AtMost` reads a false `Holds`** — the direction the
-/// `MinSeparation` docs say the containment-true reading makes sound.
+/// And `≤ 0.15` never reads `Holds`.
 #[test]
 fn an_at_most_assertion_over_a_notch_does_not_read_holds_when_the_faces_exceed_it() {
     let (doc, _, assertion) = notch(0.15, AssertionRelation::AtMost);
@@ -342,21 +410,20 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
     let all = |body: &topo::Body<geom_core::Interval>| body.faces().map(|(k, _)| k).collect();
     for pairs in [0usize, 1, 3, 64, 512] {
         let m = min_separation(
-            &MinSepSelection {
-                at: a,
-                index: 0,
-                body: ba,
-                faces: all(ba),
+            &Side {
+                body: ba.body(),
+                faces: all(ba.body()),
             },
-            &MinSepSelection {
-                at: b,
-                index: 0,
-                body: bb,
-                faces: all(bb),
+            &Side {
+                body: bb.body(),
+                faces: all(bb.body()),
             },
-            MinSeparationConfig {
+            // Body 0 of node `a` against body 0 of node `b`.
+            a == b,
+            band(),
+            Budgets {
                 max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
+                ..Budgets::MIN_SEPARATION
             },
         )
         .expect("admitted");
@@ -364,11 +431,11 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             "two blocks @ pairs={pairs}: {}",
             m.serialize().replace('\n', " | ")
         );
+        let hi = m.hi().expect("a wall pair witnesses an upper end");
         assert!(
-            m.lo() <= 0.7 && 0.7 <= m.window_hi(),
-            "budget {pairs}: [{}, {}]",
-            m.lo(),
-            m.window_hi()
+            m.lo() <= 0.7 && 0.7 <= hi,
+            "budget {pairs}: [{}, {hi}]",
+            m.lo()
         );
         assert!(m.receipt().holds());
     }
@@ -377,11 +444,14 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
 // ------------------------------------------------- 2. unary (D8)
 
 /// The dumbbell of the unit's own suite, but measured BODY against
-/// BODY: `min_clearance(sel, sel)` is E7's unary shape, and on one body
-/// it is the self-clearance over every non-adjacent face pair — the
-/// neck's 0.4.
+/// BODY: `min_clearance(sel, sel)` is E7's unary shape. It used to drop
+/// every pair that shared a vertex and read the neck's 0.4; a
+/// clearance is metric now (E7, *Self-intersection scope*), so the
+/// body meets itself and reads exactly 0, named on the cell the scopes
+/// share. Whether the body is embedded is the injectivity question,
+/// `self_intersection`.
 #[test]
-fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
+fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
     let mut r = Recorder::new();
     let solid = prism(
         &mut r,
@@ -408,26 +478,23 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
     let ValuePayload::Body(body) = &v.payload else {
         panic!("a body")
     };
-    let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
-    let sel = || MinSepSelection {
-        at: solid,
-        index: 0,
-        body,
+    let faces: Vec<_> = body.body().faces().map(|(k, _)| k).collect();
+    let sel = || Side {
+        body: body.body(),
         faces: faces.clone(),
     };
-    let m = min_separation(&sel(), &sel(), MinSeparationConfig::default()).expect("admitted");
+    let m =
+        min_separation(&sel(), &sel(), true, band(), Budgets::MIN_SEPARATION).expect("admitted");
     eprintln!(
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")
     );
+    assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.render());
     assert!(
-        m.lo() <= 0.4 && 0.4 <= m.window_hi(),
-        "[{}, {}]",
-        m.lo(),
-        m.window_hi()
+        m.meets().is_some(),
+        "named on the shared cell: {}",
+        m.render()
     );
-    // Tight enough to be the neck and not the outer walls (5 apart).
-    assert!(m.window_hi() < 1.0);
 }
 
 // ------------------------------------ 3. the certifying vector
@@ -501,7 +568,7 @@ fn uniform() -> Distribution {
 fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document() {
     let (doc, _, _) = web_plate(1.0, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let witness = eval_over::<f64>(&doc, None);
     let full = VerdictVector::of(&witness);
     let shipped = verdict.witness_vector();
@@ -545,7 +612,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         uniform(),
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -554,8 +621,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", budget.render(&doc));
     let mut seen = Vec::new();
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        seen.push(assertion_verdict(&ev, assertion));
+        seen.push(on_lane(&doc, &verdict, leaf, assertion));
     }
     // The enclosure straddles the bound by a few ulps — inside the
     // coincidence band `(−ε, ε)` — so the funnel classifies the margin
@@ -619,6 +685,7 @@ fn report_key_tells_two_budgets_apart() {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -630,7 +697,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -640,7 +707,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4096,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -653,11 +720,11 @@ fn report_key_tells_two_budgets_apart() {
     let slice = 7u128;
     let starved_cfg = DriveConfig {
         max_leaves: 4,
-        ..numeric_lane()
+        ..DriveConfig::default()
     };
     let full_cfg = DriveConfig {
         max_leaves: 4096,
-        ..numeric_lane()
+        ..DriveConfig::default()
     };
     let k_starved = report_key(
         "verdict",
@@ -724,10 +791,7 @@ fn neck(bound: f64, wall_b: u32, law: Distribution) -> (ProfileDoc, RecipeNodeId
     neck_related(bound, wall_b, law, AssertionRelation::AtLeast)
 }
 
-/// The same, with the assertion's relation chosen — which the fix
-/// pass made load-bearing: `min_clearance` reaches `Violated` only
-/// through `AtMost` now (`measure::Certified`), because the `AtLeast`
-/// arm that would read the carrier's upper end refuses instead.
+/// The same, with the assertion's relation chosen.
 fn neck_related(
     bound: f64,
     wall_b: u32,
@@ -788,118 +852,89 @@ fn neck_related(
 
 /// Planted `Violated`: `min_clearance ≤ 0.3` over a neck that is `0.4`
 /// apart reads `Violated` over a certified leaf — the red row 1
-/// promises.
-///
-/// **`AtMost`, not `AtLeast`, and that is the fix showing through.**
-/// The verdict is read off `lo` (`lo > 0.3`), the end certified for the
-/// faces, so it is sound and it survives. The row as the review wrote
-/// it planted the violation through `AtLeast 0.5`, which reaches
-/// `Violated` only by reading the carrier's upper end — the false
-/// certification the two rows above pin. That arm now refuses, so
-/// planting through it would be planting a refusal.
+/// promises — off the bracket's lower end.
 #[test]
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    let v = assertion_verdict(&ev, assertion);
+    let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
     assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
 }
 
-/// **And the arm that no longer decides says so rather than going
-/// quiet**: the review's own `AtLeast 0.5` fixture, which used to read
-/// a certified `Violated` off the windows, now refuses typed and names
-/// both the endpoint and the tracker item that retires the refusal.
+/// **The review's own `AtLeast 0.5` fixture reads `Violated` off the
+/// upper end**, which bounds the faces: the neck is `0.4` apart.
 #[test]
-fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
+fn the_at_least_arm_reads_violated_off_the_faces_upper_end() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    match assertion_verdict(&ev, assertion) {
-        AssertionVerdict::Unevaluated {
-            reason:
-                UnevaluatedReason::WindowSuperset {
-                    verb,
-                    endpoint,
-                    recourse,
-                },
-        } => {
-            assert_eq!((verb, endpoint), ("min_clearance", "upper"));
-            assert_eq!(recourse, editor_core::WINDOW_TIGHTENING);
-        }
-        other => panic!("expected a typed window-superset refusal, got {other:?}"),
-    }
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
+    assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
 }
 
-/// **`=` over the window superset reads both ends, so it is violated
-/// only off the faces' end and never holds.** Over the 0.4 neck on a
-/// certified leaf, `= 0.3` is violated off `lo` (sound, as `AtMost`
-/// is), and `= 0.5` would be violated off the carrier's `hi`, so it
-/// refuses by that end. Breaks if `Equal` reads one end only (the
-/// `0.5` row reads `Violated`).
+/// **`=` reads both ends of the faces' bracket.** Over the 0.4 neck on a
+/// certified leaf, `= 0.3` is violated off `lo` and `= 0.5` off `hi`.
+/// Breaks if `Equal` reads one end only (one of the two holds or
+/// refuses).
 #[test]
-fn equal_over_min_clearance_answers_only_off_the_faces_end() {
+fn equal_over_min_clearance_is_violated_off_either_end() {
     let at = |bound| {
         let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
-        let leaf = &verdict.certified()[0];
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        assertion_verdict(&ev, assertion)
+        let verdict =
+            drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+        on_lane(&doc, &verdict, &verdict.certified()[0], assertion)
     };
-    let below = at(0.3);
-    assert!(
-        matches!(below, AssertionVerdict::Violated { .. }),
-        "{below:?}"
-    );
-    match at(0.5) {
-        AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
-        } => assert_eq!(endpoint, "upper"),
-        other => panic!("expected a typed window-superset refusal, got {other:?}"),
+    for bound in [0.3, 0.5] {
+        let v = at(bound);
+        assert!(
+            matches!(v, AssertionVerdict::Violated { .. }),
+            "= {bound}: {v:?}"
+        );
     }
 }
 
-/// Planted engine refusal (a wall against itself, `NoAdmittedPair`):
-/// the f64 witness still builds (no engine call at a point scalar), the
-/// interval replay fails the measure node, the leaf is refused, and the
-/// unresolved mass overruns a zero budget — the row reds through the
-/// budget, naming the mass.
+/// **A wall against itself.** A clearance is metric: the wall meets
+/// itself and `min_clearance` reads exactly `[0, 0]`, so the measure node
+/// builds, the drive certifies the leaf, and the `AtLeast 0.3` bound is
+/// violated off the meeting's 0.
 #[test]
-fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
-    let (doc, _) = neck(0.3, 2, uniform());
+fn a_wall_against_itself_reads_zero_and_violates_its_at_least_bound() {
+    let (doc, assertion) = neck(0.3, 2, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    // CAPPED: a box-independent engine refusal (`NoAdmittedPair`) fails
-    // the measure node on every leaf, and `classify` answers any other
-    // node failure with `Bisect` — so the default 65,536-leaf budget is
-    // spent bisecting a refusal that no subdivision can change, and the
-    // accounting names `budget` rather than the engine's own class.
     let verdict = drive(
         &doc,
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
     .expect("the f64 witness builds: no engine runs at a point scalar");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("{}", budget.render(&doc));
-    let unresolved = budget.unresolved.clone().expect("priced");
-    assert!(unresolved > 0.0, "the refused leaf is priced: {unresolved}");
-    assert!(verdict.certified().is_empty());
+    let leaf = verdict
+        .certified()
+        .first()
+        .expect("the measure builds, so the leaf certifies");
+    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
+    let v = assertion_verdict(&ev, assertion);
+    assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
 }
 
-/// Budget overrun: a box the widening class refuses (issue 1191) leaves
-/// unresolved mass, and a recorded budget of zero reds it.
+/// **A wide box over a copy certifies whole.** The neck's placed prism
+/// is its source's body under a frame the box moves (D10
+/// `[placement.frame]`), so no copy is rebuilt over the box and nothing
+/// widens past the band: the box that issue 1191's class refused while
+/// the copy was rebuilt leaves no unresolved mass.
+///
+/// *Breaks if* a copy is rebuilt over the box again (the leaf refuses
+/// and its mass is unresolved).
 #[test]
-fn a_wide_box_overruns_a_zero_budget() {
+fn a_wide_box_over_a_copy_certifies_whole() {
     let (doc, _) = neck(
         0.3,
         9,
@@ -914,14 +949,15 @@ fn a_wide_box_overruns_a_zero_budget() {
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
     .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("{}", budget.render(&doc));
-    assert!(budget.unresolved.clone().expect("priced") > 0.0);
+    assert_eq!(budget.unresolved.clone().expect("priced"), 0.0);
+    assert!(!verdict.certified().is_empty());
 }
 
 // ------------------------------------------- 6. priced vs forced
@@ -983,7 +1019,8 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         }
         other => panic!("{other:?}"),
     }
-    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict =
+        drive(&r.doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
     assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
@@ -1065,7 +1102,7 @@ fn bracket(
         post_solid,
         [
             Formula::named(name("offset"), Dimension::Length),
-            len(0.0),
+            Formula::zero(Dimension::Length),
             Formula::sub(
                 len(1.0),
                 Formula::neg(Formula::named(name("lift"), Dimension::Length))
@@ -1133,7 +1170,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     eprintln!("== drive\n{}", verdict.render(&doc, &analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -1231,10 +1268,9 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== assertions over the certified leaves");
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
         let (a, b) = (
-            assertion_verdict(&ev, web_ok),
-            assertion_verdict(&ev, clear_ok),
+            on_lane(&doc, &verdict, leaf, web_ok),
+            on_lane(&doc, &verdict, leaf, clear_ok),
         );
         assert_eq!(a.holds(), Some(true), "{a:?}");
         assert_eq!(b.holds(), Some(true), "{b:?}");
@@ -1264,7 +1300,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("== band budget\n{}", budget.render(&doc));
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
@@ -1348,6 +1384,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             .expect("plate"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
@@ -1360,6 +1397,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
                 radius: Formula::named(name(radius), Dimension::Length),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: p.into(),
@@ -1417,7 +1455,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     });
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
-    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     assert!(!verdict.certified().is_empty());
     let report =
         stackup(&r.doc, measure, &analyzed, &verdict, None, true, None, tol).expect("stackup");
@@ -1430,8 +1468,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     );
     assert!(report.worst_case.lo < bound, "the caption's premise");
     for leaf in verdict.certified() {
-        let lev = eval_over::<geom_core::Interval>(&r.doc, Some(leaf.box_.clone()));
-        let v = assertion_verdict(&lev, assertion);
+        let v = on_lane(&r.doc, &verdict, leaf, assertion);
         eprintln!("stop 2: the assertion node over the certified leaf: {v:?}");
         assert!(
             matches!(v, AssertionVerdict::Holds { .. }),
