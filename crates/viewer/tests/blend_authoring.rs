@@ -36,7 +36,7 @@ use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
-use viewer::pickindex::PickKinds;
+use viewer::pickindex::{PickIndex, PickKinds};
 use viewer::session::{
     DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection, SessionOp,
 };
@@ -104,11 +104,22 @@ fn whole(session: &DocSession, node: RecipeNodeId) -> BlendTarget {
 
 /// Feed one edge pick to the open tool the way the application does —
 /// through the selection op stream, which is what makes single-select
-/// and tool accumulation one mechanism rather than two.
-fn pick(tools: &mut Tools, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Vec<ToolNotice> {
+/// and tool accumulation one mechanism rather than two — with the pick
+/// index of the picture the pick was made on.
+fn pick(tools: &mut Tools, session: &DocSession, edge: &EdgeSelection) -> Vec<ToolNotice> {
+    pick_on(tools, session.committed_doc(), &plate_index(session), edge)
+}
+
+/// [`pick`] against an index already in hand.
+fn pick_on(
+    tools: &mut Tools,
+    doc: &Doc<ProfileProgram>,
+    index: &PickIndex,
+    edge: &EdgeSelection,
+) -> Vec<ToolNotice> {
     tools.feed(
         doc,
-        None,
+        Some(index),
         &[SessionOp::Select(Selection::Edge(edge.clone()))],
     )
 }
@@ -155,9 +166,10 @@ fn picked_all(session: &DocSession, node: RecipeNodeId) -> Tools {
     // would fail: the stored set is canonical whatever order the
     // clicks arrived in.
     edges.reverse();
+    let index = plate_index(session);
     for edge in &edges {
         assert!(
-            pick(&mut tools, session.committed_doc(), edge).is_empty(),
+            pick_on(&mut tools, session.committed_doc(), &index, edge).is_empty(),
             "every pick lands"
         );
     }
@@ -404,7 +416,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         .into_iter()
         .next()
         .expect("the second box draws edges");
-    let notices = pick(&mut tools, session.committed_doc(), &stray);
+    let notices = pick(&mut tools, &session, &stray);
     assert_eq!(notices.len(), 1, "the declined pick is reported once");
     let ToolNotice::Blend(BlendEvent::OtherTarget { held, picked }) = &notices[0] else {
         panic!("expected a cross-target refusal, got {notices:?}");
@@ -450,13 +462,13 @@ fn picking_a_held_edge_again_removes_it() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     for edge in &edges[..3] {
-        assert!(pick(&mut tools, session.committed_doc(), edge).is_empty());
+        assert!(pick(&mut tools, &session, edge).is_empty());
     }
     assert_eq!(blend(&tools).count(), 3);
-    assert!(pick(&mut tools, session.committed_doc(), &edges[1]).is_empty());
+    assert!(pick(&mut tools, &session, &edges[1]).is_empty());
     assert_eq!(blend(&tools).count(), 2, "the second pick came back out");
     assert!(!blend(&tools).holds(&edges[1].name));
-    assert!(pick(&mut tools, session.committed_doc(), &edges[1]).is_empty());
+    assert!(pick(&mut tools, &session, &edges[1]).is_empty());
     assert_eq!(blend(&tools).count(), 3, "and goes back in");
     assert!(blend(&tools).holds(&edges[1].name));
 }
@@ -805,15 +817,15 @@ fn only_the_open_blend_tool_accumulates_edges() {
         .expect("the box draws edges");
 
     let mut tools = Tools::new();
-    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
+    assert!(pick(&mut tools, &session, &edge).is_empty());
     assert!(tools.blend().is_none(), "nothing open takes nothing");
 
     tools.open(ToolKind::Blend);
-    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
+    assert!(pick(&mut tools, &session, &edge).is_empty());
     assert_eq!(blend(&tools).count(), 1);
     // Opening another tool replaces the whole value, picks and all.
     tools.open(ToolKind::Boolean);
-    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
+    assert!(pick(&mut tools, &session, &edge).is_empty());
     tools.open(ToolKind::Blend);
     assert_eq!(blend(&tools).count(), 0, "a re-opened tool starts over");
 }
@@ -935,7 +947,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
 
     let edges = drawn_edges(&session, target);
     for edge in &edges[..5] {
-        assert!(pick(&mut tools, session.committed_doc(), edge).is_empty());
+        assert!(pick(&mut tools, &session, edge).is_empty());
     }
     let tool = blend(&tools);
     let named = tool.marks();
@@ -1045,6 +1057,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let ToolNotice::Blend(BlendEvent::EdgesLost {
         target,
         names,
+        picks,
         kept,
     }) = &notices[0]
     else {
@@ -1055,6 +1068,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         common::drawn_node(session.committed_doc(), union)
     );
     assert!(!names.is_empty());
+    assert_eq!(*picks, names.len(), "on a box every pick is one edge");
     assert_eq!(*kept, blend(&tools).count());
     assert_eq!(
         *kept + names.len(),
@@ -1183,16 +1197,16 @@ fn an_emptied_set_releases_its_target() {
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
+    assert!(pick(&mut tools, &session, &one).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(&session, first)));
     // Un-pick it: the tool is holding nothing, so it is latched to
     // nothing.
-    assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
+    assert!(pick(&mut tools, &session, &one).is_empty());
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
     assert!(blend(&tools).fillet_op(len(BLEND)).is_none(), "and no op");
     // And the next click starts wherever the user aims it.
-    assert!(pick(&mut tools, session.committed_doc(), &other).is_empty());
+    assert!(pick(&mut tools, &session, &other).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(&session, second)));
     assert_eq!(blend(&tools).count(), 1);
 
@@ -1316,7 +1330,7 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
         .iter()
         .find(|edge| arc(edge, false))
         .unwrap_or_else(|| panic!("a cap rim is drawn: {drawn:?}"));
-    let whole = index.whole_edge(rim);
+    let whole = index.whole_edge(rim).expect("the index answers the rim");
     assert_eq!(whole.len(), 2, "the drawn circle is two arcs: {whole:?}");
     let other = drawn
         .iter()
@@ -1328,7 +1342,7 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     );
     let mut sorted = whole.clone();
     sorted.sort();
-    let mut from_other = index.whole_edge(other);
+    let mut from_other = index.whole_edge(other).expect("the index answers the rim");
     from_other.sort();
     assert_eq!(sorted, from_other, "either arc answers the same circle");
     let straight = drawn
@@ -1338,7 +1352,7 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     if let Some((edge, alone)) = straight {
         assert_eq!(
             alone,
-            vec![edge.name.clone()],
+            Ok(vec![edge.name.clone()]),
             "an edge on no rim is itself"
         );
     }

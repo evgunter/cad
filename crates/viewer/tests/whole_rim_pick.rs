@@ -1,7 +1,8 @@
-//! **Review rows for PR 6129** (a picked rim is the whole rim): what a
-//! click on a drawn circle means across the shapes the pick index's
-//! rim table has to answer for, and how the blend tool's grouping holds
-//! up through the survival step.
+//! **A click on a drawn circle is the whole circle**: what
+//! `PickIndex::whole_edge` answers across the shapes its rim table has
+//! to answer for (partial, annular, split and full revolves, the
+//! teapot lid), and how the blend tool's grouping of a rim into one
+//! pick holds through loading, un-picking and the survival step.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -22,7 +23,7 @@ use viewer::tools::{ToolKind, ToolNotice, Tools};
 const SIDE: f64 = 0.01;
 
 fn session(tol: Tol) -> DocSession {
-    DocSession::inline(Doc::empty_derived("review-6129", tol), tol)
+    DocSession::inline(Doc::empty_derived("whole-rim-pick", tol), tol)
 }
 
 /// A rectangle `[x0, x0 + w] × [0, h]` revolved by `angle` about the
@@ -96,11 +97,13 @@ fn picks_by_index(tool: &BlendTool, index: &PickIndex) -> usize {
         .selection()
         .into_iter()
         .map(|name| {
-            let mut whole = index.whole_edge(&EdgeSelection {
-                name,
-                node: target.node,
-                body: target.body,
-            });
+            let mut whole = index
+                .whole_edge(&EdgeSelection {
+                    name,
+                    node: target.node,
+                    body: target.body,
+                })
+                .expect("the index answers the rim");
             whole.sort();
             whole
         })
@@ -128,7 +131,11 @@ fn a_partial_revolves_arcs_each_stand_alone() {
     let edges = drawn(&index, node, 0);
     assert!(!edges.is_empty());
     for edge in &edges {
-        assert_eq!(index.whole_edge(edge), vec![edge.name.clone()], "{edge:?}");
+        assert_eq!(
+            index.whole_edge(edge),
+            Ok(vec![edge.name.clone()]),
+            "{edge:?}"
+        );
     }
 }
 
@@ -143,7 +150,11 @@ fn an_annular_full_revolves_rims_stand_alone() {
     let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(&session);
     for edge in &drawn(&index, node, 0) {
-        assert_eq!(index.whole_edge(edge), vec![edge.name.clone()], "{edge:?}");
+        assert_eq!(
+            index.whole_edge(edge),
+            Ok(vec![edge.name.clone()]),
+            "{edge:?}"
+        );
     }
 }
 
@@ -176,10 +187,10 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     assert_eq!(tool.count(), picks_by_index(tool, &index));
 }
 
-/// **Arc A taken as named, then arc B through the index**: the two
-/// separate picks become one rim, and un-picking A drops both.
+/// **Arc A with no index is refused, then arc B through the index
+/// holds the circle**, and un-picking A drops both.
 #[test]
-fn two_separate_arc_picks_merge_into_one_rim() {
+fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let node = revolved(&mut session, 0.0, SIDE * 0.5, SIDE, core::f64::consts::TAU);
@@ -191,7 +202,7 @@ fn two_separate_arc_picks_merge_into_one_rim() {
         .iter()
         .find(|e| is_rim_arc(&e.name, false))
         .expect("an arc");
-    let whole = index.whole_edge(a);
+    let whole = index.whole_edge(a).expect("the index answers the rim");
     let b = edges
         .iter()
         .find(|e| e.name != a.name && whole.contains(&e.name))
@@ -199,11 +210,14 @@ fn two_separate_arc_picks_merge_into_one_rim() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
-    assert!(click(&mut tools, &doc, None, a).is_empty());
-    assert_eq!(
-        (blend(&tools).count(), blend(&tools).selection().len()),
-        (1, 1)
-    );
+    match click(&mut tools, &doc, None, a).as_slice() {
+        [ToolNotice::Blend(BlendEvent::Unindexed { picked })] => {
+            assert_eq!(*picked, BlendTarget { node, body: 0 });
+        }
+        other => panic!("a pick with no index is refused, not held as a half: {other:?}"),
+    }
+    assert_eq!(blend(&tools).count(), 0, "the refused pick holds nothing");
+    assert_eq!(blend(&tools).target(), None, "nor fixes a target");
     assert!(click(&mut tools, &doc, Some(&index), b).is_empty());
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
@@ -367,7 +381,7 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
     for &(node, body) in &parts {
         let edges = drawn(&index, node, body);
         for edge in &edges {
-            let whole = index.whole_edge(edge);
+            let whole = index.whole_edge(edge).expect("the index answers the rim");
             if whole.len() > 1 {
                 circles += 1;
                 for arc in &whole {

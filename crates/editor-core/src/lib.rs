@@ -257,8 +257,8 @@ pub use var::{
 // direct bvh dependency.
 pub use bvh::Ray;
 pub use resolve::{
-    MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
-    PickTarget, pick_face,
+    BoundaryRim, MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit,
+    PickMemo, PickTarget, RimNameFault, pick_face,
 };
 pub use stackup::{
     BindingViolation, Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, RecordReading, Rss,

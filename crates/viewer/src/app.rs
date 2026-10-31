@@ -6933,7 +6933,8 @@ mod properties_pane_tests {
         let (cursor, name, node, body) = aimed;
         let whole = driven
             .on_screen()
-            .whole_edge(&EdgeSelection { name, node, body });
+            .whole_edge(&EdgeSelection { name, node, body })
+            .expect("the index answers the rim");
         assert_eq!(whole.len(), 2, "the circle under the cursor is two arcs");
         let at = egui::pos2(
             rect.min.x + (cursor[0] / ppp) as f32,

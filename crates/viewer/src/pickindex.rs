@@ -70,6 +70,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use editor_core::RimNameFault;
 use pncad::document::{
     Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
@@ -868,86 +869,72 @@ impl PartWindows<Patches> {
 /// more arcs among a drawn body's edges, by (node, body), as the names
 /// of its arcs in rim order.
 ///
-/// A rim is `topo::query::rim_of`'s answer on the body the index drew:
-/// the closed chain of circle arcs between one pair of surfaces. The
-/// picture draws such a chain as one circle, and a full revolve of a
-/// profile touching the axis splits every latitude circle into its
-/// `BandRim` and `BandRimPi` halves, so without this table one click
-/// on the circle means half of it.
+/// A rim is `NodePick::boundary_rims`' answer, `topo::query::rim_of`
+/// spoken in names: the closed chain of circle arcs between one pair of
+/// surfaces. The picture draws such a chain as one circle, and a full
+/// revolve of a profile touching the axis splits every latitude circle
+/// into its `BandRim` and `BandRimPi` halves, so without this table one
+/// click on the circle means half of it.
 ///
 /// An edge on no rim of two or more is absent, and stands for itself.
-/// So is an arc whose rim the walk refuses (a chain that dangles or
-/// branches), or one with an arc the body's name table does not name:
-/// that edge is the index's loud unnamed arm already
-/// ([`PickIndex::edge_names_in`]), and a partial rim would be half a
-/// circle again under another spelling.
+/// An edge whose rim the door could not answer holds its
+/// [`RimNameFault`], which [`PickIndex::whole_edge`] answers in place of
+/// a guess: a half pick taken silently is the defect this table exists
+/// to remove.
+///
+/// **What it costs, measured** (debug, PR 6129's review): the corpus's
+/// index builds moved within noise, and a memo-hit rebuild of a
+/// rim-dense full revolve went from 3.1 ms to 6.2 ms, because the walk
+/// runs on every build and is not memoised with the `NodePick`.
 #[derive(Debug, Default)]
 struct Rims {
     rims: Vec<Vec<StableName>>,
-    of: BTreeMap<(RecipeNodeId, u32), BTreeMap<StableName, usize>>,
+    of: BTreeMap<(RecipeNodeId, u32), BTreeMap<StableName, Result<usize, RimNameFault>>>,
 }
 
 impl Rims {
-    /// Walk the rims through one drawn part's named edges, reading the
-    /// body and the name table the part's names came from
-    /// ([`Evaluation::body_read_of`], the read `NodePick`'s own name
-    /// doors make).
-    fn push<'a>(
+    /// One drawn part's rims, read beside its window's names: the two
+    /// doors walk the same boundary polylines in the same order.
+    fn push(
         &mut self,
-        node: RecipeNodeId,
-        body: u32,
+        part: &NodePick,
         eval: &Evaluation<f64>,
-        names: impl Iterator<Item = &'a StableName>,
-    ) {
-        use editor_core::{EntityKey, EntityRef, Entry};
-        let Some((var, at)) = eval.body_read_of(node, body) else {
-            return;
-        };
-        let (Some(table), Ok(Ok(solid))) = (eval.table(var), eval.read_body(var, at)) else {
-            return;
-        };
-        let mut found: BTreeMap<StableName, usize> = BTreeMap::new();
-        for name in names {
-            if found.contains_key(name) {
+        names: &[Result<StableName, UnnamedEntity>],
+    ) -> Result<(), PickIndexError> {
+        let rims = part.boundary_rims(eval).map_err(PickIndexError::Names)?;
+        let mut found: BTreeMap<StableName, Result<usize, RimNameFault>> = BTreeMap::new();
+        for (name, rim) in names.iter().zip(rims) {
+            // An unnamed edge is the window's loud arm already
+            // (`PickIndex::edge_names_in`), and no pick can name it.
+            let Ok(name) = name else {
                 continue;
+            };
+            match rim {
+                Ok(None) => {}
+                Ok(Some(_)) if found.contains_key(name) => {}
+                Ok(Some(arcs)) => {
+                    for arc in &arcs {
+                        found.insert(arc.clone(), Ok(self.rims.len()));
+                    }
+                    self.rims.push(arcs);
+                }
+                Err(fault) => {
+                    found.insert(name.clone(), Err(fault));
+                }
             }
-            let Some(Entry::Unique(EntityRef {
-                key: EntityKey::Edge(edge),
-                ..
-            })) = table.lookup(name)
-            else {
-                continue;
-            };
-            let Ok(rim) = pncad::topo::query::rim_of(solid.body(), *edge) else {
-                continue;
-            };
-            let arcs: Option<Vec<StableName>> = rim
-                .iter()
-                .map(|&arc| {
-                    table
-                        .name_of(&EntityRef {
-                            body: at,
-                            key: EntityKey::Edge(arc),
-                        })
-                        .cloned()
-                })
-                .collect();
-            let Some(arcs) = arcs.filter(|arcs| arcs.len() > 1) else {
-                continue;
-            };
-            for arc in &arcs {
-                found.insert(arc.clone(), self.rims.len());
-            }
-            self.rims.push(arcs);
         }
         if !found.is_empty() {
-            self.of.insert((node, body), found);
+            self.of.insert((part.node(), part.body()), found);
         }
+        Ok(())
     }
 
-    fn rim_of(&self, edge: &EdgeSelection) -> Option<&[StableName]> {
-        let rim = *self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
-        self.rims.get(rim).map(Vec::as_slice)
+    fn rim_holding(&self, edge: &EdgeSelection) -> Option<Result<&[StableName], RimNameFault>> {
+        let held = self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
+        Some(match held {
+            Ok(rim) => Ok(self.rims.get(*rim).map_or(&[][..], Vec::as_slice)),
+            Err(fault) => Err(*fault),
+        })
     }
 }
 
@@ -1136,10 +1123,7 @@ impl PickIndex {
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
-            let named = edges
-                .named_in(part.node(), part.body())
-                .filter_map(|(_, name)| name.as_ref().ok());
-            rims.push(part.node(), part.body(), eval, named);
+            rims.push(part, eval, edges.laid_out(part.node(), part.body()).1)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
@@ -1618,17 +1602,23 @@ impl PickIndex {
 
     /// **The whole drawn edge an edge pick is part of**: every arc of
     /// its rim, in rim order, when the picked edge is one arc of a
-    /// closed rim of two or more (`topo::query::rim_of` on the body this
-    /// index drew); the pick's own name otherwise.
+    /// closed rim of two or more (`NodePick::boundary_rims` on the body
+    /// this index drew); the pick's own name otherwise.
     ///
     /// The picture draws a rim as one circle, so this is what a click
     /// on that circle means, and a consumer that takes edge picks asks
     /// here rather than reading the half the cursor happened to be
     /// nearest.
-    pub fn whole_edge(&self, edge: &EdgeSelection) -> Vec<StableName> {
-        self.rims
-            .rim_of(edge)
-            .map_or_else(|| vec![edge.name.clone()], <[StableName]>::to_vec)
+    ///
+    /// # Errors
+    ///
+    /// The [`RimNameFault`] the rim door answered for this edge: a
+    /// naming or pairing bug, and the pick's meaning is unknown.
+    pub fn whole_edge(&self, edge: &EdgeSelection) -> Result<Vec<StableName>, RimNameFault> {
+        match self.rims.rim_holding(edge) {
+            None => Ok(vec![edge.name.clone()]),
+            Some(rim) => rim.map(<[StableName]>::to_vec),
+        }
     }
 
     /// The tessellated part drawing one (node, body).

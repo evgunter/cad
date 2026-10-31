@@ -756,6 +756,72 @@ impl NameLookupError {
 
 impl core::error::Error for NameLookupError {}
 
+/// One boundary polyline's answer from [`NodePick::boundary_rims`]:
+/// the names of its rim's arcs, `None` for an edge on no rim of two or
+/// more, or the loud arm.
+pub type BoundaryRim = Result<Option<Vec<StableName>>, RimNameFault>;
+
+/// **Why a drawn edge's rim could not be answered as names**
+/// ([`NodePick::boundary_rims`]) — each a naming or pairing bug, never
+/// "this edge is on no rim", which is that door's `None` (closed enum,
+/// D4 ¶3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RimNameFault {
+    /// An arc of the rim evaluated but has no name in its table.
+    Unnamed(UnnamedEntity),
+    /// The evaluation holds no body where the part says it drew one.
+    NoBody {
+        /// The part's node.
+        node: RecipeNodeId,
+        /// The part's output body.
+        body: u32,
+        /// The body read's refusal.
+        error: crate::InterrogateError,
+    },
+    /// The drawn edge does not resolve in the body it was drawn from.
+    Stale {
+        /// The part's node.
+        node: RecipeNodeId,
+        /// The part's output body.
+        body: u32,
+    },
+}
+
+impl crate::spoken::Say for RimNameFault {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Unnamed(unnamed) => {
+                write!(f, "rim names: {}", crate::spoken::Said(unnamed, by))
+            }
+            Self::NoBody { node, body, error } => write!(
+                f,
+                "rim names: {} has no output body {body} to walk: {}",
+                by.node(*node),
+                crate::spoken::Said(error, by)
+            ),
+            Self::Stale { node, body } => write!(
+                f,
+                "rim names: a drawn edge of {} body {body} does not resolve in the body it was \
+                 drawn from — the picture and the evaluation disagree, which is a kernel bug",
+                by.node(*node)
+            ),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for RimNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl core::error::Error for RimNameFault {}
+
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
 /// CONSTRUCTION: [`NodePick::build`] fetches the body from the
 /// evaluation payload itself — through the same output-body indexing
@@ -1444,6 +1510,87 @@ impl NodePick {
                 .iter()
                 .map(|boundary| EntityKey::Edge(boundary.edge)),
         )
+    }
+
+    /// **The rim each boundary polyline of [`NodePick::mesh`] is an arc
+    /// of, as names**, in polyline order (one entry per
+    /// [`Mesh::boundaries`] element): `Some` of every arc's name, in
+    /// [`topo::query::rim_of`]'s order, when the polyline's edge is one
+    /// arc of a closed rim of two or more; `None` when it is on no such
+    /// rim (not a circle arc, a seam between one surface and itself, a
+    /// chain that dangles or branches, or a rim of that edge alone).
+    ///
+    /// The name-level twin of `rim_of`, for the reason
+    /// [`NodePick::boundary_names`] is the name-level twin of a
+    /// polyline's key: a layer-3 consumer that draws a rim as one
+    /// circle needs to know which names the circle is, and the keys the
+    /// walk runs over never leave this crate.
+    ///
+    /// Total per polyline, with the loud arms in their own slot
+    /// ([`RimNameFault`]): an arc without a name, a body the evaluation
+    /// does not hold where the part says it drew one, or an edge the
+    /// walk finds stale in it. Each is a naming or pairing bug, and one
+    /// should not cost a consumer every other rim.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::boundary_names`]: the pairing arm, or a standing
+    /// arm.
+    pub fn boundary_rims(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<BoundaryRim>, NameLookupError> {
+        if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
+            return Err(m.into());
+        }
+        eval.usable(self.node)?;
+        let edges = self.mesh.boundaries.iter().map(|boundary| boundary.edge);
+        let body = match eval.body_read_of(self.node, self.body) {
+            Some((var, index)) => eval.read_body(var, index)?,
+            None => Err(crate::InterrogateError::NoSuchBody { index: self.body }),
+        };
+        let body = match body {
+            Ok(body) => body.body(),
+            Err(error) => {
+                let fault = RimNameFault::NoBody {
+                    node: self.node,
+                    body: self.body,
+                    error,
+                };
+                return Ok(edges.map(|_| Err(fault)).collect());
+            }
+        };
+        let named = |edge: topo::EdgeKey| {
+            lookup(
+                eval,
+                self.node,
+                EntityRef {
+                    body: self.body,
+                    key: EntityKey::Edge(edge),
+                },
+            )
+            .cloned()
+            .map_err(RimNameFault::Unnamed)
+        };
+        Ok(edges
+            .map(|edge| match topo::query::rim_of(body, edge) {
+                Ok(rim) if rim.len() > 1 => rim
+                    .into_iter()
+                    .map(named)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Some),
+                Ok(_)
+                | Err(
+                    topo::query::RimError::NotAnArc { .. }
+                    | topo::query::RimError::CoSurface { .. }
+                    | topo::query::RimError::NotOneRim { .. },
+                ) => Ok(None),
+                Err(topo::query::RimError::Stale(_)) => Err(RimNameFault::Stale {
+                    node: self.node,
+                    body: self.body,
+                }),
+            })
+            .collect())
     }
 
     /// The two name doors' one body: the pairing, then the standing,

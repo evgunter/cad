@@ -57,7 +57,9 @@
 //! whole-set drop when the target node itself goes
 //! ([`BlendEvent::TargetLost`]). Nothing here is silent: every drop is
 //! a typed event the chrome shows, and the count the panel reads is
-//! the count a commit would author.
+//! the picks a commit would author: a drawn circle the body holds as
+//! several arcs is one pick and commits every arc
+//! ([`BlendTool`], a drawn circle is one pick).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -69,6 +71,8 @@ use pncad::document::{
     SpokenNode,
 };
 use pncad::prelude::StableName;
+
+use editor_core::RimNameFault;
 
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
@@ -265,8 +269,26 @@ pub enum BlendEvent {
         /// order — carried rather than counted, so a chrome that wants
         /// to say WHICH can, and a row can assert on them.
         names: Vec<StableName>,
-        /// How many are still held.
+        /// How many held picks lost a name: a rim that lost one arc is
+        /// one pick, as the panel counted it.
+        picks: usize,
+        /// How many picks are still held.
         kept: usize,
+    },
+    /// An edge pick arrived with no pick index to say what drawn edge
+    /// it is part of, so the tool cannot tell a whole edge from one
+    /// arc of a circle: the pick is refused rather than held as a
+    /// possible half, and the held set is untouched.
+    Unindexed {
+        /// The body the refused pick was on.
+        picked: BlendTarget,
+    },
+    /// The index could not say which drawn edge the pick is part of
+    /// ([`PickIndex::whole_edge`]): a naming or pairing bug, so the pick
+    /// is refused and the held set is untouched.
+    RimUnanswered {
+        /// The rim door's refusal.
+        fault: RimNameFault,
     },
 }
 
@@ -304,15 +326,24 @@ impl Say for BlendEvent {
             ),
             Self::EdgesLost {
                 target,
-                names,
+                names: _,
+                picks,
                 kept,
             } => write!(
                 f,
-                "an edit removed {} of the picked edges from {}; the tool dropped them and \
-                 still holds {kept}",
-                names.len(),
+                "an edit removed all or part of {picks} of the picked edges from {}; the tool \
+                 dropped what went and still holds {kept}",
                 Said(target, by)
             ),
+            Self::Unindexed { picked } => write!(
+                f,
+                "the edge on {} was not taken: the picture is not indexed yet, so the tool \
+                 cannot tell a whole edge from one arc of a circle; pick it again once it is",
+                Said(picked, by)
+            ),
+            Self::RimUnanswered { fault } => {
+                write!(f, "the edge was not taken: {}", Said(fault, by))
+            }
         }
     }
 }
@@ -385,7 +416,8 @@ impl BlendTool {
     /// How many edges are held — the panel's live count, a rim
     /// counting once.
     pub fn count(&self) -> usize {
-        self.edges.len() - self.rims.iter().map(|rim| rim.len() - 1).sum::<usize>()
+        let in_rims = |name: &&StableName| self.rims.iter().any(|rim| rim.contains(*name));
+        self.edges.iter().filter(|name| !in_rims(name)).count() + self.rims.len()
     }
 
     /// Whether this edge is one of the held ones.
@@ -437,8 +469,10 @@ impl BlendTool {
     /// or REMOVE it when it is already held.
     ///
     /// `index` says what the pick's whole is ([`PickIndex::whole_edge`]):
-    /// every arc of a rim drawn as one circle. With no index there is
-    /// no picture the pick was made on, and it is taken as named.
+    /// every arc of a rim drawn as one circle. A new pick with no index
+    /// is refused ([`BlendEvent::Unindexed`]), and so is one whose rim
+    /// the index could not answer ([`BlendEvent::RimUnanswered`]);
+    /// un-picking a held edge needs neither.
     ///
     /// The first pick fixes the target; un-picking the last edge
     /// releases it again (the struct's invariant). A pick on another
@@ -455,17 +489,28 @@ impl BlendTool {
             Some(held) if held != picked => {
                 return Some(BlendEvent::OtherTarget { held, picked });
             }
-            Some(_) => {}
-            None => self.fix(doc, picked),
+            Some(_) if self.holds(&edge.name) => {
+                self.drop_pick(&edge.name);
+                self.release_if_empty();
+                return None;
+            }
+            Some(_) | None => {}
         }
-        if self.holds(&edge.name) {
-            self.drop_pick(&edge.name);
-        } else {
-            self.take(
-                index.map_or_else(|| vec![edge.name.clone()], |index| index.whole_edge(edge)),
-            );
+        // A pick from a source other than the viewport (a refusal's
+        // named-cell link) can arrive while the index is being built.
+        // Held as named it could be half a circle, which is the commit
+        // that refuses at the seam vertex, so it is refused instead.
+        let Some(index) = index else {
+            return Some(BlendEvent::Unindexed { picked });
+        };
+        let whole = match index.whole_edge(edge) {
+            Ok(whole) => whole,
+            Err(fault) => return Some(BlendEvent::RimUnanswered { fault }),
+        };
+        if self.target.is_none() {
+            self.fix(doc, picked);
         }
-        self.release_if_empty();
+        self.take(whole);
         None
     }
 
@@ -581,21 +626,23 @@ impl BlendTool {
         if edges.is_empty() {
             return Some(BlendEvent::NoEdgesOnTarget { target });
         }
+        let mut rims = BTreeSet::new();
+        for name in &edges {
+            let edge = EdgeSelection {
+                name: name.clone(),
+                node: target.node,
+                body: target.body,
+            };
+            let rim: BTreeSet<StableName> = match index.whole_edge(&edge) {
+                Ok(whole) => whole.into_iter().collect(),
+                Err(fault) => return Some(BlendEvent::RimUnanswered { fault }),
+            };
+            if rim.len() > 1 && rim.is_subset(&edges) {
+                rims.insert(rim);
+            }
+        }
         self.fix(doc, target);
-        self.rims = edges
-            .iter()
-            .map(|name| {
-                index
-                    .whole_edge(&EdgeSelection {
-                        name: name.clone(),
-                        node: target.node,
-                        body: target.body,
-                    })
-                    .into_iter()
-                    .collect::<BTreeSet<_>>()
-            })
-            .filter(|rim| rim.len() > 1 && rim.is_subset(&edges))
-            .collect();
+        self.rims = rims;
         self.edges = edges;
         None
     }
@@ -721,6 +768,16 @@ impl BlendTool {
         if names.is_empty() {
             return Vec::new();
         }
+        let lost_from_rims = self
+            .rims
+            .iter()
+            .filter(|rim| names.iter().any(|name| rim.contains(name)))
+            .count();
+        let picks = lost_from_rims
+            + names
+                .iter()
+                .filter(|name| !self.rims.iter().any(|rim| rim.contains(*name)))
+                .count();
         for name in &names {
             self.edges.remove(name);
         }
@@ -731,6 +788,7 @@ impl BlendTool {
         vec![BlendEvent::EdgesLost {
             target,
             names,
+            picks,
             kept: self.count(),
         }]
     }

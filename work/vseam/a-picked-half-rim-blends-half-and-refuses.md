@@ -73,9 +73,13 @@ revolve leaves every circle as two edges, is
 ## Closed
 
 2026-10-31, PR 6129, at the pick. The pick index records each drawn
-body's closed rims of two or more arcs (`topo::query::rim_of` on the
-body it drew, mapped back to names through that body's table) and
-answers `PickIndex::whole_edge`. `Tools::feed` takes the index, and
+body's closed rims of two or more arcs, read through a new name-level
+door in editor-core's pick layer, `NodePick::boundary_rims`
+(`topo::query::rim_of` with the keys kept below G1; announced on
+DOCTAIL's slate as `node-pick-answers-a-drawn-edges-rim-by-name`), and
+answers `PickIndex::whole_edge`. A rim the door cannot answer, or an
+edge pick with no index, is a typed refusal (`BlendEvent::RimUnanswered`,
+`BlendEvent::Unindexed`) rather than a half pick. `Tools::feed` takes the index, and
 the blend tool takes a click as the whole drawn edge: a rim is one
 pick in the panel's count, and un-picking either arc drops the rim.
 `load_all_edges` groups the same way. The selection value stays one

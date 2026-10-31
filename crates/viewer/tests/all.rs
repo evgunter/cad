@@ -120,8 +120,6 @@ mod mate_door_and_badge;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
-#[path = "review_6129_rows.rs"]
-mod review_6129_rows;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
@@ -198,5 +196,7 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "whole_rim_pick.rs"]
+mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();
