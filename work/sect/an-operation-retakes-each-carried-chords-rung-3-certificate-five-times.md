@@ -21,7 +21,9 @@ distinct chord arcs from the carried section. `geom_brep::analytic_rung3`
 (`edge_nurbs.rs`) runs 40 times in the operation, each arc five times
 on bit-identical input (carrier piece, interval, both surfaces, band):
 four in one operand order and one in the other. Sampled with gdb, the
-calls sit under the join's edge door (`euler::mef_chords` →
+calls come from six sites, so not every site certifies every arc (the
+samples show which sites run, not which arc each one reads). They sit
+under the join's edge door (`euler::mef_chords` →
 `certify_edge_spec` → `policy_lane::certifying_attach`, for the chord
 and for its copy on the partner), the zip (`zip_seam` → `fuse_by_joint`
 → `kev_describing`), the output's description

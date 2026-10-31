@@ -100,9 +100,10 @@ ball with a cylinder (rod, turned rod, stub) all refused at the join's
 catch-all (`CurvedBooleanUnsupported`) in 0.2 s each, and the row took
 6.5 s at the default ε and 29 s at 1e-12. From `34051ed3` 20 of them
 build their chords on the carried section, certify them, and refuse
-only at the result gate (on main: 9 at a projected image's missing
-volume lane, 5 at a conic trim on the sphere's chart, 4 at
-`RingOnCurvedFace`, 2 at the spline edge join). They cost 1.4–8.5 s
+only at the result gate's volume (on main `fcb8f121cc`, at every ε row:
+10 at a projected image with no volume lane, 6 at a conic trim on the
+sphere's chart, 4 at `RingOnCurvedFace`; the other 4, the tilted ball
+with the upright rod, still refuse at the join's catch-all). They cost 1.4–8.5 s
 each at the default ε and 9–52 s at 1e-12, 108 of the row's 117 s and
 703 of its 758 s on main. Sampled with gdb, an operation's time sits in
 the chords' certificates: the join's rung-3 door (limb 2's rounds, the
@@ -135,7 +136,10 @@ the default ε, 1e-6 and 1e-12), both balls with the rod (20 s, 3.3 s,
 141 s), the unit ball with the turned rod (22 s, 3.8 s, 144 s), the
 tilted ball with it (22 s, 3.9 s, 146 s), and both balls with the stub
 (19 s, 4.0 s, 133 s). The four cylinder parts build no valid body yet,
-log `VACUOUS` and assert nothing until the volume lanes land
-(`spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
+so each pins where every one of its booleans stops, by refusal variant
+and raising door: a changed refusal, or a boolean that starts to build,
+goes red there and moves its part onto the door's assertion
+(`spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`
+for the 16 that stop at a quadrature).
 The nightly's 1e-12 hold-out is removed. The job's headroom is
 `green/the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes`.

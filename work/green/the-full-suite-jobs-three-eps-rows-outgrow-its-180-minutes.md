@@ -27,7 +27,12 @@ step times, from the jobs API of the scheduled nightlies (minutes):
 | 10-27 | 65 | 99 | 6 | 171 |
 | 10-28 | 50 | 66 | 6 | 123 |
 | 10-29 | 73 | > 106, cancelled at the limit | — | 180 |
+| 10-30 (`39bbdfc777`, PR 6011 in) | 51 | 78 | 6 | 135 |
+| 10-31 (`6d3aa0fa7a`) | 76 | > 104, cancelled at the limit | — | 180 |
 
+The seam-region door row was held out at 1e-12 on 10-30 and 10-31.
+The build alone swings 50–76 minutes from night to night, which is as
+much as the difference between a night that fits and one that does not.
 The per-row split is in the job log only, which this lane could not
 read past its tail (the log blob host is outside the session proxy), so
 the ε rows are one figure here. On 10-27 the job ended 9 minutes inside
@@ -49,9 +54,12 @@ What lands on top of those nights:
   takes 117 s). Against 10-28's 52 s that is about 4 minutes of the rows'
   wall clock.
 
-So a typical night (build 63, rows 93, after 6) plus PR 6011's rows (8–30
-at 1e-12, more at the other two) plus the door rows (4) is 174–196
-minutes before PR 6011's default and 1e-6 costs: it does not fit.
+The last two nights already carry PR 6011's rows. On 10-30 the job took
+135 minutes, and on 10-31 it was cancelled with the build at 76 minutes
+and the ε rows still running at 104. Un-holding the door rows adds 3–4
+minutes to a job that already fails on a slow night: 10-30's shape
+comes to about 139 minutes and fits, while a 76-minute build with
+10-31's rows does not fit at any row cost.
 
 ## What closing it takes
 

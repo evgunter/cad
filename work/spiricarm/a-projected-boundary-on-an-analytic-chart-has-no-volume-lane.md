@@ -60,12 +60,15 @@ lands and the join does.
 
 The seam-region door rows
 (`crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs`)
-build a ball's booleans with three cylinders. On main `25d3906bca` all
-20 that pass the join refuse at the result gate's volume or before it:
-9 at a curved-cut half-edge with no harmonic form (a projected image),
-5 at a conic trim on the sphere's chart, 4 at `RingOnCurvedFace`, and 2
-at the spline edge join (`JoinCarrierUnsupported`). The four rows
-holding them (`…_against_the_rod`, `…_the_unit_ball_against_the_turned_rod`,
-`…_the_tilted_ball_against_the_turned_rod`, `…_against_the_stub`) log
-`VACUOUS` and assert nothing until those bodies build; they start
-reading the door on chord-bounded sphere faces when this lane lands.
+build a ball's booleans with three cylinders. On main `fcb8f121cc`, at every
+ε row, 20 of the 24 pass the join and refuse at the result gate's
+volume: 10 at a curved-cut half-edge with no harmonic form (a projected
+image, this lane's), 6 at a conic trim on the sphere's chart, and 4 at
+`RingOnCurvedFace` (∪ and A ∖ B of both balls with the turned rod). The
+other 4 (the tilted ball with the upright rod) refuse at the join's
+catch-all. The four rows holding them (`…_against_the_rod`,
+`…_the_unit_ball_against_the_turned_rod`,
+`…_the_tilted_ball_against_the_turned_rod`, `…_against_the_stub`) pin
+each boolean's stop; the 10 projected-image stops go red when this lane
+lands, and their parts then read the door on chord-bounded sphere faces.
+The conic-trim, ring and catch-all stops wait on other lanes.
