@@ -686,7 +686,7 @@ pub(crate) fn classify<T: Decide>(
         (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. }, S::Cylinder { .. })
-        | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, band) {
+        | (S::Cylinder { .. }, S::Sphere { .. }) => match geom_brep::pair_section(f, g, None, band) {
             Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), marched),
             Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
             Err(e) => of_pair_section(&Err(e), marched),
@@ -1857,7 +1857,7 @@ pub(super) fn of_pair_section<T: Decide>(
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }
-            | SectionError::UnequalRadii
+            | SectionError::NoRegion { .. }
             | SectionError::BeyondOperandExtent { .. }
             | SectionError::Carrier(_)
             | SectionError::Spiric(_),

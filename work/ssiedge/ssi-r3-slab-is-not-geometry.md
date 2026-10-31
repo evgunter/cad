@@ -64,3 +64,26 @@ closed with that measurement). A scan of 600 slab shifts on the clipped
 north loop did not reproduce it here: the shortest chord it reached was
 6.8e-7 m. The scan is recorded in that row. A resolution that keeps
 `push_boundary` should give it `close_at`'s rule.
+
+## 2026-10-31: the cylinder pair reads the slab as the region (SECTARMS)
+
+C3's domain rule (`crates/geom-brep/README.md`, ratified on PR 6127 and
+fork row 226) settles which slab an unbounded ℝ³ pair meets: the pair's
+own ball where its pose proves one, cut by the operation's region (the
+ball about the operands' box overlap, padded), which holds every section
+point the operation can use. A branch that reaches it ends there, a cut
+end, not a refusal. SECTARMS's cylinder × cylinder stage 1 builds that
+for the first pair with no bounded side
+(`pair_section::cylinders`, `PairPose::domain`): the domain is the meet
+of the two balls, held in the cube of the smaller of them, so the slab
+is a superset of the domain and every cut end lies on a face of a
+cube the region names. `BranchEnd::Slab` and `SlabInBand` fold into one
+`BranchEnd::Cut` (the in-band label had no reader outside `march.rs`),
+and the plane × NURBS lane's `Crossings` becomes `BranchEnd::Rim`.
+
+What this row asks stays open for the pairs with a bounded side: their
+slab is the bounded operand's ball, which holds the whole section, so a
+branch meeting it is the desync `FittedCarrier::component` already
+refuses. The slab-face flush and slab-corner touch remain possible on
+the region's cube for the cylinder pair; none of the stage's rows
+reaches one.

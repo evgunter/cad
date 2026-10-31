@@ -193,9 +193,10 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
-    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
-    ComponentShape, Components, CsDecision, CsStance, CtStance, CylinderSpherePose,
-    CylinderTorusPose, FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
+    ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
+    CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose,
+    FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated,
     SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
     SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData,
     TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose,

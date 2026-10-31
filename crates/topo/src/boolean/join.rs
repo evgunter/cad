@@ -4274,7 +4274,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Ok(CylinderAxes::Parallel) => return Ok(None),
         Err(e) => return Err(refused(e)),
     };
-    match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
+    match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses {
             e1,
             e2,
@@ -4314,8 +4314,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::EqualCylinderSection::Empty,
         )
         | Err(
-            geom_brep::SectionError::UnequalRadii
-            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            geom_brep::SectionError::RoutesToGeneralRung { .. }
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
         ) => Ok(None),
@@ -4333,6 +4332,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
@@ -4387,7 +4387,7 @@ fn intersecting_cylinder_axes<T: Decide>(
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
-    let e = match geom_brep::cylinder_cylinder_section(sa, sb, reach, band) {
+    let e = match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
             let (
                 geom::Curve3::Ellipse {
@@ -4416,7 +4416,6 @@ fn intersecting_cylinder_axes<T: Decide>(
                 },
             });
         }
-        Err(geom_brep::SectionError::UnequalRadii) => FrameError::NoArm,
         // The three parallel-axes answers, from a table whose
         // parallelism verdict this dispatch already took the other
         // way on the same margin.
@@ -4458,6 +4457,7 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \
@@ -4576,7 +4576,7 @@ fn along_facing<T: Decide>(
     let ahead = Margin::metered(forward, geom_core::InfSpeed::new(speed));
     let travel = match decide("bool_join_foot_ahead", ahead, band).map_err(join_escalate)? {
         Sign::Positive => forward,
-        Sign::Negative if component.closed => forward + (hi - lo),
+        Sign::Negative if component.closed() => forward + (hi - lo),
         Sign::Negative => return Ok(Faced::Apart),
         Sign::Zero => return Err(desync("two distinct sites have one foot on their section")),
     };
@@ -6919,7 +6919,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();
@@ -7112,7 +7112,7 @@ mod frame_dispatch_tests {
                 lever: 1.0,
             };
             let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-                cylinder_cylinder_section(&sa, &sb, &reach, band())
+                cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
             else {
                 panic!("{deg}°: the table constructs the ellipses");
             };
@@ -7276,10 +7276,7 @@ mod frame_dispatch_tests {
             let sec = cylinder_cylinder_section(
                 &c1,
                 &c2,
-                &geom_brep::Reach::Measured {
-                    at: at(),
-                    lever: 1.0,
-                },
+                &geom_brep::ExtentBall::new(at(), 1.0),
                 band(),
             )
             .expect("intersecting equal-radius axes have a section");

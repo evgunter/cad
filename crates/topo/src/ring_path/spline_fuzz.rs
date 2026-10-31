@@ -90,7 +90,7 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
             u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&cylinder, &sphere, band()).unwrap()
+            geom_brep::pair_section(&cylinder, &sphere, None, band()).unwrap()
         else {
             panic!("the value builds cylinder × sphere");
         };
@@ -194,7 +194,7 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
             u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&torus, &sphere, band()).unwrap()
+            geom_brep::pair_section(&torus, &sphere, None, band()).unwrap()
         else {
             panic!("the value builds sphere × torus");
         };
@@ -396,7 +396,7 @@ fn random_torus_sections() {
         };
         let other = partner.surface();
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&torus, &other, band())
+            geom_brep::pair_section(&torus, &other, None, band())
         else {
             continue;
         };
@@ -407,7 +407,7 @@ fn random_torus_sections() {
         if components.is_empty()
             || components
                 .iter()
-                .any(|c| !matches!(c.carrier, geom::Curve3::Nurbs(_)) || !c.closed)
+                .any(|c| !matches!(c.carrier, geom::Curve3::Nurbs(_)) || !c.closed())
         {
             continue;
         }
@@ -684,7 +684,9 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
     let uncertified = geom_brep::CarriedComponent {
         carrier: curve.clone(),
         span: (0.0, 1.0),
-        closed: false,
+        shape: geom_brep::ComponentShape::Open {
+            ends: geom_brep::ComponentEnds::cut(),
+        },
         certificate: None,
         winds: [false, false],
         pad: 0.0,
@@ -734,7 +736,7 @@ fn a_ball_path_reads_a_crossing_near_its_end() {
     ));
     let other = partner.surface();
     let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&torus, &other, band()).unwrap()
+        geom_brep::pair_section(&torus, &other, None, band()).unwrap()
     else {
         panic!("the value builds sphere × torus");
     };

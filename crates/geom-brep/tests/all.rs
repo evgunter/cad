@@ -147,6 +147,8 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "onpair_plane_nurbs.rs"]
 mod onpair_plane_nurbs;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "pair_section.rs"]
 mod pair_section;
 #[path = "pcurve_frame_premise_rows.rs"]
