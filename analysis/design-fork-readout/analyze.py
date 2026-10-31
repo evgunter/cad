@@ -294,3 +294,54 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ---------- secondary cuts (appended; read results.json["extra"]) ----------
+
+def extra():
+    out = {}
+    for p in passes:
+        rows = passes[p]
+        x = {"logged_vs_coder": {}, "conf_hit": {}, "challenger": [0, 0],
+             "framer": [0, 0], "halves": {"early": [0, 0], "late": [0, 0]},
+             "by_agree": {}}
+        ks = [k for k in key if usable(k, False)]
+        dates = sorted(key[k]["date"] for k in ks)
+        mid = dates[len(dates) // 2]
+        for k in ks:
+            r, a = rows[k], key[k]["a_model"]
+            if r["decided"] != "y":
+                continue
+            lg, cd = side(r["logged_match"], a), side(r["coder_match"], a)
+            x["logged_vs_coder"][f"{lg}|{cd}"] = x["logged_vs_coder"].get(f"{lg}|{cd}", 0) + 1
+            for X in "AB":
+                m = side(X, a)
+                c = r[f"conf_{X}"].strip() or "?"
+                hit = cd == m or cd == "both"
+                d = x["conf_hit"].setdefault(f"{m}:{c}", [0, 0])
+                d[0 if hit else 1] += 1
+            if cd in ("opus", "fable"):
+                half = "early" if key[k]["date"] < mid else "late"
+                x["halves"][half][0 if cd == "opus" else 1] += 1
+                ag = r["agree_first"]
+                x["by_agree"].setdefault(ag, [0, 0])[0 if cd == "opus" else 1] += 1
+                for fld, slot in (("ratified", "challenger"), ("frame", "framer")):
+                    va, vb = r[f"{fld}_A"], r[f"{fld}_B"]
+                    if {va, vb} == {"y", "n"}:
+                        who = side("A" if va == "y" else "B", a)
+                        x[slot][0 if who == cd else 1] += 1
+        out[p] = x
+    pooled = {}
+    for name in ("challenger", "framer"):
+        pooled[name] = summarise(mix(*[beta_summary(*out[p][name]) for p in passes]))
+    for h in ("early", "late"):
+        pooled[h] = summarise(mix(*[beta_summary(*out[p]["halves"][h]) for p in passes]))
+    pooled["mid_date"] = mid
+    return {"per_pass": out, "pooled": pooled}
+
+
+if __name__ == "__main__":
+    res = json.load(open(f"{HERE}/results.json"))
+    res["extra"] = extra()
+    json.dump(res, open(f"{HERE}/results.json", "w"), indent=1)
+    print(json.dumps(res["extra"], indent=1))

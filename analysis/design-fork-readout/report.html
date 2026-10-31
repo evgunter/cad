@@ -1,0 +1,381 @@
+<title>Design-fork Designer Readout</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Layout: one reading column, figures full-bleed inside it; same report family as the model-A/B readout. */
+:root{
+  color-scheme: light;
+  --page:#f6f7f9; --surface-1:#fdfdfe; --card:#ffffff;
+  --text-primary:#10141a; --text-secondary:#4a5361; --muted:#7a8494;
+  --grid:#e3e7ee; --axis:#c2c9d4; --border:rgba(16,20,26,0.11);
+  --opus:#2a6fd0; --fable:#e0632b; --both:#7d8ea6; --mixed:#b9a3d6; --neither:#d3d8e0;
+  --onbar:#ffffff;
+  --display:"Source Serif 4",Charter,Georgia,serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#0c0e12; --surface-1:#14171d; --card:#181c23;
+    --text-primary:#eef1f6; --text-secondary:#b3bcc9; --muted:#838d9c;
+    --grid:#252a33; --axis:#363d49; --border:rgba(255,255,255,0.11);
+    --opus:#4f8ff0; --fable:#ee7a45; --both:#7b8aa0; --mixed:#8f78b3; --neither:#3a414d;
+    --onbar:#0c0e12;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0c0e12; --surface-1:#14171d; --card:#181c23;
+  --text-primary:#eef1f6; --text-secondary:#b3bcc9; --muted:#838d9c;
+  --grid:#252a33; --axis:#363d49; --border:rgba(255,255,255,0.11);
+  --opus:#4f8ff0; --fable:#ee7a45; --both:#7b8aa0; --mixed:#8f78b3; --neither:#3a414d;
+  --onbar:#0c0e12;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text-primary);font-family:var(--body);
+  line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;padding-block:36px 80px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1{font-family:var(--display);font-size:clamp(28px,5vw,38px);line-height:1.15;margin:0 0 8px;font-weight:600;text-wrap:balance}
+h2{font-family:var(--display);font-size:24px;margin:52px 0 8px;font-weight:600;padding-top:22px;border-top:1px solid var(--border);text-wrap:balance}
+p,li{max-width:70ch} p{margin:11px 0}
+.sub{color:var(--text-secondary);font-size:14.5px;margin-top:0}
+.lede{font-size:17px}
+.ci{color:var(--muted);font-size:0.9em;font-variant-numeric:tabular-nums}
+figure{margin:18px 0 8px;background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px 8px;overflow-x:auto}
+figcaption{color:var(--text-secondary);font-size:13.5px;padding-bottom:8px;max-width:78ch}
+.chart{display:block;overflow:visible;min-width:560px}
+.chart .grid{stroke:var(--grid);stroke-width:1} .chart .axis{stroke:var(--axis)}
+.chart .refline{stroke:var(--axis);stroke-width:1.5;stroke-dasharray:4 4}
+.chart .tick{fill:var(--muted);font-size:12px} .chart .axlab{fill:var(--text-secondary);font-size:13px}
+.chart .rowlab{fill:var(--text-primary);font-size:14px} .chart .rowsub{fill:var(--muted);font-size:11.5px}
+.chart .val{fill:var(--text-secondary);font-size:13px;font-variant-numeric:tabular-nums}
+.chart .inbar{fill:var(--onbar);font-size:13px;font-weight:600}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 10px;font-size:13.5px;color:var(--text-secondary)}
+.lg{display:inline-flex;align-items:center;gap:7px} .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:22px 0 6px}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
+.tile .k{font-family:var(--display);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.tile .l{font-size:12.5px;color:var(--text-secondary)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--text-secondary);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.04em}
+td.n,th.n{text-align:right}
+.callout{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin:20px 0}
+.callout .h{font-family:var(--display);font-weight:600;font-size:16px;margin-bottom:2px}
+code{font-family:var(--mono);font-size:0.86em;background:var(--surface-1);border:1px solid var(--border);padding:0 4px;border-radius:4px}
+.foot{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+:focus-visible{outline:2px solid var(--opus);outline-offset:2px}
+</style>
+<div class="wrap">
+<h1>Opus vs Fable designers: which first report did Ev's decision take?</h1>
+<p class="sub">First readout of the design-fork experiment · 230 rows of <code>docs/DESIGN-FORK-LOG.md</code> (24 Sep – 30 Oct 2026), 212 decided · two independent blinded coding passes · Beta(1,1) priors throughout</p>
+
+<p class="lede">Ev's decisions lean slightly toward the Opus designer's first report, but the lean is not established. Where Ev's decision took exactly one designer's first recommendation, it was Opus's <strong>56% <span class="ci">[44, 68]</span></strong> of the time, with 85% posterior probability that the true share is above even. Counting every decided fork, the lean shrinks to 52% <span class="ci">[43, 61]</span>. The more consistent differences are in how the two designers work: Opus more often challenges ratified text, and Fable more often states high confidence.</p>
+
+<div class="tiles">
+<div class="tile"><div class="k">56%</div><div class="l">head-to-head forks decided Opus's way</div></div>
+<div class="tile"><div class="k">85%</div><div class="l">P(Ev favours Opus's first report)</div></div>
+<div class="tile"><div class="k">80/81</div><div class="l">head-to-head rows (pass 1 / pass 2)</div></div>
+<div class="tile"><div class="k">23%</div><div class="l">forks where the first reports fully agreed</div></div>
+<div class="tile"><div class="k">κ 0.85</div><div class="l">coder agreement on the match code</div></div>
+</div>
+
+<div class="callout"><div class="h">What "first report" means here</div>
+<p>The protocol records each designer's recommendation before either sees the other's report. Most forks then go through reconciliation, and the PR carries the converged position: Ev accepted it as carried in 75% of decided forks, amended it in 22% and rejected it in 4%. So "Ev took Opus's first report" mostly means that reconciliation converged on Opus's opening position and Ev then approved it. This measures whose first instinct survived, not a preference Ev expressed between two named options. Ev never saw the model names.</p></div>
+
+<h2>1. The head-to-head</h2>
+<p>A row counts as head-to-head when Ev's decision matches one designer's first recommendation and not the other's, as judged by blinded coders comparing the <code>ev</code> cell with the two first reports. Pass 1 found 43 decided Opus's way and 37 Fable's; pass 2 found 48 and 33. The posterior below is the equal mixture of the two passes' Beta posteriors, so disagreement between the coders widens it rather than being settled by fiat.</p>
+<figure><svg viewBox="0 0 880 250" width="100%" class="chart" role="img" aria-label="Posterior for the share of head-to-head forks Ev decided Opus's way">
+<line x1="40.0" y1="20" x2="40.0" y2="206" class="grid"/>
+<text x="40.0" y="224" class="tick" text-anchor="middle">0%</text>
+<line x1="245.0" y1="20" x2="245.0" y2="206" class="grid"/>
+<text x="245.0" y="224" class="tick" text-anchor="middle">25%</text>
+<line x1="450.0" y1="20" x2="450.0" y2="206" class="grid"/>
+<text x="450.0" y="224" class="tick" text-anchor="middle">50%</text>
+<line x1="655.0" y1="20" x2="655.0" y2="206" class="grid"/>
+<text x="655.0" y="224" class="tick" text-anchor="middle">75%</text>
+<line x1="860.0" y1="20" x2="860.0" y2="206" class="grid"/>
+<text x="860.0" y="224" class="tick" text-anchor="middle">100%</text>
+<line x1="40" y1="206" x2="860" y2="206" class="axis"/>
+<polygon points="405.6,206.0 405.6,177.0 412.4,168.8 419.2,159.1 426.1,148.3 432.9,136.6 439.8,124.0 446.6,110.7 453.4,96.6 460.2,82.5 467.1,69.1 473.9,57.3 480.8,47.9 487.6,41.4 494.4,36.8 501.2,34.0 508.1,33.8 514.9,36.8 521.8,43.0 528.6,52.1 535.4,63.2 542.2,75.4 549.1,88.3 555.9,101.9 562.8,116.3 569.6,130.7 576.4,144.3 583.2,156.5 590.1,167.0 596.9,176.0 596.9,206.0" fill="var(--opus)" fill-opacity="0.18"/>
+<polyline points="43.4,206.0 50.2,206.0 57.1,206.0 63.9,206.0 70.8,206.0 77.6,206.0 84.4,206.0 91.2,206.0 98.1,206.0 104.9,206.0 111.8,206.0 118.6,206.0 125.4,206.0 132.2,206.0 139.1,206.0 145.9,206.0 152.8,206.0 159.6,206.0 166.4,206.0 173.2,206.0 180.1,206.0 186.9,206.0 193.8,206.0 200.6,206.0 207.4,206.0 214.3,206.0 221.1,206.0 227.9,206.0 234.8,206.0 241.6,206.0 248.4,206.0 255.2,206.0 262.1,206.0 268.9,206.0 275.8,206.0 282.6,206.0 289.4,206.0 296.2,206.0 303.1,205.9 309.9,205.9 316.8,205.9 323.6,205.8 330.4,205.6 337.2,205.3 344.1,204.8 350.9,204.2 357.7,203.2 364.6,201.7 371.4,199.7 378.2,197.2 385.1,194.0 391.9,189.7 398.8,183.9 405.6,177.0 412.4,168.8 419.2,159.1 426.1,148.3 432.9,136.6 439.8,124.0 446.6,110.7 453.4,96.6 460.2,82.5 467.1,69.1 473.9,57.3 480.8,47.9 487.6,41.4 494.4,36.8 501.2,34.0 508.1,33.8 514.9,36.8 521.8,43.0 528.6,52.1 535.4,63.2 542.2,75.4 549.1,88.3 555.9,101.9 562.8,116.3 569.6,130.7 576.4,144.3 583.2,156.5 590.1,167.0 596.9,176.0 603.8,183.5 610.6,189.7 617.4,194.5 624.2,198.0 631.1,200.7 637.9,202.6 644.8,203.9 651.6,204.8 658.4,205.3 665.2,205.6 672.1,205.8 678.9,205.9 685.8,205.9 692.6,206.0 699.4,206.0 706.2,206.0 713.1,206.0 719.9,206.0 726.8,206.0 733.6,206.0 740.4,206.0 747.2,206.0 754.1,206.0 760.9,206.0 767.8,206.0 774.6,206.0 781.4,206.0 788.2,206.0 795.1,206.0 801.9,206.0 808.8,206.0 815.6,206.0 822.4,206.0 829.2,206.0 836.1,206.0 842.9,206.0 849.8,206.0 856.6,206.0" fill="none" stroke="var(--opus)" stroke-width="2.2"/>
+<line x1="450.0" y1="20" x2="450.0" y2="206" class="refline"/>
+<line x1="502.6" y1="206.0" x2="502.6" y2="26" stroke="var(--opus)" stroke-width="1.5"/>
+<text x="508.6" y="36" class="val">median 56%</text>
+<text x="444.0" y="36" class="val" text-anchor="end">even</text>
+<text x="40.0" y="244" class="axlab">← Fable's way</text>
+<text x="860.0" y="244" class="axlab" text-anchor="end">Opus's way →</text>
+</svg>
+<figcaption>Posterior for the share of head-to-head forks decided Opus's way. The shaded band is the 95% credible interval; the dashed line is even.</figcaption></figure>
+
+<figure><div class="legend"><span class="lg"><span class="sw" style="background:var(--opus)"></span>Opus only</span><span class="lg"><span class="sw" style="background:var(--fable)"></span>Fable only</span><span class="lg"><span class="sw" style="background:var(--both)"></span>Both (they agreed)</span><span class="lg"><span class="sw" style="background:var(--mixed)"></span>Part of each</span><span class="lg"><span class="sw" style="background:var(--neither)"></span>Neither</span></div><svg viewBox="0 0 880 112" width="100%" class="chart" role="img" aria-label="Which first recommendation Ev took, per coding pass">
+<text x="0" y="27" class="rowlab">Pass 1</text>
+<text x="0" y="41" class="rowsub">Opus coders · n=212</text>
+<rect x="120.0" y="8" width="150.1" height="30" rx="3" fill="var(--opus)"/>
+<text x="195.1" y="28" class="inbar" text-anchor="middle">43</text>
+<rect x="272.1" y="8" width="128.9" height="30" rx="3" fill="var(--fable)"/>
+<text x="336.6" y="28" class="inbar" text-anchor="middle">37</text>
+<rect x="403.0" y="8" width="189.0" height="30" rx="3" fill="var(--both)"/>
+<text x="497.5" y="28" class="inbar" text-anchor="middle">54</text>
+<rect x="594.1" y="8" width="178.4" height="30" rx="3" fill="var(--mixed)"/>
+<text x="683.3" y="28" class="inbar" text-anchor="middle">51</text>
+<rect x="774.5" y="8" width="93.5" height="30" rx="3" fill="var(--neither)"/>
+<text x="821.2" y="28" class="inbar" text-anchor="middle">27</text>
+<text x="0" y="73" class="rowlab">Pass 2</text>
+<text x="0" y="87" class="rowsub">Fable coders · n=213</text>
+<rect x="120.0" y="54" width="167.0" height="30" rx="3" fill="var(--opus)"/>
+<text x="203.5" y="74" class="inbar" text-anchor="middle">48</text>
+<rect x="289.0" y="54" width="114.2" height="30" rx="3" fill="var(--fable)"/>
+<text x="346.1" y="74" class="inbar" text-anchor="middle">33</text>
+<rect x="405.2" y="54" width="181.1" height="30" rx="3" fill="var(--both)"/>
+<text x="495.8" y="74" class="inbar" text-anchor="middle">52</text>
+<rect x="588.3" y="54" width="195.2" height="30" rx="3" fill="var(--mixed)"/>
+<text x="685.9" y="74" class="inbar" text-anchor="middle">56</text>
+<rect x="785.5" y="54" width="82.5" height="30" rx="3" fill="var(--neither)"/>
+<text x="826.7" y="74" class="inbar" text-anchor="middle">24</text>
+</svg>
+<figcaption>Every decided fork, by which first recommendation Ev's decision took. The head-to-head rows are the first two segments. "Part of each" means Ev took one designer on some sub-questions and the other on the rest.</figcaption></figure>
+
+<p>Taking each designer on its own, Ev's decision took Opus's first report (alone or shared) in 46% <span class="ci">[40, 53]</span> of decided forks and Fable's in 41% <span class="ci">[34, 49]</span>. The difference, +4.9 points <span class="ci">[-5.3, +15.0]</span>, includes zero. Neither designer's first report is what Ev ends up with most of the time. Forks are usually multi-part, and the final answer is assembled.</p>
+
+<h2>2. Robustness</h2>
+<figure><svg viewBox="0 0 880 324" width="100%" class="chart" role="img" aria-label="Share decided Opus's way">
+<line x1="330.0" y1="10" x2="330.0" y2="294" class="grid"/>
+<text x="330.0" y="312" class="tick" text-anchor="middle">0%</text>
+<line x1="450.0" y1="10" x2="450.0" y2="294" class="grid"/>
+<text x="450.0" y="312" class="tick" text-anchor="middle">25%</text>
+<line x1="570.0" y1="10" x2="570.0" y2="294" class="grid"/>
+<text x="570.0" y="312" class="tick" text-anchor="middle">50%</text>
+<line x1="690.0" y1="10" x2="690.0" y2="294" class="grid"/>
+<text x="690.0" y="312" class="tick" text-anchor="middle">75%</text>
+<line x1="810.0" y1="10" x2="810.0" y2="294" class="grid"/>
+<text x="810.0" y="312" class="tick" text-anchor="middle">100%</text>
+<line x1="570.0" y1="10" x2="570.0" y2="294" class="refline"/>
+<text x="0" y="28.0" class="rowlab">Head-to-head</text>
+<text x="0" y="42.0" class="rowsub">Ev took exactly one first report · n=80 / 81</text>
+<line x1="543.1" y1="30.0" x2="656.1" y2="30.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="600.8" cy="30.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="34.0" class="val">56%</text>
+<text x="0" y="68.0" class="rowlab">Overall lean</text>
+<text x="0" y="82.0" class="rowsub">includes 'part of each' and 'neither' rows</text>
+<line x1="537.4" y1="70.0" x2="624.5" y2="70.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="581.0" cy="70.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="74.0" class="val">52%</text>
+<text x="0" y="108.0" class="rowlab">Head-to-head, protocol-clean</text>
+<text x="0" y="122.0" class="rowsub">drops the rows with a blinding deviation</text>
+<line x1="540.2" y1="110.0" x2="654.0" y2="110.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="598.2" cy="110.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="114.0" class="val">56%</text>
+<text x="0" y="148.0" class="rowlab">Log's own match cell</text>
+<text x="0" y="162.0" class="rowsub">written after unblinding; one-sided cells only</text>
+<line x1="568.7" y1="150.0" x2="691.6" y2="150.0" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="633.0" cy="150.0" r="5.5" fill="var(--muted)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="154.0" class="val">63%</text>
+<text x="0" y="188.0" class="rowlab">First half (before 10-10)</text>
+<text x="0" y="202.0" class="rowsub">head-to-head</text>
+<line x1="520.2" y1="190.0" x2="653.3" y2="190.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="587.6" cy="190.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="194.0" class="val">54%</text>
+<text x="0" y="228.0" class="rowlab">Second half</text>
+<text x="0" y="242.0" class="rowsub">head-to-head</text>
+<line x1="523.8" y1="230.0" x2="700.7" y2="230.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="617.4" cy="230.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="234.0" class="val">60%</text>
+<text x="0" y="268.0" class="rowlab">Control: label A over label B</text>
+<text x="0" y="282.0" class="rowsub">should sit at 50%</text>
+<line x1="502.2" y1="270.0" x2="611.9" y2="270.0" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="556.7" cy="270.0" r="5.5" fill="var(--muted)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="274.0" class="val">47%</text>
+</svg>
+<figcaption>Posterior medians and 95% credible intervals for the share decided Opus's way under different cuts. Grey rows are checks, not effects.</figcaption></figure>
+<ul>
+<li><strong>Label position is a clean control.</strong> Ev took label A 47% <span class="ci">[36, 59]</span> of the time. The urandom labels work, and no position effect is hiding a model effect.</li>
+<li><strong>The log's own match cell leans further toward Opus</strong> (63% <span class="ci">[50, 75]</span>). That cell was written after unblinding, so it is worth checking for bias. Its one-sided cells mostly agree with the coders: of the 57 rows the log credits to one designer alone, blinded pass 1 keeps 48 on that designer and pass 2 keeps 46 of 47. The difference comes from rows the log calls "both" (usually "both, after reconciliation"). The coders re-split those against the first reports: 10 to Opus and 15 to Fable in pass 1, 13 and 13 in pass 2. That split is even, so it dilutes the lean rather than reversing it. There is no sign that the unblinded writer shaded the cell toward either model. The forks the log itself reads as clean wins favour Opus more than the marginal ones do.</li>
+<li><strong>Dropping the protocol deviations</strong> (row 2, whose blinding broke, and row 212, with no byte drawn) changes nothing: 56% <span class="ci">[44, 67]</span>.</li>
+<li><strong>Coder reliability is good.</strong> The Opus-run and Fable-run coding passes agree on 88% of match codes (Cohen's κ 0.85), 96% on first-report agreement (κ 0.93) and 97% on reconciliation movement (κ 0.95). Their head-to-head counts differ (43:37 vs 48:33) mostly on rows one pass calls "part of each".</li>
+</ul>
+
+<h3>Over time</h3>
+<figure><svg viewBox="0 0 880 260" width="100%" class="chart" role="img" aria-label="Share of head-to-head forks decided Opus's way, over time">
+<line x1="46" y1="216.0" x2="860" y2="216.0" class="grid"/>
+<text x="38" y="220.0" class="tick" text-anchor="end">0%</text>
+<line x1="46" y1="166.0" x2="860" y2="166.0" class="grid"/>
+<text x="38" y="170.0" class="tick" text-anchor="end">25%</text>
+<line x1="46" y1="116.0" x2="860" y2="116.0" class="grid"/>
+<text x="38" y="120.0" class="tick" text-anchor="end">50%</text>
+<line x1="46" y1="66.0" x2="860" y2="66.0" class="grid"/>
+<text x="38" y="70.0" class="tick" text-anchor="end">75%</text>
+<line x1="46" y1="16.0" x2="860" y2="16.0" class="grid"/>
+<text x="38" y="20.0" class="tick" text-anchor="end">100%</text>
+<line x1="46" y1="116.0" x2="860" y2="116.0" class="refline"/>
+<text x="46.0" y="234" class="tick" text-anchor="middle">24 Sep</text>
+<text x="204.3" y="234" class="tick" text-anchor="middle">1 Oct</text>
+<text x="362.6" y="234" class="tick" text-anchor="middle">8 Oct</text>
+<text x="520.8" y="234" class="tick" text-anchor="middle">15 Oct</text>
+<text x="679.1" y="234" class="tick" text-anchor="middle">22 Oct</text>
+<text x="837.4" y="234" class="tick" text-anchor="middle">29 Oct</text>
+<polygon points="91.2,72.0 110.9,73.5 130.6,75.0 150.4,76.4 170.1,77.7 189.8,79.1 209.5,80.4 229.2,81.6 248.9,83.0 268.6,83.9 288.3,84.8 308.1,85.6 327.8,86.2 347.5,86.8 367.2,87.1 386.9,87.0 406.6,87.2 426.3,86.9 446.0,86.5 465.8,86.1 485.5,85.4 505.2,84.6 524.9,83.7 544.6,82.7 564.3,81.6 584.0,80.5 603.7,79.3 623.5,78.2 643.2,76.9 662.9,75.5 682.6,74.2 702.3,72.9 722.0,71.5 741.7,70.2 761.4,68.9 781.2,67.6 800.9,66.2 820.6,65.0 840.3,63.6 860.0,62.3 860.0,162.2 840.3,160.6 820.6,159.0 800.9,157.5 781.2,155.7 761.4,154.1 741.7,152.4 722.0,150.8 702.3,148.8 682.6,147.5 662.9,145.9 643.2,144.4 623.5,142.8 603.7,141.3 584.0,139.8 564.3,138.3 544.6,136.8 524.9,135.7 505.2,134.4 485.5,133.3 465.8,132.3 446.0,131.5 426.3,131.1 406.6,130.7 386.9,130.1 367.2,130.3 347.5,130.5 327.8,130.8 308.1,131.3 288.3,131.9 268.6,132.7 248.9,133.7 229.2,134.7 209.5,135.9 189.8,137.1 170.1,138.5 150.4,139.8 130.6,141.1 110.9,142.6 91.2,144.1" fill="var(--opus)" fill-opacity="0.10"/>
+<polyline points="91.2,107.1 110.9,107.2 130.6,107.2 150.4,107.4 170.1,107.4 189.8,107.6 209.5,107.6 229.2,107.6 248.9,107.7 268.6,107.9 288.3,108.0 308.1,108.1 327.8,108.2 347.5,108.3 367.2,108.5 386.9,108.8 406.6,108.7 426.3,108.8 446.0,108.9 465.8,109.0 485.5,109.1 505.2,109.2 524.9,109.2 544.6,109.5 564.3,109.4 584.0,109.6 603.7,109.7 623.5,109.8 643.2,110.0 662.9,110.0 682.6,110.1 702.3,110.0 722.0,110.3 741.7,110.4 761.4,110.5 781.2,110.5 800.9,110.7 820.6,110.8 840.3,110.9 860.0,111.0" fill="none" stroke="var(--opus)" stroke-width="2"/>
+<polygon points="91.2,81.8 110.9,82.0 130.6,82.2 150.4,82.4 170.1,82.5 189.8,82.6 209.5,82.4 229.2,82.4 248.9,82.2 268.6,81.8 288.3,81.2 308.1,80.7 327.8,80.0 347.5,79.1 367.2,78.0 386.9,76.8 406.6,75.4 426.3,73.8 446.0,72.1 465.8,70.3 485.5,68.3 505.2,66.2 524.9,64.2 544.6,62.2 564.3,60.2 584.0,58.0 603.7,56.1 623.5,54.1 643.2,52.2 662.9,50.3 682.6,48.5 702.3,46.7 722.0,45.0 741.7,43.4 761.4,41.8 781.2,40.3 800.9,38.9 820.6,37.5 840.3,36.2 860.0,35.0 860.0,117.6 840.3,117.2 820.6,116.8 800.9,116.3 781.2,115.9 761.4,115.6 741.7,115.2 722.0,114.8 702.3,114.7 682.6,114.3 662.9,114.0 643.2,113.8 623.5,113.7 603.7,113.6 584.0,113.6 564.3,113.5 544.6,113.7 524.9,113.9 505.2,114.2 485.5,114.7 465.8,115.2 446.0,116.0 426.3,116.8 406.6,118.0 386.9,119.4 367.2,120.8 347.5,122.4 327.8,124.3 308.1,126.4 288.3,128.6 268.6,130.9 248.9,133.4 229.2,136.0 209.5,138.7 189.8,141.3 170.1,144.2 150.4,147.0 130.6,149.8 110.9,152.6 91.2,155.4" fill="var(--fable)" fill-opacity="0.10"/>
+<polyline points="91.2,118.4 110.9,117.0 130.6,115.6 150.4,114.2 170.1,112.8 189.8,111.4 209.5,110.1 229.2,108.7 248.9,107.3 268.6,105.9 288.3,104.4 308.1,103.1 327.8,101.7 347.5,100.3 367.2,98.9 386.9,97.5 406.6,96.1 426.3,94.8 446.0,93.5 465.8,92.1 485.5,90.8 505.2,89.5 524.9,88.3 544.6,86.9 564.3,85.7 584.0,84.3 603.7,83.1 623.5,81.8 643.2,80.6 662.9,79.4 682.6,78.2 702.3,76.9 722.0,75.7 741.7,74.6 761.4,73.4 781.2,72.2 800.9,71.1 820.6,70.0 840.3,68.9 860.0,67.9" fill="none" stroke="var(--fable)" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="136.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="136.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="159.1" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="159.1" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="159.1" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="159.1" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="159.1" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="91.2" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="181.7" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="204.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="226.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="249.5" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="249.5" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="249.5" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="272.1" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="272.1" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="317.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="317.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="249.5" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="339.9" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="317.3" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="339.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="339.9" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="362.6" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="339.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="339.9" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="362.6" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="362.6" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="362.6" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="362.6" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="407.8" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="407.8" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="407.8" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="407.8" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="407.8" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="430.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="430.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="430.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="453.0" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="475.6" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="475.6" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="498.2" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="520.8" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="543.4" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="543.4" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="566.1" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="588.7" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="588.7" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="453.0" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="611.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="498.2" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="611.3" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="656.5" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="633.9" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="814.8" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="814.8" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="814.8" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="814.8" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="837.4" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="837.4" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<circle cx="837.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="837.4" cy="22.0" r="3" fill="var(--opus)" fill-opacity="0.55"/>
+<circle cx="860.0" cy="210.0" r="3" fill="var(--fable)" fill-opacity="0.55"/>
+<text x="46" y="254" class="axlab">fork date (pass-1 codes shown as ticks: top = Opus's way, bottom = Fable's)</text>
+</svg>
+<figcaption>Logistic regression of head-to-head outcome on fork date, fitted by grid quadrature (N(0,1.5²) intercept, N(0,1²) per-week slope). Solid: pass-1 codes; dashed: pass-2 codes. Bands are 95% credible intervals.</figcaption></figure>
+<p>The two passes disagree on the direction of any drift. The odds ratio per week is 0.98 <span class="ci">[0.70, 1.38]</span> in pass 1 and 1.26 <span class="ci">[0.90, 1.80]</span> in pass 2. Both intervals contain 1, so there is no trend.</p>
+
+<h2>3. How the designers differ</h2>
+<p>The fields each first report records (confidence, framing rejected, ratified text challenged) separate the two models more cleanly than Ev's decisions do. Each estimate is taken over the rows where the two designers differed on that field.</p>
+<figure><svg viewBox="0 0 880 284" width="100%" class="chart" role="img" aria-label="How the two designers differ">
+<line x1="330.0" y1="10" x2="330.0" y2="254" class="grid"/>
+<text x="330.0" y="272" class="tick" text-anchor="middle">0%</text>
+<line x1="450.0" y1="10" x2="450.0" y2="254" class="grid"/>
+<text x="450.0" y="272" class="tick" text-anchor="middle">25%</text>
+<line x1="570.0" y1="10" x2="570.0" y2="254" class="grid"/>
+<text x="570.0" y="272" class="tick" text-anchor="middle">50%</text>
+<line x1="690.0" y1="10" x2="690.0" y2="254" class="grid"/>
+<text x="690.0" y="272" class="tick" text-anchor="middle">75%</text>
+<line x1="810.0" y1="10" x2="810.0" y2="254" class="grid"/>
+<text x="810.0" y="272" class="tick" text-anchor="middle">100%</text>
+<line x1="570.0" y1="10" x2="570.0" y2="254" class="refline"/>
+<text x="0" y="28.0" class="rowlab">Challenged ratified text</text>
+<text x="0" y="42.0" class="rowsub">when exactly one did, it was Opus</text>
+<line x1="589.7" y1="30.0" x2="725.8" y2="30.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="663.9" cy="30.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="34.0" class="val">70%</text>
+<text x="0" y="68.0" class="rowlab">Rejected the framing</text>
+<text x="0" y="82.0" class="rowsub">when exactly one did, it was Opus</text>
+<line x1="543.3" y1="70.0" x2="725.4" y2="70.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="641.9" cy="70.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="74.0" class="val">65%</text>
+<text x="0" y="108.0" class="rowlab">Stated the higher confidence</text>
+<text x="0" y="122.0" class="rowsub">when they differed, it was Opus</text>
+<line x1="366.8" y1="110.0" x2="512.0" y2="110.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="427.3" cy="110.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="114.0" class="val">20%</text>
+<text x="0" y="148.0" class="rowlab">Moved in reconciliation</text>
+<text x="0" y="162.0" class="rowsub">when exactly one moved, it was Opus</text>
+<line x1="473.2" y1="150.0" x2="649.8" y2="150.0" stroke="var(--opus)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="560.9" cy="150.0" r="5.5" fill="var(--opus)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="154.0" class="val">48%</text>
+<text x="0" y="188.0" class="rowlab">Ev sided with the text-challenger</text>
+<text x="0" y="202.0" class="rowsub">head-to-head rows where one challenged</text>
+<line x1="494.1" y1="190.0" x2="703.4" y2="190.0" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="603.5" cy="190.0" r="5.5" fill="var(--muted)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="194.0" class="val">57%</text>
+<text x="0" y="228.0" class="rowlab">Ev sided with the framing-rejecter</text>
+<text x="0" y="242.0" class="rowsub">head-to-head rows where one rejected</text>
+<line x1="531.2" y1="230.0" x2="776.2" y2="230.0" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
+<circle cx="679.3" cy="230.0" r="5.5" fill="var(--muted)" stroke="var(--card)" stroke-width="1.5"/>
+<text x="818" y="234.0" class="val">73%</text>
+</svg>
+<figcaption>Upper four rows: on forks where the designers differed on the field, the share where Opus was the one. Lower two: on head-to-head forks where exactly one designer challenged or rejected, the share where Ev's decision went that designer's way.</figcaption></figure>
+<ul>
+<li><strong>Opus challenges ratified text more.</strong> Opus did so on 74% of its first reports and Fable on 67%. When exactly one challenged, it was Opus 70% <span class="ci">[54, 82]</span>, the clearest difference in the data. Challenging does not reliably win: on head-to-head forks Ev went the challenger's way 57% <span class="ci">[34, 78]</span> of the time.</li>
+<li><strong>Both designers reject the framing almost always</strong> (Opus 91%, Fable 87%). The field barely discriminates. In the few head-to-head forks where only one rejected it, Ev sided with the rejecter 73% <span class="ci">[42, 93]</span>, from about nine rows.</li>
+<li><strong>Fable states high confidence more.</strong> Nearly every report says "likely". When the two confidences differed, the higher one was Fable's on 80% of forks. The table below shows how often each designer's report was taken, by stated confidence. Opus's rare "high" calls were taken most of the time; Fable's "high" calls were taken a little over half the time. The counts are too small to call a calibration difference.</li>
+<li><strong>Neither designer concedes more.</strong> Most reconciliations move both. When only one moved, it was Opus 48% <span class="ci">[30, 67]</span>.</li>
+</ul>
+<div class="tbl"><table>
+<tr><th>Designer</th><th>Stated confidence</th><th class=n>Taken (pass 1)</th><th class=n>Taken (pass 2)</th></tr>
+<tr><td>Opus</td><td>likely</td><td class=n>88/202</td><td class=n>94/205</td></tr>
+<tr><td>Opus</td><td>high</td><td class=n>8/9</td><td class=n>5/7</td></tr>
+<tr><td>Fable</td><td>likely</td><td class=n>77/189</td><td class=n>73/191</td></tr>
+<tr><td>Fable</td><td>high</td><td class=n>14/23</td><td class=n>12/22</td></tr>
+</table></div>
+
+<h2>4. What this does and does not show</h2>
+<ul>
+<li><strong>A weak lean, not a result.</strong> At about 80 head-to-head forks the interval still spans roughly 44–68%. If the true share is near 56%, ruling out "even" at the 95% level takes roughly 270 head-to-head forks, about three times the current count. At the current pace of about two head-to-head forks a day, that is around three more months.</li>
+<li><strong>The outcome is Ev's judgment, not ground truth.</strong> "Ev took Opus's report" says whose answer Ev chose, not whose design held up later. A follow-up could score decided forks by whether the chosen design was later revised.</li>
+<li><strong>Forks are not independent.</strong> Several rows share a program and an orchestrator, and some forks follow from earlier ones. The Beta model treats them as exchangeable, so the intervals are somewhat too narrow.</li>
+<li><strong>Reconciliation is part of the treatment.</strong> Because Ev usually decides on the converged recommendation, a designer that argues its first position persuasively in reconciliation will score well here even if Ev would have chosen differently between the raw first reports.</li>
+</ul>
+
+<h2>Method</h2>
+<p><code>parse_log.py</code> splits the 230 table rows (some fork numbers repeat after merge collisions, so rows are keyed by line). <code>blind_extract.py</code> drops the A/B column, redacts every model name and fails if any survives. Eight agents then coded the four extract chunks against <code>CODING-PROMPT.md</code>, a full pass by Opus coders and a full pass by Fable coders. None could see the mapping. <code>key.py</code> reads the mapping from each row's A/B column, checks it against the urandom byte's parity (no contradictions), and is the only file that names the models. <code>analyze.py</code> joins the two and fits every proportion as a Beta(1,1)–binomial and the outcome mix as a Dirichlet. Each estimate is reported pooled over both passes. Everything lives on <code>analysis/design-fork/readout-1</code>.</p>
+
+<div class="foot">Off-file readout under the design-fork protocol's rule 7: kept on an <code>analysis/</code> branch, not summarised anywhere agents read. An orchestrator with a design fork in flight should not read it.</div>
+</div>

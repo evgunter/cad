@@ -1,0 +1,231 @@
+key,decided,agree_first,logged_match,coder_match,ev_lean,ev_vs_to_ev,conf_A_word,conf_A,conf_B_word,conf_B,frame_A,frame_B,ratified_A,ratified_B,rounds,movement,extra_designers,notes
+L27,y,partial,mixed,mixed,A,amended,likely,2,likely,2,n,n,y,y,0,none,n,"Ev rejected the carried seat (merge stage) for construct-in-place: neither on seat, both on Band(s), A on parking pi."
+L28,y,none,A,A,A,accepted,likely (sure on symptom),2,likely,2,y,n,n,n,1,B,n,A framing 'partly' coded y. B moved to (b3) in round 1; A held.
+L29,y,partial,neither,neither,even,accepted,likely,2,likely,2,y,y,y,n,4,both,y,Decision came from designers C and D dispatched in round 4; both A and B first reports declared at rest. Final to_ev carried the derive recommendation.
+L30,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L31,y,partial,mixed,mixed,even,amended,likely,2,likely (direction point sure),2,y,y,y,y,2,both,n,Shape both; tighten-only rule emerged in reconciliation (neither first exactly); kernel-limit 'loosen' kept against the carried no-loosen rule and B's lean.
+L32,y,none,B,B,B,accepted,likely,2,likely,2,n,n,y,n,2,both,n,Designers swapped positions in round 1; both ended on B's first (candidate identity).
+L33,y,partial,mixed,mixed,B,amended,likely,2,likely (that lean unsure),2,y,y,y,y,2,both,n,Converged recommendation merged A's split (filed) and B's read-as-at-rest; Ev's stopgap on the split matched B's withdrawn first-report lean and neither final text.
+L34,y,full,both,both,even,accepted,"likely, near sure",2,"sure (the three), likely (revolve_common)",3,y,y,n,n,0,none,n,Ev added a lean on inlining tol() copies; not material.
+L35,y,full,neither,neither,even,rejected,likely,2,likely,2,y,y,n,n,0,none,n,Ev rejected the agreed recommendation on code quality.
+L36,y,partial,A,A,A,accepted,likely,2,likely,2,y,y,y,y,0,none,n,"Logged cell: both on final state, A on the mechanism split; coded A since A's first covers the whole decision."
+L37,y,partial,B,B,B,accepted,likely,2,likely (two questions sure),2,y,y,y,n,1,both,n,"Designers crossed in round 1; Ev kept retirement verbatim (B's first, identity-only)."
+L38,y,full,both,both,even,accepted,likely,2,likely (premise sure),2,y,y,y,y,0,none,n,A framing 'partly' coded y.
+L39,y,full,both,both,even,accepted,"sure on Q1/Q3, likely on Q2/Q4",3,"sure on the principle, likely on C1",3,n,n,n,y,0,none,n,B's ratified-text cell names a README exclusion step change; coded y. Ev asked a follow-on row (cones).
+L40,y,partial,neither,neither,even,rejected,likely,2,likely,2,y,y,y,y,1,both,n,Ev judged the shared plane half-space semantics fragile and reframed as row 18; coded as a decision against both (could be read as undecided).
+L41,y,partial,mixed,mixed,A,amended,likely,2,likely,2,y,y,n,n,1,both,n,A on loop and keep form; roles were an orchestrator synthesis matching neither first.
+L42,y,partial,A,A,A,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"Ev chose option (a), A's first; B had moved to it in round 1, A had softened away."
+L43,y,partial,A,A,A,accepted,"negation sure, same_chart likely, stated bit likely",2,likely,2,y,y,y,y,0,none,n,"Logged: both on final state, A on the same_chart residual; coded A (A's first covers whole decision). Agreement near-full."
+L44,n,partial,na,na,na,na,likely,2,likely,2,y,y,y,y,1,both,n,"Logged cell reads 'neither: widened'; Ev did not choose (i)/(ii), widened to row 18. Designers crossed on the literal."
+L45,y,partial,both,both,even,accepted,likely,2,likely,2,y,n,y,y,0,none,n,Semantics both; mechanism left to measurement with a low-confidence lean to B's kernel record; lean coded even since mechanism undecided.
+L46,y,partial,mixed,mixed,B,amended,likely,2,"likely on record nothing, unsure on sub-choices",2,y,y,y,y,1,both,n,"Partial decision: core (both) taken, membership leaned (a) = B's first, gauge deletion 'not refused' against B's first; narrowed to row 19. B's first was delivered after both addenda."
+L47,y,none,B,B,B,amended,likely,2,likely,2,y,y,y,y,1,both,n,"Logged says A's revised report = B's first (unplaced state). Ev amended: own space, gate/measures not asked, only export refuses."
+L48,y,partial,mixed,mixed,even,amended,likely,2,likely,2,n,y,n,y,5,both,n,Deciding idea (authored shape read through lowering algebra) was Ev's own; radius kept against the carried drop.
+L49,y,partial,mixed,mixed,even,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"A on (1),(2); B on (3),(4); chosen among carried options."
+L50,y,none,B,B,B,accepted,likely,2,likely,2,y,y,y,y,1,A,n,"Logged cell qualifies: B's first, A's after round 1."
+L51,y,none,A,A,A,accepted,likely,2,likely,2,y,y,n,n,1,B,n,Ev added a follow-up on refusal wording; rule's reach adopted as carried.
+L52,y,partial,both,A,A,accepted,likely,2,"likely on the rule, unsure on scope",2,y,y,y,y,2,both,n,"Logged 'both after round 2'; on first reports the details Ev took (sorted vertex names, crossing-vertex ordinal, chords take Ends, all pieces) were A's; B moved to them."
+L53,n,partial,na,na,na,na,likely,2,likely,2,y,y,n,n,3,both,n,Ev did not choose; narrowed to row 24. A framing 'partly' coded y. Designers crossed in round 1.
+L54,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,n,n,2,both,n,"Logged 'both after round 2'; on first reports: display kind+label+tag (A), label off InsertNode and form-seeded default (B), SetLabel term (A)."
+L55,y,full,both,both,even,accepted,likely,2,likely,2,y,y,n,n,0,none,n,"Ev picked 2(a), which both first reports carried."
+L56,y,full,both,both,even,accepted,likely,2,likely,2,y,y,n,n,0,none,n,Ev widened to every hard-coded site (B named two); both framing 'partly' coded y.
+L57,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,y,1,A,n,
+L58,y,partial,A,A,A,accepted,sure (silence) / likely (structure),3,likely,2,y,y,n,n,0,none,n,Both recommended silence; Ev also took A's structural Result step. Both framing 'partly' coded y.
+L59,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,n,1,both,n,"Logged 'both after round 1'; on first reports: no Theme fields (B), salience check (A). A re-run as a fresh designer after a lane failure: not coded as extra."
+L60,n,partial,na,na,na,na,likely,2,likely,2,y,y,n,n,0,none,n,Superseded by PR 3565 ruling (kind + label + tag); coded as not decided on this question. Logged cell: 'neither directly'.
+L61,y,none,both,B,B,accepted,likely,2,likely,2,y,y,n,n,2,both,n,Logged 'both after round 2'; Ev's decision is B's first (no link + readout). A re-run as fresh designer: not extra.
+L62,y,partial,mixed,mixed,even,accepted,likely (licence typing unsure),2,likely,2,y,y,n,n,1,both,n,Extract labels the one reconciliation round 'Round 2'; coded 1. A on home and typing; B on cover and refusal site.
+L63,y,none,A,A,A,accepted,likely,2,sure,3,y,y,y,n,1,both,n,Logged: both final; A's on first reports (admit sqrt into C9). A framing 'partly' coded y.
+L64,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,n,y,1,B,n,"Logged 'both after round 1'; Ev's decision is A's first. A adopted B's zoom finding as fact, held position. B re-run as fresh designer: not extra."
+L65,y,partial,B,B,B,rejected,likely,2,likely (partly),2,y,y,n,n,1,B,n,Both final rounds carried under-the-row; Ev chose in-row (B's first) after mockups. B framing 'partly' coded y. A re-run as fresh designer: not extra.
+L66,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,n,0,none,n,"Logged: both on layer/fix, B on the dial; coded B since B's first covers whole decision."
+L67,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L68,y,partial,B,B,B,amended,likely,2,likely,2,n,n,y,y,0,none,n,"Logged: both on spine, wider than both, B on the difference; Ev asked for a general principle and the split widened to every lattice construction."
+L69,y,partial,both,both,even,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"Ev approved construct, which both first reports recommended; naming details not ruled on."
+L70,y,none,B,B,B,accepted,likely,2,likely,2,n,y,n,y,2,both,n,Member-space linking is B's first; A's consumed-pair amendment taken into the approved text.
+L71,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,y,n,4,both,n,"Logged 'both converged'; on first reports Seam was A's lean and B's 'already has a home' was conceded false; C4 narrowing emerged in round 3 (neither first). Measurements by PR, not extra designers."
+L72,y,full,both,both,even,accepted,likely (sure on the facts),2,sure,3,y,y,y,y,0,none,n,
+L106,y,partial,A,A,A,accepted,sure,3,sure,3,y,y,n,n,0,none,n,Fix agreed; only the sentence's home differed; Ev took A's (D4 para 2).
+L107,y,partial,neither,neither,A,rejected,likely,2,likely,2,y,y,n,n,1,both,n,"Ev: rows mandatory, no coverage status, routes wired. Agree cell says A's first had rows mandatory (logged says both leaned cache); both firsts had uncovered as a finding, which Ev rejected. Lean A."
+L108,y,partial,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,"Authoring sub-split delegated to orchestrator, not decided by Ev."
+L109,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,n,0,none,n,"Logged: both on core, B on keeping NotAnArc; coded B."
+L110,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Logged 'both on every point' after convergence; first reports: embed/pin and rigid-motion mints (A), PP6 stale (B), Rodrigues-between form (B). Ev left the wrapper open."
+L111,y,none,B,B,B,accepted,"likely (home), unsure (reach)",2,"sure (diagnosis), likely (reach)",3,y,y,n,y,1,A,n,Ev asked a C4 rewording; option (i) as carried.
+L112,y,none,B,B,B,accepted,likely,2,likely,2,n,y,y,y,3,both,y,Designers crossed twice; further designer C in round 3 recommended B's first (shared point). A framing 'sharpened' coded n.
+L113,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L114,y,none,B,B,B,accepted,likely,2,likely,2,n,y,y,n,4,both,y,Crossed twice; further designer C in R3; unanimous N. Ev's On-answers-slip is B's first in substance.
+L115,y,none,A,A,A,accepted,likely,2,likely,2,y,y,y,y,1,B,n,"Ev asked wording fixes and ruled the residue (editor refusal, A's side)."
+L116,y,none,neither,A,A,accepted,likely,2,likely,2,y,y,y,y,5,both,n,"Differs from logged: Ev's rule is A's first core (maximal edges) with contact records restructured (new, prompted by Ev's comment); logged counts it as neither first. Measurement/probe lanes not coded as extra designers."
+L117,n,partial,na,na,na,na,likely,2,likely,2,y,y,y,y,2,both,n,ev and match cells are em-dashes: pending.
+L118,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Log credits both final rounds. Contested parts vs first reports: Q1 (no stored name) = B's first, Q2 (no hoist/no sugar) = A's first; Q1 taken under Ev's delegation to the designers' lean"
+L119,y,none,A,mixed,A,accepted,likely,2,likely,2,y,y,n,n,1,both,n,Shared core mixes A's join rule and B's table scope; the stated split (no-table fallback) went to A. Ev: 'i lean A but you can pick whatever'
+L120,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,n,y,1,B,n,"Log says both (final rounds); first reports: offset-in-face-frame and general MateFrame form were A's first, B's first was a gauge-parent kind. Ev chose the general form the orchestrator recommended"
+L121,y,partial,both,B,B,accepted,Likely,2,Likely,2,y,y,y,y,1,A,n,"Core agreed; all three contested points (pole joint, polygon, spline charts) went to B's first report; A moved to B"
+L122,y,partial,neither,A,A,amended,likely,2,likely,2,y,y,y,y,2,both,n,"Core (forced collapse, reword, no refusal) both. Anchor: PR carried body anchor (both final); Ev indifferent, orchestrator took first-root-of-any-kind = A's first report. Log says neither's final round"
+L123,y,partial,neither,neither,even,amended,likely,2,sure (linear); likely (circular),2,y,n,n,n,2,both,n,"Linear: both first. Circular (contested): Ev's R1 pushback moved both to signed step, which neither first proposed. frame_A 'y in part'. conf_B ordinal taken from the contested circular part"
+L124,y,partial,mixed,mixed,B,accepted,Likely,2,Likely,2,y,y,y,y,2,both,n,"Placement (SSI decides its own boundary) = B's first; in-band region reporting came from A's round 2, A's first had declared contacts banked as tubes"
+L125,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,n,0,none,n,Only difference was whether A11 gains a sentence; Ev updated A11 (5) in place rather than appending (minor)
+L126,y,full,both,both,even,accepted,sure (no solve refusal); likely (fixes),3,sure,3,y,y,n,n,0,none,n,Sentence's home (A10 vs A11) was the only split; Ev took A11 (4) = B's home. Ev also filed the union-recourse refusal as a defect
+L127,y,partial,both,neither,even,accepted,likely,2,sure,3,y,y,y,n,3,both,n,"Interim approval (2026-10-01) took A's typing; final (after round 3, new fact row 53) dropped the turn entirely, which neither first report proposed. Log: 'A and B (both, after round 3)'"
+L128,y,full,neither,neither,even,accepted,likely,2,likely,2,y,y,n,n,1,both,n,"Both first reports shared a premise Ev overruled before any PR; the one reconciliation round (labelled R2) had both move to Ev's ruling, not toward each other. Ev approved the resulting recommendation"
+L129,y,none,mixed,B,B,amended,likely,2,likely,2,n,n,y,y,2,both,n,"Rung: Ev took object identity = B's first (A's first was the theorem rung; log credits 'A's final report', which was B's first position). Linear canonical form from A's later rounds. Lint of non-structural coincidences was Ev's own, beyond both"
+L130,n,partial,na,na,na,na,likely,2,likely,2,y,y,n,n,1,both,n,Not sent to Ev; converged on A's timing with B's spline::compose mechanism; adopted by the orchestrator
+L131,y,partial,neither,neither,even,rejected,likely,2,likely,2,y,y,y,n,4,both,y,Ev chose panic/unreachable! for torn bodies against both designers' typed refusal; argument-vs-record split and source-taking lookup carried over. frame 'partly' for both coded y. Designer C dispatched on point (3)
+L132,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,y,1,both,n,Final state = B's first (image plus joint element); A moved to it; B adopted A's kev/kemr analysis and lift-origin point. Movement mainly A
+L133,n,full,na,na,na,na,likely,2,likely,2,n,n,n,n,0,none,n,Not sent to Ev; converged on first reports; orchestrator adopted
+L134,n,partial,na,na,na,na,Likely,2,Likely,2,n,y,y,y,5,both,n,ev cell blank (pending). frame_A 'n (narrowed)'. Five rounds including two reopenings after build reviews
+L135,y,full,both,both,even,accepted,likely,2,likely,2,y,y,n,n,0,none,n,"Same final state, construction routes differed; optional D1 clause (B) not taken up. frame_A 'partly' coded y"
+L136,y,partial,mixed,mixed,A,accepted,likely,2,likely,2,y,y,y,n,2,both,n,Gate split (the main contest) went to A's p90; B's trims taken; holder rule from R2. Log: neither first alone
+L137,y,partial,mixed,B,B,accepted,Likely,2,Likely,2,y,y,y,y,3,both,n,"Exclusion half = B's first (window count + side cover); A's first (section) was abandoned; end-slice coverage came from A's round 2, not its first report, hence B rather than mixed on first reports"
+L138,y,full,both,both,even,amended,likely (sure on staleness),2,likely (sure on the two facts),2,y,y,y,y,0,none,n,Mechanism both; Ev replaced the narrow exception with a general principle of Ev's own wording. frame_A 'partly' coded y
+L139,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Vocabulary split only; final names (Mitre{vertex}, EndFace) were A's, request-count framing B's; Ev approved all four, decision 3 routed to INTENT"
+L140,y,partial,mixed,mixed,even,accepted,likely,2,likely,2,y,y,y,y,3,both,n,Sense both; Crossing head and Ends-always were B's first only; same-sense residue (the stated split) went to A's ordinal. frame_A 'partly' coded y
+L141,y,partial,both,B,B,amended,likely,2,likely,2,y,y,y,y,2,both,n,"Log credits both after round 2; ordinal ids were B's first (A's first was Doc::order in Flush). Ev changed the form (two-field type, not bit packing). frame_B 'partly' coded y"
+L142,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,y,y,1,B,n,"Log credits both after round 1; wrap edge was A's first, B moved to it"
+L143,y,partial,mixed,mixed,B,accepted,likely,2,"sure (shape); likely (merge, transient)",3,y,y,n,n,5,both,y,Choice 1 (kills' final state) = B's first; choice 3 = A's; choice 2 both at R4. Fresh designers in R5 (same labels). frame_B 'partly' coded y; ratified_A first-report n (later y)
+L144,y,partial,both,A,A,accepted,likely,2,likely,2,n,n,y,y,2,both,n,"Log credits both after round 2; the line citation was A's first, B's first was the End element; reading rule emerged in reconciliation"
+L145,y,partial,neither,A,A,amended,likely,2,likely,2,y,y,y,y,3,both,n,"Items 1,2,4 both; item 3: log says neither (both ended on a canonical cut) but Ev's conventional-vertex answer is close to A's FIRST report ('a closed edge's vertex is conventional, kept where the join leaves it'). Rounds R2,R3 plus R4 after Ev"
+L146,y,none,A,A,A,accepted,likely,2,likely,2,y,y,y,y,1,B,n,B moved to A's assertions-only rule
+L147,n,partial,neither,na,na,rejected,likely,2,likely,2,n,y,y,y,3,both,n,Not ruled: Ev objected to the premise (tip replaces operands) and the row was superseded by row 85 (L152); logged_match transcribed as written ('neither')
+L148,y,full,both,both,even,accepted,sure,3,likely,2,y,y,y,y,0,none,n,
+L149,y,partial,neither,mixed,even,accepted,likely,2,likely,2,y,y,y,y,1,both,n,Shape approved with B's kind grouping and Bodies name and A's instance-mirrors-product; the stated split (AxisInPlane) went to row 86 whose answer replaced both. Logged 'neither' refers to the split
+L150,y,partial,both,B,B,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Log credits both (the lean after R3); sets were B's first, A's first was singletons/interning. Ev: sets"
+L151,n,partial,na,na,na,na,sure,3,sure (move); likely (closure),3,y,y,y,n,1,A,n,Not sent to Ev; orchestrator ruled B's closure. frame 'partly' both coded y
+L152,y,partial,mixed,B,B,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"Product as world placement node and export refusal = B's first (A's first was placement rows); residues 1 and 3 to B, residue 2 (second identity placement allowed) to A. frame_A 'partly' coded y"
+L153,y,partial,both,B,B,amended,likely,2,likely,2,y,y,y,y,2,both,n,Log credits both after R3 = B's R1 with A's 2-D principle; Ev asked for one shared Subgroup type. frame 'partly' both coded y. B disclosed reading an orchestrator comment
+L154,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,B's reader count and D10 sentence taken; both disclosed seeing orchestrator comments
+L155,y,none,A,A,A,amended,Likely,2,Likely,2,n,y,y,y,2,both,n,(1) at rest = A's first; (2) Ev refused the in-band exemption both designers held. Labels drawn late at PR time
+L156,y,partial,B,B,B,accepted,Likely,2,Likely,2,y,y,y,y,1,A,n,"Log: both converged on B's first; A moved, B held (adopting minor points)"
+L157,y,partial,both,A,A,amended,Likely,2,Likely,2,y,y,y,y,3,both,n,"Log says both (converged at R2); converged position (door census detects, lump Escalated, DESIGN.md additions) is A's first. Ev reshaped the census clause in a thread (R4). Rounds R1,R2 plus R4 on Ev's question"
+L158,y,partial,A,A,A,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"Contact's resident = A's first; default Warn was B's (A unstated in first), so slight mixing"
+L159,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,Cross-fork adjustment with row 93 only; B disclosed a grep hit on spec options
+L160,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,1,both,n,Two rungs (count) = A's first in B's round-2 form; C/D merge and H measurement = B's first
+L161,y,partial,A,A,A,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Mostly A's first; contact site at exact cells from B. Rounds R2 plus R3,R4 on Ev's questions"
+L162,y,partial,mixed,mixed,A,amended,sure,3,likely,2,y,y,y,y,2,both,n,"List order = A's first (B's sort withdrawn at Ev's push), links = B's first, one verdict per pair = A's round 3"
+L163,y,partial,both,neither,even,amended,likely,2,likely,2,y,y,y,y,9,both,n,"Both first reports had a free Frame, which Ev's rounds removed; final state (no free pose, no construction reads a frame) is neither first report. Log credits both from round 8. Rounds R2-R10"
+L164,y,partial,neither,neither,even,amended,likely,2,likely,2,y,y,y,y,4,both,n,"Final (uniform no-cleverness: any excess equation refuses, pinned or not) is stricter than either first report; reached after Ev's transcript correction. Rounds R2,R3,correction,post-Ev"
+L165,n,partial,na,na,na,na,likely,2,likely,2,n,n,n,n,4,both,n,Not sent to Ev; adopted by the orchestrator
+L166,y,partial,both,mixed,B,accepted,sure/likely,3,likely,2,y,y,y,y,8,both,n,"Place over a list (B), FORK-1 ports kept (B), Value constraint kind (B's form); Flip and clocked-coaxial (A). No frame port was neither first. Round count approximate (R2,R3,R4,final,R6-9). A disclosed a grep hit"
+L167,y,partial,both,mixed,B,accepted,likely,2,likely,2,y,y,y,y,4,both,n,Index variable = B's first (A's was map); mirror as a construction = A's first; flat families from B's R2. Rounds R2-R5
+L168,y,full,both,both,even,accepted,Likely,2,Likely,2,y,y,n,n,0,none,n,"frame_B 'partly' coded y; Ev asked for an overlap check, then approved"
+L169,y,partial,both,mixed,B,amended,Sure,3,Likely,2,y,y,y,y,7,both,n,Read key and n-ary shape both; scope principle and family key (iii) nearer B's first; self-union glue A's (R6). Ev steered list typing and A u A in chat/PR
+L170,y,partial,both,both,even,accepted,sure (Q1); likely (Q2),2,sure (Q1); likely (Q2),2,y,y,n,n,1,B,n,Ev decided only the W1 rule (union of both). Q2 (built without Ev) went to A's first; B moved. frame_A 'partly' coded y
+L171,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,y,1,both,n,Retire foot orthogonality = B's first; A moved; B moved to A's Unsized home (code only)
+L172,y,full,both,both,even,accepted,Sure,3,Likely (sure that a vertex is a selection),2,y,y,y,y,0,none,n,A's extra sentences and door-time kind check taken
+L173,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,y,y,3,both,n,Ev chose B on the stated split; frame 'partly' both coded y; designers crossed in R1 and returned in R2
+L174,y,partial,both,A,A,accepted,likely,2,"sure (Q1,Q2); likely (Q3)",3,y,y,y,n,1,both,n,"Ev decided only the two wording clarifications, both proposed in A's first report (B's first: ratified text challenged n; B took C6's in round 2). Q1 built on B's form without Ev"
+L175,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,"Sub-question taken as B's lean, which A called harmless"
+L176,y,partial,both,mixed,B,accepted,likely,2,likely,2,y,y,n,n,3,both,n,"frame_B 'partly'. Logged both=converged state; vs first reports Ev's one reader (pole-free side) is B's first, cone reader props_cone_area_side is A's first, so mixed leaning B. Rounds labelled 2-4"
+L177,y,full,neither,neither,even,rejected,semantics sure / home likely,2,semantics sure / A1 likely / A2 likely,2,y,y,y,y,0,none,n,both frames 'in part'; conf coded on the lower word. B disclosed reading the item's options section
+L178,y,partial,A,A,A,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Ev chose (a) = the separation row = A's first (B's first was wording only); three crossovers, rounds labelled 2-4"
+L179,y,partial,mixed,mixed,A,accepted,likely,2,likely (sure the switch goes),2,y,y,n,n,0,none,n,frame_B inferred from 'corrected three premises'. Knob: A; split: closer to B (one wording) but Ev's reason (assertion) is neither's
+L180,y,none,A,A,A,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"crossed in round 2, converged on A's first in round 3; rounds labelled 2-3"
+L181,y,partial,mixed,B,B,accepted,sure on (A) / likely on rung order,2,"likely on (A)'s shape (sure B,C wrong)",2,y,y,y,y,0,none,n,"frame_A 'partly'. Logged: Q1 both, Q2 B. Coder: core agreed, the only disputed point (path width) went to B; Q2 offered as a question so coded accepted though the diff carried the narrower path"
+L182,n,partial,na,na,na,na,likely,2,sure,3,y,y,y,y,0,none,n,not put to Ev; orchestrator adopted B's shape
+L183,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"Logged both (converged). Coder: core agreed; the disputed edge-edge record was A's first and B's first said nothing to add, so A"
+L184,y,partial,mixed,mixed,even,amended,likely,2,likely,2,y,y,y,y,3,both,n,"Logged: both on mechanism, neither on minted pair. Coder: final per-op rule = split cites record (A's first) + boolean decides (B's first), so mixed. Ev pushed back twice before approving"
+L185,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L186,y,partial,mixed,mixed,even,amended,likely,2,likely,2,y,y,y,n,0,none,n,"B on no Consumed record, A on the C8 sentence; Ev added a new lint neither recommended (B had named the shape)"
+L187,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,"both frames 'partly'. Ev leaned A on the pinch residue, unsure"
+L188,y,partial,both,both,even,accepted,likely,2,sure on shape / likely on verdict,2,y,y,y,y,2,both,n,frame_B 'partly'. Converged margin is the union of A's chord and B's gap; recourse a merged three-leg form; Ev approved conditionally then fully
+L189,y,partial,both,both,even,accepted,sure on layer / likely on instrument,2,likely (unsure A vs A'),2,y,y,y,n,0,none,n,A' skipped (B's own lean); A's C12 sentence not taken up
+L190,y,full,both,both,even,accepted,sure (likely on unbuilt arm),2,"likely, close to sure",2,y,y,n,n,0,none,n,frame_B 'in part'. A disclosed a leak of forbidden option text
+L191,y,partial,both,A,A,amended,likely,2,likely,2,n,y,y,y,3,both,n,Logged both on converged state. Coder: the approved form is A's edges-only run (B's first had faces); sense rule neither's first; seam sense dropped by Ev (neither); rank option orchestrator's
+L192,y,full,both,both,A,accepted,likely (shape) / unsure (number),2,likely (shape) / unsure (box),2,y,y,y,y,0,none,n,"only difference (arithmetic B*2^-52 vs ulp) went A. Deviations disclosed: designers ran in sequence, byte drawn after reports"
+L193,y,partial,mixed,A,A,accepted,likely,2,likely,2,y,y,y,y,1,both,n,"frame_B 'in part'. Logged: both on end state (after B moved), A on interim, B's check deferred. Coder: end state = A's first re-pose; B's check deferred not adopted"
+L194,y,partial,mixed,mixed,B,amended,likely,2,likely,2,y,y,y,y,1,both,n,"Agree cell says 'same contract' though A=provenance, B=contact labels; provenance approved. Top-rung check A, S12/S13 B, condition round full deletion B. Condition round (both re-asked independently) not counted as a reconciliation round"
+L195,y,partial,both,both,even,amended,sure,3,likely,2,y,y,n,n,1,both,n,Ev merged the witness with OrthoFrame (A's r2 point) and closed under rigid group (B's r2 point) after two follow-ups
+L196,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L197,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Logged both (converged). Coder: name OnPair = B's first, incidence-only certificate = A's first; two crossovers"
+L198,y,partial,both,mixed,A,accepted,sure (1) / likely (2),2,likely,2,y,n,y,y,1,both,n,"frame_A 'partly'. (1) seam = A's first, (2) Emission residue = B's first; (1) is the main question"
+L199,y,partial,A,A,A,amended,likely (lane sure),2,likely,2,y,y,y,y,2,both,n,"Ev dropped the converged mint-time confirm (folded into un-parking), landing on A's first; rounds 1-2"
+L200,y,full,both,both,even,accepted,sure,3,likely,2,y,n,y,y,0,none,n,
+L201,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Logged 'match'. Coder: home geom-brep = B's first (Ev indifferent), C5 extension = A's first; rounds labelled 2-3"
+L202,y,partial,both,A,A,accepted,likely (unsure group 3),2,sure on principle / likely on code,2,y,y,n,n,1,both,n,"Logged both. Coder: both splits (pole lever, forward sweep) resolved to A's first; B moved on both, A adopted only B's literal detail so movement mostly B. Ev refused the alternative half-turn cap"
+L203,y,full,both,both,even,accepted,sure,3,likely,2,y,y,y,y,0,none,n,both frames 'partly'; approved as a temporary state
+L204,y,partial,both,mixed,B,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Logged both (converged). Coder: sides by construction, ring plan, branch datum = B's first; lane-first and no census unit = A's first; both dropped C1"
+L205,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,Logged both. Coder: ray first + clause deleted = A's first; check 7 onto the reader = B's lean; rounds labelled 2-3
+L206,y,partial,neither,neither,even,rejected,sure on S1 / likely on I1,2,sure on S1 / likely on I,2,u,u,u,u,2,both,n,framing/ratified not stated. Ev rejected as framed and re-forked as row 140
+L207,y,full,both,both,even,accepted,rule sure / sealing likely,2,likely,2,y,y,y,y,0,none,n,one factual contradiction settled by source in B's favour
+L208,y,partial,mixed,mixed,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"A on derivation, B's composing shape kept; two crossovers, rounds labelled 2-3"
+L209,y,partial,both,both,even,amended,likely,2,likely,2,y,y,y,y,1,both,n,"Decision 1 = union of A's stored type and B's exact compare; 2 split out, 3 superseded by row 144"
+L210,y,partial,both,A,A,accepted,likely,2,likely,2,y,n,n,n,2,both,n,Logged both. Coder: placement over the span and no decision in check 4 are A's first; chart_boundary pair settled by row 145 is A's later position; two follow-ups before approval
+L211,y,partial,mixed,mixed,A,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Logged: both on principle and lean, B on sub-point. Coder: home D3 and Grazer deletion = A's first; sub-point lever-only not-yet = B"
+L212,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,n,n,3,both,n,"Logged both. Coder: Period = A's first, Azimuth = B's first, estimate dropped = B's r2; one crossover"
+L213,y,partial,both,B,B,accepted,likely,2,likely,2,y,y,y,y,1,A,n,"both frames 'partly'. Logged both. Coder: Off only on certified lower bound and typed Foot are B's; A conceded crux 1, B typed its foot (minor)"
+L214,y,none,both,mixed,A,amended,likely,2,likely,2,y,y,n,n,4,both,n,"frame_B 'partly'. Factored crossing and sweep-splits = A; node pass owning the mint, sites/struts, retiring OnBoundary/GermOnNode, three units = B. Ev pushed round-3 state back for a neutral round 4"
+L215,y,partial,both,mixed,even,amended,likely,2,likely (facts sure),2,y,y,y,y,3,both,n,"Logged both. Form-keyed demand = A, band parameter dropped = B, no audit = A; Ev reworded D2's tail and dropped a sentence"
+L216,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,5,both,n,"frame_A 'partly', frame_B 'sharpened'. Reads-axis form = B, VR8 clause and no At = A, report ineffective move = B. A superseded earlier pair run closed unshown (not counted as extra designers). Rounds labelled 2-6"
+L217,y,partial,both,B,B,accepted,likely,2,likely,2,y,y,y,n,3,both,n,"both frames 'partly'. Logged both. Coder: no node arm, general lever, containment needs nothing, B's cut all B's first; A moved on nearly every point"
+L218,y,none,both,B,B,amended,likely,2,likely,2,y,y,y,y,1,both,n,"Logged both (after round 1). Coder: reader-only, census unchanged = B's first; A's amendments (deflation, one meeting per run) kept; Ev rewrote terminology over five rounds"
+L219,y,none,neither,neither,even,amended,likely,2,likely,2,y,y,y,y,5,both,n,frame_A 'in part'. Ev adopted the converged selector state with the principle reframed; neither first report
+L220,y,partial,both,B,B,accepted,likely,2,likely,2,y,y,y,y,1,both,n,Logged both from round 1. Coder: typed undecided refusal and the sub-arc margin were B's first; A moved to both
+L221,y,full,both,both,A,accepted,likely,2,sure,3,y,n,u,u,0,none,n,ratified not stated as y/n though both change DI5; orchestrator took A's identity-clause form over B's deletion
+L222,n,partial,na,na,na,na,likely,2,likely,2,y,y,u,u,0,none,n,not put to Ev; orchestrator took B's shared function
+L223,y,partial,both,B,B,accepted,likely,2,likely,2,y,y,u,u,1,A,n,Logged both from round 2. Coder: Q1 swung frame = B's first (A moved); Q2 both. Round labelled 2
+L224,y,full,both,both,even,accepted,likely,2,likely,2,y,n,y,y,0,none,n,
+L225,y,full,both,both,even,accepted,"likely, close to sure",2,sure,3,y,y,u,u,0,none,n,"ratified cell reads 'clarifying sentence' (an addition), not y/n"
+L226,n,full,na,na,na,na,sure/likely,2,likely,2,y,y,u,u,0,none,n,not put to Ev (no ratified text changes); orchestrator adopted
+L227,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,
+L228,y,full,both,both,even,accepted,likely,2,likely,2,u,u,u,u,0,none,n,framing/ratified not stated; orchestrator merged B's migration rule with A's helper fix and A's Q2 form
+L229,y,partial,both,mixed,A,accepted,"sure on core / likely on chart, frame, groups",2,likely,2,u,u,u,u,0,none,n,framing/ratified not stated. Frame-as-node = B (taken in PR text); author-written spin order and explicit zeros for every freedom = A; Q1-Q4 answered by Ev in chat
+L230,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,u,u,4,both,n,"Logged says converged round 1 but reconciliation lists five rounds, three crossovers; counted R2-R5 as reconciliation. Maximal faces = B's first, Keeps descent-only and clause struck = A's first, Merged for every group converged"
+L231,y,partial,mixed,mixed,A,amended,likely,2,sure on row+record / likely on shape,2,n,y,y,n,0,none,y,"frame_B 'partly'. Original pair had no rounds (orchestrator ruled); Ev's follow-ups ran two further designer pairs (bytes 222 and 6) whose A/B labels are theirs, not this row's. Ev: 'A generally sounds better' on who mints, then a partition/per-space census compromise"
+L232,y,partial,B,B,B,accepted,likely (premise sure),2,likely,2,u,u,u,u,2,both,n,"framing/ratified not stated. Both sub-questions went to B's first positions (path to first variable; duplicates allowed), after two crossovers. A census-per-space designer later reworded a clause (not dispatched for this reconciliation)"
+L233,y,none,B,B,B,accepted,sure on direction / likely on form,2,likely,2,n,y,y,y,1,A,n,A withdrew the fold-only sum and leaned to (S) unsure; B held (A); Ev picked storage-dependent (B's first)
+L234,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,Ev asked for the radial alternative (row 168) before ratifying; ratified sentence is row 168's principle form
+L235,y,full,both,both,even,amended,likely,2,likely,2,y,y,y,y,0,none,n,B's representability rewrite taken narrower by Ev; A's one-word qualification taken as is
+L236,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,u,u,2,both,n,Logged 'both' reflects round-3 convergence; first reports differed on fold decisions (A: every fold decision as a row; B: not rows) and Ev's decision is A's R1. Ratified text challenged not stated
+L237,y,none,neither,neither,even,amended,likely,2,likely,2,y,y,y,n,2,both,n,"frame_B 'partly' coded y. Pieces of each first (B's DIHEDRAL->Lever, A's unminted) survive, but Ev's question turned both defect endings into panics"
+L238,y,partial,mixed,mixed,B,amended,likely,2,sure,3,y,n,n,y,1,both,n,"Two sub-questions: (1) B's closure, (2) neither (Ev declined the HeldEdge stopgap for a deeper fix). Logged cell says 'B; neither', coded mixed. frame_A 'y/partly' coded y"
+L239,y,full,A,A,A,accepted,likely,2,likely,2,y,y,y,y,1,both,n,Both firsts kept one up door; Ev's follow-up removed it (both moved) and Ev chose A on the round-2 Pinned-lift split. Match to first reports is on A's round-2 split; frame 'partly' coded y for both
+L240,y,partial,both,mixed,even,accepted,likely,2,sure,3,y,y,y,y,1,both,n,Differs from logged: final = B's no second-order test + A's first-order turn fix. ratified_B 'optional one sentence' coded y
+L241,y,full,both,both,even,accepted,"sure on the premise, likely on not linking",2,sure,3,y,y,n,n,0,none,n,conf_A split; lower taken
+L242,y,partial,neither,neither,even,amended,likely,2,likely,2,n,n,y,y,5,both,y,Shape is Ev's own fillet reframing (arc_onto); token half matches both. Logged 'neither on shape; both on token' coded neither. Further designer's harmony pass respelled the builder; Ev took it
+L243,y,partial,both,mixed,even,amended,likely,2,likely,2,n,n,y,y,1,both,n,"Differs from logged: first reports split on instrument (A fix ray, B fix volume); Ev took the combination, with A's ray tie and B's enclosure; reworded B's Q1 tie-break as a principle and dropped V/A"
+L244,y,partial,neither,neither,even,rejected,likely,2,likely,2,y,y,y,y,1,both,n,"Both firsts proposed typed row 6, withdrawn on Ev's question; Ev then asked for a sentence rewrite instead of the clarifications"
+L245,y,partial,both,mixed,A,accepted,likely,2,likely,2,y,n,n,n,1,both,n,Differs from logged: converged rule = A's node-table sides (the first-report split) + B's per-side vertex rule and defect case
+L246,y,partial,both,mixed,A,accepted,likely,2,likely,2,y,y,y,y,2,both,n,Differs from logged: A's plane-as-parent merged group with B's qualifier and correction
+L247,n,full,na,na,na,na,likely,2,likely,2,y,y,n,n,0,none,n,"Not asked; orchestrator took A's shape where local, B's as fallback"
+L248,y,none,B,B,B,accepted,likely,2,likely,2,y,y,n,n,1,A,n,
+L249,y,partial,A,A,A,accepted,unstated,,likely,2,y,n,n,y,4,both,n,"conf_A not recorded at delivery (round 2: likely). ratified_A: kept C4 at delivery, challenged only in round 2. B withdrew after Ev's lean in round 5"
+L250,y,partial,both,mixed,even,accepted,likely,2,likely,2,y,y,y,y,1,both,n,Differs from logged: principles shared; A's four-form grammar and intrinsic.contingent framing plus B's ladder order and incidence-graph comparison
+L251,y,partial,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,frame 'partly' coded y for both; Ev questioned typed refusal but wanted the tripwire loud; built with A's fuller reads
+L252,y,partial,both,A,A,accepted,likely,2,"likely, close to sure",2,y,y,y,y,2,both,n,"Differs from logged: Ev's decision 1 = whole-link winding, A's first check; B's pairwise check was withdrawn in round 1. Cells sentence struck, not ratified"
+L253,y,full,both,both,even,amended,likely,2,"likely, leaning sure",2,y,y,y,y,0,none,n,Taken in Ev's shape: a directed point object with a narrow API
+L254,y,full,mixed,mixed,even,amended,likely,2,sure,3,y,y,y,y,4,both,y,Seat: both. Flush row: Ev's own ruling over the 2-1 nothing-at-rest recommendation (matches B's first). Flag: A's first. Further designer dispatched twice. Round count approximate (3 flush + 1 flag)
+L255,y,partial,both,neither,A,amended,likely,2,likely,2,y,y,y,n,3,both,n,"Differs from logged: final predicate door with no default came from Ev's questions; both firsts kept a resolution target (A as request, B as refusal). Closer to A (dial dissolves, no width refusal)"
+L256,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Place{source,into} restored in row 191's shape; to_ev cell just 'y'. Helpers pair's finding shown in round 2 but not dispatched for this row"
+L257,y,partial,B,B,B,accepted,"sure on the premise, likely on the shape",2,likely,2,y,y,n,n,2,both,n,"Two crossovers on chart owner; Ev took space chart (B's first). ratified: 'one clarifying sentence' both, coded n"
+L258,y,partial,neither,neither,even,accepted,likely,2,likely,2,y,y,y,y,5,neither,y,Fresh pair C/D plus E after round 1b; A/B did not move toward each other before replacement; final design Ev's redirected C/D
+L259,y,partial,neither,neither,even,accepted,likely,2,likely,2,y,y,y,y,4,both,y,Round 1 converged on an up axis; Ev's redirect retired the swing; fresh pair C/D rounds 2-4; Ev chose F (carried slides) against both C/D leans
+L260,y,full,neither,neither,even,accepted,likely,2,likely,2,y,y,y,y,4,both,n,Both firsts recommended exact kinds; Ev's complexity comment moved both off; approved with reservation. conf_A: Parabola unsure
+L261,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,geometry 'sure' for both
+L262,y,none,both,mixed,B,amended,likely,2,likely,2,y,y,y,y,1,both,n,Differs from logged: per-lane rule and no global factor are B's first; A=16 as NURBS regularizer is A's; Ev amended the bound to 'as big as possible without extra work'
+L263,y,partial,mixed,mixed,A,accepted,likely,2,likely,2,y,y,y,y,6,both,n,"A on door-certifies (the first-report split), neither on the pairing, B on the residual"
+L264,y,partial,neither,neither,even,amended,likely,2,likely,2,n,n,y,y,2,B,n,Both firsts kept ranks; Ev's simplicity question led to the joint no-rank rule in round 3
+L265,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,Differ only on interior system (implementation)
+L266,y,full,both,both,even,accepted,likely,2,likely,2,y,y,n,y,2,neither,n,Rounds 2-3 on Ev's comments; both held. Operand-order sub-question unanswered
+L267,y,partial,neither,neither,A,rejected,likely,2,likely,2,y,y,n,y,3,both,n,"Logged 'partly'; one kept-side decision (A's first) taken, re-derivation declined, enclosure dropped, backstop demoted to test oracle, which neither proposed. ratified_A 'clarifications only' coded n"
+L268,y,partial,neither,neither,B,accepted,likely,2,likely,2,y,y,y,y,3,both,n,Both firsts kept a build-time caller/kernel distinction removed by Ev's question; on import Ev took the damaged-file ending (B's first); core both
+L269,n,partial,na,na,na,na,likely,2,likely,2,y,n,n,n,1,both,n,Not asked; binds no ratified text
+L270,y,partial,mixed,mixed,even,accepted,"sure on the diagnosis, likely on reach",2,likely,2,y,y,n,y,3,both,n,"A on the fix, B on the verdict"
+L271,y,partial,mixed,mixed,even,accepted,likely,2,likely,2,n,n,y,y,2,both,n,"decided ambiguous: Ev said not a new decision (existing epsilon rule applies); orchestrator ruled it as E6/E12 applied. A's identity, B's enclosure/round stop/wording"
+L272,y,partial,both,both,even,accepted,likely,2,likely,2,y,y,n,y,3,both,n,Ev added the injectivity framing to lead the clause
+L273,n,full,na,na,na,na,likely,2,sure,3,y,y,n,n,0,none,n,Not asked; orchestrator took A's door with B's receipt point
+L274,y,partial,both,B,B,accepted,likely,2,likely,2,n,n,y,y,1,A,n,Differs from logged: mechanism is B's first (tier rule); A moved to it; A's wording kept. Ev dropped the coincidence.structural sentence
+L275,y,none,B,B,B,accepted,likely,2,likely,2,y,y,y,y,2,both,n,frame_A 'partly' coded y. A moved to B's structural selector; B took A's cover then relocated it
+L276,y,none,B,B,B,accepted,sure,3,likely,2,y,y,n,y,3,both,n,Three crossovers; Ev chose S (strict) = B's first
+L277,y,none,B,B,B,accepted,likely,2,likely,2,y,y,y,y,1,A,n,A withdrew curve-key sharing in R2
+L278,y,none,B,B,B,accepted,likely,2,likely,2,y,y,y,y,1,A,n,A withdrew glue-lever change; Ev declined the clarifying sentence as redundant
+L279,n,full,na,na,na,na,likely,2,likely,2,y,y,n,n,0,none,n,Not asked; union of both taken
+L280,y,partial,both,mixed,B,accepted,likely,2,"sure on the rung, likely on the rest",2,n,y,y,n,2,both,n,Differs from logged: rung one and the revolve minter arm are B's first; substitution for every relation A's. Ev dropped the text edits as already implied by DESIGN
+L281,y,partial,both,mixed,B,accepted,likely,2,likely,2,y,y,y,y,3,both,n,"Logged 'B on point tier; both on rest' coded both. Coder: A's crossing spelling, B's target-director shape and rung-one trace statement (A's first used existing rungs); Ev leaned B on the point tier"
+L282,y,partial,A,A,A,accepted,"re-mint sure, A over B likely",2,likely,2,y,y,y,y,5,both,n,Wrap tip = A's first lean; R4 had both at two halves until Ev's question surfaced precedents; approved conditional on tolerable complexity
+L283,y,partial,B,B,B,accepted,likely,2,likely,2,y,y,n,n,2,both,n,frame_B 'partly' coded y. A withdrew the rewrite after Ev called it cursed
+L284,y,partial,mixed,mixed,even,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"Q1 both. Q2: W5 existence was A's first (A later dropped it, B picked it up); side region clears was B's first; Ev ratified a stage past the frontier and rephrased one-way.readings"
+L285,y,partial,neither,A,A,accepted,likely,2,likely,2,u,u,y,y,1,both,n,"Logged 'round 1 neither' (product slot as reader rejected by Ev). Coder: Ev's final keeps named variables (A's first, B deferred) and reports Measure (A), product slot against both; coded A. Framing cells unstated"
+L286,y,none,A,A,A,amended,likely,2,likely,2,u,u,u,u,2,both,n,"Framing/ratified cells unstated. Diff carried flush unchanged (B) with A's extension as the question; Ev allowed assertions everywhere, broader than A's"
+L287,y,none,neither,neither,B,accepted,likely,2,likely,2,y,y,y,y,2,both,n,"frame_B 'partly' coded y. Ev took B's round-3 alternative (caller-stated budget) over A's diff text; neither first (A per-question budget, B F x face round-zero)"
+L288,y,partial,both,A,A,accepted,likely,2,likely,2,y,y,y,n,3,both,n,"Differs from logged: Ev approved the closest-crossing doors and the DESIGN tier-3 clause, both A's first; B's first was the chart lift with no DESIGN text (kept only for chart questions). frame_B 'partly' coded y"
+L289,y,full,both,both,even,accepted,likely,2,likely,2,y,y,y,y,0,none,n,Converged on first reports; brief's false premise corrected mid-run
