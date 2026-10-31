@@ -65,6 +65,7 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 | P0 | `torus-germ-pairs-have-no-section-frame` | H +design | closed (PRs 5972, 5974, 6011) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
 | P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The cylinder × torus door over a Positive gap |
 | P0 | `torus-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The torus × torus door over a Positive gap |
+| P1 | `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot` | M | dispatched | Five torus rows refuse at ε 1e-6 since PR 6011 (pinned red by GREEN) |
 | P1 | `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord` | M | dispatched | The seam-region door row runs 15× slower since PR 5894; held out of the nightly's 1e-12 row |
 | P3 | `a-surface-pairs-march-is-repeated-per-operation-and-per-germ` | M | open (PR 6056 measured) | Cross-operation sharing of a carried section (≤ ~11 %; waits on canonical order) |
 | P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | dispatched | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |

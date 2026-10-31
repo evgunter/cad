@@ -711,6 +711,7 @@ where
     let cfg = editor_core::ChecksConfig {
         connectedness: editor_core::Severity::Off,
         unproven_coincidence: editor_core::Advisory::Off,
+        unused: editor_core::Advisory::Off,
         ..editor_core::ChecksConfig::default()
     };
     editor_core::run_checks(doc, ev, &cfg, Tol::witness()).map(|report| report.findings)
@@ -2005,6 +2006,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2067,6 +2069,7 @@ pub fn desc(loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
     ProfileProgram {
         loops,
         ids: Vec::new(),
+        on: None,
     }
 }
 

@@ -1457,7 +1457,7 @@ is where the question of whether it should be broken at all is kept.
 ### Zoom to fit frames what is drawn
 
 Every fit — the toolbar's **Zoom to fit**, and the fits that startup
-and an open book through `pending_fit` — frames the **drawn extent**:
+and a replaced document book through `pending_fit` — frames the **drawn extent**:
 the world box around what the viewport hands the GPU as geometry on
 that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
 every committed profile's loops and every drawn preview's loops
@@ -1717,10 +1717,10 @@ a commit that lands under a probe is pruned and reported (at the edit,
 and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
-free-move table is checked against the property rather than against a
-second copy of 46 rows (`replaces_the_document`, in
-`tests/gesture_table.rs`), and `perform` consults both tables in turn,
-value gesture first.
+free-move table is checked against the property
+(`SessionOp::replaces_the_document`, in `session/op.rs`) rather than
+against a second copy of its rows (`tests/gesture_table.rs`), and `perform` consults both
+tables in turn, value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one
 layer down: `DisplayState::begin_free_move` answers a second begin off
@@ -2524,7 +2524,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
+(`DocumentDerived::fit_delta` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`

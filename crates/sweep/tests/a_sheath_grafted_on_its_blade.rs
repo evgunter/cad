@@ -1,8 +1,8 @@
-//! **A sheath grafted on its blade at their shared section**: the lily
-//! tour's wall 8 in miniature. Two lens lofts stand on one base section,
-//! in one plane, running away from it in opposite directions, so each
-//! one's base rim arcs ARE the other's, and each arc rises into a NURBS
-//! wall of its own body.
+//! **A sheath grafted on its blade at their shared section**: the
+//! witness that a rim tangent at two points refuses. Two lens lofts
+//! stand on one base section, in one plane, running away from it in
+//! opposite directions, so each one's base rim arcs ARE the other's, and
+//! each arc rises into a NURBS wall of its own body.
 //!
 //! The boolean reads each rim arc against the other body's spline walls
 //! by their boundary first (C5's curve × face clause): along the wall it

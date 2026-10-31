@@ -367,3 +367,28 @@ Filed and dispatched `a-surface-pairs-march-is-repeated-per-operation-and-per-ge
 chat. Measure first, share within an operation, then across operations if
 the answer is the pair's and band's alone; a cache that crosses the public
 API stops for the designer pair. Tier: **single FULL**.
+## 2026-10-29 — the repeated march was not repeated (PR 6056)
+
+`sect-marchonce` measured one march per pair per operation on every slow
+torus row (shared inside an op by the section table's one carry), and the
+march at 3–16 % of each row's time; a gdb profile puts the time in
+certifying the fitted chord edges, pcurves and the result gate. PR 6056 adds
+a test-only march counter and pins one march per op; the row is re-banded
+P3 (cross-op sharing buys ≤ ~11 % and waits on canonical operand order).
+The orchestrator's earlier "about eight marches per pair" was wrong: each of
+a row's eight operations marches once, which is what that count was.
+Tier: **orchestrator's read** (a test-only counter and two pins).
+
+## 2026-10-31 — PR 6011's 1e-6 red dispatched; usage limit lifted
+
+- Nightly 77 (GREEN's triage) found five torus rows red at ε 1e-6 only since
+  PR 6011, bisected to the PR's own head, and pinned them red at 1e-6
+  (`main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`,
+  P1). Cause to measure: PR 6011's second fix pass grew each marched loop's
+  pad (tube + √3 × the hull boxes' side) after the confirmation review's
+  1e-6 run, and its lane re-ran only the compiled ε; four rows refuse
+  `Winds(Unseparated)`. Dispatched as `sect-onesix` (branch
+  `sect/torus-rows-at-1e-6`). Tier: **single FULL**.
+- The account's weekly usage limit stopped `sect-seamslow` mid-poll
+  (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
+  (review: APPROVE-WITH-FIXES, no MAJOR).

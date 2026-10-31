@@ -23,12 +23,17 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
     fn authored_with(
         &self,
         _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+        _: &mut dyn FnMut(editor_core::VarId) -> editor_core::Operand,
     ) -> Self {
         *self
     }

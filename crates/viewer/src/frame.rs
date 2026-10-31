@@ -792,6 +792,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
@@ -852,77 +853,11 @@ pub fn batch_refusal(
     doc: &Doc<ProfileProgram>,
 ) -> Option<Refusal> {
     let refusal = refusal?;
-    Some(if ops.iter().any(replaces_the_document) {
+    Some(if ops.iter().any(SessionOp::replaces_the_document) {
         refusal
     } else {
         refusal.respoken(doc)
     })
-}
-
-/// **Whether `op` puts another document in the session**, whose ids say
-/// nothing about a refusal raised before it ([`batch_refusal`]). Every
-/// op is listed, so a new one is sorted here by whoever adds it: one
-/// left out of the `true` arm has its batch's refusal spoken from a
-/// document that is not the one it was raised in.
-fn replaces_the_document(op: &SessionOp) -> bool {
-    match op {
-        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
-        SessionOp::Hover(_)
-        | SessionOp::Select(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::RemoveConstraint { .. }
-        | SessionOp::IntoOwnSpace { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::SetSlotVariable { .. }
-        | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetVariable { .. }
-        | SessionOp::SetVariableUnit { .. }
-        | SessionOp::SetVariableText { .. }
-        | SessionOp::DeclareVar { .. }
-        | SessionOp::RenameVar { .. }
-        | SessionOp::DeleteVar { .. }
-        | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginVariableGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewVariableGesture { .. }
-        | SessionOp::CommitVariableGesture { .. }
-        | SessionOp::CancelGesture
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. }
-        | SessionOp::CancelFreeMove
-        | SessionOp::AddMate { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddFusedPattern { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. } => false,
-        SessionOp::CreateLabelled { creation, .. } => replaces_the_document(creation.op()),
-    }
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
@@ -2361,12 +2296,12 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 /// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The node the finding is about, which the button selects: for a
+    /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places ([`crate::world::seat_of`]), the deciding node of an
-    /// unproven coincidence.
-    pub node: RecipeNodeId,
-    /// That node, spoken.
+    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// unproven coincidence), or the variable an unused finding names.
+    pub select: Selection,
+    /// That node or variable, spoken.
     pub button: String,
     /// The finding, its copies spoken.
     pub sentence: String,
@@ -2447,6 +2382,14 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
+                FindingSubject::Var(var) => {
+                    return CheckRow {
+                        select: Selection::Variable(var),
+                        button: by.read(var),
+                        sentence: Said(finding, by).to_string(),
+                        cells: Vec::new(),
+                    };
+                }
                 FindingSubject::Output { placement, .. } => {
                     crate::world::seat_of(landed, placement)
                 }
@@ -2470,7 +2413,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
             CheckRow {
-                node,
+                select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),

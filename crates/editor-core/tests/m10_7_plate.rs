@@ -105,6 +105,7 @@ pub(crate) fn plate_with_holes(spacing_half_width: f64, radius_sigma: f64, tol: 
             .expect("finite plate corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
@@ -118,6 +119,7 @@ pub(crate) fn plate_with_holes(spacing_half_width: f64, radius_sigma: f64, tol: 
                 radius: param(radius),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: profile.into(),

@@ -243,6 +243,7 @@ pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
 pub(crate) mod strut;
+pub mod surface_boundary;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -617,9 +618,9 @@ pub mod test_support {
             corners, corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
             fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
             nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
-            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
-            pyramid_volumes, shape, single_arch, sunk_on_an_edge, three_wedges, two_wedges, wedge,
-            wedges_on_one_side, zigzag,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid,
+            posed_pyramid_at, poses, pyramid_volumes, shape, single_arch, sunk_on_an_edge,
+            three_wedges, two_wedges, wedge, wedges_on_one_side, zigzag,
         };
     }
 
@@ -636,7 +637,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&[], tol)
+        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the
@@ -941,7 +942,8 @@ pub mod test_support {
         use crate::{BooleanDecision, BooleanError, BooleanErrorKind, SphereQuestion};
         let decision = decision_key;
         let key = match err {
-            BooleanError::Escalated { decision: d, .. } => decision(*d),
+            BooleanError::Escalated { decision: d, .. }
+            | BooleanError::CurvedPierceEscalated { decision: d, .. } => decision(*d),
             BooleanError::SpheresMeet { .. } => {
                 decision(BooleanDecision::Sphere(SphereQuestion::Nested))
             }
@@ -1070,8 +1072,9 @@ pub mod test_support {
     }
 
     /// **The section certificate's per-pair report** on the crossings
-    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
-    /// the events of the reduction `op` would run, as
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, read
+    /// as the interior-loop guard reads it over the glue door and the
+    /// reduction `op` would run (the glued pairs exempt), as
     /// `(A face, B face, outcome)`. The outcome is `Ok` with each
     /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
     /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
@@ -1093,34 +1096,60 @@ pub mod test_support {
     }
 
     /// The no-crossings path's certificates on `a` × `b` — the sphere
-    /// extent scan, then the section pass — as that path runs them
-    /// before its vertex probe, whatever the crossing layer would find.
-    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    /// extent scan, then the section pass — as that path runs them over
+    /// `op`'s glue door and reduction, whatever the crossing layer
+    /// found. `Ok` with the number of sphere re-cuts the scan asked for
+    /// and the number of refusals held for the `On` verdict (pairs the
+    /// reduction settled one carrier), which this door does not run.
     ///
     /// # Errors
     ///
-    /// Either certificate's refusal.
+    /// The glue door's and the reduction's refusals, and either
+    /// certificate's.
     pub fn no_crossings_certificates(
+        op: crate::BooleanOp,
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
-    ) -> Result<usize, crate::BooleanError> {
-        crate::boolean::no_crossings_certificates(a, b, tol)
+    ) -> Result<(usize, usize), crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(op, a, b, tol)
     }
 
     /// **The section pass's per-pair report on the no-crossings path**,
     /// spelled as [`section_report`]'s: every pair the pass examines,
-    /// with no event, as `(A face, B face, outcome)`.
+    /// read as the pass reads it over `op`'s glue door and reduction,
+    /// as `(A face, B face, outcome)`.
     ///
     /// # Errors
     ///
-    /// The box builder's own errors.
+    /// The glue door's and the reduction's refusals.
     pub fn no_crossings_section_report(
+        op: crate::BooleanOp,
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
     ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
-        Ok(crate::boolean::no_crossings_section_report(a, b, tol)?
+        Ok(crate::boolean::no_crossings_section_report(op, a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
+    /// **The section certificate as if the sweep had found nothing**,
+    /// spelled as [`section_report`]'s: every pair the no-crossings pass
+    /// would examine, no pair exempt and no event. No production path
+    /// reads it; a certificate arm's rows take it to reach the no-event
+    /// decision on a pose the crossing layer would see.
+    ///
+    /// # Errors
+    ///
+    /// The box builder's own errors.
+    pub fn no_event_section_report(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::no_event_section_report(a, b, tol)?
             .into_iter()
             .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
             .collect())
@@ -1220,7 +1249,7 @@ pub use boolean::{
     JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
     NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
-    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
     SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
@@ -1258,8 +1287,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
-    ContactVerdict, DeclaredContact, GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
+    ContactRefusal, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1273,8 +1302,8 @@ pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
 pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
-    chart_region_overlap, declared_pair_overlap,
+    CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
+    WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::ClearanceLane;
 pub use coherence::{
@@ -1354,10 +1383,10 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
-    validate, validate_closed, validate_geometric, validate_geometric_certificate,
-    validate_geometric_certificate_structural, validate_geometric_structural,
-    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, SingularityLies,
+    StaleDeclaration, Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks,
+    contact_marks_structural, validate, validate_closed, validate_geometric,
+    validate_geometric_certificate, validate_geometric_certificate_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

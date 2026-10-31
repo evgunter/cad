@@ -33,6 +33,7 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::pose::{read_directly_off, read_off_cell, read_pose};
 pub(crate) use wire::{DECISION_WORDS, EVAL_DIRECTION_NORM};
 
 pub(crate) use wire::unit as unit_direction;
@@ -1223,6 +1224,10 @@ pub(crate) mod phrase {
     pub(crate) const AXIS_POSE: &str = concat!("axis ", family_word!(pose));
     /// A plane pose ([`super::PoseValue::Plane`]).
     pub(crate) const PLANE_POSE: &str = concat!("plane ", family_word!(pose));
+    /// A profile drawn on no frame: a loft's section after the first
+    /// stands at its station in the first section's axes, and reads no
+    /// frame of its own.
+    pub(crate) const FREE_PROFILE: &str = concat!("free ", family_word!(profile));
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =
         concat!(family_word!(body), " or ", family_word!(instances));
@@ -1453,6 +1458,10 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
+    /// A profile step reading a face's trace refused (D10,
+    /// "Constructing a coincidence"; [`crate::trace`]), naming the step
+    /// and the traced face.
+    Trace(crate::trace::TraceRefusal),
     /// The extrude op refused.
     Extrude(ExtrudeError),
     /// The revolve op refused.
@@ -2069,6 +2078,7 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfileReplay { loop_, error } => {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
+            Self::Trace(refusal) => write!(f, "the profile's trace refused at {refusal}"),
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::SpaceMismatch { a, b } => write!(
                 f,
@@ -3154,6 +3164,23 @@ pub trait ProfileLane: profile_lane::Sealed {
     ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
+
+    /// **This lane's results as the nominal document's**, where this
+    /// lane is the first pass ([`Self::pass_one`]'s condition): what a
+    /// profile reading a trace resolves its first pass off
+    /// (`wire::trace`). `None` on every other scalar, which reads an
+    /// `f64` evaluation of the nominal built beside it
+    /// ([`wire::LaneEnv::nominal_results`]).
+    fn nominal_results<'r>(
+        _results: &'r BTreeMap<RecipeNodeId, NodeResult<Self>>,
+        _params: &crate::expr::VarEnv<Self>,
+        _nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>>
+    where
+        Self: Decide,
+    {
+        None
+    }
 }
 
 mod profile_lane {
@@ -3174,28 +3201,40 @@ impl ProfileLane for f64 {
         params: &crate::expr::VarEnv<f64>,
         nominal: &crate::expr::VarEnv<f64>,
     ) -> Option<&'p profile::ValidatedProfile<f64>> {
-        use crate::expr::ParamValue;
-        let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
-            (
-                ParamValue::Continuous { dim, value },
-                ParamValue::Continuous {
-                    dim: other,
-                    value: at,
-                },
-            ) => dim == other && value.to_bits() == at.to_bits(),
-            (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
-            _ => false,
-        };
-        let binds_nominal = params.bindings.len() == nominal.bindings.len()
-            && params
-                .bindings
-                .iter()
-                .zip(&nominal.bindings)
-                .all(|((v, a), (w, b))| v == w && same(a, b))
-            && params.refused == nominal.refused
-            && params.written == nominal.written;
-        binds_nominal.then_some(validated)
+        binds_nominal(params, nominal).then_some(validated)
     }
+
+    fn nominal_results<'r>(
+        results: &'r BTreeMap<RecipeNodeId, NodeResult<f64>>,
+        params: &crate::expr::VarEnv<f64>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>> {
+        binds_nominal(params, nominal).then_some(results)
+    }
+}
+
+/// Whether `params` binds every variable to `nominal`'s bits.
+fn binds_nominal(params: &crate::expr::VarEnv<f64>, nominal: &crate::expr::VarEnv<f64>) -> bool {
+    use crate::expr::ParamValue;
+    let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
+        (
+            ParamValue::Continuous { dim, value },
+            ParamValue::Continuous {
+                dim: other,
+                value: at,
+            },
+        ) => dim == other && value.to_bits() == at.to_bits(),
+        (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
+        _ => false,
+    };
+    params.bindings.len() == nominal.bindings.len()
+        && params
+            .bindings
+            .iter()
+            .zip(&nominal.bindings)
+            .all(|((v, a), (w, b))| v == w && same(a, b))
+        && params.refused == nominal.refused
+        && params.written == nominal.written
 }
 
 /// `f64` wearing a counter, and a lane of its own: its second pass
@@ -3402,6 +3441,27 @@ pub fn bound_pose<T: EvalScalar>(
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
+}
+
+/// **The faces `program` traces, read against an evaluation** as its
+/// own resolution reads them ([`wire::trace`]): each carrier in its
+/// body's coordinates, with the maps between the sketch's and the
+/// body's. Empty for a profile drawn on no frame. `program` need not be
+/// a node of `doc`: its frame and faces are read off `doc`'s variables,
+/// and the bodies they select off `ev`'s results.
+///
+/// # Errors
+///
+/// The refusal the profile would carry for its frame's or a face's
+/// read.
+pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    program: &ProfileProgram,
+    tol: Tol,
+) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
+    Ok(wire::trace::drawn(doc, &ev.nodes, program, &ev.env, tol)?
+        .map_or_else(Vec::new, |d| d.faces))
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -3614,6 +3674,34 @@ where
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
     let nominal_env = doc.var_env::<f64>();
+    // A profile reading a face's trace resolves its first pass off the
+    // nominal document's bodies (`wire::trace`), as every program
+    // expression resolves off the nominal environment: a lane that is
+    // not the nominal `f64` one reads them from an evaluation of it,
+    // built once here, its decisions its own and not this run's.
+    let nominal_ev = (doc_reads_a_trace(doc)
+        && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
+    .then(|| {
+        let nominal_opts = EvalOptions {
+            param_box: None,
+            seed: None,
+            symbols: false,
+            pin: false,
+            ..opts.clone()
+        };
+        geom_core::k_stats::detached(|| {
+            evaluate_at_descent::<f64>(
+                doc,
+                None,
+                cancel,
+                &nominal_opts,
+                None,
+                PassTwo::SkippedAtF64,
+                tol,
+            )
+        })
+        .0
+    });
     // The parts, entered before anything below reads one: handed down
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
@@ -3640,6 +3728,7 @@ where
         lane: wire::LaneEnv {
             params: &env,
             nominal: &nominal_env,
+            nominal_results: nominal_ev.as_ref().map(|ev| &ev.nodes),
             pass_two,
         },
     };
@@ -3879,6 +3968,24 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// **Whether a profile of `doc` reads a face's trace**: what needs the
+/// nominal document's bodies at a lane that is not its evaluation.
+fn doc_reads_a_trace(doc: &Doc<ProfileProgram>) -> bool {
+    doc.ids()
+        .into_iter()
+        .any(|id| matches!(doc.node(id), Some(crate::node::Node::Profile(p)) if p.reads_a_trace()))
+}
+
+/// A program's resolution refusal as the node's.
+fn resolve_refusal(fault: crate::program::ProgramResolveFault) -> NodeErrorKind {
+    match fault {
+        crate::program::ProgramResolveFault::Expr { slot, source } => {
+            NodeErrorKind::Expr { slot, source }
+        }
+        crate::program::ProgramResolveFault::Trace(refusal) => NodeErrorKind::Trace(refusal),
     }
 }
 
@@ -4157,9 +4264,41 @@ where
         // `f64`, whose lane is this pass (`ProfileLane`), and ahead of
         // the op's own replay and validation at every other scalar.
         crate::node::Node::Profile(program) => {
-            let resolved = match program.resolve(op_env.lane.nominal) {
+            // A profile drawn on a frame reads its frame and its traced
+            // faces at the lane (`wire::trace`), and its first pass reads
+            // the faces off the nominal document's evaluation. A step
+            // lowering against the pen (`crate::trace`) reads the run's
+            // tolerance and band whether the profile is drawn or not.
+            let drawn = match wire::trace::drawn(doc, results, program, env, tol) {
+                Ok(drawn) => drawn,
+                Err(kind) => return fail(bracket, kind),
+            };
+            let band = match wire::band(tol) {
+                Ok(band) => band,
+                Err(kind) => return fail(bracket, kind),
+            };
+            // The first pass reads the nominal document's bodies: this
+            // lane's own where it is that evaluation.
+            let nominal_drawn = match op_env.lane.nominal_results(results) {
+                Some(nominal) if program.reads_a_trace() => {
+                    match wire::trace::drawn(doc, nominal, program, op_env.lane.nominal, tol) {
+                        Ok(drawn) => drawn,
+                        Err(kind) => return fail(bracket, kind),
+                    }
+                }
+                _ => None,
+            };
+            let nominal_traces = crate::trace::Traces {
+                faces: nominal_drawn.as_ref().map(|d| d.faces.as_slice()),
+                records: None,
+                tol,
+                band,
+            };
+            let nominal_traces = program.runs_from_the_pen().then_some(nominal_traces);
+            let resolved = match program.resolve_with(op_env.lane.nominal, nominal_traces.as_ref())
+            {
                 Ok(r) => r,
-                Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
+                Err(fault) => return fail(bracket, resolve_refusal(fault)),
             };
             let pre = match wire::prepare_profile(&resolved, &program.ids, tol) {
                 Ok(pre) => pre,
@@ -4175,18 +4314,26 @@ where
             // seed would hit each other's memo.
             let form = match op_env.lane.pass_one(&pre) {
                 Some(first) => wire::ProfileForm::FirstPass(first.clone()),
-                None => match program.resolve(env) {
-                    Ok(r) => wire::ProfileForm::Lane(r),
-                    Err((slot, source)) => {
-                        return fail(bracket, NodeErrorKind::Expr { slot, source });
+                None => {
+                    let lane_traces = crate::trace::Traces {
+                        faces: drawn.as_ref().map(|d| d.faces.as_slice()),
+                        records: Some(&pre.structure.replay),
+                        tol,
+                        band,
+                    };
+                    let lane_traces = program.runs_from_the_pen().then_some(lane_traces);
+                    match program.resolve_with(env, lane_traces.as_ref()) {
+                        Ok(r) => wire::ProfileForm::Lane(r),
+                        Err(fault) => return fail(bracket, resolve_refusal(fault)),
                     }
-                },
+                }
             };
             wire::OpInput::Profile {
                 program,
                 resolved,
                 pre: Box::new(pre),
                 form,
+                frame: drawn.map(|d| d.frame),
             }
         }
         // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are

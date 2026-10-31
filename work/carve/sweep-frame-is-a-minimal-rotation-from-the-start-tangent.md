@@ -2,12 +2,12 @@
 id: sweep-frame-is-a-minimal-rotation-from-the-start-tangent
 kind: issue
 title: sweep_places carries each station by the minimal rotation from the START tangent, so the section spins about its tangent near anti-parallel
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: H
-design: true
 refs: [a-half-turn-spine-sweeps-only-off-its-exact-tangents]
+branch: carve/sweep-frame
 ---
 
 
@@ -79,3 +79,50 @@ refuses `PathTangentReversal` at its half-turn station, so the klein
 scene lofts its loop as a workaround (wall 9). Linked on request in
 chat. Whichever row lands the frame should close both, and the design
 question here is what the P0 waits on.
+
+## Weighed (2026-10-31): a rotation-minimizing frame by double reflection
+
+Two designers (an Opus and a Fable lane) were given the problem and no
+options. They converged in round one, so nothing went to Ev. The
+blinding is on `analysis/design-fork/carve-sweep-frame`.
+
+- **The law.** The kernel carries the author's start frame along the
+  path by parallel transport, the rotation-minimizing frame: zero twist
+  about the tangent. It is discretized station to station by double
+  reflection (Wang, Jüttler, Zheng and Liu 2008). The rotation method
+  (`turned_between` chained) was also weighed and rejected: it is only
+  second order, about 10⁵ times worse at the coil's 32 stations a turn
+  (B's measurement). It is the one kernel-owned law left: Frenet is
+  undefined on straight runs, and a fixed reference direction reads the
+  world axes, unless the user declares it, which the D10 hold forbids.
+  The author owns only the start placement, as today.
+- **Today's law is singular at one direction.** On a planar path it
+  already equals the rotation-minimizing frame, except at −t₀. So the
+  half-turn P0 (`a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
+  moved here to ride with this row) is the law's singular point, and
+  the coil's spin is its non-planar error. One cause, so both close
+  together.
+- **The pivot.** `sweep_places` turns station i about the section
+  plane's origin o, not about the path's start point p₀. The two
+  placements differ by (I − R)(o − p₀), so the body depends on where the
+  sketch origin sits. The fix pivots at p₀, and lands with this row.
+- **Refusals.** `PathTangentReversal`'s global "doubles back on the start
+  tangent" retires. The local refusal that replaces it is "the path turns
+  about a half turn between two stations", whose recourse is to add
+  stations. Coincident consecutive stations stay a refusal.
+- **v becomes the path parameter**, as PR 4193's designers asked. The
+  stations no longer spin, so chord length has nothing to absorb.
+- **Scalar lanes.** The carry is a function of the f64 path and the
+  station count alone. It is computed once in f64, and every lane
+  composes it onto the author's start plane. Station 0's motion is the
+  exact identity.
+- **Consequences to show Ev.** A helix sweep rolls its section relative
+  to the helix axis at 2π·sin α a turn, which is the physics of a rod bent
+  without twist: 0.57 rad a turn, about 196° over the tour coil's 6 turns.
+  The tour coil will visibly roll its square wire. A spring whose wire
+  keeps a face toward its axis wants a frame held to a direction, which
+  is placement vocabulary and waits on the D10 hold. On a planar closed
+  path the frame closes exactly. A non-planar closed path generally
+  does not close, and no closed sweep exists today (refuse, or spread
+  the twist: the designers differ, and that waits for the ring-sweep
+  work).

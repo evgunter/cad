@@ -561,6 +561,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             island,
         ],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, extrude) = insert(
@@ -634,6 +635,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             [len(0.0), len(1.0)],
         ])],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(

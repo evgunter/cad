@@ -391,10 +391,12 @@ pub enum TessellateError {
     /// around a sphere's pole or a cone's apex is not a face of this
     /// kernel, and on a cylinder such a loop bounds no finite face at
     /// all. The name is accordingly not `Unsupported*`, which row 2
-    /// reserves for valid input. Bodies carrying the face can pass
-    /// `topo`'s validation as it stands — the sphere member measures
-    /// its exact volume — and the Euler doors state it, which is why
-    /// this lane refuses it itself rather than lean on a door in front
+    /// reserves for valid input. Tier 3 refuses the sphere and cone
+    /// members for the pole or apex inside them
+    /// (`topo::ValidationError::ChartSingularityNotAVertex`), but the
+    /// Euler doors state them, the sphere member measures its exact
+    /// volume, and `tessellate` does not re-validate, which is why this
+    /// lane refuses the face itself rather than lean on a door in front
     /// of it. STEP import does not ship it: a file's statement of it is
     /// re-minted in the seamed form
     /// (`step_import::NormalizationKind::ChartSingularityVertex`).

@@ -9,6 +9,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Point3, Tol, Vec3};
 
 use super::{ChartMeeting, SplineFaceRefusal};
+use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
 fn band() -> Band {
@@ -207,7 +208,7 @@ fn review_r2_a_tangency_near_a_domain_end_refuses() {
             let carrier = Curve3::Nurbs(std::sync::Arc::new(piece));
             let got = read(&carrier, (lo, hi), &dome());
             eprintln!("k {k} left {keep_left}: {got:?}");
-            if !matches!(got, Err(SplineFaceRefusal::Unsettled(_))) {
+            if !matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))) {
                 bad.push((k, keep_left, format!("{got:?}")));
             }
         }
@@ -275,7 +276,7 @@ fn review_r2_a_touch_beside_an_end_on_the_charts_edge_refuses() {
             let span = power([&[0.3, -0.3, 0.0, 0.0], &[0.5, 0.0, 0.0, 0.0], &z]);
             let got = read(&span, (0.0, 1.0), &flat());
             eprintln!("A {amp} k {k}: {got:?}");
-            if !matches!(got, Err(SplineFaceRefusal::Unsettled(_))) {
+            if !matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Floor))) {
                 bad.push((amp, k, format!("{got:?}")));
             }
         }

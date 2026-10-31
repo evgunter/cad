@@ -2,11 +2,12 @@
 id: the-demos-job-is-pr-cis-long-pole-on-its-release-build
 kind: issue
 title: PR CI's median (21.8 min) is the demos job's: its release build takes 20 min and it is the last job to finish in 44 of 61 runs over 20 min
-status: open
+status: closed
 opened: 2026-10-24
 priority: P0
 cost: M
 parent: pr-ci-wall-clock-root-cause-measured
+closed: 2026-10-30
 ---
 
 ## Found (INTENT nightly triage, 2026-10-24)
@@ -156,3 +157,19 @@ less 3.3 min is about 25 min, at the `test` job's p90 (25.1). Whether
 `demos` is still the p90 tail has to be read from the PR runs after
 this lands. The kernel half of the build (8–10 min uncached) is
 untouched.
+
+## Closed (2026-10-30)
+
+Measured over ci.yml `pull_request` runs from 2026-10-29T20:09Z to 2026-10-30T11:09Z, after #6019 and #6039 (n=116, success or failure, first attempts):
+- run wall: median 14.3 min, p90 24.1;
+- by tier: closure median 14.6 / p90 19.4 (n=68); all median 24.1 / p90 25.3 (n=15); docs 6.4 (n=33);
+- test shards at the closure tier, paired (n=52): kernel 13.4 against app 12.2; kernel longer in 39;
+- `demos` when it runs: median 22.8, p90 23.7 (n=22).
+
+The nightly alarm read a median of 14.7 min on nightly 77. That is inside the 15-min bar at the median. The all tier, which builds the whole workspace, sits inside the 25-min bar `memories/orchestration-model.md` sets for a diff that seeds the deep kernel crates.
+
+`demos` still finishes last in 20 of the 22 runs where it runs, but at
+22.8 min those are all-tier runs inside their 25-min bar. Closing on
+that. A further cut has to come from the tour's `all` binary
+recompiling the scenes' generic code for `f64` (the lane's note on
+#6039), and should be filed when a run needs it.

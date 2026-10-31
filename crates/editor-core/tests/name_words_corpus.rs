@@ -670,6 +670,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
+            on: None,
         }));
         let pin = extrude(&mut r, pin, 0.5);
         let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
@@ -786,6 +787,7 @@ fn respoken_after_a_dropped_step() {
         Node::Profile(ProfileProgram {
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(

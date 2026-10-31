@@ -606,9 +606,8 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `singularity_undecided`,
-    `placement`, `instance` or
-    `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    `join`, `singularity_undecided`, `placement_map`, `placement`,
+    `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
     `recognition_ambiguous` neither forwards nor withholds. The word
@@ -1762,6 +1761,72 @@ def circle_split(
     phase: Angle,
 ) -> ClosedLoop: ...
 
+# --- a profile drawn on a frame, tracing faces --------------------------
+# A chain written in the document's own vocabulary: the document replays
+# it at every evaluation, against the traces of the faces it reads then.
+
+class TraceTarget:
+    """Where a traced chain's piece runs to, beyond a point and `Start`:
+    a crossing of a face's trace, or the point along the heading at a
+    written sketch coordinate."""
+
+    @staticmethod
+    def on_trace(face: int, passage: str, nth: int = 1) -> TraceTarget:
+        """The `nth` (from 1) crossing where the piece enters
+        (`"enter"`), or leaves (`"leave"`), the material of traced face
+        `face` (its place in the profile's `faces`). A straight piece
+        runs along its heading to it, an arc about its centre."""
+
+    @staticmethod
+    def at_x(x: _LengthArg) -> TraceTarget:
+        """The point along the heading whose sketch `x` is `x`."""
+
+    @staticmethod
+    def at_y(y: _LengthArg) -> TraceTarget:
+        """The point along the heading whose sketch `y` is `y`."""
+
+_ChainTarget: TypeAlias = TraceTarget | StartToken | tuple[_LengthArg, _LengthArg]
+
+class Chain:
+    """A chain written step by step: start it with `Chain.at`; each
+    method answers the chain with one more step. The document checks it
+    at `evaluate`."""
+
+    @staticmethod
+    def at(x: _LengthArg, y: _LengthArg) -> Chain:
+        """A chain starting at `(x, y)`."""
+
+    def angle(self, theta: _AngleArg) -> Chain:
+        """The departure as an angle from the sketch's `x`."""
+
+    def toward(self, dx: _ScalarArg, dy: _ScalarArg) -> Chain:
+        """The departure as components, their ratio read."""
+
+    def line(self, length: _LengthArg) -> Chain:
+        """A straight leg of `length` along the heading."""
+
+    def line_to(self, target: _ChainTarget) -> Chain:
+        """A straight leg to a point `(x, y)`, to `Start`, or, along a
+        director, to a `TraceTarget`."""
+
+    def continue_to(self, target: _ChainTarget) -> Chain:
+        """The straight continuation of the previous piece, to a point,
+        `Start` or a `TraceTarget`."""
+
+    def arc_about(
+        self, centre: tuple[_LengthArg, _LengthArg], winding: ArcSweep, target: _ChainTarget
+    ) -> Chain:
+        """An arc about `centre`, turning `winding`, to a point, `Start`
+        or a crossing."""
+
+    def along_trace(self, sense: str) -> Chain:
+        """The heading along the trace the previous piece ran onto:
+        `"with"` it (the face's material on the left) or `"against"`
+        it."""
+
+    def __len__(self) -> int:
+        """How many steps the chain holds."""
+
 # --- authored steps and pieces ----------------------------------------
 # A chain state's `.step` is the address of the step its verb recorded;
 # a profile binds it to the id that placement minted (`Doc.step`) and
@@ -2001,6 +2066,8 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+_MeasureRef: TypeAlias = tuple[NodeId, str] | PoseDef | Var
+
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
     two references.
@@ -2015,12 +2082,15 @@ class MeasurePrimitive:
     """
 
     @staticmethod
-    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+    def distance(a: _MeasureRef, b: _MeasureRef) -> MeasurePrimitive:
         """The distance between two referenced entities — a length.
-        Each reference names a face, an edge or a vertex (another kind
-        refuses `slot_var_kind` at insert). A carrier pair the v1
-        closed forms have no arm for refuses at `evaluate`
-        (`measure_unsupported`), naming the pair."""
+        Each reference names a face, an edge or a vertex, or is a pose:
+        a point, an axis or a plane read off a cell (`PoseDef.point`,
+        `PoseDef.axis`, `PoseDef.plane`), or a pose `Var` such as a
+        split's tool (another kind refuses `slot_var_kind` at insert).
+        Two axes read as one scalar, zero where they are one line or
+        meet. A carrier pair the v1 closed forms have no arm for refuses
+        at `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
     def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
@@ -2046,15 +2116,18 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
+    def gap(outer: _MeasureRef, inner: _MeasureRef) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
-        the containing carrier (the socket, the bore, the plane the
-        offset is measured from) and `inner` the contained one. C5's
-        formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger. Each
-        reference names a face, an edge or a vertex (a body refuses
+        the containing carrier (the plane the offset is measured from,
+        the outer of two nested faces) and `inner` the contained one,
+        authored rather than inferred from which radius is larger. Two
+        faces are read by both material sides: an opposed pair (a rod on
+        a plate, two rods side by side, a pin in a bore) reads the same
+        in either order, an aligned one (a flush pair) negates. Each
+        reference names a face, an edge or a vertex, or is a plane pose
+        (a split's tool) against a vertex (a body refuses
         `slot_var_kind` at insert). Between a face and an edge or a
         vertex, or an edge and a vertex, the higher-dimensional cell's
         material reads the other in either seat; between two edges or
@@ -2070,9 +2143,9 @@ class MeasurePrimitive:
         """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
-        """The two references, in ARGUMENT order — a gap's pair reads
-        `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[_MeasureRef, _MeasureRef]:
+        """The two references, in ARGUMENT order and as they were passed
+        — a gap's pair reads `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
@@ -2252,6 +2325,20 @@ class Node:
         halves, read by port (`doc.output(split, 0)` is the half above
         the plane's normal); a read of a half the cut left with no
         material refuses at `evaluate` (`empty_half`)."""
+
+    @staticmethod
+    def drawn_profile(
+        frame: _Operand, faces: list[tuple[_Operand, str]], outline: Chain | list[Chain]
+    ) -> Node:
+        """A profile drawn on `frame`, tracing `faces`: its chain (a
+        `Chain`, or a list of them, outer first) reads the trace of each
+        face, by its place in `faces`, in the frame's xy plane — a run
+        onto a crossing (`TraceTarget.on_trace`), a heading along the
+        trace (`Chain.along_trace`). `frame` is a frame pose of a body's
+        space and each face a `(body, name)` of that space; the profile,
+        and every sweep of it, is in that space. A step whose trace
+        refuses refuses at `evaluate` (`trace`), naming the step and the
+        face."""
 
     @staticmethod
     def mirror(body: _BodyArg, plane: _PoseRead) -> Node:
@@ -5454,6 +5541,24 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
+    def traced_frame(
+        self,
+        plane: tuple[_Operand, str],
+        traced: tuple[_Operand, str],
+    ) -> PoseDef:
+        """The frame a sketch tracing a face stands on: `Through` the
+        traced face's own axis and a vertex of the plane face `plane`,
+        square to it, its origin that vertex's foot on the axis. Each is a
+        `(body, name)` of this evaluation's document; pass the answer as
+        `Node.drawn_profile`'s `frame`. A boss swept up the axis from a
+        piece leaving the traced wall's trace along its tangent is tangent
+        to the wall by construction.
+
+        Raises `ValueError` naming why no frame reads off the two: the
+        traced face has no axis, the plane face is no plane square to it,
+        or has no vertex off the axis.
+        """
+        ...
     def face_frame(self, node: NodeId | Var, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
@@ -6612,12 +6717,15 @@ class CheckId:
     structurally by an argument the door does not yet make), an at-rest
     contact between two operands of a `⊔` included; `AtRest` reports,
     at each `⊔`, each overlap of two arrivals' material and each pair
-    its census could not look at."""
+    its census could not look at; `Unused` reports what the person made
+    and nothing uses: an operation none of whose outputs is used, and a
+    named variable nothing uses, at the tip of each dead chain."""
 
     Connectedness: Final[CheckId]
     ChartCoherence: Final[CheckId]
     UnprovenCoincidence: Final[CheckId]
     AtRest: Final[CheckId]
+    Unused: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -6659,9 +6767,9 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    Two of the knobs are `Advisory` rather than `Severity`, which is
-    DS6's waiver rule made static: neither `chart_coherence` nor
-    `unproven_coincidence` can be set to `Severity.Error`. `at_rest` is
+    Three of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: none of `chart_coherence`,
+    `unproven_coincidence` and `unused` can be set to `Severity.Error`. `at_rest` is
     a `Severity`, because an assertion quiets every interference the
     kernel can bound; at `Error`, `enforce_checks` refuses a loud
     interference and nothing else the check reports.
@@ -6679,6 +6787,7 @@ class ChecksConfig:
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
         at_rest: Severity = ...,
+        unused: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -6688,6 +6797,8 @@ class ChecksConfig:
     def unproven_coincidence(self) -> Advisory: ...
     @property
     def at_rest(self) -> Severity: ...
+    @property
+    def unused(self) -> Advisory: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -6729,6 +6840,9 @@ class CheckEvidence:
     payload) — this evaluation's decision lane has no chart-coherence
     examination, so nothing was read; do not take the silence for a
     clean body.
+
+    `unused` (no payload) — the finding's subject is used by nothing:
+    not the product, not an assertion, and nothing reads it.
 
     `unproven_coincidence` (`relation`, `site`, `reason`, the row as
     `coincidence`, and `restated`) — a node decided a coincidence of
@@ -6843,8 +6957,8 @@ class CheckFinding:
     coincidence — two copies the at-rest census found touching with no
     mate between them (`copies`), or the body a census at rest was
     taken over (`census`: a `⊔`'s output, or the body the product slot
-    reads), which every `AtRest` finding is about. Whichever it is not
-    answers `None`.
+    reads), which every `AtRest` finding is about, or a named variable
+    nothing uses (`var`). Whichever it is not answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -6880,6 +6994,10 @@ class CheckFinding:
         first, each as its placement's output and its member there (as
         `InterferenceFinding.a` spells one); `None` for any other
         subject."""
+    @property
+    def var(self) -> Var | None:
+        """The variable an `Unused` finding is about, spoken by its name;
+        `None` for any other subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     @property
