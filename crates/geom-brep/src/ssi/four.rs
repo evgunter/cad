@@ -256,6 +256,20 @@ fn krawczyk<T: CertifiedBounds>(
     krawczyk_with(pair, x, free, jac)
 }
 
+/// **The one solution on the slice of `x` held at coordinate `k`**,
+/// enclosed and narrowed ([`narrow`]), where the Krawczyk test proves
+/// exactly one there ([`krawczyk`]); `None` otherwise.
+pub(crate) fn slice_root<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    x: Box4,
+    k: usize,
+) -> Option<Box4> {
+    match krawczyk(pair, x, free_of(k))? {
+        Krawczyk::One(root) => Some(narrow(pair, (root, k))),
+        Krawczyk::None => None,
+    }
+}
+
 /// Whether the mean-value form `F(m) + J(x)·(x − m)` over the face piece
 /// `x` excludes zero along one of five fixed directions: the three
 /// coordinate axes, and each chart's normal at the piece's middle. Along
@@ -415,6 +429,7 @@ fn face_walk<T: CertifiedBounds>(
     (x, k): (Box4, usize),
     roots: &mut Vec<Box4>,
     (pieces, budget): (&mut u32, u32),
+    skip: &[Box4],
 ) -> Result<(), Option<Box4>> {
     let free = free_of(k);
     if !x.is_box() {
@@ -426,7 +441,7 @@ fn face_walk<T: CertifiedBounds>(
         if *pieces > budget {
             return Err(None);
         }
-        if pair.residual(x).iter().any(|c| sign(*c).is_some()) {
+        if pair.residual(x).iter().any(|c| sign(*c).is_some()) || covered(x, skip) {
             continue;
         }
         match krawczyk(pair, x, free) {
@@ -470,7 +485,56 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     r: Box4,
     budget: u32,
 ) -> Option<Vec<(Box4, usize, bool)>> {
-    walk_faces(pair, r, budget).ok()
+    walk_faces(pair, r, budget, &[]).ok()
+}
+
+/// [`face_roots`] outside `skip`: a piece the boxes of `skip` cover
+/// together ([`covered`]) is dropped unread, its solutions the caller's
+/// to account (the pair lane's handed-in rows and corners).
+pub(crate) fn face_roots_outside<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    r: Box4,
+    budget: u32,
+    skip: &[Box4],
+) -> Option<Vec<(Box4, usize, bool)>> {
+    walk_faces(pair, r, budget, skip).ok()
+}
+
+/// The most cuts [`covered`] takes against one box before it answers no.
+const COVER_CUTS: u32 = 64;
+
+/// **Whether the boxes of `cover` together hold `x`**, sides included:
+/// `x` inside one of them, or cut along a side of one that meets it into
+/// pieces each held. `false` past [`COVER_CUTS`] cuts, which only ever
+/// leaves a piece to be read.
+pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
+    fn go(x: Box4, cover: &[Box4], cuts: u32) -> bool {
+        if cover.iter().any(|c| x.contained_in(*c)) {
+            return true;
+        }
+        if cuts == 0 {
+            return false;
+        }
+        // A box that meets `x` with a side strictly inside it: cut there.
+        for c in cover {
+            if x.meet(*c).is_none() {
+                continue;
+            }
+            for k in 0..4 {
+                let (lo, hi) = x.0[k];
+                for cut in [c.0[k].0, c.0[k].1] {
+                    if lo < cut && cut < hi {
+                        let (mut l, mut h) = (x, x);
+                        l.0[k] = (lo, cut);
+                        h.0[k] = (cut, hi);
+                        return go(l, cover, cuts - 1) && go(h, cover, cuts - 1);
+                    }
+                }
+            }
+        }
+        false
+    }
+    go(x, cover, COVER_CUTS)
 }
 
 /// [`face_roots`], with the piece its walk stopped in where it stopped
@@ -479,6 +543,7 @@ fn walk_faces<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     r: Box4,
     budget: u32,
+    skip: &[Box4],
 ) -> Result<Vec<(Box4, usize, bool)>, Option<Box4>> {
     let mut out = Vec::new();
     let mut pieces = 0u32;
@@ -490,6 +555,7 @@ fn walk_faces<T: CertifiedBounds>(
                 (r.holding(k, c), k),
                 &mut roots,
                 (&mut pieces, budget),
+                skip,
             )?;
             out.extend(roots.into_iter().map(|q| (q, k, high)));
         }
@@ -551,6 +617,7 @@ fn reaches_end<T: CertifiedBounds>(
         (r.holding(k, c), k),
         &mut on_slice,
         (&mut 0, PAIR_EXIT_PIECES),
+        &[],
     )
     .ok();
     if !on_slice.is_empty() {
@@ -643,7 +710,7 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
         .ok_or(Shortfall::Undecided)?;
     let mut roots = Vec::with_capacity(cut.len());
     for (i, r) in cut.iter().enumerate() {
-        match walk_faces(pair, *r, PAIR_EXIT_PIECES) {
+        match walk_faces(pair, *r, PAIR_EXIT_PIECES, &[]) {
             Ok(v) if v.len() == 2 => roots.push(v),
             #[allow(clippy::cast_possible_truncation)]
             Ok(v) => return Err(Shortfall::Count(v.len() as u32)),
@@ -855,10 +922,29 @@ pub(crate) enum RowCrossing {
 /// of no width would read its whole cell); elsewhere it is read as it
 /// stands, a sound and looser reading.
 pub(crate) fn row_crossing<T: CertifiedBounds>(
-    (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
-    (t0, t1): (f64, f64),
+    walls: (&NurbsSurface<T>, &NurbsSurface<T>),
+    span: (f64, f64),
     read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
 ) -> Result<RowCrossing, RowUnreadable> {
+    row_cover(walls, span, [0.0; 4], read).map(|(crossing, _)| crossing)
+}
+
+/// **[`row_crossing`] at a width**, with the boxes it read: each piece's
+/// box widened by `width[k]` on both sides of coordinate `k`, cut to the
+/// domain (so a coordinate held at a domain end widens into the domain
+/// alone). A coordinate of no width is read as [`row_crossing`] reads it.
+/// The boxes are returned in the order read, every piece's, whether or
+/// not it read a sign.
+///
+/// The argument of [`row_crossing`] holds over each widened box: a
+/// zero-free margin across `e` makes the solutions in it a graph over
+/// `e`, one at most in each slice square to `e`.
+pub(crate) fn row_cover<T: CertifiedBounds>(
+    (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
+    (t0, t1): (f64, f64),
+    width: [f64; 4],
+    read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
+) -> Result<(RowCrossing, Vec<Box4>), RowUnreadable> {
     let ca = super::ChartedNurbs::mint(a).map_err(|e| unreadable(0, e))?;
     let cb = super::ChartedNurbs::mint(b).map_err(|e| unreadable(1, e))?;
     let (sa, sb) = (ca.speeds(), cb.speeds());
@@ -880,7 +966,9 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
         let x = Box4(core::array::from_fn(|k| {
             let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
             let w = (d1 - d0) * ROW_SLIVER;
-            if l < h {
+            if width[k] > 0.0 {
+                ((l - width[k]).max(d0), (h + width[k]).min(d1))
+            } else if l < h {
                 (l, h)
             } else if l == d0 {
                 (l, (l + w).max(l.next_up()))
@@ -920,12 +1008,27 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
                 pieces[i..=j].iter().fold(pieces[i].1, |h, p| h.hull(p.1)),
             )
     });
-    Ok(if turns {
+    let crossing = if turns {
         RowCrossing::Turns
     } else if pieces.iter().any(|p| p.2.is_none()) {
         RowCrossing::Unread
     } else {
         RowCrossing::Clear(least)
+    };
+    Ok((crossing, pieces.into_iter().map(|p| p.1).collect()))
+}
+
+/// **The section's direction over a corner cell `x`**: per coordinate
+/// `k`, the enclosure of the generalized cross product's `k`th
+/// component ([`graph_margin`] across the unit axis `k`), whose sign is
+/// the sign of `dx_k` along the section, oriented as the cross product
+/// orients it, at every solution in `x`.
+pub(crate) fn direction_over<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, x: Box4) -> [Interval; 4] {
+    let j = pair.jacobian_closed(x);
+    core::array::from_fn(|k| {
+        let mut e = [0.0; 4];
+        e[k] = 1.0;
+        margin_of(pair, j, e)
     })
 }
 

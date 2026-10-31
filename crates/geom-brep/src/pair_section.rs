@@ -97,6 +97,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 pub mod cylinders;
 pub mod gap;
 pub mod plane_spline;
+pub mod spline_pair;
 pub mod torus;
 mod torus_arms;
 pub mod torus_coincidence;
@@ -105,6 +106,7 @@ pub mod winds;
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use plane_spline::PlaneSplinePose;
+pub use spline_pair::{KnownRow, SplinePairPose};
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
@@ -809,6 +811,8 @@ pub enum PairPose<T: Real> {
     CylinderCylinder(CylinderCylinderPose<T>),
     /// A plane and a spline wall.
     PlaneSpline(Box<PlaneSplinePose<T>>),
+    /// Two spline walls.
+    SplinePair(Box<SplinePairPose<T>>),
 }
 
 impl<T: Real> PairPose<T> {
@@ -820,7 +824,8 @@ impl<T: Real> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::CylinderCylinder(_)
-            | Self::PlaneSpline(_) => None,
+            | Self::PlaneSpline(_)
+            | Self::SplinePair(_) => None,
         }
     }
 }
@@ -835,6 +840,7 @@ impl<T: Decide> PairPose<T> {
             Self::TorusTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
             Self::PlaneSpline(p) => p.operands(),
+            Self::SplinePair(p) => p.operands(),
         }
     }
 
@@ -857,6 +863,7 @@ impl<T: Decide> PairPose<T> {
             Self::TorusTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.ball(),
             Self::PlaneSpline(p) => p.ball(),
+            Self::SplinePair(p) => p.ball(),
         }
     }
 
@@ -869,7 +876,8 @@ impl<T: Decide> PairPose<T> {
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
-            | Self::PlaneSpline(_) => false,
+            | Self::PlaneSpline(_)
+            | Self::SplinePair(_) => false,
         }
     }
 }
@@ -989,16 +997,37 @@ pub fn pair_section<T: Decide>(
         (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => {
             plane_spline::classified(a, b, lane, band).map(SectionRead::Built)
         }
+        (Nurbs | Approx, Nurbs | Approx) => {
+            spline_pair::classified(a, b, (Vec::new(), Vec::new()), lane, band)
+                .map(SectionRead::Built)
+        }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
         | (Cylinder, Plane | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
         | (Torus, Plane | Cone | Nurbs | Approx)
-        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx) => {
+        | (Nurbs | Approx, Cylinder | Cone | Sphere | Torus) => {
             Ok(SectionRead::Elsewhere(route(ka, kb)))
         }
     }
+}
+
+/// **[`pair_section`] of two spline walls with rows and corners handed in
+/// as known** ([`spline_pair`], [`crate::ssi::Section::with_known`]), each
+/// in the order `a`, `b`: the door the interior-loop guard reads a pair
+/// of spline faces through, the rows and vertices they share handed in.
+///
+/// # Errors
+///
+/// As [`pair_section`] on two spline walls.
+pub fn spline_pair_section<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    known: (Vec<spline_pair::KnownRow<T>>, Vec<crate::ssi::PairCorner>),
+    lane: Option<SsiLane<T>>,
+    band: Band,
+) -> Result<PairSection<T>, SectionError> {
+    spline_pair::classified(a, b, known, lane, band)
 }
 
 /// **Whether the value builds, by classification, the section of some
@@ -1493,6 +1522,8 @@ pub struct SsiLane<T: Real> {
     /// A plane and a spline wall's section read whole, on the pass its
     /// classification carried.
     whole: fn(&PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    /// Two spline walls' section, read whole ([`spline_pair`]).
+    pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
 }
 
 /// What one seating answers: the component opened at the parameter
@@ -1511,6 +1542,7 @@ impl SsiLane<f64> {
             seat: seat_at,
             spline: plane_spline::section,
             whole: plane_spline::whole,
+            pair: spline_pair::section,
         }
     }
 }
@@ -1536,6 +1568,9 @@ fn march_over_the_ball(
         // none is carried.
         PairPose::PlaneSpline(_) => {
             return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+        }
+        PairPose::SplinePair(_) => {
+            return Err(CarryError::Unminted(spline_pair::UNCARRIED));
         }
     }
     .map_err(CarryError::March)?;
@@ -1614,8 +1649,10 @@ fn seat_at(
     at: f64,
     band: Band,
 ) -> Result<CarriedComponent<f64>, CarryError> {
-    if let PairPose::PlaneSpline(_) = pose {
-        return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+    match pose {
+        PairPose::PlaneSpline(_) => return Err(CarryError::Unminted(plane_spline::UNCARRIED)),
+        PairPose::SplinePair(_) => return Err(CarryError::Unminted(spline_pair::UNCARRIED)),
+        _ => {}
     }
     let Curve3::Nurbs(net) = &component.carrier else {
         return Err(CarryError::Desync(

@@ -243,7 +243,7 @@ impl<T: Real> SharedRow<T> {
 /// (the only way an arc-rim image is stated or certified), its chart
 /// parameter increasing with the carrier's with a positive derivative on
 /// every sub-arc ([`Pcurve::IsoArc`]'s map).
-fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
+pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     let zero = |x: T| geom_core::is_exact_zero(x);
     match image {
         Pcurve::IsoLine { p0, pl } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),

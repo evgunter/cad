@@ -731,12 +731,46 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 
 /// **The classifier: two carriers in, the section's components out.**
 /// Pure: surfaces, the pair's reach (module docs) and the band.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: Reach<T>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
+) -> Section<T> {
+    classify_known(f, g, reach, lane, band, Known::default())
+}
+
+/// **What the boolean hands a spline pair's reading as known**: the rows
+/// and vertices the two faces share, each in the order `[F, G]`
+/// ([`geom_brep::spline_pair_section`]).
+#[derive(Clone, Debug)]
+pub(crate) struct Known<T: Real> {
+    /// The shared rows.
+    pub rows: Vec<geom_brep::KnownRow<T>>,
+    /// The shared corners.
+    pub corners: Vec<geom_brep::ssi::PairCorner>,
+}
+
+impl<T: Real> Default for Known<T> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            corners: Vec::new(),
+        }
+    }
+}
+
+/// [`classify`] with what the boolean knows of a spline pair handed in
+/// (`known`, read by the spline pair's arm alone).
+pub(crate) fn classify_known<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    reach: Reach<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+    known: Known<T>,
 ) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
@@ -800,8 +834,29 @@ pub(crate) fn classify<T: Decide>(
         ) => sphere_sphere(c1, r1, c2, r2, band),
         (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
         | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
+            spline_pair(f, g, known, lane, band)
+        }
         _ => Section::Intractable,
     }
+}
+
+/// **Two spline faces, read whole** ([`geom_brep::spline_pair_section`]
+/// through `lane`, module docs): C3's reading of the pair with the rows
+/// and corners the faces share handed in, its components listed (a closed
+/// branch a loop with its witness; an open branch, a `Side` region and a
+/// `Corner` region reaching the sides they end on, cleared by W1′ where
+/// one bounds its face), its refusals mapped by name. With no lane it is
+/// R-lane.
+fn spline_pair<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    known: Known<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+) -> Section<T> {
+    let read = geom_brep::spline_pair_section(f, g, (known.rows, known.corners), lane, band);
+    of_pair_section(&read, band, |_| Section::Unmarched)
 }
 
 /// **A spline face against a plane, read off the pair's
@@ -2129,6 +2184,9 @@ pub(super) mod section_cert_rows;
 #[cfg(test)]
 #[path = "section_cert_spline_rows.rs"]
 mod section_cert_spline_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_pair_rows.rs"]
+mod section_cert_spline_pair_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;

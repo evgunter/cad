@@ -1017,7 +1017,7 @@ fn half_edge_curve<T: Real>(
 ///
 /// [`half_edge_curve`]'s.
 #[track_caller]
-fn half_edge_carrier<T: Decide>(
+pub(crate) fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<(geom::Curve3<T>, T, T), PcurveMintError> {

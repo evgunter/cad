@@ -125,7 +125,7 @@ mod handle;
 pub mod jet;
 pub mod march;
 mod one_arc;
-mod pair;
+pub(crate) mod pair;
 mod plane;
 mod refine;
 pub mod section;
@@ -160,7 +160,7 @@ pub use march::{
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
-pub use pair::Section;
+pub use pair::{COVER_FLOOR_CELLS, PairCorner, PairReading, PairRegion, PairRow, Section};
 pub use plane::{PlaneSection, SectionReading};
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
@@ -738,6 +738,10 @@ pub enum SsiError {
         /// The face pieces the walk examined.
         pieces: u32,
     },
+    /// A row of both charts handed to the NURBS × NURBS lane as known
+    /// reads the two walls' tangent planes coinciding at a state of it:
+    /// the section is tangent there, and the row's cover proves nothing.
+    PairRowTangent,
     /// The branch [`Section::branch_at`] traced and certified from a
     /// seed does not hold the settled seed in its uniqueness tube, so
     /// the tube proves nothing about which branch the seed is on.
@@ -1255,6 +1259,11 @@ impl core::fmt::Display for SsiError {
                  rectangle within {pieces} pieces: the section touches or runs along a side, or \
                  passes through a corner"
             ),
+            Self::PairRowTangent => write!(
+                f,
+                "ssi: the two walls are tangent at a point of the row they share: their crossing \
+                 reading changes sign along it"
+            ),
             Self::SeedOutsideTube { state } => write!(
                 f,
                 "ssi: the branch certified from the seed settled at {state:?} does not hold it \
@@ -1320,6 +1329,7 @@ impl SsiError {
             Self::TransversalityBand { .. } => Some("ssi_transversality"),
             Self::BoundaryGraze { verdict, .. } => Some(named(verdict, "ssi_boundary_crossing")),
             Self::BoundaryTangent { verdict, .. } => Some(named(verdict, "ssi_boundary_strip")),
+            Self::PairRowTangent => Some("ssi_pair_row"),
             _ => None,
         }
     }
@@ -1602,7 +1612,9 @@ impl SsiError {
             }
             // A wall that validated re-wraps every boundary row.
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
-            Self::PairBoundaryUnresolved { .. } => PAIR_BOUNDARY_RECOURSE.to_owned(),
+            Self::PairBoundaryUnresolved { .. } | Self::PairRowTangent => {
+                PAIR_BOUNDARY_RECOURSE.to_owned()
+            }
             Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
@@ -4579,6 +4591,7 @@ mod ending_tests {
             SsiError::RadiusNotPositive { .. } => 45,
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
+            SsiError::PairRowTangent => 48,
         }
     }
 
@@ -5056,6 +5069,7 @@ mod ending_tests {
                 "pair boundary",
                 SsiError::PairBoundaryUnresolved { pieces: 262_144 },
             ),
+            ("pair row tangent", SsiError::PairRowTangent),
             (
                 "seed outside tube",
                 SsiError::SeedOutsideTube {
