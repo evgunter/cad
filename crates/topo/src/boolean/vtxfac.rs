@@ -1457,14 +1457,21 @@ pub(super) fn ring_groups<T: Decide>(
 }
 
 /// **A lone ring vertex at `p` inside `face`** (Delta 3's first two
-/// steps): a chord strut from the outer loop's anchor to `p`, a
-/// certified line edge, then `kemr`, which detaches it as an empty-loop
-/// ring holding the new vertex alone. Returns the vertex and its ring.
+/// steps), struck from the outer loop's anchor. Returns the vertex and
+/// its ring.
+///
+/// On a spline chart, [`Body::ring_vertex`] mints it with the face's
+/// rows standing as found. On any other chart, a chord strut `mev`, a
+/// certified line edge, then `kemr`. The strut's site mint leaves the
+/// face complete, or rowless where the chord does not certify against
+/// a curved chart, and the keys-only re-parenting doors the join runs
+/// later read a rowless face as one they owe nothing
+/// (`work/splice/a-ring-vertex-in-a-curved-analytic-face-clears-its-rows`).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] where the face's outer loop
-/// is no cycle; the Euler operators' refusals.
+/// is no cycle; [`Body::ring_vertex`]'s refusals.
 pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: crate::entity::FaceKey,
@@ -1485,6 +1492,13 @@ pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
             what: "a face a ring vertex is minted in has no outer cycle",
         });
     };
+    if body
+        .face_surface_linked(face, face_data)
+        .spline_chart()
+        .is_some()
+    {
+        return Ok(body.ring_vertex(anchor, p, tol)?);
+    }
     let u = linked(
         &body.half_edges,
         anchor,

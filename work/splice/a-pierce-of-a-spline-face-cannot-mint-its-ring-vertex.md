@@ -2,10 +2,13 @@
 id: a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex
 kind: issue
 title: A pierce of a spline face refuses PcurveMint SplineChart at Delta 3: ring_vertex_in mints its chord strut into the complete spline face with mev, which writes no spline row
-status: open
+status: closed
 opened: 2026-10-31
+closed: 2026-10-31
 priority: P1
 cost: M
+pr: 6166
+branch: splice/spline-ring-vertex-mint
 ---
 
 
@@ -48,3 +51,25 @@ Then comes whatever the ring and its struts read next on a spline face.
 The NURBS × torus section (SECTARMS
 `a-nurbs-face-against-a-torus-has-no-section-arm`) still stands behind
 it.
+
+## Closed
+
+- 2026-10-31 — Review tier: single FULL. On a spline chart,
+  `boolean::vtxfac::ring_vertex_in` mints the ring through
+  `Body::ring_vertex`, which fuses the chord strut's `mev` with its
+  `kemr`. The pair's net delta adds no half-edge to any loop, so no row
+  is owed: the face's rows stand as found, and the joint into the anchor
+  keeps its element. The same path serves the fate pass's touch ring
+  (`boolean::fate`). Every other chart keeps the chord strut, whose
+  clear of a curved analytic face the join's keys-only doors rely on
+  (`a-ring-vertex-in-a-curved-analytic-face-clears-its-rows`). Witnessed
+  by `vtxfac_spline_rows`'
+  `a_ring_vertex_in_a_nurbs_wall_leaves_it_minted_in_either_sense` and
+  `a_ring_vertex_in_a_cylinder_wall_goes_through_the_struts_site_mint`.
+  The kernel row for the pipeline is `sweep`'s
+  `a_vertex_piercing_a_lens_wall`, which refused this row's
+  `PcurveMint { SplineChart }` before and now stops at the plane × NURBS
+  germ frame (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`).
+  Lily wall 8 moves on, at 1e-9 and 1e-6 alike, to the plane × torus
+  spiric germ section of the stem's torus wall against the leaf's
+  lower cap (`work/sectsite/c5-plane-torus-cone-cylinder-arms`).

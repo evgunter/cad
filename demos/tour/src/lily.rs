@@ -159,8 +159,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, EulerOpError, Operand,
-    PairRefusalSite, SiteRowRefusal,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
+    SpiricLoops,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2457,13 +2457,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    tube's torus wall through the curve × face table's ring
     //    composite, and gets past them. A vertex of the stem, operand A,
     //    pierces the first of the leaf's two NURBS walls, at (−0.061, 0,
-    //    0.105), and the vertex-on-face pass reads the wall's outward
-    //    normal at the chart point the sweep placed the pierce at. The
-    //    pierce crosses the wall, so the pass mints its ring there, and
-    //    that refuses: the ring vertex's chord strut is a new edge in a
-    //    complete spline face, whose row the Euler operators cannot derive
-    //    (`PcurveMint { SplineChart }`). The same wall at 1e-9 and 1e-6
-    //    (`work/splice/a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`).
+    //    0.105). The vertex-on-face pass reads the wall's outward normal
+    //    at the chart point the sweep placed the pierce at, and mints the
+    //    pierce's ring there with the wall's rows standing as found.
+    //    The join then frames the germ pair of the stem's torus wall (A)
+    //    against the leaf's planar cap (B), the cap the tube crosses in
+    //    two chords. That plane is tilted against the torus's axis, so it
+    //    cuts a general spiric quartic whose loops wind round the tube,
+    //    and C5 routes that section to its unbuilt general rung
+    //    (`work/sectsite/c5-plane-torus-cone-cylinder-arms`). It refuses
+    //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
     //    declared frontier stands the lily walls down before this one.
@@ -2473,15 +2476,20 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            let first_wall = query::all_faces(leaf_a)
-                .into_iter()
-                .find(|&f| query::face_surface_kind(leaf_a, f) == Some(SurfaceKind::Nurbs));
             matches!(
                 e,
-                BooleanError::Euler(EulerOpError::PcurveMint {
-                    face,
-                    refusal: SiteRowRefusal::SplineChart,
-                }) if Some(*face) == first_wall
+                BooleanError::GermSectionSpiric {
+                    a_face,
+                    a_kind: SurfaceKind::Torus,
+                    b_face,
+                    b_kind: SurfaceKind::Plane,
+                    loops: SpiricLoops::AroundTube,
+                    section: pncad::geom_brep::SectionError::RoutesToGeneralRung {
+                        pair: "plane×torus",
+                        ..
+                    },
+                } if query::face_surface_kind(stem, *a_face) == Some(SurfaceKind::Torus)
+                    && query::face_surface_kind(leaf_a, *b_face) == Some(SurfaceKind::Plane)
             )
         },
         "join the long leaf to the stem it grows from",

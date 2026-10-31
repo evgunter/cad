@@ -2268,6 +2268,85 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
+    /// **A lone vertex at `point`, as a new empty ring of the face
+    /// `anchor`'s loop is on.** Not an Euler operator: `mev` then `kemr`
+    /// with the chord's rows never minted. It runs `mev` of a line strut
+    /// from `start(anchor)` to `point` at [`MevSite::Fan`]
+    /// `{ anchor, anchor }`, with that operator's own preconditions,
+    /// surgery, minting order and arena delta, then [`Body::kemr`] of the
+    /// strut, which detaches its tip as an `Empty` ring. It returns the
+    /// vertex and the ring.
+    ///
+    /// The pcurve rows are planned once, for the net result (C4: a
+    /// topology door may drop rows mid-surgery). The pair adds no
+    /// half-edge to any loop and changes no carrier, so no row is owed
+    /// on any chart. The face's rows stand as found, and the joint into
+    /// `anchor` keeps its element, which the strut's link would drop and
+    /// `kemr`'s sum would not restore. So a complete spline face takes a
+    /// ring here where a bare `mev` refuses
+    /// [`crate::pcurves::SiteRowRefusal::SplineChart`].
+    ///
+    /// Atomic: every refusal (the fan's, and the strut's certification)
+    /// precedes the mutation, and `kemr` of a certified strut that is
+    /// alone in its own loop has none of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::mev`](crate::construction::Construct::mev)'s structural and certification refusals.
+    pub(crate) fn ring_vertex(
+        &mut self,
+        anchor: HalfEdgeKey,
+        point: Point3<T>,
+        tol: Tol,
+    ) -> Result<(VertexKey, LoopKey), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.mev_fan_plan(anchor, anchor)?;
+        let p_old = self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(anchor), "start"));
+        let faces =
+            [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
+        let certified = self.certify_edge_spec(
+            Origin::Callers,
+            None,
+            EdgeCurveSpec::line_between(p_old, point),
+            p_old,
+            point,
+            faces,
+            tol,
+        )?;
+        self.certify_rebased_run(&plan.run, point, tol)?;
+        let element = self.joint(anchor);
+        // ---- Mutation (infallible from here on). ----
+        let point_key = self.add_point(point);
+        let strut = self.mev_fan_execute(
+            plan,
+            point_key,
+            MevCurveMint::Certified(certified),
+            Vec::new(),
+            Provenance::Mev {
+                site: MevSite::Fan {
+                    he1: anchor,
+                    he2: anchor,
+                },
+            },
+        );
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEV, "ring_vertex's mev");
+        let killed = self
+            .kemr(strut.he_plus, strut.he_minus)
+            .unwrap_or_else(|e| {
+                unreachable!(
+                    "kemr of the strut `mev` just put alone at {anchor:?} refused: {e:?}; its \
+                     halves are mates on one loop, and a certified edge's kill owes no row"
+                )
+            });
+        self.write_joint(anchor, element);
+        Ok((strut.vertex, killed.ring))
+    }
+
     /// The door [`Construct::mef`](crate::construction::Construct::mef) forwards to;
     /// documented there.
     pub(crate) fn mef(
