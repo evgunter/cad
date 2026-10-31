@@ -6970,7 +6970,8 @@ mod presentation_rows {
     /// **The wall's closed form encloses the separator along the face's
     /// image of its chart curve** ([`WallImage::psi`]): on a torus whose
     /// radii drift from the carrier's, a wall wound backward on the
-    /// mirror torus a turn on, against tilted planes, `ψ` over a piece
+    /// mirror torus, its minor angle off a whole turn (so `sin v0`
+    /// weighs its height term), against tilted planes, `ψ` over a piece
     /// of parameters meets `ψ` at points of it evaluated through the
     /// surface. Red if any coefficient, the drift's included, is
     /// dropped or mis-signed.
@@ -6985,7 +6986,7 @@ mod presentation_rows {
         };
         let w = Wall {
             u0: iv0(0.7),
-            v0: iv0(TURN),
+            v0: iv0(TURN + 0.4),
             sigma: -1.0,
             kappa: 1.0,
             major: iv0(2.0),
