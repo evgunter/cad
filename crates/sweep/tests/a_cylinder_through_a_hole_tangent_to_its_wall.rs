@@ -25,9 +25,13 @@
 //! face, not along the rim, which leaves the cylinder's wall
 //! (`boolean::sectors`'s `closed_on_partner`).
 //!
-//! With the cylinder's vertex alone at the ruling, its wrap edge lies
-//! along the hole's wall from the top face to the bottom: the op that
-//! keeps both walls would part the hole's wall along it, and refuses
+//! With the hole's vertex alone at the ruling, it pierces the cylinder's
+//! wall there, and its rim, closed at the vertex, is read the same way
+//! against the wall (the vertex-on-face pass's germs).
+//!
+//! With either vertex alone at the ruling, that operand's wrap edge lies
+//! along the other's wall from the top face to the bottom: the op that
+//! keeps both walls would part the other's wall along it, and refuses
 //! `EdgeInFace` with the `CurvedFace` gap, a slit in a curved face that
 //! the chart walk does not mesh nor the curved mass properties measure.
 //!
@@ -110,6 +114,9 @@ enum Vertices {
     /// Both rims one segment, the cylinder's vertex on the ruling and
     /// the hole's opposite it.
     CylindersAlone,
+    /// Both rims one segment, the hole's vertex on the ruling and the
+    /// cylinder's at azimuth 1.
+    HolesAlone,
     /// Both rims two arcs, a vertex of each on the ruling.
     TwoArcs,
 }
@@ -151,16 +158,17 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
     } else {
         (0.3 + hr, PI)
     };
-    let (one, hole_az) = match vertices {
-        Vertices::BothThere => (true, hole_at),
-        Vertices::CylindersAlone => (true, hole_at + PI),
-        Vertices::TwoArcs => (false, hole_at),
+    let (one, hole_az, cylinder_az) = match vertices {
+        Vertices::BothThere => (true, hole_at, 0.0),
+        Vertices::CylindersAlone => (true, hole_at + PI, 0.0),
+        Vertices::HolesAlone => (true, hole_at, 1.0),
+        Vertices::TwoArcs => (false, hole_at, 0.0),
     };
     let what = format!(
         "hole r = {hr} {}, {vertices:?}",
         if inside { "inside" } else { "outside" }
     );
-    let cylinder = extruded(vec![rim(one, 0.0, 0.3, 0.0)], -1.0, 2.0, turn);
+    let cylinder = extruded(vec![rim(one, 0.0, 0.3, cylinder_az)], -1.0, 2.0, turn);
     let plate = extruded(vec![square(), rim(one, hx, hr, hole_az)], -0.5, 0.5, turn);
     let hole = PI * hr * hr;
     let va = 0.09 * PI * 2.0;
@@ -173,16 +181,17 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
     for (op, r, want) in every_op_both_orders(&cylinder, &plate, (va, vb, vab), tol()) {
         // The op that keeps the cylinder's wall along the hole's.
         let both_walls = matches!((inside, op), (false, "B ∖ A") | (true, "A ∩ B" | "B ∩ A"));
-        let slit = both_walls && matches!(vertices, Vertices::CylindersAlone);
+        let slit =
+            both_walls && matches!(vertices, Vertices::CylindersAlone | Vertices::HolesAlone);
         holds(&format!("{what}: {op}"), r, want, slit);
     }
 }
 
 /// **By pose, at rest**: holes `r = 0.1` and `0.15`, outside the wall
-/// and inside it, both vertices on the ruling, the cylinder's alone, and
-/// the two-arc form. Each op builds at its closed form, but, with the
-/// cylinder's vertex alone there, the op keeping both walls, which
-/// refuses the slit its wrap edge would leave in the hole's wall.
+/// and inside it, both vertices on the ruling, the cylinder's alone, the
+/// hole's alone, and the two-arc form. Each op builds at its closed form, but, with the
+/// vertex of one alone there, the op keeping both walls, which refuses
+/// the slit its wrap edge would leave in the other's wall.
 #[test]
 fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
     let rest = Affine3::identity();
@@ -191,6 +200,7 @@ fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
             for vertices in [
                 Vertices::BothThere,
                 Vertices::CylindersAlone,
+                Vertices::HolesAlone,
                 Vertices::TwoArcs,
             ] {
                 through(hr, inside, vertices, &rest);
@@ -205,7 +215,11 @@ fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
 fn a_cylinder_through_a_hole_tangent_to_its_wall_turned() {
     let turn = torax_pose();
     for inside in [false, true] {
-        for vertices in [Vertices::BothThere, Vertices::CylindersAlone] {
+        for vertices in [
+            Vertices::BothThere,
+            Vertices::CylindersAlone,
+            Vertices::HolesAlone,
+        ] {
             through(0.1, inside, vertices, &turn);
         }
     }
