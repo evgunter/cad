@@ -77,10 +77,10 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_germ_frame() {
     );
     // Counterclockwise seen from the apex, at `−x` of the base.
     let base = [
-        [p.x + 0.05, p.y - 0.02, p.z + 0.05],
-        [p.x + 0.05, p.y + 0.02, p.z + 0.05],
-        [p.x + 0.05, p.y + 0.02, p.z - 0.01],
-        [p.x + 0.05, p.y - 0.02, p.z - 0.01],
+        [p.x + 0.15, p.y - 0.06, p.z + 0.15],
+        [p.x + 0.15, p.y + 0.06, p.z + 0.15],
+        [p.x + 0.15, p.y + 0.06, p.z - 0.05],
+        [p.x + 0.15, p.y - 0.06, p.z - 0.05],
     ];
     let pose = topo::test_support::meeting::Pose::rest();
     let pyr =
