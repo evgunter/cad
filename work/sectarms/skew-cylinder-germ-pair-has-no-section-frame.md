@@ -7,6 +7,7 @@ opened: 2026-10-04
 priority: P1
 cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
+pr: 6139
 branch: sectarms/cylinder-pair-on-the-value
 ---
 
