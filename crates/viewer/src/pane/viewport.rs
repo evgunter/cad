@@ -1248,8 +1248,9 @@ mod tests {
         Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("the plate frames")
     }
 
-    /// The re-frame `fit_on_scene` books when a document lands — the
-    /// operation the viewport folds and lands on that very frame.
+    /// The re-frame `DocumentDerived::fit_camera` books when a document
+    /// lands — the operation the viewport folds and lands on that very
+    /// frame.
     fn the_re_frame_an_open_books() -> CameraOp {
         CameraOp::Frame {
             extent: Some(scene::plate_bounds()),
