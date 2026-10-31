@@ -141,8 +141,9 @@ save the store can serve. Two acts, both typed:
 
 *Built at the workspace door, `crates/pncad/src/workspace.rs`:
 `Workspace::save_at`, refusing `WorkspaceError::SaveWouldDuplicateId { id,
-existing, requested }`, and `Workspace::save_as_new_document`, with a random
-id.*
+existing, requested }` (and `SaveWouldReplaceDocument { id, path }` for a
+target holding another document), and `Workspace::save_as_new_document`,
+with a random id at the chosen target.*
 
 ## DI5 — A free-move frame belongs to the space it was drawn for
 
